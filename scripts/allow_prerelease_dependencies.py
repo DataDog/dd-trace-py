@@ -23,8 +23,10 @@ def _add_prerelease_marker(dependency_specifier: str) -> str:
     "opentelemetry-api>=1,<2rc99"
     >>> _add_prerelease_marker('wrapt>=1,<3')
     "wrapt>=1,<3rc99"
+    >>> _add_prerelease_marker('ddtrace-internal==0.0.0')
+    "ddtrace-internal==0.0.0"
     """
-    if re.search(CONTAINS_PRERELEASE, dependency_specifier):
+    if re.search(CONTAINS_PRERELEASE, dependency_specifier) or "==" in dependency_specifier:
         return dependency_specifier
     dependency_parts: list[str] = dependency_specifier.split(";")
     version_bounds: list[str] = dependency_parts[0].split(",")
@@ -63,12 +65,12 @@ def update_dependencies_to_allow_prereleases():
     """
     Updates the pyproject.toml file in-place, adding pre-release markers like "rc0"
     to the libraries listed in the `dependencies` block. Combined with the `PIP_PRE`
-    environment variable configuration, this tells pip, and thus riot, to include
+    environment variable configuration, this tells the test resolver to include
     pre-release versions of dependencies in its package search.
     """
     updated_specifiers: list[str] = []
 
-    with open(PROJECT_FILENAME, "r") as f:
+    with open(PROJECT_FILENAME) as f:
         project_file_lines: list[str] = f.readlines()
 
     with open(PROJECT_FILENAME, "rb") as f:

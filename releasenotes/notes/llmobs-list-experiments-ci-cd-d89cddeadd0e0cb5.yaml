@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Adds ``LLMObs.list_experiments()`` to query experiments by logical
+    name, metadata containment (e.g. ``{"tags": ["git.commit.sha:abc123"]}``).
+    Returns run status and aggregate data (evals, token costs, error rates), so
+    CI/CD workflows can compare a run against a baseline commit and gate on the result.

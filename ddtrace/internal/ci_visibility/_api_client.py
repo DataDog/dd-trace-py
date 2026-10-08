@@ -6,7 +6,7 @@ import json
 from json import JSONDecodeError
 import socket
 import typing as t
-from typing import TypedDict  # noqa:F401
+from typing import TypedDict
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -43,14 +43,17 @@ from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGE
 from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.ci_visibility.utils import fibonacci_backoff_with_jitter_on_exceptions
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.native import HttpIoError
+from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
@@ -73,7 +76,14 @@ _SKIPPABLE_ITEM_ID_TYPE = t.Union[TestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = dict[str, t.Union[str, dict[str, str]]]
 _KNOWN_TESTS_TYPE = set[TestId]
 
-_NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
+_NETWORK_ERRORS = (
+    TimeoutError,
+    socket.timeout,
+    RemoteDisconnected,
+    ConnectionFailedError,
+    TimedOutError,
+    HttpIoError,
+)
 
 _RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
 
@@ -297,7 +307,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers = self._get_final_headers()
         url = combine_url_path(self._base_url, endpoint)
 
-        conn: t.Optional[ConnectionType] = None
+        conn: t.Optional[HTTPConnection] = None
         try:
             parsed_url = verify_url(url)
             url_path = parsed_url.path

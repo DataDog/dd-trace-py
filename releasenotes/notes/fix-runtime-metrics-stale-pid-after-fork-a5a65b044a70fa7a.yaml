@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where runtime metrics (memory RSS, thread count, CPU
+    usage, context switches) reported the parent process's values instead of the
+    current process's values after a fork, for example under a pre-fork server
+    like gunicorn.

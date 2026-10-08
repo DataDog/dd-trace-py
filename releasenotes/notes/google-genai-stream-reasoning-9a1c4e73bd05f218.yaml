@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where reasoning content from streamed ``google_genai``
+    responses was merged into the output message instead of being captured as a separate ``reasoning``
+    message.

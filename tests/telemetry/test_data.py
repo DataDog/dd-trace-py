@@ -1,7 +1,7 @@
 import platform
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -84,7 +84,7 @@ def test_format_version_info():
     sys_vi = sys.version_info
 
     version_str = _format_version_info(sys_vi)
-    assert version_str == "{}.{}.{}".format(sys_vi.major, sys_vi.minor, sys_vi.micro)
+    assert version_str == f"{sys_vi.major}.{sys_vi.minor}.{sys_vi.micro}"
 
 
 def test_get_host_info():
@@ -93,6 +93,7 @@ def test_get_host_info():
         "os": platform.system(),
         "hostname": get_hostname(),
         "os_version": _get_os_version(),
+        "architecture": platform.machine(),
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),

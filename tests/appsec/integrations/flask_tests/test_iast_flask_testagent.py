@@ -45,8 +45,10 @@ _GEVENT_SERVERS_SCENARIOS = (
 
 
 @pytest.mark.skip(reason="Stacktrace error in debug mode doesn't work outside the request APPSEC-56862")
-def test_iast_stacktrace_error(iast_test_token):
-    with flask_server(iast_enabled="true", token=iast_test_token, port=8050, env={"FLASK_DEBUG": "true"}) as context:
+def test_iast_stacktrace_error(iast_test_token, free_port):
+    with flask_server(
+        iast_enabled="true", token=iast_test_token, port=free_port, env={"FLASK_DEBUG": "true"}
+    ) as context:
         _, flask_client, pid = context
         response = flask_client.get(
             "/iast-stacktrace-leak-vulnerability", headers={"X-Datadog-Test-Session-Token": iast_test_token}
@@ -67,7 +69,7 @@ def test_iast_stacktrace_error(iast_test_token):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -162,7 +164,7 @@ def test_iast_stacktrace_error(iast_test_token):
 
 
 @pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
-def test_iast_concurrent_requests_limit_flask(server, iast_test_token):
+def test_iast_concurrent_requests_limit_flask(server, iast_test_token, free_port):
     """Ensure only DD_IAST_MAX_CONCURRENT_REQUESTS requests have IAST enabled concurrently.
 
     This mirrors the FastAPI test by hitting /iast-enabled concurrently on the Flask app.
@@ -176,7 +178,7 @@ def test_iast_concurrent_requests_limit_flask(server, iast_test_token):
         "DD_IAST_MAX_CONCURRENT_REQUESTS": str(max_concurrent),
     }
 
-    with server(iast_enabled="true", token=iast_test_token, port=8050, env=env) as context:
+    with server(iast_enabled="true", token=iast_test_token, port=free_port, env=env) as context:
         _, client, pid = context
 
         def worker():
@@ -201,8 +203,8 @@ def test_iast_concurrent_requests_limit_flask(server, iast_test_token):
 
 
 @pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
-def test_iast_cmdi(server, iast_test_token):
-    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+def test_iast_cmdi(server, iast_test_token, free_port):
+    with server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
@@ -220,7 +222,7 @@ def test_iast_cmdi(server, iast_test_token):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -234,8 +236,8 @@ def test_iast_cmdi(server, iast_test_token):
 
 
 @pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
-def test_iast_cmdi_secure(server, iast_test_token):
-    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+def test_iast_cmdi_secure(server, iast_test_token, free_port):
+    with server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability-secure?filename=path_traversal_test_file.txt")
@@ -251,7 +253,7 @@ def test_iast_cmdi_secure(server, iast_test_token):
 
 
 @pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
-def test_iast_sqli_complex(server, iast_test_token):
+def test_iast_sqli_complex(server, iast_test_token, free_port):
     """Test complex SQL injection detection with SQLAlchemy in a Flask application.
 
     This test verifies that IAST can properly detect SQL injection in complex SQLAlchemy
@@ -270,7 +272,7 @@ def test_iast_sqli_complex(server, iast_test_token):
     This test ensures that the fix remains effective in a real Flask application context.
     """
 
-    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+    with server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-sqli-vulnerability-complex")
@@ -286,7 +288,7 @@ def test_iast_sqli_complex(server, iast_test_token):
 
 
 @pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
-def test_iast_header_injection_secure(server, iast_test_token):
+def test_iast_header_injection_secure(server, iast_test_token, free_port):
     """Test that header injection is prevented in a real Flask application.
 
     This test demonstrates the secure behavior of Flask's header handling in a real application
@@ -301,7 +303,7 @@ def test_iast_header_injection_secure(server, iast_test_token):
     This is in contrast to the test client behavior (test_flask_header_injection) where header
     values can be set directly without going through Werkzeug's sanitization.
     """
-    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+    with server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.get(
@@ -323,13 +325,13 @@ def test_iast_header_injection_secure(server, iast_test_token):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 0
 
 
 @pytest.mark.parametrize("server", ((gunicorn_flask_server, flask_server)))
-def test_iast_header_injection(server, iast_test_token):
-    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+def test_iast_header_injection(server, iast_test_token, free_port):
+    with server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.post(
@@ -351,27 +353,23 @@ def test_iast_header_injection(server, iast_test_token):
         assert response.status_code == 500
         assert response.headers.get("X-Vulnerable-Header") is None
         assert response.headers.get("Inject-Header") is None
-        assert len(spans_with_iast) == 2
-        assert len(vulnerabilities) == 0
     else:
         if server.__name__ == "flask_server":
             assert response.status_code == 200
             assert response.headers.get("X-Vulnerable-Header") == "value"
             assert response.headers.get("Inject-Header") == "1234"
-            assert len(spans_with_iast) == 2
-            assert len(vulnerabilities) == 0
         else:
             assert response.status_code == 400
             assert response.headers.get("X-Vulnerable-Header") is None
             assert response.headers.get("Inject-Header") is None
-            assert len(spans_with_iast) == 2
-            assert len(vulnerabilities) == 0
+    assert len(spans_with_iast) == 1
+    assert len(vulnerabilities) == 0
 
 
 @pytest.mark.parametrize("server", ((gunicorn_flask_server, flask_server)))
-def test_iast_code_injection_with_stacktrace(server, iast_test_token):
+def test_iast_code_injection_with_stacktrace(server, iast_test_token, free_port):
     tainted_string = "code_injection_string"
-    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+    with server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.get(f"/iast-code-injection?filename={tainted_string}")
@@ -391,7 +389,7 @@ def test_iast_code_injection_with_stacktrace(server, iast_test_token):
                 metastruct = span.get("meta_struct", {})
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -406,8 +404,8 @@ def test_iast_code_injection_with_stacktrace(server, iast_test_token):
 
 
 @pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
-def test_iast_unvalidated_redirect(server, iast_test_token):
-    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+def test_iast_unvalidated_redirect(server, iast_test_token, free_port):
+    with server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-unvalidated_redirect-header?location=malicious_url")
@@ -425,7 +423,7 @@ def test_iast_unvalidated_redirect(server, iast_test_token):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     # There’s one vulnerability, but it depends on the config/CI execution.
     # IAST treats the path "sqlalchemy_pytest-randomly_flask~22/bin/gunicorn" as a client folder and
     # reports a second vulnerability
@@ -442,17 +440,18 @@ def test_iast_unvalidated_redirect(server, iast_test_token):
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("apm_tracing_enabled", ("true", "false"))
-def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled, iast_test_token):
+def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled, iast_test_token, free_port):
     """Gevent has a lot of problematic interactions with the tracer. When IAST applies AST transformations to a file
     and reloads the module using compile and exec, it can interfere with Gevent’s monkey patching
     """
-    config["env"].update({"DD_TRACE_URLLIB3_ENABLED": "true"})
+    config = dict(config)
+    config["env"] = {**config["env"], "DD_TRACE_URLLIB3_ENABLED": "true"}
     with server(
         iast_enabled="true",
         appsec_enabled="false",
         apm_tracing_enabled=apm_tracing_enabled,
         token=iast_test_token,
-        port=8050,
+        port=free_port,
         **config,
     ) as context:
         _, flask_client, pid = context
@@ -491,8 +490,8 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
             spans.append(span)
 
-    assert len(spans) >= 28, f"Incorrect number of spans ({len(spans)}):\n{spans}"
-    assert len(spans_with_iast) == 3
+    assert len(spans) >= 19, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans_with_iast) == 2
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     for vulnerability in vulnerabilities[0]:
@@ -502,10 +501,10 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
-def test_gevent_sensitive_socketpair(server, config, iast_enabled, iast_test_token):
+def test_gevent_sensitive_socketpair(server, config, iast_enabled, iast_test_token, free_port):
     """Validate socket.socketpair lifecycle under various Gunicorn/gevent configurations."""
     with server(
-        iast_enabled=iast_enabled, appsec_enabled="false", token=iast_test_token, port=8050, **config
+        iast_enabled=iast_enabled, appsec_enabled="false", token=iast_test_token, port=free_port, **config
     ) as context:
         _, flask_client, pid = context
         response = flask_client.get("/socketpair")
@@ -515,10 +514,10 @@ def test_gevent_sensitive_socketpair(server, config, iast_enabled, iast_test_tok
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
-def test_gevent_sensitive_greenlet(server, config, iast_enabled, iast_test_token):
+def test_gevent_sensitive_greenlet(server, config, iast_enabled, iast_test_token, free_port):
     """Validate gevent Greenlet execution under various Gunicorn/gevent configurations."""
     with server(
-        iast_enabled=iast_enabled, appsec_enabled="false", token=iast_test_token, port=8050, **config
+        iast_enabled=iast_enabled, appsec_enabled="false", token=iast_test_token, port=free_port, **config
     ) as context:
         _, flask_client, pid = context
         response = flask_client.get("/gevent-greenlet")
@@ -528,10 +527,10 @@ def test_gevent_sensitive_greenlet(server, config, iast_enabled, iast_test_token
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
-def test_gevent_sensitive_subprocess(server, config, iast_enabled, iast_test_token):
+def test_gevent_sensitive_subprocess(server, config, iast_enabled, iast_test_token, free_port):
     """Validate subprocess.Popen lifecycle under various Gunicorn/gevent configurations."""
     with server(
-        iast_enabled=iast_enabled, appsec_enabled="false", token=iast_test_token, port=8050, **config
+        iast_enabled=iast_enabled, appsec_enabled="false", token=iast_test_token, port=free_port, **config
     ) as context:
         _, flask_client, pid = context
         response = flask_client.get("/subprocess-popen")

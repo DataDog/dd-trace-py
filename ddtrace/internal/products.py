@@ -3,11 +3,11 @@ from collections import defaultdict
 from collections import deque
 from importlib.metadata import entry_points
 from itertools import chain
-import sys
 import typing as t
-from typing import Protocol  # noqa:F401
+from typing import Protocol
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
@@ -30,7 +30,7 @@ _TRUSTED_PRODUCT_DISTRIBUTIONS = frozenset({"ddtrace"})
 _TRUSTED_PRODUCT_MODULE_PREFIXES = frozenset({"ddtrace."})
 
 
-if sys.version_info >= (3, 10):
+if is_at_least_py(3, 10):
 
     def get_product_entry_points() -> list[t.Any]:
         return list(entry_points(group="ddtrace.products"))
@@ -157,6 +157,7 @@ class ProductManager:
 
     def start_products(self) -> None:
         failed: set[str] = set()
+        started: list[tuple[str, Product]] = []
 
         for name, product in self.products:
             # Check that no required products have failed
@@ -174,10 +175,31 @@ class ProductManager:
                     continue
                 product.start()
                 log.debug("Started product '%s'", name)
-                telemetry_writer.product_activated(name.replace("-", "_"), True)
+                started.append((name, product))
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
+                continue
+
+            # enabled() only says the lifecycle must run; a product can start without being active
+            # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
+            try:
+                activated = getattr(product, "activated", None)
+                telemetry_writer.product_activated(name.replace("-", "_"), bool(activated()) if activated else True)
+            except Exception:
+                log.debug("Failed to report activation state for product '%s'", name, exc_info=True)
+
+        # NOTE: Keep post_start hooks after the full start loop. RC uses
+        # this barrier to collect dependent products before its first poll, and
+        # start_products() may run only after a uWSGI fork.
+        for name, product in started:
+            try:
+                if (hook := getattr(product, "post_start", None)) is None:
+                    continue
+                hook()
+                log.debug("Post-start product '%s' done", name)
+            except Exception:
+                log.exception("Failed to post-start product '%s'", name)
 
     def before_fork(self) -> None:
         for name, product in self.products:
@@ -247,6 +269,11 @@ class ProductManager:
     def _do_products(self) -> None:
         # Start all products
         self.start_products()
+
+        # Emit telemetry app-started now that products are loaded and their configuration has been
+        # reported, so the app-started payload carries the full startup configuration (the native
+        # worker builds it from state accumulated so far; see TelemetryWriter.app_started).
+        telemetry_writer.app_started()
 
         # Execute before fork hooks
         forksafe.register_before_fork(self.before_fork)

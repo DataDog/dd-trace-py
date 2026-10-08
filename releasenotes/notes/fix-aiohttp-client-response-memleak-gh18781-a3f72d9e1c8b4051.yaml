@@ -1,0 +1,7 @@
+---
+
+fixes:
+  - |
+    tracing: Fixed a memory leak in the HTTP client integrations (``aiohttp``, ``httpx``, ``requests``, ``urllib3``)
+    where a strong reference to each response object was retained, preventing garbage collection of response
+    bodies and causing linear RSS growth on sequential requests.

@@ -15,6 +15,7 @@ def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
     if not chunks:
         return None
 
+    thought_chunks = []
     text_chunks = []
     non_text_parts = []
     role = None
@@ -33,12 +34,16 @@ def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
                 parts = _get_attr(content, "parts", [])
                 for part in parts:
                     text = _get_attr(part, "text", None)
-                    if text:
-                        text_chunks.append(text)
-                    else:
+                    if not text:
                         non_text_parts.append(part)
+                    elif _get_attr(part, "thought", False):
+                        thought_chunks.append(text)
+                    else:
+                        text_chunks.append(text)
 
         parts = []
+        if thought_chunks:
+            parts.append({"text": "".join(thought_chunks), "thought": True})
         if text_chunks:
             parts.append({"text": "".join(text_chunks)})
         parts.extend(non_text_parts)

@@ -104,9 +104,7 @@ class ProfilerState
     // ========================================================================
     // Interned string caches
     // ========================================================================
-    static constexpr size_t kNumTagKeys = static_cast<size_t>(ExportTagKey::Length_);
     static constexpr size_t kNumLabelKeys = static_cast<size_t>(ExportLabelKey::Length_);
-    std::array<std::atomic<ddog_prof_StringId2>, kNumTagKeys> tag_cache{};
     std::array<std::atomic<ddog_prof_StringId2>, kNumLabelKeys> label_cache{};
     // Written only during single-threaded init/postfork; read freely after initialized_ is set
     ddog_prof_StringId2 cached_empty_string_id{ nullptr };

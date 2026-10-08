@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Adds `finish_reason` to LLM spans to indicate the reason the model stopped generating for the
+    ``openai``, ``litellm``, and ``anthropic`` integrations.

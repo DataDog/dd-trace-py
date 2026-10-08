@@ -1,12 +1,15 @@
+import asyncio
 import json
+from unittest import mock
 
-import mock
 import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
+from ddtrace.llmobs._integrations.utils import _inline_image_budget
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metadata
@@ -158,7 +161,9 @@ class TestLLMObsOpenaiV1:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         # Only the explicitly-set value should survive; the Omit/NotGiven sentinels are dropped.
-        assert get_llmobs_metadata(spans[0]) == {"top_p": 0.9}
+        # finish_reason comes from the response, not request kwargs, so it survives too; the
+        # mocked response returns two choices, so its reasons are comma-joined.
+        assert get_llmobs_metadata(spans[0]) == {"top_p": 0.9, "finish_reason": "stop,stop"}
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_provider_attribution_with_concurrent_openai_and_azure_clients(
@@ -489,6 +494,72 @@ class TestLLMObsOpenaiV1:
             metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    def test_chat_completion_inline_image_captured(self, openai, openai_llmobs, test_spans):
+        """An inline base64 image reaches the span as an image_part, leaving only the text content."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What’s in this image?"},
+                            {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAECAw=="}},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What’s in this image?",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAECAw=="}],
+                }
+            ],
+            output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+            metadata={},
+            metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    def test_chat_completion_oversize_inline_image_preserves_text_and_response(self, openai, openai_llmobs, test_spans):
+        """Regression: an oversize inline image degrades to a marker rather than costing the whole
+        span input+output, so the message text and the model response both survive.
+        """
+        oversize_data_url = "data:image/png;base64," + "A" * (_inline_image_budget() + 4)
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What’s in this image?"},
+                            {"type": "image_url", "image_url": {"url": oversize_data_url}},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_event = _get_llmobs_data_metastruct(spans[0])
+        assert span_event["meta"]["input"]["messages"] == [
+            {"role": "user", "content": "What’s in this image?\n[image omitted: too large]"}
+        ]
+        assert span_event["meta"]["output"]["messages"] == [
+            {"role": "assistant", "content": resp.choices[0].message.content}
+        ]
 
     def test_chat_completion_multimodal_lazy_iterator(self, openai, openai_llmobs, test_spans):
         """Test that iterable message content is materialized to a list before the SDK
@@ -1928,6 +1999,128 @@ MUL: "*"
         )
 
     @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    def test_chat_completion_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A stream that errors part-way still reports the chunks it did receive.
+
+        Throwing into the traced stream's generator reproduces a consumer-side abort (a client
+        disconnect or cancellation surfacing at the `yield`). The span must be tagged as an error
+        *and* carry the input messages plus whatever output arrived before the abort.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = iter(resp)
+            partial = ""
+            for _ in range(3):
+                chunk = next(stream)
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == input_messages
+        # The partial text survives the abort rather than being discarded wholesale.
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        # Token counts fall back to the estimate computed from the partial text.
+        metrics = get_llmobs_metrics(span)
+        assert metrics["output_tokens"] == _est_tokens(partial)
+        assert metrics["input_tokens"] > 0
+        # The abort is still recorded as an error on the span.
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    async def test_chat_completion_async_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """Async mirror of the sync partial-response-on-abort case."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                await stream.athrow(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert span.error == 1
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    async def test_chat_completion_async_stream_cancelled_keeps_partial_response(
+        self, openai, openai_llmobs, test_spans
+    ):
+        """A cancelled async stream is recorded as an error and keeps whatever output arrived.
+
+        `asyncio.CancelledError` derives from `BaseException`, so it is handled separately from
+        ordinary exceptions in the shared stream handler.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(asyncio.CancelledError):
+                await stream.athrow(asyncio.CancelledError())
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert get_llmobs_metrics(span)["output_tokens"] == _est_tokens(partial)
+        assert span.error == 1
+
+    @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
     def test_response(self, openai, openai_llmobs, test_spans):
@@ -1974,6 +2167,41 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
+    def test_response_inline_image_captured_end_to_end(self, openai, openai_llmobs, test_spans):
+        """The Responses API path that previously dumped the whole data URL into message text.
+
+        Covered end to end (kwargs -> span tags -> metastruct) rather than by a direct call to the
+        parser, since that leak reached customers through this full path.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model="gpt-4.1",
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "What is in this image?"},
+                            {"type": "input_image", "image_url": "data:image/png;base64,AAECAw=="},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        messages = _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["messages"]
+        assert messages == [
+            {
+                "role": "user",
+                "content": "What is in this image?",
+                "image_parts": [{"mime_type": "image/png", "content": "AAECAw=="}],
+            }
+        ]
+        assert resp.output  # the cassette response still flows through untouched
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
     def test_response_stream_tokens(self, openai, openai_llmobs, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
@@ -2013,6 +2241,35 @@ MUL: "*"
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A Responses API stream that errors part-way still produces an annotated LLM span.
+
+        The Responses path salvages the most recent whole `response` snapshot rather than
+        accumulating `output_text.delta` events, so a mid-stream abort recovers the request input
+        but not the partial output text. Before this was fixed the span had no annotations at all:
+        the token-estimation fallback tried to iterate the pydantic snapshot and raised, taking
+        every tag with it.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(model="gpt-4.1", input="Hello world", stream=True)
+            stream = iter(resp)
+            for _ in range(5):
+                next(stream)
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == [{"content": "Hello world", "role": "user"}]
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
@@ -3268,5 +3525,31 @@ class TestLLMObsOpenAIOpenRouter:
         assert "total_cost" in metrics
         assert metrics["total_cost"] > 0
         # input_cost/output_cost are present only when they sum to total_cost; if present, verify that.
+        if "input_cost" in metrics or "output_cost" in metrics:
+            assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
+
+    def test_chat_completion_openrouter_byok_cost(self, openai, openai_llmobs, test_spans):
+        """OpenRouter BYOK upstream cost is surfaced on the span's cost metrics.
+
+        With BYOK, OpenRouter bills ``usage.cost=0`` and reports the real provider cost under
+        ``usage.cost_details.upstream_inference_cost`` (flagged by ``usage.is_byok=True``). The
+        integration should surface that upstream cost as ``total_cost`` rather than the billed 0.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_openrouter_byok.yaml"):
+            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1")
+            resp = client.chat.completions.create(
+                model="openai/gpt-4o-mini",
+                messages=[{"role": "user", "content": "What is the capital of France?"}],
+            )
+
+        assert _get_attr(resp.usage, "is_byok", None) is True
+        assert _get_attr(resp.usage, "cost", None) == 0
+        cost_details = _get_attr(resp.usage, "cost_details", {})
+        assert _get_attr(cost_details, "upstream_inference_cost", 0) > 0
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = get_llmobs_metrics(spans[0])
+        # BYOK bills cost=0; the upstream inference cost must still be surfaced as a non-zero total_cost.
+        assert metrics["total_cost"] > 0
         if "input_cost" in metrics or "output_cost" in metrics:
             assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)

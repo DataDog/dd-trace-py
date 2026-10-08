@@ -1,7 +1,10 @@
 import pytest
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_multiprocessing_without_coverage():
     """Ensures that the coverage collector does not interfere with multiprocessing when it is not enabled."""
     import multiprocessing
@@ -29,7 +32,10 @@ def test_coverage_multiprocessing_without_coverage():
         # This should simply not hang.
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_multiprocessing_coverage_started():
     """Ensures that the coverage collector does not interfere with multiprocessing if started mid-execution"""
     import multiprocessing
@@ -59,7 +65,10 @@ def test_coverage_multiprocessing_coverage_started():
         # This should simply not hang.
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_multiprocessing_coverage_stopped():
     """Ensures that the coverage collector does not interfere with multiprocessing if stopped mid-execution"""
     import multiprocessing
@@ -90,7 +99,10 @@ def test_coverage_multiprocessing_coverage_stopped():
         # This should simply not hang.
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_multiprocessing_no_lines_after_stop():
     """When coverage is stopped before join(), child lines must not leak into the parent collector."""
     import multiprocessing
@@ -126,7 +138,10 @@ def test_coverage_multiprocessing_no_lines_after_stop():
         )
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_multiprocessing_session():
     import multiprocessing
 
@@ -166,7 +181,10 @@ def test_coverage_multiprocessing_session():
             assert False
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_multiprocessing_context():
     import multiprocessing
 
@@ -209,7 +227,10 @@ def test_coverage_multiprocessing_context():
         assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_concurrent_futures_processpool_session():
     import multiprocessing
 
@@ -251,7 +272,10 @@ def test_coverage_concurrent_futures_processpool_session():
             assert False
 
 
-@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+@pytest.mark.subprocess(
+    env={"_DD_COVERAGE_FILE_LEVEL": "false"},
+    parametrize={"start_method": ["fork", "forkserver", "spawn"]},
+)
 def test_coverage_concurrent_futures_processpool_context():
     import multiprocessing
 

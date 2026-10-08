@@ -371,9 +371,9 @@ class TestLazyInstrumentationState:
     def test_repeated_unresolved_target_update_reuses_lazy_hook(self):
         registry, instance = self._clear_lazy_state()
         target = {
-            "target": "unimported_test_module:function",
+            "id": "CVE-TEST",
             "dependency_name": "testpkg",
-            "cve_ids": ["CVE-TEST"],
+            "targets": ["unimported_test_module:function"],
         }
 
         for _ in range(100):
@@ -389,9 +389,9 @@ class TestLazyInstrumentationState:
         registry, instance = self._clear_lazy_state()
         targets = [
             {
-                "target": f"unimported_test_module:function_{i}",
+                "id": f"CVE-TEST-{i}",
                 "dependency_name": "testpkg",
-                "cve_ids": [f"CVE-TEST-{i}"],
+                "targets": [f"unimported_test_module:function_{i}"],
             }
             for i in range(100)
         ]
@@ -404,15 +404,28 @@ class TestLazyInstrumentationState:
         assert instance is not None
         assert sum(len(hooks) for hooks in instance._hook_map.values()) == 1
 
+    def test_unresolved_target_merges_cves(self):
+        registry, instance = self._clear_lazy_state()
+        target = "unimported_test_module:function"
+
+        for cve_id in ("CVE-ONE", "CVE-TWO"):
+            _instrumenter_mod.apply_instrumentation_updates(
+                [{"id": cve_id, "dependency_name": "testpkg", "targets": [target]}]
+            )
+
+        assert registry.get_target_info(target).cve_ids == ("CVE-ONE", "CVE-TWO")
+        assert instance is not None
+        assert sum(len(hooks) for hooks in instance._hook_map.values()) == 1
+
     def test_incremental_updates_preserve_unresolved_lazy_targets(self):
         registry, instance = self._clear_lazy_state()
 
         _instrumenter_mod.apply_instrumentation_updates(
             [
                 {
-                    "target": f"first_unimported_module_{i}:function",
+                    "id": f"CVE-FIRST-{i}",
                     "dependency_name": "testpkg",
-                    "cve_ids": [f"CVE-FIRST-{i}"],
+                    "targets": [f"first_unimported_module_{i}:function"],
                 }
                 for i in range(3)
             ]
@@ -421,9 +434,9 @@ class TestLazyInstrumentationState:
         _instrumenter_mod.apply_instrumentation_updates(
             [
                 {
-                    "target": "current_unimported_module:function",
+                    "id": "CVE-CURRENT",
                     "dependency_name": "testpkg",
-                    "cve_ids": ["CVE-CURRENT"],
+                    "targets": ["current_unimported_module:function"],
                 }
             ]
         )

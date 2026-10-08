@@ -1,9 +1,10 @@
+from collections.abc import Generator
+import contextlib
 import itertools
 import json
 import sys
 from typing import Any
 from typing import ClassVar
-from typing import Generator
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -24,7 +25,73 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+@contextlib.contextmanager
+def mock_metric_points():
+    """Intercept telemetry metric points across all metric types.
+
+    The telemetry writer inlines its four ``add_*_metric`` methods (there is no shared
+    ``_add_metric_point`` seam anymore), so patch each of them and expose a combined
+    ``call_args_list`` of ``((metric_type, namespace, name, value, tags), {})`` tuples — the
+    shape the assertions in this module expect (``metric_type`` is the plain string used by
+    the writer: ``"count"``/``"gauge"``/``"rate"``/``"distribution"``).
+    """
+    from unittest.mock import MagicMock
+    from unittest.mock import patch as mock_patch
+
+    import ddtrace.internal.telemetry
+
+    writer = ddtrace.internal.telemetry.telemetry_writer
+    combined = MagicMock()
+    combined.call_args_list = []
+
+    def recorder(metric_type):
+        def _record(namespace, name, value=1, tags=None):
+            combined.call_args_list.append(((metric_type, namespace, name, value, tags), {}))
+
+        return _record
+
+    with (
+        mock_patch.object(writer, "add_count_metric", side_effect=recorder("count")),
+        mock_patch.object(writer, "add_gauge_metric", side_effect=recorder("gauge")),
+        mock_patch.object(writer, "add_rate_metric", side_effect=recorder("rate")),
+        mock_patch.object(writer, "add_distribution_metric", side_effect=recorder("distribution")),
+    ):
+        yield combined
+
+
 SECID: str = "[security_response_id]"
+
+_API10_DOWNSTREAM_ATTEMPTS = 3
+_TRANSIENT_DOWNSTREAM_ERRORS = frozenset(
+    {
+        "BrokenPipeError",
+        "ChunkedEncodingError",
+        "CloseError",
+        "ConnectError",
+        "ConnectTimeout",
+        "ConnectTimeoutError",
+        "ConnectionAbortedError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "IncompleteRead",
+        "MaxRetryError",
+        "NewConnectionError",
+        "PoolTimeout",
+        "ProtocolError",
+        "ReadError",
+        "ReadTimeout",
+        "ReadTimeoutError",
+        "RemoteDisconnected",
+        "RemoteProtocolError",
+        "Timeout",
+        "TimeoutError",
+        "URLError",
+        "WriteError",
+        "WriteTimeout",
+        "timeout",
+    }
+)
 
 try:
     from ddtrace.appsec import track_user_sdk as _track_user_sdk  # noqa: F401
@@ -124,6 +191,27 @@ class _Contrib_TestClass_Base:
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
+
+    def api10_downstream_request(self, interface, test_spans, api10_server, path, data=None) -> dict[str, Any]:
+        attempt = 1
+        while True:
+            url = f"{path}/{api10_server.port()}"
+            if data:
+                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
+            else:
+                response = interface.client.get(url)
+            assert self.status(response) == 200, f"{self.status(response)} is not 200 {self.body(response)}"
+            result = json.loads(self.body(response))
+            error = result.get("error")
+            if error is None:
+                return result
+            retryable = error.partition("(")[0] in _TRANSIENT_DOWNSTREAM_ERRORS
+            assert retryable and attempt < _API10_DOWNSTREAM_ATTEMPTS, (
+                f"downstream request failed on attempt {attempt}/{_API10_DOWNSTREAM_ATTEMPTS}: {result}"
+            )
+            attempt += 1
+            test_spans.reset()
+            api10_server.restart()
 
     def check_rule_triggered(self, rule_id: str, entry_span):
         """Check that the given rule_id is among the triggered rules."""
@@ -229,18 +317,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert triggers is not None, "no appsec struct in root span"
 
     def test_simple_attack_timeout(self, interface: Interface, entry_span, get_entry_span_metric):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
-
         with (
             override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             query_params = urlencode({"q": "1"})
@@ -252,8 +331,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 entry_span()._get_numeric_attributes(),
             )
             args_list = [
-                (args[0].value, args[1].value) + args[2:]
-                for args, kwargs in mocked.add_metric.call_args_list
+                (args[0], args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
                 if args[2] == "waf.requests"
             ]
             assert len(args_list) == 1
@@ -364,18 +443,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
     def test_truncation_telemetry(self, interface: Interface, get_entry_span_metric):
         from unittest.mock import ANY
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
 
         with (
             override_global_config(dict(_asm_enabled=True)),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             body: dict[str, Any] = {"val": "x" * 5000}
@@ -387,15 +458,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
             assert self.status(response) == 200
             args_list = [
-                (args[0].value, args[1].value) + args[2:]
-                for args, kwargs in mocked.add_metric.call_args_list
+                (args[0], args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
                 if "truncated" in args[2] or args[2] == "waf.requests"
             ]
             assert args_list == [
-                ("distributions", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
-                ("distributions", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
-                ("distributions", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
+                ("distribution", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
                 (
                     "count",
@@ -525,7 +596,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     "abc",
                     b"abc",
                 )
-                assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
+                assert int(path_params["param_int"] if isinstance(path_params, dict) else path_params[0]) == 137
             else:
                 assert path_params is None
 
@@ -1447,20 +1518,12 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     ):
         import base64
         import gzip
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
 
         with (
             override_global_config(
-                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
+                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, apm_tracing_enabled=apm_tracing_enabled)
             ),
-            mock_patch.object(
-                ddtrace.internal.telemetry.telemetry_writer,
-                "_namespace",
-                MagicMock(),
-            ) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             response = interface.client.post(
@@ -1501,9 +1564,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                             else api[0] == expected[0]
                             for expected in expected_value
                         ), (api, name, expected_value)
-                telemetry_calls = {
-                    (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
-                }
+                telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
                 assert (
                     "count",
                     "appsec.api_security.request.schema",
@@ -1746,7 +1807,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ),
         ]
         + [
-            ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
+            ("ssrf", {f"url_{p1}_1": "127.0.0.1:1", f"url_{p2}_2": "127.0.0.1:2"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
                     ("urlopen_string", "do_open"),
@@ -1754,6 +1815,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     ("requests", "urlopen"),
                     ("httpx", "send"),
                     ("httpx_async", "send"),
+                    ("httpx2", "send"),
+                    ("httpx2_async", "send"),
                 ],
                 repeat=2,
             )
@@ -1802,11 +1865,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         action_level,
         status_expected,
     ):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
         from ddtrace.appsec._constants import APPSEC
-        import ddtrace.internal.telemetry
 
         def validate_top_function(trace):
             # Validate that the stack trace contains an expected function near the top.
@@ -1832,7 +1891,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             override_global_config(
                 dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
             ),
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked,
+            mock_metric_points() as mocked,
         ):
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
@@ -1842,9 +1901,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.STATUS_CODE) == str(code), (get_entry_span_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
-            telemetry_calls = {
-                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
-            }
+            telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
             if asm_enabled and ep_enabled and action_level > 0:
                 self.check_rules_triggered([rule] * (1 if action_level == 2 else 2), entry_span)
                 assert self.check_for_stack_trace(entry_span)
@@ -2040,11 +2097,6 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         status_code,
         user_id,
     ):
-        from unittest.mock import MagicMock
-        from unittest.mock import patch as mock_patch
-
-        import ddtrace.internal.telemetry
-
         if not USER_SDK_V2:
             raise pytest.skip("SDK v2 not available")
 
@@ -2056,7 +2108,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     _auto_user_instrumentation_enabled=True,
                 )
             ),
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            mock_metric_points() as telemetry_mock,
         ):
             self.update_tracer(interface)
             metadata = json.dumps(
@@ -2084,9 +2136,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             response = interface.client.get(f"/login_sdk/?username={username}&password={password}&metadata={metadata}")
             assert self.status(response) == status_code
             assert get_entry_span_tag("http.status_code") == str(status_code)
-            telemetry_calls = {
-                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.add_metric.call_args_list
-            }
+            telemetry_calls = {(c, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.call_args_list}
             if status_code == 401:
                 assert get_entry_span_tag("appsec.events.users.login.failure.track") == "true"
                 if user_id:
@@ -2218,7 +2268,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
-    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])
+    @pytest.mark.parametrize(
+        "endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async", "httpx2", "httpx2_async"]
+    )
     def test_api10(self, endpoint, interface, get_tag):
         """test api10 on downstream request headers on rasp endpoint"""
         TAG_AGENT: str = "TAG_API10_REQ_HEADERS"
@@ -2248,8 +2300,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("response-status", None, "TAG_API10_RESP_STATUS"),
         ],
     )
-    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    def test_api10_addresses(self, integration, route, data, tag, interface, api10_http_server_port, get_tag):
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
+    def test_api10_addresses(self, integration, route, data, tag, interface, api10_server, test_spans, get_tag):
         """test api10 on downstream request/response headers and body"""
 
         with override_global_config(
@@ -2262,22 +2314,17 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
         ):
             self.update_tracer(interface)
-            url = f"/redirect{integration}/{route}/{api10_http_server_port}"
-            if data:
-                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
-            else:
-                response = interface.client.get(url)
-            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            result = self.api10_downstream_request(
+                interface, test_spans, api10_server, f"/redirect{integration}/{route}", data
+            )
             c_tag = get_tag("_dd.appsec.trace.mark")
-            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {self.body(response)}"
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {result}"
 
-    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    def test_api10_addresses_redirects(self, integration, interface, api10_http_server_port, entry_span):
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
+    def test_api10_addresses_redirects(self, integration, interface, api10_server, test_spans, entry_span):
         INSPECTED_FINAL_RESP_BODY = "apiA-100-004"
         INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
         INSPECTED_REDIRECT_RESP_STATUS = "apiA-100-007"
-
-        url = f"/redirect{integration}/redirect-source/{api10_http_server_port}"
 
         with override_global_config(
             dict(
@@ -2289,11 +2336,11 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
         ):
             self.update_tracer(interface)
-            response = interface.client.get(url)
-            assert self.status(response) == 200, f"{self.status(response)} is not 200"
-            redirect_response_payload = json.loads(self.body(response)).get("payload")
-            api_response_payload = json.loads(redirect_response_payload).get("payload")
-            assert api_response_payload == "api10-response-body"
+            result = self.api10_downstream_request(
+                interface, test_spans, api10_server, f"/redirect{integration}/redirect-source"
+            )
+            api_response_payload = json.loads(result["payload"]).get("payload")
+            assert api_response_payload == "api10-response-body", result
 
             expected_rules = [
                 INSPECTED_FINAL_RESP_BODY,

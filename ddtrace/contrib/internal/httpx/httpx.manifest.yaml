@@ -1,0 +1,11 @@
+_v: 1
+name: httpx
+display_name: HTTPX
+description: Instruments synchronous and asynchronous outbound HTTPX client requests, including individual network sends for
+  tracing, propagation, metadata, and SSRF analysis.
+packages:
+- name: httpx
+category:
+- http.client
+systems: []
+creation_date: '2021-08-03'

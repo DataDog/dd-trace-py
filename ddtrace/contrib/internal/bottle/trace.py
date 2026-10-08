@@ -1,4 +1,4 @@
-from typing import MutableMapping
+from collections.abc import MutableMapping
 from typing import cast
 
 from bottle import HTTPError
@@ -11,11 +11,11 @@ from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import deprecate
 
 
-class TracePlugin(object):
+class TracePlugin:
     name = "trace"
     api = 2
 
@@ -44,7 +44,7 @@ class TracePlugin(object):
             if not is_tracing_enabled():
                 return callback(*args, **kwargs)
 
-            resource = "{} {}".format(request.method, route.rule)
+            resource = f"{request.method} {route.rule}"
 
             method = request.method
             url = request.url

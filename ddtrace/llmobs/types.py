@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -12,15 +13,14 @@ ExperimentConfigType = dict[str, JSONType]
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
 
 
-class SpanWithTagValue(TypedDict):
-    tag_key: str
-    tag_value: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
+class _FeedbackSubmitterOptional(TypedDict, total=False):
+    type: str
+
+
+class FeedbackSubmitter(_FeedbackSubmitterOptional):
+    id: str
 
 
 class Document(TypedDict, total=False):
@@ -30,11 +30,18 @@ class Document(TypedDict, total=False):
     score: float
 
 
+class ToolCallFunction(TypedDict):
+    name: str
+    arguments: str
+
+
 class ToolCall(TypedDict, total=False):
     name: str
     arguments: dict[str, Any]
     tool_id: str
     type: str
+    id: str
+    function: ToolCallFunction
 
 
 class ToolResult(TypedDict, total=False):
@@ -49,6 +56,65 @@ class ToolDefinition(TypedDict, total=False):
     description: str
     schema: dict[str, Any]
     version: str
+
+
+class AgentCapability(TypedDict, total=False):
+    """One declared capability: an MCP server, a builtin tool, a toolset, or a preparation hook."""
+
+    name: str
+    type: str
+
+
+class AgentInstructionResolver(TypedDict, total=False):
+    """A callable that decides instruction text at run time, recorded by name and never evaluated."""
+
+    name: str
+    type: str
+
+
+class _AgentToolRequired(TypedDict):
+    name: str
+
+
+class AgentTool(_AgentToolRequired, total=False):
+    """One tool an agent declares it can call.
+
+    name is required; tools without one are silently dropped by the manifest builder.
+    parameters maps a name to ``{"type": ..., "required": True}``. An optional parameter omits
+    ``required`` rather than reporting it false, which is the shape the framework integrations
+    already emit, so a hand-declared tool renders the same as an auto-instrumented one. A JSON
+    Schema object (``{"type": "object", "properties": {...}, "required": [...]}``), the shape a
+    provider tool definition carries, is accepted and flattened to the same mapping.
+    """
+
+    description: str
+    parameters: dict[str, Any]
+
+
+class AgentManifest(TypedDict, total=False):
+    """Declared agent configuration, reported on an agent span under _dd.agent_manifest.
+
+    One flat document. Every key is optional because a field the framework does not expose is
+    omitted rather than emitted empty, so an absent key means "not configured". Only declared
+    configuration is read, never what a single run resolved, so the document is stable run to run.
+    """
+
+    framework: str
+    name: str
+    instructions: str
+    system_prompts: list[str]
+    extra_instructions: list[AgentInstructionResolver]
+    model: str
+    model_settings: dict[str, Any]
+    agent_settings: dict[str, Any]
+    tools: list[dict[str, Any]]
+    capabilities: list[AgentCapability]
+    data_contracts: dict[str, Any]
+    guardrails: list[str]
+    handoffs: list[Any]
+    handoff_description: str
+    memory_policies: list[str]
+    metadata: dict[str, Any]
 
 
 class ChatMessage(TypedDict):
@@ -75,6 +141,7 @@ class PromptResponse(TypedDict, total=False):
     ml_apps: list[str]
     last_version_created_at: str
     extracted_from: str
+    config: dict[str, JSONType]
 
 
 class PromptVersionResponse(TypedDict, total=False):
@@ -90,6 +157,7 @@ class PromptVersionResponse(TypedDict, total=False):
     author: str
     description: str
     ml_app: str
+    config: dict[str, JSONType]
 
 
 class DeletedPromptResponse(TypedDict, total=False):
@@ -108,9 +176,11 @@ class AudioPart(TypedDict, total=False):
 
 class ImagePart(TypedDict, total=False):
     """An image on a Message: inline base64 ``content`` or an offloaded ``attachment_key``.
-     Note: inline ``content`` counts toward the 5 MB per-event size limit. When an event
-    exceeds that limit its entire input/output is replaced with a dropped-value placeholder) — there is no image-aware
-    truncation yet.
+
+    Note: inline ``content`` counts toward the 5 MB per-event size limit; when an event exceeds it the
+    whole input/output is replaced with a dropped-value placeholder. Integrations therefore cap the size
+    of a single inline image they capture and keep a text marker instead -- but several images that each
+    fit can still collectively exceed the limit, as there is no image-aware truncation in the writer yet.
     """
 
     mime_type: str
@@ -125,8 +195,21 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
+    tool_call_id: str
     audio_parts: list[AudioPart]
     image_parts: list[ImagePart]
+
+
+# TODO: Make MessagePlaceholder standalone in the next major release;
+# inheritance preserves the existing list[Message] template contract.
+class MessagePlaceholder(Message):
+    """A named insertion point for runtime messages in a chat prompt template."""
+
+    type: Literal["placeholder"]
+    name: str
+
+
+ChatTemplateItem = Union[ChatMessage, MessagePlaceholder]
 
 
 class _SpanField(TypedDict):
@@ -157,6 +240,7 @@ class Prompt(TypedDict, total=False):
         rag_query_variables: list[str] - a list of variable key names that contains query information
         prompt_uuid: str - the uuid of the prompt (set internally by LLMObs.get_prompt)
         prompt_version_uuid: str - the uuid of the prompt version (set internally by LLMObs.get_prompt)
+        config: dict[str, JSONType] - application-consumed configuration stored with this prompt version
     """
 
     version: str
@@ -170,6 +254,37 @@ class Prompt(TypedDict, total=False):
     rag_query_variables: list[str]
     prompt_uuid: str
     prompt_version_uuid: str
+    config: dict[str, JSONType]
+
+
+class Agent(TypedDict, total=False):
+    """
+    An Agent object that declares the agent an agent span represents.
+        version: str - user tag for the version of the agent.
+        name: str - overrides the agent's name, which defaults to the agent span's name.
+        instructions: str - the system instructions the agent runs with.
+        model: str - the model the agent is configured to call.
+        model_settings: dict[str, Any] - inference parameters. Only these keys are reported:
+            frequency_penalty, logit_bias, logprobs, max_tokens, parallel_tool_calls,
+            presence_penalty, seed, stop_sequences, temperature, timeout, tool_choice, top_k,
+            top_logprobs, top_p. Anything else is dropped, including provider-specific keys such as
+            extra_headers, since those can carry secrets.
+        tools: list[AgentTool] - the tools the agent declares it can call.
+
+    ``version`` becomes an ``agent_version`` tag and the rest the agent's manifest, on agent spans
+    only. Declared through ``annotation_context``, both reach every agent span in the block.
+    Unreportable values are dropped rather than raising, and a key whose value is unset (``None``
+    or empty) declares nothing rather than erasing what an earlier annotation declared. Each
+    annotation shallow-updates the manifest key by key, including one an integration already
+    reported, so annotating one field leaves the rest.
+    """
+
+    version: str
+    name: str
+    instructions: str
+    model: str
+    model_settings: dict[str, Any]
+    tools: list[AgentTool]
 
 
 class _MetaIO(TypedDict, total=False):

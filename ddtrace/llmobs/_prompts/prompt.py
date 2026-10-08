@@ -1,10 +1,14 @@
+from copy import deepcopy
 from dataclasses import dataclass
+from dataclasses import field
 from dataclasses import replace
 from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Union
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
@@ -22,19 +26,39 @@ class ManagedPrompt:
     STABLE API:
         - format(**vars) -> str | list[dict]
         - to_annotation_dict(**vars) -> dict[str, Any]
+        - config -> dict[str, Any]
 
     INTERNAL (may change):
-        - All fields (id, version, source, template)
+        - All fields (id, version, label, source, template)
     """
 
     id: str
     version: str
+    label: Optional[str]
     source: Literal["registry", "cache", "fallback", "ff", "resolve"]
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
+    _config: dict[str, Any] = field(default_factory=dict, repr=False, hash=False)
 
-    def format(self, **variables: str) -> Union[str, list[Message]]:
+    def __post_init__(self) -> None:
+        if not isinstance(self._config, dict):
+            raise TypeError("config must be a dictionary")
+        object.__setattr__(self, "_config", deepcopy(self._config))
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return deepcopy(self._config)
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == "label":
+            deprecate(
+                prefix="The 'label' property of ManagedPrompt is deprecated",
+                category=DDTraceDeprecationWarning,
+            )
+        return object.__getattribute__(self, name)
+
+    def format(self, **variables: Any) -> Union[str, list[Message]]:
         """
         Render the template with variables.
 
@@ -44,7 +68,7 @@ class ManagedPrompt:
         Uses safe substitution: missing variables are left as placeholders.
 
         Args:
-            **variables: Template variables to substitute
+            **variables: Text variables and message-list placeholder values.
 
         Returns:
             str (for text templates) or list[Message] (for chat templates)
@@ -72,7 +96,17 @@ class ManagedPrompt:
             "version": self.version,
         }
         if variables:
-            result["variables"] = variables
+            placeholder_names = (
+                set()
+                if isinstance(self.template, str)
+                else {item.get("name") for item in self.template if item.get("type") == "placeholder"}
+            )
+            scalar_variables = {name: value for name, value in variables.items() if name not in placeholder_names}
+            if scalar_variables:
+                result["variables"] = scalar_variables
+        label = object.__getattribute__(self, "label")
+        if label:
+            result["label"] = label
         if self._uuid:
             result["prompt_uuid"] = self._uuid
         if self._version_uuid:
@@ -86,17 +120,20 @@ class ManagedPrompt:
         return result
 
     def __repr__(self) -> str:
-        return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, source={self.source!r})"
+        label = object.__getattribute__(self, "label")
+        return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, label={label!r}, source={self.source!r})"
 
     def _serialize(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict for cache storage."""
         return {
             "id": self.id,
             "version": self.version,
+            "label": object.__getattribute__(self, "label"),
             "source": self.source,
             "template": self.template,
             "_uuid": self._uuid,
             "_version_uuid": self._version_uuid,
+            "config": self.config,
         }
 
     @classmethod
@@ -105,17 +142,19 @@ class ManagedPrompt:
         return cls(
             id=data["id"],
             version=data["version"],
+            label=data["label"],
             source=data.get("source", "cache"),
             template=data["template"],
             _uuid=data.get("_uuid"),
             _version_uuid=data.get("_version_uuid"),
+            _config=data.get("config", {}),
         )
 
     def _with_source(self, source: Literal["registry", "cache", "fallback"]) -> "ManagedPrompt":
         """Create a copy with a different source. Used internally for caching."""
         if self.source == source:
             return self
-        return replace(self, source=source)
+        return replace(self, source=source, label=object.__getattribute__(self, "label"))
 
     @classmethod
     def from_fallback(
@@ -130,22 +169,26 @@ class ManagedPrompt:
             fallback: A string, message list, Prompt dict, or callable returning any of those.
 
         Returns:
-            A ManagedPrompt with source="fallback".
+            A ManagedPrompt with source="fallback" and label=None.
         """
         template: Union[str, list[Message]] = ""
         version = "fallback"
+        config: Any = {}
 
         if fallback is not None:
             value = fallback() if callable(fallback) else fallback
             if isinstance(value, dict):
                 template = extract_template(value)
                 version = value.get("version") or "fallback"
+                config = value.get("config", {})
             else:
                 template = value
 
         return cls(
             id=prompt_id,
             version=version,
+            label=None,
             source="fallback",
             template=template,
+            _config=config,
         )

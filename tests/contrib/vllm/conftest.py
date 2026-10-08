@@ -28,11 +28,43 @@ def _per_test_llm_cleanup():
         torch.cuda.empty_cache()
 
 
-@pytest.fixture(autouse=True, scope="session")
-def require_gpu():
-    """Skip vLLM tests if GPU is not available."""
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "no_gpu: mark a vLLM test that does not load a model and can run without a GPU",
+    )
+
+
+def _skip_if_no_gpu():
     if not (hasattr(torch, "cuda") and torch.cuda.is_available()):
         pytest.skip("Skipping vLLM tests: GPU not available")
+
+
+@pytest.fixture(autouse=True)
+def require_gpu(request):
+    """Skip vLLM tests if GPU is not available.
+
+    Tests marked no_gpu (pure module/patch resolution checks that load no
+    model) run regardless of GPU availability. Function scope is required so
+    the per-test marker can be honored -- a session-scoped fixture can't see
+    individual test markers.
+    """
+    if request.node.get_closest_marker("no_gpu"):
+        return
+    _skip_if_no_gpu()
+
+
+@pytest.fixture(scope="module")
+def _require_gpu_module():
+    """Module-scoped GPU gate for the cached LLM fixtures below.
+
+    pytest can't let a module-scoped fixture depend on the function-scoped
+    require_gpu fixture (ScopeMismatch), and instantiating fixtures follows
+    scope breadth, not declaration order -- without this, the module-scoped
+    LLM fixtures below would try to construct a GPU-backed vllm.LLM before
+    require_gpu ever runs on a machine without a GPU.
+    """
+    _skip_if_no_gpu()
 
 
 @pytest.fixture()
@@ -64,7 +96,7 @@ def vllm_llmobs(tracer, monkeypatch):
 
 
 @pytest.fixture(scope="module")
-def opt_125m_llm():
+def opt_125m_llm(_require_gpu_module):
     """Cached facebook/opt-125m LLM for text generation tests."""
     # Ensure patching happens before LLM creation
     from ddtrace.contrib.internal.vllm.patch import patch
@@ -86,7 +118,7 @@ def opt_125m_llm():
 
 
 @pytest.fixture(scope="module")
-def e5_small_llm():
+def e5_small_llm(_require_gpu_module):
     """Cached intfloat/e5-small LLM for embedding tests."""
     # Ensure patching happens before LLM creation
     from ddtrace.contrib.internal.vllm.patch import patch
@@ -110,7 +142,7 @@ def e5_small_llm():
 
 
 @pytest.fixture(scope="module")
-def bge_reranker_llm():
+def bge_reranker_llm(_require_gpu_module):
     """Cached BAAI/bge-reranker-v2-m3 LLM for classification/ranking tests."""
     # Ensure patching happens before LLM creation
     from ddtrace.contrib.internal.vllm.patch import patch

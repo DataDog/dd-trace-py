@@ -54,14 +54,16 @@
   num_metrics: 100
   per_metric: 10
 
-# Flush
-flush-1-metric: &flush
+# Record a mix of metrics once each (see scenario.run_record). Not a flush: the native
+# worker aggregates/flushes off-thread, so this measures per-metric recording cost on both
+# revisions rather than comparing baseline flush() against candidate adds.
+record-1-metric: &record
   metric_type: count  # unused
   per_metric: 1
   num_metrics: 1
-flush-100-metrics:
-  <<: *flush
+record-100-metrics:
+  <<: *record
   num_metrics: 100
-flush-1000-metrics:
-  <<: *flush
+record-1000-metrics:
+  <<: *record
   num_metrics: 1000

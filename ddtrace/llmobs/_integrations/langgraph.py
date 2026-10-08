@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -60,6 +60,14 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         if instance:
             self._graph_spans_to_graph_instances[span] = instance
+
+        # Stamp agent name at start so children resolve the correct pagent_name.
+        # instance is captured before **kwargs so _llmobs_agent_name_at_start can't reach it;
+        # stamp here after super().trace() has already written the kind.
+        if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
+            agent_name = getattr(instance, "name", None) if instance else None
+            if agent_name:
+                _annotate_llmobs_span_data(span, name=agent_name)
 
         return span
 
@@ -477,7 +485,7 @@ def _get_trigger_ids_from_finished_tasks(
                 _, trigger_id = pregel_pushes.pop(pregel_push_index)
                 trigger_ids.append(trigger_id)
         else:
-            trigger_ids.extend((cast(list[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
+            trigger_ids.extend(cast(list[str], task_trigger_channels_to_finished_tasks.get(trigger)) or [])
 
     return trigger_ids
 

@@ -5,6 +5,7 @@ https://pypi.org/project/pandas/
 """
 
 import os
+import tempfile
 
 from flask import Blueprint
 from flask import request
@@ -27,16 +28,15 @@ def pkg_pandas_view():
         # Create a DataFrame
         df = pd.DataFrame({"Column1": [param_value]})
 
-        # Save the DataFrame to a CSV file
-        file_path = "example.csv"
-        df.to_csv(file_path, index=False)
+        # Private directory per request: xdist workers share a cwd, so under a fixed name one
+        # request's cleanup removes the file another request is still reading.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            file_path = os.path.join(tmp_dir, "example.csv")
+            df.to_csv(file_path, index=False)
 
-        # Read back the value from the file to ensure it was written correctly
-        df_read = pd.read_csv(file_path)
-        read_value = df_read.iloc[0]["Column1"]
-
-        # Clean up the created file
-        os.remove(file_path)
+            # Read back the value from the file to ensure it was written correctly
+            df_read = pd.read_csv(file_path)
+            read_value = df_read.iloc[0]["Column1"]
 
         result_output = f"Written value: {read_value}"
 

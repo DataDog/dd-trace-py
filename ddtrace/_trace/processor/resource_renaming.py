@@ -14,7 +14,7 @@ log = get_logger(__name__)
 
 
 class SimplifiedEndpointComputer:
-    def __init__(self):
+    def __init__(self) -> None:
         self._INT_RE = re.compile(r"^[1-9][0-9]+$")
         self._INT_ID_RE = re.compile(r"^(?=.*[0-9].*)[0-9._-]{3,}$")
         self._HEX_RE = re.compile(r"^(?=.*[0-9].*)[A-Fa-f0-9]{6,}$")

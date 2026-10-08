@@ -3,7 +3,7 @@ import azure.servicebus.aio as azure_servicebus_aio
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal.schema import schematize_service_name
@@ -47,13 +47,10 @@ def _patch(azure_servicebus_module):
     azure_servicebus_module._datadog_patch = True
 
     if azure_servicebus_module.__name__ == "azure.servicebus.aio":
-        Pin().onto(azure_servicebus_module.ServiceBusSender)
         _w("azure.servicebus.aio", "ServiceBusSender.create_message_batch", _patched_create_message_batch_async)
         _w("azure.servicebus.aio", "ServiceBusSender.send_messages", _patched_send_messages_async)
         _w("azure.servicebus.aio", "ServiceBusSender.schedule_messages", _patched_schedule_messages_async)
     else:
-        Pin().onto(azure_servicebus_module.ServiceBusSender)
-        Pin().onto(azure_servicebus_module.ServiceBusMessageBatch)
         _w("azure.servicebus", "ServiceBusMessageBatch.add_message", _patched_add_message)
         _w("azure.servicebus", "ServiceBusSender.create_message_batch", _patched_create_message_batch)
         _w("azure.servicebus", "ServiceBusSender.send_messages", _patched_send_messages)
@@ -61,8 +58,7 @@ def _patch(azure_servicebus_module):
 
 
 def _patched_create_message_batch(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not config.azure_servicebus.batch_links:
+    if not is_tracing_enabled() or not config.azure_servicebus.batch_links:
         return wrapped(*args, **kwargs)
 
     batch = wrapped(*args, **kwargs)
@@ -74,8 +70,7 @@ def _patched_create_message_batch(wrapped, instance, args, kwargs):
 
 
 async def _patched_create_message_batch_async(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not config.azure_servicebus.batch_links:
+    if not is_tracing_enabled() or not config.azure_servicebus.batch_links:
         return await wrapped(*args, **kwargs)
 
     batch = await wrapped(*args, **kwargs)
@@ -87,8 +82,7 @@ async def _patched_create_message_batch_async(wrapped, instance, args, kwargs):
 
 
 def _patched_add_message(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not config.azure_servicebus.batch_links:
+    if not is_tracing_enabled() or not config.azure_servicebus.batch_links:
         return wrapped(*args, **kwargs)
 
     resource_name = instance._dd_entity_name
@@ -96,7 +90,7 @@ def _patched_add_message(wrapped, instance, args, kwargs):
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.CREATE}"
 
     with create_context(
-        "azure.servicebus.patched_producer_batch", pin, operation_name, resource_name, config.azure_servicebus
+        "azure.servicebus.patched_producer_batch", operation_name, resource_name, config.azure_servicebus
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.CREATE, resource_name, fully_qualified_namespace, "message"
@@ -105,8 +99,7 @@ def _patched_add_message(wrapped, instance, args, kwargs):
 
 
 def _patched_send_messages(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     resource_name = instance.entity_name
@@ -114,7 +107,7 @@ def _patched_send_messages(wrapped, instance, args, kwargs):
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
     with create_context(
-        "azure.servicebus.patched_producer_send", pin, operation_name, resource_name, config.azure_servicebus
+        "azure.servicebus.patched_producer_send", operation_name, resource_name, config.azure_servicebus
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "message"
@@ -123,8 +116,7 @@ def _patched_send_messages(wrapped, instance, args, kwargs):
 
 
 async def _patched_send_messages_async(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return await wrapped(*args, **kwargs)
 
     resource_name = instance.entity_name
@@ -132,7 +124,7 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
     with create_context(
-        "azure.servicebus.patched_producer_send", pin, operation_name, resource_name, config.azure_servicebus
+        "azure.servicebus.patched_producer_send", operation_name, resource_name, config.azure_servicebus
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "message"
@@ -141,8 +133,7 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
 
 
 def _patched_schedule_messages(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     resource_name = instance.entity_name
@@ -150,7 +141,7 @@ def _patched_schedule_messages(wrapped, instance, args, kwargs):
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
     with create_context(
-        "azure.servicebus.patched_producer_schedule", pin, operation_name, resource_name, config.azure_servicebus
+        "azure.servicebus.patched_producer_schedule", operation_name, resource_name, config.azure_servicebus
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "messages"
@@ -159,8 +150,7 @@ def _patched_schedule_messages(wrapped, instance, args, kwargs):
 
 
 async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return await wrapped(*args, **kwargs)
 
     resource_name = instance.entity_name
@@ -168,7 +158,7 @@ async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
     operation_name = f"{azure_servicebusx.CLOUD}.{azure_servicebusx.SERVICE}.{azure_servicebusx.SEND}"
 
     with create_context(
-        "azure.servicebus.patched_producer_schedule", pin, operation_name, resource_name, config.azure_servicebus
+        "azure.servicebus.patched_producer_schedule", operation_name, resource_name, config.azure_servicebus
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_servicebusx.SEND, resource_name, fully_qualified_namespace, "messages"

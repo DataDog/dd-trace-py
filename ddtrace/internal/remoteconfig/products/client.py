@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.settings._agent import config as agent_config
 
@@ -28,14 +29,24 @@ def _register_rc_products() -> None:
     flare_callback = TracerFlareCallback(flare, _flare_state)
 
     # Register for both AGENT_CONFIG and AGENT_TASK products (they share the same callback)
-    remoteconfig_poller.register_callback("AGENT_CONFIG", flare_callback)
-    remoteconfig_poller.enable_product("AGENT_CONFIG")
-    remoteconfig_poller.register_callback("AGENT_TASK", flare_callback)
-    remoteconfig_poller.enable_product("AGENT_TASK")
+    remoteconfig_poller.register_callback(RemoteConfigProduct.AgentConfig, flare_callback)
+    remoteconfig_poller.enable_product(RemoteConfigProduct.AgentConfig)
+    remoteconfig_poller.register_callback(RemoteConfigProduct.AgentTask, flare_callback)
+    remoteconfig_poller.enable_product(RemoteConfigProduct.AgentTask)
 
 
 def post_preload():
     pass
+
+
+def post_start():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    try:
+        remoteconfig_poller.start_deferred()
+    except Exception:
+        remoteconfig_poller.disable()
+        raise
 
 
 def enabled():
@@ -45,8 +56,17 @@ def enabled():
 def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    remoteconfig_poller.enable()
-    _register_rc_products()
+    # NOTE: Keep the poller behind this barrier until post_start. Product
+    # dependencies start after remote-configuration and must advertise their RC
+    # products before the no-wait polling thread sends its first request. Keep
+    # the failure cleanup too: a stale barrier would prevent later registration
+    # from starting the poller.
+    remoteconfig_poller.defer_start()
+    try:
+        _register_rc_products()
+    except Exception:
+        remoteconfig_poller.disable()
+        raise
 
 
 def restart(join=False):

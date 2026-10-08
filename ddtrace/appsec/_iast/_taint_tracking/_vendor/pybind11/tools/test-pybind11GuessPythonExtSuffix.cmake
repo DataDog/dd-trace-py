@@ -1,26 +1,25 @@
-cmake_minimum_required(VERSION 3.15...4.0)
+cmake_minimum_required(VERSION 3.15...4.2)
 
-# Tests for pybind11_guess_python_module_extension
-# Run using `cmake -P tools/test-pybind11GuessPythonExtSuffix.cmake`
+# Tests for pybind11_guess_python_module_extension Run using `cmake -P tools/test-pybind11GuessPythonExtSuffix.cmake`
 
 include("${CMAKE_CURRENT_LIST_DIR}/pybind11GuessPythonExtSuffix.cmake")
 
 macro(expect_streq actual expected)
-  if(NOT "${actual}" STREQUAL "${expected}")
-    message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: '${expected}'")
-  endif()
+    if(NOT "${actual}" STREQUAL "${expected}")
+        message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: '${expected}'")
+    endif()
 endmacro()
 
 macro(expect_false actual)
-  if("${actual}")
-    message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: false")
-  endif()
+    if("${actual}")
+        message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: false")
+    endif()
 endmacro()
 
 macro(expect_true actual)
-  if(NOT "${actual}")
-    message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: true")
-  endif()
+    if(NOT "${actual}")
+        message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: true")
+    endif()
 endmacro()
 
 # Windows
@@ -86,6 +85,30 @@ expect_false("${PYTHON_IS_DEBUG}")
 unset(PYTHON_MODULE_EXT_SUFFIX)
 unset(PYTHON_MODULE_EXT_SUFFIX CACHE)
 unset(ENV{SETUPTOOLS_EXT_SUFFIX})
+
+# Check the priority of the possible suffix sources.
+set(ENV{SETUPTOOLS_EXT_SUFFIX} ".from-setuptools.pyd")
+set(SKBUILD_SOABI "from-skbuild")
+set(Python3_SOABI "from-python3")
+pybind11_guess_python_module_extension("Python3")
+expect_streq("${PYTHON_MODULE_EXTENSION}" ".from-setuptools.pyd")
+
+unset(PYTHON_MODULE_EXT_SUFFIX CACHE)
+unset(ENV{SETUPTOOLS_EXT_SUFFIX})
+pybind11_guess_python_module_extension("Python3")
+expect_streq("${PYTHON_MODULE_EXTENSION}" ".from-skbuild.pyd")
+
+unset(SKBUILD_SOABI)
+pybind11_guess_python_module_extension("Python3")
+expect_streq("${PYTHON_MODULE_EXTENSION}" ".from-python3.pyd")
+
+set(Python3_SOABI "")
+pybind11_guess_python_module_extension("Python3")
+expect_streq("${PYTHON_MODULE_EXTENSION}" ".pyd")
+
+unset(Python3_SOABI)
+pybind11_guess_python_module_extension("Python3")
+expect_streq("${PYTHON_MODULE_EXTENSION}" "")
 
 # macOS
 set(CMAKE_SYSTEM_NAME "Darwin")

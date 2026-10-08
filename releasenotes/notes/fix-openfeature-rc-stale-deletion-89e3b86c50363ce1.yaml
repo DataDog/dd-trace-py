@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    openfeature: This fix resolves an issue where replacing the feature flag configuration could
+    leave a forked worker process (for example under ``gunicorn`` or ``uWSGI``) with no
+    configuration, so every subsequent flag evaluation returned the caller-provided default with
+    the ``PROVIDER_NOT_READY`` error code.

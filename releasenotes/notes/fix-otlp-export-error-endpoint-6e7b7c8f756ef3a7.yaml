@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: Fixes an issue where OTLP trace export failures report the Datadog Agent intake URL
+    instead of the configured OTLP endpoint.

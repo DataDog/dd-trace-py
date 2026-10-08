@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where APM Tracing remote configuration is not applied when the environment is configured only on the Datadog Agent.

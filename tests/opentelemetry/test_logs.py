@@ -510,6 +510,58 @@ def test_otel_trace_log_correlation():
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"}, err=None)
+def test_otel_logs_exporter_excludes_self_telemetry():
+    """Test that the OTLP logs handler does not capture the tracer's own telemetry.
+
+    Records emitted by ddtrace's own loggers (``ddtrace.*``) and by the OpenTelemetry
+    SDK/exporter loggers (``opentelemetry.*``) must not be captured and exported by the
+    OTLP logs handler. Otherwise the exporter's own debug/warning/error log records feed
+    back into the export pipeline and create a self-amplifying export loop. Application
+    log records must still be captured and exported.
+    """
+    from logging import getLogger
+
+    from opentelemetry._logs import get_logger_provider
+
+    from tests.opentelemetry.test_logs import create_mock_grpc_server
+
+    mock_service, server = create_mock_grpc_server()
+    try:
+        server.start()
+        # Emulates the tracer's own export-pipeline debug line and the OpenTelemetry
+        # exporter's export-failure warning/error logs -- both must be excluded.
+        getLogger("ddtrace.internal.opentelemetry.logs").warning("ddtrace_self_telemetry_log_record")
+        getLogger("opentelemetry.exporter.otlp").warning("opentelemetry_self_telemetry_log_record")
+        # A normal application log record must still be captured and exported.
+        getLogger("my_application_logger").warning("application_log_record")
+        get_logger_provider().force_flush()
+    finally:
+        server.stop(2)
+
+    exported_messages = [
+        record.body.string_value
+        for request in mock_service.received_requests
+        for resource_logs in request.resource_logs
+        for scope_logs in resource_logs.scope_logs
+        for record in scope_logs.log_records
+    ]
+
+    assert any("application_log_record" in message for message in exported_messages), (
+        f"Application log record should have been exported but was not found in: {exported_messages}"
+    )
+    assert not any("ddtrace_self_telemetry_log_record" in message for message in exported_messages), (
+        f"ddtrace self-telemetry log record must not be exported but was found in: {exported_messages}"
+    )
+    assert not any("opentelemetry_self_telemetry_log_record" in message for message in exported_messages), (
+        f"OpenTelemetry self-telemetry log record must not be exported but was found in: {exported_messages}"
+    )
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
 def test_otel_logs_does_not_generate_client_grpc_spans():

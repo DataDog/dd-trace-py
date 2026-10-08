@@ -30,6 +30,9 @@ class CITag:
     # Pipeline Name
     PIPELINE_NAME = "ci.pipeline.name"
 
+    # Pipeline Display Name
+    PIPELINE_DISPLAY_NAME = "ci.pipeline.display_name"
+
     # Pipeline Number
     PIPELINE_NUMBER = "ci.pipeline.number"
 
@@ -202,7 +205,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
             key = env_variable.replace(buildkite_agent_meta_data_prefix, "").lower()
             value = env.get(env_variable)
-            node_label_list.append("{}:{}".format(key, value))
+            node_label_list.append(f"{key}:{value}")
     return {
         GitTag.BRANCH: env.get("BUILDKITE_BRANCH"),
         GitTag.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
@@ -211,6 +214,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         GitTag.TAG: env.get("BUILDKITE_TAG"),
         CITag.PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
         CITag.PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
+        CITag.PIPELINE_DISPLAY_NAME: env.get("BUILDKITE_PIPELINE_NAME"),
         CITag.PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
         CITag.PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
         CITag.JOB_ID: env.get("BUILDKITE_JOB_ID"),
@@ -342,9 +346,9 @@ def extract_jenkins(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str
     branch = env.get("GIT_BRANCH", "")
     name = env.get("JOB_NAME")
     if name and branch:
-        name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
+        name = re.sub(f"/{git.normalize_ref(branch)}", "", name)
     if name:
-        name = "/".join((v for v in name.split("/") if v and "=" not in v))
+        name = "/".join(v for v in name.split("/") if v and "=" not in v)
     node_labels_list: list[str] = []
     node_labels_env = env.get("NODE_LABELS")
     if node_labels_env:

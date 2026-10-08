@@ -20,13 +20,12 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
     ),
     err=None,
 )
-def test_greenlet_count_present():
+def test_greenlet_count_present() -> None:
     """greenlet_count is present and positive when gevent greenlets are active."""
     from gevent import monkey
 
     monkey.patch_all()
 
-    import glob
     import json
     import os
     import time
@@ -35,10 +34,11 @@ def test_greenlet_count_present():
 
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     stop = False
 
-    def worker():
+    def worker() -> None:
         while not stop:
             gevent.sleep(0.01)
 
@@ -53,7 +53,7 @@ def test_greenlet_count_present():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
     found_positive = False

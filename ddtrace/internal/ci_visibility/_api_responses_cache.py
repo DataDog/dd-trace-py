@@ -42,7 +42,7 @@ def _read_from_cache(cache_key: str) -> t.Optional[dict]:
     cache_file = _get_cache_file_path(cache_key)
     try:
         if os.path.exists(cache_file):
-            with open(cache_file, "r", encoding="utf-8") as f:
+            with open(cache_file, encoding="utf-8") as f:
                 cached_data = json.load(f)
                 log.debug("RESPONSE CACHE: Hit for key: %s", cache_key)
                 return cached_data

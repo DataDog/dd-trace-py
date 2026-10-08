@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace._trace.span import Span
@@ -43,6 +44,13 @@ def test_parse_target_from_args(mock_log, args, kwargs, result, log_warning_call
         mock_log.warning.assert_called_once_with(*log_warning_call)
     else:
         mock_log.warning.assert_not_called()
+
+
+@pytest.mark.parametrize("header", ["user-agent", "grpc.primary_user_agent"])
+def test_is_otlp_export_with_user_agent(monkeypatch, header):
+    monkeypatch.setattr(utils.config, "_otel_logs_enabled", True)
+
+    assert utils.is_otlp_export(((header, "OTel-OTLP-Exporter-Python/1.44.0"),))
 
 
 @pytest.mark.parametrize(

@@ -273,47 +273,47 @@ def test_rank_root_close_flush_is_bounded(monkeypatch):
 
 
 def test_detect_launcher_torchrun(monkeypatch):
-    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _utils
 
     monkeypatch.setenv("TORCHELASTIC_RUN_ID", "tr-123")
     monkeypatch.delenv("RAY_JOB_ID", raising=False)
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     monkeypatch.delenv("KUBEFLOW_TRAINING_JOB_ID", raising=False)
-    assert _distributed._detect_launcher() == "torchrun"
+    assert _utils.detect_launcher() == "torchrun"
 
 
 def test_detect_launcher_ray(monkeypatch):
-    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _utils
 
     monkeypatch.delenv("TORCHELASTIC_RUN_ID", raising=False)
     monkeypatch.setenv("RAY_JOB_ID", "rayjob-99")
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     monkeypatch.delenv("KUBEFLOW_TRAINING_JOB_ID", raising=False)
-    assert _distributed._detect_launcher() == "ray"
+    assert _utils.detect_launcher() == "ray"
 
 
 def test_detect_launcher_slurm(monkeypatch):
-    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _utils
 
     monkeypatch.delenv("TORCHELASTIC_RUN_ID", raising=False)
     monkeypatch.delenv("RAY_JOB_ID", raising=False)
     monkeypatch.setenv("SLURM_JOB_ID", "slurm-42")
     monkeypatch.delenv("KUBEFLOW_TRAINING_JOB_ID", raising=False)
-    assert _distributed._detect_launcher() == "slurm"
+    assert _utils.detect_launcher() == "slurm"
 
 
 def test_detect_launcher_kubeflow(monkeypatch):
-    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _utils
 
     monkeypatch.delenv("TORCHELASTIC_RUN_ID", raising=False)
     monkeypatch.delenv("RAY_JOB_ID", raising=False)
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     monkeypatch.setenv("KUBEFLOW_TRAINING_JOB_ID", "kf-job-1")
-    assert _distributed._detect_launcher() == "kubeflow"
+    assert _utils.detect_launcher() == "kubeflow"
 
 
 def test_detect_launcher_none(monkeypatch):
-    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _utils
 
     for var in (
         "TORCHELASTIC_RUN_ID",
@@ -322,14 +322,14 @@ def test_detect_launcher_none(monkeypatch):
         "KUBEFLOW_TRAINING_JOB_ID",
     ):
         monkeypatch.delenv(var, raising=False)
-    assert _distributed._detect_launcher() is None
+    assert _utils.detect_launcher() is None
 
 
 def test_get_cached_backend_caches_result(monkeypatch):
-    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _utils
 
     # Reset the cache.
-    _distributed._cached_distributed_backend = None
+    _utils._cached_distributed_backend = None
     monkeypatch.setattr(
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.is_available",
         lambda: True,
@@ -342,23 +342,23 @@ def test_get_cached_backend_caches_result(monkeypatch):
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.get_backend",
         lambda: "nccl",
     )
-    result1 = _distributed._get_cached_backend()
+    result1 = _utils.get_cached_backend()
     assert result1 == "nccl"
     # Second call should return cached value without calling get_backend again.
     monkeypatch.setattr(
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.get_backend",
         lambda: "SHOULD_NOT_BE_CALLED",
     )
-    result2 = _distributed._get_cached_backend()
+    result2 = _utils.get_cached_backend()
     assert result2 == "nccl"
     # Clean up.
-    _distributed._cached_distributed_backend = None
+    _utils._cached_distributed_backend = None
 
 
 def test_get_cached_backend_returns_none_when_not_initialized(monkeypatch):
-    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _utils
 
-    _distributed._cached_distributed_backend = None
+    _utils._cached_distributed_backend = None
     monkeypatch.setattr(
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.is_available",
         lambda: True,
@@ -367,8 +367,8 @@ def test_get_cached_backend_returns_none_when_not_initialized(monkeypatch):
         "ddtrace.contrib.internal.pytorch._distributed.torch.distributed.is_initialized",
         lambda: False,
     )
-    assert _distributed._get_cached_backend() is None
-    _distributed._cached_distributed_backend = None
+    assert _utils.get_cached_backend() is None
+    _utils._cached_distributed_backend = None
 
 
 def test_rank_span_carries_torch_invariants(monkeypatch):

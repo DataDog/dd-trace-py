@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from collections import defaultdict
 from collections import namedtuple
 import inspect
@@ -21,6 +19,7 @@ from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
@@ -32,7 +31,7 @@ from tests.debugging.test_safety import SideEffects
 from tests.debugging.utils import create_snapshot_line_probe
 
 
-class Custom(object):
+class Custom:
     def __init__(self):
         self.some_arg = ({"Hello": [None, 42, True, None, {b"World"}, 0.07]},)
 
@@ -40,7 +39,7 @@ class Custom(object):
         pass
 
 
-class Node(object):
+class Node:
     def __init__(self, name, left=None, right=None):
         self.name = name
         self.left = left
@@ -50,7 +49,7 @@ class Node(object):
         return "Node(%s, %s, %s)" % (self.name, self.left, self.right)
 
 
-class Tree(object):
+class Tree:
     def __init__(self, name, root):
         self.name = name
         self.root = root
@@ -357,7 +356,7 @@ def test_encoding_zero_fields():
     }
 
 
-class CountBudget(object):
+class CountBudget:
     """Make stopping condition for the value capturing deterministic."""
 
     __name__ = "CountBudget"
@@ -446,7 +445,7 @@ def test_encoding_stopping_cond_level(count, result):
 
 @pytest.mark.parametrize("count,nfields", [(1, 0), (5, 2), (10, 5)])
 def test_encoding_stopping_cond_fields(count, nfields):
-    class Obj(object):
+    class Obj:
         pass
 
     a = Obj()
@@ -861,6 +860,17 @@ def test_capture_value_builtin_redacted_type():
             "elements": [utils.redacted_type(int)] * 3,
             "size": 3,
         }
+
+
+def test_serialize_redacted_type():
+    class SensitiveModel:
+        def __init__(self):
+            self.value = 42
+            self.token = "secret"
+
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="*.SensitiveModel"):
+        assert utils.serialize(SensitiveModel()) == REDACTED_PLACEHOLDER
+        assert utils.serialize([SensitiveModel()]) == "[%s]" % REDACTED_PLACEHOLDER
 
 
 @pytest.mark.subprocess(err=None)

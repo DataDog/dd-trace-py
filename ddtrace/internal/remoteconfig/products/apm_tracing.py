@@ -1,11 +1,12 @@
 from collections import ChainMap
-import enum
 import typing as t
 
 from ddtrace import config
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.core.event_hub import on
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigCapabilities
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 
@@ -16,8 +17,7 @@ requires = ["remote-configuration"]
 log = get_logger(__name__)
 
 
-class APMCapabilities(enum.IntFlag):
-    APM_TRACING_MULTICONFIG = 1 << 45
+APMCapabilities = (RemoteConfigCapabilities.ApmTracingMulticonfig,)
 
 
 def config_key(payload: Payload) -> int:
@@ -79,7 +79,8 @@ class APMTracingCallback(RCCallback):
                 log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
                 continue
 
-            if env is not None and env != "*" and env != config.env:
+            # The Agent may target configs using an environment configured only at the Agent level.
+            if env is not None and env != "*" and config.env and env != config.env:
                 log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
                 continue
 
@@ -109,13 +110,13 @@ def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     remoteconfig_poller.register_callback(
-        "APM_TRACING",
+        RemoteConfigProduct.ApmTracing,
         APMTracingCallback(),
         capabilities=[
             cap for product in manager.__products__.values() for cap in getattr(product, "APMCapabilities", [])
         ],
     )
-    remoteconfig_poller.enable_product("APM_TRACING")
+    remoteconfig_poller.enable_product(RemoteConfigProduct.ApmTracing)
 
     # Register remote config handlers
     for name, product in manager.__products__.items():
@@ -130,5 +131,5 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    remoteconfig_poller.unregister_callback("APM_TRACING")
-    remoteconfig_poller.disable_product("APM_TRACING")
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.ApmTracing)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.ApmTracing)

@@ -170,6 +170,39 @@ def test_process_tags_user_defined_service():
                     pass
 
 
+def test_service_state_seeds_from_stable_config(monkeypatch):
+    """svc.user must win even when DD_SERVICE comes only from local/fleet stable config.
+
+    The telemetry worker caches process tags before Config resolves the service name, so the
+    early seed in _service_state must consult stable config too. Regression: it used to read
+    environment variables only, baking svc.auto into services provided solely via stable config.
+    """
+    from ddtrace.internal import _service_state
+
+    monkeypatch.delenv("DD_SERVICE", raising=False)
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    monkeypatch.delenv("DD_TAGS", raising=False)
+
+    # No source provides a service -> not user-provided (svc.auto).
+    monkeypatch.setattr(_service_state, "FLEET_CONFIG", {})
+    monkeypatch.setattr(_service_state, "LOCAL_CONFIG", {})
+    assert _service_state._service_provided_early() is False
+
+    # DD_SERVICE via local stable config alone -> user-provided.
+    monkeypatch.setattr(_service_state, "LOCAL_CONFIG", {"DD_SERVICE": "svc-from-local"})
+    assert _service_state._service_provided_early() is True
+
+    # DD_SERVICE via fleet stable config alone -> user-provided.
+    monkeypatch.setattr(_service_state, "LOCAL_CONFIG", {})
+    monkeypatch.setattr(_service_state, "FLEET_CONFIG", {"DD_SERVICE": "svc-from-fleet"})
+    assert _service_state._service_provided_early() is True
+
+    # A service tag inside DD_TAGS from stable config also counts.
+    monkeypatch.setattr(_service_state, "FLEET_CONFIG", {})
+    monkeypatch.setattr(_service_state, "LOCAL_CONFIG", {"DD_TAGS": "team:core,service:tagged-svc"})
+    assert _service_state._service_provided_early() is True
+
+
 @pytest.mark.snapshot
 def test_process_tags_edge_case(tracer):
     with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):

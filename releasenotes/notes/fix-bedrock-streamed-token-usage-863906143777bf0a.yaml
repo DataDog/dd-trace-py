@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue where LLM Observability spans for Bedrock
+    ``invoke_model_with_response_stream`` calls reported all token usage metrics as ``0``.
+    Token counts are now extracted from the streamed response and set on the span.

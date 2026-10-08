@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    anthropic: Fixes an issue where spans were not exported when streamed responses were
+    consumed using ``get_final_message()`` or ``get_final_text()``.

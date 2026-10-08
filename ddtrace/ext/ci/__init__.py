@@ -2,12 +2,12 @@
 Tags for common CI attributes
 """
 
+from collections.abc import MutableMapping  # noqa:F401
 import json
 import logging
 import os
 import platform
 import re
-from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace.ext import git
@@ -36,6 +36,9 @@ PIPELINE_ID = "ci.pipeline.id"
 
 # Pipeline Name
 PIPELINE_NAME = "ci.pipeline.name"
+
+# Pipeline Display Name
+PIPELINE_DISPLAY_NAME = "ci.pipeline.display_name"
 
 # Pipeline Number
 PIPELINE_NUMBER = "ci.pipeline.number"
@@ -291,7 +294,7 @@ def extract_buildkite(environ: MutableMapping[str, str]) -> dict[str, Optional[s
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
             key = env_variable.replace(buildkite_agent_meta_data_prefix, "").lower()
             value = environ.get(env_variable)
-            node_label_list.append("{}:{}".format(key, value))
+            node_label_list.append(f"{key}:{value}")
     return {
         git.BRANCH: environ.get("BUILDKITE_BRANCH"),
         git.COMMIT_SHA: environ.get("BUILDKITE_COMMIT"),
@@ -300,6 +303,7 @@ def extract_buildkite(environ: MutableMapping[str, str]) -> dict[str, Optional[s
         git.TAG: environ.get("BUILDKITE_TAG"),
         PIPELINE_ID: environ.get("BUILDKITE_BUILD_ID"),
         PIPELINE_NAME: environ.get("BUILDKITE_PIPELINE_SLUG"),
+        PIPELINE_DISPLAY_NAME: environ.get("BUILDKITE_PIPELINE_NAME"),
         PIPELINE_NUMBER: environ.get("BUILDKITE_BUILD_NUMBER"),
         PIPELINE_URL: environ.get("BUILDKITE_BUILD_URL"),
         JOB_ID: environ.get("BUILDKITE_JOB_ID"),
@@ -426,9 +430,9 @@ def extract_jenkins(environ: MutableMapping[str, str]) -> dict[str, Optional[str
     branch = environ.get("GIT_BRANCH", "")
     name = environ.get("JOB_NAME")
     if name and branch:
-        name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
+        name = re.sub(f"/{git.normalize_ref(branch)}", "", name)
     if name:
-        name = "/".join((v for v in name.split("/") if v and "=" not in v))
+        name = "/".join(v for v in name.split("/") if v and "=" not in v)
     node_labels_list: list[str] = []
     node_labels_env: Optional[str] = environ.get("NODE_LABELS")
     if node_labels_env:
