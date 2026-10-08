@@ -538,7 +538,7 @@ def test_last_collected_code_releases_tool_and_callbacks() -> None:
     assert sys_monitoring.get_events(tool_id) == 0
 
 
-@pytest.mark.subprocess(out="")
+@pytest.mark.subprocess()
 def test_code_collected_during_shutdown_is_silent() -> None:
     """asyncio code objects are freed after shutdown clears the monitoring module globals."""
     import asyncio
