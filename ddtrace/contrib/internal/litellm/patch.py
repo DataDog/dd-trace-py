@@ -28,7 +28,7 @@ config._add(
     "litellm",
     {
         "usage_metrics_enabled": asbool(env.get("DD_LITELLM_USAGE_METRICS_ENABLED", default=False)),
-        "usage_metrics_tags": env.get("DD_LITELLM_USAGE_METRICS_TAGS", default=""),
+        "usage_metrics_tags": env.get("DD_LITELLM_USAGE_METRICS_TAGS"),
         "usage_metrics_exporter": env.get("DD_LITELLM_USAGE_METRICS_EXPORTER", default="otlp"),
         "usage_metrics_client_source": env.get("DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE"),
     },

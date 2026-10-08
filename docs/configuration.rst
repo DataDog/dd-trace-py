@@ -593,7 +593,7 @@ Metrics
 
    DD_LITELLM_USAGE_METRICS_TAGS:
      type: String
-     default: ""
+     default: None
 
      description: |
          Comma-separated optional tags for LiteLLM usage metrics: ``user``, ``team``, ``key_alias``, ``route``,

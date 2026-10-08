@@ -84,7 +84,7 @@ against its budgets. The two cost metrics describe the same spend and are never 
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_TAGS`` environment variable.
 
-   Default: ``""``
+   Default: ``None``
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_client_source"]
 
