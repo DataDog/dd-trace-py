@@ -668,7 +668,7 @@ impl Context {
         Ok(())
     }
 
-    fn _publish_sampling_decision(
+    pub(crate) fn _publish_sampling_decision(
         slf: &Bound<'_, Self>,
         sampling_priority: Option<&Bound<'_, PyAny>>,
         sample_rate: f64,

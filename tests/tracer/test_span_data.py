@@ -8,6 +8,11 @@ that wouldn't be caught by testing the higher-level Span class.
 import pytest
 
 from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_RULE_DECISION
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -30,6 +35,26 @@ def test_native_span_sampling():
     _set_sampling_tags(span, False, 0, SamplingMechanism.DEFAULT)
     assert span.context is context
     assert context._meta["_dd.p.dm"] == "-3"
+
+
+@pytest.mark.parametrize("decision", [USER_KEEP, USER_REJECT, None])
+def test_native_span_override_sampling_decision(decision):
+    root = SpanData(name="root")
+    root.context._publish_sampling_decision(1, 0.5, True)
+    child = SpanData(name="child", context=root.context)
+    child._inherit_from_parent(root)
+    sampling_keys = (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION)
+    for key in sampling_keys:
+        root._set_attribute(key, 0.5)
+
+    child._override_sampling_decision(decision)
+
+    assert child.context.sampling_priority == decision
+    assert root.context.sampling_priority == decision
+    assert root.context._meta["_dd.p.dm"] == "-4"
+    assert root.context._otel_sampling_state_data == -1.0
+    for key in sampling_keys:
+        assert not root._has_attribute(key)
 
 
 # =============================================================================
