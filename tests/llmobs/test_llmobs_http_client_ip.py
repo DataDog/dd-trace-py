@@ -8,7 +8,6 @@ without joining against APM traces.
 Only the LLMObs root span is enriched; nested spans join against the root at
 query time.
 """
-
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._utils import get_llmobs_tags
 
