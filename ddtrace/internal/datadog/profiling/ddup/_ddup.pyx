@@ -134,6 +134,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
+    bint ddup_reset() nogil
 
 
 cdef extern from "code_provenance.hpp" namespace "Datadog":
@@ -444,7 +445,7 @@ def set_profiler_settings_json(settings_json: StringType) -> None:
     call_func_with_str(ddup_set_profiler_settings_json, settings_json)
 
 
-def _get_endpoint(tracer)-> str:
+def _get_endpoint(tracer: Tracer) -> str:
     # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
     # leads to a circular import, so re-implementing it here.
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
@@ -483,17 +484,26 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
         ddup_upload()
 
 
+def reset(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
+    """Discard everything recorded since the last upload, and start the next profile window now."""
+    if tracer is not None:
+        tracer._endpoint_call_counter_span_processor.reset()
+
+    with nogil:
+        ddup_reset()
+
+
 cdef class SampleHandle:
     cdef Sample *ptr
 
-    def __cinit__(self):
+    def __cinit__(self) -> None:
         self.ptr = NULL
         ddup_start()
         if not ddup_is_initialized():
             return
         self.ptr = SampleManager.start_sample()
 
-    def __dealloc__(self):
+    def __dealloc__(self) -> None:
         if self.ptr is not NULL:
             SampleManager.drop_sample(self.ptr)
             self.ptr = NULL  # defensively, in case of post-dealloc access in native

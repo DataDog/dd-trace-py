@@ -34,12 +34,12 @@ def get_lock_locations(path: str) -> None:
                     lock_locs[lock_name] = lock_locs[lock_name]._replace(**{field: lineno})
 
 
-def get_lock_linenos(name, with_stmt=False) -> LineNo:
+def get_lock_linenos(name: str, with_stmt: bool = False) -> LineNo:
     linenos = lock_locs.get(name, LineNo(0, 0, 0))
     if with_stmt and sys.version_info < (3, 10):
         linenos = linenos._replace(release=linenos.release + 1)
     return linenos
 
 
-def init_linenos(path) -> None:
+def init_linenos(path: str) -> None:
     get_lock_locations(path)

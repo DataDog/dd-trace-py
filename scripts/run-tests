@@ -712,11 +712,13 @@ class TestRunner:
             if suite_env:
                 for key, value in suite_env.items():
                     value = str(value)
-                    # Podman runs both services and the test runner with host
-                    # networking, which does not provide Compose service DNS.
-                    # Service aliases in suitespec therefore need to target the
-                    # host-network endpoint instead.
-                    if self.podman_compat and key.endswith("_HOST") and value in suite_services:
+                    # docker-compose.yml's testrunner service runs with network_mode: host (true for
+                    # both the plain-Docker and Podman compose files), which does not provide Compose
+                    # service DNS. Service aliases in suitespec therefore need to target the
+                    # host-network endpoint instead. This only applies when we start services
+                    # ourselves via that testrunner flow (not self.in_ci); CI provisions services
+                    # separately and its hostname resolution isn't affected by this.
+                    if not self.in_ci and key.endswith("_HOST") and value in suite_services:
                         value = "localhost"
                     env[key] = value
                     print(f"🔧 Setting {key}={value}")

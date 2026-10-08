@@ -1,4 +1,5 @@
 use pyo3::{
+    exceptions::PyTypeError,
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
         PyFloat, PyFloatMethods as _, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _,
@@ -8,6 +9,7 @@ use pyo3::{
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
+use crate::context::Context;
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
@@ -75,6 +77,10 @@ pub struct SpanData {
     pub _service_entry_span: Option<Py<SpanData>>,
     /// The parent `Context` this span was created under, or `None`.
     pub _parent_context: Option<Py<crate::context::Context>>,
+    /// This span's own `Context`, built eagerly for a root span (in `__new__`, before the
+    /// span is published) and lazily on first read for a child span. `None` on a child means
+    /// "not yet built" — see the `context` getter.
+    pub _context: Option<Py<Context>>,
 }
 
 impl SpanData {
@@ -202,7 +208,7 @@ impl SpanData {
         span_id=None,
         parent_id=None,
         start=None,
-        context=None,      // placeholder for Span.__init__ positional arg
+        context=None,
         on_finish=None,    // placeholder for Span.__init__ positional arg
         span_api=None,
         *args,
@@ -218,13 +224,13 @@ impl SpanData {
         span_id: Option<&Bound<'p, PyAny>>,
         parent_id: Option<&Bound<'p, PyAny>>,
         start: Option<&Bound<'p, PyAny>>,
-        context: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        context: Option<&Bound<'p, PyAny>>, // parent Context, or None for a root span
         on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
         span_api: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let mut span = Self::default();
         span.set_name(name);
         match service {
@@ -304,7 +310,15 @@ impl SpanData {
         span.span_api = span_api
             .map(|obj| extract_backed_string_or_default(obj))
             .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
-        span
+        // `context` is the parent Context, or None for a root span.
+        span._parent_context = context.and_then(|ctx| ctx.extract().ok());
+        if span._parent_context.is_none() {
+            // A root span owns fresh, unshared trace-level state. Building its Context
+            // here, before the span can be published, keeps concurrent first readers from
+            // building divergent state without needing a lock.
+            span._context = Some(Context::new_root(py, span.trace_id, span.span_id as u128)?);
+        }
+        Ok(span)
     }
 
     #[getter]
@@ -689,6 +703,90 @@ impl SpanData {
             // Silently ignore non-Context values, matching other setters' defensive style.
             value.extract::<Py<crate::context::Context>>().ok()
         };
+    }
+
+    /// The trace context for this span.
+    ///
+    /// For a child span this is a copy of the parent context that shares the trace-level
+    /// ``_meta``/``_metrics``/``_baggage`` while carrying this span's own
+    /// ``trace_id``/``span_id``; for a root span it is fresh trace-level state. Child
+    /// contexts are built lazily on first read; root contexts are built eagerly at
+    /// construction (before the span is published) so the build cannot race across threads.
+    ///
+    /// Takes `slf` rather than `&mut self` so no borrow of this span is held while a
+    /// `Context` subclass's Python `copy` override runs.
+    #[getter(context)]
+    fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
+        let py = slf.py();
+
+        let this = slf.borrow();
+        if let Some(ctx) = &this._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let parent = this._parent_context.as_ref().map(|p| p.bind(py).clone());
+        let (trace_id, span_id) = (this.trace_id, this.span_id as u128);
+        drop(this);
+
+        let new_ctx = match parent {
+            // Fast path for the base class; a Python subclass may override `copy`, so
+            // route through Python dispatch for those.
+            Some(parent) if parent.is_exact_instance_of::<Context>() => {
+                Context::copy_native(&parent, Some(trace_id), Some(span_id))?.into_bound(py)
+            }
+            Some(parent) => parent
+                .call_method1("copy", (trace_id, span_id))?
+                .cast_into()?,
+            None => Context::new_root(py, trace_id, span_id)?.into_bound(py),
+        };
+
+        let old = slf.borrow_mut()._context.replace(new_ctx.clone().unbind());
+        drop(old);
+        Ok(new_ctx)
+    }
+
+    /// Takes `slf` rather than `&mut self` so the native borrow is released before the old
+    /// value is dropped: `Context` is `weakref`-enabled, so dropping the last strong
+    /// reference can run a weakref callback/finalizer, and one that re-enters this same
+    /// `SpanData` would otherwise hit "already mutably borrowed".
+    ///
+    /// Raises `TypeError` for anything other than a `Context` or `None`: the field is a
+    /// native `Option<Py<Context>>`, and discarding an unrecognized value would make a later
+    /// `context` read fabricate unrelated trace state.
+    #[setter(context)]
+    fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        let new_value: Option<Py<Context>> = value
+            .extract()
+            .map_err(|_| PyTypeError::new_err("context must be a Context instance or None"))?;
+        let old = std::mem::replace(&mut slf.borrow_mut()._context, new_value);
+        drop(old);
+        Ok(())
+    }
+
+    /// Return the context a child span should inherit trace-level state from.
+    ///
+    /// Reuses a context that already holds this trace's shared `_meta`/`_metrics`/
+    /// `_baggage` — this span's own context if it was built, otherwise its (local)
+    /// parent-context — so a deep local trace materializes a single Context instead of
+    /// one per span. A remote parent-context is never handed down: a local child's
+    /// parent-context must stay local so `_is_remote`/reactivation keep their meaning, so
+    /// a distributed entry span materializes its (local) context once here.
+    fn _context_for_child<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
+        let py = slf.py();
+
+        let this = slf.borrow();
+        if let Some(ctx) = &this._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let local_parent = this
+            ._parent_context
+            .as_ref()
+            .filter(|parent| !parent.bind(py).borrow().is_remote);
+        if let Some(parent) = local_parent {
+            return Ok(parent.bind(py).clone());
+        }
+        drop(this);
+
+        Self::get_context(slf)
     }
 
     // _is_top_level property (native for performance - avoids Python property hop).
@@ -1144,6 +1242,9 @@ impl SpanData {
             visit.call(span)?;
         }
         if let Some(c) = &self._parent_context {
+            visit.call(c)?;
+        }
+        if let Some(c) = &self._context {
             visit.call(c)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.

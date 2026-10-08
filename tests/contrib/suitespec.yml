@@ -642,6 +642,7 @@ suites:
     env:
       # This job's services are heavier than average; pin resources and disable
       # the VPA to make sure it consistently gets enough CPU/memory to start.
+      DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES: '4'
       DD_DISABLE_VPA: 'true'
       KUBERNETES_CPU_REQUEST: '2'
       KUBERNETES_CPU_LIMIT: '2'
@@ -879,7 +880,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [WebTest, pytest-randomly, bottle]
   celery:
-    venvs_per_job: 2
+    venvs_per_job: 1
     env:
       DD_DISABLE_ERROR_RESPONSES: true
       DD_POOL_TRACE_CHECK_FAILURES: true
@@ -2215,6 +2216,8 @@ suites:
     snapshot: true
     matrix:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb
+      env:
+        DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: '0'
       variants:
         - name: pynamodb
           python: ['3.9']

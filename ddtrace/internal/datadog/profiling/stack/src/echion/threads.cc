@@ -190,14 +190,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                        std::inserter(parent_tasks, parent_tasks.begin()),
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
 
-        // Clean up the weak_task_link_map.
-        // Remove entries associated to tasks that no longer exist.
-        all_task_origins.clear();
-        std::transform(all_tasks.cbegin(),
-                       all_tasks.cend(),
-                       std::inserter(all_task_origins, all_task_origins.begin()),
-                       [](const TaskInfo::Ptr& task) { return task->origin; });
-
+        // Clean up the weak_task_link_map. Reuse the same all_task_origins set
         to_remove.clear();
         for (auto kv : weak_task_link_map) {
             if (all_task_origins.find(kv.first) == all_task_origins.end())
