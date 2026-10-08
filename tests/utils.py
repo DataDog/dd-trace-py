@@ -55,8 +55,6 @@ from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests._ddtest_env_helpers import strip_ddtest_leaked_env
-from tests.otel_semantics_snapshot import assert_otel_semantics_snapshot
-from tests.otel_semantics_snapshot import otel_semantics_env
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -1281,13 +1279,7 @@ def snapshot_context(
     async_mode=True,
     variants=None,
     wait_for_num_traces=None,
-    otel_semantics=False,
 ):
-    # With otel_semantics subprocesses started inside the context export OTLP traces with OTel
-    # semantics enabled. The test agent cannot snapshot OTLP, so on exit the traces are fetched from
-    # its OTLP port and compared with tests/snapshots/<token>.json here instead (see
-    # tests/otel_semantics_snapshot.py).
-
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
     if variants:
@@ -1304,8 +1296,6 @@ def snapshot_context(
     # tests in tests/llmobs and tests/contrib/<integration>/test_*_llmobs.py,
     # so we ignore them globally in snapshot comparisons.
     ignores.extend(_LLMOBS_SHADOW_IGNORES)
-    # Validate the OTLP token before installing session headers or starting an agent session.
-    otel_env = otel_semantics_env(token) if otel_semantics else {}
     tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
@@ -1354,34 +1344,32 @@ def snapshot_context(
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
-        previous_env = {}
-        if otel_semantics:
-            # Subprocess test apps inherit this environment.
-            for key, value in otel_env.items():
-                previous_env[key] = os.environ.get(key)
-                os.environ[key] = value
+        # Subprocesses that export OTLP traces send them to the test agent, whose OTLP port can be
+        # remapped locally (see scripts/run-tests).
+        otlp_url = os.environ.get("DD_TEST_OTLP_URL")
+        previous_otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+        if otlp_url:
+            os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = otlp_url.rstrip("/") + "/v1/traces"
         try:
             yield SnapshotTest(
                 token=token,
             )
         finally:
-            # Force a flush so all traces are submitted.
-            tracer._span_aggregator.writer.flush_queue()
-            if async_mode:
-                if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                    tracer._span_aggregator.writer.set_test_session_token(None)
-                else:
-                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
-            for key, previous in previous_env.items():
-                if previous is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = previous
-
-        if otel_semantics:
-            assert_otel_semantics_snapshot(token, ignores=ignores, wait_for_num_traces=wait_for_num_traces)
-            return
+            try:
+                # Force a flush so all traces are submitted.
+                tracer._span_aggregator.writer.flush_queue()
+                if async_mode:
+                    if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                        tracer._span_aggregator.writer.set_test_session_token(None)
+                    else:
+                        del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
+                    del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+            finally:
+                if otlp_url:
+                    if previous_otlp_endpoint is None:
+                        os.environ.pop("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", None)
+                    else:
+                        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = previous_otlp_endpoint
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
@@ -1423,11 +1411,10 @@ def snapshot_context(
             else:
                 pytest.xfail(result)
     finally:
-        if not otel_semantics:
-            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-            conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
-            conn.getresponse()
-            conn.close()
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
+        conn.getresponse()
+        conn.close()
 
 
 def snapshot(
