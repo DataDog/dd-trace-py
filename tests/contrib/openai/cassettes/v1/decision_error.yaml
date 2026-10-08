@@ -1,0 +1,20 @@
+interactions:
+- request:
+    body: "{\"input\":\"I was charged twice for my subscription this month.\",\"model\":\"gpt-6-luna\",\"questions\":[{\"type\":\"choice\",\"name\":\"department\",\"instructions\":\"Which team should handle this request?\",\"choices\":[{\"value\":\"billing\"},{\"value\":\"technical\"},{\"value\":\"sales\"}]},{\"type\":\"score\",\"name\":\"severity\",\"instructions\":\"How severe is the issue?\",\"levels\":[{\"label\":\"Minor\"},{\"label\":\"Workaround available\"},{\"label\":\"Blocking\"}]},{\"type\":\"predicate\",\"name\":\"needs_refund\",\"instructions\":\"Is the customer asking for a refund?\"},{\"type\":\"predicate\",\"name\":\"legal_threat\",\"instructions\":\"Is the customer threatening legal action?\"}]}"
+    headers:
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+    method: POST
+    uri: https://api.openai.com/v1/decisions
+  response:
+    body:
+      string: "{\"error\": {\"message\": \"Incorrect API key provided: <not-a-r****key>.\", \"type\": \"invalid_request_error\", \"param\": null, \"code\": \"invalid_api_key\"}}"
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

@@ -60,6 +60,37 @@ EXPECTED_TOOL_DEFINITIONS = [
 ]
 
 
+DECISION_INPUT = "I was charged twice for my subscription this month."
+DECISION_QUESTIONS = [
+    {
+        "type": "choice",
+        "name": "department",
+        "instructions": "Which team should handle this request?",
+        "choices": [{"value": "billing"}, {"value": "technical"}, {"value": "sales"}],
+    },
+    {
+        "type": "score",
+        "name": "severity",
+        "instructions": "How severe is the issue?",
+        "levels": [{"label": "Minor"}, {"label": "Workaround available"}, {"label": "Blocking"}],
+    },
+    {"type": "predicate", "name": "needs_refund", "instructions": "Is the customer asking for a refund?"},
+    {"type": "predicate", "name": "legal_threat", "instructions": "Is the customer threatening legal action?"},
+]
+DECISION_EXPECTED_DECISIONS = [
+    {
+        "type": "choice",
+        "question": "department",
+        "choice": "billing",
+        "confidence": 0.93,
+        "selection": "department:billing",
+    },
+    {"type": "score", "question": "severity", "score": 1.1, "confidence": 0.55},
+    {"type": "predicate", "question": "needs_refund", "probability": 0.92},
+    {"type": "refusal", "question": "legal_threat"},
+]
+
+
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_completion_proxy(self, mock_completions_post, openai, openai_llmobs, test_spans):
@@ -2444,6 +2475,86 @@ MUL: "*"
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            resp = client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_INPUT, "role": "user"}],
+            output_messages=[
+                {
+                    "role": "assistant",
+                    "content": safe_json([a.model_dump(mode="json", exclude_none=True) for a in resp.answers]),
+                }
+            ],
+            metadata={"questions": DECISION_QUESTIONS, "decisions": DECISION_EXPECTED_DECISIONS},
+            metrics={
+                "input_tokens": 168,
+                "output_tokens": 4,
+                "total_tokens": 172,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    async def test_decision_async(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.AsyncOpenAI()
+            await client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_INPUT, "role": "user"}],
+            metadata={"questions": DECISION_QUESTIONS, "decisions": DECISION_EXPECTED_DECISIONS},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_error(self, openai, openai_llmobs, test_spans):
+        with pytest.raises(openai.AuthenticationError):
+            with get_openai_vcr(subdirectory_name="v1").use_cassette("decision_error.yaml"):
+                client = openai.OpenAI()
+                client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_data = _get_llmobs_data_metastruct(spans[0])
+        assert_llmobs_span_data(
+            span_data,
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_INPUT, "role": "user"}],
+            output_messages=[{"content": ""}],
+            metadata={"questions": DECISION_QUESTIONS},
+            error=mock.ANY,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert "decisions" not in get_llmobs_metadata(spans[0])
+        assert spans[0].error == 1
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"

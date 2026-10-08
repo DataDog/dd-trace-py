@@ -264,6 +264,19 @@ class _EmbeddingHook(_EndpointHook):
         return resp
 
 
+class _DecisionHook(_EndpointHook):
+    _request_kwarg_params = ("model",)
+    _response_attrs = ("model",)
+    ENDPOINT_NAME = "decisions"
+    HTTP_METHOD_TYPE = "POST"
+    OPERATION_ID = "createDecision"
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="decision")
+        return resp
+
+
 class _ListHook(_EndpointHook):
     """
     Hook for openai.ListableAPIResource, which is used by Model.list, File.list, and FineTune.list.

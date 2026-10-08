@@ -1428,6 +1428,59 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
+def openai_set_meta_tags_from_decision(span: Span, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+    """Extract input, questions, answers, and decisions from a decisions api call."""
+    metadata: dict[str, Any] = {}
+    questions = kwargs.get("questions")
+    # questions is typed as an Iterable, so a generator would already be consumed by the request
+    if isinstance(questions, (list, tuple)):
+        metadata["questions"] = [load_data_value(q) for q in questions]
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
+        metadata=metadata,
+    )
+    if not response:
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        return
+
+    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
+    _annotate_llmobs_span_data(
+        span,
+        output_messages=[Message(role="assistant", content=safe_json(answers) or "")],
+        metadata={"decisions": [_openai_decision_from_answer(answer) for answer in answers]},
+    )
+
+
+def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
+    if hasattr(answer, "model_dump"):
+        return answer.model_dump(mode="json", exclude_none=True)
+    if isinstance(answer, dict):
+        return {k: v for k, v in answer.items() if v is not None}
+    return {}
+
+
+def _openai_decision_from_answer(answer: dict[str, Any]) -> dict[str, Any]:
+    """Pass an answer through as a decision keyed by question, without the probabilities list (kept in the output).
+
+    Choice answers also get selection = <question>:<choice>, with % and : escaped, so one field can be filtered on.
+    """
+    decision = {k: v for k, v in answer.items() if k not in ("name", "probabilities")}
+    question = answer.get("name")
+    if question is None:
+        return decision
+    decision["question"] = question
+    if answer.get("type") == "choice" and "choice" in answer:
+        choice = answer["choice"]
+        choice = choice if isinstance(choice, str) else json.dumps(choice)
+        decision["selection"] = f"{_encode_selection_part(question)}:{_encode_selection_part(choice)}"
+    return decision
+
+
+def _encode_selection_part(value: str) -> str:
+    return value.replace("%", "%25").replace(":", "%3A")
+
+
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
