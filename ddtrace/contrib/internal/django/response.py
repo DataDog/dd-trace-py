@@ -90,6 +90,11 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         return func(*args, **kwargs)
 
     request_headers = utils._get_request_headers(request)
+    # Django's automatic WSGI instrumentation bypasses DDWSGIMiddleware, and
+    # Django 3.0 ASGI requests also land here because get_asgi_application is
+    # only wrapped on 3.1+. ASGIRequest.META carries the same SCRIPT_NAME and
+    # PATH_INFO keys as a WSGI environ, so one helper covers both.
+    trace_utils.dispatch_wsgi_web_request_starting(request.META)
 
     pin = Pin.get_from(instance)
 

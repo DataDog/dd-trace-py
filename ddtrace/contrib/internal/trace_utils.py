@@ -25,6 +25,7 @@ import wrapt
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -39,6 +40,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import _WEB_REQUEST_STARTING_DISPATCHED
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.core.event_hub import dispatch
@@ -82,6 +84,40 @@ IP_PATTERNS = (
     "cf-connecting-ip",
     "cf-connecting-ipv6",
 )
+
+
+# The request-start event is published for WSGI and ASGI applications only: the
+# generic WSGI/ASGI middleware, plus Django, whose automatic instrumentation
+# bypasses DDWSGIMiddleware. Other web frameworks are out of scope.
+#
+# The only production listener is registered in MicroVM processes, so both helpers
+# check for it before touching the request and normal requests pay one lookup.
+
+
+def dispatch_wsgi_web_request_starting(environ: MutableMapping[str, Any]) -> None:
+    """Publish the request-start event once per WSGI environ (or Django META)."""
+    if not core.has_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value):
+        return
+    # Nested layers share environ, e.g. DDWSGIMiddleware wrapping auto-instrumented Django.
+    if environ.get(_WEB_REQUEST_STARTING_DISPATCHED):
+        return
+    environ[_WEB_REQUEST_STARTING_DISPATCHED] = True
+
+    path = (environ.get("SCRIPT_NAME") or "").rstrip("/") + (environ.get("PATH_INFO") or "")
+    core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (environ.get("REQUEST_METHOD"), path))
+
+
+def dispatch_asgi_web_request_starting(scope: Mapping[str, Any]) -> None:
+    """Publish the request-start event for a root ASGI HTTP scope."""
+    if not core.has_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value):
+        return
+
+    root_path = (scope.get("root_path") or "").rstrip("/")
+    path = scope.get("path") or ""
+    # ASGI servers disagree on whether path already includes root_path.
+    if root_path and not (path == root_path or path.startswith(root_path + "/")):
+        path = root_path + path
+    core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (scope.get("method"), path))
 
 
 def _store_headers(

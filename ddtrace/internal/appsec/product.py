@@ -12,6 +12,11 @@ def enabled():
     return config._asm_enabled or config._asm_can_be_enabled or config._asm_rc_enabled
 
 
+def activated():
+    # Eligibility for remote activation starts the lifecycle but does not make AppSec active.
+    return config._asm_enabled
+
+
 def start():
     if config._asm_enabled or config._asm_can_be_enabled:
         # The product owns common-patch setup for both static and remote activation.
