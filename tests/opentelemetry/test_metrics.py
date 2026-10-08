@@ -118,7 +118,7 @@ def _attributes(request):
 def test_grpclib_exporter_preserves_attribute_types_and_headers(monkeypatch):
     from opentelemetry.sdk.metrics.export import MetricExportResult
 
-    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import OTLPMetricExporter
+    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
 
     requests = []
     calls = []
@@ -158,7 +158,7 @@ def test_http_exporter_preserves_attribute_types_headers_and_compression(monkeyp
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
     from opentelemetry.sdk.metrics.export import MetricExportResult
 
-    from ddtrace.internal.opentelemetry.http_metric_exporter import OTLPMetricExporter
+    from ddtrace.internal.opentelemetry.exporters.http_metric_exporter import OTLPMetricExporter
 
     calls = []
 
@@ -200,7 +200,7 @@ def test_grpclib_exporter_uses_otlp_temporality_preference(monkeypatch):
     from opentelemetry.sdk.metrics._internal.instrument import Counter
     from opentelemetry.sdk.metrics.export import AggregationTemporality
 
-    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import OTLPMetricExporter
+    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
 
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
     exporter = OTLPMetricExporter()
@@ -215,7 +215,7 @@ def test_grpclib_exporter_uses_otlp_temporality_preference(monkeypatch):
 def test_grpclib_exporter_ignores_interpreter_shutdown_error(monkeypatch, caplog):
     from opentelemetry.sdk.metrics.export import MetricExportResult
 
-    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import OTLPMetricExporter
+    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
 
     async def export(request, *, timeout, metadata):
         raise RuntimeError("cannot schedule new futures after interpreter shutdown")
@@ -257,8 +257,8 @@ def test_resource_attributes_preserve_types(monkeypatch):
 @pytest.mark.parametrize(
     ("protocol", "module"),
     [
-        ("grpc", "ddtrace.internal.opentelemetry.grpclib_metric_exporter"),
-        ("http/protobuf", "ddtrace.internal.opentelemetry.http_metric_exporter"),
+        ("grpc", "ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter"),
+        ("http/protobuf", "ddtrace.internal.opentelemetry.exporters.http_metric_exporter"),
     ],
 )
 @skipif(exporter_not_installed=True)
@@ -266,17 +266,17 @@ def test_protocol_selects_exporter(protocol, module):
     from ddtrace.internal.opentelemetry.exporters import get_metrics_exporter
 
     if EXPORTER_VERSION < (1, 18):
-        module = "ddtrace.internal.opentelemetry.exporter_telemetry"
+        module = "ddtrace.internal.opentelemetry.exporters.exporter_telemetry"
     assert get_metrics_exporter(protocol).__module__ == module
 
 
 @skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="Test requires the lightweight exporter selection path")
 def test_grpc_protocol_falls_back_to_upstream_exporter(monkeypatch):
-    from ddtrace.internal.opentelemetry.exporter_telemetry import GRPCMetricsExporter
     from ddtrace.internal.opentelemetry.exporters import get_metrics_exporter
+    from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCMetricsExporter
 
-    monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.grpclib_metric_exporter", None)
+    monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter", None)
 
     assert get_metrics_exporter("grpc") is GRPCMetricsExporter
 
@@ -286,7 +286,7 @@ def test_grpc_protocol_falls_back_to_upstream_exporter(monkeypatch):
 def test_upstream_exporter_fallback_records_telemetry(monkeypatch):
     from opentelemetry.sdk.metrics.export import MetricExportResult
 
-    from ddtrace.internal.opentelemetry import exporter_telemetry
+    from ddtrace.internal.opentelemetry.exporters import exporter_telemetry
     from ddtrace.internal.opentelemetry.exporters import get_metrics_exporter
 
     telemetry = []
@@ -313,8 +313,8 @@ def test_upstream_exporter_fallback_records_telemetry(monkeypatch):
 @pytest.mark.parametrize(
     ("module_name", "protocol"),
     [
-        ("ddtrace.internal.opentelemetry.grpclib_metric_exporter", "grpc"),
-        ("ddtrace.internal.opentelemetry.http_metric_exporter", "http"),
+        ("ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter", "grpc"),
+        ("ddtrace.internal.opentelemetry.exporters.http_metric_exporter", "http"),
     ],
 )
 @skipif(exporter_not_installed=True)
@@ -322,7 +322,7 @@ def test_upstream_exporter_fallback_records_telemetry(monkeypatch):
 def test_lightweight_exporter_records_telemetry(monkeypatch, module_name, protocol):
     from opentelemetry.sdk.metrics.export import MetricExportResult
 
-    from ddtrace.internal.opentelemetry import exporter_telemetry
+    from ddtrace.internal.opentelemetry.exporters import exporter_telemetry
     from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
     telemetry = []

@@ -10,9 +10,6 @@ try:
     from opentelemetry.exporter.otlp.proto.common._log_encoder import encode_logs
 except ImportError:
     from opentelemetry.exporter.otlp.proto.common._internal._log_encoder import encode_logs
-from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
-from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
-
 
 try:
     from opentelemetry.sdk._logs.export import LogRecordExporter as LogExporter
@@ -21,18 +18,17 @@ except ImportError:
     from opentelemetry.sdk._logs.export import LogExporter
     from opentelemetry.sdk._logs.export import LogExportResult
 
-from ddtrace.internal.opentelemetry.exporter_telemetry import record_log_records
-from ddtrace.internal.opentelemetry.grpclib_exporter import GrpclibExporter
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import record_log_records
+from ddtrace.internal.opentelemetry.exporters.http_exporter import HttpExporter
 
 
 log = logging.getLogger(__name__)
 
-_METHOD = "/opentelemetry.proto.collector.logs.v1.LogsService/Export"
-_PROTOCOL = "grpc"
+_PROTOCOL = "http"
 
 
-class OTLPLogExporter(LogExporter, GrpclibExporter):  # type: ignore[misc]
-    """Export OTLP logs over gRPC without depending on grpcio."""
+class OTLPLogExporter(LogExporter, HttpExporter):  # type: ignore[misc]
+    """Export OTLP logs over HTTP without third-party HTTP packages."""
 
     def __init__(
         self,
@@ -43,38 +39,35 @@ class OTLPLogExporter(LogExporter, GrpclibExporter):  # type: ignore[misc]
         headers: Sequence[tuple[str, str]] | Mapping[str, str] | str | None = None,
         timeout: float | None = None,
         compression: Any = None,
-        insecure: bool | None = None,
+        max_request_size: int | None = None,
         **kwargs: Any,
     ) -> None:
-        GrpclibExporter.__init__(
+        HttpExporter.__init__(
             self,
             "logs",
-            _METHOD,
-            ExportLogsServiceRequest,
-            ExportLogsServiceResponse,
+            "/v1/logs",
             endpoint,
-            insecure,
-            headers,
-            timeout,
-            compression,
             certificate_file,
             client_key_file,
             client_certificate_file,
+            headers,
+            timeout,
+            compression,
+            max_request_size,
         )
 
     def export(self, batch: Sequence[Any], *args: Any, **kwargs: Any) -> Any:
         record_log_records(len(batch), _PROTOCOL)
         log.debug("Exporting %d OpenTelemetry Logs with %s protocol and protobuf encoding", len(batch), _PROTOCOL)
         try:
-            request = encode_logs(batch)
+            payload = encode_logs(batch).SerializeToString()
         except Exception:
             log.exception("Failed to encode OpenTelemetry logs")
             return LogExportResult.FAILURE
-        timeout_millis = kwargs.get("timeout_millis")
-        return self._export(request, LogExportResult.SUCCESS, LogExportResult.FAILURE, timeout_millis)
+        return self._export(payload, LogExportResult.SUCCESS, LogExportResult.FAILURE, kwargs.get("timeout_millis"))
 
     def shutdown(self, timeout_millis: float = 30_000, **kwargs: Any) -> None:
-        GrpclibExporter.shutdown(self, timeout_millis, **kwargs)
+        HttpExporter.shutdown(self, timeout_millis, **kwargs)
 
     def force_flush(self, timeout_millis: float = 10_000) -> bool:
-        return GrpclibExporter.force_flush(self, timeout_millis)
+        return HttpExporter.force_flush(self, timeout_millis)

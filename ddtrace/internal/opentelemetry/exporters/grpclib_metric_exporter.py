@@ -7,53 +7,52 @@ from typing import Any
 
 from opentelemetry.exporter.otlp.proto.common._internal.metrics_encoder import OTLPMetricExporterMixin
 from opentelemetry.exporter.otlp.proto.common.metrics_encoder import encode_metrics
+from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceResponse
 from opentelemetry.sdk.metrics.export import AggregationTemporality
 from opentelemetry.sdk.metrics.export import MetricExporter
 from opentelemetry.sdk.metrics.export import MetricExportResult
 from opentelemetry.sdk.metrics.export import MetricsData
 
-from ddtrace.internal.opentelemetry.exporter_telemetry import record_metrics_export_attempt
-from ddtrace.internal.opentelemetry.exporter_telemetry import record_metrics_export_result
-from ddtrace.internal.opentelemetry.http_exporter import HttpExporter
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import record_metrics_export_attempt
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import record_metrics_export_result
+from ddtrace.internal.opentelemetry.exporters.grpclib_exporter import GrpclibExporter
 
 
 log = logging.getLogger(__name__)
 
-_PROTOCOL = "http"
+_METHOD = "/opentelemetry.proto.collector.metrics.v1.MetricsService/Export"
+_PROTOCOL = "grpc"
 
 
-class OTLPMetricExporter(MetricExporter, OTLPMetricExporterMixin, HttpExporter):  # type: ignore[misc]
-    """Export OTLP metrics over HTTP without third-party HTTP packages."""
+class OTLPMetricExporter(MetricExporter, OTLPMetricExporterMixin, GrpclibExporter):  # type: ignore[misc]
+    """Export OTLP metrics over gRPC without depending on grpcio."""
 
     def __init__(
         self,
         endpoint: str | None = None,
-        certificate_file: str | None = None,
-        client_key_file: str | None = None,
-        client_certificate_file: str | None = None,
+        insecure: bool | None = None,
         headers: Sequence[tuple[str, str]] | Mapping[str, str] | str | None = None,
         timeout: float | None = None,
         compression: Any = None,
         preferred_temporality: dict[type, AggregationTemporality] | None = None,
         preferred_aggregation: dict[type, Any] | None = None,
-        max_request_size: int | None = None,
         **kwargs: Any,
     ) -> None:
         self._common_configuration(preferred_temporality)
         if preferred_aggregation:
             self._preferred_aggregation.update(preferred_aggregation)
-        HttpExporter.__init__(
+        GrpclibExporter.__init__(
             self,
             "metrics",
-            "/v1/metrics",
+            _METHOD,
+            ExportMetricsServiceRequest,
+            ExportMetricsServiceResponse,
             endpoint,
-            certificate_file,
-            client_key_file,
-            client_certificate_file,
+            insecure,
             headers,
             timeout,
             compression,
-            max_request_size,
         )
 
     def export(
@@ -62,17 +61,17 @@ class OTLPMetricExporter(MetricExporter, OTLPMetricExporterMixin, HttpExporter):
         record_metrics_export_attempt(_PROTOCOL)
         log.debug("Exporting OpenTelemetry Metrics with %s protocol and protobuf encoding", _PROTOCOL)
         try:
-            payload = encode_metrics(metrics_data).SerializeToString()
+            request = encode_metrics(metrics_data)
         except Exception:
             log.exception("Failed to encode OpenTelemetry metrics")
             result = MetricExportResult.FAILURE
         else:
-            result = self._export(payload, MetricExportResult.SUCCESS, MetricExportResult.FAILURE, timeout_millis)
+            result = self._export(request, MetricExportResult.SUCCESS, MetricExportResult.FAILURE, timeout_millis)
         record_metrics_export_result(result, _PROTOCOL)
         return result
 
     def shutdown(self, timeout_millis: float = 30_000, **kwargs: Any) -> None:
-        HttpExporter.shutdown(self, timeout_millis, **kwargs)
+        GrpclibExporter.shutdown(self, timeout_millis, **kwargs)
 
     def force_flush(self, timeout_millis: float = 10_000) -> bool:
-        return HttpExporter.force_flush(self, timeout_millis)
+        return GrpclibExporter.force_flush(self, timeout_millis)

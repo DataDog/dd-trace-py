@@ -225,22 +225,22 @@ def test_otel_logs_support_enabled():
 def test_grpc_protocol_selects_grpclib_exporter():
     from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
 
-    assert get_logs_exporter("grpc").__module__ == "ddtrace.internal.opentelemetry.grpclib_log_exporter"
+    assert get_logs_exporter("grpc").__module__ == "ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter"
 
 
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18, 0), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
 def test_http_protocol_selects_lightweight_exporter():
     from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
 
-    assert get_logs_exporter("http/protobuf").__module__ == "ddtrace.internal.opentelemetry.http_log_exporter"
+    assert get_logs_exporter("http/protobuf").__module__ == "ddtrace.internal.opentelemetry.exporters.http_log_exporter"
 
 
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="Test requires the lightweight exporter selection path")
 def test_grpc_protocol_falls_back_to_upstream_exporter(monkeypatch):
-    from ddtrace.internal.opentelemetry.exporter_telemetry import GRPCLogsExporter
     from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
+    from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCLogsExporter
 
-    monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.grpclib_log_exporter", None)
+    monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter", None)
 
     assert get_logs_exporter("grpc") is GRPCLogsExporter
 
@@ -255,7 +255,7 @@ def test_upstream_exporter_fallback_records_telemetry(monkeypatch):
     except ImportError:
         from opentelemetry.sdk._logs.export import LogExportResult
 
-    from ddtrace.internal.opentelemetry import exporter_telemetry
+    from ddtrace.internal.opentelemetry.exporters import exporter_telemetry
     from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
 
     telemetry = []
@@ -278,8 +278,8 @@ def test_upstream_exporter_fallback_records_telemetry(monkeypatch):
 @pytest.mark.parametrize(
     ("module_name", "protocol"),
     [
-        ("ddtrace.internal.opentelemetry.grpclib_log_exporter", "grpc"),
-        ("ddtrace.internal.opentelemetry.http_log_exporter", "http"),
+        ("ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter", "grpc"),
+        ("ddtrace.internal.opentelemetry.exporters.http_log_exporter", "http"),
     ],
 )
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight exporters require OpenTelemetry 1.18")
@@ -289,7 +289,7 @@ def test_lightweight_exporter_records_telemetry(monkeypatch, module_name, protoc
     except ImportError:
         from opentelemetry.sdk._logs.export import LogExportResult
 
-    from ddtrace.internal.opentelemetry import exporter_telemetry
+    from ddtrace.internal.opentelemetry.exporters import exporter_telemetry
     from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
     telemetry = []

@@ -3,10 +3,10 @@ from importlib.metadata import version
 from typing import Any
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.opentelemetry.exporter_telemetry import GRPCLogsExporter
-from ddtrace.internal.opentelemetry.exporter_telemetry import GRPCMetricsExporter
-from ddtrace.internal.opentelemetry.exporter_telemetry import HTTPLogsExporter
-from ddtrace.internal.opentelemetry.exporter_telemetry import HTTPMetricsExporter
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCLogsExporter
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCMetricsExporter
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import HTTPLogsExporter
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import HTTPMetricsExporter
 
 
 log = get_logger(__name__)
@@ -31,7 +31,7 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
         if protocol == "grpc":
             if _supports_lightweight_exporter(exporter_version):
                 try:
-                    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import (
+                    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import (
                         OTLPMetricExporter as GRPCMetricExporter,
                     )
 
@@ -42,7 +42,9 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
 
         if protocol == "http/protobuf":
             if _supports_lightweight_exporter(exporter_version):
-                from ddtrace.internal.opentelemetry.http_metric_exporter import OTLPMetricExporter as HTTPMetricExporter
+                from ddtrace.internal.opentelemetry.exporters.http_metric_exporter import (
+                    OTLPMetricExporter as HTTPMetricExporter,
+                )
 
                 return HTTPMetricExporter
             return HTTPMetricsExporter
@@ -78,7 +80,9 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
         if protocol == "grpc":
             if _supports_lightweight_exporter(exporter_version):
                 try:
-                    from ddtrace.internal.opentelemetry.grpclib_log_exporter import OTLPLogExporter as GRPCLogExporter
+                    from ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter import (
+                        OTLPLogExporter as GRPCLogExporter,
+                    )
 
                     return GRPCLogExporter
                 except ImportError:
@@ -87,7 +91,9 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
 
         if protocol == "http/protobuf":
             if _supports_lightweight_exporter(exporter_version):
-                from ddtrace.internal.opentelemetry.http_log_exporter import OTLPLogExporter as HTTPLogExporter
+                from ddtrace.internal.opentelemetry.exporters.http_log_exporter import (
+                    OTLPLogExporter as HTTPLogExporter,
+                )
 
                 return HTTPLogExporter
             return HTTPLogsExporter
