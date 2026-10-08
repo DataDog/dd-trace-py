@@ -1,9 +1,12 @@
 stages:
   - package
+  - shared-pipeline-build
   - tests
   - shared-pipeline
+  - shared-pipeline-test
   - benchmarks
   - release
+  - shared-pipeline-publish
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -186,6 +189,15 @@ publish-lib-init-pinned-tags:
     - job: create-multiarch-lib-injection-image
     - job: generate-lib-init-pinned-tag-values
       artifacts: true
+
+# Keep the existing 3.19 publishing flow without mutable-tag rollouts.
+rollout-mutable-tags-staging:
+  rules:
+    - when: never
+
+rollout-mutable-tags-prod:
+  rules:
+    - when: never
 
 configure_system_tests:
   variables:
