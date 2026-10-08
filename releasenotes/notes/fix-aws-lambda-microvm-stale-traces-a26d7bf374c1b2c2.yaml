@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where stale traces from a previous AWS Lambda MicroVM
+    invocation can be exported or used as parents for spans from a later invocation
+    after a runtime identity refresh.

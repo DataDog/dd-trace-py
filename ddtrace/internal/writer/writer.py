@@ -57,6 +57,7 @@ from ..gitmetadata import get_git_tags
 from ..logger import get_logger
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
+from ..serverless import in_aws_lambda_microvm
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
@@ -152,6 +153,10 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
+    def drop_buffered_traces(self) -> None:
+        """Discard traces buffered by the writer without flushing them."""
+        pass
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -241,6 +246,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck: RLock = RLock()
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
@@ -425,6 +432,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans=None):
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -483,11 +500,39 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._record_trace_telemetry("spans_enqueued_for_serialization", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._flush_queue_unlocked(raise_exc)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._flush_queue_unlocked(raise_exc)
+
+    def _flush_queue_unlocked(self, raise_exc: bool = False):
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._drop_buffered_traces_unlocked()
+            return
+        with writer_lock:
+            self._accepting_writes = False
+            # An encoder lock may be held by a thread that did not survive the MicroVM fork.
+            # The disabled writer will be recreated without flushing or reusing this buffer.
+
+    def _drop_buffered_traces_unlocked(self) -> None:
+        for client in self._clients:
+            for clear_method in ("get", "_init_buffer", "flush"):
+                clear = getattr(client.encoder, clear_method, None)
+                if clear is not None:
+                    clear()
+                    break
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
@@ -542,6 +587,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._metrics_dist("encoder.dropped.traces", n_traces)
                 self._record_trace_telemetry("spans_dropped", n_spans, (("reason", "serialization_error"),))
                 return
+
+        if self._writer_lock is not None and not self._accepting_writes:
+            return
 
         try:
             response = self._send_payload_with_backoff(encoded, n_traces, client)
@@ -711,8 +759,8 @@ def _build_base_exporter_builder(
         .set_language_version(compat.PYTHON_VERSION)
         .set_language_interpreter(compat.PYTHON_INTERPRETER)
         .set_tracer_version(__version__)
-        .set_git_commit_sha(commit_sha)
         .set_runtime_id(get_runtime_id())
+        .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
     # Python recreates the exporter lazily in the child, so its inherited workers
@@ -846,7 +894,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-
+        # Identity refresh disables this writer before clearing its buffer; the replacement writer accepts writes.
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
+        self._exporter_dropped = False
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
@@ -861,8 +912,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if getattr(self, "_owner_pid", None) != os.getpid():
                 return
             exporter = getattr(self, "_exporter", None)
-            if exporter is not None:
-                self._shutdown_exporter(exporter)
+            if exporter is not None and not getattr(self, "_exporter_dropped", False):
+                if self._discarded_by_refresh:
+                    # The refresh's nonblocking drop can lose the lock to a non-send holder (e.g. the
+                    # telemetry callback) that never retries; shutting down would send the old stats.
+                    self._drop_exporter()
+                else:
+                    self._shutdown_exporter(exporter)
         except Exception:  # nosec B110 - destructors must not raise
             pass
 
@@ -887,6 +943,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     @property
     def agentless(self) -> bool:
         return self._api_key is not None
+
+    @property
+    def _discarded_by_refresh(self) -> bool:
+        # Only MicroVM writers have a writer lock, so this is always False elsewhere.
+        return self._writer_lock is not None and not self._accepting_writes
 
     def _create_exporter(self) -> native.TraceExporter:
         builder = _build_base_exporter_builder(
@@ -993,6 +1054,21 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         """Tear down the native exporter without going through ``stop()``."""
         self._shutdown_exporter(self._exporter)
 
+    def _drop_exporter(self) -> None:
+        with self._exporter_lock:
+            # The refresh, the finishing sender, and on_shutdown() may all get here; only one drops.
+            if not self._exporter_dropped:
+                self._exporter.drop()
+                self._exporter_dropped = True
+
+    def _try_drop_exporter(self) -> None:
+        # Never waits: a send in flight holds the lock and retries this once it releases it.
+        if self._exporter_lock.acquire(blocking=False):
+            try:
+                self._drop_exporter()
+            finally:
+                self._exporter_lock.release()
+
     def recreate(
         self,
         appsec_enabled: Optional[bool] = None,
@@ -1000,13 +1076,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> "NativeWriter":
         # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
         # the API version to v0.4.
+        exporter_dropped = self._exporter_dropped
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
-            self.shutdown_exporter()
+            if not exporter_dropped and not self._discarded_by_refresh:
+                self.shutdown_exporter()
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(
@@ -1030,11 +1108,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         )
 
     def _downgrade(self, status, client):
+        if self._discarded_by_refresh:
+            return  # Do not rebuild the exporter or send the old one's stats.
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
-            old_exporter = self._exporter
-            self._exporter = self._create_exporter()
+            # Built outside the exporter lock: _create_exporter() can take the telemetry enable lock,
+            # whose holder notifies _on_telemetry_worker_changed(), which takes the exporter lock.
+            new_exporter = self._create_exporter()
+            with self._exporter_lock:
+                # A refresh may have dropped the exporter since the check above; a replacement
+                # installed now would be skipped by on_shutdown() and leak.
+                discarded = self._discarded_by_refresh
+                if not discarded:
+                    old_exporter, self._exporter = self._exporter, new_exporter
+            if discarded:
+                new_exporter.drop()
+                return
             self._shutdown_exporter(old_exporter)
 
             # Since we have to change the encoding in this case, the payload
@@ -1096,6 +1186,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
             with self._exporter_lock:
+                # drop_buffered_traces() closes the gate before taking this lock, so no send
+                # starts after a refresh and none reaches a dropped exporter.
+                if self._discarded_by_refresh:
+                    return
                 response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
@@ -1109,6 +1203,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 raise e
         finally:
             self._metrics["sent_traces"] += count
+            # Checked only after the exporter lock is released, so a refresh that failed to take it
+            # has already closed the gate (see drop_buffered_traces()).
+            if self._discarded_by_refresh and not self._exporter_dropped:
+                self._try_drop_exporter()
+
+        if self._discarded_by_refresh:
+            return  # A pre-refresh response must not overwrite rates the replacement writer received.
 
         if self._response_cb:
             response = Response(body=response_body)
@@ -1122,12 +1223,27 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        if self._write_without_flush(spans) and self._sync_mode:
+            self.flush_queue()
+
+    def _write_without_flush(self, spans: Optional[Sequence[SpanData]] = None) -> bool:
+        """Buffer spans; return False if an identity refresh already discarded this writer."""
+        # Identity refresh can discard the buffer concurrently; only MicroVM writers need this lock.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return True
+        with writer_lock:
+            if not self._accepting_writes:
+                return False
+            self._write_unlocked(spans)
+            return True
+
+    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
-        if self._sync_mode:
-            self.flush_queue()
 
     @staticmethod
     def _set_otlp_trace_context(spans: Sequence[SpanData]) -> None:
@@ -1198,11 +1314,30 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
+        # Not under the writer lock: span finishes take it under the span aggregator lock, so it
+        # must not be held across send() retries. _send_payload() rechecks the gate atomically.
+        if self._discarded_by_refresh:
+            return
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            for client in self._clients:
+                getattr(client.encoder, "flush")()
+            return
+        with writer_lock:
+            self._accepting_writes = False
+            # An encoder lock may be held by a thread that did not survive the MicroVM fork.
+            # The disabled writer will be recreated without flushing or reusing this buffer.
+        # A send in flight holds the exporter lock; it drops the exporter once it releases the lock.
+        # The gate is closed before trying the lock, so that sender cannot miss the discard.
+        if not self._exporter_dropped:
+            self._try_drop_exporter()
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
@@ -1223,6 +1358,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
     ) -> None:
         if encoded is None:
+            return
+        if self._discarded_by_refresh:
             return
         try:
             self._send_payload(encoded, n_traces, client)
@@ -1252,9 +1389,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super()._stop_service()
+        if self._discarded_by_refresh:
+            return  # Never wait on a send stuck in retries.
         self.join(timeout=timeout)
 
     def on_shutdown(self):
+        if self._exporter_dropped:
+            return
+        if self._discarded_by_refresh:
+            # Finish the refresh's discard: no final flush, no pending stats sent.
+            self._drop_exporter()
+            self._exporter_dropped = True
+            return
         try:
             self.periodic()
         finally:
