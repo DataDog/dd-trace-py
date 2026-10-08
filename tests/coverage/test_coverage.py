@@ -157,6 +157,99 @@ def test_mismatched_exit_resyncs_tls_fallback(monkeypatch):
         assert snapshot.run(coverage_code._get_ctx_covered_files) is parent._covered_files
 
 
+def _armed_line_probe(path):
+    """Register a private monitoring tool and return a bare collector plus its line events.
+
+    The tool routes real sys.monitoring LINE events for a small target function into
+    the collector hooks, mirroring how the instrumentation dispatches coverage events.
+    Callers must invoke the returned cleanup callable when done.
+    """
+    import ddtrace.internal.coverage.code as coverage_code
+
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    events = []
+
+    def target():
+        x = 1
+        y = 2
+        return x + y
+
+    def line_callback(code_object, line_number):
+        if code_object is target.__code__:
+            events.append(line_number)
+            collector.hook_line(path, line_number)
+
+    # Production instrumentation prefers slot 4, so use another private slot for the probe.
+    tool_id = 5
+    sys.monitoring.use_tool_id(tool_id, "ddtrace-coverage-test")
+    sys.monitoring.register_callback(tool_id, sys.monitoring.events.LINE, line_callback)
+    sys.monitoring.set_local_events(tool_id, target.__code__, sys.monitoring.events.LINE)
+
+    def cleanup():
+        sys.monitoring.set_local_events(tool_id, target.__code__, 0)
+        sys.monitoring.register_callback(tool_id, sys.monitoring.events.LINE, None)
+        sys.monitoring.free_tool_id(tool_id)
+
+    return collector, events, target, cleanup
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+def test_monitoring_callback_resolves_against_the_executing_context():
+    """A real monitoring callback must record in the collector of the context running the code.
+
+    Lines executed inside a context copied before a nested collector was entered belong to the
+    copied context's own still-open collector, not to the newer collector in the entering thread.
+    Resolving against the thread's latest stack instead would attribute work from one copied
+    context, for example an asgiref task, to whatever scope most recently entered on that thread.
+    """
+    from contextvars import copy_context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    path = "/repo/executing-context.py"
+    _collector, events, target, cleanup = _armed_line_probe(path)
+    try:
+        with ModuleCodeCollector.CollectInContext() as outer:
+            task_context = copy_context()
+            with ModuleCodeCollector.CollectInContext() as nested:
+                task_context.run(target)
+
+        assert events, "the monitoring callback did not fire"
+        first = target.__code__.co_firstlineno
+        assert {first + 1, first + 2} <= set(outer.get_covered_lines()[path].to_sorted_list())
+        assert path not in nested.get_covered_lines()
+    finally:
+        cleanup()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="TLS fallback only applies on Python 3.14+")
+def test_monitoring_callback_in_empty_context_uses_tls_fallback():
+    """A monitoring callback running where the coverage ContextVars are unset must fall back to TLS.
+
+    This complements the snapshot simulations above with the real monitoring dispatch: a fresh
+    empty context cannot see any collectors, so the thread-local stack written by CollectInContext
+    is the only available source for the active collector.
+    """
+    from contextvars import Context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    path = "/repo/empty-context.py"
+    _collector, events, target, cleanup = _armed_line_probe(path)
+    try:
+        with ModuleCodeCollector.CollectInContext() as test_collector:
+            Context().run(target)
+
+        assert events, "the monitoring callback did not fire"
+        first = target.__code__.co_firstlineno
+        assert {first + 1, first + 2} <= set(
+            test_collector.get_covered_lines()[path].to_sorted_list()
+        )
+    finally:
+        cleanup()
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess()
 def test_coverage_defaults_to_file_level_when_env_unset():

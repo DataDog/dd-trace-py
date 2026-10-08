@@ -56,8 +56,12 @@ ctx_collectors: ContextVar[tuple["ModuleCodeCollector.CollectInContext", ...]] =
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
-# Python 3.14+ sys.monitoring callbacks run in a snapshot context and don't see ContextVar changes
-# made within the current thread. Use threading.local() as a fallback for context-level coverage.
+# Coverage hooks can execute where the coverage ContextVars are not visible, for example when
+# Python 3.14+ monitoring callbacks observe a snapshot context or when code runs in a fresh context.
+# CollectInContext mirrors the context stack into a threading.local() for those cases. The TLS stack
+# is only consulted when the executing context provides no active collector, so a context that
+# carries its own still-open collector, for instance one copied while that collector was active,
+# always takes precedence over the thread's latest state.
 _tls_coverage = _threading.local()
 
 
