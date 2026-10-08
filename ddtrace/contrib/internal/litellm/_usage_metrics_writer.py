@@ -154,7 +154,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         super().__init__(interval=interval)
         self._exporter = exporter
         self._metric_names = metrics
-        self._metrics = ai_usage.UsageMetrics(metrics)
+        self._usage = ai_usage.UsageMetrics(metrics)
         self._window_start_ns = time.time_ns()
         self._flush_lock = forksafe.Lock()
         self._otlp: Optional[_OtlpSender] = None
@@ -169,7 +169,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
     ) -> None:
         """Project and record one observation. Never raises."""
         try:
-            issues = self._metrics.record(profile_id, observation, deployment_attributes)
+            issues = self._usage.record(profile_id, observation, deployment_attributes)
         except ValueError as e:
             log.debug("LiteLLM usage metrics: %s observation not recorded: %s", profile_id, e.args)
             return
@@ -187,7 +187,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
 
     def reset(self) -> None:
         # In a forked child, drop the parent's points: the parent exports them.
-        self._metrics = ai_usage.UsageMetrics(self._metric_names)
+        self._usage = ai_usage.UsageMetrics(self._metric_names)
         self._window_start_ns = time.time_ns()
         if self._dogstatsd is not None:
             self._dogstatsd.close()
@@ -198,11 +198,11 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             start_ns, self._window_start_ns = self._window_start_ns, end_ns
             try:
                 if self._otlp is not None:
-                    payload = self._metrics.take_otlp(SCOPE_NAME, __version__, start_ns, end_ns)
+                    payload = self._usage.take_otlp(SCOPE_NAME, __version__, start_ns, end_ns)
                     if payload:
                         self._otlp.send(payload)
                 elif self._dogstatsd is not None:
-                    lines = self._metrics.take_dogstatsd()
+                    lines = self._usage.take_dogstatsd()
                     if lines:
                         self._dogstatsd.send(lines)
             except Exception:

@@ -93,7 +93,8 @@ pub mod ai_usage {
     }
 
     fn profile(id: &str) -> PyResult<Profile> {
-        Profile::from_id(id).ok_or_else(|| PyValueError::new_err(("profile_invalid", id.to_owned())))
+        Profile::from_id(id)
+            .ok_or_else(|| PyValueError::new_err(("profile_invalid", id.to_owned())))
     }
 
     /// The metric points of one export window.
@@ -158,7 +159,9 @@ pub mod ai_usage {
                     .map(|issue| issue.as_str().to_owned())
                     .collect();
                 if let Some(metrics) = &self.metrics {
-                    projection.points.retain(|point| metrics.contains(&point.name));
+                    projection
+                        .points
+                        .retain(|point| metrics.contains(&point.name));
                 }
                 self.batch
                     .lock()

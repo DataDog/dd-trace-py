@@ -30,7 +30,6 @@ from collections import OrderedDict
 import datetime
 import json
 import re
-import threading
 import time
 from typing import Any
 from typing import Optional
@@ -39,6 +38,7 @@ import litellm
 from litellm.integrations.custom_logger import CustomLogger
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 from ddtrace.trace import tracer
 
 
@@ -319,7 +319,7 @@ class UsageMetricsLogger(CustomLogger):
         self._client_source = client_source
         self._resource = resource
         self._requests: OrderedDict[str, _Request] = OrderedDict()
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
     # Request tracking
 

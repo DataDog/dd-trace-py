@@ -2,6 +2,8 @@
 mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
+#[cfg(feature = "ai_usage")]
+mod ai_usage;
 mod config;
 mod context;
 mod context_provider;
@@ -14,8 +16,6 @@ mod ddsketch;
 mod ddtrace_utils;
 mod debugger;
 mod event_hub;
-#[cfg(feature = "ai_usage")]
-mod ai_usage;
 #[cfg(feature = "ffe")]
 mod ffe;
 mod http_client;
