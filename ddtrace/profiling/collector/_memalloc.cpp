@@ -407,6 +407,10 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         PyMemAllocatorEx restore = *saved;
         PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &restore);
     }
+    /* Null out so hooks that have not yet loaded g_saved_alloc_pub will
+     * fast-exit rather than call through to the saved allocator.
+     */
+    g_saved_alloc_pub.store(nullptr, std::memory_order_release);
 
 #ifdef _PY312_AND_LATER
     if (memalloc_mem_installed) {
