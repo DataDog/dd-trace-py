@@ -399,6 +399,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._osr_candidates: list[pytest.Item] = []
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
+        self.session.itr_suite_reporting_enabled = not hasattr(session.config, "workerinput")
         if xdist_worker_input := getattr(session.config, "workerinput", None):
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
