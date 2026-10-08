@@ -127,6 +127,7 @@ suites:
       - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
+    no_proxy: true
     runner: riot
     snapshot: true
   mcp:
