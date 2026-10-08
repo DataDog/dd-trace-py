@@ -144,6 +144,10 @@ class DatadogSampler:
     def set_sampling_rules(self, rules: str) -> None:
         """Sets the trace sampling rules from a JSON string"""
         sampling_rules = []
+        if not rules or not rules.strip():
+            # An empty value means no rules, e.g. after remote configuration unsets them.
+            self.rules = sampling_rules
+            return
         try:
             json_rules = json.loads(rules)
             for rule in json_rules:
