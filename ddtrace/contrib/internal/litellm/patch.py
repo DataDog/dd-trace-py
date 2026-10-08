@@ -82,6 +82,7 @@ def traced_completion(func, instance, args, kwargs):
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        _usage_attempt_failed(kwargs)
         raise
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
@@ -111,6 +112,7 @@ async def traced_acompletion(func, instance, args, kwargs):
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        _usage_attempt_failed(kwargs)
         raise
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
@@ -186,11 +188,17 @@ def traced_chunk_creator(func, instance, args, kwargs):
         try:
             chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
             usage = chunk.get("usage") if isinstance(chunk, dict) else getattr(chunk, "usage", None)
-            if usage:
-                logger.mark_provider_usage(getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None))
+            call_id = getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None)
+            logger.mark_stream_chunk(call_id, bool(usage))
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
     return func(*args, **kwargs)
+
+
+def _usage_attempt_failed(kwargs):
+    logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
+    if logger is not None:
+        logger.attempt_failed(kwargs, sys.exc_info()[1])
 
 
 def _mark_gateway_span(span, kwargs):

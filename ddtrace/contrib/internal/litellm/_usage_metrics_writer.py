@@ -7,6 +7,7 @@ protobuf ``ExportMetricsServiceRequest`` (delta temporality) or as DogStatsD lin
 
 from __future__ import annotations
 
+import errno
 import socket
 import time
 from typing import Any
@@ -36,6 +37,8 @@ SCOPE_NAME = "ddtrace.contrib.litellm"
 # Largest datagram sent to DogStatsD over UDP and over a Unix socket.
 _UDP_MAX_PACKET = 1432
 _UDS_MAX_PACKET = 8192
+_SEND_TIMEOUT_SECONDS = 0.1
+_SEND_ATTEMPTS = 20
 
 
 def _parse_headers(raw: str) -> list[tuple[str, str]]:
@@ -93,30 +96,48 @@ class _DogStatsdSender:
     def _connect(self) -> socket.socket:
         if self._socket is None:
             sock = socket.socket(self._family, socket.SOCK_DGRAM)
-            sock.setblocking(False)
+            # A full Unix socket buffer blocks a send briefly instead of dropping it; the flush runs on the
+            # writer's own thread.
+            sock.settimeout(_SEND_TIMEOUT_SECONDS)
             sock.connect(self._address)
             self._socket = sock
         return self._socket
 
     def send(self, lines: list[str]) -> None:
+        self._send_lines([line.encode("utf-8") for line in lines])
+
+    def _send_lines(self, lines: list[bytes]) -> None:
         packet: list[bytes] = []
         size = 0
-        for line in lines:
-            data = line.encode("utf-8")
+        for data in lines:
             if packet and size + 1 + len(data) > self._max_packet:
-                self._send_packet(b"\n".join(packet))
+                self._send_packet(packet)
                 packet, size = [], 0
+            size += len(data) + (1 if packet else 0)
             packet.append(data)
-            size += len(data) + (1 if size else 0)
         if packet:
-            self._send_packet(b"\n".join(packet))
+            self._send_packet(packet)
 
-    def _send_packet(self, packet: bytes) -> None:
-        try:
-            self._connect().send(packet)
-        except OSError:
-            log.debug("LiteLLM usage metrics: failed to send a DogStatsD packet", exc_info=True)
-            self.close()
+    def _send_packet(self, packet: list[bytes]) -> None:
+        data = b"\n".join(packet)
+        for attempt in range(_SEND_ATTEMPTS):
+            try:
+                self._connect().send(data)
+                return
+            except OSError as e:
+                if e.errno == errno.EMSGSIZE and len(packet) > 1:
+                    # The socket takes smaller datagrams than assumed (macOS limits Unix datagrams to 2 KiB by
+                    # default): send smaller packets from now on.
+                    self._max_packet = max(self._max_packet // 2, 512)
+                    self._send_lines(packet)
+                    return
+                if e.errno in (errno.ENOBUFS, errno.EAGAIN) and attempt + 1 < _SEND_ATTEMPTS:
+                    # The receiver's buffer is full; macOS reports it at once instead of blocking.
+                    time.sleep(0.005)
+                    continue
+                log.debug("LiteLLM usage metrics: failed to send a DogStatsD packet", exc_info=True)
+                self.close()
+                return
 
     def close(self) -> None:
         if self._socket is not None:

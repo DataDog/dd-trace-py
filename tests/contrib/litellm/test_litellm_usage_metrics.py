@@ -278,7 +278,7 @@ def test_retry_then_streamed_success(logger, writer):
     proxy.attempt(0)
     proxy.attempt_failed(Exception("rate limited"))
     proxy.attempt(0.8)
-    logger.mark_provider_usage("call-1")
+    logger.mark_stream_chunk("call-1", True)
     proxy.succeeded(1.0, first_chunk=0.85)
 
     failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
@@ -315,9 +315,11 @@ def test_anthropic_messages_stream_is_reported(logger, writer):
 def test_attempt_span_is_marked(logger):
     proxy = Proxy(logger)
     proxy.start()
-    with tracer.trace("litellm.request") as span:
-        proxy.attempt(0)
+    with tracer.trace("litellm.request", resource="router.acompletion") as router:
+        with tracer.trace("litellm.request", resource="acompletion") as span:
+            proxy.attempt(0)
     assert span.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) == _usage_metrics.ATTEMPT_PROFILES
+    assert router.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) == _usage_metrics.GATEWAY_PROFILES
     with tracer.trace("other") as other:
         proxy.attempt(0.1)
     assert other.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) is None
@@ -366,7 +368,7 @@ def test_client_disconnect(logger, writer):
     proxy = Proxy(logger, stream=True)
     proxy.start()
     proxy.attempt(0)
-    logger.mark_provider_usage("call-1")
+    logger.mark_stream_chunk("call-1", True)
     proxy.succeeded(
         0.3, usage={"prompt_tokens": 8, "completion_tokens": 5}, cost=4.2e-6, error_class="ClientDisconnected"
     )
@@ -378,10 +380,53 @@ def test_client_disconnect(logger, writer):
     assert request["estimated_cost_usd"] == 4.2e-6
 
 
+def test_total_failure_seen_by_the_wrapper(logger, writer):
+    # LiteLLM versions before async_post_call_failure_deployment_hook: the integration's wrapper sees each
+    # attempt fail, and LiteLLM's one failure event for the request arrives late, after the retry started.
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0)
+    first = proxy.attempt_start
+    logger.attempt_failed({"litellm_call_id": "call-1"}, TimeoutError())
+    proxy.attempt(0.1)
+    late = proxy.kwargs(PLACEHOLDER_USAGE, 0.0, error_class="Timeout")
+    late["api_call_start_time"] = first
+    run(logger.async_log_failure_event(late, None, T0, at(0.05)))
+    logger.attempt_failed({"litellm_call_id": "call-1"}, TimeoutError())
+    proxy.attempt(0.2)
+    logger.attempt_failed({"litellm_call_id": "call-1"}, TimeoutError())
+    proxy.failed(TimeoutError())
+    attempts = [observation for observation, _ in writer.of(PROVIDER_ATTEMPT)]
+    assert [a["error_type"] for a in attempts] == ["timeout_error"] * 3
+    assert [round(a["duration_seconds"], 6) >= 0 for a in attempts] == [True] * 3
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["retries"] == 2
+
+
+def test_failure_event_does_not_close_a_retry_that_started(logger, writer):
+    proxy = Proxy(logger, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    first = proxy.attempt_start
+    proxy.attempt_failed(Exception())
+    proxy.attempt(0.1)
+    # The first attempt's failure event, delivered after the retry started.
+    late = proxy.kwargs(PLACEHOLDER_USAGE, 0.0, error_class="RateLimitError")
+    late["api_call_start_time"] = first
+    run(logger.async_log_failure_event(late, None, T0, at(0.05)))
+    logger.mark_stream_chunk("call-1", True)
+    proxy.succeeded(0.5, first_chunk=0.2)
+    failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
+    assert "error_type" in failed
+    assert "error_type" not in succeeded
+    assert succeeded["input_tokens"] == 12
+
+
 def test_midstream_provider_failure(logger, writer):
     proxy = Proxy(logger, stream=True)
     proxy.start()
     proxy.attempt(0)
+    logger.mark_stream_chunk("call-1", False)
     proxy.failed(Exception())
     proxy.failed_midstream(0.4, usage={"prompt_tokens": 8, "completion_tokens": 1}, cost=1.8e-6)
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)

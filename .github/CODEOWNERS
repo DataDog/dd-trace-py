@@ -329,7 +329,7 @@ tests/openfeature/                        @DataDog/feature-flagging-and-experime
 # LLM usage and cost metrics
 src/native/ai_usage.rs                                  @DataDog/ml-observability @DataDog/ccm @DataDog/agent-console
 ddtrace/contrib/internal/litellm/_usage_metrics*.py     @DataDog/ml-observability @DataDog/ccm @DataDog/agent-console
-tests/contrib/litellm/test_litellm_usage_metrics.py     @DataDog/ml-observability @DataDog/ccm @DataDog/agent-console
+tests/contrib/litellm/*usage_metrics*                   @DataDog/ml-observability @DataDog/ccm @DataDog/agent-console
 
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities-python

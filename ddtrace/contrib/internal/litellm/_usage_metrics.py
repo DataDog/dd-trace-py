@@ -258,6 +258,7 @@ class _Attempt:
         "model_group",
         "model_id",
         "closed",
+        "streaming",
     )
 
     def __init__(self, kwargs: dict[str, Any]) -> None:
@@ -275,6 +276,8 @@ class _Attempt:
         self.model_group = metadata.get("model_group")
         self.model_id = (metadata.get("model_info") or {}).get("id") or kwargs.get("model_id")
         self.closed = False
+        # Whether the stream wrapper saw a chunk of this attempt.
+        self.streaming = False
 
 
 class _Request:
@@ -352,16 +355,44 @@ class UsageMetricsLogger(CustomLogger):
         for attempt in reversed(request.attempts):
             if not attempt.closed and start is not None and attempt.start == start:
                 return attempt
+        return UsageMetricsLogger._latest_open_attempt(request)
+
+    @staticmethod
+    def _latest_open_attempt(request: _Request) -> Optional[_Attempt]:
         for attempt in reversed(request.attempts):
             if not attempt.closed:
                 return attempt
         return None
 
-    def mark_provider_usage(self, call_id: Any) -> None:
-        """Called by the stream wrapper when a provider chunk carried usage."""
+    def mark_stream_chunk(self, call_id: Any, has_usage: bool) -> None:
+        """Called by the stream wrapper for each provider chunk of a chat or text completion stream."""
         request = self._request(call_id, create=False)
-        if request is not None:
+        if request is None:
+            return
+        if request.attempts:
+            request.attempts[-1].streaming = True
+        if has_usage:
             request.provider_usage = True
+
+    def attempt_failed(self, kwargs: dict[str, Any], exception: BaseException) -> None:
+        """Called by the integration's wrapper when a chat or text completion attempt raises before streaming.
+
+        Attempts of one request run one after the other, so the failed attempt is the latest open one. On LiteLLM
+        versions that call ``async_post_call_failure_deployment_hook``, that hook has already closed it.
+        """
+        try:
+            call_id = kwargs.get("litellm_call_id")
+            request = self._request(call_id, create=False)
+            if request is None or not isinstance(call_id, str):
+                return
+            attempt = self._latest_open_attempt(request)
+            if attempt is not None:
+                self._record_attempt(
+                    request, attempt, kwargs, datetime.datetime.now(), error_type(exception), None, False
+                )
+                self._forget_if_done(call_id, request)
+        except Exception:
+            log.debug("LiteLLM usage metrics: attempt_failed failed", exc_info=True)
 
     # Deployment attributes
 
@@ -392,6 +423,7 @@ class UsageMetricsLogger(CustomLogger):
         error: Optional[str],
         payload: Optional[dict[str, Any]],
         estimated: bool,
+        response: Any = None,
     ) -> None:
         attempt.closed = True
         if attempt.operation is None or attempt.provider is None:
@@ -418,7 +450,11 @@ class UsageMetricsLogger(CustomLogger):
                 first_chunk = _seconds(attempt.start, kwargs.get("completion_start_time"))
                 if first_chunk is not None and first_chunk <= duration:
                     observation["time_to_first_chunk_seconds"] = first_chunk
-            usage = usage_fields((payload.get("metadata") or {}).get("usage_object"), attempt.operation == "embeddings")
+            # LiteLLM 1.6x has no usage_object; the response's own usage is the object it is made from.
+            usage_object = (payload.get("metadata") or {}).get("usage_object")
+            if usage_object is None:
+                usage_object = getattr(response, "usage", None)
+            usage = usage_fields(usage_object, attempt.operation == "embeddings")
             observation.update(usage)
             unreported_stream = attempt.stream and attempt.checked_stream and not request.provider_usage
             if usage and (estimated or unreported_stream):
@@ -482,6 +518,7 @@ class UsageMetricsLogger(CustomLogger):
 
     async def async_pre_call_hook(self, user_api_key_dict: Any, cache: Any, data: Any, call_type: Any) -> Any:
         try:
+            # Older proxies assign the call id only after this hook; their requests start at their first call.
             request = self._request(data.get("litellm_call_id"))
             if request is not None and request.start is None:
                 request.start = time.monotonic()
@@ -501,10 +538,31 @@ class UsageMetricsLogger(CustomLogger):
         request = self._request(call_id, create=False)
         return request is not None and request.start is not None
 
+    def _proxy_request(self, kwargs: dict[str, Any], elapsed: float = 0.0) -> Optional[_Request]:
+        """The request a call belongs to. Only calls made by the proxy are recorded.
+
+        Proxies that assign the call id after ``async_pre_call_hook`` (LiteLLM 1.6x) have no request yet at their
+        first call: it starts there, ``elapsed`` seconds ago, with its route and identity from the call's metadata.
+        """
+        call_id = kwargs.get("litellm_call_id")
+        request = self._request(call_id, create=False)
+        if request is not None or not isinstance(call_id, str):
+            return request
+        if not (kwargs.get("litellm_params") or {}).get("proxy_server_request"):
+            return None
+        request = self._request(call_id)
+        if request is not None and request.start is None:
+            metadata = _metadata(kwargs)
+            request.start = time.monotonic() - max(elapsed, 0.0)
+            request.operation = operation_name(kwargs.get("call_type"))
+            route = metadata.get("original_model_group") or metadata.get("model_group")
+            request.route = route if isinstance(route, str) else None
+            request.identity = {key: metadata.get(key) for key in _IDENTITY_KEYS}
+        return request
+
     def log_pre_api_call(self, model: Any, messages: Any, kwargs: Any) -> None:
         try:
-            # Only calls of a proxy request, started in async_pre_call_hook, are recorded.
-            request = self._request(kwargs.get("litellm_call_id"), create=False)
+            request = self._proxy_request(kwargs)
             if request is not None:
                 request.attempts.append(_Attempt(kwargs))
                 request.provider_usage = False
@@ -519,7 +577,7 @@ class UsageMetricsLogger(CustomLogger):
             request = self._request(call_id, create=False)
             if request is None:
                 return None
-            attempt = self._open_attempt(request, request_data)
+            attempt = self._latest_open_attempt(request)
             if attempt is not None:
                 self._record_attempt(
                     request, attempt, request_data, datetime.datetime.now(), error_type(exception), None, False
@@ -532,7 +590,7 @@ class UsageMetricsLogger(CustomLogger):
     async def async_log_success_event(self, kwargs: Any, response_obj: Any, start_time: Any, end_time: Any) -> None:
         try:
             call_id = kwargs.get("litellm_call_id")
-            request = self._request(call_id, create=False)
+            request = self._proxy_request(kwargs, _seconds(start_time, end_time) or 0.0)
             payload = kwargs.get("standard_logging_object") or {}
             if request is None:
                 return
@@ -543,22 +601,30 @@ class UsageMetricsLogger(CustomLogger):
             if not cache_hit:
                 attempt = self._open_attempt(request, kwargs)
                 if attempt is not None:
-                    self._record_attempt(request, attempt, kwargs, end_time, error, payload, error is not None)
+                    self._record_attempt(
+                        request, attempt, kwargs, end_time, error, payload, error is not None, response_obj
+                    )
             self._record_request(call_id, request, kwargs, error, cache_hit, payload.get("response_cost"))
             self._forget_if_done(call_id, request)
         except Exception:
             log.debug("LiteLLM usage metrics: async_log_success_event failed", exc_info=True)
 
     async def async_log_failure_event(self, kwargs: Any, response_obj: Any, start_time: Any, end_time: Any) -> None:
-        # Only a failure mid-stream reaches here with its attempt still open: an attempt that fails before
-        # streaming is closed by async_post_call_failure_deployment_hook first.
+        # LiteLLM calls this once per request for non-streamed calls and once per attempt for streamed ones, and
+        # possibly after the next attempt started. An attempt that fails before streaming is closed by the wrapper
+        # or by async_post_call_failure_deployment_hook, so only an attempt that is still open and matches this
+        # event's start time is closed here: a failure mid-stream, or one of a route the wrapper does not see.
         try:
             call_id = kwargs.get("litellm_call_id")
             request = self._request(call_id, create=False)
             if request is None:
                 return
-            attempt = self._open_attempt(request, kwargs)
-            if attempt is None:
+            start = kwargs.get("api_call_start_time")
+            attempt = next(
+                (a for a in reversed(request.attempts) if not a.closed and start is not None and a.start == start),
+                None,
+            )
+            if attempt is None or (attempt.checked_stream and not attempt.streaming):
                 return
             payload = kwargs.get("standard_logging_object") or {}
             error_information = payload.get("error_information") or {}
@@ -583,6 +649,11 @@ class UsageMetricsLogger(CustomLogger):
 
 
 def _mark_current_span(profiles: str) -> None:
+    """Mark the active provider call's span, and the Router span of its gateway request above it."""
     span = tracer.current_span()
-    if span is not None and span.name == "litellm.request":
-        span._set_attribute(RECORDED_PROFILES_TAG, profiles)
+    if span is None or span.name != "litellm.request":
+        return
+    span._set_attribute(RECORDED_PROFILES_TAG, profiles)
+    parent = span._parent
+    if parent is not None and parent.name == "litellm.request" and str(parent.resource).startswith("router."):
+        parent._set_attribute(RECORDED_PROFILES_TAG, GATEWAY_PROFILES)
