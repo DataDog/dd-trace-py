@@ -14,18 +14,15 @@ class IntegrationUpdateOrchestrator:
     REGISTRY_UPDATER_MODULE = "registry_update_helpers.integration_registry_updater"
     REGISTRY_UPDATER_CLASS = "IntegrationRegistryUpdater"
     MAIN_UPDATE_SCRIPT = "scripts/integration_registry/update_and_format_registry.py"
-    UPDATER_LOCK_FILE = "scripts/integration_registry/registry.yaml.lock"
     LOCK_MAX_WAIT_SECONDS = 60
-    # Lock files older than this are assumed to be left over from a crashed/killed process rather
-    # than an active holder, and are safe to clear before attempting to acquire the lock.
+    # Only the exclusive-create venv setup lock needs stale-file reclamation.
+    # Registry and workflow FileLock files must remain in place even when unlocked.
     STALE_LOCK_MAX_AGE_SECONDS = 120
 
     def __init__(self, project_root: str):
         self.project_root = project_root
         self.tooling_env_path = os.path.join(project_root, self.TOOLING_VENV_DIR)
-        # Define path for the venv setup lock relative to project root
         self.venv_lock_file_path = os.path.join(project_root, ".venv-registry-tools.lock")
-        self.updater_lock_file_path = os.path.join(project_root, self.UPDATER_LOCK_FILE)
 
     def _acquire_lock(self, lock_file_path: str) -> bool:
         start_time = time.monotonic()
@@ -68,44 +65,37 @@ class IntegrationUpdateOrchestrator:
         except OSError:
             pass
 
-    def _ensure_tooling_venv(self):
-        """Ensures the integration registry tools venv is created and up to date."""
+    def _ensure_tooling_venv(self) -> bool:
+        """Create the tooling environment once, while holding the setup lock."""
         tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
-        pip_timeout = 20
-
-        # If tooling python does not exist, the venv is either missing or corrupted.
-        # If the directory exists, remove it to ensure a clean slate for venv creation.
-        if os.path.exists(self.tooling_env_path):
-            try:
-                shutil.rmtree(self.tooling_env_path)
-            except OSError as e:
-                print(f"Error removing tooling venv '{self.tooling_env_path}': {e}", file=sys.stderr)
-                return False
-
-        if os.path.exists(tooling_python):
-            try:
-                cmd = [tooling_python, "-m", "pip", "install", "-U"] + self.TOOLING_DEPS
-                if self._run_subprocess(cmd, pip_timeout, self.project_root, "pip install -U", verbose=False):
+        complete_path = os.path.join(self.tooling_env_path, ".complete")
+        dependencies = json.dumps(self.TOOLING_DEPS)
+        try:
+            with open(complete_path, encoding="utf-8") as marker:
+                if os.path.exists(tooling_python) and marker.read() == dependencies:
                     return True
-            except Exception:
-                return True
+        except FileNotFoundError:
+            pass
 
-        try:
-            cmd = ["python3", "-m", "venv", self.tooling_env_path]
-            if not self._run_subprocess(cmd, 20, self.project_root, "venv creation", verbose=False):
-                return False
-        except Exception:
+        # AIDEV-NOTE: Reuse completed environments: another worker may already be using
+        # their files after releasing the setup lock.
+        if os.path.exists(self.tooling_env_path):
+            shutil.rmtree(self.tooling_env_path)
+        if not self._run_subprocess(
+            ["python3", "-m", "venv", self.tooling_env_path], 20, self.project_root, "venv creation", verbose=False
+        ):
             return False
-
-        if not os.path.exists(tooling_python):
+        if not self._run_subprocess(
+            [tooling_python, "-m", "pip", "install", *self.TOOLING_DEPS],
+            20,
+            self.project_root,
+            "pip install",
+            verbose=False,
+        ):
             return False
-        try:
-            cmd = [tooling_python, "-m", "pip", "install"] + self.TOOLING_DEPS
-            if not self._run_subprocess(cmd, pip_timeout, self.project_root, "pip install", verbose=False):
-                return False
-            return True
-        except Exception:
-            return False
+        with open(complete_path, "w", encoding="utf-8") as marker:
+            marker.write(dependencies)
+        return True
 
     def _run_subprocess(self, cmd: list, timeout: int, cwd: str, description: str, verbose: bool = True) -> bool:
         """Helper to run subprocess. Prints stderr on failure by default."""
@@ -118,12 +108,14 @@ class IntegrationUpdateOrchestrator:
                     print(f"\n--- stderr: {description} ---\n{process.stderr.strip()}", file=sys.stdout)
             return True
         except subprocess.CalledProcessError as e:
+            print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
+            if e.stdout:
+                print(e.stdout.strip(), file=sys.stderr)
             if e.stderr:
-                # Only print stderr if it exists since the registry update command returns a non-zero exit code
-                # when no changes are needed
-                print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
+                print(e.stderr.strip(), file=sys.stderr)
             return False
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired) as e:
+            print(f"Error: {description} failed: {e}", file=sys.stderr)
             return False
 
     @staticmethod
@@ -165,52 +157,38 @@ class IntegrationUpdateOrchestrator:
         if hasattr(session.config, "_registry_session_data_file"):
             delattr(session.config, "_registry_session_data_file")
 
-    def run(self, data_file_path: str):
-        """Main method for orchestrating the integrationregistry update process."""
-        venv_lock_acquired = False
-        updater_succeeded = False
-
+    def run(self, data_file_path: str) -> bool:
+        """Run one complete update workflow at a time across pytest workers."""
+        self._ensure_no_stale_lock(self.venv_lock_file_path)
+        if not self._acquire_lock(self.venv_lock_file_path):
+            return False
         try:
-            self._ensure_no_stale_lock(self.venv_lock_file_path)
-
-            # Setup Tooling Venv
-            try:
-                if not self._acquire_lock(self.venv_lock_file_path):
-                    return
-                venv_lock_acquired = True
-                if not self._ensure_tooling_venv():
-                    return
-            finally:
-                if venv_lock_acquired:
-                    self._release_lock(self.venv_lock_file_path)
-
-            self._ensure_no_stale_lock(self.updater_lock_file_path)
-
-            # Run Update Process
-            tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
-            if not os.path.exists(tooling_python):
-                return
-
-            # 1. Run IntegrationRegistryUpdater
-            integration_registry_dir = os.path.join(self.project_root, "scripts", "integration_registry")
-            escaped_path = data_file_path.replace("'", "'\\''")
-            py_cmd = (
-                f"import sys; sys.path.insert(0, '{integration_registry_dir}'); "
-                f"from {self.REGISTRY_UPDATER_MODULE} import {self.REGISTRY_UPDATER_CLASS}; "
-                f"updater = {self.REGISTRY_UPDATER_CLASS}(); success = updater.run('{escaped_path}'); "
-                f"sys.exit(0 if success else 1);"
-            )
-            cmd_updater = [tooling_python, "-c", py_cmd]
-            updater_succeeded = self._run_subprocess(
-                cmd_updater, 20, self.project_root, self.REGISTRY_UPDATER_CLASS, verbose=False
-            )
-
-            # 2. Run Main IntegrationRegistry Update/Format Script if we have changes to the registry
-            if updater_succeeded:
-                script_path = os.path.join(self.project_root, self.MAIN_UPDATE_SCRIPT)
-                if os.path.exists(script_path):
-                    cmd_main = [tooling_python, script_path]
-                    self._run_subprocess(cmd_main, 20, self.project_root, "Main Update Script", verbose=True)
-
+            if not self._ensure_tooling_venv():
+                return False
+        except OSError as error:
+            print(f"Error setting up integration registry environment: {error}", file=sys.stderr)
+            return False
         finally:
-            self._ensure_no_stale_lock(self.updater_lock_file_path)
+            self._release_lock(self.venv_lock_file_path)
+
+        integration_registry_dir = os.path.join(self.project_root, "scripts", "integration_registry")
+        script_path = os.path.join(self.project_root, self.MAIN_UPDATE_SCRIPT)
+        workflow_lock_path = os.path.join(integration_registry_dir, "workflow.lock")
+        # Keep formatting under the workflow lock as well as the registry merge/write.
+        py_cmd = f"""
+import os
+import subprocess
+import sys
+from filelock import FileLock
+
+sys.path.insert(0, {integration_registry_dir!r})
+from {self.REGISTRY_UPDATER_MODULE} import {self.REGISTRY_UPDATER_CLASS}
+
+with FileLock({workflow_lock_path!r}, timeout=120):
+    changed = {self.REGISTRY_UPDATER_CLASS}().run({data_file_path!r})
+    if changed and os.path.exists({script_path!r}):
+        subprocess.run([sys.executable, {script_path!r}], check=True, timeout=120)
+"""
+        tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
+        cmd = [tooling_python, "-c", py_cmd]
+        return self._run_subprocess(cmd, 300, self.project_root, "Integration registry update", verbose=True)

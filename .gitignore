@@ -237,3 +237,7 @@ ddtrace/profiling/collector/build-test/
 # file created when running scripts/lint
 uv.lock
 benchmark-artifacts/
+
+# Persistent integration registry locks must never be unlinked while workers are running.
+scripts/integration_registry/registry.yaml.lock
+scripts/integration_registry/workflow.lock

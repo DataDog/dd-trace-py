@@ -1,7 +1,7 @@
 import json
 import os
 import pathlib
-import sys
+import tempfile
 from typing import Union
 
 from filelock import FileLock
@@ -42,24 +42,25 @@ class IntegrationRegistryUpdater:
     def _load_integrations(self):
         """Loads the integrations from the registry data into a class instance."""
         for integration in self.raw_registry_data.get("integrations", []):
-            if not isinstance(integration, dict):
-                continue
             self.integrations[integration["integration_name"]] = Integration(**integration)
 
     def load_registry_data(self):
         """Safely loads the main registry YAML using a file lock."""
         try:
             self.lock.acquire(timeout=self.lock_timeout_seconds)
-            if not self.registry_yaml_path.exists():
-                self.raw_registry_data = {}
-                return
             with open(self.registry_yaml_path, encoding="utf-8") as f:
                 self.raw_registry_data = yaml.safe_load(f)
-                if self.raw_registry_data:
-                    self._load_integrations()
+            if (
+                not isinstance(self.raw_registry_data, dict)
+                or not isinstance(self.raw_registry_data.get("integrations"), list)
+                or not self.raw_registry_data["integrations"]
+            ):
+                raise ValueError("Integration registry must contain a non-empty integrations list.")
+            self._load_integrations()
         except Exception:
             if self.lock.is_locked:
                 self.lock.release()
+            raise
 
     def load_input_data(self, input_file_path_str: str) -> dict:
         """Loads the JSON data from the specified input file."""
@@ -126,8 +127,14 @@ class IntegrationRegistryUpdater:
             key=lambda x: x["integration_name"],
         )
         data_to_write = {"integrations": integrations_list}
+        if not self.lock.is_locked:
+            raise RuntimeError("Registry writes require the lock acquired when loading the registry.")
+        temporary_path = None
         try:
-            with open(self.registry_yaml_path, "w", encoding="utf-8") as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self.registry_yaml_path.parent, delete=False
+            ) as f:
+                temporary_path = pathlib.Path(f.name)
                 yaml.dump(
                     data_to_write,
                     f,
@@ -136,22 +143,14 @@ class IntegrationRegistryUpdater:
                     indent=2,
                     width=100,
                 )
+            os.chmod(temporary_path, self.registry_yaml_path.stat().st_mode)
+            temporary_path.replace(self.registry_yaml_path)
             return True
-        except Exception as e:
-            print(f"\nIntegrationRegistryUpdater: Failed to write updated registry data: {e}", file=sys.stderr)
-            return False
         finally:
-            self._delete_lock_file()
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
             if self.lock.is_locked:
                 self.lock.release()
-
-    def _delete_lock_file(self):
-        """Deletes the lock file if it exists."""
-        try:
-            if self.registry_lock_path.exists():
-                self.registry_lock_path.unlink()
-        except OSError as e:
-            print(f"IntegrationRegistryUpdater: Failed to delete lock file: {e}", file=sys.stderr)
 
     def _get_test_suite_name(self):
         """Return the integration name when this runs inside a test suite."""
@@ -168,39 +167,17 @@ class IntegrationRegistryUpdater:
         if not input_data:
             return False
 
-        changes_made = False
         try:
             self.load_registry_data()
-
-            # if the registry data is up to date, we can skip the merge and write steps, and release the lock
             if not self._needs_update(input_data):
-                if self.lock.is_locked:
-                    self.lock.release()
                 return False
 
-            # merge the input data into the registry data
             added_integrations, updated_integrations = self.merge_data(input_data)
-
-            # if no integrations were added or updated, we can skip the write step
             if added_integrations == 0 and updated_integrations == 0:
                 return False
 
-            changes_made = True
-            # write the updated registry data
-            if not self.write_registry_data():
-                print("\nIntegrationRegistryUpdater: Failed to write updated registry data.", file=sys.stderr)
-                return False
-
-            return changes_made
-
-        except Exception as e:
-            print(f"\nIntegrationRegistryUpdater: Error during run: {e}", file=sys.stderr)
-            # Ensure lock is released on any exception if still held (e.g., error between load and write)
-            if self.lock.is_locked:
-                self.lock.release()
-            return False
+            return self.write_registry_data()
         finally:
-            # Ensure lock is always released and the lock file is deleted
+            # AIDEV-NOTE: Keep the lock file in place so every process locks the same inode.
             if self.lock.is_locked:
                 self.lock.release()
-            self._delete_lock_file()
