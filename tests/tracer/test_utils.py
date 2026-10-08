@@ -5,6 +5,10 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_DD_MAX_CHARS
+from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -17,6 +21,7 @@ from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
+from ddtrace.internal.utils.http import w3c_tracestate_add_p
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.trace import Context
 
@@ -520,6 +525,101 @@ def test_callonce_signature():
 def test_w3c_get_dd_list_member(context, expected_strs):
     for tag in expected_strs:
         assert tag in w3c_get_dd_list_member(context)
+
+
+def _dd_value(tracestate: str) -> str:
+    """Return the dd list-member value, i.e. everything after ``dd=``."""
+    return tracestate.split("dd=", 1)[1]
+
+
+@pytest.mark.parametrize(
+    "meta",
+    [
+        # fits on its own, but not once the parent id field is prepended
+        {"_dd.p.example": "x" * 230},
+        # separators alone push the value over the limit
+        {"_dd.p.a": "a" * 60, "_dd.p.b": "b" * 60, "_dd.p.c": "c" * 60, "_dd.p.d": "d" * 60},
+        # a single value larger than the whole limit
+        {"_dd.p.big": "b" * 400},
+    ],
+    ids=["single-near-limit", "many-members", "single-oversized"],
+)
+def test_w3c_tracestate_add_p_stays_within_limit(meta):
+    """The parent id field must not push the dd value past the 256 character limit. See #20810."""
+    context = Context(trace_id=123, span_id=456, sampling_priority=2, dd_origin="rum", meta=meta)
+
+    dd_value = _dd_value(w3c_tracestate_add_p(context._tracestate, context.span_id))
+
+    assert len(dd_value) <= DD_TRACE_TRACESTATE_DD_MAX_CHARS
+    # the parent id reconnects non-datadog spans, it must survive
+    assert f"{W3C_TRACESTATE_PARENT_ID_KEY}:{context.span_id:016x}" in dd_value
+
+
+def test_w3c_get_dd_list_member_counts_separators():
+    """Field lengths alone must not be used to decide the budget, the ";" separators count too."""
+    context = Context(
+        trace_id=1234,
+        sampling_priority=2,
+        dd_origin="rum",
+        meta={"_dd.p.a": "a" * 100, "_dd.p.b": "b" * 100, "_dd.p.c": "c" * 60},
+    )
+
+    assert len(w3c_get_dd_list_member(context)) <= DD_TRACE_TRACESTATE_DD_MAX_CHARS
+
+
+@pytest.mark.parametrize("pad", [0, 1, 5, 50, 200])
+def test_w3c_tracestate_add_p_boundary(pad):
+    """Values sized around the limit must not overflow, nor be dropped when they still fit."""
+    context = Context(trace_id=123, span_id=456, sampling_priority=2, meta={"_dd.p.pad": "p" * pad})
+
+    dd_value = _dd_value(w3c_tracestate_add_p(context._tracestate, context.span_id))
+
+    assert len(dd_value) <= DD_TRACE_TRACESTATE_DD_MAX_CHARS
+    if pad <= 50:
+        assert f"t.pad:{'p' * pad}" in dd_value
+
+
+def test_w3c_tracestate_add_p_keeps_required_fields_when_truncating():
+    """Truncation drops optional tags, never sampling priority or origin."""
+    context = Context(
+        trace_id=1234,
+        span_id=456,
+        sampling_priority=2,
+        dd_origin="synthetics",
+        meta={"_dd.p.a": "a" * 200, "_dd.p.b": "b" * 200},
+    )
+
+    dd_value = _dd_value(w3c_tracestate_add_p(context._tracestate, context.span_id))
+
+    assert len(dd_value) <= DD_TRACE_TRACESTATE_DD_MAX_CHARS
+    assert f"{W3C_TRACESTATE_SAMPLING_PRIORITY_KEY}:2" in dd_value
+    assert f"{W3C_TRACESTATE_ORIGIN_KEY}:synthetics" in dd_value
+
+
+def test_w3c_tracestate_add_p_truncates_dd_value_from_upstream():
+    """A dd value that is already over the limit when we add the parent id gets trimmed."""
+    tracestate = "dd=s:2;o:rum;t.big:" + "b" * 300
+
+    dd_value = _dd_value(w3c_tracestate_add_p(tracestate, 456))
+
+    assert len(dd_value) <= DD_TRACE_TRACESTATE_DD_MAX_CHARS
+    assert f"{W3C_TRACESTATE_PARENT_ID_KEY}:{456:016x}" in dd_value
+
+
+def test_w3c_tracestate_add_p_result_parses_with_opentelemetry():
+    """OpenTelemetry rejects a dd value over 256 characters, dropping all vendor state. See #20810."""
+    trace_state = pytest.importorskip("opentelemetry.trace")
+    context = Context(
+        trace_id=123,
+        span_id=456,
+        sampling_priority=2,
+        dd_origin="rum",
+        meta={"_dd.p.example": "x" * 230},
+    )
+
+    tracestate = w3c_tracestate_add_p(context._tracestate, context.span_id)
+
+    assert dict(trace_state.TraceState.from_header([tracestate]))
 
 
 def test_hourglass_init():

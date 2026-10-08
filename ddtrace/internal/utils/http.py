@@ -19,6 +19,7 @@ from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_DD_MAX_CHARS
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
@@ -26,6 +27,7 @@ from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_MAX_CHARS
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.settings import env
@@ -211,7 +213,8 @@ def w3c_get_dd_list_member(context):
     if usr_id:
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
-    current_tags_len = sum(len(i) for i in tags)
+    # w3c_tracestate_add_p prepends the parent id field, so reserve room for it here.
+    budget = DD_TRACE_TRACESTATE_DD_MAX_CHARS - W3C_TRACESTATE_PARENT_ID_MAX_CHARS
     for k, v in _get_metas_to_propagate(context):
         if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, _USER_ID_KEY]:
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
@@ -221,11 +224,10 @@ def w3c_get_dd_list_member(context):
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY, "_", k)),
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", v)),
             )
-            # we need to keep the total length under 256 char
-            potential_current_tags_len = current_tags_len + len(next_tag)
-            if not potential_current_tags_len > 256:
+            # The tags are joined with ";", so each extra tag costs a separator too.
+            potential_len = len(";".join(tags + [next_tag]))
+            if potential_len <= budget:
                 tags.append(next_tag)
-                current_tags_len += len(next_tag)
             else:
                 log.debug("tracestate would exceed 256 char limit with tag: %s. Tag will not be added.", next_tag)
 
@@ -349,10 +351,32 @@ def w3c_tracestate_add_p(tracestate, span_id):
     # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
     p_member = f"{W3C_TRACESTATE_PARENT_ID_KEY}:{span_id:016x}"
     if "dd=" in tracestate:
-        return tracestate.replace("dd=", f"dd={p_member};")
+        tracestate = tracestate.replace("dd=", f"dd={p_member};")
     elif tracestate:
-        return f"dd={p_member},{tracestate}"
-    return f"dd={p_member}"
+        tracestate = f"dd={p_member},{tracestate}"
+    else:
+        return f"dd={p_member}"
+    return _w3c_tracestate_drop_dd_fields_over_limit(tracestate)
+
+
+def _w3c_tracestate_drop_dd_fields_over_limit(tracestate: str) -> str:
+    """Drop optional dd fields, rightmost first, until the dd value fits the limit.
+
+    ``w3c_get_dd_list_member`` already budgets for the parent id field, but the dd value can also
+    come from an upstream service and be over the limit before we add anything to it.
+    """
+    members = tracestate.split(",")
+    for index, member in enumerate(members):
+        if not member.startswith("dd="):
+            continue
+        fields = member[len("dd=") :].split(";")
+        # Keep the parent id field; the rest are optional and dropped from the right.
+        while len(fields) > 1 and len(";".join(fields)) > DD_TRACE_TRACESTATE_DD_MAX_CHARS:
+            dropped = fields.pop()
+            log.debug("tracestate dd value would exceed 256 char limit, dropping field: %s", dropped)
+        members[index] = "dd=" + ";".join(fields)
+        break
+    return ",".join(members)
 
 
 class Response:

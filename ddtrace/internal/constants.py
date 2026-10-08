@@ -149,6 +149,10 @@ DD_TRACE_TRACESTATE_MAX_ITEMS = 32
 DD_TRACE_TRACESTATE_MAX_BYTES = 512
 # Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
 DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
+# The dd list-member is rejected by OpenTelemetry once its value passes 256 characters.
+DD_TRACE_TRACESTATE_DD_MAX_CHARS = 256
+# "p:" + a 16 character hex span id + the ";" separator that follows it.
+W3C_TRACESTATE_PARENT_ID_MAX_CHARS = len(W3C_TRACESTATE_PARENT_ID_KEY) + 1 + 16 + 1
 
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
