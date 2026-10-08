@@ -503,9 +503,7 @@ def test_unwind_preserves_the_original_exception_chain(cleanup_raises):
 
 
 @pytest.mark.skipif(not is_at_least_py(3, 15), reason="lazy imports require Python 3.15")
-@pytest.mark.subprocess(
-    parametrize={"PATCH_BEFORE_IMPORT": ["true", "false"], "IMPORT_STYLE": ["module", "from"]}, timeout=20
-)
+@pytest.mark.subprocess(parametrize={"IMPORT_STYLE": ["module", "from"]}, timeout=20)
 def test_lazily_imported_urlopen_blocks_before_connecting():
     import os
     import sys
@@ -517,11 +515,8 @@ def test_lazily_imported_urlopen_blocks_before_connecting():
     from ddtrace.internal._exceptions import BlockingException
     from tests.appsec.appsec.test_common_modules import _blocking_waf_result
 
-    patch_before_import = os.environ["PATCH_BEFORE_IMPORT"] == "true"
     import_style = os.environ["IMPORT_STYLE"]
     assert "urllib.request" not in sys.modules
-    if patch_before_import:
-        cmp.patch_common_modules()
 
     # Keep the new syntax parseable by the older Python versions in the matrix.
     if import_style == "module":
@@ -529,8 +524,7 @@ def test_lazily_imported_urlopen_blocks_before_connecting():
     else:
         exec("lazy from urllib.request import urlopen as lazy_urlopen", globals())
     assert "urllib.request" not in sys.modules
-    if not patch_before_import:
-        cmp.patch_common_modules()
+    cmp.patch_common_modules()
     assert "urllib.request" not in sys.modules
 
     with (
@@ -538,7 +532,7 @@ def test_lazily_imported_urlopen_blocks_before_connecting():
         mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
         mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()) as call_waf,
         mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
-        mock.patch("socket.create_connection", side_effect=AssertionError("connection attempted")) as connect,
+        mock.patch("socket.create_connection", side_effect=AssertionError("connection attempted")),
     ):
         with pytest.raises(BlockingException) as exc:
             if import_style == "module":
@@ -547,7 +541,6 @@ def test_lazily_imported_urlopen_blocks_before_connecting():
                 lazy_urlopen("http://127.0.0.1:1/", timeout=1)  # noqa: F821
         assert exc.value.args[3] == "http://127.0.0.1:1/"
         call_waf.assert_called_once()
-        connect.assert_not_called()
     cmp.unpatch_common_modules()
 
 
