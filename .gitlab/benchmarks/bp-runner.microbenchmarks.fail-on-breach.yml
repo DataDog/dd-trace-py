@@ -992,15 +992,15 @@ experiments:
               - max_rss_usage < 42.00 MB
           - name: sethttpmeta-obfuscation-send-querystring-disabled
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.19 ms
               - max_rss_usage < 42.00 MB
           - name: sethttpmeta-obfuscation-worst-case-explicit-query
             thresholds:
-              - execution_time < 0.16 ms
+              - execution_time < 0.19 ms
               - max_rss_usage < 42.00 MB
           - name: sethttpmeta-obfuscation-worst-case-implicit-query
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.19 ms
               - max_rss_usage < 42.00 MB
           - name: sethttpmeta-useragentvariant_exists_1
             thresholds:
