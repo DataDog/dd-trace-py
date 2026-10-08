@@ -13,9 +13,12 @@ OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 def _exporter_version():
     try:
         version = package_version("opentelemetry-exporter-otlp-proto-common")
-        return tuple(int(x) for x in version.split(".")[:3])
     except PackageNotFoundError:
-        return (0, 0, 0)
+        try:
+            from opentelemetry.exporter.otlp.proto.http.version import __version__ as version
+        except ImportError:
+            return (0, 0, 0)
+    return tuple(int(x) for x in version.split(".")[:3])
 
 
 EXPORTER_VERSION = _exporter_version()

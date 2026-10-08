@@ -18,7 +18,12 @@ try:
     exporter_version = package_version("opentelemetry-exporter-otlp-proto-common")
     EXPORTER_VERSION = tuple(int(x) for x in exporter_version.split(".")[:3])
 except PackageNotFoundError:
-    EXPORTER_VERSION = (0, 0, 0)
+    try:
+        from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
+    except ImportError:
+        EXPORTER_VERSION = (0, 0, 0)
+    else:
+        EXPORTER_VERSION = tuple(int(x) for x in exporter_version.split(".")[:3])
 
 
 def create_mock_grpc_server():
