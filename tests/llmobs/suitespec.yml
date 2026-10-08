@@ -215,11 +215,11 @@ suites:
         - name: litellm-proxy
           python: ['3.12']
           command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_writer.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
-          dependencies: [pytest-asyncio, 'litellm[proxy]==1.80.16', opentelemetry-proto]
+          dependencies: [vcrpy, msgpack, pytest-asyncio, 'litellm[proxy]==1.80.16', opentelemetry-proto]
         - name: litellm-proxy
           python: ['3.12']
           command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_writer.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
-          dependencies: [pytest-asyncio, 'litellm[proxy]==1.104.0', opentelemetry-proto]
+          dependencies: [vcrpy, msgpack, pytest-asyncio, 'litellm[proxy]==1.104.0', opentelemetry-proto]
   llmobs:
     paths:
       - '@bootstrap'
