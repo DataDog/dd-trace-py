@@ -5,9 +5,86 @@ These tests focus on edge cases specific to the native/Rust implementation
 that wouldn't be caught by testing the higher-level Span class.
 """
 
+import weakref
+
 import pytest
 
+from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import _set_sampling_tags
+from ddtrace.trace import Context
+
+
+def test_native_span_sampling():
+    span = SpanData(name="native", trace_id=123, span_id=456)
+    assert SamplingRule(sample_rate=1, name="native").matches(span)
+    assert SamplingRule(sample_rate=1).sample(span)
+    assert SpanSamplingRule(sample_rate=1, max_per_second=-1, name="native").sample(span)
+
+    _set_sampling_tags(span, True, 1, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
+    context = span.context
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context._is_remote is False
+    assert context.sampling_priority == 2
+    assert context._meta["_dd.p.dm"] == "-3"
+    _set_sampling_tags(span, False, 0, SamplingMechanism.DEFAULT)
+    assert span.context is context
+    assert context._meta["_dd.p.dm"] == "-3"
+
+
+def test_native_child_context_shares_pending_sampling_state():
+    parent_context = Context(trace_id=123, is_remote=False)
+    parent_context._publish_sampling_decision(1, 0.5, True)
+    span = SpanData(name="child", trace_id=123, span_id=456, context=parent_context)
+    child_context = span.context
+    assert child_context._meta is parent_context._meta
+    assert child_context._metrics is parent_context._metrics
+    assert child_context._baggage is parent_context._baggage
+    assert child_context._otel_sampling_state_owner is parent_context
+    assert child_context._tracestate == parent_context._tracestate
+    assert parent_context._otel_sampling_state_data is None
+
+
+def test_sampling_decision_metadata_callback_can_read_context():
+    reads = []
+
+    class Key(str):
+        __hash__ = str.__hash__
+
+        def __eq__(self, other):
+            reads.append(context.trace_id)
+            return super().__eq__(other)
+
+    context = Context(trace_id=123, meta={Key("_dd.p.dm"): "-0"})
+    assert context._set_sampling_decision_maker(3) == "-3"
+    assert reads == [123]
+    assert context._meta["_dd.p.dm"] == "-3"
+
+
+def test_context_copy_override_can_read_native_span():
+    reads = []
+
+    class CustomContext(Context):
+        def copy(self, trace_id, span_id):
+            reads.append(span.span_id)
+            return super().copy(trace_id, span_id)
+
+    span = SpanData(name="child", trace_id=123, span_id=456, context=CustomContext(trace_id=123))
+    assert span.context.span_id == 456
+    assert reads == [456]
+
+
+def test_replaced_context_weakref_callback_can_read_native_span():
+    span = SpanData(name="native", trace_id=123, span_id=456)
+    reads = []
+    old_context = weakref.ref(span.context, lambda _: reads.append(span.context.trace_id))
+
+    span.context = Context(trace_id=789)
+    assert old_context() is None
+    assert reads == [789]
 
 
 # =============================================================================

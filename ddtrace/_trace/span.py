@@ -35,7 +35,6 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
@@ -173,9 +172,7 @@ class Span(SpanData):
         self,
         sampling_mechanism: int,
     ) -> Optional[str]:
-        value = "-%d" % sampling_mechanism
-        self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
-        return value
+        return self.context._set_sampling_decision_maker(sampling_mechanism)
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span."""

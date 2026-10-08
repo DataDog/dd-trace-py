@@ -11,6 +11,7 @@ use pyo3::{
 const ORIGIN_KEY: &str = "_dd.origin";
 const SAMPLING_PRIORITY_KEY: &str = "_sampling_priority_v1";
 const USER_ID_KEY: &str = "_dd.p.usr.id";
+const SAMPLING_DECISION_TRACE_TAG_KEY: &str = "_dd.p.dm";
 const W3C_TRACEPARENT_KEY: &str = "traceparent";
 const W3C_TRACESTATE_KEY: &str = "tracestate";
 const MAX_UINT_64BITS: u128 = (1u128 << 64) - 1;
@@ -719,6 +720,18 @@ impl Context {
     fn remove_all_baggage_items(&mut self, py: Python<'_>) -> PyResult<()> {
         self.get_baggage(py).clear();
         Ok(())
+    }
+
+    /// Set the decision-maker tag; callers decide whether an existing value can be replaced.
+    fn _set_sampling_decision_maker(
+        slf: &Bound<'_, Self>,
+        sampling_mechanism: i64,
+    ) -> PyResult<String> {
+        let py = slf.py();
+        let value = format!("-{}", sampling_mechanism);
+        let meta = slf.borrow_mut().get_meta(py);
+        meta.set_item(SAMPLING_DECISION_TRACE_TAG_KEY, &value)?;
+        Ok(value)
     }
 
     /// PERF: run once per child span. Constructs a plain `Context` directly via
