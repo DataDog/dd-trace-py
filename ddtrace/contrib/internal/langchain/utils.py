@@ -11,9 +11,19 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 class BaseLangchainStreamHandler:
     def _process_chunk(self, chunk):
         self.chunks.append(chunk)
+        # The provider request went out with the first read: release the claim before the caller's loop body runs.
+        self._dispatch_finally_event()
         chunk_callback = self.options.get("chunk_callback", None)
         if chunk_callback:
             chunk_callback(chunk)
+
+    def _dispatch_finally_event(self):
+        # At most once, and only after start_stream: an unstarted stream must not release an enclosing claim.
+        # Uses core.dispatch (non-raising) because cleanup must not throw.
+        finally_event = self.options.get("aiguard_finally_event")
+        if finally_event and getattr(self, "_stream_started", False) and not getattr(self, "_finally_sent", False):
+            self._finally_sent = True
+            core.dispatch(finally_event, ())
 
     def start_stream(self):
         # dispatched lazily from ``TracedStream.__iter__`` /
@@ -31,17 +41,9 @@ class BaseLangchainStreamHandler:
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
-        # Dispatch the AI Guard finally event before finishing the span so
-        # the active-context counter set by start_stream is released on every
-        # exit path: success, exception, early break, aclose, or
-        # context-manager exit. close_stream calls finalize_stream at most
-        # once from TracedStream iteration cleanup, context-manager exit, and
-        # GC. Only pair finally with a start that actually ran: otherwise a
-        # never-iterated stream would decrement an enclosing AI Guard context.
-        # Use core.dispatch (non-raising) because cleanup must not throw.
-        finally_event = self.options.get("aiguard_finally_event")
-        if finally_event and getattr(self, "_stream_started", False):
-            core.dispatch(finally_event, ())
+        # Releases the claim on exit paths with no chunk: an exception, an empty stream, or a close before the
+        # first chunk.
+        self._dispatch_finally_event()
         self.primary_span.finish()
 
 

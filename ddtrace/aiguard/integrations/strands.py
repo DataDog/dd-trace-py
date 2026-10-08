@@ -75,6 +75,7 @@ from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._api_client import new_ai_guard_client
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
@@ -265,7 +266,8 @@ class AIGuardStrandsIntegration:
         on ``invocation_state`` so it is per-invocation and survives nested or
         concurrent agent calls that share a single plugin/hook instance.
         """
-        event.invocation_state[_INVOCATION_CTX_KEY] = set_aiguard_context_active()
+        # Strands evaluates both the request and the response itself.
+        event.invocation_state[_INVOCATION_CTX_KEY] = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
 
     def _on_after_invocation_base(self, event: _AfterInvocationEvent) -> None:
         """Reset the AI Guard context at the end of the agent invocation.
@@ -273,10 +275,11 @@ class AIGuardStrandsIntegration:
         Paired with ``_on_before_invocation_base``. Strands fires this in a
         ``finally`` block so it runs even when the model or tool hooks raised
         ``AIGuardAbortError``.
+
+        The release works from any asyncio task, even one whose Context was
+        copied before the claim.
         """
-        token = event.invocation_state.pop(_INVOCATION_CTX_KEY, None)
-        if token is not None:
-            reset_aiguard_context_active(token)
+        reset_aiguard_context_active(event.invocation_state.pop(_INVOCATION_CTX_KEY, None))
 
     def _on_before_model_call_base(self, event: _BeforeModelCallEvent) -> None:
         """Evaluate prompt messages before sending to the model.

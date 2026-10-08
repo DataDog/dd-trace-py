@@ -26,6 +26,7 @@ from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_afte
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
+from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
@@ -78,38 +79,28 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
-    # LangChain marks the AI Guard context active for the whole model call, which
-    # makes the OpenAI / Anthropic listeners skip their own response evaluation.
-    # These listeners are what replaces it -- without them a LangChain model
-    # response reaches the caller unevaluated (APPSEC-70274). Streaming has no
-    # matching after event and is still uncovered; see the follow-up ticket.
+    # LangChain generate claims the response phase, which makes the OpenAI / Anthropic
+    # listeners skip their own response evaluation; these listeners replace it. A stream
+    # claims only the request phase, so the provider's buffered stream evaluates its response.
     core.on("langchain.chatmodel.generate.after", partial(_langchain_chatmodel_generate_after, client))
     core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
     core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
     core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
 
-    # ``.stream.started`` is dispatched lazily from
-    # ``BaseLangchainStreamHandler.start_stream`` (called by
-    # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
-    # stream created but never consumed cannot leak the counter into the
-    # next call in the same task. The matching reset happens via
-    # ``.stream.finally`` below (dispatched from ``finalize_stream``).
+    # .stream.started claims the request phase on iteration entry, so a stream created but
+    # never consumed holds no claim. The contrib sends .stream.finally after the first chunk
+    # (the provider request is out by then), so the caller's loop body is not claimed.
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 
-    # ``.finally`` listeners release the AI Guard active-context
-    # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
-    # by the matching ``.before`` listener (``func(...)`` runs synchronously
-    # so set + reset wrap the SDK call). For streaming the counter is bumped
-    # by ``.stream.started`` above, and reset here once iteration ends. We
-    # listen on ``.finally`` rather than ``.after`` so the reset still fires
-    # when the underlying LLM call raises mid-iteration.
+    # The .finally listeners release the claim of the matching .before or .stream.started
+    # listener; .finally rather than .after, so the release also runs when the call raises.
     core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
     core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.llm.generate.finally", _langchain_generate_finally)
     core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
-    core.on("langchain.chatmodel.stream.finally", _langchain_generate_finally)
-    core.on("langchain.llm.stream.finally", _langchain_generate_finally)
+    core.on("langchain.chatmodel.stream.finally", _langchain_stream_finally)
+    core.on("langchain.llm.stream.finally", _langchain_stream_finally)
 
 
 def _openai_listen(client: AIGuardClient) -> None:

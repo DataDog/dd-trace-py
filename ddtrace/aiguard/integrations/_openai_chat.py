@@ -16,6 +16,7 @@ from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
@@ -149,7 +150,7 @@ def _convert_openai_response(resp: Any) -> list[Message]:
 
 def _openai_chat_completion_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``openai.chat.completions.create.before``."""
-    if is_aiguard_context_active():
+    if is_aiguard_context_active(Phase.REQUEST):
         logger.debug("AI Guard openai before-hook skipped: framework context active (e.g. Strands plugin)")
         return None
 
@@ -198,7 +199,7 @@ def _openai_chat_completion_after(client: AIGuardClient, kwargs: dict[str, Any],
     ``AIGuardAbortError`` when the OpenAI SDK is not importable).  Allow /
     skip paths return ``None``.
     """
-    if is_aiguard_context_active():
+    if is_aiguard_context_active(Phase.RESPONSE):
         logger.debug("AI Guard openai after-hook skipped: framework context active (e.g. Strands plugin)")
         return None
 

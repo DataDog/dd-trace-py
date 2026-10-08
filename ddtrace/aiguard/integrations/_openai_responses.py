@@ -32,6 +32,7 @@ from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
@@ -423,7 +424,7 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
         logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
         return None
 
-    if is_aiguard_context_active():
+    if is_aiguard_context_active(Phase.REQUEST):
         logger.debug("AI Guard openai responses before-hook skipped: framework context active")
         return None
 
@@ -461,7 +462,7 @@ def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any],
     patch gates the dispatch on ``not stream``); when a framework evaluation
     is already active we skip to avoid double-evaluation.
     """
-    if is_aiguard_context_active():
+    if is_aiguard_context_active(Phase.RESPONSE):
         logger.debug("AI Guard openai responses after-hook skipped: framework context active")
         return None
 

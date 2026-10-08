@@ -1,4 +1,6 @@
 from collections.abc import Sequence
+import contextvars
+from functools import partial
 import json
 from typing import Any
 from typing import Callable
@@ -12,12 +14,14 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -36,8 +40,6 @@ action_agents_classes = (
 
 
 def _langchain_patch(client: AIGuardClient) -> None:
-    from functools import partial
-
     # langchain < 1.0: agents subclass one of the action-agent classes and
     # decide tool calls through ``plan`` / ``aplan``. Each is wrapped in its
     # own try/except because the available classes vary across versions.
@@ -58,6 +60,14 @@ def _langchain_patch(client: AIGuardClient) -> None:
         wrap("langgraph.prebuilt.tool_node", "ToolNode._arun_one", partial(_langchain_toolnode_arun_one, client))
     except Exception:
         logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
+
+    # A model can stream inside generate and report each token to the run manager before .generate.after
+    # evaluates the response; these wrappers hold those callbacks until the verdict (see _GenerateScope).
+    try:
+        for method, wrapper in _RUN_MANAGER_WRAPPERS:
+            wrap("langchain_core.callbacks.manager", method, wrapper)
+    except Exception:
+        logger.debug("Failed to instrument langchain run managers", exc_info=True)
 
 
 def _langchain_unpatch() -> None:
@@ -86,6 +96,15 @@ def _langchain_unpatch() -> None:
         unwrap(ToolNode, "_arun_one")
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
+
+    try:
+        from langchain_core.callbacks import manager
+
+        for method, _wrapper in _RUN_MANAGER_WRAPPERS:
+            class_name, method_name = method.split(".")
+            unwrap(getattr(manager, class_name), method_name)
+    except Exception:
+        logger.debug("Failed to unpatch langchain run managers", exc_info=True)
 
 
 def _langchain_agent_plan(
@@ -399,7 +418,10 @@ def _langchain_chatmodel_generate_after(client: AIGuardClient, message_lists: An
     them and tolerates a provider returning fewer of either.
     """
     generations = getattr(result, "generations", None) or []
-    for messages, prompt_generations in zip(message_lists, generations):
+    scope = _current_generate_scope()
+    for index, (messages, prompt_generations) in enumerate(zip(message_lists, generations)):
+        if scope is not None and index in scope.evaluated:
+            continue
         response_messages = _convert_generations(prompt_generations)
         if response_messages and _evaluate_langchain_response(client, _convert_messages(messages), response_messages):
             _mark_generations_evaluated(prompt_generations)
@@ -410,7 +432,10 @@ def _langchain_llm_generate_after(client: AIGuardClient, prompts: Any, result: A
     from langchain_core.messages import HumanMessage
 
     generations = getattr(result, "generations", None) or []
-    for prompt, prompt_generations in zip(prompts, generations):
+    scope = _current_generate_scope()
+    for index, (prompt, prompt_generations) in enumerate(zip(prompts, generations)):
+        if scope is not None and index in scope.evaluated:
+            continue
         response_messages = _convert_generations(prompt_generations)
         if response_messages:
             _evaluate_langchain_response(client, _convert_messages([HumanMessage(content=prompt)]), response_messages)
@@ -550,7 +575,9 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: Any) -> Optional[Any]:
-    set_aiguard_context_active()
+    # LangChain evaluates both the request (here) and the response (.after), so the provider skips both.
+    set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+    _push_generate_scope(client, list(message_lists))
     for messages in message_lists:
         result = _evaluate_langchain_messages(client, messages)
         if result is not None:
@@ -562,7 +589,8 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optio
     """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
-    set_aiguard_context_active()
+    set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+    _push_generate_scope(client, [[HumanMessage(content=prompt)] for prompt in prompts])
     for prompt in prompts:
         result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
         if result is not None:
@@ -580,7 +608,8 @@ def _langchain_generate_finally(*args: Any, **kwargs: Any) -> None:
     counter reset is a no-op when the counter is already zero, so listener
     invocations that don't pair with a ``.before`` set are safe.
     """
-    reset_aiguard_context_active_current()
+    _pop_generate_scope()
+    reset_aiguard_context_active_current(Phase.REQUEST, Phase.RESPONSE)
 
 
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
@@ -605,10 +634,19 @@ def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
     (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
     by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
     iteration entry — so a stream created but never iterated cannot bump
-    the depth. The matching reset happens in
-    :func:`_langchain_generate_finally` via the ``.stream.finally`` event.
+    the depth. The matching release is _langchain_stream_finally, on the
+    .stream.finally event.
+
+    Only the request phase: LangChain evaluates the request in .stream.before but
+    has no event for the streamed response, so the provider's buffered stream
+    evaluates it.
     """
-    set_aiguard_context_active()
+    set_aiguard_context_active(Phase.REQUEST)
+
+
+def _langchain_stream_finally(*args: Any, **kwargs: Any) -> None:
+    """Release the stream claim: the contrib sends this after the first chunk, or at the end of a stream with none."""
+    reset_aiguard_context_active_current(Phase.REQUEST)
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> Optional[Any]:
@@ -646,3 +684,103 @@ def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> 
         except Exception:
             logger.debug("Failed to evaluate chat model prompt", exc_info=True)
     return None
+
+
+class _GenerateScope:
+    """Run-manager callbacks of one LangChain generate call, held until each run's response verdict.
+
+    Only with stream analysis on. A model that streams inside generate reports each token to the run manager,
+    which would reach callbacks (and astream_events, LangGraph's messages mode) before .generate.after runs.
+    """
+
+    __slots__ = ("client", "requests", "deferred", "ended", "evaluated")
+
+    def __init__(self, client: AIGuardClient, requests: list[list[Any]]) -> None:
+        self.client = client
+        # The LangChain messages of each prompt, in prompt order.
+        self.requests = requests
+        # Held callbacks per run manager (by id), replayed in order after a clean verdict.
+        self.deferred: dict[int, list[Callable[[], Any]]] = {}
+        # LangChain calls on_llm_end once per prompt, in prompt order.
+        self.ended = 0
+        # Prompts whose response was evaluated at on_llm_end, so .generate.after skips them.
+        self.evaluated: set[int] = set()
+
+    def evaluate_next_run(self, response: Any) -> None:
+        """Evaluate the response of the next run; AIGuardAbortError on a block."""
+        index = self.ended
+        self.ended += 1
+        if index >= len(self.requests):
+            return
+        self.evaluated.add(index)
+        generations = (getattr(response, "generations", None) or [[]])[0]
+        response_messages = _convert_generations(generations)
+        if response_messages and _evaluate_langchain_response(
+            self.client, _convert_messages(self.requests[index]), response_messages
+        ):
+            _mark_generations_evaluated(generations)
+
+
+# One entry per generate call in progress, innermost last; None when the call holds no callbacks.
+_GENERATE_SCOPES: contextvars.ContextVar[tuple[Optional[_GenerateScope], ...]] = contextvars.ContextVar(
+    "ai_guard_langchain_generate_scopes", default=()
+)
+
+
+def _push_generate_scope(client: AIGuardClient, requests: list[list[Any]]) -> None:
+    scope = _GenerateScope(client, requests) if aiguard_config._ai_guard_analyze_stream_responses_enabled else None
+    _GENERATE_SCOPES.set(_GENERATE_SCOPES.get() + (scope,))
+
+
+def _pop_generate_scope() -> None:
+    scopes = _GENERATE_SCOPES.get()
+    if scopes:
+        _GENERATE_SCOPES.set(scopes[:-1])
+
+
+def _current_generate_scope() -> Optional[_GenerateScope]:
+    scopes = _GENERATE_SCOPES.get()
+    return scopes[-1] if scopes else None
+
+
+def _langchain_run_new_token(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    scope = _current_generate_scope()
+    if scope is None:
+        return func(*args, **kwargs)
+    scope.deferred.setdefault(id(instance), []).append(partial(func, *args, **kwargs))
+    return None
+
+
+async def _langchain_arun_new_token(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    scope = _current_generate_scope()
+    if scope is None:
+        return await func(*args, **kwargs)
+    scope.deferred.setdefault(id(instance), []).append(partial(func, *args, **kwargs))
+    return None
+
+
+def _langchain_run_end(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    """Evaluate the run's response first; its held tokens and the end reach callbacks only on a clean verdict."""
+    scope = _current_generate_scope()
+    if scope is not None:
+        scope.evaluate_next_run(get_argument_value(args, kwargs, 0, "response"))
+        for call in scope.deferred.pop(id(instance), ()):
+            call()
+    return func(*args, **kwargs)
+
+
+async def _langchain_arun_end(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    scope = _current_generate_scope()
+    if scope is not None:
+        scope.evaluate_next_run(get_argument_value(args, kwargs, 0, "response"))
+        for call in scope.deferred.pop(id(instance), ()):
+            await call()
+    return await func(*args, **kwargs)
+
+
+_RUN_MANAGER_WRAPPERS = (
+    ("CallbackManagerForLLMRun.on_llm_new_token", _langchain_run_new_token),
+    ("CallbackManagerForLLMRun.on_llm_end", _langchain_run_end),
+    ("AsyncCallbackManagerForLLMRun.on_llm_new_token", _langchain_arun_new_token),
+    ("AsyncCallbackManagerForLLMRun.on_llm_end", _langchain_arun_end),
+)
