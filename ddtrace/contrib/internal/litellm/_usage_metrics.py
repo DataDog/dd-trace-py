@@ -304,7 +304,7 @@ class _Request:
         self.ended = False
 
 
-class UsageMetricsLogger(CustomLogger):
+class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
     """Builds usage metric observations from LiteLLM proxy hooks and hands them to a writer.
 
     Every hook catches its own errors: a failure here never affects the proxied request.
