@@ -235,14 +235,40 @@ def test_http_protocol_selects_lightweight_exporter():
     assert get_logs_exporter("http/protobuf").__module__ == "ddtrace.internal.opentelemetry.exporters.http_log_exporter"
 
 
+@pytest.mark.parametrize("protocol", ["grpc", "http/protobuf"])
+def test_exporter_resolution_without_proto_package_returns_none(monkeypatch, protocol):
+    from ddtrace.internal.opentelemetry import exporters
+
+    def missing_exporter_version():
+        raise ImportError("OpenTelemetry exporter is not installed")
+
+    monkeypatch.setattr(exporters, "_exporter_version", missing_exporter_version)
+
+    assert exporters.get_logs_exporter(protocol) is None
+
+
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="Test requires the lightweight exporter selection path")
-def test_grpc_protocol_falls_back_to_upstream_exporter(monkeypatch):
-    from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
+def test_grpc_protocol_without_grpclib_falls_back_to_upstream_exporter(monkeypatch):
+    from ddtrace.internal.opentelemetry import exporters
     from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCLogsExporter
 
     monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter", None)
+    monkeypatch.setattr(exporters, "import_module", lambda name: SimpleNamespace())
 
-    assert get_logs_exporter("grpc") is GRPCLogsExporter
+    assert exporters.get_logs_exporter("grpc") is GRPCLogsExporter
+
+
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="Test requires the lightweight exporter selection path")
+def test_grpc_protocol_without_grpclib_or_upstream_exporter_returns_none(monkeypatch):
+    from ddtrace.internal.opentelemetry import exporters
+
+    def missing_upstream_exporter(name):
+        raise ImportError("OpenTelemetry gRPC exporter is not installed")
+
+    monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter", None)
+    monkeypatch.setattr(exporters, "import_module", missing_upstream_exporter)
+
+    assert exporters.get_logs_exporter("grpc") is None
 
 
 @pytest.mark.skipif(

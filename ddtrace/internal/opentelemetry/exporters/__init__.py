@@ -1,3 +1,4 @@
+from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version
 from typing import Any
@@ -38,6 +39,7 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
                     return GRPCMetricExporter
                 except ImportError:
                     pass
+            import_module("opentelemetry.exporter.otlp.proto.grpc.metric_exporter")
             return GRPCMetricsExporter
 
         if protocol == "http/protobuf":
@@ -47,6 +49,7 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
                 )
 
                 return HTTPMetricExporter
+            import_module("opentelemetry.exporter.otlp.proto.http.metric_exporter")
             return HTTPMetricsExporter
 
         log.warning(
@@ -87,6 +90,7 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
                     return GRPCLogExporter
                 except ImportError:
                     pass
+            import_module("opentelemetry.exporter.otlp.proto.grpc._log_exporter")
             return GRPCLogsExporter
 
         if protocol == "http/protobuf":
@@ -96,6 +100,7 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
                 )
 
                 return HTTPLogExporter
+            import_module("opentelemetry.exporter.otlp.proto.http._log_exporter")
             return HTTPLogsExporter
 
         log.warning(
