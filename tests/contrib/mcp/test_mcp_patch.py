@@ -1,6 +1,13 @@
+import asyncio
+from unittest import mock
+
+import pytest
+
 from ddtrace.contrib.internal.mcp.patch import get_version
 from ddtrace.contrib.internal.mcp.patch import patch
+from ddtrace.contrib.internal.mcp.patch import traced_server_runner_on_request
 from ddtrace.contrib.internal.mcp.patch import unpatch
+from ddtrace.contrib.trace_utils import iswrapped
 from tests.contrib.mcp.utils import MCP_V2
 from tests.contrib.patch import PatchTestCase
 
@@ -86,3 +93,39 @@ except ModuleNotFoundError as error:
 
     assert status == 0, stderr.decode()
     assert b"failed to enable ddtrace support for mcp" not in stderr
+
+
+@pytest.mark.skipif(not MCP_V2, reason="ServerRunner only exists on mcp 2.x")
+def test_patch_skips_server_when_on_request_is_missing():
+    """A 2.x release renaming the private ServerRunner._on_request must only lose server tracing."""
+    from mcp.client.session import ClientSession
+    from mcp.server.runner import ServerRunner
+
+    # Start unpatched, since the autouse mcp_setup fixture has already patched.
+    unpatch()
+    original = ServerRunner._on_request
+    del ServerRunner._on_request
+    try:
+        patch()
+        assert iswrapped(ClientSession, "call_tool")
+        assert not hasattr(ServerRunner, "_on_request")
+    finally:
+        unpatch()
+        ServerRunner._on_request = original
+    assert not iswrapped(ClientSession, "call_tool")
+    assert not iswrapped(ServerRunner, "_on_request")
+
+
+@pytest.mark.skipif(not MCP_V2, reason="ServerRunner only exists on mcp 2.x")
+def test_server_runner_wrapper_passes_through_unexpected_arguments():
+    """A changed private signature must pass requests through untraced instead of failing them."""
+    expected = {"content": [], "isError": False}
+
+    async def on_request(*args, **kwargs):
+        return expected
+
+    async def run():
+        # method arrives as a dict, as it would if the SDK reordered the arguments
+        return await traced_server_runner_on_request(on_request, mock.MagicMock(), ({"a": 1}, {}, "tools/call"), {})
+
+    assert asyncio.run(run()) is expected
