@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes an issue where calling ``join`` on a ``bytes`` or ``bytearray``
+    separator with an element of the wrong type crashes the process instead of raising
+    ``TypeError``.
