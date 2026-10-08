@@ -21,12 +21,14 @@ except ImportError:
     from opentelemetry.sdk._logs.export import LogExporter
     from opentelemetry.sdk._logs.export import LogExportResult
 
+from ddtrace.internal.opentelemetry.exporter_telemetry import record_log_records
 from ddtrace.internal.opentelemetry.grpclib_exporter import GrpclibExporter
 
 
 log = logging.getLogger(__name__)
 
 _METHOD = "/opentelemetry.proto.collector.logs.v1.LogsService/Export"
+_PROTOCOL = "grpc"
 
 
 class OTLPLogExporter(LogExporter, GrpclibExporter):  # type: ignore[misc]
@@ -61,6 +63,8 @@ class OTLPLogExporter(LogExporter, GrpclibExporter):  # type: ignore[misc]
         )
 
     def export(self, batch: Sequence[Any], *args: Any, **kwargs: Any) -> Any:
+        record_log_records(len(batch), _PROTOCOL)
+        log.debug("Exporting %d OpenTelemetry Logs with %s protocol and protobuf encoding", len(batch), _PROTOCOL)
         try:
             request = encode_logs(batch)
         except Exception:

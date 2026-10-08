@@ -1,11 +1,13 @@
 import asyncio
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
+from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 import os
 from threading import Event
 from threading import Thread
+from types import SimpleNamespace
 
 from opentelemetry.version import __version__ as api_version_string
 import pytest
@@ -222,16 +224,57 @@ def test_otel_logs_support_enabled():
 def test_grpc_protocol_selects_grpclib_exporter():
     from ddtrace.internal.opentelemetry.logs import _import_exporter
 
-    assert _import_exporter("grpc").__mro__[1].__module__ == "ddtrace.internal.opentelemetry.grpclib_log_exporter"
+    assert _import_exporter("grpc").__module__ == "ddtrace.internal.opentelemetry.grpclib_log_exporter"
 
 
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18, 0), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
 def test_http_protocol_selects_lightweight_exporter():
     from ddtrace.internal.opentelemetry.logs import _import_exporter
 
-    assert _import_exporter("http/protobuf").__mro__[1].__module__ == (
-        "ddtrace.internal.opentelemetry.http_log_exporter"
+    assert _import_exporter("http/protobuf").__module__ == "ddtrace.internal.opentelemetry.http_log_exporter"
+
+
+@pytest.mark.parametrize(
+    ("module_name", "protocol"),
+    [
+        ("ddtrace.internal.opentelemetry.grpclib_log_exporter", "grpc"),
+        ("ddtrace.internal.opentelemetry.http_log_exporter", "http"),
+    ],
+)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight exporters require OpenTelemetry 1.18")
+def test_lightweight_exporter_records_telemetry(monkeypatch, module_name, protocol):
+    try:
+        from opentelemetry.sdk._logs.export import LogRecordExportResult as LogExportResult
+    except ImportError:
+        from opentelemetry.sdk._logs.export import LogExportResult
+
+    from ddtrace.internal.opentelemetry import exporter_telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+    telemetry = []
+    monkeypatch.setattr(
+        exporter_telemetry.telemetry_writer,
+        "add_count_metric",
+        lambda namespace, name, value, tags: telemetry.append((namespace, name, value, tags)),
     )
+
+    module = import_module(module_name)
+    monkeypatch.setattr(module, "encode_logs", lambda batch: SimpleNamespace(SerializeToString=lambda: b"payload"))
+    exporter = module.OTLPLogExporter(endpoint="http://127.0.0.1:4318")
+    monkeypatch.setattr(exporter, "_export", lambda *args, **kwargs: LogExportResult.SUCCESS)
+    try:
+        assert exporter.export([object(), object()]) is LogExportResult.SUCCESS
+    finally:
+        exporter.shutdown()
+
+    assert telemetry == [
+        (
+            TELEMETRY_NAMESPACE.TRACERS,
+            "otel.log_records",
+            2,
+            (("protocol", protocol), ("encoding", "protobuf")),
+        )
+    ]
 
 
 @pytest.mark.skipif(

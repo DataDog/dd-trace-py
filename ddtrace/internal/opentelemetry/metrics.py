@@ -11,8 +11,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -102,43 +100,6 @@ def _build_resource() -> Optional[Any]:
         return None
 
 
-def _dd_metrics_exporter(otel_exporter: type[Any], protocol: str, encoding: str) -> type[Any]:
-    """Create a custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
-
-    class DDMetricsExporter(otel_exporter):
-        """A custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
-
-        def export(self, metrics_data: Any, timeout_millis: Any, *args: Any, **kwargs: Any) -> Any:
-            """Export metrics and queues telemetry metrics."""
-            telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.TRACERS,
-                "otel.metrics_export_attempts",
-                1,
-                (
-                    ("protocol", protocol),
-                    ("encoding", encoding),
-                ),
-            )
-            # TODO: Count the number of unique metrics streams in this export
-            log.debug("Exporting OpenTelemetry Metrics with %s protocol and %s encoding", protocol, encoding)
-            result = super().export(metrics_data, timeout_millis, *args, **kwargs)
-
-            if result.value == 0 or result.value == 1:
-                telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE.TRACERS,
-                    "otel.metrics_export_successes" if result.value == 0 else "otel.metrics_export_failures",
-                    1,
-                    (
-                        ("protocol", protocol),
-                        ("encoding", encoding),
-                    ),
-                )
-
-            return result
-
-    return DDMetricsExporter
-
-
 def _import_exporter(protocol):
     """Import the appropriate OpenTelemetry Metrics exporter based on the set protocol"""
     try:
@@ -186,8 +147,7 @@ def _import_exporter(protocol):
             )
             return None
 
-        protocol_name = "grpc" if protocol == "grpc" else "http"
-        return _dd_metrics_exporter(exporter, protocol_name, "protobuf")
+        return exporter
     except ImportError as e:
         log.warning(
             "OpenTelemetry Metrics exporter for %s is not available. "

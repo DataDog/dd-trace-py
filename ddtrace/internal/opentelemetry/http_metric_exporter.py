@@ -12,10 +12,14 @@ from opentelemetry.sdk.metrics.export import MetricExporter
 from opentelemetry.sdk.metrics.export import MetricExportResult
 from opentelemetry.sdk.metrics.export import MetricsData
 
+from ddtrace.internal.opentelemetry.exporter_telemetry import record_metrics_export_attempt
+from ddtrace.internal.opentelemetry.exporter_telemetry import record_metrics_export_result
 from ddtrace.internal.opentelemetry.http_exporter import HttpExporter
 
 
 log = logging.getLogger(__name__)
+
+_PROTOCOL = "http"
 
 
 class OTLPMetricExporter(MetricExporter, OTLPMetricExporterMixin, HttpExporter):  # type: ignore[misc]
@@ -55,12 +59,17 @@ class OTLPMetricExporter(MetricExporter, OTLPMetricExporterMixin, HttpExporter):
     def export(
         self, metrics_data: MetricsData, timeout_millis: float | None = 10_000, **kwargs: Any
     ) -> MetricExportResult:
+        record_metrics_export_attempt(_PROTOCOL)
+        log.debug("Exporting OpenTelemetry Metrics with %s protocol and protobuf encoding", _PROTOCOL)
         try:
             payload = encode_metrics(metrics_data).SerializeToString()
         except Exception:
             log.exception("Failed to encode OpenTelemetry metrics")
-            return MetricExportResult.FAILURE
-        return self._export(payload, MetricExportResult.SUCCESS, MetricExportResult.FAILURE, timeout_millis)
+            result = MetricExportResult.FAILURE
+        else:
+            result = self._export(payload, MetricExportResult.SUCCESS, MetricExportResult.FAILURE, timeout_millis)
+        record_metrics_export_result(result, _PROTOCOL)
+        return result
 
     def shutdown(self, timeout_millis: float = 30_000, **kwargs: Any) -> None:
         HttpExporter.shutdown(self, timeout_millis, **kwargs)

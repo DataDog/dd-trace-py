@@ -1,3 +1,4 @@
+from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 import os
@@ -265,7 +266,50 @@ def test_protocol_selects_exporter(protocol, module):
 
     if EXPORTER_VERSION < (1, 18):
         module = f"opentelemetry.exporter.otlp.proto.{protocol.split('/')[0]}.metric_exporter"
-    assert _import_exporter(protocol).__mro__[1].__module__ == module
+    assert _import_exporter(protocol).__module__ == module
+
+
+@pytest.mark.parametrize(
+    ("module_name", "protocol"),
+    [
+        ("ddtrace.internal.opentelemetry.grpclib_metric_exporter", "grpc"),
+        ("ddtrace.internal.opentelemetry.http_metric_exporter", "http"),
+    ],
+)
+@skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight exporters require OpenTelemetry 1.18")
+def test_lightweight_exporter_records_telemetry(monkeypatch, module_name, protocol):
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry import exporter_telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+    telemetry = []
+    monkeypatch.setattr(
+        exporter_telemetry.telemetry_writer,
+        "add_count_metric",
+        lambda namespace, name, value, tags: telemetry.append((namespace, name, value, tags)),
+    )
+
+    module = import_module(module_name)
+    provider, metrics_data = _metrics_data()
+    exporter = module.OTLPMetricExporter(endpoint="http://127.0.0.1:4318")
+    results = iter((MetricExportResult.SUCCESS, MetricExportResult.FAILURE))
+    monkeypatch.setattr(exporter, "_export", lambda *args, **kwargs: next(results))
+    try:
+        assert exporter.export(metrics_data) is MetricExportResult.SUCCESS
+        assert exporter.export(metrics_data) is MetricExportResult.FAILURE
+    finally:
+        exporter.shutdown()
+        provider.shutdown()
+
+    tags = (("protocol", protocol), ("encoding", "protobuf"))
+    assert telemetry == [
+        (TELEMETRY_NAMESPACE.TRACERS, "otel.metrics_export_attempts", 1, tags),
+        (TELEMETRY_NAMESPACE.TRACERS, "otel.metrics_export_successes", 1, tags),
+        (TELEMETRY_NAMESPACE.TRACERS, "otel.metrics_export_attempts", 1, tags),
+        (TELEMETRY_NAMESPACE.TRACERS, "otel.metrics_export_failures", 1, tags),
+    ]
 
 
 @pytest.mark.subprocess(

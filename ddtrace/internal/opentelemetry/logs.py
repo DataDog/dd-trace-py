@@ -12,8 +12,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -108,31 +106,6 @@ def _build_resource() -> Optional[Any]:
         return None
 
 
-def _dd_logs_exporter(otel_exporter: type[Any], protocol: str, encoding: str) -> type[Any]:
-    """Create a custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
-
-    class DDLogsExporter(otel_exporter):
-        """A custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
-
-        def export(self, batch: Any, *args: Any, **kwargs: Any) -> Any:
-            """Export logs and queues telemetry metrics."""
-            telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.TRACERS,
-                "otel.log_records",
-                len(batch),
-                (
-                    ("protocol", protocol),
-                    ("encoding", encoding),
-                ),
-            )
-            log.debug(
-                "Exporting %d OpenTelemetry Logs with %s protocol and %s encoding", len(batch), protocol, encoding
-            )
-            return super().export(batch, *args, **kwargs)
-
-    return DDLogsExporter
-
-
 def _import_exporter(protocol):
     """Import the appropriate OpenTelemetry Logs exporter based on the set protocol"""
     try:
@@ -186,7 +159,7 @@ def _import_exporter(protocol):
             )
             return None
 
-        return _dd_logs_exporter(exporter, protocol.split("/")[0], "protobuf")
+        return exporter
 
     except ImportError as e:
         log.warning(

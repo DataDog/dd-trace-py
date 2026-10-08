@@ -18,10 +18,13 @@ except ImportError:
     from opentelemetry.sdk._logs.export import LogExporter
     from opentelemetry.sdk._logs.export import LogExportResult
 
+from ddtrace.internal.opentelemetry.exporter_telemetry import record_log_records
 from ddtrace.internal.opentelemetry.http_exporter import HttpExporter
 
 
 log = logging.getLogger(__name__)
+
+_PROTOCOL = "http"
 
 
 class OTLPLogExporter(LogExporter, HttpExporter):  # type: ignore[misc]
@@ -54,6 +57,8 @@ class OTLPLogExporter(LogExporter, HttpExporter):  # type: ignore[misc]
         )
 
     def export(self, batch: Sequence[Any], *args: Any, **kwargs: Any) -> Any:
+        record_log_records(len(batch), _PROTOCOL)
+        log.debug("Exporting %d OpenTelemetry Logs with %s protocol and protobuf encoding", len(batch), _PROTOCOL)
         try:
             payload = encode_logs(batch).SerializeToString()
         except Exception:
