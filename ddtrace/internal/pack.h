@@ -71,19 +71,32 @@ msgpack_pack_unicode(msgpack_packer* pk, PyObject* o, long long limit)
     assert(PyUnicode_Check(o));
 
     Py_ssize_t len;
+    PyObject* escaped = NULL;
     const char* buf = PyUnicode_AsUTF8AndSize(o, &len);
-    if (buf == NULL)
-        return -1;
-
-    if (len > limit) {
-        return -2;
+    if (buf == NULL) {
+        // Lone surrogates (e.g. from surrogateescape-decoded headers) cannot be
+        // encoded as UTF-8. Escape them rather than failing the whole trace.
+        if (!PyErr_ExceptionMatches(PyExc_UnicodeEncodeError))
+            return -1;
+        PyErr_Clear();
+        escaped = PyUnicode_AsEncodedString(o, "utf-8", "backslashreplace");
+        if (escaped == NULL)
+            return -1;
+        buf = PyBytes_AS_STRING(escaped);
+        len = PyBytes_GET_SIZE(escaped);
     }
 
-    int ret = msgpack_pack_raw(pk, len);
-    if (ret)
-        return ret;
+    int ret;
+    if (len > limit) {
+        ret = -2;
+    } else {
+        ret = msgpack_pack_raw(pk, len);
+        if (ret == 0)
+            ret = msgpack_pack_raw_body(pk, buf, len);
+    }
 
-    return msgpack_pack_raw_body(pk, buf, len);
+    Py_XDECREF(escaped);
+    return ret;
 #else
     PyObject* bytes;
     Py_ssize_t len;
