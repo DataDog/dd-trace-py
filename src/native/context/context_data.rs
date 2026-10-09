@@ -313,7 +313,7 @@ impl Context {
     ) -> PyResult<Py<Self>> {
         let py = slf.py();
 
-        let mut this = slf.borrow_mut();
+        let mut this = slf.try_borrow_mut()?;
         let meta = this.get_meta(py).unbind();
         let metrics = this.get_metrics(py).unbind();
         let baggage = Some(this.get_baggage(py).unbind());
@@ -525,7 +525,7 @@ impl Context {
     }
 
     #[getter]
-    fn get_sampling_priority<'py>(
+    pub(crate) fn get_sampling_priority<'py>(
         &mut self,
         py: Python<'py>,
     ) -> PyResult<Option<Bound<'py, PyAny>>> {
