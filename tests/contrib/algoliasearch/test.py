@@ -4,6 +4,7 @@ from unittest import mock
 
 from ddtrace import config
 from ddtrace._monkey import _patch_all
+from ddtrace.contrib.internal.algoliasearch.patch import V4
 from ddtrace.contrib.internal.algoliasearch.patch import algoliasearch_version
 from ddtrace.contrib.internal.algoliasearch.patch import patch
 from ddtrace.contrib.internal.algoliasearch.patch import unpatch
@@ -303,3 +304,11 @@ def test_get_version_without_algoliasearch_installed():
             assert module.get_version() == ""
     finally:
         _reload_patch_module()
+
+
+def test_upper_bound_excludes_4x_prereleases():
+    for version in ("4.0.0a4", "4.0.0b31", "4.0.0", "4.47.0"):
+        assert parse_version(version) >= V4, version
+
+    for version in ("2.6.3", "3.0.0", "3.0.0b1", "3.9.9"):
+        assert parse_version(version) < V4, version
