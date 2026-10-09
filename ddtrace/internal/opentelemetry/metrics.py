@@ -6,11 +6,10 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.exporters import get_metrics_exporter
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -31,7 +30,7 @@ def set_otel_meter_provider():
         return
 
     protocol = otel_config.exporter.METRICS_PROTOCOL
-    exporter_class = _import_exporter(protocol)
+    exporter_class = get_metrics_exporter(protocol)
     if exporter_class is None:
         return
 
@@ -79,8 +78,9 @@ def _build_resource() -> Optional[Any]:
     """Build an OpenTelemetry Resource using DD_TAGS and OTEL_RESOURCE_ATTRIBUTES."""
     try:
         from opentelemetry.sdk.resources import Resource
+        from opentelemetry.util.types import AttributeValue
 
-        resource_attributes = {
+        resource_attributes: dict[str, AttributeValue | None] = {
             **config.tags,
             "service.name": config.service,
             "service.version": config.version,
@@ -90,90 +90,11 @@ def _build_resource() -> Optional[Any]:
         if config._report_hostname and "host.name" not in resource_attributes:
             resource_attributes["host.name"] = get_hostname()
 
-        resource_attributes = {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}
-
-        return Resource.create(resource_attributes)
+        return Resource.create({key: value for key, value in resource_attributes.items() if value is not None})
     except ImportError:
         log.warning(
             "OpenTelemetry SDK is not installed, opentelemetry metrics will not be enabled. "
-            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Metrics support."
-        )
-        return None
-
-
-def _dd_metrics_exporter(otel_exporter: type[Any], protocol: str, encoding: str) -> type[Any]:
-    """Create a custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
-
-    class DDMetricsExporter(otel_exporter):
-        """A custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
-
-        def export(self, metrics_data: Any, timeout_millis: Any, *args: Any, **kwargs: Any) -> Any:
-            """Export metrics and queues telemetry metrics."""
-            telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.TRACERS,
-                "otel.metrics_export_attempts",
-                1,
-                (
-                    ("protocol", protocol),
-                    ("encoding", encoding),
-                ),
-            )
-            # TODO: Count the number of unique metrics streams in this export
-            log.debug("Exporting OpenTelemetry Metrics with %s protocol and %s encoding", protocol, encoding)
-            result = super().export(metrics_data, timeout_millis, *args, **kwargs)
-
-            if result.value == 0 or result.value == 1:
-                telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE.TRACERS,
-                    "otel.metrics_export_successes" if result.value == 0 else "otel.metrics_export_failures",
-                    1,
-                    (
-                        ("protocol", protocol),
-                        ("encoding", encoding),
-                    ),
-                )
-
-            return result
-
-    return DDMetricsExporter
-
-
-def _import_exporter(protocol):
-    """Import the appropriate OpenTelemetry Metrics exporter based on the set protocol"""
-    try:
-        if protocol == "grpc":
-            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-            from opentelemetry.exporter.otlp.proto.grpc.version import __version__ as exporter_version
-        elif protocol == "http/protobuf":
-            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-            from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
-        else:
-            log.warning(
-                "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
-                protocol,
-            )
-            return None
-
-        if tuple(int(x) for x in exporter_version.split(".")[:3]) < MINIMUM_SUPPORTED_VERSION:
-            log.warning(
-                "OpenTelemetry Metrics exporter for %s requires version %r or higher, but found version %r. "
-                "Please upgrade the appropriate opentelemetry-exporter package.",
-                protocol,
-                MINIMUM_SUPPORTED_VERSION,
-                exporter_version,
-            )
-            return None
-
-        protocol_name = "grpc" if protocol == "grpc" else "http"
-        return _dd_metrics_exporter(OTLPMetricExporter, protocol_name, "protobuf")
-
-    except ImportError as e:
-        log.warning(
-            "OpenTelemetry Metrics exporter for %s is not available. "
-            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
-            protocol,
-            "grpc" if protocol == "grpc" else "http",
-            str(e),
+            "Install ddtrace[opentelemetry] before enabling OpenTelemetry Metrics support."
         )
         return None
 

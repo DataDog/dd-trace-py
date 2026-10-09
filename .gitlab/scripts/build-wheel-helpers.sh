@@ -331,7 +331,7 @@ test_wheel() {
   uv pip freeze
   echo "=== site-packages contents ==="
   "${VENV_PATH}/bin/python" -c "import site; print('site-packages:', site.getsitepackages())"
-  ls -la "${VENV_PATH}/lib/"*/site-packages/ | head -30
+  ls -la "${VENV_PATH}/lib/"*/site-packages/ | sed -n '1,30p'
   echo "=== Testing direct import ==="
   "${VENV_PATH}/bin/python" -c "import ddtrace; print('✓ ddtrace import successful')" || echo "✗ ddtrace import failed"
 

@@ -61,7 +61,9 @@ opentracing = [
     "opentracing>=2,<3",
 ]
 opentelemetry = [
-    "opentelemetry-exporter-otlp>=1,<2",
+    "grpclib>=0.4.8,<0.5",
+    "opentelemetry-exporter-otlp-proto-common>=1.18,<2",
+    "opentelemetry-sdk>=1.18,<2",
 ]
 openfeature = [
     "openfeature-sdk>=0.8,<1",
