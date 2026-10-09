@@ -2043,6 +2043,9 @@ suites:
       variants:
         - name: protobuf
           dependencies: [protobuf, pytest-randomly]
+        - name: protobuf
+          python: ['3.15']
+          dependencies: [protobuf, pytest-randomly]
   psycopg:
     venvs_per_job: 5
     paths:
