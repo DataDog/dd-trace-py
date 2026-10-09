@@ -78,6 +78,16 @@ DECISION_QUESTIONS = [
     {"type": "predicate", "name": "legal_threat", "instructions": "Is the customer threatening legal action?"},
 ]
 
+DECISION_EXPECTED_OUTPUT = (
+    '[{"choice": "billing", "confidence": 1.0, "name": "department", "probabilities": [{"probability": 1.'
+    '0, "value": "billing"}, {"probability": 0.0, "value": "technical"}, {"probability": 0.0, "value": "s'
+    'ales"}], "type": "choice"}, {"confidence": 0.19, "name": "severity", "probabilities": [{"label": "Mi'
+    'nor", "probability": 0.42, "value": 0}, {"label": "Workaround available", "probability": 0.46, "valu'
+    'e": 1}, {"label": "Blocking", "probability": 0.12, "value": 2}], "score": 0.7, "type": "score"}, {"n'
+    'ame": "needs_refund", "probability": 0.29, "type": "predicate"}, {"name": "legal_threat", "probabili'
+    'ty": 0.0, "type": "predicate"}]'
+)
+
 
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
@@ -2470,7 +2480,7 @@ MUL: "*"
     def test_decision(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
             client = openai.OpenAI()
-            resp = client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+            client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert_llmobs_span_data(
@@ -2483,14 +2493,14 @@ MUL: "*"
             output_messages=[
                 {
                     "role": "assistant",
-                    "content": safe_json([a.model_dump(mode="json", exclude_none=True) for a in resp.answers]),
+                    "content": DECISION_EXPECTED_OUTPUT,
                 }
             ],
             metadata={"questions": DECISION_QUESTIONS},
             metrics={
-                "input_tokens": 168,
-                "output_tokens": 4,
-                "total_tokens": 172,
+                "input_tokens": 534,
+                "output_tokens": 0,
+                "total_tokens": 534,
                 "cache_read_input_tokens": 0,
                 "cache_write_input_tokens": 0,
                 "reasoning_output_tokens": 0,
