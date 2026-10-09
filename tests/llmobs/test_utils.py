@@ -596,12 +596,22 @@ class TestSanitizeSpanEventData:
     """
 
     def test_stringifies_top_level_non_string_keys(self):
+        # Integer, float, and None keys must be converted to their str() form
+        # so the msgpack meta_struct intake path accepts the mapping.
         assert _sanitize_span_event_data({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
             "metadata": {"5": "a", "2.5": "b", "None": "c"}
         }
         assert _sanitize_span_event_data({"metadata": {True: "x", False: "y"}}) == {
             "metadata": {"True": "x", "False": "y"}
         }
+
+    def test_normalizes_tuple_and_set_to_list(self):
+        # Tuples and sets are walked as sequences (normalized to lists) rather than
+        # falling through to load_data_value, so the depth limit is enforced directly.
+        assert _sanitize_span_event_data({"metadata": {"vals": (1, 2, 3)}}) == {"metadata": {"vals": [1, 2, 3]}}
+        set_result = _sanitize_span_event_data({"metadata": {"vals": {4, 5, 6}}})
+        assert isinstance(set_result["metadata"]["vals"], list)
+        assert sorted(set_result["metadata"]["vals"]) == [4, 5, 6]
 
     def test_stringifies_nested_non_string_keys(self):
         sanitized = _sanitize_span_event_data({"metadata": {"outer": {3: {"4": [{5: "v"}]}}}})

@@ -299,6 +299,11 @@ def _sanitize_span_event_data(obj: Any) -> Any:
     """
 
     def _walk(node: Any, depth: int, path: str) -> Any:
+        # Normalize tuple/set to list so they are walked as sequences rather than
+        # falling through to _sanitize_leaf -> load_data_value -> re-walk, which
+        # would defer the depth check until after an unnecessary conversion.
+        if isinstance(node, (tuple, set)):
+            node = list(node)
         if not isinstance(node, (dict, list)):
             return _sanitize_leaf(node, depth, path)
         if depth >= _MAX_NESTED_META_DEPTH:
