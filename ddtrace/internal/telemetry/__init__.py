@@ -163,7 +163,7 @@ def _invalid_otel_config(otel_env):
 
 
 def _unsupported_otel_config(otel_env):
-    log.warning("OpenTelemetry configuration %s is not supported by Datadog.", otel_env)
+    log.debug("OpenTelemetry configuration %s is not recognized by ddtrace for Python.", otel_env)
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.TRACERS,
         "otel.env.unsupported",

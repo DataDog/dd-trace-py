@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import sysconfig
@@ -14,6 +15,7 @@ from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
@@ -780,6 +782,22 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
+
+
+def test_unsupported_otel_config_is_debug_only(caplog):
+    with (
+        mock.patch.object(ddtrace.internal.telemetry.telemetry_writer, "add_count_metric") as add_count_metric,
+        caplog.at_level(logging.DEBUG, logger="ddtrace.internal.telemetry"),
+    ):
+        ddtrace.internal.telemetry._unsupported_otel_config("OTEL_POD_IP")
+
+    assert caplog.messages == ["OpenTelemetry configuration OTEL_POD_IP is not recognized by ddtrace for Python."]
+    add_count_metric.assert_called_once_with(
+        TELEMETRY_NAMESPACE.TRACERS,
+        "otel.env.unsupported",
+        1,
+        (("config_opentelemetry", "otel_pod_ip"),),
+    )
 
 
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
