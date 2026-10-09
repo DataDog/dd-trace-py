@@ -36,7 +36,6 @@ from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._common import wrap_abort_error
 from ddtrace.aiguard._constants import AI_GUARD
-from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
@@ -600,7 +599,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
     streaming and non-streaming requests alike. Skipped when a framework
     integration (LangChain, Strands) already has an active AI Guard context.
     """
-    if is_aiguard_context_active(Phase.REQUEST):
+    if is_aiguard_context_active():
         logger.debug("AI Guard anthropic before-hook skipped: framework context active (e.g. LangChain)")
         return None
 
@@ -671,7 +670,7 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
     ``AIGuardAbortError`` when the Anthropic SDK is not importable). Allow /
     skip paths return ``None``.
     """
-    if is_aiguard_context_active(Phase.RESPONSE):
+    if is_aiguard_context_active():
         logger.debug("AI Guard anthropic after-hook skipped: framework context active (e.g. LangChain)")
         return None
 

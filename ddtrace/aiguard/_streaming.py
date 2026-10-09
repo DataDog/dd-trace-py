@@ -21,7 +21,6 @@ from typing import Optional
 
 import wrapt
 
-from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import is_aiguard_context_active
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
@@ -99,9 +98,9 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
     completely, calls ``evaluate`` on the reconstructed response, then replays
     the buffered chunks.
 
-    If the flag is off or a framework holds the response phase, the proxy is
-    transparent: _drained() returns None and every method delegates directly
-    to the wrapped stream.
+    If the flag is off or a framework collision context is active the proxy is
+    transparent: ``_drained()`` returns ``None`` and every method delegates
+    directly to the wrapped stream.
     """
 
     def __init__(self, wrapped: Any, *, reconstruct: ReconstructFn, evaluate: EvaluateFn) -> None:
@@ -116,9 +115,7 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
         if self._self_passthrough:
             return None
         if self._self_chunks is None:
-            if not aiguard_config._ai_guard_analyze_stream_responses_enabled or is_aiguard_context_active(
-                Phase.RESPONSE
-            ):
+            if not aiguard_config._ai_guard_analyze_stream_responses_enabled or is_aiguard_context_active():
                 self._self_passthrough = True
                 return None
             chunks = list(self.__wrapped__)  # drives contrib tracing + finalize_stream
@@ -229,9 +226,7 @@ class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wr
         if self._self_passthrough:
             return None
         if self._self_chunks is None:
-            if not aiguard_config._ai_guard_analyze_stream_responses_enabled or is_aiguard_context_active(
-                Phase.RESPONSE
-            ):
+            if not aiguard_config._ai_guard_analyze_stream_responses_enabled or is_aiguard_context_active():
                 self._self_passthrough = True
                 return None
             chunks: list[Any] = []

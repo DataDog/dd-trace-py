@@ -1,0 +1,48 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate, zstd",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "OpenAI/Python 2.41.0",
+      "X-Stainless-Lang": "python",
+      "X-Stainless-Package-Version": "2.41.0",
+      "X-Stainless-OS": "Linux",
+      "X-Stainless-Arch": "x64",
+      "X-Stainless-Runtime": "CPython",
+      "X-Stainless-Runtime-Version": "3.13.13",
+      "X-Stainless-Async": "false",
+      "X-Stainless-Raw-Response": "true",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "122"
+    },
+    "body": "{\"messages\":[{\"content\":\"When do you use 'whom' instead of 'who'?\",\"role\":\"user\"}],\"model\":\"gpt-3.5-turbo\",\"stream\":false}"
+  },
+  "response": {
+    "status": {
+      "code": 401,
+      "message": "Unauthorized"
+    },
+    "headers": {
+      "Date": "Fri, 09 Oct 2026 08:42:57 GMT",
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Length": "276",
+      "Connection": "keep-alive",
+      "set-cookie": "__cf_bm=uL4rKnuTHJuh9gOgCGAFXW87CEGIxSUvXes5ebJzplk-1791535377.7272923-1.0.1.1-M1r89JznTDyZUNbc47PbIZulMDwoTpjOYTV0Wt0YDRcoOc43UPTPW31oBzggQU8kjqk9zJp7sG57f8S7mEP4u7T4m9yHz9d3E7IBD_uKXvIUlAibCZzS_JhrwWUGDivC; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Fri, 09 Oct 2026 09:12:57 GMT, _cfuvid=QNkEYaSSFYnpoWWK7plcW8InmqRmlZGpu7MaSU71uZA-1791535377.7272923-1.0.1.1-b6zKWXKtx4BSnQN19ITrKJV6onoWfvOGCu1yCP0Tch4; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com",
+      "CF-Ray": "a47c184ecfd9e882-MAD",
+      "CF-Cache-Status": "DYNAMIC",
+      "Server": "cloudflare",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+      "Vary": "Origin",
+      "Access-Control-Expose-Headers": "CF-Ray, CF-Ray",
+      "X-Content-Type-Options": "nosniff",
+      "x-openai-proxy-wasm": "v0.1",
+      "x-request-id": "req_aeccb1ce900540398ddd53c2ff4a6e94",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided: \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n        \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\": \"invalid_api_key\"\n    }\n}\n"
+  }
+}

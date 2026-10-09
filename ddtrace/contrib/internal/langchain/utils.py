@@ -15,10 +15,41 @@ class BaseLangchainStreamHandler:
         if chunk_callback:
             chunk_callback(chunk)
 
+    def _event_state(self):
+        # Per-stream state a listener keeps between .stream.started and .stream.finally; the two can run in
+        # different asyncio tasks, so it travels with the stream rather than with the current context.
+        state = getattr(self, "_stream_event_state", None)
+        if state is None:
+            state = self._stream_event_state = {}
+        return state
+
+    def start_stream(self):
+        # dispatched lazily from ``TracedStream.__iter__`` /
+        # ``TracedAsyncStream.__aiter__`` (via ``BaseStreamHandler.start_stream``),
+        # so it only runs when the caller actually starts iterating. Claiming
+        # the AI Guard context here, instead of in the .before
+        # listener, means a stream that is created but never consumed cannot
+        # leak a claim into the next call in the same task. Paired with
+        # the ``.stream.finally`` event below.
+        started_event = self.options.get("aiguard_started_event")
+        if started_event:
+            core.dispatch(started_event, (self._event_state(),))
+
     def finalize_stream(self, exception=None):
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
+        # Dispatch the AI Guard finally event before finishing the span so
+        # the active-context counter set by start_stream is released on every
+        # exit path: success, exception, early break, aclose, or
+        # context-manager exit. close_stream calls finalize_stream at most
+        # once from TracedStream iteration cleanup, context-manager exit, and
+        # GC. Only pair finally with a start that actually ran: otherwise a
+        # never-iterated stream would decrement an enclosing AI Guard context.
+        # Use core.dispatch (non-raising) because cleanup must not throw.
+        finally_event = self.options.get("aiguard_finally_event")
+        if finally_event and getattr(self, "_stream_started", False):
+            core.dispatch(finally_event, (self._event_state(),))
         self.primary_span.finish()
 
 
@@ -54,7 +85,7 @@ def shared_stream(
 
     aiguard_before_event = options.pop("aiguard_before_event", None)
     aiguard_started_event = options.pop("aiguard_started_event", None)
-    aiguard_finally_event = options.pop("aiguard_finally_event", None)
+    aiguard_finally_event = options.get("aiguard_finally_event")
 
     span = integration.trace(**options)
     span.set_tag("langchain.request.stream", "True")
@@ -69,16 +100,10 @@ def shared_stream(
         handler_kwargs = dict(
             on_span_finish=on_span_finished,
             chunk_callback=chunk_callback,
+            aiguard_started_event=aiguard_started_event,
+            aiguard_finally_event=aiguard_finally_event,
         )
-        is_async = inspect.isasyncgen(resp)
-        if aiguard_started_event and core.has_listeners(aiguard_started_event):
-            read_events = (aiguard_started_event, aiguard_finally_event)
-            resp = (
-                _dispatch_around_async_reads(resp, *read_events)
-                if is_async
-                else _dispatch_around_reads(resp, *read_events)
-            )
-        if is_async:
+        if inspect.isasyncgen(resp):
             return make_traced_stream(
                 resp,
                 LangchainAsyncStreamHandler(integration, span, args, kwargs, **handler_kwargs),
@@ -93,53 +118,13 @@ def shared_stream(
         # otherwise the AI Guard abort would slip past ``except Exception:``
         # and the LLM span would never get ``set_exc_info`` / ``finish``,
         # leaving a hole between the AI Guard span (block decision) and the
-        # LLM span (no link back to the abort). Nothing to release here: the read
-        # events run only while the returned stream is read.
+        # LLM span (no link back to the abort). No counter cleanup is needed
+        # here: ``.stream.started`` is dispatched lazily by ``start_stream``
+        # on iteration entry, which never runs when ``func(...)`` raises
+        # before we return a stream wrapper.
         span.set_exc_info(*sys.exc_info())
         span.finish()
         raise
-
-
-def _dispatch_around_reads(stream, started_event, finally_event):
-    """Dispatch started_event before each read of stream and finally_event once the read returns or raises.
-
-    Both run in the frame that reads, never across the caller's loop body, and
-    a stream that is created but never read dispatches nothing.
-    """
-    iterator = iter(stream)
-    try:
-        while True:
-            core.dispatch(started_event, ())
-            try:
-                item = next(iterator)
-            except StopIteration:
-                return
-            finally:
-                core.dispatch(finally_event, ())
-            yield item
-    finally:
-        close = getattr(iterator, "close", None)
-        if close is not None:
-            close()
-
-
-async def _dispatch_around_async_reads(stream, started_event, finally_event):
-    """Async twin of _dispatch_around_reads."""
-    iterator = stream.__aiter__()
-    try:
-        while True:
-            core.dispatch(started_event, ())
-            try:
-                item = await iterator.__anext__()
-            except StopAsyncIteration:
-                return
-            finally:
-                core.dispatch(finally_event, ())
-            yield item
-    finally:
-        aclose = getattr(iterator, "aclose", None)
-        if aclose is not None:
-            await aclose()
 
 
 def _get_chunk_callback(interface_type, args, kwargs):

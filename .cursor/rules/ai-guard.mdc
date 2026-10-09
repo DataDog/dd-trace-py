@@ -58,7 +58,7 @@ ddtrace/aiguard/
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
 ├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks,
 │                           #   gated per integration by DD_AI_GUARD_<LLM>_ENABLED
-├── _context.py             # phase-scoped claims to avoid double-scanning
+├── _context.py             # framework claims to avoid double-scanning
 ├── _common.py              # _get(), wrap_abort_error(), evaluate_auto() helpers
 ├── _redaction.py           # applies the service's redaction_replacements
 ├── _trace_utils.py         # _aiguard_manual_keep(): force-keep the AI Guard trace
@@ -172,30 +172,31 @@ messages are the redacted ones — never slice on them.
 ### 5. Double-scan avoidance (`_context.py`)
 
 A framework integration (LangChain, Strands) and a provider integration
-(OpenAI, Anthropic) can both fire for the same call. The framework claims only
-the phases it evaluates itself (`Phase.REQUEST`, `Phase.RESPONSE`), and each
-provider check skips only its own phase: request listeners check
-`is_aiguard_context_active(Phase.REQUEST)`, response listeners and the buffered
-streams check `Phase.RESPONSE`.
+(OpenAI, Anthropic) can both fire for the same call. To avoid scanning twice,
+the framework claims the AI Guard context for its whole model call, and
+provider listeners short-circuit when `is_aiguard_context_active()` returns
+`True`. The framework evaluates both the request and the response itself:
 
-| Framework path | Claims |
-|----------------|--------|
-| LangChain `generate` / `agenerate` (`.before` to `.finally`) | `REQUEST` + `RESPONSE` |
-| LangChain `stream` / `astream` (around each read: `.stream.started` / `.stream.finally`) | `REQUEST` only: the provider's buffered stream evaluates the response |
-| Strands invocation | `REQUEST` + `RESPONSE` |
+| Framework path | Claim held from / to |
+|----------------|----------------------|
+| LangChain `generate` / `agenerate` | `.before` to `.finally` |
+| LangChain `stream` / `astream` | iteration start to stream end (`.stream.started` / `.stream.finally`) |
+| Strands invocation | before-invocation to after-invocation |
 
-A claim is a shared object, so a release from another asyncio task is seen by
-the claiming task, and a framework always releases by the handle
-`set_aiguard_context_active` returns. Strands keeps it on `invocation_state`;
-LangChain keeps it on a frame pushed by `.before` (or before each stream read)
-and popped by the matching `.finally`, so an unpaired release takes nothing.
+A claim is a shared object released by the handle `set_aiguard_context_active`
+returns, so a release from another asyncio task is seen by the claiming task.
+Strands keeps the handle on `invocation_state`; a LangChain generate keeps it on
+its `_CallScope`, and a stream on the per-stream state the contrib passes to
+both stream events.
 
-With stream analysis on, a LangChain `generate` that streams internally
-reports tokens to its run manager before `.generate.after` runs. AI Guard holds
-`on_llm_new_token` / `on_llm_end` (`_GenerateScope`) and, for a single-prompt
-call, evaluates the response in `on_llm_end`, so callbacks, `astream_events()`
-and LangGraph's messages mode see nothing before the verdict; a block closes the
-run with `on_llm_error`. A batch is evaluated in `.generate.after`.
+With `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` on, LangChain itself buffers
+`stream()` / `astream()`: every chunk is read, the response is evaluated, and
+only then are the chunks returned. The run manager's `on_llm_new_token` /
+`on_llm_end` are held meanwhile (`_CallScope`), inside `generate` too, and a
+single-prompt call is evaluated in `on_llm_end`, so callbacks, `astream_events()`
+and LangGraph's messages mode see nothing before AI Guard evaluates the
+response. A block closes the run with `on_llm_error`; a batch is evaluated in
+`.generate.after`.
 
 ## Configuration
 
@@ -259,11 +260,10 @@ must be imported from `ddtrace.aiguard.integrations.strands`.
   silently dropping data.
 - **`allow_raise=True` is required** at dispatch sites that must be able to
   block, so `AIGuardAbortError` can propagate out of the patched call.
-- **Claim only what you evaluate.** When adding a framework integration that
-  may nest over a provider integration, claim only the phases it evaluates
-  (`aiguard_context(Phase.REQUEST, ...)`), and have each provider check name its
-  phase. Claiming a phase you do not evaluate leaves it unevaluated.
-- **Preserve invariant comments** for lazy import timing, stream claim
+- **Respect the context counter.** When adding a framework integration that
+  may nest over a provider integration, wrap with `aiguard_context()` and have
+  the provider listener honor `is_aiguard_context_active()`.
+- **Preserve invariant comments** for lazy import timing, stream counter
   lifecycle, and legacy message translation when editing nearby code. Do not add
   new `AIDEV-*` labels (deprecated — see AGENTS.md).
 - **Tests** live under `tests/aiguard/`. Use the `run-tests` skill;

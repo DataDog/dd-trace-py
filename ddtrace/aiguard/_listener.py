@@ -79,16 +79,22 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
-    # LangChain generate claims the response phase, which makes the OpenAI / Anthropic
-    # listeners skip their own response evaluation; these listeners replace it. A stream
-    # claims only the request phase, so the provider's buffered stream evaluates its response.
+    # LangChain marks the AI Guard context active for the whole model call, which
+    # makes the OpenAI / Anthropic listeners skip their own response evaluation.
+    # These listeners are what replaces it -- without them a LangChain model
+    # response reaches the caller unevaluated (APPSEC-70274). Streams have no after
+    # event: AI Guard's stream wrapper evaluates them instead (_langchain_buffered_stream).
     core.on("langchain.chatmodel.generate.after", partial(_langchain_chatmodel_generate_after, client))
     core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
     core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
     core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
 
-    # The contrib sends .stream.started before each read of a LangChain stream and .stream.finally
-    # when the read returns, so the claim never spans the caller's loop body or outlives a read.
+    # ``.stream.started`` is dispatched lazily from
+    # ``BaseLangchainStreamHandler.start_stream`` (called by
+    # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
+    # stream created but never consumed cannot leak a claim into the
+    # next call in the same task. The matching reset happens via
+    # ``.stream.finally`` below (dispatched from ``finalize_stream``).
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 
