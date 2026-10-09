@@ -32,7 +32,6 @@ from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import aiguard_context
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
-from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
 
 
@@ -252,30 +251,6 @@ class TestPhases:
 # can advance or close that generator from another asyncio task, which works
 # on a copy of the claiming task's Context.
 # ---------------------------------------------------------------------------
-
-
-class TestTokenlessRelease:
-    def test_releases_the_newest_claim_of_exactly_those_phases(self):
-        """A generate release must not take a stream's request-only claim, and the reverse."""
-        generate = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
-        stream = set_aiguard_context_active(Phase.REQUEST)
-        try:
-            reset_aiguard_context_active_current(Phase.REQUEST, Phase.RESPONSE)
-            assert is_aiguard_context_active(Phase.REQUEST) is True
-            assert is_aiguard_context_active(Phase.RESPONSE) is False
-            reset_aiguard_context_active_current(Phase.REQUEST)
-            assert is_aiguard_context_active() is False
-        finally:
-            reset_aiguard_context_active(stream)
-            reset_aiguard_context_active(generate)
-
-    def test_no_matching_claim_is_a_no_op(self):
-        claim = set_aiguard_context_active(Phase.RESPONSE)
-        try:
-            reset_aiguard_context_active_current(Phase.REQUEST)
-            assert is_aiguard_context_active(Phase.RESPONSE) is True
-        finally:
-            reset_aiguard_context_active(claim)
 
 
 class TestReleasedClaimsArePruned:

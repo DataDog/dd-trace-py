@@ -185,16 +185,17 @@ streams check `Phase.RESPONSE`.
 | Strands invocation | `REQUEST` + `RESPONSE` |
 
 A claim is a shared object, so a release from another asyncio task is seen by
-the claiming task. Release by the handle `set_aiguard_context_active` returns
-when one is kept (Strands); `reset_aiguard_context_active_current(*phases)`
-releases the newest claim of those phases when claim and release run in
-separate listeners of the same call (LangChain).
+the claiming task, and a framework always releases by the handle
+`set_aiguard_context_active` returns. Strands keeps it on `invocation_state`;
+LangChain keeps it on a frame pushed by `.before` (or before each stream read)
+and popped by the matching `.finally`, so an unpaired release takes nothing.
 
 With stream analysis on, a LangChain `generate` that streams internally
 reports tokens to its run manager before `.generate.after` runs. AI Guard holds
-`on_llm_new_token` / `on_llm_end` (`_GenerateScope`) and evaluates the response
-in `on_llm_end`, so callbacks, `astream_events()` and LangGraph's messages mode
-see nothing before the verdict.
+`on_llm_new_token` / `on_llm_end` (`_GenerateScope`) and, for a single-prompt
+call, evaluates the response in `on_llm_end`, so callbacks, `astream_events()`
+and LangGraph's messages mode see nothing before the verdict; a block closes the
+run with `on_llm_error`. A batch is evaluated in `.generate.after`.
 
 ## Configuration
 

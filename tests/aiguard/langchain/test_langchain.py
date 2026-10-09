@@ -1325,13 +1325,19 @@ class _EvaluationOrderHandler(BaseCallbackHandler):
     def __init__(self, mock_execute_request):
         self._mock = mock_execute_request
         self.tokens: list = []
+        self.token_texts: list = []
         self.ends: list = []
+        self.errors: list = []
 
     def on_llm_new_token(self, token, **kwargs):
         self.tokens.append(self._mock.call_count)
+        self.token_texts.append(token)
 
     def on_llm_end(self, response, **kwargs):
         self.ends.append(self._mock.call_count)
+
+    def on_llm_error(self, error, **kwargs):
+        self.errors.append(type(error).__name__)
 
 
 def _self_reporting_chat_model():
@@ -1515,6 +1521,8 @@ def test_tokens_streamed_inside_generate_dropped_on_block(mock_execute_request, 
 
     assert handler.tokens == []
     assert handler.ends == []
+    # The run is closed with the block, so a tracer callback does not keep it open.
+    assert len(handler.errors) == 1
     assert mock_execute_request.call_count == 2
 
 
@@ -1645,3 +1653,106 @@ def test_provider_call_on_a_later_stream_read_is_claimed(mock_execute_request, l
 
     assert provider_read_claimed == [True]
     assert loop_body_claimed and not any(loop_body_claimed)
+
+
+@pytest.mark.parametrize("stream_evaluation", [False, True], ids=["unbuffered", "buffered"])
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_tokens_from_the_sync_run_manager_are_replayed_after_verdict(
+    mock_execute_request, langchain, stream_evaluation
+):
+    """ainvoke runs a sync-only _generate in an executor with run_manager.get_sync(); its tokens are kept."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+
+    class _SyncOnlyModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-sync-only"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            for text in ("sync ", "tokens"):
+                if run_manager:
+                    run_manager.on_llm_new_token(text)
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="sync tokens"))])
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=stream_evaluation)):
+        result = await _SyncOnlyModel().ainvoke("hi", config={"callbacks": [handler]})
+
+    assert result.content == "sync tokens"
+    assert handler.token_texts == ["sync ", "tokens"]
+    # Held until the verdict (2 evaluations) when buffered; live after the request check (1) otherwise.
+    assert set(handler.tokens) == ({2} if stream_evaluation else {1})
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_inner_stream_inside_generate_does_not_take_the_outer_verdict(mock_execute_request, langchain):
+    """A model that streams another model inside its own generate still gets its own response evaluated."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    class _OuterModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-outer"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            list(FakeListChatModel(responses=["inner answer"]).stream(input="inner prompt"))
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="outer answer"))])
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with _stream_evaluation_on():
+        assert _OuterModel().invoke("hi").content == "outer answer"
+
+    trailing = [_evaluated_messages(mock_execute_request, i)[-1] for i in range(mock_execute_request.call_count)]
+    assert {"role": "assistant", "content": "outer answer"} in trailing
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_batch_responses_are_evaluated_once_per_prompt(mock_execute_request, langchain):
+    """Runs of a batch cannot be paired with prompts at on_llm_end, so .generate.after evaluates each response."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = FakeListChatModel(responses=["first answer", "second answer"])
+
+    with _stream_evaluation_on():
+        model.generate([[HumanMessage(content="first")], [HumanMessage(content="second")]])
+
+    pairs = []
+    for i in range(mock_execute_request.call_count):
+        messages = _evaluated_messages(mock_execute_request, i)
+        if messages[-1]["role"] == "assistant":
+            pairs.append((messages[0]["content"], messages[-1]["content"]))
+    assert sorted(pairs) == [("first", "first answer"), ("second", "second answer")]
+
+
+def test_generate_before_reads_a_one_shot_iterable_once():
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations import _langchain as aiguard_langchain
+
+    with patch.object(aiguard_langchain, "_evaluate_langchain_messages", return_value=None) as evaluate:
+        aiguard_langchain._langchain_chatmodel_generate_before(Mock(), (batch for batch in [[HumanMessage("hi")]]))
+        aiguard_langchain._langchain_generate_finally()
+
+    evaluate.assert_called_once()
+
+
+def test_unpaired_generate_finally_leaves_other_claims_alone():
+    """A .finally without its .before must not release an enclosing framework's claim (Strands around LangChain)."""
+    from ddtrace.aiguard._context import Phase
+    from ddtrace.aiguard._context import is_aiguard_context_active
+    from ddtrace.aiguard._context import reset_aiguard_context_active
+    from ddtrace.aiguard._context import set_aiguard_context_active
+    from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
+
+    outer = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+    try:
+        _langchain_generate_finally()
+        assert is_aiguard_context_active(Phase.RESPONSE) is True
+    finally:
+        reset_aiguard_context_active(outer)

@@ -68,19 +68,6 @@ def reset_aiguard_context_active(claim: Optional[_Claim]) -> None:
         _release(claim)
 
 
-def reset_aiguard_context_active_current(*phases: Phase) -> None:
-    """Release the newest claim of exactly these phases in this context (all phases when none are given).
-
-    For a framework whose claim and release run in the same task but in separate listeners, so no handle
-    is passed between them. No-op when no such claim is held.
-    """
-    wanted = frozenset(phases) if phases else ALL_PHASES
-    for claim in reversed(_CLAIMS.get()):
-        if not claim.released and claim.phases == wanted:
-            _release(claim)
-            return
-
-
 @contextlib.contextmanager
 def aiguard_context(*phases: Phase) -> Iterator[None]:
     """Claim phases (all phases when none are given) for the duration of the block."""
