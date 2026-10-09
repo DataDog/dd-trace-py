@@ -295,7 +295,7 @@ integrations:
   tested_versions_by_dependency:
     coverage:
       min: 7.2.2
-      max: 7.8.0
+      max: 7.13.1
 
 - integration_name: crewai
   is_external_package: true
