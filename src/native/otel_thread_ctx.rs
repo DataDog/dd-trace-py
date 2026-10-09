@@ -17,7 +17,9 @@ fn update_thread_context(trace_id: u128, span_id: u64, trace_flags: u8, local_ro
 
 fn trace_flags(context: &Bound<'_, Context>) -> PyResult<u8> {
     let priority = if context.is_exact_instance_of::<Context>() {
-        context.borrow_mut().get_sampling_priority(context.py())?
+        context
+            .try_borrow_mut()?
+            .get_sampling_priority(context.py())?
     } else {
         Some(context.getattr("sampling_priority")?)
     };
@@ -29,22 +31,22 @@ fn trace_flags(context: &Bound<'_, Context>) -> PyResult<u8> {
 
 fn update_from_span(span: &Bound<'_, SpanData>) -> PyResult<()> {
     let local_root = span
-        .borrow()
+        .try_borrow()?
         ._local_root
         .as_ref()
         .map(|root| root.bind(span.py()).clone())
         .unwrap_or_else(|| span.clone());
     let context = SpanData::get_context(&local_root)?;
     let trace_flags = trace_flags(&context)?;
-    let local_root_span_id = local_root.borrow().span_id;
-    let span = span.borrow();
+    let local_root_span_id = local_root.try_borrow()?.span_id;
+    let span = span.try_borrow()?;
     update_thread_context(span.trace_id, span.span_id, trace_flags, local_root_span_id);
     Ok(())
 }
 
 fn update_from_context(context: &Bound<'_, Context>) -> PyResult<()> {
     let trace_flags = trace_flags(context)?;
-    let context = context.borrow();
+    let context = context.try_borrow()?;
     let Some(trace_id) = context.trace_id.filter(|trace_id| *trace_id != 0) else {
         ThreadContext::detach();
         return Ok(());
