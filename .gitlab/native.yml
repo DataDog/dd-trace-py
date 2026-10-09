@@ -41,7 +41,7 @@ include:
 
 "clang-tidy profiling":
   stage: tests
-  image: registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native
+  image: registry.ddbuild.io/dd-trace-py:v143741842-6d733e2-profiling_native@sha256:177485f2816c0032ee96b45cd478d7e43473481db4113b91d43b5f3485ebe2f3
   tags: ["arch:amd64"]
   timeout: 20m
   needs: []

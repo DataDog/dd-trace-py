@@ -19,7 +19,7 @@ stages:
 variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
-  PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
+  PACKAGE_IMAGE: registry.ddbuild.io/dd-trace-py:v143741848-6d733e2-manylinux2014_x86_64@sha256:5ba02ab061d737ef98c1a70837bba6fead6a279e0374995c60469c4666ff0ae7
   BENCHMARKING_BRANCH: dd-trace-py
   BENCHMARKING_COMMIT_SHA: 7eb76c8b19a511d9913081e5d6f7b1f9fc6155b7
   # Known flaky benchmarks
@@ -184,7 +184,7 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "build linux: [amd64, cp312-cp312, v133965508-8f84bce-manylinux2014_x86_64]"
+      job: "build linux: [amd64, cp312-cp312, v143741848-6d733e2-manylinux2014_x86_64]"
       artifacts: true
   script: |
     mkdir -p candidate-wheel

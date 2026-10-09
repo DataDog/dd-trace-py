@@ -1,7 +1,7 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
-  MANYLINUX_AMD64_IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
-  ALPINE_BUILD_IMAGE_TAG: "v126532003-233089d-alpine_build"
+  MANYLINUX_AMD64_IMAGE_TAG: "v143741848-6d733e2-manylinux2014_x86_64@sha256:5ba02ab061d737ef98c1a70837bba6fead6a279e0374995c60469c4666ff0ae7"
+  ALPINE_BUILD_IMAGE_TAG: "v143741833-6d733e2-alpine_build@sha256:0e75b732058a56b050aadeb22741b13de9f48d54993d7ea368447c3e8b53b403"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -22,12 +22,12 @@ variables:
   - "cp315-cp315"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
-  - "v133965501-8f84bce-manylinux2014_aarch64"
-  - "v133965516-8f84bce-musllinux_1_2_aarch64"
+  - "v143741880-6d733e2-manylinux2014_aarch64"
+  - "v143741855-6d733e2-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
-  - "v133965508-8f84bce-manylinux2014_x86_64"
-  - "v133965497-8f84bce-musllinux_1_2_x86_64"
+  - "v143741848-6d733e2-manylinux2014_x86_64"
+  - "v143741841-6d733e2-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -217,7 +217,7 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+            IMAGE_TAG: "v143741848-6d733e2-manylinux2014_x86_64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
@@ -278,10 +278,10 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+            IMAGE_TAG: "v143741848-6d733e2-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v133965501-8f84bce-manylinux2014_aarch64"
+            IMAGE_TAG: "v143741880-6d733e2-manylinux2014_aarch64"
     - job: "package version"
 
 "patch macos wheel versions":
@@ -303,10 +303,10 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+            IMAGE_TAG: "v143741848-6d733e2-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v133965501-8f84bce-manylinux2014_aarch64"
+            IMAGE_TAG: "v143741880-6d733e2-manylinux2014_aarch64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014"
