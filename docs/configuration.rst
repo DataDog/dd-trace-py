@@ -584,6 +584,39 @@ Metrics
          Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
+   DD_LITELLM_USAGE_METRICS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Emit usage and cost metrics, following the OpenTelemetry GenAI semantic conventions, for calls made through
+         a LiteLLM proxy. See the LiteLLM integration documentation for the metrics and their tags.
+
+   DD_LITELLM_USAGE_METRICS_EXPORTER:
+     type: String
+     default: "otlp"
+
+     description: |
+         Where LiteLLM usage metrics are sent. ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality
+         to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``),
+         or to the Datadog Agent's OTLP receiver. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD endpoint.
+
+   DD_LITELLM_USAGE_METRICS_TAGS:
+     type: String
+     default: None
+
+     description: |
+         Comma-separated optional tags for LiteLLM usage metrics: ``user``, ``team``, ``key_alias``, ``route``,
+         ``destination``, ``service`` and ``host``. Each can raise the number of series.
+
+   DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE:
+     type: String
+     default: None
+
+     description: |
+         The name of the client application using the LiteLLM proxy, sent with its usage metrics as
+         ``trajectory.client_source``.
+
    DD_METRICS_OTEL_ENABLED:
      type: Boolean
      default: False

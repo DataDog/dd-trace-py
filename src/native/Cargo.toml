@@ -15,6 +15,7 @@ crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:libdd-ffe"]
 stats = ["dep:libdd-ddsketch"]
+ai_usage = ["dep:libdd-ai-usage"]
 
 [dependencies]
 anyhow = { version = "1.0" }
@@ -33,6 +34,8 @@ serde_json = "1.0"
 smallvec = "1"
 tokio = "1"
 libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", optional = true, features = ["pyo3"] }
+# TODO: replace with the libdatadog release that ships libdd-ai-usage.
+libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "07d906610e8eba712b270fe72e39a500d9a51b1f", optional = true, features = ["otlp"] }
 libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = ["one_way_shm_futex"] }
 datadog-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
 libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = [

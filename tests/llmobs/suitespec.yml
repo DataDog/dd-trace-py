@@ -212,6 +212,15 @@ suites:
         - name: litellm
           python: ['3.14']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+        # Usage metrics, end to end through a LiteLLM proxy under ddtrace-run.
+        - name: litellm-proxy
+          python: ['3.12']
+          command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_writer.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
+          dependencies: [vcrpy, msgpack, pytest-asyncio, 'litellm[proxy]==1.80.16', opentelemetry-proto]
+        - name: litellm-proxy
+          python: ['3.12']
+          command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_writer.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
+          dependencies: [vcrpy, msgpack, pytest-asyncio, 'litellm[proxy]==1.104.0', opentelemetry-proto]
   llmobs:
     paths:
       - '@bootstrap'

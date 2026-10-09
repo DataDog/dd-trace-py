@@ -247,6 +247,7 @@ opentracer
 opentracing
 OpenTracing
 otel
+otlp
 packfile
 packfiles
 parameterized
@@ -342,6 +343,7 @@ substring
 suitespec
 symlink
 Temporality
+temporality
 TensorBoard
 testagent
 TestCase
