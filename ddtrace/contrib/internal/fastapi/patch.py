@@ -13,11 +13,11 @@ from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.contrib.internal.starlette.patch import traced_route_init
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
+from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
@@ -151,10 +151,7 @@ def patch():
     if not is_wrapted(fastapi.routing.Mount.handle):
         _w("starlette.routing", "Mount.handle", traced_handler)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
-
-        _on_iast_fastapi_patch()
+    core.dispatch("fastapi.patch", ())
 
 
 def unpatch():

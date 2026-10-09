@@ -82,6 +82,7 @@ from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.utils import deprecations as deprecation_utils
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.testing.internal.tracer_api import pytest_hooks
 
 
 if _pytest_version_supports_retries():
@@ -1053,9 +1054,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
     try:
         if asm_config._iast_enabled:
-            from ddtrace.appsec._iast._pytest_plugin import print_iast_report
-
-            print_iast_report(terminalreporter)
+            pytest_hooks.print_iast_report(terminalreporter)
     except Exception:  # noqa: E722
         log.debug("Encountered error during code security summary", exc_info=True)
 

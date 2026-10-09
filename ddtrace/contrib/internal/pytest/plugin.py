@@ -36,10 +36,11 @@ from ddtrace.contrib.internal.pytest._utils import is_enabled
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.testing.internal.tracer_api import pytest_hooks
 
 
 if asm_config._iast_enabled:
-    from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
+    ddtrace_iast = pytest_hooks.iast_fixture()
 
 # pytest default settings
 config._add(
@@ -109,9 +110,7 @@ def pytest_addoption(parser):
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
     if asm_config._iast_enabled:
-        from ddtrace.appsec._iast import _iast_pytest_activation
-
-        _iast_pytest_activation()
+        pytest_hooks.activate_iast()
 
 
 def pytest_configure(config):

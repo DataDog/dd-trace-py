@@ -23,17 +23,34 @@ def pytest_addoption(parser):
     )
 
 
+def iast_fixture():
+    """Return the IAST pytest fixture, for a plugin module to bind at module level so pytest collects it."""
+    from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast
+
+    return ddtrace_iast
+
+
+def activate_iast():
+    from ddtrace.appsec._iast import _iast_pytest_activation
+
+    _iast_pytest_activation()
+
+
+def print_iast_report(terminalreporter):
+    from ddtrace.appsec._iast._pytest_plugin import print_iast_report
+
+    print_iast_report(terminalreporter)
+
+
 def pytest_configure(config):
     telemetry_config.DEPENDENCY_COLLECTION = False
 
     if asm_config._iast_enabled:
         # Cause ddtrace_iast fixture to be loaded by pytest.
-        from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401,I001
+        iast_fixture()
 
         # Run IAST-specific routines.
-        from ddtrace.appsec._iast import _iast_pytest_activation
-
-        _iast_pytest_activation()
+        activate_iast()
 
     config.pluginmanager.register(DDTracePytestHooks())
 
@@ -41,6 +58,4 @@ def pytest_configure(config):
 class DDTracePytestHooks:
     def pytest_terminal_summary(self, terminalreporter):
         if asm_config._iast_enabled:
-            from ddtrace.appsec._iast._pytest_plugin import print_iast_report
-
             print_iast_report(terminalreporter)

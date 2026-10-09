@@ -10,6 +10,7 @@ from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_end
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -18,6 +19,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -385,6 +387,10 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
         except Exception:
             iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
     return value
+
+
+def _on_sql_integration_patch():
+    _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
 def _on_iast_fastapi_patch():
