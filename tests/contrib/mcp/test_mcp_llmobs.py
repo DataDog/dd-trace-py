@@ -1,22 +1,53 @@
 import asyncio
 import importlib.metadata
-from importlib.metadata import version
 import json
 import os
 from textwrap import dedent
 from unittest import mock
 
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
+from tests.contrib.mcp.utils import MCP_V2
+from tests.contrib.mcp.utils import MCP_VERSION
+from tests.contrib.mcp.utils import connect_client
 from tests.llmobs._utils import assert_llmobs_span_data
 from tests.utils import override_config
 
 
-MCP_VERSION = parse_version(version("mcp"))
+def _expected_server_tool_input(name, arguments):
+    """The server tool span input: the JSON-RPC request on mcp 1.x, the method and params on mcp 2.x."""
+    if MCP_V2:
+        return {"method": "tools/call", "params": {"name": name, "arguments": arguments}}
+    params = {
+        **({"task": None} if MCP_VERSION >= (1, 26, 0) else {}),
+        "meta": {"progressToken": None},
+        "name": name,
+        "arguments": arguments,
+    }
+    return {"method": "tools/call", "params": params, "jsonrpc": "2.0", "id": 1}
+
+
+def _expected_server_tool_output(text, is_error):
+    """The server tool span output: the CallToolResult model on mcp 1.x, the wire result on mcp 2.x."""
+    if MCP_V2:
+        return {"content": [{"type": "text", "text": text}], "isError": is_error}
+    return {
+        "meta": None,
+        "content": [{"type": "text", "text": text, "annotations": None, "meta": None}],
+        "structuredContent": None,
+        "isError": is_error,
+    }
+
+
+# Since mcp 2.1 the tool error result no longer includes the exception message.
+FAILING_TOOL_ERROR_TEXT = (
+    "Error executing tool failing_tool"
+    if MCP_VERSION >= (2, 1, 0)
+    else "Error executing tool failing_tool: Tool execution failed"
+)
 
 
 def _assert_distributed_trace(test_spans, expected_tool_name):
@@ -79,36 +110,15 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
         name="MCP Client Tool Call: calculator",
     )
 
-    expected_params = {
-        **({"task": None} if MCP_VERSION >= (1, 26, 0) else {}),
-        "meta": {"progressToken": None},
-        "name": "calculator",
-        "arguments": {"operation": "add", "a": 20, "b": 22},
-    }
-
     # Server tool span is parented to client tool span via apm parent_id
     assert server_span.parent_id == client_span.span_id
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(server_span),
         span_kind="tool",
         input_value=json.dumps(
-            {
-                "method": "tools/call",
-                "params": expected_params,
-                "jsonrpc": "2.0",
-                "id": 1,
-            },
-            sort_keys=True,
+            _expected_server_tool_input("calculator", {"operation": "add", "a": 20, "b": 22}), sort_keys=True
         ),
-        output_value=json.dumps(
-            {
-                "meta": None,
-                "content": [{"type": "text", "text": '{\n  "result": 42\n}', "annotations": None, "meta": None}],
-                "structuredContent": None,
-                "isError": False,
-            },
-            sort_keys=True,
-        ),
+        output_value=json.dumps(_expected_server_tool_output('{\n  "result": 42\n}', is_error=False), sort_keys=True),
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
@@ -131,7 +141,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
             "ml_app": "<ml-app-name>",
             "integration": "mcp",
             "mcp_server_name": "TestServer",
-            "mcp_server_version": importlib.metadata.version("mcp"),
+            # MCPServer reports an empty version unless one is configured, FastMCP reports the SDK version.
+            "mcp_server_version": "" if MCP_V2 else importlib.metadata.version("mcp"),
             # server title is unset (None) and tag values are coerced to strings at annotation time
             "mcp_server_title": "None",
         },
@@ -197,7 +208,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
                     "type": "text",
                     "annotations": {},
                     "meta": {},
-                    "text": "Error executing tool failing_tool: Tool execution failed",
+                    "text": FAILING_TOOL_ERROR_TEXT,
                 }
             ],
             "isError": True,
@@ -208,48 +219,18 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
         _get_llmobs_data_metastruct(client_span),
         span_kind="tool",
         error={
-            "message": "Error executing tool failing_tool: Tool execution failed",
+            "message": FAILING_TOOL_ERROR_TEXT,
             "type": mock.ANY,
             "stack": mock.ANY,
         },
     )
 
-    expected_params = {
-        **({"task": None} if MCP_VERSION >= (1, 26, 0) else {}),
-        "meta": {"progressToken": None},
-        "name": "failing_tool",
-        "arguments": {"param": "value"},
-    }
-
     assert server_span.parent_id == client_span.span_id
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(server_span),
         span_kind="tool",
-        input_value=json.dumps(
-            {
-                "method": "tools/call",
-                "params": expected_params,
-                "jsonrpc": "2.0",
-                "id": 1,
-            },
-            sort_keys=True,
-        ),
-        output_value=json.dumps(
-            {
-                "meta": None,
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Error executing tool failing_tool: Tool execution failed",
-                        "annotations": None,
-                        "meta": None,
-                    }
-                ],
-                "structuredContent": None,
-                "isError": True,
-            },
-            sort_keys=True,
-        ),
+        input_value=json.dumps(_expected_server_tool_input("failing_tool", {"param": "value"}), sort_keys=True),
+        output_value=json.dumps(_expected_server_tool_output(FAILING_TOOL_ERROR_TEXT, is_error=True), sort_keys=True),
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
@@ -322,8 +303,8 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
         from ddtrace.llmobs import LLMObs
         LLMObs.enable()
 
-        from mcp.server.fastmcp import FastMCP
-        from mcp.shared.memory import create_connected_server_and_client_session
+        from tests.contrib.mcp.utils import FastMCP
+        from tests.contrib.mcp.utils import connect_client
 
         mcp = FastMCP(name="TestServer")
 
@@ -332,7 +313,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
             return f"Weather in {location} is 72°F"
 
         async def test():
-            async with create_connected_server_and_client_session(mcp._mcp_server) as client:
+            async with connect_client(mcp) as client:
                 await client.call_tool("get_weather", {"location": "San Francisco"})
 
         asyncio.run(test())
@@ -359,23 +340,29 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
 
     assert client_trace is not None
     assert server_trace is not None
-    assert client_trace["spans"][0]["trace_id"] != server_trace["spans"][0]["trace_id"]
-    assert client_trace["spans"][0]["_dd"]["apm_trace_id"] != server_trace["spans"][0]["_dd"]["apm_trace_id"]
+    client_span, server_span = client_trace["spans"][0], server_trace["spans"][0]
+    if MCP_V2:
+        # mcp 2.x runs an in-process server inside the client's async context, so the server span
+        # joins the client trace even though no tracing headers were propagated.
+        assert client_span["trace_id"] == server_span["trace_id"]
+        assert client_span["_dd"]["apm_trace_id"] == server_span["_dd"]["apm_trace_id"]
+    else:
+        assert client_span["trace_id"] != server_span["trace_id"]
+        assert client_span["_dd"]["apm_trace_id"] != server_span["_dd"]["apm_trace_id"]
 
 
 def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture adds telemetry property to tool input schemas."""
-    from mcp.shared.memory import create_connected_server_and_client_session
 
     async def run_test():
-        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+        async with connect_client(mcp_server) as client:
             result = await client.list_tools()
             return result
 
     with override_config("mcp", dict(capture_intent=True)):
         result = asyncio.run(run_test())
     tool = next(t for t in result.tools if t.name == "calculator")
-    schema = tool.inputSchema
+    schema = tool.input_schema if MCP_V2 else tool.inputSchema
 
     # Verify telemetry property is injected
     assert "telemetry" in schema["properties"], f"telemetry not in properties: {schema}"
@@ -403,10 +390,9 @@ def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans,
 
 def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent is recorded on the span meta and telemetry argument is excluded from input."""
-    from mcp.shared.memory import create_connected_server_and_client_session
 
     async def run_test():
-        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+        async with connect_client(mcp_server) as client:
             await client.call_tool(
                 "calculator",
                 {
@@ -450,17 +436,16 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
 
 def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture is disabled by default and telemetry property is not injected."""
-    from mcp.shared.memory import create_connected_server_and_client_session
 
     async def run_test():
-        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+        async with connect_client(mcp_server) as client:
             result = await client.list_tools()
             return result
 
     with override_config("mcp", dict(capture_intent=False)):
         result = asyncio.run(run_test())
     tool = next(t for t in result.tools if t.name == "calculator")
-    schema = tool.inputSchema
+    schema = tool.input_schema if MCP_V2 else tool.inputSchema
 
     # Verify telemetry property is NOT injected when intent capture is disabled
     assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
