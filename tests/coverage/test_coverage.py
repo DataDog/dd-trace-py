@@ -87,6 +87,34 @@ def test_expired_copied_context_does_not_borrow_the_thread_collector(monkeypatch
         assert not stale_files
 
 
+def test_returning_from_a_copied_context_restores_the_tls_fallback(monkeypatch):
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    with coverage_code.ModuleCodeCollector.CollectInContext() as outer:
+        # The copy is made while only the outer collector is active.
+        task_context = copy_context()
+        with coverage_code.ModuleCodeCollector.CollectInContext() as nested:
+            # This scope is entered and exited entirely inside the copied context
+            # while the thread has its own nested collector active.
+            inner = coverage_code.ModuleCodeCollector.CollectInContext()
+            task_context.run(inner.__enter__)
+            task_context.run(inner.__exit__)
+
+            # Returning from the copied context must leave the TLS fallback aligned
+            # with the thread's flow, so a fresh context still resolves to the
+            # nested collector instead of the copied context's remaining stack.
+            Context().run(collector.hook_line, "/repo/fresh.py", 1)
+            assert 1 in nested.get_covered_lines()["/repo/fresh.py"].to_sorted_list()
+            assert "/repo/fresh.py" not in outer.get_covered_lines()
+            assert "/repo/fresh.py" not in inner.get_covered_lines()
+
+
 def test_coverage_stacks_are_isolated_across_copied_contexts():
     from contextvars import copy_context
 
