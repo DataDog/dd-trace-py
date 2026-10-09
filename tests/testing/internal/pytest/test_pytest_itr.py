@@ -83,6 +83,10 @@ class TestITR:
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+
     def test_itr_disabled(self, pytester: Pytester) -> None:
         """Test that IntelligentTestRunner does not skip tests when ITR is disabled."""
         # Create a test file with multiple tests
@@ -140,6 +144,10 @@ class TestITR:
         assert session["content"]["meta"].get("_dd.ci.itr.tests_skipped") is None
         assert session["content"]["meta"].get("test.itr.tests_skipping.type") is None
         assert session["content"]["metrics"].get("test.itr.tests_skipping.count") is None
+
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert "test.itr.tests_skipping.count" not in suite["content"]["metrics"]
+        assert "_dd.ci.itr.tests_skipped" not in suite["content"]["meta"]
 
     def test_itr_unskippable_not_emitted_when_skipping_disabled(self, pytester: Pytester) -> None:
         """Regression: unskippable tag and telemetry must not be emitted when ITR skipping is disabled."""
@@ -360,10 +368,14 @@ class TestITR:
         skipped_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_skippable.py")
         assert skipped_suite["content"]["meta"]["test.status"] == "skip"
         assert skipped_suite["content"]["meta"]["test.skipped_by_itr"] == "true"
+        assert skipped_suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert skipped_suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
 
         running_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_running.py")
         assert running_suite["content"]["meta"]["test.status"] == "pass"
         assert running_suite["content"]["meta"].get("test.skipped_by_itr") is None
+        assert running_suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
+        assert running_suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "false"
 
         [session] = event_capture.events_by_type("test_session_end")
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "suite"

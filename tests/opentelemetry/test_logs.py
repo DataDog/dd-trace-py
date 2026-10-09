@@ -65,7 +65,7 @@ def extract_resource_attributes(log_record, resource) -> dict:
     for attr in resource.attributes:
         if attr.key == "service.name":
             attributes["service"] = attr.value.string_value
-        elif attr.key == "deployment.environment":
+        elif attr.key == "deployment.environment.name":
             attributes["env"] = attr.value.string_value
         elif attr.key == "service.version":
             attributes["version"] = attr.value.string_value
@@ -226,13 +226,20 @@ def test_otel_logs_exporter_auto_configured_http():
 
     captured_logs = decode_logs_request(request_body)
     assert len(captured_logs.resource_logs) > 0, "Expected at least one resource log in the OpenTelemetry logs request"
+    assert all(
+        attr.key != "deployment.environment"
+        for resource_logs in captured_logs.resource_logs
+        for attr in resource_logs.resource.attributes
+    )
 
     attributes = extract_log_correlation_attributes(captured_logs, "test_otel_logs_exporter_auto_configured_http")
     assert len(attributes) == 6, f"Expected 6 log correlation attributes but found: {attributes}"
     assert attributes["service"] == "ddservice", (
         f"Expected service.name to be 'ddservice' but found: {attributes['service']}"
     )
-    assert attributes["env"] == "ddenv", f"Expected deployment.environment to be 'ddenv' but found: {attributes['env']}"
+    assert attributes["env"] == "ddenv", (
+        f"Expected deployment.environment.name to be 'ddenv' but found: {attributes['env']}"
+    )
     assert attributes["version"] == "ddv1", f"Expected service.version to be 'ddv1' but found: {attributes['version']}"
     assert attributes["host_name"] == "ddhost", (
         f"Expected host.name to be 'ddhost' but found: {attributes['host_name']}"
@@ -423,7 +430,7 @@ def test_ddtrace_log_correlation():
         f"Expected service.name to be 'test_service' but found: {attributes['service']}"
     )
     assert attributes["env"] == "test_env", (
-        f"Expected deployment.environment to be 'test_env' but found: {attributes['env']}"
+        f"Expected deployment.environment.name to be 'test_env' but found: {attributes['env']}"
     )
     assert attributes["version"] == "1.0", f"Expected service.version to be '1.0' but found: {attributes['version']}"
     assert attributes["host_name"] == "test_host2", (
@@ -490,7 +497,7 @@ def test_otel_trace_log_correlation():
         f"Expected service.name to be 'test_service' but found: {attributes['service']}"
     )
     assert attributes["env"] == "test_env", (
-        f"Expected deployment.environment to be 'test_env' but found: {attributes['env']}"
+        f"Expected deployment.environment.name to be 'test_env' but found: {attributes['env']}"
     )
     assert attributes["version"] == "1.0", f"Expected service.version to be '1.0' but found: {attributes['version']}"
     assert attributes["host_name"] == "test_host", (

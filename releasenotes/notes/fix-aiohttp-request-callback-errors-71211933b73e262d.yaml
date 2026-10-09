@@ -1,0 +1,4 @@
+fixes:
+  - |
+    aiohttp: Fixes an issue where tracing HTTP server requests produces repeated
+    callback errors when keep-alive connections close.
