@@ -105,7 +105,7 @@ variables:
   variables:
     # EXPERIMENT (do not merge): turns the CPU watch off (0) for the overhead
     # check; run-benchmarks.sh runs unwrapped.
-    BENCH_WATCH: "0"
+    BENCH_WATCH: "1"
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
