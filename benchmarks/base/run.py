@@ -44,7 +44,9 @@ def read_config(path):
         return yaml.load(fp, Loader=yaml.FullLoader)
 
 
-def cpu_affinity_to_cpu_groups(cpu_affinity: str, cpus_per_run: int) -> list[list[int]]:
+def cpu_affinity_to_cpu_groups(
+    cpu_affinity: str, cpus_per_run: int, excluded_cpus: Optional[list[int]] = None
+) -> list[list[int]]:
     # CPU_AFFINITY is a comma-separated list of CPU IDs and ranges
     #   6-11
     #   6-11,14,15
@@ -56,6 +58,13 @@ def cpu_affinity_to_cpu_groups(cpu_affinity: str, cpus_per_run: int) -> list[lis
             cpu_ids.extend(range(int(start), int(end) + 1))
         else:
             cpu_ids.append(int(part))
+
+    if excluded_cpus:
+        # EXPERIMENT (do not merge): drop known-bad CPUs before groups are
+        # built so no config is placed on them (T4 in the CPU-asymmetry
+        # probe, APMSP-4059).
+        excluded = set(excluded_cpus)
+        cpu_ids = [cpu for cpu in cpu_ids if cpu not in excluded]
 
     if len(cpu_ids) % cpus_per_run != 0:
         raise ValueError(f"CPU count {len(cpu_ids)} not divisible by CPUS_PER_RUN={cpus_per_run}")
@@ -138,7 +147,14 @@ if __name__ == "__main__":
         sys.exit(0)
 
     CPUS_PER_RUN = int(os.environ.get("CPUS_PER_RUN", "1"))
-    cpu_groups = cpu_affinity_to_cpu_groups(CPU_AFFINITY, CPUS_PER_RUN)
+
+    excluded_cpus: Optional[list[int]] = None
+    if os.environ.get("BENCH_EXCLUDE_CPUS"):
+        # EXPERIMENT (do not merge): comma-separated CPU ids removed from
+        # CPU_AFFINITY before groups are built; see cpu_affinity_to_cpu_groups.
+        excluded_cpus = [int(c) for c in os.environ["BENCH_EXCLUDE_CPUS"].split(",") if c.strip()]
+        print(f"Excluding CPUs from affinity: {excluded_cpus}")
+    cpu_groups = cpu_affinity_to_cpu_groups(CPU_AFFINITY, CPUS_PER_RUN, excluded_cpus)
 
     print(f"Running with CPU affinity: {CPU_AFFINITY}")
     print(f"CPUs per run: {CPUS_PER_RUN}")

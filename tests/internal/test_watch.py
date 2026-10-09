@@ -246,6 +246,18 @@ def test_placement_record_roundtrip(watch_mod, run_mod, tmp_path):
     assert records[1]["config"] == "span-start-finish"
 
 
+def test_cpu_groups_exclude(run_mod):
+    # BENCH_EXCLUDE_CPUS drops CPUs before groups are built: excluding 24
+    # moves config 0 from 24/36 to 25/36 (candidate range shrinks by one,
+    # baseline unchanged), without changing the group shape otherwise.
+    assert run_mod.cpu_affinity_to_cpu_groups("24-35", 1, [24]) == [[c] for c in range(25, 36)]
+    assert run_mod.cpu_affinity_to_cpu_groups("36-47", 1, [24]) == [[c] for c in range(36, 48)]
+    assert run_mod.cpu_affinity_to_cpu_groups("24-35", 1) == [[c] for c in range(24, 36)]
+    assert run_mod.cpu_affinity_to_cpu_groups("24-35,40", 1, [24, 26]) == [
+        [c] for c in [25, 27, 28, 29, 30, 31, 32, 33, 34, 35, 40]
+    ]
+
+
 def test_sample_join_shapes(watch_mod, tmp_path):
     # a sample line must be a JSON object carrying the epoch key the readout
     # joins placement records against; keep the serialization contract tested.
