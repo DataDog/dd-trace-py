@@ -4,9 +4,6 @@ from typing import Any
 
 import anthropic
 
-from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
-from ddtrace.contrib.internal.stream_handler import StreamHandler
-from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
 
