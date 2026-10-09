@@ -830,30 +830,60 @@ def test_stream_wrappers_never_raise(installed):
     litellm_patch.traced_responses_stream_event(lambda chunk: chunk, object(), (b"\xff",), {})
 
 
-@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
-def test_unpatch_removes_the_logger_from_every_callback_list(monkeypatch):
+def callback_lists():
+    """Where each callback is registered, by LiteLLM list name."""
+    return {name: list(getattr(litellm, name, None) or []) for name in litellm_patch._CALLBACK_LISTS}
+
+
+def usage_loggers():
+    return {
+        name: [callback for callback in callbacks if isinstance(callback, UsageMetricsLogger)]
+        for name, callbacks in callback_lists().items()
+    }
+
+
+@pytest.fixture
+def enabled(monkeypatch):
     monkeypatch.setitem(config.litellm, "usage_metrics_enabled", True)
     monkeypatch.setitem(config.litellm, "usage_metrics_exporter", "dogstatsd")
-    messages = [{"role": "user", "content": "hi"}]
+    unpatch()
+    yield
+    unpatch()
+
+
+def mock_call():
+    litellm.completion(model="gpt-4o-mini", messages=[{"role": "user", "content": "hi"}], mock_response="hello")
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_unpatch_removes_the_logger_from_every_callback_list(enabled):
     patch()
-    try:
-        first = litellm._datadog_usage_metrics_logger
-        # A call copies the logger into LiteLLM's input, success and failure lists.
-        litellm.completion(model="gpt-4o-mini", messages=messages, mock_response="hello")
-    finally:
-        unpatch()
-    for name in litellm_patch._CALLBACK_LISTS:
-        assert all(callback is not first for callback in getattr(litellm, name, None) or []), name
+    first = litellm._datadog_usage_metrics_logger
+    # A call copies the logger into LiteLLM's input, success and failure lists.
+    mock_call()
+    assert any(callback is first for callback in litellm.success_callback), callback_lists()
+    unpatch()
+    assert not any(usage_loggers().values()), usage_loggers()
     assert litellm_patch._wrapped_stream_methods == {}
     patch()
-    try:
-        second = litellm._datadog_usage_metrics_logger
-        litellm.completion(model="gpt-4o-mini", messages=messages, mock_response="hello")
-        # The new logger gets the success events: no stale logger of its class blocks it.
-        success = list(litellm.success_callback) + list(getattr(litellm, "_async_success_callback", []))
-        assert any(callback is second for callback in success)
-    finally:
-        unpatch()
+    second = litellm._datadog_usage_metrics_logger
+    mock_call()
+    # The new logger gets the success events.
+    assert any(callback is second for callback in litellm.success_callback), callback_lists()
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_a_stale_logger_does_not_keep_a_new_one_out(enabled):
+    # LiteLLM registers one logger of a class, so a usage metrics logger left in its lists would win over a new one.
+    stale = UsageMetricsLogger(RecordingWriter(), frozenset(), None, {})
+    litellm.callbacks.append(stale)
+    litellm.success_callback.append(stale)
+    patch()
+    logger = litellm._datadog_usage_metrics_logger
+    mock_call()
+    loggers = usage_loggers()
+    assert loggers["callbacks"] == [logger], loggers
+    assert loggers["success_callback"] == [logger], loggers
 
 
 def test_unpatch_restores_the_stream_methods():

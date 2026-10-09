@@ -502,14 +502,17 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 return attempt
         return UsageMetricsLogger._latest_open_attempt(request)
 
-    def _close_replaced_attempts(self, request: _Request, kwargs: dict[str, Any], end: Any) -> None:
-        """Record the attempts of a successful request that are still open as failed. Attempts run one after the other,
-        so each ended when the next started. On LiteLLM versions without async_post_call_failure_deployment_hook, no
-        hook reports a failed retry of a route the integration's wrappers do not see.
+    def _close_replaced_attempts(
+        self, request: _Request, kwargs: dict[str, Any], end: Any, succeeded: Optional[_Attempt]
+    ) -> None:
+        """Record the attempts of a successful request that are still open, other than the one that succeeded, as
+        failed. Attempts run one after the other, so each ended when the next started. On LiteLLM versions without
+        async_post_call_failure_deployment_hook, no hook reports a failed retry of a route the integration's wrappers
+        do not see.
         """
         attempts = request.attempts
         for index, attempt in enumerate(attempts):
-            if not attempt.closed:
+            if not attempt.closed and attempt is not succeeded:
                 ended = attempts[index + 1].start if index + 1 < len(attempts) else end
                 self._record_attempt(request, attempt, kwargs, ended, "error", None)
 
@@ -772,11 +775,10 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             error_information = payload.get("error_information") or {}
             # A client that disconnects mid-stream ends the request with a success event and partial usage.
             error = error_type(error_information.get("error_class"))
-            if not cache_hit:
-                attempt = self._open_attempt(request, kwargs)
-                if attempt is not None:
-                    self._record_attempt(request, attempt, kwargs, end_time, error, payload, response_obj)
-            self._close_replaced_attempts(request, kwargs, end_time)
+            attempt = None if cache_hit else self._open_attempt(request, kwargs)
+            self._close_replaced_attempts(request, kwargs, end_time, attempt)
+            if attempt is not None:
+                self._record_attempt(request, attempt, kwargs, end_time, error, payload, response_obj)
             self._record_request(call_id, request, kwargs, error, cache_hit, payload.get("response_cost"))
             self._forget_if_done(call_id, request)
         except Exception:

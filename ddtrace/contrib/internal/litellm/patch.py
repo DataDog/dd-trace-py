@@ -341,10 +341,12 @@ def _enable_usage_metrics():
     logger = _usage_metrics.UsageMetricsLogger(
         writer, tags & _usage_metrics.OPT_IN_TAGS, config.litellm.usage_metrics_client_source, resource
     )
+    # LiteLLM registers one logger of a class: a usage metrics logger left in its lists would make it ignore this one.
+    _remove_usage_metrics_loggers()
     manager = getattr(litellm, "logging_callback_manager", None)
     if manager is not None:
         manager.add_litellm_callback(logger)
-    else:
+    if not any(callback is logger for callback in litellm.callbacks):
         litellm.callbacks.append(logger)
     writer.start()
     atexit.register(writer.on_shutdown)
@@ -360,7 +362,7 @@ def _disable_usage_metrics():
     writer = getattr(litellm, "_datadog_usage_metrics_writer", None)
     if logger is None or writer is None:
         return
-    _remove_callback(logger)
+    _remove_usage_metrics_loggers()
     unwrap(litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper, "chunk_creator")
     for module, hook in _STREAM_MODULE_HOOKS:
         ModuleWatchdog.unregister_module_hook(module, hook)
@@ -386,14 +388,12 @@ _CALLBACK_LISTS = (
 )
 
 
-def _remove_callback(logger):
-    """Remove the logger from every LiteLLM callback list. LiteLLM will not add another logger of the same class
-    while one is left in a list.
-    """
+def _remove_usage_metrics_loggers():
+    """Remove every usage metrics logger from every LiteLLM callback list."""
     for name in _CALLBACK_LISTS:
         callbacks = getattr(litellm, name, None)
-        if isinstance(callbacks, list) and any(callback is logger for callback in callbacks):
-            callbacks[:] = [callback for callback in callbacks if callback is not logger]
+        if isinstance(callbacks, list) and any(isinstance(c, _usage_metrics.UsageMetricsLogger) for c in callbacks):
+            callbacks[:] = [c for c in callbacks if not isinstance(c, _usage_metrics.UsageMetricsLogger)]
 
 
 def traced_get_llm_provider(func, instance, args, kwargs):
