@@ -5,10 +5,10 @@ from google import genai
 from ddtrace import config
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIAsyncStreamHandler
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIStreamHandler
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
 

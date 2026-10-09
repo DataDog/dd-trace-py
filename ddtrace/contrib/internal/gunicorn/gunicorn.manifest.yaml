@@ -1,0 +1,11 @@
+_v: 1
+name: gunicorn
+display_name: Gunicorn
+description: Instruments Gunicorn-hosted applications by bootstrapping Datadog tracing and optional profiling before worker
+  application code loads.
+packages:
+- name: gunicorn
+category:
+- other
+systems: []
+creation_date: '2017-01-31'

@@ -10,32 +10,21 @@ from ddtrace._trace.tracer import Tracer
 from .._types import StringType
 
 def config(
-    env: StringType = None,
     service: StringType = None,
+    env: StringType = None,
     version: StringType = None,
     tags: Optional[Mapping[Union[str, bytes], Union[str, bytes]]] = None,
     max_nframes: Optional[int] = None,
     timeline_enabled: Optional[bool] = None,
-    output_filename: Optional[str] = None,
+    output_filename: StringType = None,
     sample_pool_capacity: Optional[int] = None,
     timeout: Optional[int] = None,
-    process_tags: Optional[str] = None,
+    process_tags: StringType = None,
 ) -> None: ...
 def start() -> None: ...
 def set_profiler_settings_json(settings_json: StringType) -> None: ...
 def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None: ...
-def init(
-    service: str,
-    env: str,
-    version: str,
-    tags: Optional[dict[Union[str, bytes], Union[str, bytes]]] = None,
-    max_nframes: Optional[int] = None,
-    timeline_enabled: Optional[bool] = None,
-    output_filename: Optional[str] = None,
-    sample_pool_capacity: Optional[int] = None,
-    timeout: Optional[int] = None,
-    url: Optional[str] = None,
-) -> None: ...
+def reset(tracer: Optional[Tracer] = ddtrace.tracer) -> None: ...
 
 class SampleHandle:
     def flush_sample(self) -> None: ...
