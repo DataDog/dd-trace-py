@@ -3859,6 +3859,28 @@
         "pinned": true
     },
     {
+        "dependencyName": "temporalio",
+        "integrationName": "temporal",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=1.21.0",
+                "tested": [
+                    "1.21.1",
+                    "1.34.0"
+                ]
+            }
+        ]
+    },
+    {
         "dependencyName": "tornado",
         "integrationName": "tornado",
         "autoInstrumented": false,

@@ -36,10 +36,6 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    # The integration uses interceptor APIs introduced in temporalio 1.21.0
-    # (NexusOperationInboundInterceptor, workflow-side StartNexusOperationInput).
-    # Earlier 1.x releases lack those symbols, so importing the patch module
-    # fails and patch_all() silently leaves Temporal uninstrumented.
     return {"temporalio": ">=1.21.0"}
 
 

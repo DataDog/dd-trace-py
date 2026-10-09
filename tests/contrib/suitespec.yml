@@ -2764,7 +2764,10 @@ suites:
       variants:
         - name: temporal
           python: ['3.11', '3.12', '3.13', '3.14']
-          dependencies: ['pytest-asyncio', 'temporalio~=1.31.0']
+          dependencies: ['pytest-asyncio', 'temporalio~=1.21.0']
+        - name: temporal
+          python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies: ['pytest-asyncio', temporalio]
   tornado:
     venvs_per_job: 6
     paths:
