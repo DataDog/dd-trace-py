@@ -1,4 +1,6 @@
 ---
 fixes:
   - |
-    otel: Fixes an issue where ``deployment.environment.name`` set in ``DD_TAGS`` was replaced by an empty value in OTLP log and metric resources when ``DD_ENV`` was unset.
+    tracing: Fixes an issue where service, environment, and version values configured through
+    ``OTEL_RESOURCE_ATTRIBUTES`` can differ between traces, logs, and metrics. These unified
+    service tags are now applied consistently across all three signals.
