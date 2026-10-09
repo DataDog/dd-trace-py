@@ -3,7 +3,7 @@ import azure.eventhub.aio as azure_eventhub_aio
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.internal.schema import schematize_service_name
@@ -48,7 +48,6 @@ def _patch(azure_eventhubs_module):
     azure_eventhubs_module._datadog_patch = True
 
     if azure_eventhubs_module.__name__ == "azure.eventhub.aio":
-        Pin().onto(azure_eventhubs_module.EventHubProducerClient)
         _w("azure.eventhub.aio", "EventHubProducerClient.__init__", _patched_producer_init)
         _w("azure.eventhub.aio", "EventHubProducerClient.create_batch", _patched_create_batch_async)
         _w("azure.eventhub.aio", "EventHubProducerClient.send_event", _patched_send_event_async)
@@ -56,8 +55,6 @@ def _patch(azure_eventhubs_module):
         _w("azure.eventhub.aio", "EventHubProducerClient._buffered_send_event", _patched_send_event_async)
         _w("azure.eventhub.aio", "EventHubProducerClient._buffered_send_batch", _patched_send_batch_async)
     else:
-        Pin().onto(azure_eventhubs_module.EventHubProducerClient)
-        Pin().onto(azure_eventhubs_module.EventDataBatch)
         _w("azure.eventhub", "EventDataBatch.add", _patched_add)
         _w("azure.eventhub", "EventHubProducerClient.__init__", _patched_producer_init)
         _w("azure.eventhub", "EventHubProducerClient.create_batch", _patched_create_batch)
@@ -68,8 +65,7 @@ def _patch(azure_eventhubs_module):
 
 
 def _patched_producer_init(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     instance._dd_fully_qualified_namespace = get_argument_value(args, kwargs, 0, "fully_qualified_namespace", True)
@@ -78,8 +74,7 @@ def _patched_producer_init(wrapped, instance, args, kwargs):
 
 
 def _patched_create_batch(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not config.azure_eventhubs.batch_links:
+    if not is_tracing_enabled() or not config.azure_eventhubs.batch_links:
         return wrapped(*args, **kwargs)
 
     batch = wrapped(*args, **kwargs)
@@ -91,8 +86,7 @@ def _patched_create_batch(wrapped, instance, args, kwargs):
 
 
 async def _patched_create_batch_async(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled() or not config.azure_eventhubs.batch_links:
+    if not is_tracing_enabled() or not config.azure_eventhubs.batch_links:
         return await wrapped(*args, **kwargs)
 
     batch = await wrapped(*args, **kwargs)
@@ -104,10 +98,8 @@ async def _patched_create_batch_async(wrapped, instance, args, kwargs):
 
 
 def _patched_add(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
     if (
-        not pin
-        or not pin.enabled()
+        not is_tracing_enabled()
         or not config.azure_eventhubs.batch_links
         # Skip patching when these attributes haven't been added.
         # A known case is when a producer client in buffered mode
@@ -122,7 +114,7 @@ def _patched_add(wrapped, instance, args, kwargs):
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.CREATE}"
 
     with create_context(
-        "azure.eventhubs.patched_producer_batch", pin, operation_name, resource_name, config.azure_eventhubs
+        "azure.eventhubs.patched_producer_batch", operation_name, resource_name, config.azure_eventhubs
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.CREATE, resource_name, fully_qualified_namespace, "event_data"
@@ -131,8 +123,7 @@ def _patched_add(wrapped, instance, args, kwargs):
 
 
 def _patched_send_event(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     resource_name = instance.eventhub_name
@@ -140,7 +131,7 @@ def _patched_send_event(wrapped, instance, args, kwargs):
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
     with create_context(
-        "azure.eventhubs.patched_producer_send", pin, operation_name, resource_name, config.azure_eventhubs
+        "azure.eventhubs.patched_producer_send", operation_name, resource_name, config.azure_eventhubs
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data"
@@ -149,8 +140,7 @@ def _patched_send_event(wrapped, instance, args, kwargs):
 
 
 async def _patched_send_event_async(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return await wrapped(*args, **kwargs)
 
     resource_name = instance.eventhub_name
@@ -158,7 +148,7 @@ async def _patched_send_event_async(wrapped, instance, args, kwargs):
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
     with create_context(
-        "azure.eventhubs.patched_producer_send", pin, operation_name, resource_name, config.azure_eventhubs
+        "azure.eventhubs.patched_producer_send", operation_name, resource_name, config.azure_eventhubs
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data"
@@ -167,8 +157,7 @@ async def _patched_send_event_async(wrapped, instance, args, kwargs):
 
 
 def _patched_send_batch(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     resource_name = instance.eventhub_name
@@ -176,7 +165,7 @@ def _patched_send_batch(wrapped, instance, args, kwargs):
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
     with create_context(
-        "azure.eventhubs.patched_producer_send_batch", pin, operation_name, resource_name, config.azure_eventhubs
+        "azure.eventhubs.patched_producer_send_batch", operation_name, resource_name, config.azure_eventhubs
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data_batch"
@@ -185,8 +174,7 @@ def _patched_send_batch(wrapped, instance, args, kwargs):
 
 
 async def _patched_send_batch_async(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return await wrapped(*args, **kwargs)
 
     resource_name = instance.eventhub_name
@@ -194,7 +182,7 @@ async def _patched_send_batch_async(wrapped, instance, args, kwargs):
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
     with create_context(
-        "azure.eventhubs.patched_producer_send_batch", pin, operation_name, resource_name, config.azure_eventhubs
+        "azure.eventhubs.patched_producer_send_batch", operation_name, resource_name, config.azure_eventhubs
     ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data_batch"

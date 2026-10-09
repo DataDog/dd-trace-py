@@ -6,6 +6,7 @@ import pytest
 from ddtrace.internal.openfeature._agentless import DEFAULT_AGENTLESS_PATH
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless import decode_response_body
+from ddtrace.internal.openfeature._agentless import normalize_agentless_site
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 
 
@@ -24,6 +25,36 @@ def test_endpoint_site_is_lowercased():
     assert build_agentless_endpoint("DataDogHQ.com") == (
         "https://ufc-server.ff-cdn.datadoghq.com" + DEFAULT_AGENTLESS_PATH
     )
+
+
+def test_endpoint_blank_site_uses_default():
+    assert build_agentless_endpoint(" \t") == ("https://ufc-server.ff-cdn.datadoghq.com" + DEFAULT_AGENTLESS_PATH)
+
+
+@pytest.mark.parametrize(
+    "site",
+    [
+        "https://datadoghq.com",
+        "datadoghq.com/path",
+        "datadoghq.com@attacker.example",
+        "datadoghq.com:443",
+        "data doghq.com",
+        "datadoghq.com\\attacker.example",
+        "datadoghq.com%2eattacker.example",
+        "datadoghq.com。attacker.example",
+        "-datadoghq.com",
+        "datadoghq..com",
+    ],
+)
+def test_managed_endpoint_rejects_invalid_site(site):
+    with pytest.raises(ValueError, match="Invalid Feature Flagging agentless site") as excinfo:
+        build_agentless_endpoint(site)
+
+    assert site not in str(excinfo.value)
+
+
+def test_site_normalization_is_shared_by_managed_configuration_and_events():
+    assert normalize_agentless_site("  CUSTOM.REGION.example-test.com  ") == "custom.region.example-test.com"
 
 
 def test_endpoint_managed_staging_site():

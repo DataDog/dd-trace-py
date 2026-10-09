@@ -14,12 +14,12 @@ from graphql.execution import ExecutionResult
 from graphql.language.source import Source
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -82,7 +82,6 @@ def patch():
     if getattr(graphql, "_datadog_patch", False):
         return
     graphql._datadog_patch = True
-    Pin().onto(graphql)
 
     for module_str, func_name, wrapper in _get_patching_candidates():
         _update_patching(wrap, module_str, func_name, wrapper)
@@ -121,8 +120,7 @@ def _update_patching(operation, module_str, func_name, wrapper):
 
 
 def _traced_parse(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     source = get_argument_value(args, kwargs, 0, "source")
@@ -133,7 +131,7 @@ def _traced_parse(func, args, kwargs):
         name="graphql.parse",
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -141,8 +139,7 @@ def _traced_parse(func, args, kwargs):
 
 
 def _traced_validate(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     document = get_argument_value(args, kwargs, 1, "ast")
@@ -153,7 +150,7 @@ def _traced_validate(func, args, kwargs):
         name="graphql.validate",
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -163,8 +160,7 @@ def _traced_validate(func, args, kwargs):
 
 
 def _traced_execute(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     if config.graphql.resolvers_enabled:
@@ -183,7 +179,7 @@ def _traced_execute(func, args, kwargs):
         resource=source_str or None,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
@@ -199,8 +195,7 @@ def _traced_execute(func, args, kwargs):
 
 
 def _traced_query(func, args, kwargs):
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     # set resource name
@@ -212,7 +207,7 @@ def _traced_query(func, args, kwargs):
         resource=resource or None,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
+        set_service_and_source(span, trace_utils.int_service(None, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
@@ -232,8 +227,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
     trace middleware which wraps the resolvers of graphql fields.
     Note - graphql middlewares can not be a partial. It must be a class or a function.
     """
-    pin = Pin.get_from(graphql)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return next_middleware(root, info, **args)
 
     with tracer.trace(

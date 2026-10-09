@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Span tag/metric/attribute APIs.
 
 Moved from tests/tracer/test_span.py and extended with tests for the
@@ -6,8 +5,8 @@ internal _set_attribute / _get_attribute family of methods.
 """
 
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace._trace.provider import DefaultContextProvider
@@ -183,7 +182,7 @@ def test_set_attribute_numpy():
 
 def test_tags_not_string():
     # ensure we can cast as strings
-    class Foo(object):
+    class Foo:
         def __repr__(self):
             1 / 0
 
@@ -224,6 +223,21 @@ def test_set_default_attributes_preserves_value_set_during_coercion():
     span._set_default_attributes({"reentrant": ReentrantTag()})
 
     assert span.get_tag("reentrant") == "set-during-coercion"
+
+
+def test_update_tags_from_context_excludes_w3c_propagation_state():
+    span = Span(name="test.span")
+    traceparent = "00-00000000000000000000000000000001-0000000000000001-02"
+    tracestate = "ot=rv:1234567890abcd;th:8"
+    span.context._meta.update({"context.tag": "value", "traceparent": traceparent, "tracestate": tracestate})
+
+    span._update_tags_from_context()
+
+    assert span.get_tag("context.tag") == "value"
+    assert span.get_tag("traceparent") is None
+    assert span.get_tag("tracestate") is None
+    assert span.context._meta["traceparent"] == traceparent
+    assert span.context._meta["tracestate"] == tracestate
 
 
 @mock.patch("ddtrace._trace.span.log")

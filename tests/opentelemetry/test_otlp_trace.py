@@ -43,6 +43,18 @@ def test_otlp_traces_sent_via_http():
         from ddtrace.trace import tracer
 
         with tracer.trace("test-span", service="test-svc"):
+            with tracer.trace("test-child", service="test-svc"):
+                pass
+
+        from ddtrace.trace import Context
+
+        inherited_context = Context(
+            trace_id=0xFFF972474538EFFF,
+            span_id=1,
+            sampling_priority=2,
+            meta={"tracestate": ("dd=s:2;t.dm:-3,ot=rv:ef284ace7a91e1;th:e6666666666668,future=value")},
+        )
+        with tracer.start_span("inherited-span", child_of=inherited_context, service="test-svc"):
             pass
 
         tracer.flush()
@@ -59,8 +71,20 @@ def test_otlp_traces_sent_via_http():
     scope_spans = resource_spans[0]["scopeSpans"]
     assert len(scope_spans) >= 1
     spans = scope_spans[0]["spans"]
-    assert len(spans) >= 1
-    assert spans[0]["name"] == "test-span"
+    spans_by_name = {span["name"]: span for span in spans}
+    assert {"test-span", "test-child", "inherited-span"} <= spans_by_name.keys()
+
+    for name in ("test-span", "test-child"):
+        span = spans_by_name[name]
+        assert span["flags"] == 1
+        assert "ot=rv:" in span["traceState"]
+        assert ";th:0" in span["traceState"]
+        assert "p:{}".format(span["spanId"].lower()) in span["traceState"]
+
+    inherited_span = spans_by_name["inherited-span"]
+    assert inherited_span["flags"] == 1
+    assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in inherited_span["traceState"]
+    assert "future=value" in inherited_span["traceState"]
 
 
 @pytest.mark.subprocess(

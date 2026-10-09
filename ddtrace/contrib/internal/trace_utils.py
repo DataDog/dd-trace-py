@@ -2,6 +2,8 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 
+from __future__ import annotations
+
 from collections import deque
 import ipaddress
 import re
@@ -15,7 +17,6 @@ from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Sequence  # noqa:F401
 from typing import Union  # noqa:F401
-from typing import cast  # noqa:F401
 from urllib import parse
 
 import wrapt
@@ -23,6 +24,7 @@ import wrapt
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -32,25 +34,32 @@ from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_he
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.internal import _service_state
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
-from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import _WEB_REQUEST_STARTING_DISPATCHED
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
+from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
+
+# Re-exported for backwards compatibility; the real implementations live in
+# ddtrace.internal.utils.service since they have no contrib-specific dependencies.
+from ddtrace.internal.utils.service import ext_service  # noqa:F401
+from ddtrace.internal.utils.service import int_service  # noqa:F401
+from ddtrace.internal.utils.service import set_service_and_source  # noqa:F401
 from ddtrace.internal.utils.wrappers import iswrapped  # noqa: F401
 from ddtrace.internal.utils.wrappers import unwrap  # noqa: F401
 from ddtrace.propagation.http import HTTPPropagator
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
-    from ddtrace.trace import Span  # noqa:F401
-    from ddtrace.trace import Tracer  # noqa:F401
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -80,8 +89,42 @@ IP_PATTERNS = (
 )
 
 
+# The request-start event is published for WSGI and ASGI applications only: the
+# generic WSGI/ASGI middleware, plus Django, whose automatic instrumentation
+# bypasses DDWSGIMiddleware. Other web frameworks are out of scope.
+#
+# The only production listener is registered in MicroVM processes, so both helpers
+# check for it before touching the request and normal requests pay one lookup.
+
+
+def dispatch_wsgi_web_request_starting(environ: MutableMapping[str, Any]) -> None:
+    """Publish the request-start event once per WSGI environ (or Django META)."""
+    if not core.has_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value):
+        return
+    # Nested layers share environ, e.g. DDWSGIMiddleware wrapping auto-instrumented Django.
+    if environ.get(_WEB_REQUEST_STARTING_DISPATCHED):
+        return
+    environ[_WEB_REQUEST_STARTING_DISPATCHED] = True
+
+    path = (environ.get("SCRIPT_NAME") or "").rstrip("/") + (environ.get("PATH_INFO") or "")
+    core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (environ.get("REQUEST_METHOD"), path))
+
+
+def dispatch_asgi_web_request_starting(scope: Mapping[str, Any]) -> None:
+    """Publish the request-start event for a root ASGI HTTP scope."""
+    if not core.has_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value):
+        return
+
+    root_path = (scope.get("root_path") or "").rstrip("/")
+    path = scope.get("path") or ""
+    # ASGI servers disagree on whether path already includes root_path.
+    if root_path and not (path == root_path or path.startswith(root_path + "/")):
+        path = root_path + path
+    core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (scope.get("method"), path))
+
+
 def _store_headers(
-    headers: Mapping[str, str], span: Span, integration_config: "IntegrationConfig", request_or_response: str
+    headers: Mapping[str, str], span: Span, integration_config: IntegrationConfig, request_or_response: str
 ) -> None:
     """
     :param headers: A dict of http headers to be stored in the span
@@ -230,7 +273,7 @@ def _get_request_header_client_ip(
     return private_ip_from_headers
 
 
-def _store_request_headers(headers: dict[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
+def _store_request_headers(headers: dict[str, str], span: Span, integration_config: IntegrationConfig) -> None:
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -243,7 +286,7 @@ def _store_request_headers(headers: dict[str, str], span: Span, integration_conf
     _store_headers(headers, span, integration_config, REQUEST)
 
 
-def _store_response_headers(headers: Mapping[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
+def _store_response_headers(headers: Mapping[str, str], span: Span, integration_config: IntegrationConfig) -> None:
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -319,10 +362,10 @@ def with_traced_module(func):
 
 def is_tracing_enabled() -> bool:
     tracer = core.root.get_item("tracer")
-    return tracer is not None and (tracer.enabled or asm_config._apm_opt_out)
+    return tracer is not None and (tracer.enabled or standalone_config.apm_opt_out)
 
 
-def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
+def distributed_tracing_enabled(int_config: IntegrationConfig, default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
         return int_config.distributed_tracing_enabled
@@ -331,94 +374,9 @@ def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool =
     return default
 
 
-def int_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
-    """Returns the service name for an integration which is internal
-    to the application. Internal meaning that the work belongs to the
-    user's application. Eg. Web framework, sqlalchemy, web servers.
-
-    For internal integrations we prioritize overrides, then global defaults and
-    lastly the default provided by the integration.
-    """
-    # Pin has top priority since it is user defined in code
-    if pin is not None and pin.service:
-        return pin.service
-
-    # Config is next since it is also configured via code
-    # Note that both service and service_name are used by
-    # integrations.
-    if "service" in int_config and int_config.service is not None:
-        return cast(str, int_config.service)
-    if "service_name" in int_config and int_config.service_name is not None:
-        return cast(str, int_config.service_name)
-
-    global_service = int_config.global_config._get_service()
-    # We check if global_service != _inferred_base_service since global service (config.service)
-    # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
-    # use the inferred base service value, and instead use the integration default service. If we
-    # didn't do this, we would have a massive breaking change from adding inferred_base_service.
-    if global_service and global_service != int_config.global_config._inferred_base_service:
-        return cast(str, global_service)
-
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return cast(str, int_config._default_service)
-
-    if default is None and global_service:
-        return cast(str, global_service)
-
-    return default
-
-
-def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
-    """Returns the service name for an integration which is external
-    to the application. External meaning that the integration generates
-    spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
-    """
-    if pin is not None and pin.service:
-        return pin.service
-
-    if "service" in int_config and int_config.service is not None:
-        return cast(str, int_config.service)
-    if "service_name" in int_config and int_config.service_name is not None:
-        return cast(str, int_config.service_name)
-
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return cast(str, int_config._default_service)
-
-    # A default is required since it's an external service.
-    return default
-
-
-def set_service_and_source(
-    span: Span,
-    service: str,
-    int_config: Union["IntegrationConfig", dict],
-    default_service_key: str = "_default_service",
-) -> None:
-    service_source = ""
-    mapped_service = config.service_mapping.get(service, service)
-    if service != mapped_service:
-        service_source = "opt.service_mapping"
-        service = mapped_service
-    elif int_config.get("split_by_domain", False):
-        service_source = "opt.split_by_domain"
-    # NB "not service" here makes svc_src make sense in cases of service inheritance
-    elif not service or service == int_config.get(default_service_key):
-        service_source = getattr(
-            int_config,
-            "integration_name",
-            int_config.get("integration_name", "") if hasattr(int_config, "get") else "",
-        )
-    elif _service_state.is_user_provided_service():
-        service_source = "m"
-    if service_source:
-        span.set_tag(_SERVICE_SOURCE, service_source)
-    if service:
-        span.service = service
-
-
 def set_http_meta(
     span: Span,
-    integration_config: "IntegrationConfig",
+    integration_config: IntegrationConfig,
     method: Optional[str] = None,
     url: Optional[str] = None,
     target_host: Optional[str] = None,
@@ -553,8 +511,8 @@ def set_http_meta(
 
 
 def activate_distributed_headers(
-    tracer: "Tracer",
-    int_config: Optional["IntegrationConfig"] = None,
+    tracer: Tracer,
+    int_config: Optional[IntegrationConfig] = None,
     request_headers: Optional[MutableMapping[str, str]] = None,
     override: Optional[bool] = None,
 ) -> None:
@@ -618,6 +576,15 @@ def _copy_trace_level_tags(target_span: Span, parent: Span):
     if parent.context.sampling_priority is not None:
         target_span.context.sampling_priority = parent.context.sampling_priority
 
+    # Materialize a deferred local decision before detaching it from the parent trace.
+    _ = parent.context._tracestate
+    raw_tracestate = parent.context._meta.get(W3C_TRACESTATE_KEY, "")
+    ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot")
+    if ot_value is not None:
+        # WebSocket message spans start independent traces. Copy only canonical ot=
+        # sampling data; other vendor members describe the parent trace.
+        target_span.context._meta[W3C_TRACESTATE_KEY] = "ot=" + ot_value
+
     if parent.context._meta.get(_ORIGIN_KEY):
         target_span._set_attribute(_ORIGIN_KEY, parent.context._meta[_ORIGIN_KEY])
 
@@ -666,7 +633,7 @@ def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:
 
     # Relative URLs don't have a netloc, so we force them
     if not parse_result.netloc:
-        parse_result = parse.urlparse("//{url}".format(url=url))
+        parse_result = parse.urlparse(f"//{url}")
 
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information

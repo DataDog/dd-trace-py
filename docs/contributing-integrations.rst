@@ -134,8 +134,8 @@ They use the Flask integration tests as a teaching example. Referencing these in
 
 1. Make sure a directory for your integration exists under ``tests/contrib``
 2. Create a new file ``tests/contrib/<integration>/test_<integration>_snapshot.py``
-3. Make sure a ``Venv`` exists in ``riotfile.py`` for your ``contrib`` subdirectory. Follow a nearby integration and
-   note the test suite name.
+3. Make sure a test environment exists for your ``contrib`` subdirectory. Follow a nearby integration and note its
+   test suite name.
 4. In this directory, write a simple "Hello World" application that uses the library you're
    integrating with similarly to how customers will use it. Depending on the library, this
    might be as simple as a function in the snapshot test file that imports the library.
@@ -212,19 +212,24 @@ are not yet any expected spans stored for it, so we need to create some.
 .. code-block:: yaml
 
     asyncpg:
-    parallelism: 2
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@pg'
-      - tests/contrib/asyncpg/*
-      - tests/snapshots/tests.{suite}.*
-      - tests/contrib/shared_tests_async.py
-    snapshot: true
-    services:
-      - postgres
+      venvs_per_job: 5
+      paths:
+        - '@bootstrap'
+        - '@core'
+        - '@contrib'
+        - '@tracing'
+        - '@pg'
+        - tests/contrib/asyncpg/*
+        - tests/snapshots/tests.{suite}.*
+        - tests/contrib/shared_tests_async.py
+      snapshot: true
+      services:
+        - postgres
+
+``venvs_per_job`` is the target number of dependency environments assigned to each generated CI job.
+Lower values create more jobs. By default, it is the suite's total environment count, so omitting it runs
+the suite as one job. The generator limits each suite to 25 jobs. Do not set ``parallelism`` directly.
+Suites using ``ddtest: true`` use ``ddtest_nodes`` instead and must not set ``venvs_per_job``.
 
 If in the process of writing tests for your integration you create a sample application,
 consider adding it to the `trace examples repository <https://github.com/Datadog/trace-examples>`_ along
@@ -238,8 +243,7 @@ The following is the check list for ensuring you have all of the components to h
 - Define `patch` and `unpatch` functions for your new integration under ``ddtrace/contrib/internal/your_integration_name``.
 - Document your integration in a ``ddtrace/contrib/internal/<integration_name>/__init__.py`` module and reference the doc string in ``docs/integrations.rst``.
 - Test code for the above in ``tests/contrib/your_integration_name``.
-- The test environment configuration in ``riotfile.py``.
-- The GitLab CI configuration in ``tests/contrib/suitespec.yml``.
+- The test environment and GitLab CI configuration in ``tests/contrib/suitespec.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
-- A release note for your addition generated with ``riot run reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.
+- A release note for your addition generated with ``uvx --from 'reno==4.1.0' reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.

@@ -40,20 +40,23 @@ for module_name in module_names:
     except ImportError:
         pass
 else:
-    raise ImportError("could not import any of {0!r}".format(module_names))
+    raise ImportError(f"could not import any of {module_names!r}")
 
 
 def wait_for_es(host: str, port: int):
     # Wait for up to 160 seconds for ES to start.
     # DEV: Elasticsearch is pretty quick, but OpenSearch can take a long time to start.
-    for _ in range(80):
+    deadline = time.monotonic() + 160
+    while time.monotonic() < deadline:
+        conn = HTTPConnection(host, port, timeout=2)
         try:
-            conn = HTTPConnection(f"{host}:{port}")
             conn.request("GET", "/")
             conn.getresponse()
             return
         except Exception:
-            time.sleep(2)
+            time.sleep(max(0, min(2, deadline - time.monotonic())))
+        finally:
+            conn.close()
     raise Exception(f"Could not connect to ES at {host}:{port}")
 
 
@@ -83,7 +86,7 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def setUp(self):
         """Prepare ES"""
-        super(ElasticsearchPatchTest, self).setUp()
+        super().setUp()
 
         es = self._get_es()
         config = self._get_es_config()
@@ -96,7 +99,7 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def tearDown(self):
         """Clean ES"""
-        super(ElasticsearchPatchTest, self).tearDown()
+        super().tearDown()
 
         unpatch()
         self.delete_index(self.es)

@@ -5,6 +5,8 @@ from typing import Any
 from typing import Optional
 
 from ddtrace import config
+from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -16,8 +18,6 @@ from ddtrace.llmobs._integrations._bedrock_inference_profiles import begin_resol
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_resolve_failure
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
 from ddtrace.llmobs._integrations.bedrock_utils import _AMAZON
 from ddtrace.llmobs._integrations.bedrock_utils import _ANTHROPIC
@@ -73,9 +73,14 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
         self.chunks.append(json.loads(chunk["chunk"]["bytes"]))
 
     def handle_exception(self, exception):
-        core.dispatch(
-            "botocore.patched_bedrock_api_call.exception", (self.options.get("execution_ctx", {}), sys.exc_info())
-        )
+        execution_ctx = self.options.get("execution_ctx", {})
+        partial_response = None
+        try:
+            _extract_streamed_response_metadata(execution_ctx, self.chunks)
+            partial_response = _extract_streamed_response(execution_ctx, self.chunks)
+        except Exception:
+            log.warning("Error processing partial streamed bedrock response.", exc_info=True)
+        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info(), partial_response))
 
     def finalize_stream(self, exception=None):
         if exception:
@@ -98,7 +103,7 @@ class BotocoreConverseStreamHandler(StreamHandler):
     def handle_exception(self, exception):
         stream_processor = self.options.get("stream_processor", None)
         execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
+        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info(), stream_processor))
 
     def finalize_stream(self, exception=None):
         if exception:
@@ -232,6 +237,7 @@ def _extract_request_params_for_invoke(params: dict[str, Any], provider: str) ->
             "top_k": request_body.get("top_k", ""),
             "max_tokens": request_body.get("max_tokens_to_sample", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
+            "tools": request_body.get("tools", []),
         }
     elif provider == _COHERE and "embed" in model_id:
         return {
@@ -351,7 +357,7 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: list[d
             finish_reason = streamed_body[-1]["stop_reason"]
         elif provider == _STABILITY:
             pass  # DEV: we do not yet support image modality models
-    except (IndexError, AttributeError):
+    except (IndexError, KeyError, AttributeError):
         log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
     if not isinstance(text, list):

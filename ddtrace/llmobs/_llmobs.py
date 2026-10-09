@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -9,7 +10,6 @@ from typing import Any
 from typing import Callable
 from typing import Literal
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 import urllib.parse
@@ -18,7 +18,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.processor import _NoopTraceProcessor
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
@@ -34,11 +33,11 @@ from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.integration import _integration_env_var_id
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -50,6 +49,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_ANNOTATION
+from ddtrace.llmobs._constants import AGENT_DECLARATION_ANNOTATION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -78,6 +78,11 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -97,7 +102,6 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMObsExportMode
-from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._eval_metric import _build_evaluation_metric_event
 from ddtrace.llmobs._eval_metric import _build_feedback_metric_event
@@ -135,6 +139,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
+from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -145,7 +150,10 @@ from ddtrace.llmobs._prompt_optimization import validate_task
 from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
+from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._sampler import LLMObsSampler
+from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -175,6 +183,7 @@ from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import set_gen_ai_apm_tags
 from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -182,10 +191,11 @@ from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import Agent
-from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
+from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptAuthError
@@ -294,7 +304,7 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _EVALUATOR_REQUIRED_PARAMS):
-        raise TypeError("Evaluator function must have parameters {}.".format(tuple(_EVALUATOR_REQUIRED_PARAMS)))
+        raise TypeError(f"Evaluator function must have parameters {tuple(_EVALUATOR_REQUIRED_PARAMS)}.")
 
 
 def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> None:
@@ -318,9 +328,7 @@ def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> Non
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _SUMMARY_EVALUATOR_REQUIRED_PARAMS):
-        raise TypeError(
-            "Summary evaluator function must have parameters {}.".format(tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS))
-        )
+        raise TypeError(f"Summary evaluator function must have parameters {tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS)}.")
 
 
 class LLMObsExportSpanError(Exception):
@@ -355,7 +363,7 @@ class LLMObsActivateDistributedHeadersError(Exception):
 
 def _deprecate_prompt_label(method: str) -> None:
     deprecate(
-        prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
+        prefix=f"The 'label' parameter of LLMObs.{method}() is deprecated",
         message="Set DD_ENV instead; the prompt version is resolved for that environment.",
         category=DDTraceDeprecationWarning,
     )
@@ -563,7 +571,7 @@ def _normalize_llmobs_meta(
 
 
 class LLMObs(Service):
-    _instance = None  # type: LLMObs
+    _instance: "LLMObs"
     enabled = False
     _app_key: str = _env.get("DD_APP_KEY", "")
     _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
@@ -575,12 +583,12 @@ class LLMObs(Service):
         tracer: Optional[Tracer] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
     ) -> None:
-        super(LLMObs, self).__init__()
+        super().__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
-        if _env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "") or not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
+        if _env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "") or not standalone_config.apm_tracing_enabled:
             # An override origin means events must always go directly to the LLMObs writer's
             # intake, since the APM_AGENT(LESS) modes route the event alongside the APM trace,
             # which never respects the override. APMTracingEnabledFilter also drops every trace.
@@ -625,7 +633,8 @@ class LLMObs(Service):
         self._annotation_context_lock = RLock()
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
-        self._sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
+        self._sampler = LLMObsSampler(sample_rate=config._llmobs_sample_rate, rules=config._llmobs_sampling_rules)
+        self._sampling_resolver = LLMObsSamplingResolver(self._sampler, get_llmobs_tags)
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -639,6 +648,9 @@ class LLMObs(Service):
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
+
+        # Before _prepare_llmobs_span_data, which rewrites dotted tag keys in APM_AGENTLESS mode.
+        self._sampling_resolver.resolve_if_root(span)
 
         span_event = None
         try:
@@ -714,11 +726,50 @@ class LLMObs(Service):
 
         # Agent annotations are applied here, where the span kind is known: annotation_context
         # reaches every span in its block, but only agent spans carry the tags.
-        agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
-        if agent_annotation and span_kind == "agent":
-            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
+        if span_kind == "agent":
+            agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
+            if agent_annotation:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
+            declared_manifest = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+            if declared_manifest:
+                # Both levels are type-checked because caller metadata is not sanitized until
+                # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
+                # non-mapping would otherwise raise AttributeError, which the handler around
+                # this path does not catch. Must precede the llmobs_meta read below.
+                existing = (llmobs_data.get(LLMOBS_STRUCT.META) or {}).get(LLMOBS_STRUCT.METADATA)
+                if not isinstance(existing, dict):
+                    existing = {}
+                existing_dd = existing.get(LLMOBS_STRUCT.METADATA_DD)
+                if not isinstance(existing_dd, dict):
+                    # `_dd` is reserved, so a caller value here is discarded rather than merged
+                    # into. `existing` is the live metadata dict whenever the span has one, so
+                    # this reset is what lets _annotate_llmobs_span_data assign into a mapping
+                    # below instead of raising on the caller's value.
+                    existing_dd = {}
+                    existing[LLMOBS_STRUCT.METADATA_DD] = existing_dd
+                existing_manifest = existing_dd.get(LLMOBS_STRUCT.AGENT_MANIFEST)
+                # Updated, not replaced: an integration may have already reported this agent and
+                # the caller is annotating a few fields on top.
+                merged: dict[str, Any] = dict(existing_manifest) if isinstance(existing_manifest, dict) else {}
+                declared_fields = dict(declared_manifest)
+                if merged:
+                    # The caller never supplies framework, so it keeps naming whoever built the
+                    # rest rather than relabelling someone else's manifest.
+                    declared_fields.pop("framework", None)
+                merged.update(declared_fields)
+                # The panel needs something to call the agent; the span name is what it is
+                # called everywhere else. A declared name has already won by this point.
+                if not merged.get("name"):
+                    merged["name"] = get_llmobs_span_name(span) or span.name
+                _annotate_llmobs_span_data(span, agent_manifest=merged)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
+        # Before the user processor and _normalize_llmobs_meta, either of which can strip values
+        # these tags read.
+        try:
+            set_gen_ai_apm_tags(span, llmobs_data, span_kind)
+        except Exception:
+            log.debug("Error setting gen_ai APM tags for span %s", span, exc_info=True)
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
         llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
 
@@ -823,7 +874,7 @@ class LLMObs(Service):
             if err_type:
                 tags["error_type"] = err_type
 
-        return sorted("{}:{}".format(k, v) for k, v in tags.items())
+        return sorted(f"{k}:{v}" for k, v in tags.items())
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
@@ -850,7 +901,9 @@ class LLMObs(Service):
         if self.enabled:
             # Rebind: the processor holds the pre-fork writer whose worker thread is dead
             # after fork(), so leaving it would silently buffer rescued events in the child.
-            self.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(self._llmobs_span_writer, self.tracer)
+            self.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+                self._llmobs_span_writer, self.tracer, sampling_resolver=self._sampling_resolver
+            )
             self._start_service()
 
     def _start_service(self) -> None:
@@ -1043,7 +1096,9 @@ class LLMObs(Service):
                 # Recreate the APM writer at v0.4; v0.5 strips meta_struct.
                 cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
             cls._instance.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
-                cls._instance._llmobs_span_writer, cls._instance.tracer
+                cls._instance._llmobs_span_writer,
+                cls._instance.tracer,
+                sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
 
@@ -1240,7 +1295,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         page_limit: int = 100,
         max_results: Optional[int] = None,
-    ) -> "list[ExperimentSummary]":
+    ) -> list[ExperimentSummary]:
         """List experiments, optionally filtered by name, metadata, or parent experiment.
 
         Each returned summary carries ``aggregate_data`` (average eval scores, error rates, token
@@ -1272,12 +1327,12 @@ class LLMObs(Service):
             # Listing without a project_id would silently widen the query to every project in the
             # org, which a CI/CD comparison would then read as the baseline. Fail instead.
             raise ValueError(
-                "Failed to resolve project {!r} for list_experiments()".format(project_name or cls._project_name)
+                f"Failed to resolve project {project_name or cls._project_name!r} for list_experiments()"
             ) from e
         project_id = project.get("_id")
         if not project_id:
             raise ValueError(
-                "Got no project ID for project {!r} in list_experiments()".format(project_name or cls._project_name)
+                f"Got no project ID for project {project_name or cls._project_name!r} in list_experiments()"
             )
         return cls._instance._dne_client.experiment_list(
             experiment_name=experiment_name,
@@ -1375,7 +1430,7 @@ class LLMObs(Service):
 
         records = []
         try:
-            with open(csv_path, mode="r") as csvfile:
+            with open(csv_path) as csvfile:
                 content = csvfile.readline().strip()
                 if not content:
                     raise ValueError("CSV file appears to be empty or header is missing.")
@@ -1931,10 +1986,12 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param name: set to override the span name for any spans annotated within the returned context.
-        :param agent: A dictionary declaring the versioned agent running in this context, of the form
-                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
-                      Set as an ``agent_version`` tag on agent spans created within the context;
-                      other span kinds are unaffected.
+        :param agent: A dictionary declaring the agent running in this context, accepting
+                      ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
+                      ``tools``; see ``ddtrace.llmobs.Agent``. ``version`` is set as an
+                      ``agent_version`` tag and the rest as the agent's manifest, on every agent
+                      span in the block. All keys are optional; unreportable values are dropped,
+                      not raised.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2128,33 +2185,30 @@ class LLMObs(Service):
     def create_prompt(
         cls,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         title: str = "",
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
-        Args:
-            prompt_id: Unique identifier for the prompt.
-            template: List of chat messages defining the prompt template.
-            title: Optional human-readable title.
-            description: Optional description of the prompt.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy the first version to.
-
-        Returns:
-            The created prompt.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request (bad template, missing fields).
-            PromptConflictError: A prompt with this prompt_id already exists.
-            PromptServerError: Server-side error.
+        :param prompt_id: Unique identifier for the prompt.
+        :param template: List of chat messages defining the prompt template.
+        :param title: Optional human-readable title.
+        :param description: Optional description of the prompt.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy the first version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request (bad template, missing fields).
+        :raises PromptConflictError: A prompt with this prompt_id already exists.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt(
@@ -2165,37 +2219,35 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod
     def create_prompt_version(
         cls,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
-        Args:
-            prompt_id: The prompt identifier.
-            template: List of chat messages defining the new version's template.
-            description: Optional description of this version.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy this version to.
-
-        Returns:
-            The created prompt version.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request.
-            PromptNotFoundError: Prompt does not exist.
-            PromptServerError: Server-side error.
+        :param prompt_id: The prompt identifier.
+        :param template: List of chat messages defining the new version's template.
+        :param description: Optional description of this version.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy this version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt version.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request.
+        :raises PromptNotFoundError: Prompt does not exist.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt_version(
@@ -2205,6 +2257,7 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod
@@ -2439,13 +2492,18 @@ class LLMObs(Service):
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
+            # _meta is trace-scoped, but the values stamped below describe this span, and the
+            # task/thread hooks activate this context long after storing it. Copy it with a
+            # private _meta so a later span's values, or a later clear, cannot reach queued work.
+            context = active.context.copy(active.trace_id, active.span_id)
+            context._meta = dict(context._meta)
             # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
-            context = active.context
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
-            sr = get_llmobs_sample_rate(active)
-            sd = get_llmobs_sampling_decision(active)
+            # About to hand this trace to another execution context, so the decision has to exist
+            # now. Resolving freezes it; if it was already resolved this just reads it back.
+            sr, sd = self._resolve_sampling(active)
             if sr is not None:
                 context._meta[PROPAGATED_SAMPLE_RATE] = sr
             if sd is not None:
@@ -2458,10 +2516,18 @@ class LLMObs(Service):
             return context
         return None
 
-    def _sample_span(self, span: Span) -> LLMObsSamplingDecision:
-        if self._sampler.sample(span):
-            return LLMObsSamplingDecision.SAMPLED
-        return LLMObsSamplingDecision.DROPPED
+    def _resolve_sampling(self, span: Span) -> tuple[Optional[str], Optional[str]]:
+        """Force this span's LLMObs trace to have a sampling decision, and return it.
+
+        Called from the points where the decision is about to leave the process, so that what goes
+        out is a real value rather than nothing. Idempotent: the first call freezes the answer.
+        """
+        sample_rate, sampling_decision = self._sampling_resolver.resolve(span)
+        if sampling_decision is None:
+            # No local root: the trace was continued from upstream, where the decision was frozen
+            # and inherited onto this span. Forward that.
+            return get_llmobs_sample_rate(span), get_llmobs_sampling_decision(span)
+        return sample_rate, sampling_decision
 
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
@@ -2480,6 +2546,7 @@ class LLMObs(Service):
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
                 sample_rate = get_llmobs_sample_rate(llmobs_parent)
                 sampling_decision = get_llmobs_sampling_decision(llmobs_parent)
+                sampling_state = llmobs_parent._get_ctx_item(LLMOBS_SAMPLING)
             else:
                 parent_ctx = llmobs_parent
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
@@ -2488,11 +2555,16 @@ class LLMObs(Service):
                 session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
+                # A Context carries strings, not objects, so the shared state cannot cross it --
+                # only the values above. They are current, not a floor: whoever built the Context
+                # resolved the decision first.
+                sampling_state = None
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
-            sample_rate = format_rate(self._sampler.sample_rate)
-            sampling_decision = self._sample_span(span)
+            # Attach the default sampling decision to each span. LLMObsProcessor overwrites it with a
+            # rule-aware decision once the tags are in.
+            sampling_state, sample_rate, sampling_decision = self._sampling_resolver.start_trace(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         # Fall back to the trace-level default session when the parent chain carries none (e.g. a
@@ -2556,6 +2628,8 @@ class LLMObs(Service):
                 else sampling_decision
             ),
         )
+        # Shared by reference across the trace; absent on spans whose decision came from upstream.
+        span._set_ctx_item(LLMOBS_SAMPLING, sampling_state)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
         if span._local_root.get_tag("llmobs_trace_id") is None:
@@ -2577,6 +2651,10 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+        try:
+            self._set_apm_shadow_tags(span, operation_kind, model_name, model_provider)
+        except Exception:
+            log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
 
         if not self.enabled:
             return span
@@ -2605,6 +2683,25 @@ class LLMObs(Service):
             agent_service,
         )
         return span
+
+    def _set_apm_shadow_tags(
+        self,
+        span: Span,
+        span_kind: str,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+    ) -> None:
+        """Set LLMObs shadow tags on the APM span of a manually instrumented span.
+
+        Runs whether or not LLMObs is enabled, so the enabled metric reports 0 for spans that have no
+        LLMObs data.
+        """
+        span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
+        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.enabled else 0)
+        if model_name and model_name != UNKNOWN_MODEL_NAME:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
+        if model_provider and model_provider != UNKNOWN_MODEL_PROVIDER:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
 
     @classmethod
     def llm(
@@ -2984,9 +3081,12 @@ class LLMObs(Service):
                                    and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
-        :param agent: A dictionary declaring the versioned agent this span represents, of the form
-                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent``
-                      class. Set as an ``agent_version`` tag, and only on agent spans.
+        :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
+                      ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
+                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag and
+                      the rest as the agent's manifest, on agent spans only. All keys are optional;
+                      unreportable values are dropped, not raised, and an unset value leaves what
+                      an earlier annotation declared in place.
         """
         error = None
         try:
@@ -3033,6 +3133,17 @@ class LLMObs(Service):
                 if agent_version:
                     # Stashed rather than tagged: the span kind is not resolved yet.
                     span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+                if isinstance(agent, dict):
+                    # Validated here, and unreportable or unset values dropped, so repeated
+                    # annotate() calls and nested annotation_context blocks shallow-update field by
+                    # field rather than overwrite. A version-only agent declares nothing.
+                    declared = build_manual_agent_manifest(agent)
+                    if declared:
+                        stashed = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+                        if not isinstance(stashed, dict):
+                            stashed = {}
+                            span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, stashed)
+                        stashed.update(declared)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
@@ -3451,10 +3562,10 @@ class LLMObs(Service):
         }
         for key, val in optional_filters:
             if val is not None:
-                base_params["filter[{}]".format(key)] = val
+                base_params[f"filter[{key}]"] = val
 
         for k, v in (tags or {}).items():
-            base_params["filter[tag][{}]".format(k)] = v
+            base_params[f"filter[tag][{k}]"] = v
 
         return cls._instance._api_client.get_spans(base_params)
 
@@ -3473,8 +3584,9 @@ class LLMObs(Service):
             # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
-            sample_rate = get_llmobs_sample_rate(active_span)
-            sampling_decision = get_llmobs_sampling_decision(active_span)
+            # The headers must carry a real sampling decision, so force one now and freeze it. Tags set on
+            # the root after this point can no longer change it.
+            sample_rate, sampling_decision = cls._instance._resolve_sampling(active_span)
         elif active_context is not None:
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))

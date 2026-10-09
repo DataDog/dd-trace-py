@@ -17,13 +17,13 @@ class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
     VENDOR = "postgres"
     SQL_DB = "postgres"
     SERVICE = "postgres"
-    ENGINE_ARGS = {"url": "postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s" % POSTGRES_CONFIG}
+    ENGINE_ARGS = {"url": "postgresql+psycopg2://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s" % POSTGRES_CONFIG}
 
     def setUp(self):
-        super(PostgresTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
-        super(PostgresTestCase, self).tearDown()
+        super().tearDown()
 
     def check_meta(self, span):
         # check database connection tags
@@ -43,7 +43,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
         span = traces[0][0]
         # span fields
         assert_is_measured(span)
-        self.assertEqual(span.name, "{}.query".format(self.VENDOR))
+        self.assertEqual(span.name, f"{self.VENDOR}.query")
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
@@ -68,4 +68,4 @@ class PostgresCreatorTestCase(PostgresTestCase):
     VENDOR = "postgres"
     SQL_DB = "postgres"
     SERVICE = "postgres"
-    ENGINE_ARGS = {"url": "postgresql://", "creator": lambda: psycopg2.connect(**POSTGRES_CONFIG)}
+    ENGINE_ARGS = {"url": "postgresql+psycopg2://", "creator": lambda: psycopg2.connect(**POSTGRES_CONFIG)}

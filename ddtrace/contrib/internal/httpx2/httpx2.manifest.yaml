@@ -1,0 +1,11 @@
+_v: 1
+name: httpx2
+display_name: httpx2
+description: Instruments synchronous and asynchronous outbound HTTP requests made with the httpx2 client library, including
+  trace-context propagation.
+packages:
+- name: httpx2
+category:
+- http.client
+systems: []
+creation_date: '2026-08-25'

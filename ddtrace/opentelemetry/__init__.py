@@ -26,6 +26,19 @@ or ``ddtrace-run``. Manual configuration is also supported through ``ddtrace.ope
 
 For supported configurations, see `OpenTelemetry Tracing Configuration <https://docs.datadoghq.com/tracing/trace_collection/library_config/>`_.
 
+Consistent sampling in mixed environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When W3C Trace Context propagation is enabled, ``dd-trace-py`` preserves OpenTelemetry's
+consistent probability sampling fields and emits them when Datadog makes a probability-based
+sampling decision. This allows downstream OpenTelemetry services to follow the same decision
+and derive the effective sampling probability for accurate count estimates.
+
+An inherited sampling decision remains authoritative. If an application or security product
+overrides the decision, or if the Datadog rate limiter drops the trace, ``dd-trace-py`` removes
+the probability threshold because the resulting decision no longer represents probability
+sampling. Inherited trace randomness is preserved across these overrides.
+
 Usage example::
 
     import os
@@ -40,6 +53,24 @@ Usage example::
     with tracer.start_as_current_span("operation") as span:
         span.set_attribute("key", "value")
         # Your code here
+
+OpenTelemetry HTTP semantics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Setting ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true`` makes HTTP spans follow the OpenTelemetry HTTP
+semantic conventions:
+
+- Request methods are normalized (for example, ``get`` becomes ``GET`` and unknown methods become
+  ``_OTHER``), and the original value is kept in ``http.request.method_original``.
+- Client and server spans record URL, address, port, and status attributes. URL credentials are
+  redacted, captured query values are obfuscated, and ports and status codes stay numeric.
+- Client spans treat status codes of 400 and above as errors; server spans treat 500 and above as
+  errors unless ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` is set.
+- Resource names are built from the method and route template, and a resource set by application
+  code is never overwritten.
+- Traces are exported over OTLP with native span events, span attribute schema ``v0`` is used, and
+  automatic peer-service names are disabled. Conflicting schema and peer-service settings are
+  overridden and reported through logs and telemetry.
 
 
 Metrics

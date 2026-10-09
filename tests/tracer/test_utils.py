@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 from functools import partial
 import sys
 from time import sleep
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.utils import ArgumentError
@@ -156,7 +155,7 @@ def test_context_manager():
     assert watch.elapsed() > 0
 
 
-class SomethingCallable(object):
+class SomethingCallable:
     """
     A dummy class that implements __call__().
     """
@@ -195,7 +194,7 @@ minus_two = partial(minus, b=2)  # partial funcs need special handling (no modul
 plus_three = lambda x: x + 3  # noqa: E731
 
 
-class TestContrib(object):
+class TestContrib:
     """
     Ensure that contrib utility functions handles corner cases
     """
@@ -325,7 +324,7 @@ def test_cachedmethod():
     def expensive(key):
         return key[::-1].lower()
 
-    class Foo(object):
+    class Foo:
         @cachedmethod(cache_size)
         def cheap(self, key):
             witness(key)

@@ -1,8 +1,9 @@
+from collections.abc import Mapping
 import re
 from typing import Any
-from typing import Mapping
 from typing import Optional
 
+from ddtrace._trace.otel.http.tags import _sanitized_url
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -10,13 +11,10 @@ from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
-from ddtrace.internal.utils.http import redact_url
-from ddtrace.internal.utils.http import strip_query_string
 
 
 log = get_logger(__name__)
@@ -50,7 +48,7 @@ def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
     #   - any digit is left unchanged
     #   - any block of any length of different ASCII chars is converted to a single underscore '_'
     normalized_name = _normalized_header_name(header_name)
-    return "http.{}.headers.{}".format(request_or_response, normalized_name)
+    return f"http.{request_or_response}.headers.{normalized_name}"
 
 
 def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:
@@ -119,8 +117,7 @@ def set_user(
     span: Optional[SpanData] = None,
     may_block: bool = True,
     mode: str = "sdk",
-):
-    # type: (...) -> None
+) -> None:
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
@@ -162,18 +159,4 @@ def set_user(
 
 
 def _set_url_tag(integration_config: IntegrationConfig, span: SpanData, url: str, query: str) -> None:
-    if not integration_config.http_tag_query_string:
-        span._set_attribute(http.URL, strip_query_string(url))
-    elif config._global_query_string_obfuscation_disabled:
-        # TODO(munir): This case exists for backwards compatibility. To remove query strings from URLs,
-        # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
-        # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
-        span._set_attribute(http.URL, url)
-    elif (
-        config._obfuscation_query_string_pattern is None
-        or getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
-    ):
-        # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
-        span._set_attribute(http.URL, strip_query_string(url))
-    else:
-        span._set_attribute(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+    span._set_attribute(http.URL, _sanitized_url(url, query, integration_config.http_tag_query_string))

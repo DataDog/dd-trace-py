@@ -1,11 +1,12 @@
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 
 
-class PeerServiceConfig(object):
+class PeerServiceConfig:
     # TODO: Migrate PeerServiceConfig to envier
     remap_tag_name = "_dd.peer.service.remapped_from"
     source_tag_name = "_dd.peer.service.source"
@@ -20,6 +21,9 @@ class PeerServiceConfig(object):
 
     @property
     def set_defaults_enabled(self):
+        if config._otel_trace_semantics_enabled:
+            return False
+
         if self._set_defaults_enabled is None:
             env_enabled = _get_config("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, asbool)
             self._set_defaults_enabled = SCHEMA_VERSION == "v1" or (SCHEMA_VERSION == "v0" and env_enabled)

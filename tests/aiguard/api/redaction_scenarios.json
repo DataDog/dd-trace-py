@@ -2,7 +2,8 @@
   "comment": [
     "Cross-tracer corpus for AI Guard sensitive data redaction, kept language-neutral on purpose.",
     "Fields: redaction_replacements null means the service omitted the field; expected_messages 'SAME'",
-    "means the identical list object must come back"
+    "means the identical list object must come back; expected_errors is how many replacements could",
+    "not be applied, each reported as one ai_guard.error with type:redaction_error"
   ],
   "cases": [
     {
@@ -13,7 +14,8 @@
         {"role": "user", "content": "My SSN is 123-45-6789"}
       ],
       "redaction_replacements": null,
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 0
     },
     {
       "id": "noop/replacements-empty",
@@ -22,7 +24,8 @@
         {"role": "user", "content": "My SSN is 123-45-6789"}
       ],
       "redaction_replacements": [],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 0
     },
     {
       "id": "noop/all-entries-invalid",
@@ -34,7 +37,8 @@
         {"path": "messages[0].content"},
         {"replacement": "orphan"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 2
     },
 
     {
@@ -50,7 +54,8 @@
       "expected_messages": [
         {"role": "system", "content": "You are a helpful assistant. Contact <REDACTED>"},
         {"role": "user", "content": "hello"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/content/user-message",
@@ -65,7 +70,8 @@
       "expected_messages": [
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "My SSN is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/content/middle-message",
@@ -82,7 +88,8 @@
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "My email is <REDACTED>"},
         {"role": "assistant", "content": "Noted."}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/content/assistant-response",
@@ -97,7 +104,8 @@
       "expected_messages": [
         {"role": "user", "content": "what is my account number?"},
         {"role": "assistant", "content": "Your account is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/content/tool-result",
@@ -118,7 +126,8 @@
           {"id": "call_1", "function": {"name": "lookup", "arguments": "{\"who\":\"me\"}"}}
         ]},
         {"role": "tool", "tool_call_id": "call_1", "content": "Account <REDACTED>, balance 42"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/content/last-message",
@@ -137,7 +146,8 @@
         {"role": "user", "content": "hi"},
         {"role": "assistant", "content": "hello"},
         {"role": "user", "content": "my passport is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
 
     {
@@ -151,7 +161,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "card <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/placeholder/category-specific",
@@ -164,7 +175,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "SSN <US_SSN> email <EMAIL_ADDRESS>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/placeholder/stars",
@@ -177,7 +189,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "my pin is ****"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/placeholder/empty-string-removes-everything",
@@ -190,7 +203,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": ""}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/no-placeholder/value-dropped-inline",
@@ -203,7 +217,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "My SSN is  thanks"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/no-placeholder/partial-hash",
@@ -216,7 +231,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "card ************1111"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/no-placeholder/full-hash",
@@ -229,7 +245,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "My SSN is 5e884898da280471"}
-      ]
+      ],
+      "expected_errors": 0
     },
 
     {
@@ -243,7 +260,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "ssn <A-VERY-LONG-REDACTION-PLACEHOLDER>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/shape/shorter-replacement",
@@ -256,7 +274,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "x"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/shape/identical-replacement",
@@ -269,7 +288,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "nothing sensitive here"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/shape/astral-plane",
@@ -282,7 +302,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "🙂 ssn <REDACTED> 𝔘 ok"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/shape/replacement-looks-like-a-path",
@@ -295,7 +316,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "messages[0].content[1].text"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/shape/multiline",
@@ -308,7 +330,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "line1\nssn <REDACTED>\n\"quoted\""}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/path/leading-zero-index",
@@ -323,7 +346,8 @@
       "expected_messages": [
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "My SSN is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
 
     {
@@ -343,7 +367,8 @@
           {"type": "input_text", "text": "here is my card <REDACTED>"},
           {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/content-part/text-after-image",
@@ -362,7 +387,8 @@
           {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}},
           {"type": "input_text", "text": "my email is <REDACTED>"}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/content-part/both-text-parts",
@@ -382,7 +408,8 @@
           {"type": "input_text", "text": "ssn <REDACTED>"},
           {"type": "input_text", "text": "email <REDACTED>"}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
 
     {
@@ -402,7 +429,8 @@
         {"role": "assistant", "tool_calls": [
           {"id": "call_1", "function": {"name": "send_email", "arguments": "{\"to\":\"john@acme.io\",\"ssn\":\"<REDACTED>\"}"}}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/tool-calls/arguments-second-call",
@@ -421,7 +449,8 @@
           {"id": "call_1", "function": {"name": "noop", "arguments": "{}"}},
           {"id": "call_2", "function": {"name": "lookup", "arguments": "{\"account\":\"<REDACTED>\"}"}}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/tool-calls/both-calls",
@@ -441,7 +470,8 @@
           {"id": "call_1", "function": {"name": "send_email", "arguments": "{\"to\":\"<REDACTED>\"}"}},
           {"id": "call_2", "function": {"name": "lookup", "arguments": "{\"account\":\"<REDACTED>\"}"}}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/tool-calls/nested-json-arguments",
@@ -458,7 +488,8 @@
         {"role": "assistant", "tool_calls": [
           {"id": "call_1", "function": {"name": "pay", "arguments": "{\"user\":{\"iban\":\"<REDACTED>\"},\"amount\":10}"}}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/tool-calls/emptied-arguments",
@@ -475,7 +506,8 @@
         {"role": "assistant", "tool_calls": [
           {"id": "call_1", "function": {"name": "pay", "arguments": "{}"}}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
 
     {
@@ -492,7 +524,8 @@
       "expected_messages": [
         {"role": "system", "content": "escalate to <REDACTED>"},
         {"role": "user", "content": "My SSN is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/multi/all-three-target-kinds",
@@ -519,7 +552,8 @@
           {"id": "call_1", "function": {"name": "pay", "arguments": "{\"iban\":\"<REDACTED>\"}"}}
         ]},
         {"role": "tool", "tool_call_id": "call_1", "content": "paid from <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/multi/several-spans-one-string",
@@ -532,7 +566,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "SSN <REDACTED> email <REDACTED> card <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/multi/duplicate-identical-entries",
@@ -546,7 +581,8 @@
       ],
       "expected_messages": [
         {"role": "user", "content": "My SSN is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
 
     {
@@ -567,7 +603,8 @@
         {"role": "user", "content": "My SSN is <REDACTED>"},
         {"role": "assistant", "content": "Your SSN is <REDACTED>."},
         {"role": "user", "content": "my email is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/conversation/every-role",
@@ -586,7 +623,8 @@
         {"role": "system", "content": "You are the support bot for account <REDACTED>."},
         {"role": "user", "content": "My SSN is <REDACTED>"},
         {"role": "assistant", "content": "I sent the details to <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/conversation/history-only",
@@ -605,7 +643,8 @@
         {"role": "user", "content": "What is on file for me?"},
         {"role": "assistant", "content": "Your card is <REDACTED>"},
         {"role": "user", "content": "Thanks, what are your opening hours?"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/conversation/several-turns",
@@ -632,7 +671,8 @@
         {"role": "user", "content": "Also my card <REDACTED>"},
         {"role": "assistant", "content": "I filed it under <REDACTED>"},
         {"role": "user", "content": "My phone is <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/conversation/tool-turn-in-history",
@@ -659,7 +699,8 @@
         ]},
         {"role": "tool", "tool_call_id": "call_1", "content": "paid from <REDACTED>"},
         {"role": "user", "content": "Send the receipt to <REDACTED>"}
-      ]
+      ],
+      "expected_errors": 0
     },
     {
       "id": "apply/conversation/content-parts-across-turns",
@@ -689,7 +730,8 @@
         {"role": "user", "content": [
           {"type": "input_text", "text": "and my SSN is <REDACTED>"}
         ]}
-      ]
+      ],
+      "expected_errors": 0
     },
 
     {
@@ -701,7 +743,8 @@
       "redaction_replacements": [
         {"path": "messages[99].content", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/unknown-field",
@@ -712,7 +755,8 @@
       "redaction_replacements": [
         {"path": "messages[0].foo", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/content-is-a-list",
@@ -725,7 +769,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/index-into-a-string",
@@ -736,7 +781,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content[0]", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/content-part-out-of-range",
@@ -749,7 +795,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content[9].text", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/tool-call-out-of-range",
@@ -762,7 +809,8 @@
       "redaction_replacements": [
         {"path": "messages[0].tool_calls[9].function.arguments", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/target-is-a-message",
@@ -773,7 +821,8 @@
       "redaction_replacements": [
         {"path": "messages[0]", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/target-is-the-array",
@@ -784,7 +833,8 @@
       "redaction_replacements": [
         {"path": "messages", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/image-locator",
@@ -798,7 +848,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content[1].image_url.url", "replacement": "https://example.com/<REDACTED>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/role",
@@ -809,7 +860,8 @@
       "redaction_replacements": [
         {"path": "messages[0].role", "replacement": "system"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/tool-function-name",
@@ -822,7 +874,8 @@
       "redaction_replacements": [
         {"path": "messages[0].tool_calls[0].function.name", "replacement": "<REDACTED>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/tool-call-id",
@@ -833,7 +886,8 @@
       "redaction_replacements": [
         {"path": "messages[0].tool_call_id", "replacement": "<REDACTED>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/malformed-segment-hyphen",
@@ -844,7 +898,8 @@
       "redaction_replacements": [
         {"path": "messages[0].con-tent", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/negative-index",
@@ -856,7 +911,8 @@
       "redaction_replacements": [
         {"path": "messages[-1].content", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/trailing-space",
@@ -867,7 +923,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content ", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/trailing-dot",
@@ -878,7 +935,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content.", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/not-rooted-at-messages",
@@ -889,7 +947,8 @@
       "redaction_replacements": [
         {"path": "foo[0].content", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/bare-terminal",
@@ -900,7 +959,8 @@
       "redaction_replacements": [
         {"path": "content", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/path/missing-message-index",
@@ -911,7 +971,8 @@
       "redaction_replacements": [
         {"path": "messages.content", "replacement": "X"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
 
     {
@@ -923,7 +984,8 @@
       "redaction_replacements": [
         {"replacement": "My SSN is <REDACTED>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/null-path",
@@ -934,7 +996,8 @@
       "redaction_replacements": [
         {"path": null, "replacement": "My SSN is <REDACTED>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/empty-path",
@@ -945,7 +1008,8 @@
       "redaction_replacements": [
         {"path": "", "replacement": "My SSN is <REDACTED>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/path-not-a-string",
@@ -956,7 +1020,8 @@
       "redaction_replacements": [
         {"path": 0, "replacement": "My SSN is <REDACTED>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/no-replacement",
@@ -967,7 +1032,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/null-replacement",
@@ -978,7 +1044,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content", "replacement": null}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/replacement-not-a-string",
@@ -989,7 +1056,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content", "replacement": 42}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/replacement-is-an-object",
@@ -1000,7 +1068,8 @@
       "redaction_replacements": [
         {"path": "messages[0].content", "replacement": {"value": "X"}}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/entry-is-a-string",
@@ -1009,7 +1078,8 @@
         {"role": "user", "content": "My SSN is 123-45-6789"}
       ],
       "redaction_replacements": ["messages[0].content"],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/entry/entry-is-null",
@@ -1018,7 +1088,8 @@
         {"role": "user", "content": "My SSN is 123-45-6789"}
       ],
       "redaction_replacements": [null],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
 
     {
@@ -1028,7 +1099,8 @@
         {"role": "user", "content": "My SSN is 123-45-6789"}
       ],
       "redaction_replacements": {"path": "messages[0].content", "replacement": "X"},
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/payload/is-a-string",
@@ -1037,7 +1109,8 @@
         {"role": "user", "content": "My SSN is 123-45-6789"}
       ],
       "redaction_replacements": "messages[0].content",
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/payload/is-a-number",
@@ -1046,7 +1119,28 @@
         {"role": "user", "content": "My SSN is 123-45-6789"}
       ],
       "redaction_replacements": 42,
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
+    },
+    {
+      "id": "skip/payload/is-an-empty-object",
+      "description": "Empty but still the wrong type: unlike an empty array, that is a malformed payload.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": {},
+      "expected_messages": "SAME",
+      "expected_errors": 1
+    },
+    {
+      "id": "skip/payload/is-false",
+      "description": "A falsy payload is still a payload: being present and not an array is the error.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": false,
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
 
     {
@@ -1059,7 +1153,8 @@
         {"path": "messages[0].content", "replacement": "My SSN is <A>"},
         {"path": "messages[0].content", "replacement": "My SSN is <B>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
     {
       "id": "skip/conflict/sticky",
@@ -1072,7 +1167,8 @@
         {"path": "messages[0].content", "replacement": "My SSN is <B>"},
         {"path": "messages[0].content", "replacement": "My SSN is <A>"}
       ],
-      "expected_messages": "SAME"
+      "expected_messages": "SAME",
+      "expected_errors": 1
     },
 
     {
@@ -1089,7 +1185,8 @@
       "expected_messages": [
         {"role": "system", "content": "escalate to <REDACTED>"},
         {"role": "user", "content": "My SSN is 123-45-6789"}
-      ]
+      ],
+      "expected_errors": 1
     },
     {
       "id": "mixed/applied-and-conflict",
@@ -1106,7 +1203,8 @@
       "expected_messages": [
         {"role": "system", "content": "escalate to <REDACTED>"},
         {"role": "user", "content": "My SSN is 123-45-6789"}
-      ]
+      ],
+      "expected_errors": 1
     },
     {
       "id": "mixed/applied-and-missing-replacement",
@@ -1122,7 +1220,8 @@
       "expected_messages": [
         {"role": "user", "content": "My SSN is <REDACTED>"},
         {"role": "assistant", "content": "noted"}
-      ]
+      ],
+      "expected_errors": 1
     },
     {
       "id": "mixed/every-outcome-at-once",
@@ -1152,7 +1251,8 @@
         {"role": "assistant", "tool_calls": [
           {"id": "call_1", "function": {"name": "pay", "arguments": "{\"ssn\":\"<REDACTED>\"}"}}
         ]}
-      ]
+      ],
+      "expected_errors": 3
     },
     {
       "id": "mixed/conversation/history-applied-latest-skipped",
@@ -1173,7 +1273,8 @@
         {"role": "user", "content": "My SSN is <REDACTED>"},
         {"role": "assistant", "content": "Noted."},
         {"role": "user", "content": "My phone is 415-555-0132"}
-      ]
+      ],
+      "expected_errors": 1
     }
   ]
 }

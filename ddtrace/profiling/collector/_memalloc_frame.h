@@ -32,7 +32,7 @@
 #error "_memalloc frame walking relies on the GIL-held allocator hook and is not yet supported on free-threaded CPython"
 #endif // Py_GIL_DISABLED
 
-// AIDEV-TODO: Revisit direct frame walking and heap-tracker synchronization if memalloc adds Py_GIL_DISABLED support.
+// TODO: Revisit direct frame walking and heap-tracker synchronization if memalloc adds Py_GIL_DISABLED support.
 
 /* Frame access helpers and line table parsing. */
 #include "profiling_helpers/frame_accessors.h"

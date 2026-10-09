@@ -47,6 +47,7 @@ def retry(
             # Last chance to succeed
             try:
                 result = f(*args, **kwargs)
+                exception = None
             except Exception as e:
                 exception = e
                 result = e
@@ -64,9 +65,14 @@ def retry(
     return retry_decorator
 
 
-def fibonacci_backoff_with_jitter(attempts, initial_wait=1.0, until=lambda result: result is None):
-    # type: (int, float, t.Callable[[t.Any], bool]) -> t.Callable
+def fibonacci_backoff_with_jitter(
+    attempts: int,
+    initial_wait: float = 1.0,
+    until: t.Callable[[t.Any], bool] = lambda result: result is None,
+    sleep_func: t.Optional[t.Callable[[float], t.Any]] = None,
+) -> t.Callable:
     return retry(
         after=[random.uniform(0, initial_wait * (1.618**i)) for i in range(attempts - 1)],  # nosec
         until=until,
+        sleep_func=sleep_func,
     )

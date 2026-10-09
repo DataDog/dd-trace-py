@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from flask import Flask
 
 from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
@@ -19,7 +18,7 @@ class FlaskCacheTest(TracerTestCase):
     TEST_MEMCACHED_PORT = MEMCACHED_CONFIG["port"]
 
     def setUp(self):
-        super(FlaskCacheTest, self).setUp()
+        super().setUp()
 
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
@@ -305,7 +304,7 @@ class FlaskCacheTest(TracerTestCase):
         app = Flask(__name__)
         config = {
             "CACHE_TYPE": "memcached",
-            "CACHE_MEMCACHED_SERVERS": ["127.0.0.1:{}".format(self.TEST_MEMCACHED_PORT)],
+            "CACHE_MEMCACHED_SERVERS": [f"127.0.0.1:{self.TEST_MEMCACHED_PORT}"],
         }
         cache = Cache(app, config=config)
         # test tags and attributes
@@ -322,7 +321,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
     TEST_MEMCACHED_PORT = MEMCACHED_CONFIG["port"]
 
     def setUp(self):
-        super(TestFlaskCacheSchematization, self).setUp()
+        super().setUp()
 
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache()
@@ -340,7 +339,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+            assert span.service == "mysvc", f"Expected service name to be 'mysvc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_service_v0(self):
@@ -353,7 +352,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+            assert span.service == "mysvc", f"Expected service name to be 'mysvc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_service_v1(self):
@@ -369,7 +368,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         assert os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA") == "v1"
 
         for span in spans:
-            assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+            assert span.service == "mysvc", f"Expected service name to be 'mysvc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematization_undefined_service_default(self):
@@ -382,9 +381,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            assert span.service == "flask-cache", "Expected service name to be 'flask-cache' but was '{}'".format(
-                span.service
-            )
+            assert span.service == "flask-cache", f"Expected service name to be 'flask-cache' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_undefined_service_v0(self):
@@ -397,9 +394,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            assert span.service == "flask-cache", "Expected service name to be 'flask-cache' but was '{}'".format(
-                span.service
-            )
+            assert span.service == "flask-cache", f"Expected service name to be 'flask-cache' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_undefined_service_v1(self):
@@ -413,7 +408,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
 
         for span in spans:
             assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
-                "Expected service name to be 'internal.schema.DEFAULT_SEVICE_NAME' but was '{}'".format(span.service)
+                f"Expected service name to be 'internal.schema.DEFAULT_SEVICE_NAME' but was '{span.service}'"
             )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -427,8 +422,8 @@ class TestFlaskCacheSchematization(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            assert span.name == "flask_cache.cmd", "Expected span name to be 'flask_cache.command' but was '{}'".format(
-                span.name
+            assert span.name == "flask_cache.cmd", (
+                f"Expected span name to be 'flask_cache.command' but was '{span.name}'"
             )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -443,5 +438,5 @@ class TestFlaskCacheSchematization(TracerTestCase):
 
         for span in spans:
             assert span.name == "flask_cache.command", (
-                "Expected span name to be 'flask_cache.command' but was '{}'".format(span.name)
+                f"Expected span name to be 'flask_cache.command' but was '{span.name}'"
             )

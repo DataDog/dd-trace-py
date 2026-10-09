@@ -4,5 +4,6 @@
 
 #pragma once
 
-// Maximum number of frames to unwind
-inline unsigned int max_frames = 2048;
+// Internal safety ceiling for stack unwinding and task-aware stitching,
+// separate from the configured per-sample frame limit.
+inline constexpr unsigned int MAX_STACK_UNWIND_SAFETY_LIMIT = 2048;

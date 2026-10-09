@@ -1,6 +1,7 @@
 #include "ddup_interface.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
+#include "uploader_builder.hpp"
 
 #include <array>
 #include <atomic>
@@ -49,14 +50,14 @@ configure(const char* service,
           const char* profiler_version,
           int max_nframes)
 {
-    ddup_config_service(service);
-    ddup_config_env(env);
-    ddup_config_version(version);
-    ddup_config_url(url);
-    ddup_config_runtime(runtime);
-    ddup_config_runtime_version(runtime_version);
-    ddup_config_profiler_version(profiler_version);
-    ddup_config_max_nframes(max_nframes);
+    Datadog::UploaderBuilder::set_service(service);
+    Datadog::UploaderBuilder::set_env(env);
+    Datadog::UploaderBuilder::set_version(version);
+    Datadog::UploaderBuilder::set_url(url);
+    Datadog::UploaderBuilder::set_runtime(runtime);
+    Datadog::UploaderBuilder::set_runtime_version(runtime_version);
+    Datadog::UploaderBuilder::set_profiler_version(profiler_version);
+    Datadog::SampleManager::set_max_nframes(max_nframes);
     ddup_start();
 }
 

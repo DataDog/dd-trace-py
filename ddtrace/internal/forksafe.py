@@ -11,6 +11,7 @@ import weakref
 import wrapt
 
 from ddtrace.internal import _unpatched
+from ddtrace.internal.native.exceptions import is_panic_exception
 
 
 log = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ _forked = False
 # many generations of forks have occurred since the original process.
 _fork_generation = 0
 
-# AIDEV-NOTE: Process managers such as Celery can close inherited file descriptors after
+# Process managers such as Celery can close inherited file descriptors after
 # Python's after-in-child callbacks return. Native workers must not be rebuilt while this
 # flag is set because their newly opened descriptors would be swept up by that later cleanup.
 _in_child_hook = False
@@ -78,6 +79,12 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
             hook()
         except Exception:
             # Mimic the behaviour of Python's fork hooks.
+            log.exception("Exception ignored in forksafe hook %r", hook)
+        except BaseException as e:
+            # A native hook can raise pyo3_runtime.PanicException. We handle it
+            # to allow other hooks to continue in this expected case.
+            if not is_panic_exception(e):
+                raise
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
@@ -172,7 +179,7 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         self,
         wrapped_class: type[_T],
     ) -> None:
-        super(ResetObject, self).__init__(wrapped_class())
+        super().__init__(wrapped_class())
         self._self_wrapped_class = wrapped_class
         _resetable_objects.add(self)
 
@@ -209,6 +216,10 @@ register(_reset_objects)
 
 def Lock() -> _unpatched.threading_Lock:
     return ResetObject(_unpatched.threading_Lock)
+
+
+def RLock() -> _unpatched.threading_RLock:
+    return ResetObject(_unpatched.threading_RLock)
 
 
 def Event() -> _unpatched.threading_Event:

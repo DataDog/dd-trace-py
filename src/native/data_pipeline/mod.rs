@@ -1,7 +1,7 @@
 use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::trace_exporter::{
-    agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
-    TraceExporterInputFormat, TraceExporterOutputFormat,
+    agent_response::AgentResponse, stats::CardinalityLimitConfig, TelemetryConfig, TraceExporter,
+    TraceExporterBuilder, TraceExporterInputFormat, TraceExporterOutputFormat,
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
@@ -72,6 +72,13 @@ impl TraceExporterBuilderPy {
         git_commit_sha: &'_ str,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_git_commit_sha(git_commit_sha);
+        Ok(slf.into())
+    }
+
+    /// Set the runtime id reported by the exporter. libdatadog generates a fresh UUID when it is
+    /// left unset.
+    fn set_runtime_id(mut slf: PyRefMut<'_, Self>, runtime_id: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_runtime_id(runtime_id);
         Ok(slf.into())
     }
 
@@ -168,6 +175,25 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_stats_cardinality_limit(
+        mut slf: PyRefMut<'_, Self>,
+        whole_key_limit: usize,
+        resource_limit: usize,
+        http_endpoint_limit: usize,
+        peer_tags_limit: usize,
+        additional_tags_limit: usize,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?
+            .set_stats_cardinality_limit(CardinalityLimitConfig {
+                whole_key_limit,
+                resource_limit,
+                http_endpoint_limit,
+                peer_tags_limit,
+                additional_tags_limit,
+            });
+        Ok(slf.into())
+    }
+
     fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_client_side_stats_obfuscation();
         Ok(slf.into())
@@ -259,6 +285,14 @@ impl TraceExporterBuilderPy {
 
     fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
+        Ok(slf.into())
+    }
+
+    fn set_restart_after_fork(
+        mut slf: PyRefMut<'_, Self>,
+        restart_after_fork: bool,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_restart_after_fork(restart_after_fork);
         Ok(slf.into())
     }
 

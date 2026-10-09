@@ -9,7 +9,7 @@ from tests.utils import TracerTestCase
 
 class DDFlaskTestClient(FlaskClient):
     def __init__(self, *args, **kwargs):
-        super(DDFlaskTestClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def open(self, *args, **kwargs):
         # From pep-333: If an iterable returned by the application has a close() method,
@@ -17,7 +17,7 @@ class DDFlaskTestClient(FlaskClient):
         # FlaskClient does not align with this specification so we must do this manually.
         # Closing the application iterable will finish the flask.request and flask.response
         # spans.
-        res = super(DDFlaskTestClient, self).open(*args, **kwargs)
+        res = super().open(*args, **kwargs)
         res.make_sequence()
         if hasattr(res, "close"):
             # Note - werkzeug>=2.0 (used in flask>=2.0) calls response.close() for non streamed responses:
@@ -28,7 +28,7 @@ class DDFlaskTestClient(FlaskClient):
 
 class BaseFlaskTestCase(TracerTestCase):
     def setUp(self):
-        super(BaseFlaskTestCase, self).setUp()
+        super().setUp()
 
         patch()
 
@@ -37,26 +37,26 @@ class BaseFlaskTestCase(TracerTestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
-        super(BaseFlaskTestCase, self).tearDown()
+        super().tearDown()
         # Unpatch Flask
         unpatch()
 
     def assert_is_wrapped(self, obj):
-        self.assertTrue(is_wrapted(obj), "{} is not wrapped".format(obj))
+        self.assertTrue(is_wrapted(obj), f"{obj} is not wrapped")
 
     def assert_is_not_wrapped(self, obj):
-        self.assertFalse(is_wrapted(obj), "{} is wrapped".format(obj))
+        self.assertFalse(is_wrapted(obj), f"{obj} is wrapped")
 
     def find_span_by_name(self, spans, name, required=True):
         """Helper to find the first span with a given name from a list"""
         span = next((s for s in spans if s.name == name), None)
         if required:
-            self.assertIsNotNone(span, "could not find span with name {}".format(name))
+            self.assertIsNotNone(span, f"could not find span with name {name}")
         return span
 
     def find_span_parent(self, spans, span, required=True):
         """Helper to search for a span's parent in a given list of spans"""
         parent = next((s for s in spans if s.span_id == span.parent_id), None)
         if required:
-            self.assertIsNotNone(parent, "could not find parent span {}".format(span))
+            self.assertIsNotNone(parent, f"could not find parent span {span}")
         return parent

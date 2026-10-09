@@ -225,9 +225,11 @@ impl TelemetryWorkerPy {
             });
         }
 
-        // AIDEV-NOTE: Keep this worker alive across native libc forks. The SharedRuntime's
-        // pthread_atfork child handler marks the runtime for restart; the first Python-facing
-        // telemetry operation rebuilds the runtime and resets this worker. Deferring the restart
+        // Keep this worker alive across native libc forks. The SharedRuntime's pthread_atfork
+        // child handler marks the runtime for restart; native-only forks still restart the worker
+        // with the runtime. Python-managed forks abandon the inherited runtime instead of calling
+        // after_fork_child(), so this flag is not consulted there. The first Python-facing
+        // telemetry operation lazily restarts the runtime and resets workers; deferring the restart
         // avoids starting Tokio threads in transient fork+exec children.
         let (handle, worker) = builder.build_worker::<NativeCapabilities>(None);
         let worker_handle = shared_runtime
@@ -249,8 +251,17 @@ impl TelemetryWorkerPy {
             .map_err(|e| PyValueError::new_err(format!("failed to start telemetry worker: {e}")))
     }
 
-    /// Flush + optionally emit app-closing (in origin process), then tear the worker down.
+    /// Flush + tear the worker down, emitting app-closing (in origin process).
+    ///
+    /// WARNING: `send_app_closing` is currently ineffective and ignored: since the
+    /// migration to libdatadog's telemetry worker, teardown always drains the worker
+    /// and emits app-closing in the origin process. If stopping without an
+    /// app-closing event is needed again, the behavior must be fixed in libdatadog
+    /// (TODO).
     fn stop(&self, py: Python<'_>, send_app_closing: bool) -> PyResult<()> {
+        // Currently a no-op (see doc comment above); kept for API compatibility.
+        let _ = send_app_closing;
+
         self.ensure_runtime_after_fork()?;
         // Take the registration handle; if already stopped, nothing to do.
         let worker_handle = self
@@ -259,12 +270,6 @@ impl TelemetryWorkerPy {
             .unwrap_or_else(|e| e.into_inner())
             .take();
 
-        if send_app_closing {
-            // Flush the app-closing batch first (clears data.started).
-            let _ = self.handle.send_stop();
-        } else {
-            let _ = self.flush(py);
-        }
         if let Some(wh) = worker_handle {
             // Release the GIL while the async teardown runs on the shared
             // runtime. `wh.stop()` pauses the worker then shuts it down.

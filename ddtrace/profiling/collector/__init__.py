@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import typing
 
 from ddtrace.internal import service

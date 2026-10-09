@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
@@ -417,9 +418,7 @@ def test_sampling_rule_init_via_env():
     ],
 )
 def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
-        rule, span, span_expected_to_match_rule
-    )
+    assert rule.matches(span) is span_expected_to_match_rule, f"{rule} -> {span} -> {span_expected_to_match_rule}"
 
 
 @pytest.mark.parametrize(
@@ -436,9 +435,7 @@ def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
     ],
 )
 def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
-        rule, span, span_expected_to_match_rule
-    )
+    assert rule.matches(span) is span_expected_to_match_rule, f"{rule} -> {span} -> {span_expected_to_match_rule}"
 
 
 @pytest.mark.parametrize(
@@ -500,9 +497,7 @@ def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
     ],
 )
 def test_sampling_rule_matches(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
-        rule, span, span_expected_to_match_rule
-    )
+    assert rule.matches(span) is span_expected_to_match_rule, f"{rule} -> {span} -> {span_expected_to_match_rule}"
 
 
 @pytest.mark.subprocess(
@@ -667,7 +662,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, tracer, test_spans):
         limit=None,
         rule=None,
         sampling_priority=AUTO_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.DEFAULT),
+        trace_tag=f"-{SamplingMechanism.DEFAULT}",
     )
 
     mock_sample.return_value = False
@@ -680,8 +675,31 @@ def test_datadog_sampler_sample_no_rules(mock_sample, tracer, test_spans):
         limit=None,
         rule=None,
         sampling_priority=AUTO_REJECT,
-        trace_tag="-{}".format(SamplingMechanism.DEFAULT),
+        trace_tag=f"-{SamplingMechanism.DEFAULT}",
     )
+
+
+@pytest.mark.parametrize(
+    "agent_rates, expected_rate",
+    [
+        ({"service:,env:": 0.25}, 0.25),
+        ({"service:,env:": 0.25, "service:test,env:": 0.75}, 0.75),
+    ],
+)
+def test_datadog_sampler_agent_rate_for_unmatched_rule(agent_rates, expected_rate):
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, service="other")])
+    sampler.update_rate_by_service_sample_rates(agent_rates)
+    span = Span("span", service="test")
+
+    with mock.patch("ddtrace._trace.sampler.RateSampler.sample", return_value=True):
+        assert sampler.sample(span) is True
+
+    assert_sampling_decision_tags(
+        span,
+        agent=expected_rate,
+        trace_tag=f"-{SamplingMechanism.AGENT_RATE_BY_SERVICE}",
+    )
+    assert span.context.sampling_priority == AUTO_KEEP
 
 
 class MatchSample(SamplingRule):
@@ -837,14 +855,14 @@ def test_datadog_sampler_tracer_child(tracer, test_spans):
         rule=1.0,
         limit=None,
         sampling_priority=USER_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+        trace_tag=f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
     )
     assert_sampling_decision_tags(
         spans[1],
         agent=None,
         rule=None,
         limit=None,
-        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+        trace_tag=f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
     )
 
 
@@ -860,7 +878,7 @@ def test_datadog_sampler_tracer_start_span(tracer, test_spans):
         rule=1.0,
         limit=None,
         sampling_priority=USER_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+        trace_tag=f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
     )
 
 
@@ -946,5 +964,11 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
     from ddtrace.internal.sampling import SamplingMechanism
     from ddtrace.internal.sampling import _set_sampling_tags
 
-    _set_sampling_tags(span, True, sample_rate, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
+    _set_sampling_tags(
+        span,
+        True,
+        sample_rate,
+        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        probabilistic_decision=True,
+    )
     assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr

@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 from ipaddress import ip_network
+from unittest import mock
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -10,7 +10,6 @@ from hypothesis.strategies import none
 from hypothesis.strategies import recursive
 from hypothesis.strategies import text
 from hypothesis.strategies import tuples
-import mock
 import pytest
 
 from ddtrace import config
@@ -19,6 +18,8 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -42,7 +43,38 @@ def span(tracer):
         yield span
 
 
-class TestHeaders(object):
+def test_copy_trace_level_tags_copies_independent_otel_tracestate():
+    parent = Span("parent", trace_id=1, span_id=1)
+    target = Span("target", trace_id=2, span_id=2)
+    parent.context.sampling_priority = 1
+    parent.context._publish_sampling_decision(1, 0.1, True)
+
+    trace_utils._copy_trace_level_tags(target, parent)
+
+    assert target.context.sampling_priority == parent.context.sampling_priority
+    assert target.context._meta[W3C_TRACESTATE_KEY] == parent.context._meta[W3C_TRACESTATE_KEY]
+    assert target.context._meta is not parent.context._meta
+
+    target.context._publish_sampling_decision(1, 0.0, False)
+
+    _ = target.context._tracestate
+    assert ";th:" not in target.context._meta[W3C_TRACESTATE_KEY]
+    assert ";th:" in parent.context._meta[W3C_TRACESTATE_KEY]
+
+
+def test_copy_trace_level_tags_preserves_inherited_otel_fields():
+    parent = Span("parent", trace_id=1, span_id=1)
+    target = Span("target", trace_id=2, span_id=2)
+    parent.context.sampling_priority = 1
+    parent.context._meta[W3C_TRACESTATE_KEY] = "congo=value,ot=rv:1234567890abcd;th:e6666666666668;future:value"
+
+    trace_utils._copy_trace_level_tags(target, parent)
+
+    assert target.context._meta[W3C_TRACESTATE_KEY] == "ot=rv:1234567890abcd;th:e6666666666668;future:value"
+    assert target.context._tracestate == "dd=s:1,ot=rv:1234567890abcd;th:e6666666666668;future:value"
+
+
+class TestHeaders:
     @pytest.fixture()
     def span(self):
         yield Span("some_span")
@@ -1110,9 +1142,25 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
         assert span.get_tag(http.URL) == "http://weblog:7777/", span._get_str_attributes()
 
 
-def test_url_in_http_meta(span, int_config):
-    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
-    REDACTED_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
+@pytest.mark.parametrize(
+    "regex, query, redacted_query",
+    (
+        (None, "token=03cb9f67dbbc4cb8b963629951e10934&q=query", "<redacted>&q=query"),
+        (None, "jwt=eyJa.eyJb", "jwt=<redacted>"),
+        (DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT, "jwt=eyJa.eyJb", "jwt=<redacted>"),
+        ("(?P<dd_delimiter>password=[^&]+)", "password=secret", "<redacted>"),
+    ),
+)
+def test_url_in_http_meta(span, int_config, monkeypatch, regex, query, redacted_query):
+    if regex is not None:
+        monkeypatch.setenv("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", regex)
+        cfg = Config()
+        monkeypatch.setattr(config, "_obfuscation_query_string_pattern", cfg._obfuscation_query_string_pattern)
+        monkeypatch.setattr(
+            config, "_query_string_obfuscation_preserve_delimiter", cfg._query_string_obfuscation_preserve_delimiter
+        )
+    SENSITIVE_QS_URL = "http://example.com/search?" + query + "#frag?ment"
+    REDACTED_URL = "http://example.com/search?" + redacted_query + "#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"
 
     int_config.http_tag_query_string = True

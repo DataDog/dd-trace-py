@@ -209,7 +209,6 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
     """
     import asyncio
 
-    from ddtrace._trace.pin import Pin
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
     from ddtrace.contrib.internal.aiobotocore.patch import _wrapped_api_call
 
@@ -234,7 +233,6 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
         meta = _FakeMeta()
 
     instance = _FakeClient()
-    Pin().onto(instance)
 
     async def fake_make_api_call(*args, **kwargs):
         inside["suppressed"] = _http_propagation_suppressed.get()
@@ -257,7 +255,7 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
     assert _http_propagation_suppressed.get() is False
 
 
-# AIDEV-NOTE: The per-owner gate is tested directly here (manipulating only the
+# The per-owner gate is tested directly here (manipulating only the
 # integrations' _datadog_patch flags, not the wraps) rather than by patching and
 # unpatching the integrations. The aiobotocore suite runs under auto-instrumentation
 # and shares a process with other tests, so asserting global wrap state

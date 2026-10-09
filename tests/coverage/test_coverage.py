@@ -12,6 +12,352 @@ import sys
 import pytest
 
 
+@pytest.mark.parametrize("mismatched_exit", [False, True])
+def test_tls_fallback_skips_completed_inherited_collectors(monkeypatch, mismatched_exit):
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    snapshot = Context()
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    with coverage_code.ModuleCodeCollector.CollectInContext() as test_collector:
+        with coverage_code.ModuleCodeCollector.CollectInContext() as import_collector:
+            task_context = copy_context()
+
+        nested = coverage_code.ModuleCodeCollector.CollectInContext()
+        if mismatched_exit:
+            child_context = task_context.copy()
+            child_context.run(nested.__enter__)
+            # This inherited stack does not contain the nested collector and
+            # its top collector has already completed.
+            task_context.run(nested.__exit__)
+        else:
+            task_context.run(nested.__enter__)
+            task_context.run(nested.__exit__)
+
+        # Monitoring callbacks see a snapshot without the task's ContextVars.
+        snapshot.run(collector.hook_line, "/repo/active.py", 42)
+        snapshot.run(collector.hook_file, "/repo/file.py")
+        assert 42 in test_collector.get_covered_lines()["/repo/active.py"].to_sorted_list()
+        assert "/repo/file.py" in test_collector._covered_files
+        assert "/repo/active.py" not in import_collector.get_covered_lines()
+        assert "/repo/active.py" not in nested.get_covered_lines()
+        assert "/repo/file.py" not in import_collector.get_covered_file_paths()
+        assert "/repo/file.py" not in nested.get_covered_file_paths()
+
+    snapshot.run(collector.hook_line, "/repo/late.py", 7)
+    assert "/repo/late.py" not in test_collector.get_covered_lines()
+
+
+def test_expired_copied_context_does_not_borrow_the_thread_collector(monkeypatch):
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    monkeypatch.setattr(coverage_code._tls_coverage, "stack", (), raising=False)
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+
+    def _run():
+        with coverage_code.ModuleCodeCollector.CollectInContext() as first:
+            # This copy is made while the first collector is active, so it keeps the
+            # coverage ContextVars even after that collector completes.
+            expired = copy_context()
+
+        with coverage_code.ModuleCodeCollector.CollectInContext() as second:
+            # Late work in the expired copy must not be attributed to the thread's
+            # new collector, so it is dropped like on Python versions before 3.14.
+            expired.run(collector.hook_line, "/repo/late.py", 1)
+            expired.run(collector.hook_file, "/repo/late_file.py")
+            assert "/repo/late.py" not in second.get_covered_lines()
+            assert "/repo/late_file.py" not in second.get_covered_file_paths()
+            assert "/repo/late.py" not in first.get_covered_lines()
+            assert "/repo/late_file.py" not in first.get_covered_file_paths()
+
+            # A context without any coverage state still falls back to the thread's
+            # active collector.
+            Context().run(collector.hook_line, "/repo/fresh.py", 2)
+            assert 2 in second.get_covered_lines()["/repo/fresh.py"].to_sorted_list()
+
+            stale_lines = expired.run(coverage_code._get_ctx_covered_lines)
+            stale_files = expired.run(coverage_code._get_ctx_covered_files)
+            assert not stale_lines
+            assert not stale_files
+
+    # Run in a context without coverage state, so a collector that is already active around the
+    # test (for example the ddtrace pytest plugin's per-test coverage) does not keep the copied
+    # context alive.
+    Context().run(_run)
+
+
+# TODO: the TLS fallback is a best-effort mirror of the stack of whichever context last entered or exited a
+# collector, and Context.run does not restore thread-local state. A fix needs to resynchronize the mirror when
+# execution returns from a copied context without restoring stale stacks for inherited collectors; saving and
+# restoring the stack on enter and exit was tried and broke that inherited-collector case.
+@pytest.mark.xfail(strict=True, reason="Known limitation: the TLS fallback is not resynchronized after Context.run")
+def test_returning_from_a_copied_context_restores_the_tls_fallback(monkeypatch):
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    with coverage_code.ModuleCodeCollector.CollectInContext() as outer:
+        # The copy is made while only the outer collector is active.
+        task_context = copy_context()
+        with coverage_code.ModuleCodeCollector.CollectInContext() as nested:
+            # This scope is entered and exited entirely inside the copied context
+            # while the thread has its own nested collector active.
+            inner = coverage_code.ModuleCodeCollector.CollectInContext()
+            task_context.run(inner.__enter__)
+            task_context.run(inner.__exit__)
+
+            # Returning from the copied context should leave the TLS fallback aligned
+            # with the thread's flow, so a fresh context still resolves to the
+            # nested collector instead of the copied context's remaining stack.
+            Context().run(collector.hook_line, "/repo/fresh.py", 1)
+            assert 1 in nested.get_covered_lines()["/repo/fresh.py"].to_sorted_list()
+            assert "/repo/fresh.py" not in outer.get_covered_lines()
+            assert "/repo/fresh.py" not in inner.get_covered_lines()
+
+
+# TODO: the unittest integration enters one shared CollectInContext for every test
+# (ddtrace/contrib/internal/unittest/patch.py), and __enter__ resets the closed flag, so a context copied
+# during one test becomes active again when the next test starts and its late work lands in that test's
+# coverage. A fix could give each test a fresh collector, or tag stack entries with a per-enter generation
+# so that reopening a collector does not reactivate stacks from its previous scope.
+@pytest.mark.xfail(strict=True, reason="Known limitation: re-entering a collector reactivates contexts copied earlier")
+def test_reused_collector_does_not_reactivate_contexts_from_its_previous_scope():
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    shared = coverage_code.ModuleCodeCollector.CollectInContext()
+    with shared:
+        # A context copied during the first test, for example by a task that outlives it.
+        retained = copy_context()
+
+    with shared:
+        # Late work from the first test's context should not count as coverage of the second test.
+        retained.run(collector.hook_line, "/repo/late.py", 1)
+        assert "/repo/late.py" not in shared.get_covered_lines()
+
+
+def test_coverage_stacks_are_isolated_across_copied_contexts():
+    from contextvars import copy_context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import ctx_collectors
+
+    with ModuleCodeCollector.CollectInContext():
+        parent_stack = ctx_collectors.get()
+        parent_depth = len(parent_stack)
+        child_context = copy_context()
+
+        def collect_in_child_context():
+            with ModuleCodeCollector.CollectInContext() as child:
+                assert len(ctx_collectors.get()) == parent_depth + 1
+                assert ctx_collectors.get()[-1] is child
+                assert ctx_collectors.get()[-2] is parent_stack[-1]
+
+        child_context.run(collect_in_child_context)
+        assert ctx_collectors.get() is parent_stack
+        assert len(parent_stack) == parent_depth
+
+
+def test_exiting_collector_in_another_context_preserves_active_coverage():
+    from contextvars import copy_context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import ctx_collectors
+
+    with ModuleCodeCollector.CollectInContext():
+        parent_stack = ctx_collectors.get()
+        child_context = copy_context()
+        child = ModuleCodeCollector.CollectInContext()
+        child_context.run(child.__enter__)
+
+        child.__exit__()
+        assert ctx_collectors.get() is parent_stack
+
+        child_context.run(child.__exit__)
+        assert ctx_collectors.get() is parent_stack
+
+
+def test_completed_collector_entries_do_not_capture_inherited_context_coverage():
+    """Contexts that inherit a stack still holding a completed entry must not write to it.
+
+    A module imported inside a test may create an asyncio task before finishing its
+    import collector. The task inherits the test's context, whose stack still
+    references the (now completed) import entry. New coverage in the task must be
+    attributed to the enclosing live collector instead of the orphaned entry.
+    """
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    with ModuleCodeCollector.CollectInContext() as test_collector:
+        with ModuleCodeCollector.CollectInContext() as import_collector:
+            task_context = copy_context()
+
+        assert import_collector.closed
+
+        # The task context still sees the completed import entry atop its stack.
+        task_stack = task_context.run(coverage_code.ctx_collectors.get)
+        assert task_stack[-1] is import_collector
+
+        # Resolution inside the task context must skip the completed entry and
+        # attribute coverage to the still-active test collector.
+        assert task_context.run(coverage_code._get_ctx_covered_lines) is test_collector._covered_lines
+        assert task_context.run(coverage_code._get_ctx_covered_files) is test_collector._covered_files
+
+        # A live collector entered in the task context takes precedence even though
+        # the completed import entry remains buried beneath it on the stack.
+        nested = ModuleCodeCollector.CollectInContext()
+        task_context.run(nested.__enter__)
+        assert task_context.run(coverage_code._get_ctx_covered_lines) is nested._covered_lines
+        task_context.run(nested.__exit__)
+        assert task_context.run(coverage_code._get_ctx_covered_lines) is test_collector._covered_lines
+
+    # Once every collector the task inherited has completed, new coverage lands in
+    # a fresh container rather than in any of the completed entries.
+    stale = task_context.run(coverage_code._get_ctx_covered_lines)
+    assert stale is not import_collector._covered_lines
+    assert stale is not test_collector._covered_lines
+
+
+def test_mismatched_exit_resyncs_tls_fallback(monkeypatch):
+    """A mismatched exit must leave snapshot callbacks recording in the active collector."""
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    snapshot = Context()
+    with ModuleCodeCollector.CollectInContext() as parent:
+        child_context = copy_context()
+        child = ModuleCodeCollector.CollectInContext()
+        child_context.run(child.__enter__)
+        assert snapshot.run(coverage_code._get_ctx_covered_lines) is child._covered_lines
+
+        child.__exit__()
+        assert snapshot.run(coverage_code._get_ctx_covered_lines) is parent._covered_lines
+        assert snapshot.run(coverage_code._get_ctx_covered_files) is parent._covered_files
+
+
+def _armed_line_probe(path):
+    """Register a private monitoring tool and return a bare collector plus its line events.
+
+    The tool routes real sys.monitoring LINE events for a small target function into
+    the collector hooks, mirroring how the instrumentation dispatches coverage events.
+    Callers must invoke the returned cleanup callable when done.
+    """
+    import ddtrace.internal.coverage.code as coverage_code
+
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    events = []
+
+    def target():
+        x = 1
+        y = 2
+        return x + y
+
+    def line_callback(code_object, line_number):
+        if code_object is target.__code__:
+            events.append(line_number)
+            collector.hook_line(path, line_number)
+
+    # Production instrumentation tries slots 4, 3, and 1, so prefer slots it never claims and
+    # fall back to any remaining free slot the way register_coverage does.
+    tool_id = None
+    for slot in (5, 2, 0):
+        try:
+            sys.monitoring.use_tool_id(slot, "ddtrace-coverage-test")
+        except ValueError:
+            continue
+        tool_id = slot
+        break
+    if tool_id is None:
+        raise RuntimeError("no sys.monitoring tool slot available for the test probe")
+
+    sys.monitoring.register_callback(tool_id, sys.monitoring.events.LINE, line_callback)
+    sys.monitoring.set_local_events(tool_id, target.__code__, sys.monitoring.events.LINE)
+
+    def cleanup():
+        sys.monitoring.set_local_events(tool_id, target.__code__, 0)
+        sys.monitoring.register_callback(tool_id, sys.monitoring.events.LINE, None)
+        sys.monitoring.free_tool_id(tool_id)
+
+    return collector, events, target, cleanup
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+def test_monitoring_callback_resolves_against_the_executing_context():
+    """A real monitoring callback must record in the collector of the context running the code.
+
+    Lines executed inside a context copied before a nested collector was entered belong to the
+    copied context's own still-open collector, not to the newer collector in the entering thread.
+    Resolving against the thread's latest stack instead would attribute work from one copied
+    context, for example an asgiref task, to whatever scope most recently entered on that thread.
+    """
+    from contextvars import copy_context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    path = "/repo/executing-context.py"
+    _collector, events, target, cleanup = _armed_line_probe(path)
+    try:
+        with ModuleCodeCollector.CollectInContext() as outer:
+            task_context = copy_context()
+            with ModuleCodeCollector.CollectInContext() as nested:
+                task_context.run(target)
+
+        assert events, "the monitoring callback did not fire"
+        first = target.__code__.co_firstlineno
+        assert {first + 1, first + 2} <= set(outer.get_covered_lines()[path].to_sorted_list())
+        assert path not in nested.get_covered_lines()
+    finally:
+        cleanup()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="TLS fallback only applies on Python 3.14+")
+def test_monitoring_callback_in_empty_context_uses_tls_fallback():
+    """A monitoring callback running where the coverage ContextVars are unset must fall back to TLS.
+
+    This complements the snapshot simulations above with the real monitoring dispatch: a fresh
+    empty context cannot see any collectors, so the thread-local stack written by CollectInContext
+    is the only available source for the active collector.
+    """
+    from contextvars import Context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    path = "/repo/empty-context.py"
+    _collector, events, target, cleanup = _armed_line_probe(path)
+    try:
+        with ModuleCodeCollector.CollectInContext() as test_collector:
+            Context().run(target)
+
+        assert events, "the monitoring callback did not fire"
+        first = target.__code__.co_firstlineno
+        assert {first + 1, first + 2} <= set(test_collector.get_covered_lines()[path].to_sorted_list())
+    finally:
+        cleanup()
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess()
 def test_coverage_defaults_to_file_level_when_env_unset():

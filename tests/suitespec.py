@@ -13,7 +13,8 @@ from ruamel.yaml import YAML  # noqa
 TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
 SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
-LOCK_ROOT = Path(".riot/requirements")
+LOCK_ROOT = Path("tests/requirements_locks")
+LOCK_PLATFORM = "linux"
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
 
@@ -42,7 +43,6 @@ DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
 NIGHTLY_ENVIRONMENT = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
-UV_TEST_SUITES = ("tracer", "tracer-uwsgi")
 
 
 class MatrixError(ValueError):
@@ -60,17 +60,18 @@ def _collect_suitespecs() -> dict:
     for s, root, ns_prefix in specfiles:
         path_parts = s.relative_to(root).parts[:-1]
         namespace = "::".join(path_parts) if path_parts else ns_prefix or None
-        with YAML() as yaml:
+        with YAML(typ="safe") as yaml:
             data = yaml.load(s)
-            suites = data.get("suites", {})
-            if namespace is not None:
-                for name, spec in list(suites.items()):
-                    if "pattern" not in spec:
-                        spec["pattern"] = name
-                    suites[f"{namespace}::{name}"] = spec
-                    del suites[name]
-            for k, v in suitespec.items():
-                v.update(data.get(k, {}))
+        suitespec["components"].update(data.get("components", {}))
+
+        source = s.relative_to(TESTS.parent).as_posix()
+        for name, value in data["suites"].items():
+            spec = value.copy()
+            spec["paths"] = [*spec["paths"], source]
+            full_name = f"{namespace}::{name}" if namespace is not None else name
+            if namespace is not None and "pattern" not in spec:
+                spec["pattern"] = name
+            suitespec["suites"][full_name] = spec
 
     return suitespec
 
@@ -82,6 +83,8 @@ SUITESPEC = _collect_suitespecs()
 def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
+    >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest")
+    True
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
     >>> SUITESPEC["suites"] = {"debugger": {"paths": ["@core", "@debugging", "tests/d/*"]}}
     >>> sorted(get_patterns("debugger"))  # doctest: +NORMALIZE_WHITESPACE
@@ -120,11 +123,6 @@ def get_suites() -> dict[str, dict]:
     return SUITESPEC["suites"]
 
 
-def get_components() -> dict[str, list[str]]:
-    """Get the list of jobs."""
-    return SUITESPEC.get("components", {})
-
-
 @dataclass(frozen=True)
 class TestRun:
     """One command and environment executed in a test environment."""
@@ -143,21 +141,18 @@ class TestEnvironment:
 
     suite: str
     name: str
+    integration_name: str
     python: str
     direct_dependencies: tuple[str, ...]
     runs: tuple[TestRun, ...]
 
     @property
     def lockfile(self) -> Path:
-        return LOCK_ROOT / f"{self.lock_hash}.txt"
-
-    @property
-    def lock_hash(self) -> str:
-        return _test_environment_hash(self.name, self.python, self.direct_dependencies)
+        return LOCK_ROOT / f"{self.hash}.txt"
 
     @property
     def hash(self) -> str:
-        return _test_environment_hash(f"{self.suite}::{self.name}", self.python, self.direct_dependencies)
+        return _test_environment_hash(self.name, self.python, self.direct_dependencies)
 
 
 def _requirement_key(requirement: str) -> str:
@@ -199,7 +194,8 @@ def _runs(
     runs = []
     for run in run_specs:
         run_environment = base_environment.copy()
-        run_environment.update(run.get("env", {}))
+        if "env" in run:
+            run_environment.update(run["env"])
         run_command = run.get("command", command)
         if not isinstance(run_command, str):
             raise MatrixError("each matrix run needs a command")
@@ -207,7 +203,35 @@ def _runs(
     return tuple(runs)
 
 
-def _expand_suite_matrix(suite: str, suite_config: dict[str, Any], *, nightly: bool) -> tuple[TestEnvironment, ...]:
+def _variant_settings(
+    suite: str,
+    suite_config: dict[str, Any],
+    matrix: dict[str, Any],
+    variant: dict[str, Any],
+    nightly: bool,
+) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
+    dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
+    environment = DEFAULT_ENVIRONMENT.copy()
+    if nightly:
+        environment.update(NIGHTLY_ENVIRONMENT)
+    if "env" in matrix:
+        environment.update(matrix["env"])
+    if "env" in variant:
+        environment.update(variant["env"])
+
+    command = variant.get("command", matrix.get("command"))
+    run_specs = variant.get("runs", matrix.get("runs"))
+    integration = variant.get("integration", suite_config.get("integration", variant["name"].split(":", 1)[0]))
+    return dependencies, integration, _runs(command, environment, run_specs)
+
+
+def _expand_suite_matrix(
+    suite: str,
+    suite_config: dict[str, Any],
+    *,
+    nightly: bool,
+) -> tuple[TestEnvironment, ...]:
+    """Expand one compact suite matrix into concrete test environments."""
     matrix = suite_config["matrix"]
     variants = matrix["variants"]
     if not variants:
@@ -218,23 +242,23 @@ def _expand_suite_matrix(suite: str, suite_config: dict[str, Any], *, nightly: b
         name = variant.get("name")
         if not isinstance(name, str) or not name.strip():
             raise MatrixError(f"every variant for {suite} needs a name")
-        python_versions = tuple(variant.get("python", matrix.get("python", DEFAULT_PYTHON_VERSIONS)))
+        python_value = variant.get("python", matrix.get("python", DEFAULT_PYTHON_VERSIONS))
+        python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
-        environment = DEFAULT_ENVIRONMENT.copy()
-        environment.update(matrix.get("env", {}))
-        if nightly:
-            environment.update(NIGHTLY_ENVIRONMENT)
-        environment.update(variant.get("env", {}))
-        command = variant.get("command", matrix.get("command"))
-        run_specs = variant.get("runs", matrix.get("runs"))
-        runs = _runs(command, environment, run_specs)
+        dependencies, integration, runs = _variant_settings(
+            suite,
+            suite_config,
+            matrix,
+            variant,
+            nightly,
+        )
         for python in python_versions:
             environments.append(
                 TestEnvironment(
                     suite=suite,
                     name=name,
+                    integration_name=integration,
                     python=python,
                     direct_dependencies=dependencies,
                     runs=runs,
@@ -247,5 +271,19 @@ def _expand_suite_matrix(suite: str, suite_config: dict[str, Any], *, nightly: b
 @cache
 def get_test_environments(*, nightly: bool) -> dict[str, tuple[TestEnvironment, ...]]:
     """Return every concrete test environment declared by suitespec."""
-    suites = get_suites()
-    return {suite: _expand_suite_matrix(suite, suites[suite], nightly=nightly) for suite in UV_TEST_SUITES}
+    environments = {
+        suite: _expand_suite_matrix(suite, config, nightly=nightly)
+        for suite, config in get_suites().items()
+        if "matrix" in config
+    }
+    hashes: dict[str, TestEnvironment] = {}
+    for matrix in environments.values():
+        for environment in matrix:
+            if environment.hash in hashes:
+                other = hashes[environment.hash]
+                raise MatrixError(
+                    f"environment hash {environment.hash} is shared by {other.suite}/{other.name} "
+                    f"and {environment.suite}/{environment.name}"
+                )
+            hashes[environment.hash] = environment
+    return environments
