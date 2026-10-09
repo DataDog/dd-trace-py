@@ -18,6 +18,8 @@ def get_app(tracer=None, distributed_tracing=None):
     # add resource routing
     app.add_route("/200", resources.Resource200())
     app.add_route("/201", resources.Resource201())
+    app.add_route("/int_status", resources.ResourceIntStatus())
+    app.add_route("/http_status", resources.ResourceHTTPStatus())
     app.add_route("/500", resources.Resource500())
     app.add_route("/hello/{name}", resources.DynamicURIResource())
     app.add_route("/exception", resources.ResourceException())
