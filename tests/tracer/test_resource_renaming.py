@@ -101,13 +101,33 @@ class TestResourceRenaming:
         processor.on_span_finish(span)
         assert span.get_tag(http.ENDPOINT) is None
 
-    def test_processor_without_route(self):
+    @pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS])
+    @pytest.mark.parametrize(
+        "url,expected", [("https://example.com/api/users/123", "/api/users/{param:int}"), ("https://example.com/", "/")]
+    )
+    def test_processor_without_route(self, span_type, url, expected):
         processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context(), span_type=SpanTypes.WEB)
-        span.set_tag(http.URL, "https://example.com/api/users/123")
+        span = Span("test", context=Context(), span_type=span_type)
+        span.set_tag(http.URL, url)
 
         processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+        assert span.get_tag(http.ENDPOINT) == expected
+
+    @pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS])
+    @pytest.mark.parametrize("url", [None, ""])
+    @pytest.mark.parametrize("always_simplified_endpoint", [False, True])
+    def test_processor_without_url(self, span_type, url, always_simplified_endpoint):
+        processor = ResourceRenamingProcessor()
+        span = Span("test", context=Context(), span_type=span_type)
+        if url is not None:
+            span.set_tag(http.URL, url)
+
+        with override_global_config(
+            dict(_trace_resource_renaming_always_simplified_endpoint=always_simplified_endpoint)
+        ):
+            processor.on_span_finish(span)
+
+        assert span.get_tag(http.ENDPOINT) is None
 
     def test_processor_always_simplified_endpoint(self):
         processor = ResourceRenamingProcessor()
