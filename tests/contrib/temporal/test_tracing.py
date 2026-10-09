@@ -1605,13 +1605,13 @@ async def test_local_activity_spans(
 
 
 @pytest.mark.asyncio
-async def test_allow_invalid_parent_spans(
+async def test_invalid_parent_header_is_ignored(
     client: Client,
     env: WorkflowEnvironment,
     span_collector: _SpanCollector,
 ) -> None:
-    """With allow_invalid_parent_spans=True, a malformed trace header is ignored
-    and the workflow still produces a RunWorkflow span (with no parent).
+    """A malformed trace header is ignored and the workflow still produces a
+    RunWorkflow span (with no parent).
     """
     if env.supports_time_skipping:
         pytest.skip("time-skipping server not supported")
@@ -1630,10 +1630,7 @@ async def test_allow_invalid_parent_spans(
         ) -> temporalio.client.OutboundInterceptor:
             return _BadHeaderOutbound(next)
 
-    interceptor = DatadogTracingInterceptor(
-        service_name="test-svc",
-        allow_invalid_parent_spans=True,
-    )
+    interceptor = DatadogTracingInterceptor(service_name="test-svc")
     cfg = client.config()
     cfg["interceptors"] = [interceptor, _BadHeaderInterceptor()]
     tc = Client(**cfg)

@@ -2758,8 +2758,6 @@ suites:
       - tests/contrib/temporal/*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_ANALYTICS_ENABLED: 'true'
       command: python -m pytest {cmdargs} tests/contrib/temporal
       variants:
         - name: temporal

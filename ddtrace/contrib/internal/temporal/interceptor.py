@@ -37,11 +37,11 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class FinishContext:
-    """Context passed to a user-supplied ``on_span_finish`` callback.
+    """Context passed to a user-supplied on_span_finish callback.
 
     Attributes:
-        operation: The Temporal operation name (e.g. ``"RunWorkflow"``).
-        exception: The exception that caused the span to fail, or ``None``.
+        operation: The Temporal operation name (e.g. "RunWorkflow").
+        exception: The exception that caused the span to fail, or None.
     """
 
     operation: str
@@ -50,10 +50,10 @@ class FinishContext:
 
 @dataclass(frozen=True)
 class FinishResult:
-    """Returned by ``on_span_finish`` to control how a span is finished.
+    """Returned by on_span_finish to control how a span is finished.
 
     All fields default to leaving the interceptor's default behavior in place;
-    return ``None`` from the callback (or omit the callback) for the default.
+    return None from the callback (or omit the callback) for the default.
 
     Attributes:
         extra_tags: Tags applied to the span before it is finished.
@@ -71,7 +71,6 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
         extra_tags: Mapping[str, str] | None = None,
         on_span_finish: Callable[[FinishContext], FinishResult | None] | None = None,
         workflow_tracing_config: WorkflowTracingConfig | None = None,
-        allow_invalid_parent_spans: bool = False,
     ) -> None:
         self.workflow_tracing_config = workflow_tracing_config or WorkflowTracingConfig.default_config()
 
@@ -81,7 +80,6 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
             header_key=header_key,
             service_name=service_name,
             payload_converter=temporalio.converter.PayloadConverter.default,
-            allow_invalid_parent_spans=allow_invalid_parent_spans,
         )
 
         self._service_name = service_name
@@ -101,7 +99,7 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
         parent_from_header: bool = False,
         trace_id: int | None = None,
     ) -> Span:
-        # AIDEV-NOTE: Supply deterministic trace IDs through the parent context;
+        # Supply deterministic trace IDs through the parent context;
         # changing span.trace_id after creation breaks the tracer's trace registry.
         effective_parent = parent_ctx
         if trace_id is not None and parent_ctx is None:

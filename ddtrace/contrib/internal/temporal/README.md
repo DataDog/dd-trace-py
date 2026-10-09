@@ -151,7 +151,7 @@ Because `ddtrace` is passthrough, workflow code can also import the helpers
 directly:
 
 ```python
-from ddtrace.contrib.internal.temporal.workflow_interceptor import span_from_workflow_context
+from ddtrace.contrib.temporal import span_from_workflow_context
 ```
 
 ### Extern-function bridge
@@ -168,13 +168,14 @@ host/sandbox boundary:
    via `temporalio.workflow.extern_functions()` at init time and holds them as
    instance attributes.
 3. Span creation and finishing go through these externs to the host
-   interceptor's `_start_span` and `_finish_span` methods. These methods use
-   the global ddtrace tracer directly and handle Temporal-specific IDs,
-   timestamps, baggage, annotation, and finish callbacks.
+   interceptor's `_start_sandboxed_span` and `_finish_sandboxed_span` methods,
+   which delegate to `_start_span` and `_finish_span`. These use the global
+   ddtrace tracer directly and handle Temporal-specific IDs, timestamps,
+   baggage, annotation, and finish callbacks.
 
 ### Host-side ContextVars
 
-Two `contextvars.ContextVar` values live on the host module. Because
+Three `contextvars.ContextVar` values live on the host module. Because
 `ddtrace` is passthrough the sandbox reuses the same module object, so these
 are read/written directly (no extern needed):
 
@@ -184,6 +185,9 @@ are read/written directly (no extern needed):
   `span_from_workflow_context()`.
 - `_trace_disconnected` — set by `disconnect_trace_span_from_workflow_context`
   to suppress trace propagation into the next ContinueAsNew run.
+- `_current_span_info` — the `(trace_id, span_id)` of the RunWorkflow span,
+  read by a log filter on `workflow.logger` to inject `dd.trace_id` /
+  `dd.span_id` without activating the span inside the sandbox.
 
 ## ContinueAsNew
 
