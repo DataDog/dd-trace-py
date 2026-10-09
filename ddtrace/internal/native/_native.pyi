@@ -175,6 +175,13 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+def stable_configuration_paths() -> tuple[str, str]:
+    """
+    Return the default fleet and local stable-configuration file paths used by
+    the configuration reader, as a ``(fleet, local)`` tuple.
+    """
+    ...
+
 if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
     def register_context_watcher() -> bool:
         """Register the Python context watcher if a watcher slot is available."""
