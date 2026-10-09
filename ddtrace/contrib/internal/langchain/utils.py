@@ -1,11 +1,11 @@
 import inspect
 import sys
 
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 class BaseLangchainStreamHandler:
@@ -23,6 +23,7 @@ class BaseLangchainStreamHandler:
         # listener — means a stream that is created but never consumed cannot
         # leak the counter into the next call in the same task. Paired with
         # the ``.stream.finally`` event below.
+        self._stream_started = True
         started_event = self.options.get("aiguard_started_event")
         if started_event:
             core.dispatch(started_event, ())

@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace.internal.constants import W3C_DD_LIST_MEMBER_MAX_CHARS
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
 from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
@@ -11,7 +12,6 @@ from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
 
 _MAX_THRESHOLD = 1 << 56
 _MAX_ENCODABLE_THRESHOLD = _MAX_THRESHOLD - 1
-_MAX_OTEL_TRACESTATE_VALUE_CHARS = 256
 _VALID_RANDOM_VALUE = re.compile(r"^[0-9a-f]{14}$")
 _VALID_THRESHOLD = re.compile(r"^[0-9a-f]{1,14}$")
 
@@ -74,7 +74,7 @@ def _build_otel_member(random_value: Optional[str], threshold: Optional[str], un
     value_chars = 0
     for field in candidate_fields:
         field_chars = len(field) + (1 if fields else 0)
-        if value_chars + field_chars <= _MAX_OTEL_TRACESTATE_VALUE_CHARS:
+        if value_chars + field_chars <= W3C_DD_LIST_MEMBER_MAX_CHARS:
             fields.append(field)
             value_chars += field_chars
     return ";".join(fields)

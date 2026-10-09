@@ -104,28 +104,24 @@ When you modify:
 
 ### Step 4: Execute Selected Venvs
 
-I'll run the selected venvs. On the **first invocation in a session**, always run without `-s` to ensure the venv has dd-trace-py properly installed:
+The runner creates a missing or outdated environment and reuses a matching environment by default:
 
 ```bash
 scripts/run-tests --venv <hash1> --venv <hash2>
 ```
 
-On **subsequent runs**, pass `-s` before the test-command separator to reuse the current ddtrace installation:
+Pass `-r` to rebuild the environment and refresh the editable ddtrace package:
 
 ```bash
-scripts/run-tests -s --venv <hash1> --venv <hash2>
+scripts/run-tests -r --venv <hash1> --venv <hash2>
 ```
 
-**When to use `-s` (skip base install) on subsequent runs:**
-- Only Python files were modified (no native code changes)
-- Iterating on test fixes within the same session
-- Re-running tests after small code tweaks
-
-**When to omit `-s` even on subsequent runs (force rebuild):**
+**When to use `-r`:**
 - After merging or rebasing from main (dependencies or native code may have changed)
 - C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
 - `setup.py`, `pyproject.toml`, or `setup.cfg` were modified
-- Test environment definitions or dependency locks were modified
+
+Selected dependency locks and environment definitions invalidate the cache automatically, but not all source and build inputs are tracked; use `-r` for the cases above.
 
 This will:
 - Start required Docker services (redis, postgres, etc.)
@@ -144,9 +140,9 @@ This will:
 - Offer to run specific failing tests with more verbosity
 - Help iterate on fixes and re-run
 
-For re-running specific tests (use `-s` since the venv is already built):
+For re-running specific tests, use the default cached environment:
 ```bash
-scripts/run-tests -s --venv <hash> -- -vv -k test_name
+scripts/run-tests --venv <hash> -- -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -237,11 +233,10 @@ scripts/run-tests --list ddtrace/contrib/internal/flask/patch.py
 # Suite: contrib::flask
 # Venv: hash=e06abee, Python 3.13, flask
 
-# First run: no -s to ensure venv is properly set up
 scripts/run-tests --venv e06abee
 
-# Subsequent runs: use -s since only Python files changed
-scripts/run-tests -s --venv e06abee
+# Rebuild after changing native sources or build configuration
+scripts/run-tests -r --venv e06abee
 ```
 
 ### Example 2: Fixing a Core Tracing Issue
@@ -256,11 +251,10 @@ scripts/run-tests --list ddtrace/_trace/tracer.py
 # - tracer: latest Python (e.g., abc123)
 # - internal: latest Python (e.g., def456)
 
-# First run: no -s
 scripts/run-tests --venv abc123 --venv def456
 
-# Subsequent runs: use -s since only Python files changed
-scripts/run-tests -s --venv abc123 --venv def456
+# Explicitly rebuild both environments when needed
+scripts/run-tests -r --venv abc123 --venv def456
 ```
 
 ### Example 3: Fixing a Test-Specific Bug
@@ -271,19 +265,18 @@ scripts/run-tests -s --venv abc123 --venv def456
 scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
-# First run: no -s
 scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
 
-# Subsequent runs: use -s to skip rebuild
-scripts/run-tests -s --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
+# The next run reuses the matching environment automatically
+scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
 
-After the first run shows a test failing, use `-s` to iterate quickly:
+After the first run shows a test failing, rerun it directly:
 
 ```bash
-scripts/run-tests -s --venv flask_py311 -- -vv -k test_view_called_twice
+scripts/run-tests --venv flask_py311 -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -291,7 +284,8 @@ scripts/run-tests -s --venv flask_py311 -- -vv -k test_view_called_twice
 
 ### DO ✅
 
-- **Use `-s` on subsequent runs**: Reuse the current ddtrace installation when only Python files changed
+- **Use the default cache**: Matching environments are reused automatically
+- **Use `-r` for native changes**: Refresh ddtrace after changing native sources or build configuration
 - **Start small**: Run 1 venv first, expand only if needed
 - **Be specific**: Use pytest `-k` filter when re-running failures
 - **Check git**: Verify you're testing the right files with `git status`
@@ -300,8 +294,7 @@ scripts/run-tests -s --venv flask_py311 -- -vv -k test_view_called_twice
 
 ### DON'T ❌
 
-- **Use `-s` after merging from main**: Native code or dependencies may have changed, requiring a rebuild
-- **Use `-s` when C/Cython/CMake files changed**: Native extensions must be recompiled
+- **Forget `-r` after native changes**: Cached extensions may be stale
 - **Run all venvs initially**: That's what CI is for
 - **Skip the minimal set guidance**: It's designed to save you time
 - **Ignore service requirements**: Some suites need Docker services up

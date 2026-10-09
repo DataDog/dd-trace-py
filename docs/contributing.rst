@@ -102,14 +102,16 @@ access to credentials. The reviewer owns that trust decision. Follow this proces
    need to match the contributor's branch.
 #. Open a draft shadow PR from that branch into ``main``. Its title must follow `Conventional
    Commits <https://www.conventionalcommits.org/en/v1.0.0/>`_ and end with ``[DO NOT MERGE]``, for
-   example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. State in its description that
-   the shadow PR exists only to run CI and must not be merged.
+   example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. Its description must say it exists
+   only to run CI, must not be merged, and include ``Original PR: <URL>``.
+#. Add ``Closes: <shadow PR URL>`` to the original PR's description.
 #. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
    it does not mean both PRs run in the same context or establish that the code is safe. That
    assurance comes from the review before mirroring.
 #. Once the checks are green, verify that the original PR's head SHA still matches the tested
    shadow PR, then comment ``/merge`` on the *original* fork PR.
-#. After the original fork PR lands, close the shadow PR without merging it, and delete its branch.
+#. After the original PR closes, close the shadow PR without merging if it is still open, then
+   delete its branch.
 
 Never mirror speculative or partially reviewed code merely to obtain CI results.
 
