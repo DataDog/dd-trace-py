@@ -14,21 +14,20 @@ from ddtrace.trace import tracer
 from .constants import COMMON_ATTRIBUTE_MAP
 from .constants import OperationNames
 from .constants import SpanAttributes
-from .span_runner import _SpanRunner
 
 
 if TYPE_CHECKING:
     from .interceptor import DatadogTracingInterceptor
 
 
-class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundInterceptor):  # type: ignore[misc]
+class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.client.OutboundInterceptor,
         root: DatadogTracingInterceptor,
     ) -> None:
-        temporalio.client.OutboundInterceptor.__init__(self, next)
-        _SpanRunner.__init__(self, root)
+        super().__init__(next)
+        self.root = root
 
     async def start_workflow(
         self, input: temporalio.client.StartWorkflowInput
@@ -69,7 +68,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
 
     async def create_schedule(self, input: temporalio.client.CreateScheduleInput) -> temporalio.client.ScheduleHandle:
         span = self._get_span(OperationNames.CREATE_SCHEDULE, input.id)
-        return await self.run(span, OperationNames.CREATE_SCHEDULE, super().create_schedule(input))
+        return await self.root._run_span(span, OperationNames.CREATE_SCHEDULE, super().create_schedule(input))
 
     async def start_workflow_update(
         self, input: temporalio.client.StartWorkflowUpdateInput
@@ -115,7 +114,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
             input.update_workflow_input.headers, span.context
         )
 
-        return await self.run(
+        return await self.root._run_span(
             span,
             operation_name,
             super().start_update_with_start_workflow(input),
@@ -142,7 +141,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
     ) -> Any:
         span = self._get_span(operation_name, resource_name, attributes)
         input.headers = self.root.propagator.inject_headers(input.headers, span.context)
-        return await self.run(span, operation_name, awaitable(input))
+        return await self.root._run_span(span, operation_name, awaitable(input))
 
     def _get_span(
         self,

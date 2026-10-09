@@ -12,9 +12,9 @@ import temporalio.converter
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
+from ddtrace.contrib.internal.temporal.interceptor import FinishContext
+from ddtrace.contrib.internal.temporal.interceptor import FinishResult
 from ddtrace.contrib.internal.temporal.workflow_interceptor import WorkflowTracingConfig
-from ddtrace.contrib.internal.temporal.wrapped_tracer import FinishContext
-from ddtrace.contrib.internal.temporal.wrapped_tracer import FinishResult
 from ddtrace.contrib.temporal import DatadogTracingInterceptor
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.formats import format_trace_id

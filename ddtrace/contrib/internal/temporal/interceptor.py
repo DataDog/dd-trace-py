@@ -1,7 +1,9 @@
 """Datadog tracing interceptor for Temporal."""
 
+from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import temporalio.activity
@@ -28,11 +30,36 @@ from .span_annotator import _SpanAnnotator
 from .workflow_interceptor import DatadogTracingWorkflowInboundInterceptor
 from .workflow_interceptor import WorkflowTracingConfig
 from .workflow_interceptor import _active_workflow_span
-from .wrapped_tracer import FinishContext
-from .wrapped_tracer import FinishResult
 
 
 log = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class FinishContext:
+    """Context passed to a user-supplied ``on_span_finish`` callback.
+
+    Attributes:
+        operation: The Temporal operation name (e.g. ``"RunWorkflow"``).
+        exception: The exception that caused the span to fail, or ``None``.
+    """
+
+    operation: str
+    exception: BaseException | None
+
+
+@dataclass(frozen=True)
+class FinishResult:
+    """Returned by ``on_span_finish`` to control how a span is finished.
+
+    All fields default to leaving the interceptor's default behavior in place;
+    return ``None`` from the callback (or omit the callback) for the default.
+
+    Attributes:
+        extra_tags: Tags applied to the span before it is finished.
+    """
+
+    extra_tags: Mapping[str, Any] | None = None
 
 
 class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker.Interceptor):  # type: ignore[misc]
@@ -124,6 +151,16 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
                     span.set_tag(key, value)
         finally:
             span.finish()
+
+    async def _run_span(self, span: Span, operation_name: str, operation: Awaitable[Any]) -> Any:
+        operation_exc: BaseException | None = None
+        try:
+            return await operation
+        except BaseException as exc:
+            operation_exc = exc
+            raise
+        finally:
+            self._finish_span(span, operation_name, operation_exc)
 
     def intercept_client(self, next: temporalio.client.OutboundInterceptor) -> temporalio.client.OutboundInterceptor:
         return _ClientOutboundInterceptor(next, self)

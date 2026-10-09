@@ -12,24 +12,23 @@ from ddtrace.internal.utils.fnv import fnv1_64
 
 from .constants import OperationNames
 from .constants import SpanAttributes
-from .span_runner import _SpanRunner
 
 
 if TYPE_CHECKING:
     from .interceptor import DatadogTracingInterceptor
 
 
-class _ActivityInboundInterceptor(_SpanRunner, temporalio.worker.ActivityInboundInterceptor):  # type: ignore[misc]
+class _ActivityInboundInterceptor(temporalio.worker.ActivityInboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.worker.ActivityInboundInterceptor,
         root: DatadogTracingInterceptor,
     ) -> None:
-        temporalio.worker.ActivityInboundInterceptor.__init__(self, next)
-        _SpanRunner.__init__(self, root)
+        super().__init__(next)
+        self.root = root
 
     async def execute_activity(self, input: temporalio.worker.ExecuteActivityInput) -> Any:
-        return await self.run(
+        return await self.root._run_span(
             self._get_span(input),
             OperationNames.RUN_ACTIVITY,
             super().execute_activity(input),

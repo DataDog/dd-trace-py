@@ -10,36 +10,32 @@ import temporalio.worker
 
 from .constants import OperationNames
 from .constants import SpanAttributes
-from .span_runner import _SpanRunner
 
 
 if TYPE_CHECKING:
     from .interceptor import DatadogTracingInterceptor
 
 
-class _NexusOperationInboundInterceptor(
-    _SpanRunner,
-    temporalio.worker.NexusOperationInboundInterceptor,  # type: ignore[misc]
-):
+class _NexusOperationInboundInterceptor(temporalio.worker.NexusOperationInboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.worker.NexusOperationInboundInterceptor,
         root: DatadogTracingInterceptor,
     ) -> None:
-        temporalio.worker.NexusOperationInboundInterceptor.__init__(self, next)
-        _SpanRunner.__init__(self, root)
+        super().__init__(next)
+        self.root = root
 
     async def execute_nexus_operation_start(
         self, input: temporalio.worker.ExecuteNexusOperationStartInput
     ) -> nexusrpc.handler.StartOperationResultSync[Any] | nexusrpc.handler.StartOperationResultAsync:
-        return await self.run(
+        return await self.root._run_span(
             self._get_span(input, OperationNames.RUN_NEXUS_OPERATION_START_HANDLER),
             OperationNames.RUN_NEXUS_OPERATION_START_HANDLER,
             super().execute_nexus_operation_start(input),
         )
 
     async def execute_nexus_operation_cancel(self, input: temporalio.worker.ExecuteNexusOperationCancelInput) -> None:
-        await self.run(
+        await self.root._run_span(
             self._get_span(input, OperationNames.RUN_NEXUS_OPERATION_CANCEL_HANDLER),
             OperationNames.RUN_NEXUS_OPERATION_CANCEL_HANDLER,
             super().execute_nexus_operation_cancel(input),
