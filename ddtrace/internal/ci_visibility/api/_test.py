@@ -5,7 +5,6 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -43,6 +42,9 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.utils.formats import asbool
+
+
+BENCHMARK_INFO = BENCHMARK_TAG_MAP["duration_info"]
 
 
 log = get_logger(__name__)

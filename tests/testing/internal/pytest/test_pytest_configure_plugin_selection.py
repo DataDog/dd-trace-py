@@ -12,6 +12,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.testing.internal.pytest.plugin import _EXTERNAL_RERUN_PLUGINS
 from ddtrace.testing.internal.pytest.plugin import _HOOKIMPL_SUPPORTS_SPECNAME
 from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
@@ -286,3 +287,56 @@ class TestPluginClassSelection:
 
         item.add_marker.assert_not_called()
         assert item.user_properties == []
+
+
+class TestLegacyPluginSelectionEnvVarDeprecation:
+    """The DD_PYTEST_USE_NEW_PLUGIN* env vars no longer select a plugin.
+
+    The legacy pytest plugin has been removed: any use of the variables must emit a
+    DDTraceDeprecationWarning via pytest's config-time warning API, but must have no
+    other effect on plugin selection or session setup.
+    """
+
+    @pytest.mark.parametrize("value", ["false", "0", "true", "1", "anything"])
+    def test_use_new_plugin_set_emits_deprecation_warning(self, monkeypatch, value):
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN", value)
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+        warning = config.issue_config_time_warning.call_args.args[0]
+        assert isinstance(warning, DDTraceDeprecationWarning)
+        assert "DD_PYTEST_USE_NEW_PLUGIN is deprecated" in str(warning)
+        assert "no longer has any effect" in str(warning)
+
+    @pytest.mark.parametrize("value", ["true", "1", "anything"])
+    def test_use_new_plugin_beta_set_emits_deprecation_warning(self, monkeypatch, value):
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", value)
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+        warning = config.issue_config_time_warning.call_args.args[0]
+        assert isinstance(warning, DDTraceDeprecationWarning)
+        assert "DD_PYTEST_USE_NEW_PLUGIN_BETA is deprecated" in str(warning)
+        assert "no longer has any effect" in str(warning)
+
+    def test_both_vars_set_emits_two_warnings(self, monkeypatch):
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN", "false")
+        monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", "true")
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 2
+
+    def test_env_vars_unset_emit_no_warning(self, monkeypatch):
+        monkeypatch.delenv("DD_PYTEST_USE_NEW_PLUGIN", raising=False)
+        monkeypatch.delenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", raising=False)
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        config.issue_config_time_warning.assert_not_called()

@@ -4,11 +4,11 @@ from utils import invert_integration_to_dependency_map
 
 EXCLUDED_FROM_TESTING = {
     "coverage",
-    "pytest_benchmark",
     "asgi",
     "wsgi",
     "boto",
     "pytest_bdd",
+    "pytest_benchmark",
     "urllib",
     "webbrowser",
     "asynctest",
