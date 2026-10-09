@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where trace sampling rules set through Remote Configuration, including
+    Adaptive Sampling, were intermittently dropped and the error
+    ``Failed to apply all sampling rules. Rules=, Applied=[]`` was logged whenever any other remote
+    APM tracing configuration changed.

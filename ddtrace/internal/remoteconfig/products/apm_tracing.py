@@ -40,6 +40,11 @@ def config_key(payload: Payload) -> int:
 class APMTracingCallback(RCCallback):
     """Remote config callback for APM tracing configuration."""
 
+    def __init__(self) -> None:
+        # The client dispatches only the configs that changed since the last poll, so the
+        # active set must outlive a single call to be merged correctly.
+        self._config_map: dict[str, Payload] = {}
+
     @staticmethod
     def _get_chained_lib_config(config_map: t.Mapping[str, Payload]) -> t.ChainMap:
         """Get merged library configuration from all configs, ordered by precedence."""
@@ -57,7 +62,7 @@ class APMTracingCallback(RCCallback):
         return ChainMap(*lib_configs)
 
     def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap:
-        config_map: dict[str, Payload] = {}
+        config_map = self._config_map
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
@@ -77,13 +82,17 @@ class APMTracingCallback(RCCallback):
 
             if service is not None and service != "*" and service != config.service:
                 log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
+                config_map.pop(payload.metadata.id, None)
                 continue
 
             # The Agent may target configs using an environment configured only at the Agent level.
             if env is not None and env != "*" and config.env and env != config.env:
                 log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
+                config_map.pop(payload.metadata.id, None)
                 continue
 
+            # Re-insert so an updated config still counts as the newest on precedence ties.
+            config_map.pop(payload.metadata.id, None)
             config_map[payload.metadata.id] = payload
         return self._get_chained_lib_config(config_map)
 

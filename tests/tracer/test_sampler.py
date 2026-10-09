@@ -949,3 +949,13 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
         probabilistic_decision=True,
     )
     assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr
+
+
+def test_set_sampling_rules_empty_value_clears_rules_without_error():
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.5)])
+
+    with mock.patch("ddtrace._trace.sampler.log") as log:
+        sampler.set_sampling_rules("")
+
+    assert sampler.rules == []
+    log.error.assert_not_called()
