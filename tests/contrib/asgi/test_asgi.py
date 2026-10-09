@@ -1,6 +1,8 @@
 import asyncio
 from collections.abc import Awaitable
+import contextvars
 from functools import partial
+import gc
 import logging
 import os
 import random
@@ -8,6 +10,7 @@ from typing import Any
 from typing import Callable
 from typing import TypedDict
 from unittest import mock
+import weakref
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
@@ -1049,3 +1052,55 @@ async def test_unfinished_non_llm_child_not_finished_when_request_completes(test
     assert worker_span.duration_ns is None
     assert test_spans.pop_traces() == []
     worker_span.finish()
+
+
+@pytest.mark.asyncio
+async def test_asgi_request_does_not_chain_to_previous_request_context():
+    """A top-level request must not inherit the previous request's finished context.
+
+    On a keep-alive connection the server may resume reading from inside the request
+    task, so the next request starts in a context copied from the previous one. That
+    previous context has already exited, so parenting to it would keep every earlier
+    request's span, scope and headers reachable for the life of the connection.
+    """
+    captured: list[contextvars.Context] = []
+    chain_depths: list[int] = []
+    payloads: list[weakref.ref] = []
+
+    class Payload:
+        """Stands in for the request data (body, models, response) a handler keeps in scope."""
+
+    async def app(scope, receive, send):
+        depth, ctx = 0, core._CURRENT_CONTEXT.get()
+        while ctx is not None:
+            depth += ctx.identifier == "asgi.request"
+            ctx = ctx._parent
+        chain_depths.append(depth)
+        payload = Payload()
+        scope["payload"] = payload
+        payloads.append(weakref.ref(payload))
+        # asyncio re-registers the socket reader with copy_context() of this task.
+        captured[:] = [contextvars.copy_context()]
+        await _send_complete_http_response(receive, send)
+
+    async def request() -> None:
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(_message):
+            pass
+
+        await TraceMiddleware(app)(_http_scope(), receive, send)
+
+    request_count = 5
+    loop = asyncio.get_running_loop()
+    for _ in range(request_count):
+        # Run in a context copied inside the previous request, like a server that resumes
+        # reading the connection from the request task.
+        await loop.create_task(request(), context=captured[-1] if captured else contextvars.copy_context())
+
+    assert chain_depths == [1] * request_count
+    gc.collect()
+    # Only the immediately preceding request stays reachable, through the context asyncio
+    # captured for the transport's reader.
+    assert sum(ref() is not None for ref in payloads[:-1]) == 1

@@ -278,9 +278,14 @@ class TraceMiddleware:
             if not is_subapp:
                 trace_utils.dispatch_asgi_web_request_starting(scope)
 
+        # A top-level request must not inherit from a context that already exited, otherwise
+        # every earlier request on the same connection stays reachable. Sub-apps keep
+        # inheriting from their still-active parent request context.
+        parent = core._CURRENT_CONTEXT.get() if is_subapp else core.nearest_active_context()
         with (
             core.context_with_data(
                 "asgi.request",
+                parent=parent,
                 remote_addr=scope.get("REMOTE_ADDR"),
                 headers=headers,
                 headers_case_sensitive=True,
