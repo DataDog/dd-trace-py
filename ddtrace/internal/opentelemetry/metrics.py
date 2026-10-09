@@ -97,8 +97,9 @@ def _build_resource() -> Optional[Any]:
         return Resource.create(resource_attributes)
     except ImportError:
         log.warning(
-            "OpenTelemetry SDK is not installed, opentelemetry metrics will not be enabled. "
-            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Metrics support."
+            "OTLP metrics export is enabled, but the OpenTelemetry OTLP exporters are not installed. "
+            "Install a supported OpenTelemetry OTLP metrics exporter; ddtrace cannot automatically configure "
+            "OTLP metrics submission without it."
         )
         return None
 

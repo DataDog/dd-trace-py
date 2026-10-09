@@ -342,10 +342,10 @@ def test_otel_resource_attributes_mixed_tags():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4,testtag5=random5,"
         "testtag6=random6,testtag7=random7,testtag8=random8"
     },
-    err=b"To preserve metrics cardinality, only the following first 10 tags have been processed "
+    err=b"To reduce cardinality, only the first 10 tags derived from OpenTelemetry resource attributes were kept: "
     b"['version:1.0', 'service:bleh', 'env:prod', 'testtag1:random1', 'testtag2:random2', 'testtag3:random3', "
     b"'testtag4:random4', 'testtag5:random5', 'testtag6:random6', 'testtag7:random7']. "
-    b"The following tags were not ingested: ['testtag8:random8']\n",
+    b"Reduce the number of resource attributes to avoid dropping tags. Dropped tags: ['testtag8:random8']\n",
 )
 def test_otel_resource_attributes_tags_warning():
     from ddtrace import config

@@ -103,16 +103,17 @@ def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
 @pytest.mark.skipif(
     EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry SDK and Exporter to not be installed"
 )
-def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
-    """Test error when OpenTelemetry SDK is not installed."""
+def test_otel_exporter_not_installed(ddtrace_run_python_code_in_subprocess):
+    """Test error when OpenTelemetry OTLP exporters are not installed."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
 
     assert (
-        "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
-        "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support."
+        "OTLP logs export is enabled, but the OpenTelemetry OTLP exporters are not installed. "
+        "Install a supported OpenTelemetry OTLP logs exporter; ddtrace cannot automatically configure "
+        "OTLP logs submission without it."
     ) in stderr.decode(), f"Expected error message not found in stderr: {stderr.decode()}"
 
 
