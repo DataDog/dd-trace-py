@@ -300,7 +300,8 @@ def patch():
     # Tool execution (central dispatch)
     dispatch_module, dispatch_name = _tool_dispatch_target(GOOGLE_ADK_VERSION)
     wrap("google.adk", f"{dispatch_module}.{dispatch_name}", _traced_functions_call_tool_async)
-    if GOOGLE_ADK_VERSION < (2, 7, 0):
+    # Some releases before 2.7.0 also omit the live tool dispatcher, including 1.39.1.
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
         wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
@@ -324,7 +325,7 @@ def unpatch():
 
     dispatch_module, dispatch_name = _tool_dispatch_target(GOOGLE_ADK_VERSION)
     unwrap(attrgetter(dispatch_module)(adk), dispatch_name)
-    if GOOGLE_ADK_VERSION < (2, 7, 0):
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
         unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
 
     # Code executors
