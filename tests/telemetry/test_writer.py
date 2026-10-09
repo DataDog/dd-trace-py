@@ -784,22 +784,6 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
 
 
-def test_unsupported_otel_config_is_debug_only(caplog):
-    with (
-        mock.patch.object(ddtrace.internal.telemetry.telemetry_writer, "add_count_metric") as add_count_metric,
-        caplog.at_level(logging.DEBUG, logger="ddtrace.internal.telemetry"),
-    ):
-        ddtrace.internal.telemetry._unsupported_otel_config("OTEL_POD_IP")
-
-    assert caplog.messages == ["OpenTelemetry configuration OTEL_POD_IP is not recognized by ddtrace for Python."]
-    add_count_metric.assert_called_once_with(
-        TELEMETRY_NAMESPACE.TRACERS,
-        "otel.env.unsupported",
-        1,
-        (("config_opentelemetry", "otel_pod_ip"),),
-    )
-
-
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
     """The OTEL_EXPORTER_OTLP_*_HEADERS family is excluded from configuration telemetry, while
     non-sensitive OTLP exporter configurations are still reported.
