@@ -246,6 +246,20 @@ def test_placement_record_roundtrip(watch_mod, run_mod, tmp_path):
     assert records[1]["config"] == "span-start-finish"
 
 
+def test_effective_cpu_affinity_side_override(run_mod, monkeypatch):
+    # T5: BENCH_CPUS_<SIDE> replaces CPU_AFFINITY only for the matching side,
+    # inferred from the output dir name (run-benchmarks.sh uses
+    # "$ARTIFACTS_DIR/<side>"). Other sides keep the affinity run-benchmarks.sh
+    # exported for them.
+    monkeypatch.setenv("CPU_AFFINITY", "24-35")
+    monkeypatch.setenv("BENCH_CPUS_BASELINE", "36")
+    assert run_mod.effective_cpu_affinity("/artifacts/1-scenario/candidate") == "24-35"
+    assert run_mod.effective_cpu_affinity("/artifacts/1-scenario/baseline/") == "36"
+    monkeypatch.setenv("BENCH_CPUS_CANDIDATE", "25")
+    assert run_mod.effective_cpu_affinity("/artifacts/1-scenario/candidate") == "25"
+    assert run_mod.effective_cpu_affinity("/artifacts/1-scenario/baseline") == "36"
+
+
 def test_sample_join_shapes(watch_mod, tmp_path):
     # a sample line must be a JSON object carrying the epoch key the readout
     # joins placement records against; keep the serialization contract tested.

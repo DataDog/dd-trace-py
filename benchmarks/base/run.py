@@ -44,6 +44,20 @@ def read_config(path):
         return yaml.load(fp, Loader=yaml.FullLoader)
 
 
+def effective_cpu_affinity(output_dir: str) -> Optional[str]:
+    # EXPERIMENT (do not merge): per-side CPU override for the asymmetry probe
+    # (T5, PR #20052 / APMSP-4059). run-benchmarks.sh exports CPU_AFFINITY=24-35
+    # for the candidate and 36-47 for the baseline; when BENCH_CPUS_<SIDE> is set
+    # for this side -- inferred from the output dir name, which run-benchmarks.sh
+    # sets to "$ARTIFACTS_DIR/<side>" -- the override replaces that side's
+    # affinity for this process. The container allows CPUs 24-47.
+    side = os.path.basename(os.path.normpath(output_dir))
+    override = os.environ.get("BENCH_CPUS_" + side.upper())
+    if override:
+        print(f"Side {side!r} CPU override: {override} (replaces CPU_AFFINITY)")
+    return override or os.environ.get("CPU_AFFINITY")
+
+
 def cpu_affinity_to_cpu_groups(cpu_affinity: str, cpus_per_run: int) -> list[list[int]]:
     # CPU_AFFINITY is a comma-separated list of CPU IDs and ranges
     #   6-11
@@ -129,7 +143,7 @@ if __name__ == "__main__":
         config = {k: v for k, v in config.items() if k in allowed_configs}
         print("Filtering to configs: {}".format(", ".join(sorted(config.keys()))))
 
-    CPU_AFFINITY = os.environ.get("CPU_AFFINITY")
+    CPU_AFFINITY = effective_cpu_affinity(output_dir)
 
     # No CPU affinity specified, run sequentially
     if not CPU_AFFINITY:
