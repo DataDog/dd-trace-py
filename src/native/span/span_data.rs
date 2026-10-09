@@ -723,7 +723,7 @@ impl SpanData {
     pub(crate) fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
         let py = slf.py();
 
-        let this = slf.borrow();
+        let this = slf.try_borrow()?;
         if let Some(ctx) = &this._context {
             return Ok(ctx.bind(py).clone());
         }
@@ -743,7 +743,10 @@ impl SpanData {
             None => Context::new_root(py, trace_id, span_id)?.into_bound(py),
         };
 
-        let old = slf.borrow_mut()._context.replace(new_ctx.clone().unbind());
+        let old = slf
+            .try_borrow_mut()?
+            ._context
+            .replace(new_ctx.clone().unbind());
         drop(old);
         Ok(new_ctx)
     }
