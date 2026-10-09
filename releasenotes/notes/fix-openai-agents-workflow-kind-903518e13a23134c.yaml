@@ -1,0 +1,4 @@
+fixes:
+  - |
+    OpenAI Agents: Fixes an issue where interrupted workflows are omitted from LLM
+    Observability because their workflow type is not recorded.

@@ -4,6 +4,7 @@ from unittest import mock
 import openai
 import pytest
 
+from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_name
@@ -206,6 +207,19 @@ def _assert_expected_agent_run(
             _assert_span_link(spans[i], span, "output", "input")
             previous_tool_spans.append(span)
     return previous_tool_spans
+
+
+def test_llmobs_workflow_kind_set_on_trace_start(agents, openai_agents_llmobs):
+    trace = mock.Mock()
+    trace.trace_id = "trace_interrupted_workflow"
+    trace.name = "Interrupted workflow"
+    processor = LLMObsTraceProcessor(agents._datadog_integration)
+
+    processor.on_trace_start(trace)
+
+    workflow_span = agents._datadog_integration.oai_to_llmobs_span[trace.trace_id]
+    workflow_span.finish()
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(workflow_span), span_kind="workflow")
 
 
 @pytest.mark.asyncio
