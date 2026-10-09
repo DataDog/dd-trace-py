@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import flask
 
 from ddtrace.contrib.internal.flask.patch import flask_version
@@ -14,7 +13,7 @@ REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 class FlaskAutopatchTestCase(TracerTestCase):
     def setUp(self):
-        super(FlaskAutopatchTestCase, self).setUp()
+        super().setUp()
         self.app = flask.Flask(__name__)
         self.client = self.app.test_client()
 

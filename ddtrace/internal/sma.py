@@ -1,4 +1,4 @@
-class SimpleMovingAverage(object):
+class SimpleMovingAverage:
     """
     Simple Moving Average implementation.
     """

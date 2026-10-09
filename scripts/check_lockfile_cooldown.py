@@ -16,13 +16,13 @@ PATH defaults to generated test lockfiles.
 """
 
 import argparse
+from collections.abc import Iterable
 import concurrent.futures
 import datetime as dt
 import json
 import pathlib
 import re
 import sys
-from typing import Iterable
 from typing import Optional
 import urllib.error
 import urllib.request
@@ -71,7 +71,7 @@ _PYPI_SKIP = {
 
 
 def _default_lockfiles() -> list[pathlib.Path]:
-    return sorted(pathlib.Path(".riot/requirements").glob("*.txt"))
+    return sorted(pathlib.Path("tests/requirements_locks").glob("*.txt"))
 
 
 def _http_get_json(url: str, timeout: float = 30.0) -> Optional[dict]:

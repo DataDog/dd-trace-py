@@ -1,16 +1,18 @@
+from __future__ import annotations
+
 import inspect
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.llmobs._integrations import LlamaIndexIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 if TYPE_CHECKING:
@@ -27,7 +29,7 @@ class _BaseLlamaIndexStreamHandler:
     """
 
     integration: LlamaIndexIntegration
-    primary_span: "Span"
+    primary_span: Span
     request_args: tuple
     request_kwargs: dict[str, Any]
     chunks: list[Any]

@@ -15,6 +15,7 @@ The tests spawn actual uwsgi processes and verify:
 2. Valid configurations produce actual profile samples in each worker
 """
 
+from collections.abc import Generator
 import glob
 from importlib.metadata import version
 import logging
@@ -29,8 +30,9 @@ import sys
 import time
 from typing import IO
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
-from typing import Generator
+from typing import NoReturn
 from typing import Optional
 
 import pytest
@@ -85,7 +87,7 @@ def uwsgi(
 def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     """uWSGI postfork startup should set the active profiler singleton in workers."""
 
-    def _raise_master(*args, **kwargs):
+    def _raise_master(*args: Any, **kwargs: Any) -> NoReturn:
         raise profiler.uwsgi.uWSGIMasterProcess()
 
     monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
@@ -103,6 +105,32 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     p.stop(flush=False)  # type: ignore[unreachable]
 
 
+def test_uwsgi_postfork_start_reports_profiler_activated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The uWSGI master skips the telemetry report, so the worker must send it."""
+    from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+
+    def _raise_master(*args, **kwargs):
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
+
+    product_changes: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        profiler.telemetry_writer,
+        "product_activated",
+        lambda product, status: product_changes.append((product, status)),
+    )
+
+    p = profiler.Profiler()
+    p.start()
+    assert product_changes == []
+
+    p._start_on_fork()
+    assert product_changes == [(TELEMETRY_APM_PRODUCT.PROFILER, True)]
+
+    p.stop(flush=False)
+
+
 def test_uwsgi_worker_blocks_second_profiler_start(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -110,7 +138,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     """A worker started through uWSGI postfork should still reject a second profiler."""
     callback_holder = {}
 
-    def _register_postfork(callback, atexit=None):
+    def _register_postfork(callback: Callable[[], None], atexit: Optional[Callable[[], None]] = None) -> NoReturn:
         callback_holder["callback"] = callback
         raise profiler.uwsgi.uWSGIMasterProcess()
 
@@ -136,7 +164,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     p1.stop(flush=False)
 
 
-def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
+def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]) -> None:
     """Test that profiler fails when uwsgi threads are not enabled.
 
     The profiler requires threading support to run its background sampling thread.

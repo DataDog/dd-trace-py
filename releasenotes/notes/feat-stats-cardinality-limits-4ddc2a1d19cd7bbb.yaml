@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    tracing: Adds ``DD_TRACE_STATS_CARDINALITY_LIMIT`` (default ``7000``),
+    ``DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT`` (default ``1024``),
+    ``DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT`` (default ``512``),
+    ``DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT`` (default ``512``) and
+    ``DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT`` (default ``100``) to bound the number of
+    distinct trace metrics aggregation keys tracked per time bucket when client-side stats
+    computation is enabled. Values beyond a limit are aggregated together under a sentinel value.

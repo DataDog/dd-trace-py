@@ -1,14 +1,19 @@
 """Tests for ddtrace.testing.internal.writer module."""
 
+import http.client
 import threading
 import typing as t
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
 
+import pytest
+
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.http import BackendConnector
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import BackendResult
+from ddtrace.testing.internal.http import NoOpBackendConnector
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
@@ -64,6 +69,128 @@ class _ConcreteWriter(BaseWriter):
 
     def _encode_events(self, events: list[Event]) -> bytes:
         return b"x" * len(events)
+
+
+class TestBaseWriterStartup:
+    @pytest.mark.parametrize("scheme", ["http", "https"])
+    def test_first_upload_uses_connection_initialized_before_http_client_patching(self, scheme: str) -> None:
+        connector = BackendConnector(f"{scheme}://api.example.com")
+        results: list[BackendResult] = []
+
+        class _SendingWriter(_ConcreteWriter):
+            def _send_events(self, events: list[Event]) -> bool:
+                results.append(connector.request("POST", "/upload", data=b"payload", max_attempts=1))
+                return super()._send_events(events)
+
+        writer = _SendingWriter(async_flush_events=1)
+        writer._connectors = [connector]
+        with patch("socket.create_connection", side_effect=AssertionError("startup must not open a socket")):
+            writer.start()
+        response = Mock(status=200, headers={"Content-Length": "2"})
+        response.read.return_value = b"ok"
+        try:
+            # Simulate a cassette replacing both connection classes during the first background upload.
+            with (
+                patch.object(http.client.HTTPConnection, "request") as request,
+                patch.object(http.client.HTTPConnection, "getresponse", return_value=response),
+                patch(
+                    "http.client.HTTPConnection", side_effect=AssertionError("patched HTTP constructor")
+                ) as http_constructor,
+                patch(
+                    "http.client.HTTPSConnection", side_effect=AssertionError("patched HTTPS constructor")
+                ) as https_constructor,
+            ):
+                writer.put_event(Event(n=1))
+                assert writer.sent_event.wait(timeout=5), "first upload did not complete"
+                assert len(results) == 1
+                assert results[0].error_type is None
+                assert results[0].response_body == b"ok"
+                request.assert_called_once_with("POST", "/upload", body=b"payload", headers={})
+                http_constructor.assert_not_called()
+                https_constructor.assert_not_called()
+        finally:
+            writer.signal_finish()
+            writer.wait_finish(timeout=5)
+
+    def test_start_waits_for_all_connectors(self) -> None:
+        initializing = threading.Event()
+        release = threading.Event()
+        started = threading.Event()
+
+        def initialize() -> None:
+            initializing.set()
+            assert release.wait(timeout=5), "connector initialization was not released"
+
+        first_connector = Mock()
+        second_connector = Mock()
+        second_connector.close.side_effect = initialize
+        writer = _ConcreteWriter()
+        writer._connectors = [first_connector, second_connector]
+
+        def start() -> None:
+            writer.start()
+            started.set()
+
+        caller = threading.Thread(target=start, daemon=True)
+        caller.start()
+        try:
+            assert initializing.wait(timeout=5)
+            first_connector.close.assert_called_once_with()
+            assert not started.wait(timeout=0.1), "start returned before connector initialization completed"
+            release.set()
+            assert started.wait(timeout=5)
+        finally:
+            release.set()
+            caller.join(timeout=5)
+            writer.signal_finish()
+            writer.wait_finish(timeout=5)
+
+    @pytest.mark.parametrize("error", [RuntimeError("initialization failed"), BaseException("initialization failed")])
+    def test_start_propagates_initialization_failure(self, error: BaseException) -> None:
+        class _FailingConnector(threading.local):
+            def __init__(self) -> None:
+                if threading.current_thread() is not threading.main_thread():
+                    raise error
+
+            def close(self) -> None:
+                pass
+
+        writer = _ConcreteWriter()
+        writer._connectors = [_FailingConnector()]
+        errors: list[BaseException] = []
+        finished = threading.Event()
+
+        def start() -> None:
+            try:
+                writer.start()
+            except BaseException as e:
+                errors.append(e)
+            finally:
+                finished.set()
+
+        caller = threading.Thread(target=start, daemon=True)
+        caller.start()
+        try:
+            assert finished.wait(timeout=5), "start hung after connector initialization failed"
+            assert errors == [error]
+            assert not writer.task.is_alive()
+        finally:
+            # Also lets the pre-fix writer exit if this regression test fails.
+            writer._connectors = []
+            writer.signal_finish()
+            writer.task.join(timeout=5)
+            caller.join(timeout=5)
+
+    def test_start_with_offline_connector(self) -> None:
+        writer = _ConcreteWriter(async_flush_events=1)
+        writer._connectors = [NoOpBackendConnector()]
+        writer.start()
+        try:
+            writer.put_event(Event(n=1))
+            assert writer.sent_event.wait(timeout=5)
+        finally:
+            writer.signal_finish()
+            writer.wait_finish(timeout=5)
 
 
 class TestBaseWriterAsyncFlushEvents:

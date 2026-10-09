@@ -192,7 +192,7 @@ def _find_routine_config(config, instance, routine_name):
     """
     bases = instance.__class__.__mro__
     for base in bases:
-        full_name = "{}.{}".format(base.__module__, base.__name__)
+        full_name = f"{base.__module__}.{base.__name__}"
         if full_name not in config["patch"]:
             continue
 
@@ -220,7 +220,7 @@ def _install_init(patch_item, patch_class, patch_mod, config):
 
 
 def _install_routine(patch_routine, patch_class, patch_mod, config):
-    patch_class_routine = "{}.{}".format(patch_class, patch_routine)
+    patch_class_routine = f"{patch_class}.{patch_routine}"
 
     @wrapt.patch_function_wrapper(patch_mod, patch_class_routine)
     def wrapper(wrapped, instance, args, kwargs):

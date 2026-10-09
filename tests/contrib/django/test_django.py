@@ -1,21 +1,23 @@
-# -*- coding: utf-8 -*-
+import io
 import itertools
 import os
 import subprocess
 import types
+from unittest import mock
 import uuid
 
 import django
+from django.core.handlers.base import BaseHandler
 from django.core.signals import request_started
 from django.core.wsgi import get_wsgi_application
 from django.db import close_old_connections
 from django.db import connections
+from django.http import HttpResponse
 from django.test import modify_settings
 from django.test import override_settings
 from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
-import mock
 import pytest
 
 from ddtrace import config
@@ -24,11 +26,14 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.utils import get_request_uri
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.ext import http
 from ddtrace.ext import user
+from ddtrace.internal import core
 from ddtrace.internal import wrapping
 from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation._utils import get_wsgi_header
@@ -1696,7 +1701,7 @@ def test_schematized_default_service_name(
         "v0": global_service_name or "django",
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -1714,11 +1719,11 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.service == "{}"
+    assert span.service == "{expected_service_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -1744,7 +1749,7 @@ def test_schematized_default_db_service_name(
         "v0": "defaultdb",
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import django
 
 from tests.contrib.django.utils import setup_django_test_spans
@@ -1761,11 +1766,11 @@ with setup_django_test_spans() as test_spans, with_default_django_db(test_spans)
 
     span = spans[0]
     assert span.name == "sqlite.query"
-    assert span.service == "{}", span.service
+    assert span.service == "{expected_service_name}", span.service
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     env["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
@@ -1787,7 +1792,7 @@ def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schem
     expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
         schema_version
     ]
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -1805,11 +1810,11 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.name == "{}"
+    assert span.name == "{expected_operation_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -2410,7 +2415,7 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
     env = os.environ.copy()
     env[env_var] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;import django;assert ddtrace.config.django.{}".format(instrument_x),
+        f"import ddtrace;import django;assert ddtrace.config.django.{instrument_x}",
         env=env,
     )
 
@@ -2434,7 +2439,7 @@ def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python
     env = os.environ.copy()
     env[env_var] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;import django;assert not ddtrace.config.django.{}".format(instrument_x),
+        f"import ddtrace;import django;assert not ddtrace.config.django.{instrument_x}",
         env=env,
     )
 
@@ -2649,6 +2654,94 @@ class TestWSGI:
             error=0,
             meta=meta,
         )
+
+    def test_get_wsgi_application_dispatches_web_request_starting(self, resource):
+        application = get_wsgi_application()
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = application(environ, start_response)
+            list(response)
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert test_response["status"] == "404 Not Found"
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+    def test_get_wsgi_application_dispatches_web_request_starting_once_with_wsgi_middleware(self, resource):
+        application = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = application(environ, start_response)
+            list(response)
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert test_response["status"] == "404 Not Found"
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+    @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGIRequest requires Django 3.0+")
+    def test_traced_get_response_dispatches_web_request_starting_for_asgi_request(self):
+        # django.core.handlers.asgi does not exist before Django 3.0.
+        from django.core.handlers.asgi import ASGIRequest
+
+        # Django 3.0 ASGI requests reach the sync get_response with a META dict
+        # built from the scope; the server here includes root_path in path.
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/aws/lambda-microvms/runtime/v1/run",
+            "root_path": "/aws/lambda-microvms/runtime/v1",
+            "query_string": b"",
+            "headers": [],
+        }
+        request = ASGIRequest(scope, io.BytesIO(b""))
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = traced_get_response(lambda _handler, _request: HttpResponse("ok"), (BaseHandler(), request), {})
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert response.status_code == 200
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
 
     def test_get_wsgi_application_500_request(self, test_spans, resource):
         application = get_wsgi_application()

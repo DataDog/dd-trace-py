@@ -105,7 +105,7 @@ _cpu_count = getattr(os, "process_cpu_count", os.cpu_count)() or 1
 if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
     os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(_cpu_count)
 
-# Retry configuration for downloads (handles GitHub API failures like 503, 429)
+# Retry configuration for downloads (handles GitHub failures like 429 and 5xx)
 DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
 DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
 DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
@@ -227,8 +227,8 @@ def retry_download(
 ):
     """
     Decorator to retry downloads with exponential backoff.
-    Handles HTTP 503, 429, network errors from GitHub API, and cargo install failures.
-    Retriable errors: HTTP 429 (rate limit), 502, 503, 504, network timeouts, and subprocess errors.
+    Handles HTTP 429 and server errors, network errors from GitHub, and cargo install failures.
+    Retriable errors: HTTP 429, 500, 502, 503, 504, network timeouts, and subprocess errors.
     """
 
     def decorator(func):
@@ -240,9 +240,10 @@ def retry_download(
                 except (HTTPError, URLError, TimeoutError, OSError, subprocess.CalledProcessError) as e:
                     # Check if it's a retriable error
                     is_retriable = False
+                    error_code: t.Optional[str] = None
                     if isinstance(e, HTTPError):
-                        # Retry on 429 (rate limit), 502/503/504 (server errors)
-                        is_retriable = e.code in (429, 502, 503, 504)
+                        # Retry on 429 (rate limit) and transient server errors
+                        is_retriable = e.code in (429, 500, 502, 503, 504)
                         error_code = f"HTTP {e.code}"
                     elif isinstance(e, (URLError, TimeoutError)):
                         # Retry on network errors and timeouts
@@ -284,7 +285,7 @@ def retry_download(
 
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
+    expected_checksum, expected_filename = list(filter(None, open(sha256_filename).read().strip().split(" ")))
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
     try:
         assert expected_filename.endswith(Path(filename).name)
@@ -604,9 +605,9 @@ class LibraryDownload:
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
             lib_dir = arch_dir / "lib"
             for suffix in suffixes:
-                original_file = lib_dir / "{}{}".format(cls.name, suffix)
+                original_file = lib_dir / f"{cls.name}{suffix}"
                 if original_file.exists():
-                    renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
+                    renamed_file = lib_dir / f"lib{cls.name}{suffix}"
                     original_file.rename(renamed_file)
 
             if not cls.USE_CACHE:
@@ -897,6 +898,18 @@ SHARED_DEPS: list[SharedDep] = [
         should_skip=_absl_should_skip,
     ),
 ]
+
+
+def _first_up_to_date(candidates: list[Path], sources: list[str]) -> t.Optional[Path]:
+    """Return the first candidate artifact that is newer than every source, else None.
+
+    ext_cache restores a .so into the source tree for an editable build and into build/lib
+    for a wheel build, so both are candidates.
+    """
+    for candidate in candidates:
+        if not newer_group(sources, str(candidate), "newer"):
+            return candidate
+    return None
 
 
 class CustomBuildExt(build_ext):
@@ -1248,13 +1261,9 @@ class CustomBuildExt(build_ext):
             try:
                 subprocess.run(["strip", "-g", so_file], check=True)
             except subprocess.CalledProcessError as e:
-                print(
-                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
-                )
+                print(f"WARNING: stripping '{so_file}' returned non-zero exit status ({e.returncode}), ignoring")
             except Exception as e:
-                print(
-                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
-                )
+                print(f"WARNING: An error occurred while stripping the symbols from '{so_file}', ignoring: {e}")
 
     @staticmethod
     def _should_strip_heap_gotter() -> bool:
@@ -1300,12 +1309,12 @@ class CustomBuildExt(build_ext):
             try:
                 self.build_extension_cmake(ext)
             except subprocess.CalledProcessError as e:
-                print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
+                print(f"WARNING: Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
                 if ext.optional:
                     return
                 raise
             except Exception as e:
-                print("WARNING: An error occurred while building the CMake extension {}, {}.".format(ext.name, e))
+                print(f"WARNING: An error occurred while building the CMake extension {ext.name}, {e}.")
                 if ext.optional:
                     return
                 raise
@@ -1314,9 +1323,6 @@ class CustomBuildExt(build_ext):
             # sources.  ext.sources contains the .c files (post-cythonize), so
             # if Cython regenerated a .c due to a .pxd or .pyx change the .c
             # will be newer and this guard will correctly let the build proceed.
-            # We use the inplace path (source-tree location) explicitly because
-            # that is where ext_cache always restores .so files (it runs
-            # ext_hashes --inplace), regardless of the current self.inplace.
             if self.INCREMENTAL:
                 # get_ext_filename gives the package-relative path, e.g.
                 # "ddtrace/profiling/collector/_lock.cpython-313-darwin.so"
@@ -1338,15 +1344,12 @@ class CustomBuildExt(build_ext):
                 sources_for_check = [_pyx_or_c(s) for s in ext.sources]
                 # Also include all .pxd files so declaration changes invalidate the cache.
                 sources_for_check.extend(str(p.resolve()) for p in (HERE / "ddtrace").glob("**/*.pxd") if p.is_file())
-                if not newer_group(
-                    sources_for_check,
-                    str(ext_inplace),
-                    "newer",
-                ):
+                cached = _first_up_to_date([ext_inplace, full_path.resolve()], sources_for_check)
+                if cached is not None:
                     print(f"skipping '{ext.name}' extension (up-to-date)")
                     full_path.parent.mkdir(parents=True, exist_ok=True)
-                    if ext_inplace != full_path.resolve():
-                        shutil.copy(ext_inplace, full_path)
+                    if cached != full_path.resolve():
+                        shutil.copy(cached, full_path)
                 else:
                     super().build_extension(ext)
             else:
@@ -1462,18 +1465,15 @@ class CustomBuildExt(build_ext):
             else:
                 dependencies = []
 
-            if not (
-                force
-                or newer_group(
-                    [str(_.resolve()) for _ in ext.get_sources()] + dependencies, str(ext_path.resolve()), "newer"
-                )
-            ):
+            sources_for_check = [str(_.resolve()) for _ in ext.get_sources()] + dependencies
+            cached = None if force else _first_up_to_date([ext_path.resolve(), full_path.resolve()], sources_for_check)
+            if cached is not None:
                 print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 
                 # We need to copy the binary where setuptools expects it
                 full_path.parent.mkdir(parents=True, exist_ok=True)
-                if ext_path.resolve() != full_path.resolve():
-                    shutil.copy(ext_path, full_path)
+                if cached != full_path.resolve():
+                    shutil.copy(cached, full_path)
 
                 return
             else:
@@ -1501,22 +1501,22 @@ class CustomBuildExt(build_ext):
         # by setuptools/distutils
         if IS_EDITABLE:
             # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
-            cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
+            cmake_args.append(f"-DINPLACE_LIB_INSTALL_DIR={ext.source_dir}")
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
-        build_args += ["--config {}".format(ext.build_type)]
+        build_args += [f"--config {ext.build_type}"]
         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
             # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
             # self.parallel is a Python 3 only way to set parallel jobs by hand
             # using -j in the build_ext call, not supported by pip or PyPA-build.
             # DEV: -j is supported in CMake 3.12+ only.
             if hasattr(self, "parallel") and self.parallel:
-                build_args += ["-j{}".format(self.parallel)]
+                build_args += [f"-j{self.parallel}"]
 
         # Arguments to cmake --install command
         install_args = ext.install_args or []
-        install_args += ["--config {}".format(ext.build_type)]
+        install_args += [f"--config {ext.build_type}"]
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
@@ -1634,7 +1634,7 @@ def debug_build_extension(fn):
         try:
             return fn(self, ext, *args, **kwargs)
         finally:
-            DebugMetadata.build_times[ext] = time.time_ns() - start
+            DebugMetadata.build_times[ext.name] = time.time_ns() - start
 
     return wrapper
 
@@ -1728,25 +1728,25 @@ def check_rust_toolchain():
         rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         cargo_res = subprocess.run(["cargo", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if rustc_res.returncode != 0:
-            raise EnvironmentError("rustc required to build Rust extensions")
+            raise OSError("rustc required to build Rust extensions")
         if cargo_res.returncode != 0:
-            raise EnvironmentError("cargo required to build Rust extensions")
+            raise OSError("cargo required to build Rust extensions")
 
         # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
         rustc_ver = rustc_res.stdout.decode().split(" ")[1]
         cargo_ver = cargo_res.stdout.decode().split(" ")[1]
         if rustc_ver < RUST_MINIMUM_VERSION:
-            raise EnvironmentError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
+            raise OSError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
         if cargo_ver < RUST_MINIMUM_VERSION:
-            raise EnvironmentError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
+            raise OSError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
     except FileNotFoundError:
-        raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
+        raise OSError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
 
 
 # Before adding any extensions, check that system pre-requisites are satisfied
 try:
     check_rust_toolchain()
-except EnvironmentError as e:
+except OSError as e:
     print(f"{e}")
     sys.exit(1)
 

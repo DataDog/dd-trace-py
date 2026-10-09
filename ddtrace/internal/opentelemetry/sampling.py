@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace.internal.constants import W3C_DD_LIST_MEMBER_MAX_CHARS
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
 from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
@@ -11,7 +12,6 @@ from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
 
 _MAX_THRESHOLD = 1 << 56
 _MAX_ENCODABLE_THRESHOLD = _MAX_THRESHOLD - 1
-_MAX_OTEL_TRACESTATE_VALUE_CHARS = 256
 _VALID_RANDOM_VALUE = re.compile(r"^[0-9a-f]{14}$")
 _VALID_THRESHOLD = re.compile(r"^[0-9a-f]{1,14}$")
 
@@ -57,15 +57,15 @@ def _threshold(sample_rate: float) -> int:
 
 
 def _format_threshold(threshold: int) -> str:
-    return "{:014x}".format(threshold).rstrip("0") or "0"
+    return f"{threshold:014x}".rstrip("0") or "0"
 
 
 def _build_otel_member(random_value: Optional[str], threshold: Optional[str], unknown_fields: list[str]) -> str:
     candidate_fields: list[str] = []
     if random_value is not None:
-        candidate_fields.append("rv:{}".format(random_value))
+        candidate_fields.append(f"rv:{random_value}")
     if threshold is not None:
-        candidate_fields.append("th:{}".format(threshold))
+        candidate_fields.append(f"th:{threshold}")
     candidate_fields.extend(unknown_fields)
 
     # The ot value (excluding the "ot=" key) is limited to 256 characters. Keep
@@ -74,7 +74,7 @@ def _build_otel_member(random_value: Optional[str], threshold: Optional[str], un
     value_chars = 0
     for field in candidate_fields:
         field_chars = len(field) + (1 if fields else 0)
-        if value_chars + field_chars <= _MAX_OTEL_TRACESTATE_VALUE_CHARS:
+        if value_chars + field_chars <= W3C_DD_LIST_MEMBER_MAX_CHARS:
             fields.append(field)
             value_chars += field_chars
     return ";".join(fields)
@@ -154,8 +154,8 @@ def resolve_otel_sampling_decision(
         elif not sampled and random_value_int >= threshold_value:
             random_value_int = max(0, threshold_value - 1)
         if threshold_value == 0:
-            return "rv:{:014x};th:0".format(random_value_int)
-        return "rv:{:014x};th:{}".format(random_value_int, _format_threshold(threshold_value))
+            return f"rv:{random_value_int:014x};th:0"
+        return f"rv:{random_value_int:014x};th:{_format_threshold(threshold_value)}"
 
     random_value, threshold, unknown_fields = _parse_otel_fields(ot_value)
 
@@ -177,7 +177,7 @@ def resolve_otel_sampling_decision(
         random_value_int = max(0, threshold_value - 1)
 
     return _build_otel_member(
-        "{:014x}".format(random_value_int),
+        f"{random_value_int:014x}",
         _format_threshold(threshold_value),
         unknown_fields,
     )

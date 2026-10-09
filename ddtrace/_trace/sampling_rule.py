@@ -1,19 +1,19 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.cache import cachedmethod
 
 
 log = get_logger(__name__)
 
 
-class SamplingRule(object):
+class SamplingRule:
     """
     Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
     """
@@ -95,18 +95,18 @@ class SamplingRule(object):
                 return False
         return True
 
-    def matches(self, span: Span) -> bool:
+    def matches(self, span: SpanData) -> bool:
         """
         Return if this span matches this rule
 
         :param span: The span to match against
-        :type span: :class:`ddtrace._trace.span.Span`
+        :type span: :class:`ddtrace.internal.native._native.SpanData`
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
         return self.tags_match(span) and self.name_match((span.service, span.name, span.resource))
 
-    def tags_match(self, span: Span) -> bool:
+    def tags_match(self, span: SpanData) -> bool:
         if not self.tags:
             return True
 
@@ -137,12 +137,12 @@ class SamplingRule(object):
 
         return True
 
-    def sample(self, span: Span) -> bool:
+    def sample(self, span: SpanData) -> bool:
         """
         Return if this rule chooses to sample the span
 
         :param span: The span to sample against
-        :type span: :class:`ddtrace._trace.span.Span`
+        :type span: :class:`ddtrace.internal.native._native.SpanData`
         :returns: Whether this span was sampled
         :rtype: :obj:`bool`
         """

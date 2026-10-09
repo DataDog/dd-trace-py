@@ -17,7 +17,7 @@ _DD_PIN_NAME = "_datadog_pin"
 _DD_PIN_PROXY_NAME = "_self_" + _DD_PIN_NAME
 
 
-class Pin(object):
+class Pin:
     """Pin (a.k.a Patch INfo) is a small class which is used to
     set tracing metadata on a particular traced connection.
     This is useful if you wanted to, say, trace two different
@@ -56,7 +56,7 @@ class Pin(object):
     def __setattr__(self, name: str, value: Any) -> None:
         if getattr(self, "_initialized", False) and name != "_target":
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
-        super(Pin, self).__setattr__(name, value)
+        super().__setattr__(name, value)
 
     def __repr__(self) -> str:
         return "Pin(service=%s, tags=%s)" % (self.service, self.tags)

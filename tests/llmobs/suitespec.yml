@@ -18,6 +18,7 @@ components:
     - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
+    - ddtrace/contrib/internal/stream_handler.py
   mcp:
     - ddtrace/contrib/internal/mcp/*
   mistralai:
@@ -36,7 +37,7 @@ components:
     - ddtrace/contrib/internal/vllm/*
 suites:
   anthropic:
-    venvs_per_job: 5
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -70,8 +71,6 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/claude_agent_sdk/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: claude_agent_sdk
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
@@ -86,7 +85,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [claude-agent-sdk, pytest-asyncio]
   google_adk:
-    venvs_per_job: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -104,7 +103,7 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    venvs_per_job: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -117,13 +116,10 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/google_genai
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: google_genai
           dependencies: [pytest-asyncio, google-genai]
   vertexai:
-    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -136,13 +132,12 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       python: ['3.9', '3.10', '3.11', '3.12']
       variants:
         - name: vertexai
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -153,11 +148,8 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: llama_index
           python: ['3.10', '3.11', '3.12', '3.13']
@@ -165,9 +157,13 @@ suites:
         - name: llama_index
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
+        # PR #20079: Python 3.14 is covered by the latest dependency row only.
+        - name: llama_index
+          python: ['3.14']
+          dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
+    venvs_per_job: 4
     retry: 2
-    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -181,8 +177,6 @@ suites:
     snapshot: true
     matrix:
       command: pytest -v {cmdargs} tests/contrib/langchain
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: langchain
           python: ['3.9', '3.10', '3.11', '3.12']
@@ -194,6 +188,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
   litellm:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -204,17 +199,18 @@ suites:
       - tests/contrib/litellm/*
       - tests/snapshots/tests.contrib.litellm.*
     snapshot: true
-    venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/contrib/litellm
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.65.4', 'openai==1.68.2']
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+        # PR #20079: Python 3.14 is covered by the latest compatible dependency row only.
+        - name: litellm
+          python: ['3.14']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
   llmobs:
     paths:
@@ -232,11 +228,10 @@ suites:
       - tests/cassettes/vertexai/*
       - tests/cassettes/tests.llmobs.*
     snapshot: true
+    no_proxy: true
     venvs_per_job: 2
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: llmobs
           python: ['3.9']
@@ -283,8 +278,6 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/mistralai
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: mistralai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
@@ -293,7 +286,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, mistralai]
   openai:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -328,6 +321,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai==1.66.0', pillow]
   langgraph:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -338,7 +332,6 @@ suites:
       - '@llmobs'
       - tests/contrib/langgraph/*
     snapshot: true
-    venvs_per_job: 4
     matrix:
       command: pytest {cmdargs} tests/contrib/langgraph
       variants:
@@ -367,8 +360,8 @@ suites:
           python: ['3.14']
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
+    venvs_per_job: 2
     retry: 2
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -382,8 +375,6 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/crewai
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: crewai
           python: ['3.10', '3.11', '3.12']
@@ -392,6 +383,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
   openai_agents:
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -402,7 +394,6 @@ suites:
       - tests/contrib/openai_agents/*
       - tests/snapshots/tests.contrib.openai_agents.*
     snapshot: true
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/openai_agents
       variants:
@@ -422,9 +413,11 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, pytest-asyncio, openai, 'openai-agents~=0.14.0']
         - name: openai_agents
-          python: ['3.10', '3.11', '3.12', '3.13']
+          # PR #20079: Python 3.14 is covered by the latest dependency row only.
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
   pydantic_ai:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -435,11 +428,8 @@ suites:
       - tests/contrib/pydantic_ai/*
       - tests/snapshots/tests.contrib.pydantic_ai.*
     snapshot: true
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/pydantic_ai
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: pydantic_ai
           python: ['3.9']
@@ -469,11 +459,10 @@ suites:
     skip: true # Temporarily disabled
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
-      python: ['3.10', '3.11', '3.12', '3.13']
       variants:
         - name: vllm
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2']
         - name: vllm
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]

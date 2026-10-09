@@ -12,20 +12,20 @@ replayed.  This is buffer-then-evaluate, NOT live forwarding — do not
 module exists to prevent).
 """
 
+from collections.abc import AsyncIterator
+from collections.abc import Iterator
 import inspect
 from typing import Any
-from typing import AsyncIterator
 from typing import Callable
-from typing import Iterator
 from typing import Optional
 
 import wrapt
 
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
 
 
 logger = ddlogger.get_logger(__name__)
@@ -146,7 +146,7 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
     # ------------------------------------------------------------------
     # Context-manager protocol
     #
-    # TracedStream.__enter__() (base_stream_handler.py) has two branches:
+    # TracedStream.__enter__() (ddtrace/contrib/internal/stream_handler.py) has two branches:
     #   - non-manager (raw Stream): returns ``self`` (the TracedStream).
     #   - manager (MessageStreamManager): returns a NEW TracedStream
     #     wrapping the inner MessageStream.

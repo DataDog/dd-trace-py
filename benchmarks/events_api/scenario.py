@@ -150,4 +150,4 @@ class EventsAPIScenario(bm.Scenario):
         elif self.api == "trace_api":
             yield benchmark_trace_api
         else:
-            raise RuntimeError("Unknown benchmark api {!r}".format(self.api))
+            raise RuntimeError(f"Unknown benchmark api {self.api!r}")

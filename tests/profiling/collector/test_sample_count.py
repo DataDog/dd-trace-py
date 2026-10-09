@@ -8,7 +8,7 @@ import pytest
     ),
     err=None,
 )
-def test_sample_count():
+def test_sample_count() -> None:
     import asyncio
     import json
     import os
@@ -30,7 +30,7 @@ def test_sample_count():
 
         await asyncio.get_running_loop().run_in_executor(executor=None, func=lambda: time.sleep(1))
 
-    async def hello():
+    async def hello() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
         t1 = asyncio.create_task(stuff(), name="sleep 1")
         t2 = asyncio.create_task(stuff(), name="sleep 2")
         await stuff()
@@ -53,7 +53,7 @@ def test_sample_count():
 
     found_at_least_one_with_more_samples_than_sampling_events = False
     for i, f in enumerate(files):
-        with open(f, "r") as fp:
+        with open(f) as fp:
             internal_metadata = json.load(fp)
 
             if i < len(files) - 1:
