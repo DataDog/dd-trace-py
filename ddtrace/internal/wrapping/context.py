@@ -22,6 +22,7 @@ from ddtrace.internal.compat import is_supported_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import WrappedFunction
@@ -455,7 +456,7 @@ if is_at_least_py(3, 15):
     # original_code. A plain weakref.WeakKeyDictionary would therefore conflate the
     # clone with the original -- and, via that, conflate closures that share one
     # original code object -- so this uses the identity-keyed mapping instead.
-    _ctx_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+    _ctx_registry: "IdentityWeakKeyDictionary[CodeType, t.Any]" = IdentityWeakKeyDictionary()
     # Keyed by function instance: distinguishes functions that share a code object
     # (e.g. closures re-created in a loop) from one another. Kept off the function's
     # __dict__ (unlike a plain attribute) so functools.wraps does not propagate
