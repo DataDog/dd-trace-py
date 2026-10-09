@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
         print("Running WAF module load test...")
         # Proceed with the WAF module load test
-        import ddtrace.appsec._ddwaf  # noqa: F401
+        import ddtrace.appsec._waf  # noqa: F401
 
         assert module.loaded
 

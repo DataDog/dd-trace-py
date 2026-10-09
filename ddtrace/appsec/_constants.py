@@ -2,6 +2,7 @@
 
 from _io import BytesIO
 from _io import StringIO
+from enum import Enum
 import os
 from re import Match
 import sys
@@ -423,3 +424,11 @@ class SCA(metaclass=Constant_Class):
     """SCA (Software Composition Analysis) related constants."""
 
     ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"
+
+
+class SqlDialect(str, Enum):
+    GENERIC = "generic"
+    MYSQL = "mysql"
+    ORACLE = "oracle"
+    POSTGRESQL = "postgresql"
+    SQLITE = "sqlite"

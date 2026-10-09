@@ -231,15 +231,16 @@ class _Contrib_TestClass_Base:
     def check_waf_no_errors(self):
         """Check that the WAF has no errors after a rule update."""
         info = self._get_waf_info()
-        assert info.failed == 0, f"WAF has {info.failed} failed rules after update"
-        assert info.errors == "", f"WAF has errors after update: {info.errors}"
+        assert info.rejected_rules == 0, f"WAF has {info.rejected_rules} failed rules after update"
+        assert info.errors == {}, f"WAF has errors after update: {info.errors}"
 
     def check_waf_errors(self, expected_failed: int, expected_errors: dict):
         """Check that the WAF reports the expected errors after a rule update."""
         info = self._get_waf_info()
-        assert info.failed == expected_failed, f"Expected {expected_failed} failed rules, got {info.failed}"
-        errors = json.loads(info.errors)
-        assert errors == expected_errors, f"Expected WAF errors {expected_errors}, got {errors}"
+        assert info.rejected_rules == expected_failed, (
+            f"Expected {expected_failed} failed rules, got {info.rejected_rules}"
+        )
+        assert info.errors == expected_errors, f"Expected WAF errors {expected_errors}, got {info.errors}"
 
     def assert_blocked(self, response, entry_span, get_entry_span_tag, rule_id, content_type="application/json"):
         """Assert that the response was blocked with the expected rule, status 403, and content type."""

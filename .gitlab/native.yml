@@ -7,7 +7,9 @@ include:
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
-  before_script: cd src/native
+  before_script:
+    - !reference [.testrunner, before_script]
+    - cd src/native
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_fmt[collapsed=true]\r\e[0Kcargo fmt"

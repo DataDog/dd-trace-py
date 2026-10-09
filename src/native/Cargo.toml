@@ -11,6 +11,8 @@ opt-level = 's'
 codegen-units = 1
 
 [features]
+default = ["waf"]
+waf = ["dep:libddwaf", "dep:libddwaf-sys"]
 crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:libdd-ffe"]
@@ -93,3 +95,8 @@ build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2",
 name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
+
+[target.'cfg(any(target_os = "windows", all(target_pointer_width = "64", any(target_os = "linux", target_os = "macos"))))'.dependencies]
+libddwaf = { git = "https://github.com/DataDog/libddwaf-rust", rev = "b7569bea223b1eb329944154d95bf804fa9fae67", default-features = false, optional = true }
+# The high-level crate does not forward the downloader's TLS provider features.
+libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", rev = "b7569bea223b1eb329944154d95bf804fa9fae67", default-features = false, features = ["ring"], optional = true }

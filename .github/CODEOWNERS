@@ -199,6 +199,8 @@ benchmarks/bm/iast_utils*           @DataDog/asm-python
 # ddtrace files
 ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
+src/native/appsec/                    @DataDog/asm-python
+ddtrace/internal/native/_native_ddwaf.pyi    @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python
