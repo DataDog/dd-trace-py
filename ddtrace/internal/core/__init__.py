@@ -119,12 +119,15 @@ after the ``with`` block exits. For example::
         return future
 """
 
+from collections.abc import Callable
 import contextvars
 import logging
 import types
 from typing import Any
 from typing import Generic
 from typing import Optional
+
+from ddtrace.internal.native import config as _native_config
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
@@ -155,6 +158,7 @@ class ExecutionContext(Generic[EventType]):
         "_token",
         "_dispatch_end_event",
         "_end_event_dispatched",
+        "_end_callbacks",
     )
 
     def __init__(
@@ -174,24 +178,29 @@ class ExecutionContext(Generic[EventType]):
         self._token: Optional[contextvars.Token[ExecutionContext]] = None
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
+        self._end_callbacks: Optional[dict[object, Callable[..., None]]] = None
 
     def __enter__(self) -> "ExecutionContext[EventType]":
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         try:
             dispatch("context.started." + self.identifier, (self,))
-        except BaseException:
-            # If dispatch raises, __exit__ won't be called — reset the context ourselves
-            # to avoid leaving _CURRENT_CONTEXT pointing at this partially-entered context.
-            if self._token is not None:
-                try:
-                    _CURRENT_CONTEXT.reset(self._token)
-                except ValueError:
-                    log.debug("Encountered ValueError resetting context in __enter__ error path for %s", self)
-                except LookupError:
-                    log.debug("Encountered LookupError resetting context in __enter__ error path for %s", self)
-                self._token = None
-            raise
+        except BaseException as error:
+            self._end_event_dispatched = True
+            try:
+                self._dispatch_ended_callbacks((type(error), error, error.__traceback__), error)
+            finally:
+                self._event = None
+                # If dispatch raises, __exit__ won't be called — reset the context ourselves
+                # to avoid leaving _CURRENT_CONTEXT pointing at this partially-entered context.
+                if self._token is not None:
+                    try:
+                        _CURRENT_CONTEXT.reset(self._token)
+                    except ValueError:
+                        log.debug("Encountered ValueError resetting context in __enter__ error path for %s", self)
+                    except LookupError:
+                        log.debug("Encountered LookupError resetting context in __enter__ error path for %s", self)
+                    self._token = None
         return self
 
     def __repr__(self) -> str:
@@ -218,24 +227,25 @@ class ExecutionContext(Generic[EventType]):
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:
-        if self._dispatch_end_event and not self._end_event_dispatched:
-            # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
-            dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
-            self._end_event_dispatched = True
-            self._event = None
         try:
-            if self._token is not None:
-                _CURRENT_CONTEXT.reset(self._token)
-        except ValueError:
-            log.debug(
-                "Encountered ValueError during core contextvar reset() call. "
-                "This can happen when a span holding an executioncontext is "
-                "finished in a Context other than the one that started it."
-            )
-        except LookupError:
-            log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
+            if self._dispatch_end_event and not self._end_event_dispatched:
+                self.dispatch_ended_event(exc_type, exc_value, traceback)
         finally:
-            self._token = None
+            try:
+                if self._token is not None:
+                    _CURRENT_CONTEXT.reset(self._token)
+            except ValueError:
+                log.debug(
+                    "Encountered ValueError during core contextvar reset() call. "
+                    "This can happen when a span holding an executioncontext is "
+                    "finished in a Context other than the one that started it."
+                )
+            except LookupError:
+                log.debug(
+                    "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
+                )
+            finally:
+                self._token = None
         return (
             True
             if exc_type is None
@@ -254,9 +264,43 @@ class ExecutionContext(Generic[EventType]):
         """
         if self._end_event_dispatched:
             return
-        dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
         self._end_event_dispatched = True
-        self._event = None
+        exc_info = (exc_type, exc_value, traceback)
+        error: Optional[BaseException] = None
+        try:
+            dispatch("context.ended." + self.identifier, (self, exc_info))
+        except BaseException as e:
+            error = e
+        try:
+            self._dispatch_ended_callbacks(exc_info, error)
+        finally:
+            self._event = None
+
+    def _add_ended_callback(self, owner: object, callback: Callable[..., None]) -> None:
+        if self._end_callbacks is None:
+            self._end_callbacks = {}
+        self._end_callbacks.setdefault(owner, callback)
+
+    def _take_ended_callback(self, owner: object) -> Optional[Callable[..., None]]:
+        return self._end_callbacks.pop(owner, None) if self._end_callbacks else None
+
+    def _dispatch_ended_callbacks(
+        self,
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[types.TracebackType]],
+        error: Optional[BaseException] = None,
+    ) -> None:
+        # Normal hub delivery consumes callbacks in its existing order. Only owners
+        # missed by that delivery (for example after unregister) drain here.
+        callbacks, self._end_callbacks = self._end_callbacks, None
+        if callbacks:
+            for callback in callbacks.values():
+                try:
+                    callback(self, exc_info)
+                except BaseException as e:
+                    if error is None and (not isinstance(e, Exception) or _native_config.get_raise()):
+                        error = e
+        if error is not None:
+            raise error
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""

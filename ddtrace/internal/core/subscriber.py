@@ -60,6 +60,7 @@ class Subscriber:
     event_names: Sequence[str]
     auto_register: ClassVar[bool] = True
     _event_handlers: tuple = ()
+    _registered: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Automatically register listeners at subclass definition.
@@ -67,6 +68,7 @@ class Subscriber:
         behavior composition (a child class benefit from the parent class hook)
         """
         super().__init_subclass__(**kwargs)
+        cls._registered = False
 
         cls._event_handlers = tuple(
             base_cls.on_event
@@ -86,12 +88,14 @@ class Subscriber:
     @classmethod
     def register(cls) -> None:
         """Register this subscriber for its declared events."""
+        cls._registered = True
         for event_name in cls.event_names:
             core.on(event_name, cls._on_event, name=cls.__name__)
 
     @classmethod
     def unregister(cls) -> None:
         """Unregister this subscriber from its declared events."""
+        cls._registered = False
         for event_name in cls.event_names:
             core.reset_listeners(event_name, cls._on_event)
 
@@ -107,6 +111,8 @@ class Subscriber:
     @classmethod
     def _on_event(cls, event_instance):
         """Internal handler that calls all _on_event methods from parent to children"""
+        if not cls._registered:
+            return
         for handler in cls._event_handlers:
             handler(event_instance)
 
@@ -146,6 +152,7 @@ class ContextSubscriber(Generic[EventType]):
     auto_register: ClassVar[bool] = True
     _started_handlers: tuple = ()
     _ended_handlers: tuple = ()
+    _registered: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Automatically register listeners at subclass definition.
@@ -154,6 +161,7 @@ class ContextSubscriber(Generic[EventType]):
         """
 
         super().__init_subclass__(**kwargs)
+        cls._registered = False
 
         cls._started_handlers = tuple(
             base_cls.on_started
@@ -182,24 +190,45 @@ class ContextSubscriber(Generic[EventType]):
     @classmethod
     def register(cls) -> None:
         """Register this subscriber for its declared context events."""
+        cls._registered = True
         for event_name in cls.event_names:
             core.on(
                 f"context.started.{event_name}",
-                cls._on_context_started,
+                cls._admit_context,
                 name=f"{cls.__name__}.started",
             )
             core.on(
                 f"context.ended.{event_name}",
-                cls._on_context_ended,
+                cls._complete_context,
                 name=f"{cls.__name__}.ended",
             )
 
     @classmethod
     def unregister(cls) -> None:
         """Unregister this subscriber from its declared context events."""
+        cls._registered = False
         for event_name in cls.event_names:
-            core.reset_listeners(f"context.started.{event_name}", cls._on_context_started)
-            core.reset_listeners(f"context.ended.{event_name}", cls._on_context_ended)
+            core.reset_listeners(f"context.started.{event_name}", cls._admit_context)
+            core.reset_listeners(f"context.ended.{event_name}", cls._complete_context)
+
+    @classmethod
+    def _admit_context(cls, ctx: core.ExecutionContext[EventType]) -> None:
+        if not cls._registered:
+            return
+        # Capture completion before invoking start, which may allocate state and
+        # then fail. Its lifetime belongs to this context rather than the registry.
+        ctx._add_ended_callback(cls, cls._on_context_ended)
+        cls._on_context_started(ctx)
+
+    @classmethod
+    def _complete_context(
+        cls,
+        ctx: core.ExecutionContext[EventType],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        callback = ctx._take_ended_callback(cls)
+        if callback is not None:
+            callback(ctx, exc_info)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[EventType]):

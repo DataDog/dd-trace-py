@@ -21,6 +21,21 @@ Create `ddtrace/contrib/internal/{name}/patch.py` with `get_version()`, `_suppor
 - **Pin + `tracer.trace()` (DEPRECATED)**: Do NOT use in new integrations.
 - **LLM/AI integrations**: Use this guide for contrib package layout, registration, config, and APM tests. Use the `llmobs-integrations` skill for LLM-specific patch patterns, span lifecycle, `BaseLLMIntegration`, stream handling, extraction, and LLMObs tests.
 
+### Optional preparation and subscriber completion
+
+Gate optional event construction and expensive data collection with `core.has_listeners()`
+for the event being dispatched. The check is an optimization; product handlers still own
+admission because subscriptions can change between the check and dispatch. The shared
+DBAPI sync and async query wrappers demonstrate this pattern.
+
+A `ContextSubscriber` owns its paired completion once its start adapter runs. Removing
+its subscription stops new admission while active and deferred contexts retain completion.
+Normal end delivery keeps event-hub order; any remaining owned callbacks run afterward
+in admission order. Subscribers registered after a context starts receive no orphan end.
+Partial entry and end failures still release owned state and restore the current context.
+Keep cleanup safe when start only partially initialized state, and do not depend on a
+sibling callback succeeding. Use `dispatch_ended_event()` to complete deferred contexts.
+
 ### Type Annotations
 
 All functions in the patch module must have full type annotations. Follow the typing patterns from the reference integration you read in the step above.

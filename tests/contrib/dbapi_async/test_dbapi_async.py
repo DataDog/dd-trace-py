@@ -36,14 +36,34 @@ class TestTracedAsyncCursor(AsyncioTestCase):
     @mark_asyncio
     async def test_query_is_blocked_before_execution(self):
         for method in ("execute", "executemany"):
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+            listener = mock.Mock(side_effect=BlockingException)
+            core.on(DbQueryEvent.event_name, listener)
+            try:
                 with pytest.raises(BlockingException):
                     await getattr(TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"}), method)(
                         "SELECT 1"
                     )
+            finally:
+                core.reset_listeners(DbQueryEvent.event_name, listener)
 
-            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
+            listener.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
             getattr(self.cursor, method).assert_not_awaited()
+
+    @mark_asyncio
+    async def test_queries_skip_optional_event_preparation_without_consumers(self):
+        self.cursor.rowcount = 0
+        traced_cursor = TracedAsyncCursor(self.cursor, cfg={})
+        assert not core.has_listeners(DbQueryEvent.event_name)
+        with mock.patch("ddtrace.contrib.dbapi_async.DbQueryEvent", wraps=DbQueryEvent) as event_type:
+            event_type.event_name = DbQueryEvent.event_name
+            for method in ("execute", "executemany"):
+                result = await getattr(traced_cursor, method)("SELECT 1")
+                assert result is getattr(self.cursor, method).return_value
+            event_type.assert_not_called()
+
+        spans = self.pop_spans()
+        assert len(spans) == 2
+        assert all(span.resource == "SELECT 1" for span in spans)
 
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     @mark_asyncio
