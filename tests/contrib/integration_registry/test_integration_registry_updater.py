@@ -72,6 +72,8 @@ def test_update_preserves_unrelated_entries(updater, tmp_path):
     assert names == {"coverage", "anyio"}
     coverage = next(e for e in updated["integrations"] if e["integration_name"] == "coverage")
     assert coverage["tested_versions_by_dependency"]["coverage"] == {"min": "7.2.2", "max": "7.13.1"}
+    # The lock file's lifecycle is left to FileLock, so it persists after the run
+    assert updater.registry_lock_path.exists()
 
 
 def test_lock_contention_aborts_without_wiping_registry(updater, tmp_path):
@@ -92,6 +94,10 @@ def test_lock_contention_aborts_without_wiping_registry(updater, tmp_path):
         contention.release()
 
     assert updater.registry_yaml_path.read_text() == original
+    # The concurrent holder's lock file must survive the failed run: unlinking
+    # it would let a third updater lock a fresh inode at the same path while
+    # the current holder is still running.
+    assert updater.registry_lock_path.exists()
 
 
 def test_malformed_registry_entry_aborts_without_wiping_registry(updater, tmp_path):

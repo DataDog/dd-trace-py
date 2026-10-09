@@ -155,17 +155,8 @@ class IntegrationRegistryUpdater:
             print(f"\nIntegrationRegistryUpdater: Failed to write updated registry data: {e}", file=sys.stderr)
             return False
         finally:
-            self._delete_lock_file()
             if self.lock.is_locked:
                 self.lock.release()
-
-    def _delete_lock_file(self):
-        """Deletes the lock file if it exists."""
-        try:
-            if self.registry_lock_path.exists():
-                self.registry_lock_path.unlink()
-        except OSError as e:
-            print(f"IntegrationRegistryUpdater: Failed to delete lock file: {e}", file=sys.stderr)
 
     def _get_test_suite_name(self):
         """Return the integration name when this runs inside a test suite."""
@@ -216,7 +207,9 @@ class IntegrationRegistryUpdater:
                 self.lock.release()
             return False
         finally:
-            # Ensure lock is always released and the lock file is deleted
+            # Release the lock if this instance holds it. The lock file's lifecycle is
+            # left to FileLock: unlinking it here — especially after a failed acquire,
+            # when a concurrent updater owns it — would let another updater lock a
+            # fresh inode at the same path while the current holder is still running.
             if self.lock.is_locked:
                 self.lock.release()
-            self._delete_lock_file()
