@@ -6,6 +6,9 @@ import anthropic
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import StreamHandler
+from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 log = get_logger(__name__)
