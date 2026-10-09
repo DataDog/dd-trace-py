@@ -33,11 +33,13 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -56,7 +58,7 @@ ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 DEFAULT_SERVICE_KEYS = frozenset(["_default_service", "_default_service_worker", "_default_service_producer"])
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
-    r"(?ix)"
+    r"(?i)"
     r"(?:"  # JSON-ish leading quote
     r'(?:"|%22)?'
     r")"
@@ -89,10 +91,11 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r'(?:"|%22)'  # closing '"' at end of value
     r")"
     r"|(?:"  # other common secret values
-    r" bearer(?:\s|%20)+[a-z0-9._\-]+"
+    r"bearer(?:\s|%20)+[a-z0-9._\-]+"
     r"|token(?::|%3A)[a-z0-9]{13}"
     r"|gh[opsu]_[0-9a-zA-Z]{36}"
-    r"|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
+    r"|(^|[^\w%-]|%[0-9a-f]{2})ey[I-L][\w-]+(?:=|%3D)*\.ey[I-L][\w-]+(?:=|%3D)*"
+    r"(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
     r"|-{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY-{5}[^\-]+-{5}END"
     r"(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY(?:-{5})?(?:\n|%0A)?"
     r"|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\s|%20|%09)+(?:[a-z0-9/.+]"
@@ -539,11 +542,15 @@ class Config:
 
         self._inferred_base_service = detect_service(sys.argv)
 
+        self._otel_trace_semantics_enabled = agent_config._trace_otel_semantics_enabled
+
         # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
-        if _span_service_name_schema_version not in ("v0", "v1"):
+        if self._otel_trace_semantics_enabled:
+            _span_service_name_schema_version = "v0"
+        elif _span_service_name_schema_version not in ("v0", "v1"):
             _span_service_name_schema_version = "v0"
         if _span_service_name_schema_version == "v0" and not asbool(
             env.get("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False)
@@ -712,6 +719,9 @@ class Config:
         dd_trace_obfuscation_query_string_regexp = _get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
+        self._query_string_obfuscation_preserve_delimiter = (
+            dd_trace_obfuscation_query_string_regexp == DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+        )
         self._global_query_string_obfuscation_disabled = dd_trace_obfuscation_query_string_regexp == ""
         self._obfuscation_query_string_pattern = None
         self._http_tag_query_string = True  # Default behaviour of query string tagging in http.url
@@ -732,7 +742,33 @@ class Config:
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-        self._otel_trace_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
+        if self._otel_trace_semantics_enabled:
+            _peer_service_defaults_enabled = _get_config(
+                "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, asbool, report_telemetry=False
+            )
+            if _peer_service_defaults_enabled:
+                log.warning(
+                    "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED is set to true, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Peer service defaults stay disabled."
+                )
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_peer_service_defaults_enabled"),),
+                )
+            _span_attribute_schema = _get_config("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", report_telemetry=False)
+            if _span_attribute_schema != "v0":
+                log.warning(
+                    "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA is set to a version other than v0, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Schema v0 is used instead."
+                )
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_span_attribute_schema"),),
+                )
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()

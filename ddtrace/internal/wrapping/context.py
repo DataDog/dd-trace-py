@@ -1,6 +1,7 @@
 from abc import ABC
 from contextvars import ContextVar
 from functools import lru_cache
+from inspect import CO_ASYNC_GENERATOR
 from inspect import CO_COROUTINE
 from inspect import CO_GENERATOR
 import sys
@@ -1239,7 +1240,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
                 # Search for the GEN_START instruction, which needs to stay on top.
                 i = 0
-                if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE)):
+                if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
                             break

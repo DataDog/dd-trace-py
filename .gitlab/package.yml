@@ -203,6 +203,7 @@ variables:
     SYSTEM_VERSION_COMPAT: "0"
     MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
+  retry: 2
   parallel:
     matrix:
       - PYTHON_VERSIONS:
@@ -282,6 +283,12 @@ variables:
   script:
     - |
       set -euo pipefail
+      # We have two nightly jobs, one with unpinned dependencies and one with pinned dependencies.
+      # We should only publish the patched wheels for one.
+      if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
+        echo "UNPIN_DEPENDENCIES is true -- not publishing patched wheels, exiting."
+        exit 0
+      fi
       # On nightly runs NIGHTLY_LOCAL_SEGMENT is set but PACKAGE_VERSION has no local
       # segment (kept clean for validation).  Inject it locally for this job only.
       if [ -n "${NIGHTLY_LOCAL_SEGMENT:-}" ] && [[ "${PACKAGE_VERSION:-}" != *+* ]]; then

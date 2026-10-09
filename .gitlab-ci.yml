@@ -37,6 +37,7 @@ variables:
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+  SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
 
   # Globally configure all Python installs to go through Depot, an in-network PyPI mirror.
   PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
@@ -269,6 +270,11 @@ apm-sdks-benchmarks:
     # all". Inside a child pipeline that variable is the child's own ID, not
     # this (parent) pipeline's, so it must be passed explicitly.
     TARGET_REF: $CI_PIPELINE_ID
+    # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
+    # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
+    # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
+    # so downstream code must treat that literal as unset.
+    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
   trigger:
     include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
     strategy: depend
@@ -373,6 +379,19 @@ check_ci_dependencies:
   extends: .testrunner
   script:
     - scripts/check-ci-dependencies
+
+# Fails when the docs' offline Python intersphinx inventory falls behind docs.python.org.
+# An unreachable docs.python.org passes; the next nightly run checks again.
+check_intersphinx_inventory:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  allow_failure: true
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - when: manual
+  script:
+    - python3 scripts/update-intersphinx-inventory.py --check
 
 codeowners:
   stage: tests
@@ -1052,3 +1071,5 @@ deploy_to_reliability_env:
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
   needs: null
+  # The gate only echoes; without this, stage ordering downloads every prior job's artifacts.
+  dependencies: []

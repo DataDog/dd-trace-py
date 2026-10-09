@@ -8,6 +8,10 @@ variables:
   # CI_DEBUG_SERVICES: "true"
 
 include:
+  - local: ".gitlab/retry-policies.yml"
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 
@@ -83,9 +87,9 @@ extract_test_artifacts:
       for environment_hash in "${environment_hashes[@]}"
       do
         echo "Running test environment: ${environment_hash}"
-        scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
+        scripts/run-tests --venv "${environment_hash}" -- --ddtrace
       done
-      ./scripts/check-diff ".riot/requirements/" \
+      ./scripts/check-diff "tests/requirements_locks/" \
         "Changes detected in test dependency locks. Run scripts/test-requirements lock and commit the result."
       ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
         "Registry YAML file was modified. Run scripts/integration_registry/update_and_format_registry.py and commit the result."

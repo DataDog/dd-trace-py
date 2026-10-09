@@ -6,6 +6,20 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Coverage collection contexts
+
+`ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
+collection scope, such as a test or an import. A `ContextVar` holds an immutable
+tuple of these collectors. Copying an execution context shares the collectors
+and their data, while entering or exiting a scope replaces only that context's
+stack. Collectors compare by identity so context restoration can distinguish
+scopes even when both have empty coverage. Exiting a collector marks it closed
+in all inherited stacks; writes resolve to the nearest collector still active.
+
+On Python 3.14+, monitoring callbacks can observe a snapshot that does not see
+current `ContextVar` values. Thread-local storage (TLS) provides a fallback stack
+for these callbacks, using the same rules to skip completed collectors.
+
 
 ## The Product Protocol
 
@@ -40,6 +54,7 @@ gets extended to add support for additional features.
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `post_start() -> None` | Called after the product's `start()` succeeds and the manager finishes the complete start pass; use for work that requires all enabled products to register first |
+| `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
 | `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
