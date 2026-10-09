@@ -7,7 +7,9 @@ protobuf ``ExportMetricsServiceRequest`` (delta temporality) or as DogStatsD lin
 
 from __future__ import annotations
 
+from collections import deque
 import errno
+import random
 import socket
 import time
 from typing import Any
@@ -17,9 +19,14 @@ from urllib import parse
 from ddtrace.internal import forksafe
 from ddtrace.internal.http_client import HTTPClient
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.native import HttpIoError
+from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._opentelemetry import otel_config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.version import __version__
 
 
@@ -40,6 +47,14 @@ _UDS_MAX_PACKET = 8192
 _SEND_TIMEOUT_SECONDS = 0.1
 _SEND_ATTEMPTS = 20
 
+# The OTLP/HTTP responses a client retries; any other failure status drops the export.
+_RETRYABLE_STATUSES = frozenset((429, 502, 503, 504))
+# Backoff before each retry within one flush, before jitter. An export that still fails waits for the next flush.
+_RETRY_DELAYS_SECONDS = (0.5, 1.0)
+_MAX_RETRY_DELAY_SECONDS = 5.0
+# Exports kept for a later flush while the endpoint is unavailable; the oldest is dropped first.
+_MAX_PENDING_EXPORTS = 8
+
 
 def _parse_headers(raw: str) -> list[tuple[str, str]]:
     headers = []
@@ -50,13 +65,21 @@ def _parse_headers(raw: str) -> list[tuple[str, str]]:
     return headers
 
 
+def _retry_after(value: Optional[str]) -> Optional[float]:
+    """The delay a ``Retry-After`` header asks for, in seconds. Only the delay-seconds form is read."""
+    try:
+        return max(float(value), 0.0) if value else None
+    except ValueError:
+        return None
+
+
 class _OtlpSender:
     def __init__(self) -> None:
-        # The HTTP /v1/metrics endpoint: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT as given, else
-        # OTEL_EXPORTER_OTLP_ENDPOINT + /v1/metrics, else the agentless intake or the local Agent.
+        # OTEL_EXPORTER_OTLP_METRICS_ENDPOINT is used exactly as given, path and query included; otherwise
+        # this is OTEL_EXPORTER_OTLP_ENDPOINT + /v1/metrics, the agentless intake, or the local Agent.
         endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
         url = parse.urlsplit(endpoint)
-        self.path = url.path or "/v1/metrics"
+        self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = endpoint
         self._client = HTTPClient(
             f"{url.scheme}://{url.netloc}",
@@ -65,11 +88,38 @@ class _OtlpSender:
             treat_http_errors_as_errors=False,
         )
 
-    def send(self, payload: bytes) -> None:
-        response = self._client.post(self.path, headers=[("Content-Type", "application/x-protobuf")], body=payload)
-        status = response.status_code
-        if status >= 400:
-            log.warning("LiteLLM usage metrics: OTLP export to %s failed with status %s", self.endpoint, status)
+    def send(self, payload: bytes, retry: bool = True) -> bool:
+        """Send one export, retrying a retryable failure after a short backoff.
+
+        Return False when the export still failed in a way worth trying again at the next flush: a retryable
+        status, a refused connection, a timeout, or a broken response. Any other failure drops it.
+        """
+        delays = _RETRY_DELAYS_SECONDS if retry else ()
+        failure = ""
+        for attempt in range(len(delays) + 1):
+            requested: Optional[float] = None
+            try:
+                response = self._client.post(
+                    self.path, headers=[("Content-Type", "application/x-protobuf")], body=payload
+                )
+            except (ConnectionFailedError, TimedOutError, HttpIoError) as e:
+                failure = type(e).__name__
+            else:
+                status = response.status_code
+                if status < 400:
+                    return True
+                if status not in _RETRYABLE_STATUSES:
+                    log.warning("LiteLLM usage metrics: OTLP export to %s failed with status %s", self.endpoint, status)
+                    return True
+                failure = f"status {status}"
+                requested = _retry_after(response.header("Retry-After"))
+            if attempt < len(delays):
+                delay = requested if requested is not None else delays[attempt] * random.uniform(0.5, 1.0)  # nosec B311
+                time.sleep(min(delay, _MAX_RETRY_DELAY_SECONDS))
+        log.debug(
+            "LiteLLM usage metrics: OTLP export to %s failed (%s), kept for the next flush", self.endpoint, failure
+        )
+        return False
 
 
 class _DogStatsdSender:
@@ -159,6 +209,8 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._flush_lock = forksafe.Lock()
         self._otlp: Optional[_OtlpSender] = None
         self._dogstatsd: Optional[_DogStatsdSender] = None
+        # OTLP exports that failed in a retryable way, oldest first.
+        self._pending: deque[bytes] = deque(maxlen=_MAX_PENDING_EXPORTS)
         if exporter == "dogstatsd":
             self._dogstatsd = _DogStatsdSender()
         else:
@@ -172,27 +224,32 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             issues = self._usage.record(profile_id, observation, deployment_attributes)
         except ValueError as e:
             log.debug("LiteLLM usage metrics: %s observation not recorded: %s", profile_id, e.args)
+            _count_codes("usage_metrics.observations_rejected", profile_id, e.args[:1])
             return
         except Exception:
             log.debug("LiteLLM usage metrics: %s observation not recorded", profile_id, exc_info=True)
+            _count_codes("usage_metrics.observations_rejected", profile_id, ("internal_error",))
             return
         if issues:
             log.debug("LiteLLM usage metrics: %s observation recorded with issues %s", profile_id, issues)
+            _count_codes("usage_metrics.observation_issues", profile_id, issues)
 
     def periodic(self) -> None:
         self.flush()
 
     def on_shutdown(self) -> None:  # type: ignore[override]
-        self.flush()
+        # The process is exiting: try each pending export once, without waiting between retries.
+        self.flush(retry=False)
 
     def reset(self) -> None:
-        # In a forked child, drop the parent's points: the parent exports them.
+        # In a forked child, drop the parent's points and pending exports: the parent exports them.
         self._usage = ai_usage.UsageMetrics(self._metric_names)
         self._window_start_ns = time.time_ns()
+        self._pending.clear()
         if self._dogstatsd is not None:
             self._dogstatsd.close()
 
-    def flush(self) -> None:
+    def flush(self, retry: bool = True) -> None:
         with self._flush_lock:
             end_ns = time.time_ns()
             start_ns, self._window_start_ns = self._window_start_ns, end_ns
@@ -200,10 +257,40 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
                 if self._otlp is not None:
                     payload = self._usage.take_otlp(SCOPE_NAME, __version__, start_ns, end_ns)
                     if payload:
-                        self._otlp.send(payload)
+                        if len(self._pending) == self._pending.maxlen:
+                            log.debug("LiteLLM usage metrics: dropping the oldest unsent OTLP export")
+                        self._pending.append(payload)
+                    self._send_pending(self._otlp, retry)
                 elif self._dogstatsd is not None:
                     lines = self._usage.take_dogstatsd()
                     if lines:
                         self._dogstatsd.send(lines)
             except Exception:
                 log.debug("LiteLLM usage metrics: export failed", exc_info=True)
+
+    def _send_pending(self, sender: _OtlpSender, retry: bool) -> None:
+        """Send the pending exports in order, stopping at the first that has to wait for a later flush."""
+        while self._pending:
+            try:
+                done = sender.send(self._pending[0], retry=retry)
+            except Exception:
+                # A failure that a retry would not fix, such as an invalid endpoint: drop the export.
+                log.debug("LiteLLM usage metrics: OTLP export failed", exc_info=True)
+                done = True
+            if not done:
+                return
+            self._pending.popleft()
+
+
+def _count_codes(metric: str, profile_id: str, codes: Any) -> None:
+    """Count rejection or issue codes in instrumentation telemetry. Never raises."""
+    try:
+        for code in codes:
+            telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.TRACERS,
+                metric,
+                1,
+                (("integration_name", "litellm"), ("profile", profile_id), ("code", str(code))),
+            )
+    except Exception:
+        log.debug("LiteLLM usage metrics: failed to count %s", metric, exc_info=True)

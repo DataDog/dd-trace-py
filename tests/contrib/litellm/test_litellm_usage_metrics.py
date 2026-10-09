@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import importlib
 import json
 
 import litellm
@@ -7,6 +8,7 @@ import pytest
 
 from ddtrace import config
 from ddtrace.contrib.internal.litellm import _usage_metrics
+from ddtrace.contrib.internal.litellm import patch as litellm_patch
 from ddtrace.contrib.internal.litellm._usage_metrics import GATEWAY_REQUEST
 from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
 from ddtrace.contrib.internal.litellm._usage_metrics import TOKEN_BREAKDOWN
@@ -164,8 +166,9 @@ class Proxy:
         kwargs = self.kwargs(usage, cost, error_class=error_class)
         run(self.logger.async_log_failure_event(kwargs, None, T0, at(end)))
 
-    def failed(self, exception):
-        run(self.logger.async_post_call_failure_hook({"litellm_call_id": self.call_id}, exception, UserAPIKeyAuth()))
+    def failed(self, exception, **request_data):
+        request_data["litellm_call_id"] = self.call_id
+        run(self.logger.async_post_call_failure_hook(request_data, exception, UserAPIKeyAuth()))
 
 
 @pytest.fixture
@@ -265,8 +268,8 @@ def test_successful_call(logger, writer):
     assert request["request_model"] == "gpt"
     assert request["provider_operations"] == 1
     assert request["provider_operation_coverage"] == "complete"
-    assert request["retries"] == 0
-    assert request["fallbacks"] == 0
+    # Retry and fallback counts cannot be inferred from the attempts, so they are left out.
+    assert "retries" not in request and "fallbacks" not in request
     assert request["estimated_cost_usd"] == 5.7e-6
     assert "error_type" not in request
     assert logger._requests == {}
@@ -278,7 +281,7 @@ def test_retry_then_streamed_success(logger, writer):
     proxy.attempt(0)
     proxy.attempt_failed(Exception("rate limited"))
     proxy.attempt(0.8)
-    logger.mark_stream_chunk("call-1", True)
+    logger.observe_stream("call-1", True, True)
     proxy.succeeded(1.0, first_chunk=0.85)
 
     failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
@@ -289,7 +292,8 @@ def test_retry_then_streamed_success(logger, writer):
     assert succeeded["time_to_first_chunk_seconds"] == pytest.approx(0.05)
     assert "input_token_source" not in succeeded
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert (request["provider_operations"], request["retries"], request["fallbacks"]) == (2, 1, 0)
+    assert request["provider_operations"] == 2
+    assert "retries" not in request and "fallbacks" not in request
 
 
 def test_stream_without_provider_usage_is_estimated(logger, writer):
@@ -301,15 +305,48 @@ def test_stream_without_provider_usage_is_estimated(logger, writer):
     assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
 
 
-def test_anthropic_messages_stream_is_reported(logger, writer):
-    # The Anthropic Messages route does not pass through CustomStreamWrapper: its usage comes in its own events.
+MESSAGE_START = (
+    'event: message_start\ndata: {"type": "message_start", "message": {"model": "claude-haiku-4-5-20251001", '
+    '"usage": {"input_tokens": 10, "cache_read_input_tokens": 20, "output_tokens": 1}}}\n\n'
+)
+MESSAGE_DELTA = b'event: message_delta\ndata: {"type": "message_delta", "usage": {"output_tokens": 5}}\n\n'
+
+
+def test_anthropic_stream_usage_reads_the_raw_events():
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, MESSAGE_DELTA]) == (
+        True,
+        True,
+        "claude-haiku-4-5-20251001",
+    )
+    # A stream that ended without its final usage event: LiteLLM estimates the output.
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START]) == (True, False, "claude-haiku-4-5-20251001")
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START + MESSAGE_DELTA.decode()])[:2] == (True, True)
+    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None)
+
+
+@pytest.mark.parametrize("final_usage, output_source", [(True, None), (False, "estimated")])
+def test_anthropic_messages_stream_reports_each_side(logger, writer, final_usage, output_source):
+    # The Anthropic Messages route does not pass through CustomStreamWrapper: the integration reads its raw events.
     proxy = Proxy(logger, call_type="anthropic_messages", stream=True, route="claude")
     proxy.start()
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    events = [MESSAGE_START, MESSAGE_DELTA] if final_usage else [MESSAGE_START]
+    logger.observe_stream("call-1", *_usage_metrics.anthropic_stream_usage(events))
     proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, cost=8.35e-5, first_chunk=0.2, model="claude-haiku-4-5")
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert "input_token_source" not in attempt
+    assert attempt.get("output_token_source") == output_source
     assert attempt["cache_write_5m_input_tokens"] == 18
+    assert attempt["response_model"] == "claude-haiku-4-5-20251001"
+
+
+def test_a_stream_no_wrapper_saw_is_estimated(logger, writer):
+    proxy = Proxy(logger, call_type="aresponses", stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    proxy.succeeded(1.0, first_chunk=0.2)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
 
 
 def test_attempt_span_is_marked(logger):
@@ -333,8 +370,8 @@ def test_fallback(logger, writer):
     proxy.attempt(0.1, model_group="fallback-target", model_id="deployment-2")
     proxy.succeeded(0.5)
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["fallbacks"] == 1
-    assert "retries" not in request
+    assert request["provider_operations"] == 2
+    assert "retries" not in request and "fallbacks" not in request
 
 
 def test_cache_hit(logger, writer):
@@ -359,8 +396,10 @@ def test_total_failure(logger, writer):
     assert [observation["error_type"] for observation, _ in attempts] == ["timeout_error"] * 3
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["error_type"] == "timeout_error"
-    assert request["retries"] == 2
-    assert "estimated_cost_usd" not in request
+    assert request["provider_operations"] == 3
+    assert "retries" not in request and "fallbacks" not in request
+    # A request that failed for good was charged nothing, which is a real zero.
+    assert request["estimated_cost_usd"] == 0
     assert logger._requests == {}
 
 
@@ -368,7 +407,8 @@ def test_client_disconnect(logger, writer):
     proxy = Proxy(logger, stream=True)
     proxy.start()
     proxy.attempt(0)
-    logger.mark_stream_chunk("call-1", True)
+    # The client left before the usage chunk: LiteLLM estimates both sides.
+    logger.observe_stream("call-1", False, False)
     proxy.succeeded(
         0.3, usage={"prompt_tokens": 8, "completion_tokens": 5}, cost=4.2e-6, error_class="ClientDisconnected"
     )
@@ -400,7 +440,8 @@ def test_total_failure_seen_by_the_wrapper(logger, writer):
     assert [a["error_type"] for a in attempts] == ["timeout_error"] * 3
     assert [round(a["duration_seconds"], 6) >= 0 for a in attempts] == [True] * 3
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["retries"] == 2
+    assert request["provider_operations"] == 3
+    assert "retries" not in request and "fallbacks" not in request
 
 
 def test_failure_event_does_not_close_a_retry_that_started(logger, writer):
@@ -414,7 +455,7 @@ def test_failure_event_does_not_close_a_retry_that_started(logger, writer):
     late = proxy.kwargs(PLACEHOLDER_USAGE, 0.0, error_class="RateLimitError")
     late["api_call_start_time"] = first
     run(logger.async_log_failure_event(late, None, T0, at(0.05)))
-    logger.mark_stream_chunk("call-1", True)
+    logger.observe_stream("call-1", True, True)
     proxy.succeeded(0.5, first_chunk=0.2)
     failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
     assert "error_type" in failed
@@ -422,17 +463,53 @@ def test_failure_event_does_not_close_a_retry_that_started(logger, writer):
     assert succeeded["input_tokens"] == 12
 
 
-def test_midstream_provider_failure(logger, writer):
+PARTIAL_USAGE = {"prompt_tokens": 8, "completion_tokens": 1}
+
+
+def charged(proxy, usage, cost):
+    """The request data LiteLLM 1.104 gives its failure hook after a stream broke partway: the failure event's
+    partial usage and the cost the proxy charges for it.
+    """
+    return {
+        "combined_usage_object": litellm.Usage(**usage),
+        "response_cost": cost,
+        "standard_logging_object": proxy.kwargs(usage, cost, error_class="ReadError")["standard_logging_object"],
+    }
+
+
+@pytest.mark.parametrize("event_first", [True, False])
+def test_midstream_provider_failure_is_charged(logger, writer, event_first):
     proxy = Proxy(logger, stream=True)
     proxy.start()
     proxy.attempt(0)
-    logger.mark_stream_chunk("call-1", False)
-    proxy.failed(Exception())
-    proxy.failed_midstream(0.4, usage={"prompt_tokens": 8, "completion_tokens": 1}, cost=1.8e-6)
+    logger.observe_stream("call-1", False, False)
+    if event_first:
+        proxy.failed_midstream(0.4, usage=PARTIAL_USAGE, cost=1.8e-6)
+    proxy.failed(Exception(), **charged(proxy, PARTIAL_USAGE, 1.8e-6))
+    if not event_first:
+        proxy.failed_midstream(0.4, usage=PARTIAL_USAGE, cost=1.8e-6)
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
-    assert attempt["error_type"] == "read_error"
     assert attempt["input_tokens"] == 8
-    assert attempt["output_token_source"] == "estimated"
+    assert attempt["cost_usd"] == 1.8e-6
+    assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["estimated_cost_usd"] == 1.8e-6
+    assert request["error_type"] == "exception"
+    assert logger._requests == {}
+
+
+def test_failed_stream_without_a_failure_event(logger, writer):
+    # Before LiteLLM 1.104, a native Anthropic Messages stream that breaks fires no failure event, and the proxy
+    # charges nothing for it.
+    proxy = Proxy(logger, call_type="anthropic_messages", stream=True)
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    proxy.failed(Exception())
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["error_type"] == "exception"
+    assert "input_tokens" not in attempt
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["estimated_cost_usd"] == 0
     assert logger._requests == {}
 
 
@@ -575,3 +652,236 @@ def test_patch_registers_the_logger_and_unpatch_removes_it(monkeypatch):
         unpatch()
     assert logger not in litellm.callbacks
     assert not hasattr(litellm, "_datadog_usage_metrics_logger")
+
+
+@pytest.mark.parametrize(
+    "provider, model, estimated",
+    [
+        ("replicate", "meta/llama-3", True),
+        ("sagemaker", "jumpstart-model", True),
+        ("ollama", "llama3", True),
+        ("bedrock", "invoke/anthropic.claude-3-5-sonnet-20240620-v1:0", True),
+        ("bedrock", "converse/anthropic.claude-3-5-sonnet-20240620-v1:0", False),
+        ("sagemaker_chat", "jumpstart-model", False),
+        ("openai", "gpt-4o-mini", False),
+    ],
+)
+def test_locally_counted_providers_are_estimated(logger, writer, provider, model, estimated):
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0, provider=provider, model=model)
+    proxy.succeeded(0.5, usage={"prompt_tokens": 12, "completion_tokens": 7}, model=model)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    sources = (attempt.get("input_token_source"), attempt.get("output_token_source"))
+    assert sources == (("estimated", "estimated") if estimated else (None, None))
+
+
+def test_reasoning_split_out_by_litellm_is_left_out(logger, writer):
+    # LiteLLM counts an Anthropic reasoning part itself; the output total stays reported.
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-sonnet-4-5")
+    proxy.succeeded(0.5, model="claude-sonnet-4-5")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert "reasoning_output_tokens" not in attempt
+    assert attempt["output_tokens"] == 7 and "output_token_source" not in attempt
+
+
+@pytest.mark.parametrize("reported", [True, False])
+def test_stream_reasoning_is_kept_only_when_reported(logger, writer, reported):
+    proxy = Proxy(logger, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    logger.observe_stream("call-1", True, True, reasoning_reported=reported)
+    proxy.succeeded(0.5, first_chunk=0.1)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert ("reasoning_output_tokens" in attempt) is reported
+
+
+def test_usage_fields_read_reported_modalities():
+    usage = {
+        "prompt_tokens": 12,
+        "completion_tokens": 7,
+        "prompt_tokens_details": {"text_tokens": 4, "audio_tokens": 8, "image_tokens": 0, "cached_tokens": 0},
+        "completion_tokens_details": {"audio_tokens": 5, "text_tokens": 2},
+    }
+    fields = usage_fields(usage, embeddings=False)
+    assert fields["input_tokens_by_modality"] == {"text": 4, "audio": 8}
+    assert fields["output_tokens_by_modality"] == {"text": 2, "audio": 5}
+    assert "input_tokens_by_modality" not in usage_fields(usage, embeddings=False, modality=False)
+    # Parts that add up to more than the total are not used.
+    usage["prompt_tokens_details"]["text_tokens"] = 40
+    assert "input_tokens_by_modality" not in usage_fields(usage, embeddings=False)
+    assert "output_tokens_by_modality" not in usage_fields(usage, embeddings=True)
+
+
+def test_reported_modalities_are_recorded(logger, writer):
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0, model="gpt-4o-audio-preview")
+    usage = {
+        "prompt_tokens": 12,
+        "completion_tokens": 7,
+        "prompt_tokens_details": {"audio_tokens": 8, "text_tokens": 4},
+    }
+    proxy.succeeded(0.5, usage=usage, model="gpt-4o-audio-preview")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["input_tokens_by_modality"] == {"text": 4, "audio": 8}
+
+
+def test_streamed_response_model_comes_from_the_stream(logger, writer):
+    proxy = Proxy(logger, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    logger.observe_stream("call-1", False, False, "gpt-4o-mini-2024-07-18")
+    logger.observe_stream("call-1", True, True, "ignored-later-model")
+    proxy.succeeded(0.5, first_chunk=0.1)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["response_model"] == "gpt-4o-mini-2024-07-18"
+    assert "input_token_source" not in attempt
+
+
+class StreamWrapper:
+    """The attributes of LiteLLM's CustomStreamWrapper that the chunk wrapper reads."""
+
+    def __init__(self, provider, call_id="call-1"):
+        self.custom_llm_provider = provider
+        self.logging_obj = type("LoggingObj", (), {"litellm_call_id": call_id})()
+
+
+def chunk(prompt=None, completion=None, finish_reason=None, model=None, reasoning=None):
+    usage = None
+    if prompt is not None or completion is not None:
+        usage = {"prompt_tokens": prompt, "completion_tokens": completion}
+        if reasoning is not None:
+            usage["completion_tokens_details"] = {"reasoning_tokens": reasoning}
+    return {"usage": usage, "choices": [{"finish_reason": finish_reason}], "model": model}
+
+
+@pytest.fixture
+def installed(logger, monkeypatch):
+    monkeypatch.setattr(litellm, "_datadog_usage_metrics_logger", logger, raising=False)
+    return logger
+
+
+def feed(wrapper, *chunks):
+    for item in chunks:
+        litellm_patch.traced_chunk_creator(lambda chunk: chunk, wrapper, (), {"chunk": item})
+
+
+@pytest.mark.parametrize(
+    "chunks, input_source, output_source",
+    [
+        # Anthropic: message_start reports the input and a placeholder output; the final chunk the real output.
+        ([chunk(60, 1, model="claude-haiku-4-5-20251001"), chunk(60, 5, "end_turn")], None, None),
+        ([chunk(60, 1, model="claude-haiku-4-5-20251001")], None, "estimated"),
+        ([chunk(model="claude-haiku-4-5-20251001")], "estimated", "estimated"),
+    ],
+)
+def test_anthropic_chat_stream_reports_each_side(installed, writer, chunks, input_source, output_source):
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    feed(StreamWrapper("anthropic"), *chunks)
+    proxy.succeeded(0.5, usage=ANTHROPIC_USAGE, first_chunk=0.1, model="claude-haiku-4-5")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert (attempt.get("input_token_source"), attempt.get("output_token_source")) == (input_source, output_source)
+    assert attempt["response_model"] == "claude-haiku-4-5-20251001"
+
+
+def test_openai_chat_stream_usage_chunk(installed, writer):
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    feed(StreamWrapper("openai"), chunk(model="gpt-4o-mini-2024-07-18"), chunk(12, 7, reasoning=3))
+    proxy.succeeded(0.5, first_chunk=0.1)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert "input_token_source" not in attempt and "output_token_source" not in attempt
+    assert attempt["reasoning_output_tokens"] == 3
+    assert attempt["response_model"] == "gpt-4o-mini-2024-07-18"
+
+
+def test_responses_stream_usage_reads_the_raw_events():
+    created = 'data: {"type": "response.created", "response": {"model": "gpt-4o-mini-2024-07-18"}}'
+    completed = json.dumps(
+        {
+            "type": "response.completed",
+            "response": {
+                "model": "gpt-4o-mini-2024-07-18",
+                "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
+            },
+        }
+    )
+    assert _usage_metrics.responses_stream_usage(created) == (False, False, False, "gpt-4o-mini-2024-07-18")
+    assert _usage_metrics.responses_stream_usage(completed) == (True, True, True, "gpt-4o-mini-2024-07-18")
+    unreported = json.dumps({"type": "response.completed", "response": {"usage": None}})
+    assert _usage_metrics.responses_stream_usage(unreported) == (False, False, False, None)
+    assert _usage_metrics.responses_stream_usage('data: {"type": "response.output_text.delta"}') == (
+        False,
+        False,
+        False,
+        None,
+    )
+
+
+def test_stream_wrappers_never_raise(installed):
+    litellm_patch.traced_chunk_creator(lambda chunk: chunk, object(), (), {"chunk": object()})
+    litellm_patch.traced_anthropic_stream_events(lambda *a: None, None, (object(), object()), {})
+    litellm_patch.traced_responses_stream_event(lambda chunk: chunk, object(), (b"\xff",), {})
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_unpatch_removes_the_logger_from_every_callback_list(monkeypatch):
+    monkeypatch.setitem(config.litellm, "usage_metrics_enabled", True)
+    monkeypatch.setitem(config.litellm, "usage_metrics_exporter", "dogstatsd")
+    messages = [{"role": "user", "content": "hi"}]
+    patch()
+    try:
+        first = litellm._datadog_usage_metrics_logger
+        # A call copies the logger into LiteLLM's input, success and failure lists.
+        litellm.completion(model="gpt-4o-mini", messages=messages, mock_response="hello")
+    finally:
+        unpatch()
+    for name in litellm_patch._CALLBACK_LISTS:
+        assert all(callback is not first for callback in getattr(litellm, name, None) or []), name
+    assert litellm_patch._wrapped_stream_methods == {}
+    patch()
+    try:
+        second = litellm._datadog_usage_metrics_logger
+        litellm.completion(model="gpt-4o-mini", messages=messages, mock_response="hello")
+        # The new logger gets the success events: no stale logger of its class blocks it.
+        success = list(litellm.success_callback) + list(getattr(litellm, "_async_success_callback", []))
+        assert any(callback is second for callback in success)
+    finally:
+        unpatch()
+
+
+def test_unpatch_restores_the_stream_methods():
+    try:
+        module = importlib.import_module(litellm_patch._ANTHROPIC_PASSTHROUGH_MODULE)
+    except ImportError:
+        pytest.skip("the LiteLLM proxy is not installed")
+    handler = module.AnthropicPassthroughLoggingHandler
+    original = vars(handler)["_build_complete_streaming_response"]
+    litellm_patch._wrap_anthropic_stream(module)
+    assert vars(handler)["_build_complete_streaming_response"] is not original
+    litellm_patch._unwrap_stream_methods()
+    assert vars(handler)["_build_complete_streaming_response"] is original
+    assert isinstance(original, staticmethod)
+
+
+def test_a_retry_no_hook_reported_is_recorded_when_the_request_succeeds(logger, writer):
+    # Before async_post_call_failure_deployment_hook, nothing reports a failed embeddings retry; the next attempt
+    # starting is the only sign that it ended.
+    proxy = Proxy(logger, call_type="aembedding", route="embed")
+    proxy.start()
+    proxy.attempt(0, model="text-embedding-3-small")
+    proxy.attempt(0.3, model="text-embedding-3-small")
+    proxy.succeeded(0.5, usage={"prompt_tokens": 3, "completion_tokens": 0}, model="text-embedding-3-small")
+    failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
+    assert failed["error_type"] == "error"
+    assert failed["duration_seconds"] == pytest.approx(0.3)
+    assert "error_type" not in succeeded and succeeded["input_tokens"] == 3
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["provider_operations"] == 2
+    assert logger._requests == {}

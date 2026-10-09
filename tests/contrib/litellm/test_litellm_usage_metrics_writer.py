@@ -36,11 +36,17 @@ def observation(user="u1", input_tokens=12):
 class Collector(http.server.BaseHTTPRequestHandler):
     requests = []
     status = 200
+    # Statuses for the next requests, before ``status`` applies again.
+    statuses = []
+    retry_after = None
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         Collector.requests.append((self.path, {k.lower(): v for k, v in self.headers.items()}, body))
-        self.send_response(Collector.status)
+        status = Collector.statuses.pop(0) if Collector.statuses else Collector.status
+        self.send_response(status)
+        if Collector.retry_after is not None and status >= 400:
+            self.send_header("Retry-After", Collector.retry_after)
         self.end_headers()
 
     def log_message(self, *args):
@@ -51,6 +57,8 @@ class Collector(http.server.BaseHTTPRequestHandler):
 def collector():
     Collector.requests = []
     Collector.status = 200
+    Collector.statuses = []
+    Collector.retry_after = None
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Collector)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -65,6 +73,14 @@ def otlp_endpoint(collector, monkeypatch):
     monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", url)
     monkeypatch.setattr(otel_config.exporter, "METRICS_HEADERS", "dd-api-key=abc,x-team=a%2Cb")
     return url
+
+
+@pytest.fixture
+def sleeps(monkeypatch):
+    """Record the writer's retry delays instead of waiting."""
+    delays = []
+    monkeypatch.setattr(_usage_metrics_writer.time, "sleep", delays.append)
+    return delays
 
 
 def test_parse_headers():
@@ -111,7 +127,7 @@ def test_otlp_export_decodes(otlp_endpoint):
     assert point.start_time_unix_nano < point.time_unix_nano
 
 
-def test_otlp_export_failures_never_raise(otlp_endpoint, collector, monkeypatch):
+def test_otlp_export_failures_never_raise(otlp_endpoint, collector, monkeypatch, sleeps):
     Collector.status = 500
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
@@ -124,12 +140,132 @@ def test_otlp_export_failures_never_raise(otlp_endpoint, collector, monkeypatch)
     unreachable.flush()
 
 
+def test_retryable_failures_are_retried_within_a_flush(otlp_endpoint, sleeps):
+    Collector.statuses = [503, 429]
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    bodies = [body for _, _, body in Collector.requests]
+    assert len(bodies) == 3 and len(set(bodies)) == 1
+    assert len(sleeps) == 2 and all(0 < delay <= 1.0 for delay in sleeps)
+    writer.flush()
+    assert len(Collector.requests) == 3
+
+
+def test_an_export_that_keeps_failing_waits_for_the_next_flush(otlp_endpoint, sleeps):
+    Collector.statuses = [503, 503, 503]
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation(user="user-first"))
+    writer.flush()
+    assert len(Collector.requests) == 3
+    writer.record(PROVIDER_ATTEMPT, *observation(user="user-second"))
+    writer.flush()
+    # The kept export goes first, then the new one.
+    first, second = [body for _, _, body in Collector.requests[3:]]
+    assert first == Collector.requests[0][2] and b"user-first" in first
+    assert b"user-second" in second and b"user-first" not in second
+    writer.flush()
+    assert len(Collector.requests) == 5
+
+
+def test_a_refused_connection_keeps_the_export(otlp_endpoint, collector, monkeypatch, sleeps):
+    monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", "http://127.0.0.1:9/v1/metrics")
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert len(writer._pending) == 1
+    assert len(sleeps) == 2
+
+
+def test_a_rejected_export_is_not_retried(otlp_endpoint, sleeps):
+    Collector.status = 400
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    writer.flush()
+    assert len(Collector.requests) == 1
+    assert sleeps == []
+
+
+def test_retry_after_is_honored_up_to_a_bound(otlp_endpoint, sleeps):
+    writer = UsageMetricsWriter("otlp", interval=60)
+    Collector.statuses, Collector.retry_after = [503], "0.25"
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    Collector.statuses, Collector.retry_after = [429], "120"
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert sleeps == [0.25, 5.0]
+
+
+def test_pending_exports_are_bounded(otlp_endpoint, monkeypatch, sleeps):
+    monkeypatch.setattr(_usage_metrics_writer, "_MAX_PENDING_EXPORTS", 2)
+    Collector.status = 503
+    writer = UsageMetricsWriter("otlp", interval=60)
+    for user in ("user-one", "user-two", "user-three"):
+        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.flush()
+    Collector.status = 200
+    sent = len(Collector.requests)
+    writer.flush()
+    bodies = [body for _, _, body in Collector.requests[sent:]]
+    # The oldest export was dropped to keep the two newest.
+    assert len(bodies) == 2
+    assert b"user-two" in bodies[0] and b"user-three" in bodies[1]
+    assert not any(b"user-one" in body for body in bodies)
+
+
+def test_on_shutdown_tries_pending_exports_once_without_waiting(otlp_endpoint, sleeps):
+    Collector.status = 503
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    sent, waited = len(Collector.requests), len(sleeps)
+    writer.record(PROVIDER_ATTEMPT, *observation(user="u2"))
+    writer.on_shutdown()
+    # The oldest export is tried once and still fails, so the newer one is not tried.
+    assert len(Collector.requests) == sent + 1
+    assert len(sleeps) == waited
+
+
+@pytest.mark.parametrize("path", ["/custom?tenant=a%20b", ""])
+def test_the_metrics_endpoint_is_used_as_given(collector, monkeypatch, path):
+    url = f"http://127.0.0.1:{collector.server_address[1]}{path}"
+    monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", url)
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    [(sent_path, _, _)] = Collector.requests
+    assert sent_path == (path or "/")
+
+
 def test_rejected_observations_are_dropped(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, {"operation_name": "chat"}, None)
     writer.record(PROVIDER_ATTEMPT, {"operation_name": object()}, None)
     writer.flush()
     assert Collector.requests == []
+
+
+def test_rejections_and_issues_are_counted_in_telemetry(otlp_endpoint, monkeypatch):
+    counts = []
+    monkeypatch.setattr(
+        _usage_metrics_writer.telemetry_writer,
+        "add_count_metric",
+        lambda namespace, name, value, tags: counts.append((namespace.value, name, value, dict(tags))),
+    )
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, {"operation_name": "chat"}, None)
+    inconsistent, _ = observation(input_tokens=20)
+    inconsistent.update(input_basis="includes_cache", cache_read_input_tokens=80)
+    writer.record(PROVIDER_ATTEMPT, inconsistent, None)
+    rejected, issues = counts[0], counts[1:]
+    assert rejected[:3] == ("tracers", "usage_metrics.observations_rejected", 1)
+    assert rejected[3]["integration_name"] == "litellm"
+    assert rejected[3]["profile"] == PROVIDER_ATTEMPT
+    assert rejected[3]["code"]
+    assert all(issue[:3] == ("tracers", "usage_metrics.observation_issues", 1) for issue in issues)
+    assert "usage_inconsistent" in [issue[3]["code"] for issue in issues]
 
 
 def test_reset_drops_the_parent_points(otlp_endpoint):

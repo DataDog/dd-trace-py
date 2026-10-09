@@ -65,7 +65,9 @@ against its budgets. The two cost metrics describe the same spend and are never 
    ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality to the endpoint given by
    ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``), with the
    headers in ``OTEL_EXPORTER_OTLP_METRICS_HEADERS``. Without an endpoint, metrics go to the Datadog Agent's OTLP receiver
-   on port 4318. ``dogstatsd`` sends the same series to the Datadog Agent's DogStatsD endpoint.
+   on port 4318. An export that fails with a retryable error (status 429, 502, 503 or 504, a refused connection or a
+   timeout) is retried, and kept for later exports while the endpoint stays unavailable. ``dogstatsd`` sends the same
+   series to the Datadog Agent's DogStatsD endpoint.
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_EXPORTER`` environment variable.
 

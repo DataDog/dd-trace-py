@@ -13,6 +13,7 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import atexit
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.utils import get_argument_value
@@ -181,18 +182,126 @@ async def traced_router_acompletion(func, instance, args, kwargs):
             span.finish()
 
 
+def _field(obj, name):
+    return obj.get(name) if isinstance(obj, dict) else getattr(obj, name, None)
+
+
+def _positive(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
 def traced_chunk_creator(func, instance, args, kwargs):
-    """Note when a provider's stream chunk carries usage, so streamed token counts are known to be reported."""
+    """Note which token counts a provider's stream chunk reports, and the model it names.
+
+    LiteLLM estimates each side of a stream on its own when no chunk reported it. An Anthropic stream reports its
+    input count first, with a placeholder output count; the real output count comes with the final chunk.
+    """
     logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
     if logger is not None:
         try:
             chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
-            usage = chunk.get("usage") if isinstance(chunk, dict) else getattr(chunk, "usage", None)
-            call_id = getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None)
-            logger.mark_stream_chunk(call_id, bool(usage))
+            usage = _field(chunk, "usage")
+            output_reported = _positive(_field(usage, "completion_tokens"))
+            if output_reported and getattr(instance, "custom_llm_provider", None) == "anthropic":
+                choices = _field(chunk, "choices") or [None]
+                output_reported = bool(_field(choices[0], "finish_reason"))
+            reasoning = _field(_field(usage, "completion_tokens_details"), "reasoning_tokens")
+            model = _field(chunk, "model")
+            logger.observe_stream(
+                getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None),
+                _positive(_field(usage, "prompt_tokens")),
+                output_reported,
+                model if isinstance(model, str) else None,
+                isinstance(reasoning, int),
+            )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
     return func(*args, **kwargs)
+
+
+def traced_anthropic_stream_events(func, instance, args, kwargs):
+    """Note which token counts a native Anthropic Messages stream reported, from all its raw events."""
+    logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
+    if logger is not None:
+        try:
+            chunks = get_argument_value(args, kwargs, 0, "all_chunks", optional=True) or ()
+            logging_obj = get_argument_value(args, kwargs, 1, "litellm_logging_obj", optional=True)
+            input_reported, output_reported, model = _usage_metrics.anthropic_stream_usage(chunks)
+            logger.observe_stream(getattr(logging_obj, "litellm_call_id", None), input_reported, output_reported, model)
+        except Exception:
+            log.debug("LiteLLM usage metrics: failed to inspect an Anthropic stream", exc_info=True)
+    return func(*args, **kwargs)
+
+
+def traced_responses_stream_event(func, instance, args, kwargs):
+    """Note which token counts a Responses stream event reports. The raw event is read: LiteLLM replaces a missing
+    usage with its own estimate before returning it.
+    """
+    logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
+    if logger is not None:
+        try:
+            chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
+            input_reported, output_reported, reasoning_reported, model = _usage_metrics.responses_stream_usage(chunk)
+            if input_reported or output_reported or model:
+                logger.observe_stream(
+                    getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None),
+                    input_reported,
+                    output_reported,
+                    model,
+                    reasoning_reported,
+                )
+        except Exception:
+            log.debug("LiteLLM usage metrics: failed to inspect a Responses stream event", exc_info=True)
+    return func(*args, **kwargs)
+
+
+_ANTHROPIC_PASSTHROUGH_MODULE = (
+    "litellm.proxy.pass_through_endpoints.llm_provider_handlers.anthropic_passthrough_logging_handler"
+)
+_RESPONSES_STREAM_MODULE = "litellm.responses.streaming_iterator"
+
+
+# The original class attributes of the stream methods wrapped below. Unpatching restores them as they were: a static
+# method put back through its wrapper would come back as a plain function.
+_wrapped_stream_methods = {}
+
+
+def _wrap_stream_method(cls, name, wrapper):
+    original = vars(cls).get(name)
+    if original is not None and (cls, name) not in _wrapped_stream_methods:
+        _wrapped_stream_methods[(cls, name)] = original
+        wrap(cls, name, wrapper)
+
+
+def _unwrap_stream_methods():
+    for (cls, name), original in _wrapped_stream_methods.items():
+        setattr(cls, name, original)
+    _wrapped_stream_methods.clear()
+
+
+def _wrap_anthropic_stream(module):
+    try:
+        _wrap_stream_method(
+            module.AnthropicPassthroughLoggingHandler,
+            "_build_complete_streaming_response",
+            traced_anthropic_stream_events,
+        )
+    except Exception:
+        log.debug("LiteLLM usage metrics: cannot observe Anthropic Messages streams", exc_info=True)
+
+
+def _wrap_responses_stream(module):
+    try:
+        _wrap_stream_method(module.BaseResponsesAPIStreamingIterator, "_process_chunk", traced_responses_stream_event)
+    except Exception:
+        log.debug("LiteLLM usage metrics: cannot observe Responses streams", exc_info=True)
+
+
+# Both are wrapped when LiteLLM imports them: the proxy's pass-through module is imported only when the proxy serves.
+_STREAM_MODULE_HOOKS = (
+    (_ANTHROPIC_PASSTHROUGH_MODULE, _wrap_anthropic_stream),
+    (_RESPONSES_STREAM_MODULE, _wrap_responses_stream),
+)
 
 
 def _usage_attempt_failed(kwargs):
@@ -242,6 +351,8 @@ def _enable_usage_metrics():
     litellm._datadog_usage_metrics_writer = writer
     litellm._datadog_usage_metrics_logger = logger
     wrap("litellm", "litellm_core_utils.streaming_handler.CustomStreamWrapper.chunk_creator", traced_chunk_creator)
+    for module, hook in _STREAM_MODULE_HOOKS:
+        ModuleWatchdog.register_module_hook(module, hook)
 
 
 def _disable_usage_metrics():
@@ -249,14 +360,40 @@ def _disable_usage_metrics():
     writer = getattr(litellm, "_datadog_usage_metrics_writer", None)
     if logger is None or writer is None:
         return
-    if logger in litellm.callbacks:
-        litellm.callbacks.remove(logger)
+    _remove_callback(logger)
     unwrap(litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper, "chunk_creator")
+    for module, hook in _STREAM_MODULE_HOOKS:
+        ModuleWatchdog.unregister_module_hook(module, hook)
+    _unwrap_stream_methods()
     atexit.unregister(writer.on_shutdown)
     writer.stop()
     writer.flush()
     del litellm._datadog_usage_metrics_logger
     del litellm._datadog_usage_metrics_writer
+
+
+# Every LiteLLM list a callback added to `litellm.callbacks` can end up in: a call copies it into the input, success
+# and failure lists, and the proxy into its service list.
+_CALLBACK_LISTS = (
+    "callbacks",
+    "input_callback",
+    "success_callback",
+    "failure_callback",
+    "service_callback",
+    "_async_input_callback",
+    "_async_success_callback",
+    "_async_failure_callback",
+)
+
+
+def _remove_callback(logger):
+    """Remove the logger from every LiteLLM callback list. LiteLLM will not add another logger of the same class
+    while one is left in a list.
+    """
+    for name in _CALLBACK_LISTS:
+        callbacks = getattr(litellm, name, None)
+        if isinstance(callbacks, list) and any(callback is logger for callback in callbacks):
+            callbacks[:] = [callback for callback in callbacks if callback is not logger]
 
 
 def traced_get_llm_provider(func, instance, args, kwargs):

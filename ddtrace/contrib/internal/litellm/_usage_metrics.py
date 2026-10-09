@@ -21,7 +21,10 @@ How LiteLLM's hooks map to the two grains (verified against a running proxy, lit
 - An attempt that fails before streaming ends with ``async_post_call_failure_deployment_hook``. One that
   fails mid-stream ends with ``async_log_failure_event``. The request's final attempt ends with its one
   ``async_log_success_event``, which also ends the gateway request.
-- ``async_post_call_failure_hook`` ends a gateway request that failed for good.
+- ``async_post_call_failure_hook`` ends a gateway request that failed for good, and any attempt still open.
+- Which token counts a provider reported in a stream is seen in the stream itself: in
+  ``CustomStreamWrapper.chunk_creator`` for chat and text completion streams, and in the raw events of native
+  Anthropic Messages and Responses streams.
 """
 
 from __future__ import annotations
@@ -36,6 +39,12 @@ from typing import Optional
 
 import litellm
 from litellm.integrations.custom_logger import CustomLogger
+
+
+try:
+    from litellm.llms.bedrock.common_utils import BedrockModelInfo
+except ImportError:
+    BedrockModelInfo = None  # type: ignore[misc, assignment, unused-ignore]
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
@@ -107,6 +116,14 @@ OPT_IN_TAGS = frozenset(_OPT_IN_METADATA_TAGS) | {"route", "destination", "servi
 _IDENTITY_KEYS = tuple(key for _, key in _OPT_IN_METADATA_TAGS.values())
 _STREAM_WRAPPER_CALLS = frozenset({"completion", "acompletion", "text_completion", "atext_completion"})
 
+# Providers whose usage LiteLLM counts itself on a call that is not streamed: it gets no count from them, or fills in
+# a missing one in a way a callback cannot tell apart from a reported count (Ollama, and Bedrock's invoke route).
+_LOCALLY_COUNTED_PROVIDERS = frozenset(
+    {"replicate", "sagemaker", "langgraph", "predibase", "anthropic_text", "petals", "ollama", "ollama_chat"}
+)
+# LiteLLM's usage detail fields for the token modalities the profiles know.
+_MODALITIES = (("text_tokens", "text"), ("image_tokens", "image"), ("audio_tokens", "audio"))
+
 # Requests that never end (a lost callback) are forgotten after this long, and at most this many are kept.
 _REQUEST_TTL_SECONDS = 15 * 60
 _MAX_REQUESTS = 10_000
@@ -157,12 +174,13 @@ def _get(obj: Any, key: str) -> Any:
     return getattr(obj, key, None)
 
 
-def usage_fields(usage: Any, embeddings: bool) -> dict[str, Any]:
+def usage_fields(usage: Any, embeddings: bool, modality: bool = True) -> dict[str, Any]:
     """The token fields of an observation from LiteLLM's usage object.
 
     LiteLLM normalizes usage to the Chat Completions shape on every route, including the Anthropic Messages and
     Responses routes: ``prompt_tokens`` includes cached input and cache writes, and ``completion_tokens``
-    includes reasoning. A usage object of zeros is LiteLLM's placeholder for unknown usage.
+    includes reasoning. A usage object of zeros is LiteLLM's placeholder for unknown usage. ``modality`` is
+    False when the modality details are LiteLLM's own split rather than the provider's.
     """
     if usage is None:
         return {}
@@ -193,10 +211,24 @@ def usage_fields(usage: Any, embeddings: bool) -> dict[str, Any]:
         value = _count(_get(lifetimes, key))
         if value is not None:
             fields[field] = value
+    completion_details = _get(usage, "completion_tokens_details")
     if not embeddings:
-        reasoning = _count(_get(_get(usage, "completion_tokens_details"), "reasoning_tokens"))
+        reasoning = _count(_get(completion_details, "reasoning_tokens"))
         if reasoning is not None:
             fields["reasoning_output_tokens"] = reasoning
+    if modality:
+        sides = [("input", prompt_details, input_tokens)]
+        if not embeddings:
+            sides.append(("output", completion_details, output_tokens))
+        for side, details, total in sides:
+            # Zero parts say nothing; the tokens no part covers are counted as `unknown`.
+            parts: dict[str, int] = {}
+            for key, name in _MODALITIES:
+                value = _count(_get(details, key))
+                if value:
+                    parts[name] = value
+            if parts and total is not None and sum(parts.values()) <= total:
+                fields[f"{side}_tokens_by_modality"] = parts
     return {key: value for key, value in fields.items() if value is not None}
 
 
@@ -247,6 +279,94 @@ def _seconds(start: Any, end: Any) -> Optional[float]:
     return None
 
 
+def _bedrock_invoke(model: Optional[str]) -> bool:
+    """Whether a Bedrock model is called through the invoke route, whose missing counts LiteLLM fills in itself."""
+    if BedrockModelInfo is None or not model:
+        return False
+    try:
+        return bool(BedrockModelInfo.get_bedrock_route(model) == "invoke")
+    except Exception:
+        return False
+
+
+def _charged_on_failure(request_data: dict[str, Any]) -> float:
+    """What the proxy charged a request that failed: the cost of what a stream produced before it broke, which
+    LiteLLM 1.104 recovers into the request data and charges, else nothing.
+    """
+    usage_class = getattr(litellm, "Usage", None)
+    cost = request_data.get("response_cost")
+    if (
+        usage_class is not None
+        and isinstance(request_data.get("combined_usage_object"), usage_class)
+        and isinstance(cost, (int, float))
+        and not isinstance(cost, bool)
+    ):
+        return max(float(cost), 0.0)
+    return 0.0
+
+
+def _sse_events(chunks: Any) -> Any:
+    """The JSON events of server-sent event chunks; a chunk can hold several events, or be one bare event."""
+    for chunk in chunks:
+        if isinstance(chunk, bytes):
+            chunk = chunk.decode("utf-8", errors="replace")
+        if not isinstance(chunk, str):
+            continue
+        for line in chunk.splitlines():
+            line = line.strip()
+            if line.startswith("data:"):
+                line = line[5:].strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict):
+                yield event
+
+
+def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str]]:
+    """Which sides of a native Anthropic Messages stream the provider reported, and the model it named.
+
+    ``message_start`` carries the input count and a placeholder output count; ``message_delta`` carries the output
+    count. A stream that ends without one leaves LiteLLM to estimate that side.
+    """
+    input_reported = output_reported = False
+    model = None
+    for event in _sse_events(chunks):
+        kind = event.get("type")
+        if kind == "message_start":
+            message = event.get("message") or {}
+            input_reported = input_reported or _count(_get(message.get("usage"), "input_tokens")) is not None
+            name = message.get("model")
+            model = model or (name if isinstance(name, str) and name else None)
+        elif kind == "message_delta":
+            output_reported = output_reported or _count(_get(event.get("usage"), "output_tokens")) is not None
+    return input_reported, output_reported, model
+
+
+def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str]]:
+    """What one Responses API stream event says: whether its usage reports the input, output and reasoning counts,
+    and the model the provider named.
+    """
+    input_reported = output_reported = reasoning_reported = False
+    model = None
+    for event in _sse_events([chunk]):
+        response = event.get("response")
+        if not isinstance(response, dict):
+            continue
+        name = response.get("model")
+        model = model or (name if isinstance(name, str) and name else None)
+        if event.get("type") in ("response.completed", "response.incomplete", "response.failed"):
+            usage = response.get("usage")
+            input_reported = _count(_get(usage, "input_tokens")) is not None
+            output_reported = _count(_get(usage, "output_tokens")) is not None
+            reasoning = _get(_get(usage, "output_tokens_details"), "reasoning_tokens")
+            reasoning_reported = _count(reasoning) is not None
+    return input_reported, output_reported, reasoning_reported, model
+
+
 class _Attempt:
     __slots__ = (
         "start",
@@ -255,10 +375,14 @@ class _Attempt:
         "model",
         "stream",
         "checked_stream",
-        "model_group",
         "model_id",
         "closed",
         "streaming",
+        "llm_provider",
+        "input_reported",
+        "output_reported",
+        "reasoning_reported",
+        "response_model",
     )
 
     def __init__(self, kwargs: dict[str, Any]) -> None:
@@ -266,18 +390,42 @@ class _Attempt:
         call_type = kwargs.get("call_type")
         self.start = kwargs.get("api_call_start_time") or datetime.datetime.now()
         self.operation = operation_name(call_type)
-        # Chat and text completion streams pass through LiteLLM's CustomStreamWrapper, where the integration sees
-        # whether a provider chunk carried usage. Without one, LiteLLM counts the tokens itself and does not say so.
-        # The Anthropic Messages and Responses streams carry usage in their own final events.
+        # Chat and text completion calls pass through the integration's wrappers, which see an attempt fail before
+        # it streams; on the other routes only LiteLLM's failure event reports it.
         self.checked_stream = str(getattr(call_type, "value", call_type)).rpartition(".")[2] in _STREAM_WRAPPER_CALLS
-        self.provider = provider_name(kwargs.get("custom_llm_provider"))
+        llm_provider = kwargs.get("custom_llm_provider")
+        self.llm_provider = llm_provider if isinstance(llm_provider, str) else None
+        self.provider = provider_name(llm_provider)
         self.model = kwargs.get("model") if isinstance(kwargs.get("model"), str) else None
         self.stream = bool(kwargs.get("stream"))
-        self.model_group = metadata.get("model_group")
         self.model_id = (metadata.get("model_info") or {}).get("id") or kwargs.get("model_id")
         self.closed = False
-        # Whether the stream wrapper saw a chunk of this attempt.
+        # What the integration's stream wrappers saw of this attempt's stream: whether it streamed, which counts the
+        # provider reported in it, and the model it named.
         self.streaming = False
+        self.input_reported = False
+        self.output_reported = False
+        self.reasoning_reported = False
+        self.response_model: Optional[str] = None
+
+    @property
+    def claude(self) -> bool:
+        """Whether the call has an Anthropic shape, whose reasoning and modality details LiteLLM derives itself."""
+        return self.llm_provider == "anthropic" or "claude" in (self.model or "").lower()
+
+    def estimated_sides(self) -> tuple[bool, bool]:
+        """Whether the input and the output counts are estimates rather than the provider's.
+
+        A streamed side is reported when a chunk or event the integration saw carried it, so a stream it did not see
+        is estimated on both sides. A call that was not streamed is estimated when LiteLLM counts its provider's
+        usage itself.
+        """
+        if self.stream:
+            return not self.input_reported, not self.output_reported
+        local = self.llm_provider in _LOCALLY_COUNTED_PROVIDERS or (
+            self.llm_provider == "bedrock" and _bedrock_invoke(self.model)
+        )
+        return local, local
 
 
 class _Request:
@@ -288,7 +436,6 @@ class _Request:
         "route",
         "identity",
         "attempts",
-        "provider_usage",
         "ended",
     )
 
@@ -299,8 +446,6 @@ class _Request:
         self.route: Optional[str] = None
         self.identity: dict[str, Any] = {}
         self.attempts: list[_Attempt] = []
-        # Whether the provider reported usage in the stream of the latest attempt.
-        self.provider_usage = False
         self.ended = False
 
 
@@ -357,6 +502,17 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 return attempt
         return UsageMetricsLogger._latest_open_attempt(request)
 
+    def _close_replaced_attempts(self, request: _Request, kwargs: dict[str, Any], end: Any) -> None:
+        """Record the attempts of a successful request that are still open as failed. Attempts run one after the other,
+        so each ended when the next started. On LiteLLM versions without async_post_call_failure_deployment_hook, no
+        hook reports a failed retry of a route the integration's wrappers do not see.
+        """
+        attempts = request.attempts
+        for index, attempt in enumerate(attempts):
+            if not attempt.closed:
+                ended = attempts[index + 1].start if index + 1 < len(attempts) else end
+                self._record_attempt(request, attempt, kwargs, ended, "error", None)
+
     @staticmethod
     def _latest_open_attempt(request: _Request) -> Optional[_Attempt]:
         for attempt in reversed(request.attempts):
@@ -364,15 +520,27 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 return attempt
         return None
 
-    def mark_stream_chunk(self, call_id: Any, has_usage: bool) -> None:
-        """Called by the stream wrapper for each provider chunk of a chat or text completion stream."""
+    def observe_stream(
+        self,
+        call_id: Any,
+        input_reported: bool,
+        output_reported: bool,
+        model: Optional[str] = None,
+        reasoning_reported: bool = False,
+    ) -> None:
+        """Called by the integration's stream wrappers with what a chunk or event of the latest attempt's stream
+        carried: which token counts the provider reported, and the model it named.
+        """
         request = self._request(call_id, create=False)
-        if request is None:
+        if request is None or not request.attempts:
             return
-        if request.attempts:
-            request.attempts[-1].streaming = True
-        if has_usage:
-            request.provider_usage = True
+        attempt = request.attempts[-1]
+        attempt.streaming = True
+        attempt.input_reported = attempt.input_reported or input_reported
+        attempt.output_reported = attempt.output_reported or output_reported
+        attempt.reasoning_reported = attempt.reasoning_reported or reasoning_reported
+        if model and attempt.response_model is None:
+            attempt.response_model = model
 
     def attempt_failed(self, kwargs: dict[str, Any], exception: BaseException) -> None:
         """Called by the integration's wrapper when a chat or text completion attempt raises before streaming.
@@ -387,9 +555,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 return
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
-                self._record_attempt(
-                    request, attempt, kwargs, datetime.datetime.now(), error_type(exception), None, False
-                )
+                self._record_attempt(request, attempt, kwargs, datetime.datetime.now(), error_type(exception), None)
                 self._forget_if_done(call_id, request)
         except Exception:
             log.debug("LiteLLM usage metrics: attempt_failed failed", exc_info=True)
@@ -422,7 +588,6 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         end: Any,
         error: Optional[str],
         payload: Optional[dict[str, Any]],
-        estimated: bool,
         response: Any = None,
     ) -> None:
         attempt.closed = True
@@ -443,7 +608,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         if error:
             observation["error_type"] = error
         if payload is not None:
-            response_model = _response_model(kwargs)
+            response_model = _response_model(kwargs) or attempt.response_model
             if response_model:
                 observation["response_model"] = response_model
             if attempt.stream:
@@ -454,12 +619,18 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             usage_object = (payload.get("metadata") or {}).get("usage_object")
             if usage_object is None:
                 usage_object = getattr(response, "usage", None)
-            usage = usage_fields(usage_object, attempt.operation == "embeddings")
+            usage = usage_fields(usage_object, attempt.operation == "embeddings", modality=not attempt.claude)
+            # LiteLLM splits a reasoning count out of the output itself on the Anthropic shapes, and on a stream
+            # whose provider reported none: the output total stays reported and the part is left out.
+            if attempt.claude or (attempt.stream and not attempt.reasoning_reported):
+                usage.pop("reasoning_output_tokens", None)
             observation.update(usage)
-            unreported_stream = attempt.stream and attempt.checked_stream and not request.provider_usage
-            if usage and (estimated or unreported_stream):
-                observation["input_token_source"] = "estimated"  # nosec B105: a token count source, not a secret
-                observation["output_token_source"] = "estimated"  # nosec B105: a token count source, not a secret
+            if usage:
+                input_estimated, output_estimated = attempt.estimated_sides()
+                if input_estimated:
+                    observation["input_token_source"] = "estimated"  # nosec B105: a token count source, not a secret
+                if output_estimated:
+                    observation["output_token_source"] = "estimated"  # nosec B105: a token count source, not a secret
             cost = payload.get("response_cost")
             if isinstance(cost, (int, float)) and not isinstance(cost, bool) and (cost > 0 or _priced_at_zero(kwargs)):
                 observation["cost_usd"] = float(cost)
@@ -482,7 +653,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         error: Optional[str],
         cache_hit: bool,
         cost: Any,
+        failed: bool = False,
     ) -> None:
+        """Record the gateway request. ``failed`` marks a request that failed for good, whose ``cost`` is what the
+        proxy charged for it, zero included.
+        """
         if request.ended:
             return
         request.ended = True
@@ -497,16 +672,16 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         }
         if request.route:
             observation["request_model"] = request.route
-        groups = [attempt.model_group for attempt in request.attempts]
-        fallbacks = sum(1 for previous, current in zip(groups, groups[1:]) if current != previous)
-        observation["fallbacks"] = fallbacks
-        if not fallbacks and request.attempts:
-            # Retries are counted only on a request that did not fall back.
-            observation["retries"] = len(request.attempts) - 1
+        # Retry and fallback counts are left out: the profile counts explicit routing decisions, which LiteLLM does
+        # not report reliably, and forbids inferring them from the provider attempts.
         if cache_hit:
             observation["cache_outcomes"] = ["hit"]
             observation["estimated_cost_usd"] = 0
-        elif isinstance(cost, (int, float)) and not isinstance(cost, bool) and (cost > 0 or _priced_at_zero(kwargs)):
+        elif (
+            isinstance(cost, (int, float))
+            and not isinstance(cost, bool)
+            and (failed or cost > 0 or _priced_at_zero(kwargs))
+        ):
             observation["estimated_cost_usd"] = float(cost)
         if error:
             observation["error_type"] = error
@@ -565,7 +740,6 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             request = self._proxy_request(kwargs)
             if request is not None:
                 request.attempts.append(_Attempt(kwargs))
-                request.provider_usage = False
                 _mark_current_span(ATTEMPT_PROFILES)
         except Exception:
             log.debug("LiteLLM usage metrics: log_pre_api_call failed", exc_info=True)
@@ -580,7 +754,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
                 self._record_attempt(
-                    request, attempt, request_data, datetime.datetime.now(), error_type(exception), None, False
+                    request, attempt, request_data, datetime.datetime.now(), error_type(exception), None
                 )
                 self._forget_if_done(call_id, request)
         except Exception:
@@ -601,9 +775,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             if not cache_hit:
                 attempt = self._open_attempt(request, kwargs)
                 if attempt is not None:
-                    self._record_attempt(
-                        request, attempt, kwargs, end_time, error, payload, error is not None, response_obj
-                    )
+                    self._record_attempt(request, attempt, kwargs, end_time, error, payload, response_obj)
+            self._close_replaced_attempts(request, kwargs, end_time)
             self._record_request(call_id, request, kwargs, error, cache_hit, payload.get("response_cost"))
             self._forget_if_done(call_id, request)
         except Exception:
@@ -629,7 +802,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             payload = kwargs.get("standard_logging_object") or {}
             error_information = payload.get("error_information") or {}
             error = error_type(error_information.get("error_class") or kwargs.get("exception")) or "error"
-            self._record_attempt(request, attempt, kwargs, end_time, error, payload, True)
+            self._record_attempt(request, attempt, kwargs, end_time, error, payload)
             self._forget_if_done(call_id, request)
         except Exception:
             log.debug("LiteLLM usage metrics: async_log_failure_event failed", exc_info=True)
@@ -641,7 +814,20 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             call_id = request_data.get("litellm_call_id")
             request = self._request(call_id, create=False)
             if request is not None:
-                self._record_request(call_id, request, request_data, error_type(original_exception), False, None)
+                error = error_type(original_exception) or "error"
+                # Attempts no other hook closed: a stream that broke partway, when this hook comes before LiteLLM's
+                # failure event (LiteLLM 1.104 copies that event's partial usage into the request data), or a route
+                # whose failures fire no failure event at all (native Anthropic Messages streams before 1.104).
+                payload = request_data.get("standard_logging_object")
+                open_attempts = [attempt for attempt in request.attempts if not attempt.closed]
+                now = datetime.datetime.now()
+                for attempt in open_attempts:
+                    last = attempt is open_attempts[-1]
+                    partial = payload if last and isinstance(payload, dict) else None
+                    self._record_attempt(request, attempt, request_data, now, error, partial)
+                self._record_request(
+                    call_id, request, request_data, error, False, _charged_on_failure(request_data), failed=True
+                )
                 self._forget_if_done(call_id, request)
         except Exception:
             log.debug("LiteLLM usage metrics: async_post_call_failure_hook failed", exc_info=True)
