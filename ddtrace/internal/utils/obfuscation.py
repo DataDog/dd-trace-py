@@ -69,11 +69,11 @@ def _runtime_seen() -> bool:
     # global lookup) stops type checkers from narrowing it to a fixed literal
     # across the ``with _init_lock`` block below: another thread can flip it
     # while we wait for the lock, so the two checks in
-    # ``_obfuscation_runtime_loaded`` are not guaranteed to agree.
+    # ``obfuscation_runtime_loaded`` are not guaranteed to agree.
     return _obfuscation_runtime_seen
 
 
-def _obfuscation_runtime_loaded() -> bool:
+def obfuscation_runtime_loaded() -> bool:
     global _obfuscation_watchdog_installed
     global _obfuscation_runtime_watchdog_cls
 
@@ -143,7 +143,14 @@ def is_obfuscated_code(code: CodeType) -> bool:
     """
     # Cheap gate: only bother inspecting the code object if an obfuscation
     # runtime is actually loaded in the process.
-    if not _obfuscation_runtime_loaded():
-        return False
+    return obfuscation_runtime_loaded() and has_obfuscation_markers(code)
 
+
+def has_obfuscation_markers(code: CodeType) -> bool:
+    """Check for the structural PyArmor markers in a code object.
+
+    Unlike is_obfuscated_code, this does not depend on the obfuscation runtime
+    being loaded, so it can be evaluated on a code object before it runs (i.e.
+    before it gets the chance to import the runtime itself).
+    """
     return not _ARMOR_MARKERS.isdisjoint(code.co_names) or any(_is_runtime_object(c) for c in code.co_consts)
