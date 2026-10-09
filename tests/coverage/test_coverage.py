@@ -253,9 +253,7 @@ def test_monitoring_callback_in_empty_context_uses_tls_fallback():
 
         assert events, "the monitoring callback did not fire"
         first = target.__code__.co_firstlineno
-        assert {first + 1, first + 2} <= set(
-            test_collector.get_covered_lines()[path].to_sorted_list()
-        )
+        assert {first + 1, first + 2} <= set(test_collector.get_covered_lines()[path].to_sorted_list())
     finally:
         cleanup()
 
