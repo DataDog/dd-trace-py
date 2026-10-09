@@ -22,7 +22,8 @@ pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread con
 
 if sys.platform == "linux":
     from ddtrace.internal.native import _native
-    from ddtrace.internal.native._native import detach_otel_thread_context
+    from ddtrace.internal.native._native import SpanData
+    from ddtrace.internal.native._native import sync_otel_thread_context
 
     class _ThreadContextRecord(ctypes.Structure):
         _fields_ = [
@@ -110,6 +111,37 @@ def test_context_is_published_with_zero_local_root(tracer: Tracer):
     assert _published_context() is None
 
 
+def test_native_sync_uses_local_root_sampling_priority():
+    root = SpanData(name="test", trace_id=123, span_id=456)
+    root.context.sampling_priority = 1
+    child = SpanData(name="test", trace_id=123, span_id=789, context=root.context)
+    child._inherit_from_parent(root)
+    child.context = DDContext(trace_id=123, span_id=789, sampling_priority=0)
+
+    sync_otel_thread_context(child)
+
+    assert _published_context() == (123, 789, 1, 456)
+
+    root.context.sampling_priority = 0
+    child.context.sampling_priority = 1
+    sync_otel_thread_context(child)
+    assert _published_context() == (123, 789, 0, 456)
+
+
+@pytest.mark.parametrize("use_span", [False, True])
+def test_native_sync_sampling_failure_detaches(use_span):
+    active = SpanData(name="active", trace_id=123, span_id=456) if use_span else DDContext(trace_id=123, span_id=456)
+    sync_otel_thread_context(active)
+    assert _published_span_id() == 456
+    context = active.context if isinstance(active, SpanData) else active
+    context.sampling_priority = "invalid"
+
+    with pytest.raises(TypeError):
+        sync_otel_thread_context(active)
+
+    assert _published_context() is None
+
+
 @pytest.mark.parametrize(
     ("trace_id", "span_id"),
     [
@@ -173,7 +205,7 @@ def test_thread_context_listeners_can_be_disabled():
 
 def test_python_context_switch_syncs_active_span(tracer: Tracer):
     with tracer.trace("test") as span:
-        detach_otel_thread_context()
+        sync_otel_thread_context(None)
         assert _published_span_id() is None
 
         core.dispatch("python.context.switch")
@@ -193,7 +225,7 @@ def test_python_context_switch_syncs_active_span(tracer: Tracer):
 def test_python_context_switch_syncs_active_context(tracer: Tracer):
     context = DDContext(trace_id=123, span_id=456, sampling_priority=1)
     tracer.context_provider.activate(context)
-    detach_otel_thread_context()
+    sync_otel_thread_context(None)
 
     core.dispatch("python.context.switch")
 
@@ -228,7 +260,7 @@ def test_asyncio_to_thread_clears_stale_thread_context(tracer: Tracer):
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):
     with tracer.trace("test") as span:
         if sys.platform == "linux":  # to satisfy the type checker outside of linux
-            detach_otel_thread_context()
+            sync_otel_thread_context(None)
         pid = os.fork()
         if pid == 0:
             os._exit(0 if _published_span_id() == span.span_id else 1)

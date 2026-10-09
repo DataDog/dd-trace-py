@@ -525,7 +525,7 @@ impl Context {
     }
 
     #[getter]
-    fn get_sampling_priority<'py>(
+    pub(crate) fn get_sampling_priority<'py>(
         &mut self,
         py: Python<'py>,
     ) -> PyResult<Option<Bound<'py, PyAny>>> {
