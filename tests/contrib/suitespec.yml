@@ -212,6 +212,8 @@ components:
     - ddtrace/contrib/internal/structlog/*
   subprocess:
     - ddtrace/contrib/internal/subprocess/*
+  temporal:
+    - ddtrace/contrib/internal/temporal/*
   tornado:
     - ddtrace/contrib/internal/tornado/*
   trio:
@@ -2748,6 +2750,24 @@ suites:
       variants:
         - name: logging
           dependencies: [pytest-randomly, pytest-xdist]
+  temporal:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@temporal'
+      - tests/contrib/temporal/*
+    snapshot: true
+    matrix:
+      command: python -m pytest {cmdargs} tests/contrib/temporal
+      variants:
+        - name: temporal
+          python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies: ['pytest-asyncio', 'temporalio~=1.21.0']
+        - name: temporal
+          python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies: ['pytest-asyncio', temporalio]
   tornado:
     venvs_per_job: 6
     paths:

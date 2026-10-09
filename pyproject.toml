@@ -309,6 +309,13 @@ lint.unfixable =[
 # propagation path. Converting to f-strings removes that coverage.
 "scripts/iast/mod_leak_functions.py" = ["UP032"]
 
+# The Temporal SDK's interceptor base classes declare their parameters as
+# ``input`` and ``next``; overrides must keep those names to stay signature-
+# compatible, so A002 (argument shadowing a builtin) is silenced for the
+# integration and its tests.
+"ddtrace/contrib/internal/temporal/*.py" = ["A002"]
+"tests/contrib/temporal/*.py" = ["A002"]
+
 [tool.ruff.format]
 # Formatter-specific settings
 # The exclude list from [tool.ruff] is inherited automatically
