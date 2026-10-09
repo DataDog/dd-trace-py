@@ -15,6 +15,18 @@ if the import path doesn't match the actual module structure.
 `patch()` needs a corresponding `unwrap()` in `unpatch()`. Missing unwraps
 produce orphaned spans after `unpatch()`.
 
+**Injecting arguments by assigning `kwargs[name]`** -- Breaks callers (and library
+subclasses) that pass the argument positionally (`falcon.asgi.App` forwards
+`middleware` positionally, so `kwargs["middleware"] = ...` raised "got multiple
+values"), crashes on legal values such as `None` or a single object, and mutates
+caller-owned containers. Read and replace the argument with
+`get_argument_value`/`set_argument_value`, normalize it the way the library does,
+and build a new container.
+
+**Wrapping a base-class method and a subclass method that calls `super()`** -- The
+wrapper runs twice per call (e.g. `falcon.API.__init__` → `falcon.App.__init__`),
+duplicating spans or injected middleware. Wrap only the base method.
+
 **Patching only already-imported lazy modules** -- Deferred/lazy-loaded classes
 may not exist at `patch()` time. Register a `ModuleWatchdog` module hook so the
 wrapper is installed after the target module imports. Make hook registration
@@ -64,6 +76,12 @@ direct-trace exceptions).
 
 **Not adding to both component AND suite in suitespec** -- Both entries required;
 missing either means CI won't run tests or detect source changes.
+
+**Testing only manual instrumentation** -- If every test installs the integration's
+middleware or wrapper by hand, the `patch()` path that `ddtrace-run` users get is
+never exercised. Test the autopatched constructors and entry points too, including
+library subclasses that inherit the patched method (e.g. ASGI variants). When
+patching can't be undone in-process, use `@pytest.mark.subprocess(ddtrace_run=True)`.
 
 **Using the wrong suitespec file** -- LLM/AI: `tests/llmobs/suitespec.yml`.
 Standard: `tests/contrib/suitespec.yml`.

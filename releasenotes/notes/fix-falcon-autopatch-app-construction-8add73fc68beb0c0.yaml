@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    falcon: Fixes an issue where creating a ``falcon.asgi.App`` failed with a ``TypeError`` or
+    ``CompatibilityError`` when the falcon integration was enabled, for example under ``ddtrace-run``.
+    ASGI applications now start normally but are not traced by the falcon integration; wrap them with
+    ``ddtrace.contrib.asgi.TraceMiddleware`` to trace them.
+  - |
+    falcon: Fixes an issue where creating a ``falcon.App`` failed when ``middleware`` was ``None``, a
+    single component, a tuple, or passed positionally, and where ``falcon.API`` applications on
+    Falcon 3 produced duplicate ``falcon.request`` spans.
