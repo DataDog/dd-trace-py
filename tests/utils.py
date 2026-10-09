@@ -1215,6 +1215,11 @@ class TestAgentClient:
         data = json.loads(resp)
         return cast(list[TestAgentRequest], data)
 
+    def traces(self) -> list[list[dict[str, Any]]]:
+        status, resp = self._request("GET", self._url("/test/session/traces"))
+        assert status == 200, "Failed to get test session traces"
+        return cast(list[list[dict[str, Any]]], json.loads(resp))
+
     def telemetry_requests(self, telemetry_type: Optional[str] = None) -> list[TestAgentRequest]:
         reqs = []
         for req in self.requests():
@@ -1265,6 +1270,10 @@ class SnapshotTest:
 
     def requests(self) -> list[TestAgentRequest]:
         return self._client.requests()
+
+    def traces(self) -> list[list[dict[str, Any]]]:
+        """Return traces received for this snapshot session."""
+        return self._client.traces()
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
