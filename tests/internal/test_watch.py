@@ -200,6 +200,18 @@ def test_read_cpuinfo(watch_mod):
     assert parsed[1]["microcode"] == "0x500002c"
 
 
+def test_read_cpuinfo_mhz(watch_mod):
+    # per-processor current MHz: the readable substitute for scaling_cur_freq
+    # in the benchmark containers
+    cpuinfo = "processor\t: 24\ncpu MHz\t\t: 2100.000\n\nprocessor\t: 25\ncpu MHz\t\t: 2499.938\n"
+    assert watch_mod.read_cpuinfo_mhz(cpuinfo) == {"24": 2100.0, "25": 2499.938}
+
+
+def test_read_cpuinfo_mhz_ignores_bad_values(watch_mod):
+    cpuinfo = "processor\t: 0\ncpu MHz\t\t: not-a-number\n"
+    assert watch_mod.read_cpuinfo_mhz(cpuinfo) == {}
+
+
 @pytest.mark.parametrize(
     "text, expected",
     [

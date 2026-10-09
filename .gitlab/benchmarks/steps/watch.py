@@ -215,6 +215,25 @@ def read_cpuinfo(text: str) -> list:
     return procs
 
 
+def read_cpuinfo_mhz(text: str) -> dict:
+    """Per-processor current MHz from /proc/cpuinfo (the kernel's frequency
+    estimate, updated from APERF/MPERF -- readable where scaling_cur_freq is
+    not).
+    """
+    mhz = {}
+    current = None
+    for line in text.splitlines():
+        if line.startswith("processor"):
+            _, _, value = line.partition(":")
+            current = value.strip()
+        elif line.startswith("cpu MHz") and current is not None:
+            try:
+                mhz[current] = float(line.partition(":")[2])
+            except ValueError:
+                pass
+    return mhz
+
+
 def _read(path: Path):
     try:
         return path.read_text()
@@ -420,6 +439,14 @@ class CpuWatch:
                 freq[cpu_dir.name[3:]] = int(value.strip())
         sample["freq"] = freq
 
+        # scaling_cur_freq is masked in the benchmark containers; /proc/cpuinfo
+        # MHz is the readable equivalent for the per-cpu frequency timeline
+        cpuinfo = _read(Path("/proc/cpuinfo"))
+        if cpuinfo is not None:
+            sample["mhz"] = read_cpuinfo_mhz(cpuinfo)
+        else:
+            self._err("cpuinfo_mhz")
+
         try:
             sample["procs"] = sample_procs()
         except OSError:
@@ -499,9 +526,9 @@ class CpuWatch:
         snap["cpufreq_policy"] = freq_policy
 
         irq_affinity = {}
-        interrupts = _read(Path("/proc/interrupts"))
         devices = {}
-        if interrupts is not None:
+        interrupts = _read(Path("/proc/interrupts")) or ""
+        if interrupts.strip():
             parsed = read_interrupts(interrupts)
             devices = {key: row["dev"] for key, row in parsed.get("rows", {}).items()}
         for irq_dir in sorted(Path("/proc/irq").glob("[0-9]*")):
@@ -523,11 +550,13 @@ class CpuWatch:
         snap["cgroup_cpuset"] = cgroup_cpuset
 
         # Which counter sources were readable at startup; the completeness
-        # check reports missing ones instead of guessing.
+        # check reports missing ones instead of guessing. A source that reads
+        # back empty (the containers mask /proc/interrupts entirely) counts as
+        # NOT readable.
         sources = {
             "proc_stat": _read(Path("/proc/stat")) is not None,
-            "proc_interrupts": interrupts is not None,
-            "proc_softirqs": _read(Path("/proc/softirqs")) is not None,
+            "proc_interrupts": bool(interrupts.strip()),
+            "proc_softirqs": bool((_read(Path("/proc/softirqs")) or "").strip()),
             "psi_cpu": _read(Path("/proc/pressure/cpu")) is not None,
             "psi_memory": _read(Path("/proc/pressure/memory")) is not None,
             "psi_io": _read(Path("/proc/pressure/io")) is not None,
