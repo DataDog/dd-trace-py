@@ -32,20 +32,20 @@ serde = "1.0"
 serde_json = "1.0"
 smallvec = "1"
 tokio = "1"
-libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", optional = true, features = ["pyo3"] }
-libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = ["one_way_shm_futex"] }
-datadog-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = [
+libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", optional = true, features = ["pyo3"] }
+libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", features = ["one_way_shm_futex"] }
+datadog-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", features = [
   "agentless",
 ] }
-libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", optional = true }
-libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", optional = true }
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = [
+libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", optional = true }
+libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", optional = true }
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", features = [
   "stats-obfuscation",
   "compression"
 ] }
@@ -54,17 +54,17 @@ libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v4
 # hostnames resolved through custom search/ndots resolv.conf setups (e.g.
 # Docker Compose/Kubernetes service names via embedded DNS) — it uses the
 # system resolver instead, like the stdlib http.client this replaces did.
-libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", default-features = false, features = [
+libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", default-features = false, features = [
   "https",
   "hyper-backend",
   "hyper-proxy",
 ] }
-libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", optional = true, features = [
+libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", optional = true, features = [
     "cbindgen",
 ] }
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
-libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2" }
+libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
+libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2" }
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
 percent-encoding = "2.3"
@@ -76,8 +76,8 @@ zip = { version = "4.6", default-features = false, features = ["deflate"] }
 pyo3-ffi = { version = "0.28", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = ["otel-thread-ctx"]}
-libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = ["thread-exit-autoclean"] }
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", features = ["otel-thread-ctx"]}
+libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", features = ["thread-exit-autoclean"] }
 libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -85,7 +85,7 @@ libc = "0.2"
 
 [build-dependencies]
 pyo3-build-config = "0.28"
-build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.2", features = [
+build_common = { git = "https://github.com/DataDog/libdatadog", rev = "a6ca2c910f1b7c43e10de1a378ff3839f97f04f2", features = [
     "cbindgen",
 ] }
 
