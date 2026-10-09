@@ -109,6 +109,9 @@ class JobSpec:
         lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
         lines.append(f"  extends: {base}")
 
+        if self.suite == "llmobs::llmobs":
+            lines[-1] = f"  extends: [{base}, .llmobs_tia]"
+
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
@@ -162,6 +165,11 @@ class JobSpec:
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
         env["TEST_SUITE"] = self.suite or self.name
+        if self.suite == "llmobs::llmobs":
+            diagnostics = os.environ.get("DD_LLMOBS_TIA_DIAGNOSTICS", "off")
+            if diagnostics not in ("off", "selection", "full"):
+                raise ValueError("DD_LLMOBS_TIA_DIAGNOSTICS must be off, selection, or full")
+            env["DD_LLMOBS_TIA_DIAGNOSTICS"] = f'"{diagnostics}"'
         if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
             env["UV_PRERELEASE"] = "allow"
 
