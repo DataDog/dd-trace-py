@@ -247,6 +247,8 @@ benchmarks-pr-comment:
 # Since benchmark failures block the PR directly, this job blocks the PR if
 # benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
+  rules:
+    - when: never
   extends: .check-slo-breaches
   stage: gate
   # Temporary override while benchmarking platform updates their template

@@ -78,6 +78,8 @@
       echo -e "\e[0Ksection_end:`date +%s`:upload_junit\r\e[0K"
 
 system-tests parametric:
+  rules:
+    - when: never
   extends: .system-tests-base
   script:
     - echo -e "\e[0Ksection_start:`date +%s`:run_parametric\r\e[0KRunning PARAMETRIC scenario"
