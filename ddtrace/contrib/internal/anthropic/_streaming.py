@@ -146,6 +146,19 @@ def _on_message_start_chunk(chunk, message):
             if cache_read_tokens is not None:
                 message["usage"]["cache_read_input_tokens"] = cache_read_tokens
 
+            # Carry the 5m/1h TTL breakdown through, otherwise every cache write gets
+            # reported with the default 5m TTL.
+            cache_creation_breakdown = _get_attr(chunk_usage, "cache_creation", None)
+            if cache_creation_breakdown is not None:
+                message["usage"]["cache_creation"] = {
+                    "ephemeral_5m_input_tokens": _get_attr(
+                        cache_creation_breakdown, "ephemeral_5m_input_tokens", None
+                    ),
+                    "ephemeral_1h_input_tokens": _get_attr(
+                        cache_creation_breakdown, "ephemeral_1h_input_tokens", None
+                    ),
+                }
+
     return message
 
 
