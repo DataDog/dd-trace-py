@@ -1,0 +1,13 @@
+_v: 1
+name: langgraph
+display_name: LangGraph
+description: Instruments synchronous, asynchronous, and streaming LangGraph graph and node executions for APM tracing and
+  LLM Observability.
+packages:
+- name: langgraph
+- name: langgraph-checkpoint
+- name: langgraph-prebuilt
+category:
+- gen_ai
+systems: []
+creation_date: '2025-01-17'

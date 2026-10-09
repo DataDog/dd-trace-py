@@ -41,6 +41,7 @@ from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
@@ -196,6 +197,7 @@ def override_global_config(values: dict[str, Any]):
         "_trace_compute_stats",
         "_trace_resource_renaming_always_simplified_endpoint",
         "_obfuscation_query_string_pattern",
+        "_query_string_obfuscation_preserve_delimiter",
         "_global_query_string_obfuscation_disabled",
         "_trace_agentless_enabled",
         "_agentless_enabled",
@@ -253,6 +255,11 @@ def override_global_config(values: dict[str, Any]):
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
+    if "_obfuscation_query_string_pattern" in values and "_query_string_obfuscation_preserve_delimiter" not in values:
+        pattern = values["_obfuscation_query_string_pattern"]
+        ddtrace.config._query_string_obfuscation_preserve_delimiter = (
+            pattern is not None and pattern.pattern == DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode("ascii")
+        )
     # rebuild asm config from env vars and global config
     for key, value in values.items():
         if key in asm_config_keys:

@@ -524,24 +524,36 @@ fn is_finalizing() -> bool {
 /// errors `(metadata_path, message)`. module_suffixes are
 /// importlib.machinery.all_suffixes(), longest first. Panics are raised as
 /// RuntimeError: a PanicException at startup would get past every handler.
+///
+/// The GIL is only released with release_gil, which only threads that cannot
+/// outlive interpreter shutdown may ask for. A daemon thread re-acquiring it
+/// once finalization has started is killed with pthread_exit (CPython up to
+/// 3.13.7), and that cannot unwind through these frames: the finalization
+/// check below narrows the window but cannot close it.
 #[pyfunction]
+#[pyo3(signature = (entry, module_suffixes, release_gil=false))]
 fn scan_distributions(
     py: Python<'_>,
     entry: PathBuf,
     module_suffixes: Vec<String>,
+    release_gil: bool,
 ) -> PyResult<(Vec<DistRecord>, Vec<DistError>)> {
-    py.detach(move || {
-        let result = panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes)));
-        if is_finalizing() {
-            // Re-acquiring the GIL now would kill (CPython <= 3.13.7) or hang
-            // the thread. Only daemon threads get here: stay off the GIL.
-            loop {
-                std::thread::park();
+    let result = if release_gil {
+        py.detach(move || {
+            let result = panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes)));
+            if is_finalizing() {
+                // Re-acquiring the GIL now would kill (CPython <= 3.13.7) or
+                // hang the thread: stay off it.
+                loop {
+                    std::thread::park();
+                }
             }
-        }
-        result
-    })
-    .map_err(|payload| {
+            result
+        })
+    } else {
+        panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes)))
+    };
+    result.map_err(|payload| {
         let reason = payload
             .downcast_ref::<&str>()
             .map(|s| s.to_string())
