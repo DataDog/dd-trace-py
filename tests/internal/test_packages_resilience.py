@@ -25,9 +25,9 @@ import pytest
 # in Python 3.10; on 3.9 the strict-future regression we exercise here
 # cannot be reproduced via that hook, so the tests below are skipped.
 try:
-    import importlib.metadata._adapters as _meta_adapters  # type: ignore[import-not-found]
+    import importlib.metadata._adapters as _meta_adapters  # type: ignore[import-not-found, unused-ignore]
 except ImportError:  # Python 3.9
-    _meta_adapters = None  # type: ignore[assignment]
+    _meta_adapters = None  # type: ignore[assignment, unused-ignore]
 
 
 @pytest.fixture
@@ -40,6 +40,7 @@ def reset_packages_caches():
 
     def _clear() -> None:
         _p._reset_installed_distributions()
+        _p._clear_lookup_caches()
         _p._BAD_DISTS_WARNED.clear()
         _p._MAPPING_FAILURE_LOGGED = False
 
@@ -207,14 +208,14 @@ def test_filename_to_package_resolves_namespace_on_non_site_packages_install_roo
     mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
     monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
     monkeypatch.setattr(_p, "resolve_sys_path", lambda: [vendor])
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
 
     pkg = _p.filename_to_package(vendor / "google" / "cloud" / "storage" / "blob.py")
 
     assert pkg is not None and pkg.name == "google-cloud-storage"
 
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
 
 
@@ -387,14 +388,14 @@ def test_filename_to_package_does_not_attribute_editable_source_root_to_dependen
     mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
     monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
     monkeypatch.setattr(_p, "resolve_sys_path", lambda: [repo])
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
 
     pkg = _p.filename_to_package(repo / "google" / "cloud" / "storage" / "app.py")
 
     assert pkg is None
 
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
 
 
@@ -1371,3 +1372,106 @@ def test_lookup_caches_follow_snapshot_replacement(
     sys.path.insert(0, str(vendor))
     assert [r[0] for r in _p._installed_distributions()] == ["vendored", "first"]
     assert _p.filename_to_package.cache_info().currsize == 0
+
+
+def test_filename_to_package_on_a_sys_path_root_itself(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A path that is a sys.path entry must resolve to None, not raise."""
+    from ddtrace.internal import packages as _p
+
+    root = tmp_path / "root"
+    root.mkdir()
+
+    mapping = {"something": _p.Distribution(name="something", version="1.0")}
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    monkeypatch.setattr(_p, "resolve_sys_path", lambda: [root])
+    _p.filename_to_package.cache_clear()
+
+    assert _p.filename_to_package(root) is None
+
+    _p.filename_to_package.cache_clear()
+
+
+def test_shipped_distributions_lists_each_directory_once(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both install-root probes share one cached directory listing."""
+    from ddtrace.internal import packages as _p
+
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    _write_dist_info(vendor, "google-cloud-storage", "1.0")
+
+    listed: list[Path] = []
+    real_iterdir = Path.iterdir
+
+    def counting_iterdir(self):
+        listed.append(self)
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", counting_iterdir)
+
+    assert _p._is_install_root(vendor) is True
+    assert _p._root_ships_distribution(vendor, "google-cloud-storage") is True
+    assert _p._root_ships_distribution(vendor, "some-other-dist") is False
+    assert _p._is_install_root(vendor) is True
+
+    assert listed.count(vendor) == 1
+
+
+def test_effective_root_reuses_the_package_probe_across_files(
+    tmp_path: Path,
+    reset_packages_caches,
+) -> None:
+    """The __init__.py probe is keyed on the package, not the source file."""
+    from ddtrace.internal import packages as _p
+
+    site = tmp_path / "site-packages"
+    (site / "pkg").mkdir(parents=True)
+    (site / "pkg" / "__init__.py").write_text("")
+
+    assert _p._effective_root(("pkg", "a.py"), site) == "pkg"
+    assert _p._effective_root(("pkg", "sub", "b.py"), site) == "pkg"
+    assert _p._effective_root(("pkg", "sub", "c.py"), site) == "pkg"
+
+    info = _p._is_regular_package.cache_info()
+    assert (info.misses, info.hits) == (1, 2)
+
+
+def test_directory_probes_follow_snapshot_replacement(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Metadata installed into a probed directory is seen once the snapshot is replaced."""
+    from ddtrace.internal import packages as _p
+
+    tmp_path = tmp_path.resolve()
+    site = _site_with_dist(tmp_path / "site", "first", "first")
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    (vendor / "vendored.py").write_text("")
+    monkeypatch.setattr(sys, "path", [str(site), str(vendor)])
+    _prefetch_and_wait(_p)
+    _p.filename_to_package.cache_clear()
+
+    assert _p.filename_to_package(vendor / "vendored.py") is None
+    assert _p._is_install_root(vendor) is False
+
+    before = os.stat(vendor).st_mtime_ns
+    di = _write_dist_info(vendor, "vendored", "1.0")
+    (di / "RECORD").write_text("vendored.py,,\n")
+    if os.stat(vendor).st_mtime_ns == before:  # coarse file system timestamps
+        os.utime(vendor, ns=(before + 1_000_000_000, before + 1_000_000_000))
+    # Any sys.path change replaces the snapshot on the next read of the maps.
+    sys.path.append(str(tmp_path / "elsewhere"))
+    assert "vendored" in [r[0] for r in _p._installed_distributions()]
+
+    # filename_to_package can still get there through the root-module fallback,
+    # so check the probe that gates _install_root_owner directly.
+    assert _p._is_install_root(vendor) is True
+    pkg = _p.filename_to_package(vendor / "vendored.py")
+    assert pkg is not None and pkg.name == "vendored"
