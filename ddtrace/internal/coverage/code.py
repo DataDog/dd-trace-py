@@ -65,6 +65,8 @@ ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 # The mirror is best effort: it reflects the stack of whichever context last entered or exited a collector on
 # this thread, and Context.run does not restore thread-local state, so interleaved scopes across copied contexts
 # can leave it approximate until the next enter or exit.
+# TODO: resynchronize the mirror when execution returns from a copied context, see the xfail test
+# test_returning_from_a_copied_context_restores_the_tls_fallback.
 _tls_coverage = _threading.local()
 
 
@@ -441,6 +443,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             # distinguish different collectors even when their coverage data is empty.
             self._covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
             self._covered_files: set[str] = set()
+            # TODO: reopening a reused collector also reactivates contexts copied during its previous
+            # scope, see the xfail test test_reused_collector_does_not_reactivate_contexts_from_its_previous_scope.
             self.closed = False
             ctx_collectors.set(ctx_collectors.get() + (self,))
             ctx_coverage_enabled.set(True)

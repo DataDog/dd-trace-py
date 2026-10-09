@@ -87,6 +87,63 @@ def test_expired_copied_context_does_not_borrow_the_thread_collector(monkeypatch
         assert not stale_files
 
 
+# TODO: the TLS fallback is a best-effort mirror of the stack of whichever context last entered or exited a
+# collector, and Context.run does not restore thread-local state. A fix needs to resynchronize the mirror when
+# execution returns from a copied context without restoring stale stacks for inherited collectors; saving and
+# restoring the stack on enter and exit was tried and broke that inherited-collector case.
+@pytest.mark.xfail(strict=True, reason="Known limitation: the TLS fallback is not resynchronized after Context.run")
+def test_returning_from_a_copied_context_restores_the_tls_fallback(monkeypatch):
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    with coverage_code.ModuleCodeCollector.CollectInContext() as outer:
+        # The copy is made while only the outer collector is active.
+        task_context = copy_context()
+        with coverage_code.ModuleCodeCollector.CollectInContext() as nested:
+            # This scope is entered and exited entirely inside the copied context
+            # while the thread has its own nested collector active.
+            inner = coverage_code.ModuleCodeCollector.CollectInContext()
+            task_context.run(inner.__enter__)
+            task_context.run(inner.__exit__)
+
+            # Returning from the copied context should leave the TLS fallback aligned
+            # with the thread's flow, so a fresh context still resolves to the
+            # nested collector instead of the copied context's remaining stack.
+            Context().run(collector.hook_line, "/repo/fresh.py", 1)
+            assert 1 in nested.get_covered_lines()["/repo/fresh.py"].to_sorted_list()
+            assert "/repo/fresh.py" not in outer.get_covered_lines()
+            assert "/repo/fresh.py" not in inner.get_covered_lines()
+
+
+# TODO: the unittest integration enters one shared CollectInContext for every test
+# (ddtrace/contrib/internal/unittest/patch.py), and __enter__ resets the closed flag, so a context copied
+# during one test becomes active again when the next test starts and its late work lands in that test's
+# coverage. A fix could give each test a fresh collector, or tag stack entries with a per-enter generation
+# so that reopening a collector does not reactivate stacks from its previous scope.
+@pytest.mark.xfail(strict=True, reason="Known limitation: re-entering a collector reactivates contexts copied earlier")
+def test_reused_collector_does_not_reactivate_contexts_from_its_previous_scope():
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    shared = coverage_code.ModuleCodeCollector.CollectInContext()
+    with shared:
+        # A context copied during the first test, for example by a task that outlives it.
+        retained = copy_context()
+
+    with shared:
+        # Late work from the first test's context should not count as coverage of the second test.
+        retained.run(collector.hook_line, "/repo/late.py", 1)
+        assert "/repo/late.py" not in shared.get_covered_lines()
+
+
 def test_coverage_stacks_are_isolated_across_copied_contexts():
     from contextvars import copy_context
 
