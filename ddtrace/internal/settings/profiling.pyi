@@ -26,6 +26,7 @@ class ProfilingConfig(DDConfig):
     native_heap: ProfilingConfigNativeHeap
     pytorch: ProfilingConfigPytorch
     exception: ProfilingConfigException
+    install: bool
 
     def dump_settings(self) -> dict[str, Any]: ...
 

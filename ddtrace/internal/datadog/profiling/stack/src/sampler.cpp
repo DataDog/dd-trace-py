@@ -763,7 +763,11 @@ Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
-    stack_postfork_cleanup();
+    // Only do it after a fork: the threads, asyncio loops and greenlets registered before the first start (e.g. when
+    // the hooks are installed at startup with DD_PROFILING_INSTALL) must be kept.
+    if (pid != getpid()) {
+        stack_postfork_cleanup();
+    }
 
     // ProfilerState::start registers
     // dd_wrapper's pthread_atfork handler before Sampler::start is called,
@@ -796,6 +800,11 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
     } else {
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
+            // The living threads are registered again on each profiler start: keep the asyncio loop that was linked
+            // to the thread before, unless the thread id now belongs to another thread.
+            if (it->second->native_id == native_id) {
+                (*maybe_thread_info)->asyncio_loop = it->second->asyncio_loop;
+            }
             it->second = std::move(*maybe_thread_info);
         } else {
             if (!has_errored) {

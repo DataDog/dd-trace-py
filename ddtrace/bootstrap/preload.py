@@ -65,6 +65,18 @@ if profiling_config.enabled:
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
 
+if profiling_config.install:
+    # Install the stack profiler hooks now, so that the profiler can be enabled at runtime and still
+    # see the threads, event loops and greenlets created before that.
+    try:
+        from ddtrace.profiling.collector import _task as _profiling_task
+        from ddtrace.profiling.collector import threading as _profiling_threading
+
+        _profiling_threading.init_stack()
+        _profiling_task.initialize_gevent_support()
+    except Exception:
+        log.debug("failed to install the profiling hooks", exc_info=True)
+
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
