@@ -216,3 +216,42 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
+
+## Duplex audio streams
+
+Nova 2 Sonic (aws_sdk_bedrock_runtime) uses a connection-local duplex adapter,
+like OpenAI Realtime, rather than one response iterator and one span.
+Do not consume ahead. Observe successful input sends, allow output drain after
+input half-close, and finish once on output EOF, close, cancellation, or error.
+Keep turn state separate from provider completion IDs, which can be shared by
+many responses. Snapshot the caller's parent; do not activate long-lived turns.
+
+Use explicit LLMObs parent/trace/session identity on the three direct children
+of each audio-turn workflow. Speech offsets select the input WAV; speech-end
+event receipt defines the initial latency boundary. Projected assistant playback
+is an estimate, not a device acknowledgement. Keep total samples separate from
+bounded retained bytes; share the audio payload budget across both roles.
+
+Nova protocol state lives in llmobs/_integrations/aws_sdk_bedrock_runtime_utils.py.
+The product supplies it through the Bedrock core event only while enabled. Shared
+parent/trace identity stamping lives in BaseLLMIntegration._set_llmobs_parent;
+audio span creation and annotations live in AwsSdkBedrockRuntimeIntegration.
+
+Keep audio retention separate from timing validity. Dropping an oversized WAV
+must not remove a valid speech phase or its TTFA boundary. Never shorten gaps
+inside a retained clip without a matching timestamped segment contract. End
+interrupted generation at its observed interruption, even when emission waits
+for the next turn. Explicit LLMObs identity must come from an LLMObs ancestor,
+never from a plain APM span's identifiers.
+
+Ignore post-interruption audio for playback validation and retention so late
+malformed chunks cannot erase the already-trimmed clip or its speech phase.
+Generated-byte accounting may continue independently for decodable chunks.
+
+Nova 2 Sonic usageEvent audio counts come from details.total.input.speechTokens
+and details.total.output.speechTokens. Difference these cumulative counters using
+the same turn attribution as totalInputTokens/totalOutputTokens. Emit
+input_audio_tokens/output_audio_tokens as subsets, never add them to total_tokens,
+and preserve explicit zero. A missing or invalid breakdown makes that turn's
+corresponding audio metric unknown; recover the baseline before pricing later
+turns, without attributing earlier unknown usage to them.
