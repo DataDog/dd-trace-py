@@ -185,6 +185,11 @@ def _get_default_os_env_vars():
         "DD_AGENT_HOST",
         "DD_TRACE_AGENT_HOSTNAME",
         "HOME",
+        # Only set while a snapshot context is active (see
+        # tests.utils.snapshot_context), so subprocess snapshot tests inherit
+        # the context's stats setting while non-snapshot tests keep client-side
+        # stats enabled by default.
+        "DD_TRACE_STATS_COMPUTATION_ENABLED",
     }
 
     return {key: os.environ[key] for key in os_env_keys if key in os.environ}
@@ -200,9 +205,6 @@ def _get_default_ci_env_vars(
 
     if mock_ci_env:
         _env.update(_PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS)
-
-    # Client-side stats is disabled for tests
-    _env.update({"DD_TRACE_COMPUTE_STATS": "false"})
 
     if new_vars:
         _env.update(new_vars)

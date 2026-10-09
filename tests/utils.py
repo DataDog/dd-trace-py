@@ -712,8 +712,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)
 
-    def set_test_session_token(self, token: Optional[str]) -> None:
-        self._inner_writer.set_test_session_token(token)
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
+        self._inner_writer.set_test_session_token(token, compute_stats_enabled=compute_stats_enabled)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         self._inner_writer.stop(timeout=timeout)
@@ -1279,6 +1279,7 @@ def snapshot_context(
     async_mode=True,
     variants=None,
     wait_for_num_traces=None,
+    compute_stats_enabled=False,
 ):
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
@@ -1298,9 +1299,15 @@ def snapshot_context(
     ignores.extend(_LLMOBS_SHADOW_IGNORES)
     tracer = ddtrace.tracer
 
+    original_compute_stats_enabled = dd_config._trace_compute_stats
+    original_stats_env = os.environ.get("DD_TRACE_STATS_COMPUTATION_ENABLED")
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
+        dd_config._trace_compute_stats = compute_stats_enabled
+        # Subprocesses must use the same stats setting as the snapshot writer.
+        os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = str(compute_stats_enabled).lower()
+
         # clear queue in case traces have been generated before test case is
         # itself run
         try:
@@ -1311,7 +1318,9 @@ def snapshot_context(
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
             if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                tracer._span_aggregator.writer.set_test_session_token(token)
+                tracer._span_aggregator.writer.set_test_session_token(
+                    token, compute_stats_enabled=compute_stats_enabled
+                )
             else:
                 tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
@@ -1353,7 +1362,9 @@ def snapshot_context(
             tracer._span_aggregator.writer.flush_queue()
             if async_mode:
                 if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                    tracer._span_aggregator.writer.set_test_session_token(None)
+                    tracer._span_aggregator.writer.set_test_session_token(
+                        None, compute_stats_enabled=original_compute_stats_enabled
+                    )
                 else:
                     del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
@@ -1398,6 +1409,11 @@ def snapshot_context(
             else:
                 pytest.xfail(result)
     finally:
+        if original_stats_env is None:
+            os.environ.pop("DD_TRACE_STATS_COMPUTATION_ENABLED", None)
+        else:
+            os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = original_stats_env
+        dd_config._trace_compute_stats = original_compute_stats_enabled
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()
@@ -1405,7 +1421,13 @@ def snapshot_context(
 
 
 def snapshot(
-    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
+    ignores=None,
+    include_tracer=False,
+    variants=None,
+    async_mode=True,
+    token_override=None,
+    wait_for_num_traces=None,
+    compute_stats_enabled=False,
 ):
     """Performs a snapshot integration test with the testing agent.
 
@@ -1442,6 +1464,7 @@ def snapshot(
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
+            compute_stats_enabled=compute_stats_enabled,
         ):
             # Run the test.
             if include_tracer:
