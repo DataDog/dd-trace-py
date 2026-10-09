@@ -29,10 +29,10 @@ from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import Constant_Class
 from ddtrace.internal.core.events import Event
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -99,9 +99,9 @@ class ASM_Environment:
     def __init__(
         self,
         waf_callable: Optional[WafCallable],
-        span: Optional[SpanProtocol] = None,
+        span: Optional[SpanData] = None,
         rc_products: str = "",
-    ):
+    ) -> None:
         self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
@@ -110,8 +110,8 @@ class ASM_Environment:
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
             raise TypeError("ASM_Environment requires a span")
-        self.span: SpanProtocol = context_span
-        self.entry_span: SpanProtocol = self.span._service_entry_span
+        self.span: SpanData = context_span
+        self.entry_span: SpanData = self.span._service_entry_span
         if self.span.name.endswith(".request"):
             self.framework = self.span.name[:-8]
         else:
@@ -164,7 +164,7 @@ def get_blocked() -> Optional[Block_config]:
     return env.blocked or None
 
 
-def get_entry_span() -> Optional[SpanProtocol]:
+def get_entry_span() -> Optional[SpanData]:
     env = _get_asm_context()
     if env is None:
         span = span_bus.get_span()
@@ -311,8 +311,8 @@ def set_blocked_dict(block: Union[dict[str, Any], Block_config, None]) -> None:
     set_blocked(blocked)
 
 
-def update_span_metrics(span: SpanProtocol, name: str, value: Union[float, int]) -> None:
-    span._set_attribute(name, value + (span.get_metric(name) or 0.0))
+def update_span_metrics(span: SpanData, name: str, value: Union[float, int]) -> None:
+    span._set_attribute(name, value + (span._get_numeric_attribute(name) or 0.0))
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
@@ -326,14 +326,14 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         if asm_config._use_metastruct_for_triggers:
             entry_span._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
         else:
-            entry_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
+            entry_span._set_attribute(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
 
-        parent = entry_span._parent
+        parent: Optional[SpanData] = entry_span._parent
         if parent is not None and is_inferred_span(parent):
             if asm_config._use_metastruct_for_triggers:
                 parent._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
             else:
-                parent.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
+                parent._set_attribute(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
 
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
@@ -402,7 +402,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             except Exception:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
         if asm_config._rc_client_id is not None:
-            entry_span.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
+            entry_span._set_attribute(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
         waf_adresses = env.waf_addresses
         req_headers = waf_adresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
         if req_headers:
@@ -652,7 +652,7 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(waf_callable: Optional[WafCallable], span: SpanProtocol, rc_products: str) -> None:
+def start_context(waf_callable: Optional[WafCallable], span: SpanData, rc_products: str) -> None:
     if asm_config._asm_enabled:
         core.set_item(
             _ASM_CONTEXT,
@@ -675,7 +675,7 @@ def start_context(waf_callable: Optional[WafCallable], span: SpanProtocol, rc_pr
         )
 
 
-def end_context(span: SpanProtocol) -> None:
+def end_context(span: SpanData) -> None:
     env = _get_asm_context()
     if env is not None and env.span is span:
         finalize_asm_env(env)
@@ -768,7 +768,7 @@ _COLLECTED_REQUEST_HEADERS = {
 _COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
 
-def _set_headers(span: SpanProtocol, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
+def _set_headers(span: SpanData, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
     for k in headers:
         if isinstance(k, tuple):
             key, value = k
@@ -780,7 +780,7 @@ def _set_headers(span: SpanProtocol, headers: Any, kind: str, only_asm_enabled: 
             value = value.decode()
         if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name(kind, key), value)
+            span._set_attribute(_normalize_tag_name(kind, key), value)
 
 
 def asm_listen() -> None:
