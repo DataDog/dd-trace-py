@@ -602,3 +602,36 @@ async def test_runnable_lambda_abatch(langchain_core):
     runnable_lambda = langchain_core.runnables.RunnableLambda(add)
     result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
     assert result == [3, 7, 11]
+
+
+def test_join_chat_stream_chunks_merges_tool_call_chunks_in_one_pass(langchain_core):
+    from unittest import mock
+
+    from langchain_core.messages.ai import AIMessageChunk
+
+    from ddtrace.contrib.internal.langchain.patch import _join_chat_stream_chunks
+
+    args = '{"query": "' + "x" * 1000 + '"}'
+    chunks = [AIMessageChunk(content="", tool_call_chunks=[{"name": "search", "args": "", "id": "call_1", "index": 0}])]
+    chunks += [
+        AIMessageChunk(content="", tool_call_chunks=[{"name": None, "args": args[i : i + 10], "id": None, "index": 0}])
+        for i in range(0, len(args), 10)
+    ]
+
+    expected = chunks[0]
+    for chunk in chunks[1:]:
+        expected += chunk
+
+    if parse_version(langchain_core.__version__) < (0, 2, 13):
+        assert _join_chat_stream_chunks(chunks) == expected
+        return
+
+    with mock.patch.object(
+        langchain_core.messages.ai, "add_ai_message_chunks", wraps=langchain_core.messages.ai.add_ai_message_chunks
+    ) as add_ai_message_chunks:
+        joined = _join_chat_stream_chunks(chunks)
+
+    assert add_ai_message_chunks.call_count == 1
+    assert joined == expected
+    assert joined.tool_calls[0]["name"] == "search"
+    assert joined.tool_calls[0]["args"] == {"query": "x" * 1000}
