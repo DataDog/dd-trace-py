@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: The message logged when the stack profiler stops using its faster memory
+    copy now names the component that owns ``SIGSEGV`` or ``SIGBUS`` and which of the two
+    was lost, instead of always naming both.

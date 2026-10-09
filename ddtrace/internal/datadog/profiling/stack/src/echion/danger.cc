@@ -12,11 +12,13 @@
 #include <csetjmp>
 #include <cstdint>
 #include <cstdio>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <utility>
 
 // Lock-free atomics are required to be async-signal-safe.
 static_assert(std::atomic<int>::is_always_lock_free, "std::atomic<int> must be lock-free for use in signal handlers");
@@ -260,6 +262,14 @@ init_segv_catcher()
     return 0;
 }
 
+static bool
+handler_is_ours(const struct sigaction& current)
+{
+    // The pointer alone is not enough: safe_memcpy's recovery is delivered through the
+    // three-argument form, so a disposition with SA_SIGINFO stripped is not ours to use.
+    return current.sa_sigaction == segv_handler && (current.sa_flags & SA_SIGINFO) != 0;
+}
+
 bool
 segv_handler_installed()
 {
@@ -271,11 +281,119 @@ segv_handler_installed()
         if (sigaction(signo, nullptr, &current) != 0) {
             return false;
         }
-        if (current.sa_sigaction != segv_handler || (current.sa_flags & SA_SIGINFO) == 0) {
+        if (!handler_is_ours(current)) {
             return false;
         }
     }
     return true;
+}
+
+static std::string
+describe_signal_owner(const struct sigaction& current)
+{
+    // sa_handler aliases sa_sigaction; check DFL/IGN before treating the pointer as a handler.
+    // DFL/IGN are missing SA_SIGINFO by definition; do not tag them.
+    if (current.sa_handler == SIG_DFL) {
+        return "SIG_DFL";
+    }
+    if (current.sa_handler == SIG_IGN) {
+        return "SIG_IGN";
+    }
+
+    const bool has_siginfo = (current.sa_flags & SA_SIGINFO) != 0;
+    // Union: compare sa_sigaction bits even if SA_SIGINFO is off so a stripped
+    // flag still names us instead of our .so+offset (looks foreign).
+    if (current.sa_sigaction == segv_handler) {
+        return has_siginfo ? "ddtrace" : "ddtrace+missing_sa_siginfo";
+    }
+
+    void* addr =
+      has_siginfo ? reinterpret_cast<void*>(current.sa_sigaction) : reinterpret_cast<void*>(current.sa_handler);
+    if (addr == nullptr) {
+        return "none";
+    }
+
+    std::string out;
+    Dl_info info{};
+    if (dladdr(addr, &info) == 0 || info.dli_fname == nullptr) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "unresolved@%p", addr);
+        out = buf;
+    } else {
+        out = info.dli_fname;
+        if (info.dli_fbase != nullptr) {
+            // dladdr resolves only .dynsym, and a signal handler is usually a local symbol
+            // that lives only in .symtab, so dli_sname is null for most of the addresses
+            // worth naming. The module plus this offset is what `nm` or `addr2line` needs
+            // to finish the job off-line.
+            const uintptr_t offset = reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(info.dli_fbase);
+            char off[32];
+            snprintf(off, sizeof(off), "+0x%lx", static_cast<unsigned long>(offset));
+            out += off;
+        }
+        if (info.dli_sname != nullptr) {
+            out += " (";
+            out += info.dli_sname;
+            out += ")";
+        }
+    }
+    if (!has_siginfo) {
+        out += "+missing_sa_siginfo";
+    }
+    return out;
+}
+
+// Names a subset of the two signals we handle, for a log line that must not claim
+// both when only one changed hands.
+static std::string
+join_signal_names(bool segv, bool bus)
+{
+    if (segv && bus) {
+        return "SIGSEGV and SIGBUS";
+    }
+    if (segv) {
+        return "SIGSEGV";
+    }
+    if (bus) {
+        return "SIGBUS";
+    }
+    return "";
+}
+
+SegvHandlerOwnership
+describe_segv_handler_ownership() noexcept
+{
+    try {
+        const std::pair<int, const char*> signals[] = {
+            { SIGSEGV, "SIGSEGV" },
+            { SIGBUS, "SIGBUS" },
+        };
+
+        SegvHandlerOwnership ownership;
+        bool foreign[2] = { false, false };
+        for (size_t i = 0; i < 2; ++i) {
+            if (i != 0) {
+                ownership.owners += ", ";
+            }
+            ownership.owners += signals[i].second;
+            ownership.owners += "=";
+
+            struct sigaction current;
+            if (sigaction(signals[i].first, nullptr, &current) != 0) {
+                // segv_handler_installed() treats an unreadable disposition as not ours.
+                ownership.owners += "unknown";
+                foreign[i] = true;
+                continue;
+            }
+            ownership.owners += describe_signal_owner(current);
+            foreign[i] = !handler_is_ours(current);
+        }
+
+        ownership.foreign = join_signal_names(foreign[0], foreign[1]);
+        return ownership;
+    } catch (...) {
+        return SegvHandlerOwnership{ "unknown", "" };
+    }
 }
 
 // A one-shot (SA_RESETHAND) previous handler is claimed with the same exchange
