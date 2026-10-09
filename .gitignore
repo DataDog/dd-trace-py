@@ -127,6 +127,9 @@ venv/
 ENV/
 pip_cache_shared_venvs/
 
+# Integration registry file-lock (flock-based, persists between runs)
+scripts/integration_registry/registry.yaml.lock
+
 # Worktrees
 .worktrees/
 
