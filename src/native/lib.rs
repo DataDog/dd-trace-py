@@ -68,6 +68,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
+    m.add_function(wrap_pyfunction!(
+        library_config::stable_configuration_paths,
+        m
+    )?)?;
 
     #[cfg(target_os = "linux")]
     {
