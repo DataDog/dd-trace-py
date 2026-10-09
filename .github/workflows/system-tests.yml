@@ -263,8 +263,9 @@ jobs:
     needs:
       - build-wheels
     runs-on: ubuntu-latest
-    # 3.19 pins a newer system-tests whose RemoteConfig-apply parametric tests
-    # aren't supported by this release line; non-gating and not run at release.
+    # 3.19 pins a newer system-tests. Its RemoteConfig-apply parametric tests use
+    # tracer internals that this release line does not have, so the `Run` step
+    # deselects them. The job is non-gating and does not run at release.
     continue-on-error: true
     env:
       TEST_LIBRARY: python
@@ -292,7 +293,7 @@ jobs:
 
       - name: Run
         if: always() && steps.build_runner.outcome == 'success'
-        run: ./run.sh PARAMETRIC
+        run: ./run.sh PARAMETRIC --deselect tests/parametric/test_parametric_endpoints.py::TestRemoteConfigApplyEndpoint
 
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'

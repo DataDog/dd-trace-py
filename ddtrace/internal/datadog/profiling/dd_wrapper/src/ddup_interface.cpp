@@ -17,6 +17,37 @@
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
+namespace {
+
+// True after the destructors of the thread-local data of the current thread have run. They run when the thread
+// ends. For the thread that calls exit(), they also run at the start of exit(), before the atexit handlers.
+// The flag has no destructor, so it is safe to read it after that point.
+thread_local bool thread_locals_destroyed = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+
+struct ThreadLocalsSentinel
+{
+    ~ThreadLocalsSentinel() { thread_locals_destroyed = true; }
+};
+
+// Makes `thread_locals_destroyed` valid for the current thread. The flag can only become true for a thread that
+// called this function before its thread-local data was destroyed.
+void
+watch_thread_locals()
+{
+    thread_local ThreadLocalsSentinel sentinel;
+}
+
+// Holds the upload lock during the lifetime of the object
+struct UploadLockGuard
+{
+    UploadLockGuard() { Datadog::Uploader::lock(); }
+    ~UploadLockGuard() { Datadog::Uploader::unlock(); }
+    UploadLockGuard(const UploadLockGuard&) = delete;
+    UploadLockGuard& operator=(const UploadLockGuard&) = delete;
+};
+
+} // namespace
+
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
 void
@@ -149,6 +180,9 @@ ddup_start() // cppcheck-suppress unusedFunction
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+
+        // The thread that starts the profiler is usually the thread that stops it when the process exits
+        watch_thread_locals();
 
         // Set the global initialization flag
         is_ddup_initialized = true;
@@ -338,6 +372,23 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
+    // Do not upload after exit() destroyed the thread-local data of this thread. libdatadog keeps the state of its
+    // HTTP client in thread-local data, and ddog_prof_Exporter_send() aborts the process when that state is destroyed.
+    // This occurs when an embedder finalizes Python in an atexit handler, as uWSGI does: the profiler stops there,
+    // and tries to upload the last profile.
+    watch_thread_locals();
+    if (thread_locals_destroyed) {
+        return false;
+    }
+
+    // Hold the upload lock from before the Uploader is built until after it is destroyed. The prefork handler takes
+    // the same lock, so fork() cannot occur while this thread builds or uses the libdatadog exporter. A child process
+    // would get a copy of the exporter that it cannot free, and a copy of the libdatadog state that this thread was
+    // initializing.
+    const UploadLockGuard upload_lock_guard;
+
+    // Build the Uploader. The builder also serializes the profile, which clears it.
+    // The builder holds the profile lock only during serialization, and releases it on success and on failure.
     auto uploader_or_err = Datadog::UploaderBuilder::build();
 
     if (std::holds_alternative<std::string>(uploader_or_err)) {
@@ -350,13 +401,9 @@ ddup_upload() // cppcheck-suppress unusedFunction
 
     // Get the reference to the uploader
     auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
-    // There are a few things going on here.
-    // * profile_borrow() takes a reference in a way that locks the areas where the profile might
-    //  be modified.  It gets released and cleared after uploading.
-    // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
-    //   we have for now.
-    uploader.upload(Datadog::Sample::profile_borrow());
-    Datadog::Sample::profile_release();
+    // Upload without the profile lock: a slow or unresponsive endpoint must not stop the threads that add samples.
+    // Uploading cancels inflight uploads. There are better ways to do this, but this is what we have for now.
+    uploader.upload();
     return true;
 }
 

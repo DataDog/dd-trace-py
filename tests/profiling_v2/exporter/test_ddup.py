@@ -52,6 +52,109 @@ def test_ddup_start():
         pytest.fail(str(e))
 
 
+@pytest.mark.subprocess()
+def test_upload_does_not_block_sample_flush():
+    """
+    Regression test: an upload that waits for the agent must not keep the profile lock.
+    Before the fix, flush_sample() in another thread waited for that lock, with the GIL held, until the
+    agent answered or the upload timed out.
+    """
+    from http.server import BaseHTTPRequestHandler
+    from http.server import HTTPServer
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+
+    request_received = threading.Event()
+    send_response = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            request_received.set()
+            # Keep the upload in flight until the test has added a sample
+            send_response.wait(timeout=30)
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, _format, *args):
+            pass
+
+    class EndpointProcessor:
+        def reset(self):
+            return {}, {}
+
+    class Tracer:
+        _endpoint_call_counter_span_processor = EndpointProcessor()
+
+        def __init__(self, agent_trace_url):
+            self.agent_trace_url = agent_trace_url
+
+    def add_sample():
+        sample = ddup.SampleHandle()
+        sample.push_walltime(1, 1)
+        sample.flush_sample()
+
+    upload_timeout = 3.0
+
+    with HTTPServer(("127.0.0.1", 0), Handler) as server:
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        tracer = Tracer("http://127.0.0.1:%d" % server.server_address[1])
+
+        ddup.config(
+            env="my_env", service="my_service", version="my_version", tags={}, timeout=int(upload_timeout * 1000)
+        )
+        ddup.start()
+        add_sample()
+
+        upload_thread = threading.Thread(target=ddup.upload, kwargs=dict(tracer=tracer), daemon=True)
+        upload_thread.start()
+        assert request_received.wait(timeout=10), "the agent did not receive the profile"
+
+        # The upload now waits for the response of the agent
+        start = time.monotonic()
+        add_sample()
+        elapsed = time.monotonic() - start
+        upload_in_flight = upload_thread.is_alive()
+
+        send_response.set()
+        upload_thread.join(timeout=10)
+        server.shutdown()
+        server_thread.join()
+
+    assert upload_in_flight, "the upload ended before the sample was added, so the test proved nothing"
+    assert elapsed < upload_timeout / 2, "flush_sample() waited %.3f s for the upload" % elapsed
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(err=None)
+def test_upload_during_exit_does_not_abort():
+    """
+    Regression test: an upload that runs in an atexit handler of the C library must not abort the process.
+    uWSGI finalizes Python in such a handler, and the profiler then uploads the last profile. At that time,
+    exit() has already destroyed the thread-local data that libdatadog needs to send the request.
+    """
+    import ctypes
+
+    from ddtrace.internal.datadog.profiling import ddup
+
+    ddup.config(env="my_env", service="my_service", version="my_version", tags={})
+    ddup.start()
+
+    libc = ctypes.CDLL(None)
+
+    @ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+    def upload_at_exit(_arg):
+        ddup.upload()
+
+    # atexit() is not a dynamic symbol of glibc, so use the function that atexit() calls
+    libc.__cxa_atexit(upload_at_exit, None, None)
+    # Call exit() of the C library directly, so that the handler runs before Python is finalized
+    libc.exit(0)
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_TAGS="hello:world",
