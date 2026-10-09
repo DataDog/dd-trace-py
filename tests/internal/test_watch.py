@@ -246,6 +246,30 @@ def test_placement_record_roundtrip(watch_mod, run_mod, tmp_path):
     assert records[1]["config"] == "span-start-finish"
 
 
+def test_cpu_groups_exclude_shifts_placement(run_mod):
+    # T4b: BENCH_EXCLUDE_CPUS drops CPUs before groups are built, so
+    # excluding 24 and 36 moves config 0 from 24/36 to 25/37 and shifts every
+    # later config up one slot.
+    groups = run_mod.cpu_affinity_to_cpu_groups("24-35", 1, exclude_cpus=[24])
+    assert groups[0] == [25]
+    assert groups[-1] == [35]
+    assert len(groups) == 11
+
+
+def test_cpu_groups_exclude_noop_for_absent_cpus(run_mod):
+    groups = run_mod.cpu_affinity_to_cpu_groups("24-35", 1, exclude_cpus=[3, 48])
+    assert groups[0] == [24]
+    assert len(groups) == 12
+
+
+def test_cpu_groups_exclude_keeps_divisibility_check(run_mod):
+    # Exclusion happens before the divisibility check, so an exclusion that
+    # leaves a CPU count not divisible by CPUS_PER_RUN still fails loudly
+    # instead of silently mis-grouping.
+    with pytest.raises(ValueError, match="not divisible"):
+        run_mod.cpu_affinity_to_cpu_groups("24-35", 2, exclude_cpus=[24])
+
+
 def test_sample_join_shapes(watch_mod, tmp_path):
     # a sample line must be a JSON object carrying the epoch key the readout
     # joins placement records against; keep the serialization contract tested.
