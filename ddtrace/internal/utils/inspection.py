@@ -16,7 +16,8 @@ from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import miss
-from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+from ddtrace.internal.utils.obfuscation import has_obfuscation_markers
+from ddtrace.internal.utils.obfuscation import obfuscation_runtime_loaded
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
@@ -235,17 +236,22 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def __init__(self) -> None:
         super().__init__()
-        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str], CodeType]] = (
+        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str], bool]] = (
             weakref.WeakKeyDictionary()
         )
 
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
-        # The top-level code object is kept around (rather than checked here)
-        # so is_obfuscated() can check it lazily: this runs on every module
-        # compiled in the process, so eagerly calling is_obfuscated_code()
-        # here would pay that cost for every import, when in practice only
-        # the modules a subscriber actually looks at ever need the check.
-        self._code[module] = (list(collect_code_objects(code)), set(self._subscribers), code)
+        # Only the structural markers are extracted here, rather than keeping
+        # the top-level code object around, since that would also pin all of
+        # its constants (e.g. large top-level literals) for as long as the
+        # entry lives. The runtime check has to wait until is_obfuscated() is
+        # called: an obfuscated module imports the runtime from its own
+        # top-level code, which has not run yet.
+        self._code[module] = (
+            list(collect_code_objects(code)),
+            set(self._subscribers),
+            has_obfuscation_markers(code),
+        )
         return code
 
     def after_import(self, module: ModuleType) -> None:
@@ -283,7 +289,8 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         """
         if not cls.is_installed():
             raise KeyError(module)
-        return is_obfuscated_code(cast("ModuleCodeCollector", cls._instance)._code[module][2])
+        has_markers = cast("ModuleCodeCollector", cls._instance)._code[module][2]
+        return has_markers and obfuscation_runtime_loaded()
 
     @classmethod
     def release(cls, module: ModuleType, subscriber: str) -> None:
