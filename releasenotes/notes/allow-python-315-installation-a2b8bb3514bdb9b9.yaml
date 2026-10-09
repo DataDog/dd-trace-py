@@ -1,0 +1,3 @@
+features:
+  - |
+    internal: Allows installing ddtrace on Python 3.15.

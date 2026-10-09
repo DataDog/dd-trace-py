@@ -2822,6 +2822,7 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.25.8']
         - name: urllib3
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, urllib3]
         - name: urllib3
           python: ['3.10']
