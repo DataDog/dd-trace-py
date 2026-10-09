@@ -226,16 +226,18 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
     }
     assert len(destinations) == 2
 
-    # A request that fails for good: every attempt is recorded as failed, with no usage and no cost.
+    # A request that fails for good: every attempt is recorded as failed, with no usage and no cost, and the request
+    # with the zero the proxy charged for it.
     failed = {"trajectory.gateway.route": "always-fails"}
     assert sent["gpt-4o-mini-fail500-always"] >= 1
     assert (
         export.count("gen_ai.client.inference.duration", error__type="*", **failed)
         == (sent["gpt-4o-mini-fail500-always"])
     )
-    assert export.total("gen_ai.client.inference.usage.input_tokens", **failed) == 0
+    assert export.series("gen_ai.client.inference.usage.input_tokens", **failed) == []
+    assert export.series("trajectory.gen_ai.client.inference.usage.cost", **failed) == []
+    assert len(export.series("trajectory.gen_ai.gateway.request.estimated_cost", **failed)) == 1
     assert export.total("trajectory.gen_ai.gateway.request.estimated_cost", **failed) == 0
-    assert export.series("trajectory.gen_ai.gateway.request.estimated_cost", **failed) == []
 
     # Embeddings record the operation duration and input tokens only.
     embeddings = {"gen_ai.operation.name": "embeddings"}
