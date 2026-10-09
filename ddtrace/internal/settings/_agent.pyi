@@ -17,6 +17,8 @@ class AgentConfig(DDConfig):
     _agent_host: Optional[str]
     _agent_port: Optional[int]
     _trace_agent_protocol_version: Optional[str]
+    _trace_api_version: Optional[str]
+    _trace_otel_semantics_enabled: bool
     _trace_native_span_events: bool
 
 config: AgentConfig
