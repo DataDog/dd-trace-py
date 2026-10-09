@@ -1273,7 +1273,9 @@ Logs
 
      description: |
          When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
-         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+         by the OpenTelemetry Logging API. Setting ``OTEL_LOGS_EXPORTER=otlp`` also enables this support, while
+         ``OTEL_LOGS_EXPORTER=none`` disables it. If both environment variables are set,
+         ``DD_LOGS_OTEL_ENABLED`` takes precedence. The application must also include its own OTLP logs exporter.
 
      version_added:
        v3.12.0: Adds support for submitting logs via an OTLP Exporter.
