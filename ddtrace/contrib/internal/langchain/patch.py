@@ -750,6 +750,9 @@ def unpatch():
 
     langchain_core._datadog_patch = False
 
+    # Listeners wrapped after this integration did, so they unwrap first and each layer comes off in order.
+    core.dispatch("langchain.unpatch", tuple())
+
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
     unwrap(langchain_core.language_models.llms.BaseLLM, "invoke")
@@ -778,5 +781,3 @@ def unpatch():
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
     unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")
     unwrap(langchain_core.vectorstores.VectorStore, "__init_subclass__")
-
-    core.dispatch("langchain.unpatch", tuple())

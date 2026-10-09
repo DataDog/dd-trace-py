@@ -67,6 +67,9 @@ def _langchain_patch(client: AIGuardClient) -> None:
     for module_name, method, make_wrapper in _MODEL_CALL_TARGETS:
         try:
             wrap(module_name, method, make_wrapper(client))
+            class_name, method_name = method.split(".")
+            owner = getattr(importlib.import_module(module_name), class_name)
+            _installed_wrappers.append((owner, method_name, owner.__dict__[method_name]))
         except Exception:
             logger.debug("Failed to instrument %s.%s", module_name, method, exc_info=True)
 
@@ -98,12 +101,13 @@ def _langchain_unpatch() -> None:
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
 
-    for module_name, method, _make_wrapper in _MODEL_CALL_TARGETS:
-        try:
-            class_name, method_name = method.split(".")
-            unwrap(getattr(importlib.import_module(module_name), class_name), method_name)
-        except Exception:
-            logger.debug("Failed to unpatch %s.%s", module_name, method, exc_info=True)
+    while _installed_wrappers:
+        owner, method_name, installed = _installed_wrappers.pop()
+        # Remove only AI Guard's own layer: a wrapper installed after it is left in place.
+        if owner.__dict__.get(method_name) is installed:
+            setattr(owner, method_name, installed.__wrapped__)
+        else:
+            logger.debug("AI Guard langchain: %s.%s was wrapped again; leaving it", owner, method_name)
 
 
 def _langchain_agent_plan(
@@ -859,6 +863,9 @@ async def _call(call: Callable[[], Any]) -> None:
     if inspect.isawaitable(result):
         await result
 
+
+# The wrappers AI Guard installed on the model-call targets, so unpatch removes only its own layer.
+_installed_wrappers: list[tuple[type, str, Any]] = []
 
 _CHAT_MODELS = "langchain_core.language_models.chat_models"
 _LLMS = "langchain_core.language_models.llms"

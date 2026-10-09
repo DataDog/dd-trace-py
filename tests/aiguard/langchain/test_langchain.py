@@ -1820,3 +1820,32 @@ async def test_astream_events_of_a_buffered_stream_emit_every_chunk_after_verdic
 
     assert len(stream_events) == len("hello")
     assert set(stream_events) == {2}
+
+
+def test_unpatch_removes_every_layer_of_the_stream_wrappers(langchain):
+    """AI Guard's layer sits outside the integration's; unpatch must take both off, newest first."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+
+    from ddtrace.contrib.internal.langchain.patch import unpatch
+
+    unpatch()
+
+    assert not hasattr(BaseChatModel.__dict__["stream"], "__wrapped__")
+    assert not hasattr(BaseChatModel.__dict__["astream"], "__wrapped__")
+
+
+def test_unpatch_leaves_a_wrapper_installed_after_ai_guard(langchain):
+    """Another library may wrap a method after LangChain is patched; unpatch must not remove that wrapper."""
+    from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+    import wrapt
+
+    from ddtrace.contrib.internal.langchain.patch import unpatch
+
+    ai_guard_layer = CallbackManagerForLLMRun.__dict__["on_llm_end"]
+    external = wrapt.FunctionWrapper(ai_guard_layer, lambda func, instance, args, kwargs: func(*args, **kwargs))
+    CallbackManagerForLLMRun.on_llm_end = external
+    try:
+        unpatch()
+        assert CallbackManagerForLLMRun.__dict__["on_llm_end"] is external
+    finally:
+        CallbackManagerForLLMRun.on_llm_end = ai_guard_layer.__wrapped__
