@@ -896,8 +896,9 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             try:
                 raise exception
             except BaseException:
-                exception.__traceback__ = traceback
-                exception.__context__ = context
+                # Bypass overridden setters, including those on frozen dataclass exceptions.
+                BaseException.__setattr__(exception, "__traceback__", traceback)
+                BaseException.__setattr__(exception, "__context__", context)
                 self.__exit__(type(exception), exception, traceback)
 
         @classmethod

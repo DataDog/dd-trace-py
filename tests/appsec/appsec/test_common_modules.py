@@ -1,6 +1,7 @@
 import builtins
 import contextlib
 import copy
+from dataclasses import dataclass
 import pathlib
 import sys
 import traceback
@@ -407,10 +408,15 @@ def test_exit_failure_replaces_blocking_exception_during_entry_unwind(cleanup_mo
 
 @pytest.mark.skipif(not is_at_least_py(3, 11), reason="sys.exception requires Python 3.11")
 @pytest.mark.parametrize("cleanup_raises", [False, True])
-def test_unwind_preserves_the_original_exception_chain(cleanup_raises):
+@pytest.mark.parametrize("frozen", [False, True])
+def test_unwind_preserves_the_original_exception_chain(cleanup_raises, frozen):
+    @dataclass(frozen=True)
+    class _FrozenError(RuntimeError):
+        message: str
+
     caller_error = KeyError("caller")
     original_cause = ValueError("original cause")
-    body_error = RuntimeError("body failed")
+    body_error = _FrozenError("body failed") if frozen else RuntimeError("body failed")
     cleanup_error = RuntimeError("cleanup failed")
 
     class _Context(WrappingContext):
@@ -438,6 +444,8 @@ def test_unwind_preserves_the_original_exception_chain(cleanup_raises):
         assert exc.value is (cleanup_error if cleanup_raises else body_error)
         if cleanup_raises:
             assert cleanup_error.__context__ is body_error
+        else:
+            assert all(ctx._storage.get() is None for ctx in (context, universal))
         assert body_error.__context__ is original_cause
         assert original_cause.__context__ is caller_error
         assert all(frame.name != "on_py_unwind" for frame in traceback.extract_tb(body_error.__traceback__))
