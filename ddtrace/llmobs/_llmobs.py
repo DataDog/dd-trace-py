@@ -171,6 +171,7 @@ from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
 from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_session_id
@@ -649,7 +650,7 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
-        # Before _prepare_llmobs_span_data, which rewrites dotted tag keys in APM_AGENTLESS mode.
+        self._enrich_with_http_client_ip(span)
         self._sampling_resolver.resolve_if_root(span)
 
         span_event = None
@@ -673,6 +674,25 @@ class LLMObs(Service):
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
+
+    def _enrich_with_http_client_ip(self, span: Span) -> None:
+        # Only enrich the LLMObs root span; non-root spans join against the root at query time.
+        if get_llmobs_parent_id(span) != ROOT_PARENT_ID:
+            return
+        local_root = span._local_root
+        if not local_root:
+            return
+        # Read IP tags set by AppSec or DD_TRACE_CLIENT_IP_ENABLED on the APM root span.
+        client_ip = local_root.get_tag("http.client_ip")
+        network_client_ip = local_root.get_tag("network.client.ip")
+        if not client_ip and not network_client_ip:
+            return
+        ip_tags = {}
+        if client_ip:
+            ip_tags["http.client_ip"] = client_ip
+        if network_client_ip:
+            ip_tags["network.client.ip"] = network_client_ip
+        _annotate_llmobs_span_data(span, tags=ip_tags)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
