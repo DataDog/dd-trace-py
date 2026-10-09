@@ -124,11 +124,9 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
 _STORAGE_OWNER = "__dd_wrapping_context_owner__"
-# Set in per-call storage when a raise originates from context machinery itself
-# (__return__, or on 3.15+ on_py_start) rather than from the wrapped function
-# body, so the resulting exception does not also trigger __exit__. Consumed by
-# _UniversalWrappingContext._exit (bytecode path, >=3.11) and on_py_unwind
-# (sys.monitoring path, >=3.15).
+# Set in per-call storage when __return__ raises, so the synthetic unwind does
+# not trigger __exit__. Consumed by _UniversalWrappingContext._exit (bytecode
+# path, >=3.11) and on_py_unwind (sys.monitoring path, >=3.15).
 _SKIP_EXIT_KEY = "__dd_wrapping_context_skip_exit__"
 
 # Free lists of storage context variables, keyed by variable name.
@@ -715,7 +713,7 @@ else:
 
 # Below 3.11 the wrapped function enters through a real `with` statement, and Python does not call
 # __exit__ when __enter__ raises, so a propagating __enter__ is the only place left to clean up.
-# From 3.11 the injected exception handler reaches _exit() instead, which does it.
+# On 3.11-3.14 the injected exception handler reaches _exit(); on 3.15+ on_py_unwind does it.
 _ENTER_MUST_RELEASE_ON_RAISE: bool = is_at_most_py(3, 10)
 
 
@@ -871,25 +869,19 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         return t.cast(T, super().__return__(value))
 
     if is_at_least_py(3, 15):
-        # Exceptions here are deliberately left uncaught (see the propagation
+        # Exceptions here deliberately propagate (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
         # with-statement semantics -- safe because this is the only handler
         # ddtrace registers for these events on a given code object.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
-        # PY_RETURN; _SKIP_EXIT_KEY suppresses the resulting __exit__ call so
-        # it only fires for a real exception from the wrapped function body.
-        # It lives in per-call storage (a ContextVar), not a plain attribute,
+        # PY_RETURN. A failing __enter__ exits any contexts that entered before
+        # it; _SKIP_EXIT_KEY suppresses __exit__ after a failing __return__.
+        # The flag lives in per-call storage (a ContextVar), not a plain attribute,
         # because this same instance is shared across concurrent calls.
 
         def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
-            try:
-                self.__enter__()
-            except BaseException:
-                storage = self._storage.get()
-                if storage is not None:
-                    storage[_SKIP_EXIT_KEY] = True
-                raise
+            self.__enter__()
 
         def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
             self.__return__(retval)
@@ -898,7 +890,17 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             storage = self._storage.get()
             if storage is not None and storage.pop(_SKIP_EXIT_KEY, False):
                 return
-            self.__exit__(type(exception), exception, exception.__traceback__)
+            traceback = exception.__traceback__
+            context = exception.__context__
+            # Monitoring does not make the unwinding exception the handled exception.
+            # Activate it for cleanup so Python preserves implicit chaining and explicit causes.
+            try:
+                raise exception
+            except BaseException:
+                # Bypass overridden setters, including those on frozen dataclass exceptions.
+                BaseException.__setattr__(exception, "__traceback__", traceback)
+                BaseException.__setattr__(exception, "__context__", context)
+                self.__exit__(type(exception), exception, traceback)
 
         @classmethod
         def is_wrapped(cls, f: FunctionType) -> bool:

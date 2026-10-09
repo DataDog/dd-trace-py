@@ -1,3 +1,5 @@
+import builtins
+
 from hypothesis import given
 from hypothesis import strategies as st
 import pytest
@@ -27,6 +29,8 @@ PYTHON_OBJECTS = st.recursive(
     base=SCALAR_OBJECTS,
     extend=lambda inner: st.lists(inner) | st.dictionaries(SCALAR_OBJECTS, inner),
 )
+
+_frozendict = getattr(builtins, "frozendict", dict)
 
 
 @given(obj=PYTHON_OBJECTS)
@@ -62,6 +66,17 @@ def equal_value(t1, t2):
         (1.0, [16]),
         ([1, 2], [[[4]], {"len": 2}]),
         ({"test": "truc"}, [{"test": [8]}]),
+        pytest.param(
+            _frozendict(
+                {
+                    "user": _frozendict({"name": "alice"}),
+                    "items": [_frozendict({"quantity": 2})],
+                }
+            ),
+            [{"user": [{"name": [8]}], "items": [[[{"quantity": [4]}]], {"len": 1}]}],
+            id="nested-frozendict",
+            marks=pytest.mark.skipif(_frozendict is dict, reason="frozendict requires Python 3.15"),
+        ),
         (None, [1]),
     ],
 )

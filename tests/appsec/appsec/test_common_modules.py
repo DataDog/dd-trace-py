@@ -1,7 +1,10 @@
 import builtins
 import contextlib
 import copy
+from dataclasses import dataclass
 import pathlib
+import sys
+import traceback
 import types
 from unittest import mock
 
@@ -26,9 +29,12 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.context import _UniversalWrappingContext
+from ddtrace.internal.wrapping.context import wrapping_context_for
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
 from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
@@ -40,7 +46,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) == types.BuiltinFunctionType
+    assert type(open) is types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -53,7 +59,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == FunctionWrapper
+        assert type(open) is FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -248,7 +254,6 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     import http.client
 
     from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
-    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 
     httplib_unpatch()
     try:
@@ -274,6 +279,223 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     finally:
         httplib_unpatch()
         unpatch_common_modules()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="Pre-3.11 wrapping uses different failed-entry cleanup semantics")
+def test_failed_reentrant_enter_exits_previous_contexts_and_restores_storage():
+    """Python 3.15 must unwind contexts when a PY_START callback blocks a recursive call.
+
+    PY_UNWIND must exit contexts already entered by that call and restore the outer call's
+    storage. Python 3.11-3.14 exercise the same contract through injected bytecode handlers.
+    """
+    exited = []
+
+    class _Entered(WrappingContext):
+        __priority__ = -1
+
+        def __exit__(self, *exc):
+            exited.append(self.get("value"))
+            super().__exit__(*exc)
+
+        def __enter__(self):
+            super().__enter__()
+            self.set("value", self.get_local("value"))
+            return self
+
+    class _Raiser(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            if self.get_local("value") == "inner":
+                raise BlockingException("blocked")
+            return self
+
+    def target(value):
+        if value == "outer":
+            outer_storage = [context._storage.get() for context in (entered, raiser, universal)]
+            with pytest.raises(BlockingException):
+                target("inner")
+            for context, storage in zip((entered, raiser, universal), outer_storage):
+                assert context._storage.get() is storage
+            assert entered.get("value") == "outer"
+        return value
+
+    entered = _Entered(target)
+    raiser = _Raiser(target)
+    entered.wrap()
+    raiser.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        assert target("outer") == "outer"
+        assert exited == ["inner"]
+        assert all(context._storage.get() is None for context in (entered, raiser, universal))
+    finally:
+        raiser.unwrap()
+        entered.unwrap()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="Pre-3.11 wrapping uses different failed-entry cleanup semantics")
+@pytest.mark.parametrize("cleanup_mode", ["implicit", "explicit", "suppressed", "nested", "same-exception"])
+def test_exit_failure_replaces_blocking_exception_during_entry_unwind(cleanup_mode):
+    """Python 3.15 unwind callbacks preserve the exception precedence of the bytecode path.
+
+    A previously entered context can raise during cleanup and replace a BlockingException,
+    while the context that failed entry never exits and the wrapped operation never runs.
+    """
+    block = BlockingException("blocked")
+    cleanup_error = RuntimeError("cleanup failed")
+    cause = ValueError("cleanup cause")
+    exited = []
+
+    class _Entered(WrappingContext):
+        __priority__ = -1
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            exited.append((exc_type, exc_value))
+            super().__exit__(exc_type, exc_value, traceback)
+            if cleanup_mode == "explicit":
+                raise cleanup_error from cause
+            if cleanup_mode == "suppressed":
+                raise cleanup_error from None
+            if cleanup_mode == "nested":
+                try:
+                    raise cause
+                except ValueError:
+                    raise cleanup_error
+            if cleanup_mode == "same-exception":
+                raise exc_value
+            raise cleanup_error
+
+    class _Blocker(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise block
+
+        def __exit__(self, *exc):
+            raise AssertionError("A context that failed entry must not exit")
+
+    def target():
+        raise AssertionError("blocked body ran")
+
+    entered = _Entered(target)
+    blocker = _Blocker(target)
+    entered.wrap()
+    blocker.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        with pytest.raises(BlockingException if cleanup_mode == "same-exception" else RuntimeError) as exc:
+            target()
+        if cleanup_mode == "same-exception":
+            assert exc.value is block
+            assert block.__context__ is None
+        else:
+            assert exc.value is cleanup_error
+            assert cleanup_error.__context__ is (cause if cleanup_mode == "nested" else block)
+            assert cleanup_error.__cause__ is (cause if cleanup_mode == "explicit" else None)
+            assert cleanup_error.__suppress_context__ is (cleanup_mode in ("explicit", "suppressed"))
+            if cleanup_mode == "nested":
+                assert cause.__context__ is block
+        assert exited == [(BlockingException, block)]
+        if cleanup_mode != "same-exception":
+            assert all(frame.name != "on_py_unwind" for frame in traceback.extract_tb(block.__traceback__))
+    finally:
+        # A failing exit callback bypasses universal storage cleanup, so release this test's storage.
+        for context in (blocker, entered, universal):
+            if context._storage.get() is not None:
+                context._pop_storage()
+        blocker.unwrap()
+        entered.unwrap()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="sys.exception requires Python 3.11")
+@pytest.mark.parametrize("cleanup_raises", [False, True])
+@pytest.mark.parametrize("frozen", [False, True])
+def test_unwind_preserves_the_original_exception_chain(cleanup_raises, frozen):
+    @dataclass(frozen=True)
+    class _FrozenError(RuntimeError):
+        message: str
+
+    caller_error = KeyError("caller")
+    original_cause = ValueError("original cause")
+    body_error = _FrozenError("body failed") if frozen else RuntimeError("body failed")
+    cleanup_error = RuntimeError("cleanup failed")
+
+    class _Context(WrappingContext):
+        def __exit__(self, exc_type, exc_value, tb):
+            assert sys.exception() is exc_value
+            super().__exit__(exc_type, exc_value, tb)
+            if cleanup_raises:
+                raise cleanup_error
+
+    def target():
+        try:
+            raise original_cause
+        except ValueError:
+            raise body_error
+
+    context = _Context(target)
+    context.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        try:
+            raise caller_error
+        except KeyError:
+            with pytest.raises(RuntimeError) as exc:
+                target()
+        assert exc.value is (cleanup_error if cleanup_raises else body_error)
+        if cleanup_raises:
+            assert cleanup_error.__context__ is body_error
+        else:
+            assert all(ctx._storage.get() is None for ctx in (context, universal))
+        assert body_error.__context__ is original_cause
+        assert original_cause.__context__ is caller_error
+        assert all(frame.name != "on_py_unwind" for frame in traceback.extract_tb(body_error.__traceback__))
+    finally:
+        for ctx in (context, universal):
+            if ctx._storage.get() is not None:
+                ctx._pop_storage()
+        context.unwrap()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 15), reason="lazy imports require Python 3.15")
+@pytest.mark.subprocess(parametrize={"IMPORT_STYLE": ["module", "from"]}, timeout=20)
+def test_lazily_imported_urlopen_blocks_before_connecting():
+    import os
+    import sys
+    from unittest import mock
+
+    import pytest
+
+    import ddtrace.appsec._common_module_patches as cmp
+    from ddtrace.internal._exceptions import BlockingException
+    from tests.appsec.appsec.test_common_modules import _blocking_waf_result
+
+    import_style = os.environ["IMPORT_STYLE"]
+    assert "urllib.request" not in sys.modules
+
+    # Keep the new syntax parseable by the older Python versions in the matrix.
+    if import_style == "module":
+        exec("lazy import urllib.request as client", globals())
+    else:
+        exec("lazy from urllib.request import urlopen as lazy_urlopen", globals())
+    assert "urllib.request" not in sys.modules
+    cmp.patch_common_modules()
+    assert "urllib.request" not in sys.modules
+
+    with (
+        mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+        mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+        mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()) as call_waf,
+        mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
+        mock.patch("socket.create_connection", side_effect=AssertionError("connection attempted")),
+    ):
+        with pytest.raises(BlockingException) as exc:
+            if import_style == "module":
+                client.urlopen("http://127.0.0.1:1/", timeout=1)  # noqa: F821
+            else:
+                lazy_urlopen("http://127.0.0.1:1/", timeout=1)  # noqa: F821
+        assert exc.value.args[3] == "http://127.0.0.1:1/"
+        call_waf.assert_called_once()
+    cmp.unpatch_common_modules()
 
 
 def test_a_concurrent_request_does_not_consume_the_pending_block():
@@ -577,14 +799,14 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         unpatch_common_modules()
 
 
-def _code_sizes():
+def _common_module_functions():
     import http.client
     import urllib.request
 
     return {
-        "request": len(http.client.HTTPConnection.__dict__["request"].__code__.co_code),
-        "getresponse": len(http.client.HTTPConnection.__dict__["getresponse"].__code__.co_code),
-        "open": len(urllib.request.OpenerDirector.__dict__["open"].__code__.co_code),
+        "request": http.client.HTTPConnection.__dict__["request"],
+        "getresponse": http.client.HTTPConnection.__dict__["getresponse"],
+        "open": urllib.request.OpenerDirector.__dict__["open"],
     }
 
 
@@ -599,7 +821,7 @@ def test_context_unpatch_restores_the_original_bytecode():
 
     unpatch_common_modules()
     httplib_unpatch()
-    baseline = _code_sizes()
+    baseline = {name: fn.__code__ for name, fn in _common_module_functions().items()}
 
     try:
         for cycle in range(6):
@@ -612,7 +834,12 @@ def test_context_unpatch_restores_the_original_bytecode():
                 httplib_patch()
             httplib_unpatch()
             unpatch_common_modules()
-            assert _code_sizes() == baseline, f"bytecode grew on cycle {cycle}"
+            for name, fn in _common_module_functions().items():
+                assert wrapping_context_for(fn) is None, f"context still registered on cycle {cycle}"
+                if is_at_least_py(3, 15):
+                    assert fn.__code__ is baseline[name], f"code object not restored on cycle {cycle}"
+                else:
+                    assert len(fn.__code__.co_code) == len(baseline[name].co_code), f"bytecode grew on cycle {cycle}"
     finally:
         httplib_unpatch()
         unpatch_common_modules()
@@ -704,7 +931,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == FunctionWrapper
+        assert type(original_func) is FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")
