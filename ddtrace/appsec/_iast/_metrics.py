@@ -1,4 +1,3 @@
-from typing import Text
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
@@ -45,7 +44,7 @@ def metric_verbosity(lvl):
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 @deduplication
-def _set_iast_error_metric(msg: Text, exc: Union[BaseException, tuple, None] = None) -> None:
+def _set_iast_error_metric(msg: str, exc: Union[BaseException, tuple, None] = None) -> None:
     """This was originally implemented to analyze which services were triggering this issue, and we used that insight
     to refactor how IAST creates and destroys context. However, after that refactor, this information no longer
     provides value and only adds noise. So now, those telemetry metrics are only emitted if IAST is in debug mode

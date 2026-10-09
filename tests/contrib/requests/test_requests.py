@@ -25,18 +25,18 @@ from tests.utils import assert_span_http_status_code
 
 HOST_AND_PORT = "localhost:8001"
 SOCKET = HOST_AND_PORT.split(":")[0]
-URL_200 = "http://{}/status/200".format(HOST_AND_PORT)
-URL_500 = "http://{}/status/500".format(HOST_AND_PORT)
-URL_AUTH_200 = "http://user:pass@{}/status/200".format(HOST_AND_PORT)
+URL_200 = f"http://{HOST_AND_PORT}/status/200"
+URL_500 = f"http://{HOST_AND_PORT}/status/500"
+URL_AUTH_200 = f"http://user:pass@{HOST_AND_PORT}/status/200"
 
 
-class BaseRequestTestCase(object):
+class BaseRequestTestCase:
     """Create a traced Session, patching during the setUp and
     unpatching after the tearDown
     """
 
     def setUp(self):
-        super(BaseRequestTestCase, self).setUp()
+        super().setUp()
 
         patch()
         self.session = Session()
@@ -44,7 +44,7 @@ class BaseRequestTestCase(object):
     def tearDown(self):
         unpatch()
 
-        super(BaseRequestTestCase, self).tearDown()
+        super().tearDown()
 
 
 class TestRequests(BaseRequestTestCase, TracerTestCase):

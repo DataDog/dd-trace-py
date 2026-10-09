@@ -14,6 +14,13 @@ async def start_activity(req: func.HttpRequest, client: df.DurableOrchestrationC
     return await client.wait_for_completion_or_create_check_status_response(req, instance_id)
 
 
+@app.route(route="startfailedactivity", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+@app.durable_client_input(client_name="client")
+async def start_failed_activity(req: func.HttpRequest, client: df.DurableOrchestrationClient) -> func.HttpResponse:
+    instance_id = await client.start_new("failed_activity_orchestrator")
+    return await client.wait_for_completion_or_create_check_status_response(req, instance_id)
+
+
 @app.route(route="startentity", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 @app.durable_client_input(client_name="client")
 async def start_entity(req: func.HttpRequest, client: df.DurableOrchestrationClient) -> func.HttpResponse:
@@ -28,6 +35,11 @@ def activity_orchestrator(context: df.DurableOrchestrationContext):
 
 
 @app.orchestration_trigger(context_name="context")
+def failed_activity_orchestrator(context: df.DurableOrchestrationContext):
+    yield context.call_activity("failing_activity")
+
+
+@app.orchestration_trigger(context_name="context")
 def entity_orchestrator(context: df.DurableOrchestrationContext):
     entity_id = df.EntityId("counter", "durable")
     result = yield context.call_entity(entity_id, "add", 1)
@@ -37,6 +49,11 @@ def entity_orchestrator(context: df.DurableOrchestrationContext):
 @app.activity_trigger(input_name="name")
 def durable_activity(name: str) -> str:
     return f"Hello {name}"
+
+
+@app.activity_trigger(input_name="_input")
+def failing_activity(_input: object) -> None:
+    raise RuntimeError("simulated durable activity failure")
 
 
 @app.entity_trigger(context_name="context")

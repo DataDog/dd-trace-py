@@ -177,7 +177,7 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
 
 
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled(free_port):
-    token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
+    token = f"test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{str(uuid.uuid4())}"
     with gunicorn_flask_server(remote_configuration_enabled="false", token=token, port=free_port) as context:
         _, gunicorn_client, pid = context
 
@@ -191,7 +191,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled(free_port):
 
 
 def test_load_testing_appsec_ip_blocking_gunicorn_block(free_port):
-    token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
+    token = f"test_load_testing_appsec_ip_blocking_gunicorn_block_{str(uuid.uuid4())}"
     with gunicorn_flask_server(token=token, port=free_port, use_ddtrace_cmd=False) as context:
         _, gunicorn_client, pid = context
 
@@ -207,7 +207,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block(free_port):
 
 
 def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker(free_port):
-    token = "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(str(uuid.uuid4()))
+    token = f"test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{str(uuid.uuid4())}"
     with gunicorn_flask_server(token=token, port=free_port, use_ddtrace_cmd=False) as context:
         _, gunicorn_client, pid = context
 
@@ -229,9 +229,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker(fr
 
 @pytest.mark.skip(reason="_request_403 is flaky, figure out the error. APPSEC-57052")
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker(free_port):
-    token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
-        str(uuid.uuid4())
-    )
+    token = f"test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{str(uuid.uuid4())}"
     with gunicorn_flask_server(appsec_enabled="", token=token, port=free_port) as context:
         _, gunicorn_client, pid = context
 

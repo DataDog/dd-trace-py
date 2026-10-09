@@ -1,14 +1,16 @@
 import base64
+import contextlib
 import datetime
 import io
 import json
 import sys
 import unittest
+from unittest import mock
+import uuid
 import zipfile
 
 import botocore.exceptions
 import botocore.session
-import mock
 from moto import mock_dynamodb
 from moto import mock_ec2
 from moto import mock_events
@@ -85,7 +87,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def setUp(self):
-        super(BotocoreTest, self).setUp()
+        super().setUp()
         patch()
         patch_submodules(True)
 
@@ -112,15 +114,36 @@ class BotocoreTest(TracerTestCase):
         span_tags._PAYLOAD_TAGGER.validated = False
 
     def tearDown(self):
-        super(BotocoreTest, self).tearDown()
+        super().tearDown()
 
         unpatch()
         self.sqs_client.delete_queue(QueueUrl=self.queue_name)
 
     def get_spans(self):
         """Override to filter out urllib3 spans that are captured alongside botocore spans."""
-        spans = super(BotocoreTest, self).get_spans()
+        spans = super().get_spans()
         return [s for s in spans if s.name != "urllib3.request"]
+
+    @contextlib.contextmanager
+    def _unique_lambda_function(self, lamb):
+        """Create a uniquely named Lambda function and delete it on exit."""
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
+        lamb.create_function(
+            FunctionName=function_name,
+            Runtime="python3.8",
+            Role="test-iam-role",
+            Handler="lambda_function.lambda_handler",
+            Code={
+                "ZipFile": get_zip_lambda(),
+            },
+            Publish=True,
+            Timeout=30,
+            MemorySize=128,
+        )
+        try:
+            yield function_name
+        finally:
+            lamb.delete_function(FunctionName=function_name)
 
     @mock_ec2
     @mock_s3
@@ -176,7 +199,7 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert span.service == "aws.ec2", "Expected 'aws.ec2' but got {}".format(span.service)
+        assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
     @mock_ec2
@@ -188,7 +211,7 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert span.service == "aws.ec2", "Expected 'aws.ec2' but got {}".format(span.service)
+        assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
     @mock_ec2
@@ -200,7 +223,7 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
+        assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
         assert span.name == "aws.ec2.request"
 
     @mock_ec2
@@ -212,7 +235,7 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert span.service == "aws.ec2", "Expected 'aws.ec2' but got {}".format(span.service)
+        assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
     @mock_ec2
@@ -224,7 +247,7 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert span.service == "aws.ec2", "Expected 'aws.ec2' but got {}".format(span.service)
+        assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
     @mock_ec2
@@ -237,7 +260,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
-            "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
+            f"Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {span.service}"
         )
         assert span.name == "aws.ec2.request"
 
@@ -590,7 +613,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        assert span.service == "botocore.s3", "Expected 'botocore.s3' but got {}".format(span.service)
+        assert span.service == "botocore.s3", f"Expected 'botocore.s3' but got {span.service}"
 
         cfg = config.botocore
         cfg["service"] = "boto-service"
@@ -600,7 +623,7 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[-1]
 
-        assert span.service == "boto-service.s3", "Expected 'boto-service.s3' but got {}".format(span.service)
+        assert span.service == "boto-service.s3", f"Expected 'boto-service.s3' but got {span.service}"
 
     @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
@@ -612,7 +635,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        assert span.service == "aws.s3", "Expected 'aws.s3' but got {}".format(span.service)
+        assert span.service == "aws.s3", f"Expected 'aws.s3' but got {span.service}"
         assert span.name == "s3.command"
 
     @mock_s3
@@ -625,7 +648,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        assert span.service == "aws.s3", "Expected 'aws.s3' but got {}".format(span.service)
+        assert span.service == "aws.s3", f"Expected 'aws.s3' but got {span.service}"
         assert span.name == "s3.command"
 
     @mock_s3
@@ -638,7 +661,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
+        assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
         assert span.name == "aws.s3.request"
 
     @mock_s3
@@ -1434,23 +1457,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1468,23 +1479,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1498,23 +1497,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "mysvc"
@@ -1528,23 +1515,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1558,23 +1533,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1588,23 +1551,11 @@ class BotocoreTest(TracerTestCase):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
-        lamb.create_function(
-            FunctionName="guns-and-roses",
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName="guns-and-roses",
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
@@ -1885,7 +1836,7 @@ class BotocoreTest(TracerTestCase):
         firehose.create_delivery_stream(
             DeliveryStreamName=stream_name,
             RedshiftDestinationConfiguration={
-                "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
+                "RoleARN": f"arn:aws:iam::{account_id}:role/firehose_delivery_role",
                 "ClusterJDBCURL": "jdbc:redshift://host.amazonaws.com:5439/database",
                 "CopyCommand": {
                     "DataTableName": "outputTable",
@@ -1894,7 +1845,7 @@ class BotocoreTest(TracerTestCase):
                 "Username": "username",
                 "Password": "password",
                 "S3Configuration": {
-                    "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
+                    "RoleARN": f"arn:aws:iam::{account_id}:role/firehose_delivery_role",
                     "BucketARN": "arn:aws:s3:::kinesis-test",
                     "Prefix": "myFolder/",
                     "BufferingHints": {"SizeInMBs": 123, "IntervalInSeconds": 124},
@@ -1961,7 +1912,7 @@ class BotocoreTest(TracerTestCase):
         sns.delete_topic(TopicArn=topic_arn)
 
         # check if the appropriate span was generated (SNS publish span only, urllib3 is filtered)
-        assert len(spans) == 1, "Expected 1 span, found {}".format(len(spans))
+        assert len(spans) == 1, f"Expected 1 span, found {len(spans)}"
         return spans[0]
 
     @mock_sns
@@ -2104,7 +2055,7 @@ class BotocoreTest(TracerTestCase):
         topic_arn = topic["TopicArn"]
         sqs_url = self.sqs_test_queue["QueueUrl"]
         url_parts = sqs_url.split("/")
-        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sqs_arn = f"arn:aws:sqs:{region}:{url_parts[-2]}:{url_parts[-1]}"
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
         self.reset()  # Clear spans from setup operations
 
@@ -2179,7 +2130,7 @@ class BotocoreTest(TracerTestCase):
         topic_arn = topic["TopicArn"]
         sqs_url = self.sqs_test_queue["QueueUrl"]
         url_parts = sqs_url.split("/")
-        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sqs_arn = f"arn:aws:sqs:{region}:{url_parts[-2]}:{url_parts[-1]}"
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
         self.reset()  # Clear spans from setup operations
 
@@ -2245,7 +2196,7 @@ class BotocoreTest(TracerTestCase):
             topic_arn = topic["TopicArn"]
             sqs_url = self.sqs_test_queue["QueueUrl"]
             url_parts = sqs_url.split("/")
-            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sqs_arn = f"arn:aws:sqs:{region}:{url_parts[-2]}:{url_parts[-1]}"
             sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
             self.reset()
 
@@ -2340,7 +2291,7 @@ class BotocoreTest(TracerTestCase):
         topic_arn = topic["TopicArn"]
         sqs_url = self.sqs_test_queue["QueueUrl"]
         url_parts = sqs_url.split("/")
-        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sqs_arn = f"arn:aws:sqs:{region}:{url_parts[-2]}:{url_parts[-1]}"
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
         self.reset()  # Clear spans from setup operations
 
@@ -2411,7 +2362,7 @@ class BotocoreTest(TracerTestCase):
         topic_arn = topic["TopicArn"]
         sqs_url = self.sqs_test_queue["QueueUrl"]
         url_parts = sqs_url.split("/")
-        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sqs_arn = f"arn:aws:sqs:{region}:{url_parts[-2]}:{url_parts[-1]}"
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
         self.reset()  # Clear spans from setup operations
 
@@ -3224,7 +3175,7 @@ class BotocoreTest(TracerTestCase):
             topic_arn = topic["TopicArn"]
             sqs_url = self.sqs_test_queue["QueueUrl"]
             url_parts = sqs_url.split("/")
-            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sqs_arn = f"arn:aws:sqs:{region}:{url_parts[-2]}:{url_parts[-1]}"
             sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
             message_attributes = {
@@ -3277,7 +3228,7 @@ class BotocoreTest(TracerTestCase):
             topic_arn = topic["TopicArn"]
             sqs_url = self.sqs_test_queue["QueueUrl"]
             url_parts = sqs_url.split("/")
-            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sqs_arn = f"arn:aws:sqs:{region}:{url_parts[-2]}:{url_parts[-1]}"
             sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
             message_attributes = {

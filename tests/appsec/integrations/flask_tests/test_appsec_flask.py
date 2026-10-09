@@ -29,7 +29,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self._caplog = caplog
 
     def setUp(self):
-        super(FlaskAppSecTestCase, self).setUp()
+        super().setUp()
         patch()
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):

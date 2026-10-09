@@ -1,7 +1,7 @@
 import asyncio
+from collections.abc import Sequence
 from types import FrameType
 from typing import Optional
-from typing import Sequence
 from typing import Union
 
 # Core stack v2 functions
@@ -17,7 +17,7 @@ def take_sampling_thread_error() -> Optional[tuple[str, str]]:
     ...
 
 # executor worker thread <-> originating asyncio task association
-def link_origin_task(task_id: int, task_name: str) -> None: ...
+def link_origin_task(task_id: int, task_name: Optional[str] = None) -> None: ...
 def unlink_origin_task() -> None: ...
 
 # Sampling configuration
@@ -114,6 +114,10 @@ def record_greenlet_switch(
     target_frame: Union[FrameType, bool, None],
     update_target_frame: bool,
 ) -> None: ...
+
+# Native call monitoring (sys.monitoring bridge)
+def start_native_monitoring() -> None: ...
+def stop_native_monitoring() -> None: ...
 
 # Module attributes
 is_available: bool

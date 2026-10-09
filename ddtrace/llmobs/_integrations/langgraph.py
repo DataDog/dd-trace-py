@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -485,7 +485,7 @@ def _get_trigger_ids_from_finished_tasks(
                 _, trigger_id = pregel_pushes.pop(pregel_push_index)
                 trigger_ids.append(trigger_id)
         else:
-            trigger_ids.extend((cast(list[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
+            trigger_ids.extend(cast(list[str], task_trigger_channels_to_finished_tasks.get(trigger)) or [])
 
     return trigger_ids
 

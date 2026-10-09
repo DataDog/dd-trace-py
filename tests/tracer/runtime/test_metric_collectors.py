@@ -103,6 +103,34 @@ class TestNativeProcessMetricCollector(BaseTestCase):
         # matching `TestRuntimeMetricCollector.test_failed_module_load_collect`'s contract.
         self.assertEqual(collector.collect(), [])
 
+    def test_stop_unregisters_fork_hook(self) -> None:
+        from ddtrace.internal import forksafe
+
+        collector = NativeProcessMetricCollector()
+        try:
+            self.assertIn(collector._reset_state, forksafe._registry)
+        finally:
+            collector.stop()
+        self.assertNotIn(collector._reset_state, forksafe._registry)
+
+    def test_stop_is_idempotent(self) -> None:
+        collector = NativeProcessMetricCollector()
+        collector.stop()
+        # The guard makes a second stop() a no-op rather than an unregister of a hook
+        # that is no longer in the registry (which would only log, but is still a lie).
+        with mock.patch("ddtrace.internal.forksafe.unregister") as unregister:
+            collector.stop()
+        unregister.assert_not_called()
+
+    def test_stop_after_init_failure_does_not_unregister(self) -> None:
+        with mock.patch("ddtrace.internal.native.process_metrics", side_effect=OSError("boom")):
+            collector = NativeProcessMetricCollector()
+
+        # The smoke test bailed out before registering, so there is nothing to remove.
+        with mock.patch("ddtrace.internal.forksafe.unregister") as unregister:
+            collector.stop()
+        unregister.assert_not_called()
+
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork()")
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import atexit
 from itertools import chain
 import threading
@@ -162,7 +164,7 @@ class RaySpanManager:
         for span in job_spans:
             self._emit_partial_span(span)
 
-    def _finish_span(self, span: Span, job_info: Optional["JobInfo"] = None) -> None:
+    def _finish_span(self, span: Span, job_info: Optional[JobInfo] = None) -> None:
         # only if span was long running
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
             span._remove_attribute(DD_PARTIAL_VERSION)
@@ -246,7 +248,7 @@ class RaySpanManager:
                 timer.cancel()
             self._job_spans.pop(submission_id, None)
 
-    def stop_long_running_job(self, submission_id: str, job_info: Optional["JobInfo"]) -> None:
+    def stop_long_running_job(self, submission_id: str, job_info: Optional[JobInfo]) -> None:
         with self._lock:
             job_span = self._root_spans.pop(submission_id, None)
             if job_span is None:
@@ -281,7 +283,7 @@ def start_long_running_job(job_span: Span) -> None:
     start_long_running_span(job_span)
 
 
-def stop_long_running_job(submission_id: str, job_info: Optional["JobInfo"] = None) -> None:
+def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo] = None) -> None:
     get_span_manager().stop_long_running_job(submission_id, job_info)
 
 
