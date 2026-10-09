@@ -1190,11 +1190,17 @@ def test_start_wrong_arg() -> None:
         _memalloc.start(64, 345678909876, False)
 
 
-def test_start_stop() -> None:
+@pytest.mark.parametrize(
+    "mem_domain_cycles",
+    ((False, False), (True, True), (False, True, False, True, False)),
+    ids=("obj-only", "obj-and-mem", "toggle-mem"),
+)
+def test_start_stop(mem_domain_cycles: tuple[bool, ...]) -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(1, 1, False)
-    _memalloc.stop()
+    for mem_domain_enabled in mem_domain_cycles:
+        _memalloc.start(1, 1, mem_domain_enabled)
+        _memalloc.stop()
 
 
 def test_heap_stress() -> None:

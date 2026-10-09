@@ -35,11 +35,6 @@ static memalloc_context_t global_memalloc_ctx_mem;
 #endif // _PY312_AND_LATER
 
 static bool memalloc_enabled = false;
-#ifdef _PY312_AND_LATER
-/* true only while MEM-domain hooks are installed (between start() with the
- * caller's mem_domain_enabled=true and the next stop()). */
-static bool memalloc_mem_installed = false;
-#endif // _PY312_AND_LATER
 static std::once_flag memalloc_fork_handler_once_flag;
 
 /* Interpreter that called start().  Used by memalloc_module_free to reject
@@ -67,6 +62,7 @@ static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_pub{ nullptr };
  * isolated from OBJ. */
 static PyMemAllocatorEx g_saved_alloc_mem_buf[2];
 static int g_saved_alloc_mem_slot = 0;
+/* Also tracks whether stop() needs to restore MEM hooks; cleared after restoration. */
 static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_mem_pub{ nullptr };
 #endif // _PY312_AND_LATER
 
@@ -377,7 +373,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &g_saved_alloc_mem_buf[mem_slot]);
         g_saved_alloc_mem_pub.store(&g_saved_alloc_mem_buf[mem_slot], std::memory_order_release);
         PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc_mem);
-        memalloc_mem_installed = true;
     }
 #else
     (void)enable_mem_domain; // silence -Wunused-variable on Python < 3.12
@@ -426,15 +421,12 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     g_saved_alloc_pub.store(nullptr, std::memory_order_release);
 
 #ifdef _PY312_AND_LATER
-    if (memalloc_mem_installed) {
-        const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
-        if (saved_mem) {
-            PyMemAllocatorEx restore_mem = *saved_mem;
-            PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
-        }
+    const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
+    if (saved_mem) {
+        PyMemAllocatorEx restore_mem = *saved_mem;
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
         /* Null out so the MEM free hook fast-exits after stop. */
         g_saved_alloc_mem_pub.store(nullptr, std::memory_order_release);
-        memalloc_mem_installed = false;
     }
 #endif // _PY312_AND_LATER
 
