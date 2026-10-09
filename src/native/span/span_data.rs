@@ -720,7 +720,7 @@ impl SpanData {
     /// Takes `slf` rather than `&mut self` so no borrow of this span is held while a
     /// `Context` subclass's Python `copy` override runs.
     #[getter(context)]
-    fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
+    pub(crate) fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
         let py = slf.py();
 
         let this = slf.borrow();
