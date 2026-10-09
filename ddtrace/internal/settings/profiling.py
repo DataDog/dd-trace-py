@@ -197,7 +197,7 @@ class ProfilingConfig(DDConfig):
     install = DDConfig.v(
         bool,
         "install",
-        default=True,
+        default=False,
         help_type="Boolean",
         help=(
             "Whether to install the profiler hooks (thread, asyncio, uvloop and gevent tracking) at import "
