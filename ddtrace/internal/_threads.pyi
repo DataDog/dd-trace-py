@@ -8,6 +8,11 @@ class PeriodicThread:
     after that iteration (``on_shutdown`` is still called). Returning any other
     value continues the loop; raising an exception prints the traceback and also
     stops the loop.
+
+    ``awake()`` requests a run of the target as soon as possible and returns
+    without waiting for it. Requests coalesce. A request made before ``start()``
+    or during a fork pause is served once the worker (re)starts; after
+    ``stop()`` it is a no-op.
     """
 
     name: str
