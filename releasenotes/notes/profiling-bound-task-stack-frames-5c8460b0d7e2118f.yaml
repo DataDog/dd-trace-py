@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Applies ``DD_PROFILING_MAX_FRAMES`` to asyncio task stacks, reducing profiler CPU and memory overhead.

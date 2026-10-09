@@ -145,7 +145,10 @@ class TaskInfo
     {
     }
 
-    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop);
+    // Append up to max_depth coroutine frames to stack, starting with the innermost coroutine.
+    // Return the discovered coroutine-frame count, including frames not appended because of the limit.
+    // Stitching uses this count to distinguish coroutine frames from synchronous frames in the physical stack.
+    size_t unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop, size_t max_depth);
 };
 
 // Checks whether a Frame is the uvloop.run coroutine wrapper.
