@@ -1613,7 +1613,14 @@ def test_agent_exporter_sets_the_agent_url_not_the_intake():
     assert not [c for c in calls if "agentless" in c[0]]
 
 
-@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "a-test-api-key",
+        # The mock agent doesn't support stats payload
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
 def test_agentless_end_to_end_payload_reaches_the_intake():
     """Full flow: a span written in agentless mode arrives at the intake as JSON.
 

@@ -1170,28 +1170,28 @@ async def test_azure_openai_aembedding(openai, azure_openai_config, openai_vcr, 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_subprocess, schema_version, service_name):
-    env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
-    if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "OPENAI_API_KEY": openai_api_key,
-            "DD_TRACE_HTTPX_ENABLED": "0",
-            "DD_TRACE_HTTPX2_ENABLED": "0",
-            "PYTHONPATH": ":".join(pypath),
-        }
-    )
-    if schema_version:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    if service_name:
-        env["DD_SERVICE"] = service_name
     with snapshot_context(
         token="tests.contrib.openai.test_openai_v1.test_integration_service_name[%s-%s]"
         % (service_name, schema_version),
         ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type"],
         async_mode=False,
     ):
+        env = os.environ.copy()
+        pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+        if "PYTHONPATH" in env:
+            pypath.append(env["PYTHONPATH"])
+        env.update(
+            {
+                "OPENAI_API_KEY": openai_api_key,
+                "DD_TRACE_HTTPX_ENABLED": "0",
+                "DD_TRACE_HTTPX2_ENABLED": "0",
+                "PYTHONPATH": ":".join(pypath),
+            }
+        )
+        if schema_version:
+            env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        if service_name:
+            env["DD_SERVICE"] = service_name
         out, err, status, pid = ddtrace_run_python_code_in_subprocess(
             """
 import openai
