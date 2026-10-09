@@ -300,13 +300,13 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
         response = client.messages.create(**kwargs)
         content = getattr(response, "content", None)
         if content and isinstance(content, list):
-            block = content[0]
-            text = getattr(block, "text", None)
-            if text is not None:
-                return text
-            json_content = getattr(block, "json", None)
-            if json_content is not None:
-                return json.dumps(json_content)
+            # Models with extended/adaptive thinking may return [thinking, text], so skip non-text blocks.
+            for block in content:
+                if getattr(block, "type", None) != "text":
+                    continue
+                text = getattr(block, "text", None)
+                if isinstance(text, str):
+                    return text
         return ""
 
     return call
