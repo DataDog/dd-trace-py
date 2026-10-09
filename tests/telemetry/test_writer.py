@@ -1,4 +1,3 @@
-import logging
 import os
 import sys
 import sysconfig
@@ -15,7 +14,6 @@ from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
