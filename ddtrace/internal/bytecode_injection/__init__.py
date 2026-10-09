@@ -11,6 +11,7 @@ from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import set_function_code
@@ -71,7 +72,7 @@ if is_at_least_py(3, 15):
     # Distinct code objects can compare structurally equal (e.g. repeated identical
     # compiles, or CodeType.replace() clones), so a plain WeakKeyDictionary would let
     # a hook registered for one code object be looked up under another.
-    _line_hook_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+    _line_hook_registry: "IdentityWeakKeyDictionary[CodeType, Any]" = IdentityWeakKeyDictionary()
     _line_hook_lock = Lock()
 
     def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:
