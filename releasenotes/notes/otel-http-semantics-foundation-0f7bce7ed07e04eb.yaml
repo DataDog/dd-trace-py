@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Adds shared OpenTelemetry HTTP span behavior for upcoming client and server
+    integrations, enabled with ``DD_TRACE_OTEL_SEMANTICS_ENABLED``. See the
+    `OpenTelemetry API docs <https://ddtrace.readthedocs.io/en/stable/api.html#module-ddtrace.opentelemetry>`_
+    for details.
