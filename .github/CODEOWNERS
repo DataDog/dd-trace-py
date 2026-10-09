@@ -30,7 +30,7 @@ tests/integration/                  @DataDog/apm-core-python
 ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-core-python @DataDog/apm-python
-.riot/requirements/                 @DataDog/apm-python
+tests/requirements_locks/           @DataDog/apm-python
 .uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
@@ -227,6 +227,8 @@ ddtrace/internal/settings/profiling.py            @DataDog/profiling-python
 ddtrace/internal/settings/profiling.pyi           @DataDog/profiling-python
 ddtrace/internal/datadog/profiling                @DataDog/profiling-python
 tests/profiling                                   @DataDog/profiling-python
+.github/workflows/profiling-native.yml            @DataDog/profiling-python
+.github/workflows/prof-correctness.yml            @DataDog/profiling-python
 .gitlab/tests/profiling.yml                       @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
 .github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
