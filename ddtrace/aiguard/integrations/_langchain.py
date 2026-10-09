@@ -764,6 +764,10 @@ def _read_then_replay(scope: _CallScope, stream: Any) -> Any:
         chunks = list(stream)
     finally:
         _pop_scope(scope)
+        # A read that raised must still release the provider stream; closing an exhausted one is a no-op.
+        close = getattr(stream, "close", None)
+        if close is not None:
+            close()
     try:
         yield from chunks
     finally:
@@ -787,6 +791,10 @@ async def _aread_then_replay(scope: _CallScope, stream: Any) -> Any:
         chunks = [chunk async for chunk in stream]
     finally:
         _pop_scope(scope)
+        # A cancelled or failed read must still release the provider stream.
+        aclose = getattr(stream, "aclose", None)
+        if aclose is not None:
+            await aclose()
     try:
         for chunk in chunks:
             yield chunk

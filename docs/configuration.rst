@@ -784,7 +784,10 @@ AI Guard
      description: |
        When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
        OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
-       are fully buffered before any chunk is returned to the caller. The complete response is
+       are fully buffered before any chunk is returned to the caller. LangChain chat model and LLM
+       streams (``stream()`` and ``astream()``) from any provider are buffered too, and the tokens
+       LangChain reports to callbacks (for example ``astream_events()`` or LangGraph
+       ``stream_mode="messages"``) are held until the response is evaluated. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
        are evaluated and streamed chunks are forwarded live.

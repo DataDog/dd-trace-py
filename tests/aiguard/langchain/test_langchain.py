@@ -1849,3 +1849,59 @@ def test_unpatch_leaves_a_wrapper_installed_after_ai_guard(langchain):
         assert CallbackManagerForLLMRun.__dict__["on_llm_end"] is external
     finally:
         CallbackManagerForLLMRun.on_llm_end = ai_guard_layer.__wrapped__
+
+
+class _FailingStream:
+    """A stream that yields one chunk, then fails; records whether the reader closed it."""
+
+    def __init__(self):
+        self.closed = False
+        self._sent = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._sent:
+            raise RuntimeError("provider read failed")
+        self._sent = True
+        return "chunk"
+
+    def close(self):
+        self.closed = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        return self.__next__()
+
+    async def aclose(self):
+        self.closed = True
+
+
+def test_buffered_stream_closes_the_stream_when_a_read_fails():
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations._langchain import _CallScope
+    from ddtrace.aiguard.integrations._langchain import _read_then_replay
+
+    stream = _FailingStream()
+    with pytest.raises(RuntimeError, match="provider read failed"):
+        list(_read_then_replay(_CallScope(Mock(), []), stream))
+
+    assert stream.closed
+
+
+@pytest.mark.asyncio
+async def test_buffered_astream_closes_the_stream_when_a_read_fails():
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations._langchain import _aread_then_replay
+    from ddtrace.aiguard.integrations._langchain import _CallScope
+
+    stream = _FailingStream()
+    with pytest.raises(RuntimeError, match="provider read failed"):
+        [chunk async for chunk in _aread_then_replay(_CallScope(Mock(), []), stream)]
+
+    assert stream.closed
