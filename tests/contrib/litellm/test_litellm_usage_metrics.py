@@ -847,6 +847,10 @@ def enabled(monkeypatch):
     monkeypatch.setitem(config.litellm, "usage_metrics_enabled", True)
     monkeypatch.setitem(config.litellm, "usage_metrics_exporter", "dogstatsd")
     unpatch()
+    # Start from empty callback lists: the Routers of earlier tests fill them, and LiteLLM adds no callback to a list
+    # that holds 30.
+    for name in litellm_patch._CALLBACK_LISTS:
+        monkeypatch.setattr(litellm, name, [], raising=False)
     yield
     unpatch()
 
