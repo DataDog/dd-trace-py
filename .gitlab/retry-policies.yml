@@ -13,5 +13,6 @@
       - unknown_failure
       - data_integrity_failure
       - runner_system_failure  # mostly machine failed to be provisioned
+      - stuck_or_timeout_failure
       - scheduler_failure
       - api_failure
