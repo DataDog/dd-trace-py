@@ -56,12 +56,12 @@ ctx_collectors: ContextVar[tuple["ModuleCodeCollector.CollectInContext", ...]] =
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
-# Coverage hooks can execute where the coverage ContextVars are not visible, for example when
-# Python 3.14+ monitoring callbacks observe a snapshot context or when code runs in a fresh context.
-# CollectInContext mirrors the context stack into a threading.local() for those cases. The TLS stack
-# is only consulted when the executing context provides no active collector, so a context that
-# carries its own still-open collector, for instance one copied while that collector was active,
-# always takes precedence over the thread's latest state.
+# Coverage hooks can execute where the coverage ContextVars are not visible, for example when code runs in
+# a fresh context. CollectInContext mirrors the context stack into a threading.local() for those cases. The TLS
+# stack is only consulted when the executing context carries no coverage state of its own, so a context that
+# carries its own still-open collector, for instance one copied while that collector was active, always takes
+# precedence over the thread's latest state. A copied context whose collectors have all completed is expired
+# and never borrows the thread's collector, which keeps late work from a finished scope out of the next one.
 _tls_coverage = _threading.local()
 
 
@@ -84,8 +84,11 @@ def _get_ctx_collector(coverage_enabled: bool) -> t.Optional["ModuleCodeCollecto
                 return collector
             if active_collector := _get_active_collector(stack):
                 return active_collector
+        # A context whose own collectors have all completed is expired, and borrowing the thread's
+        # active collector would attribute late work to an unrelated scope.
+        return None
 
-    # The same lifetime rules apply when monitoring callbacks need the TLS fallback.
+    # The same lifetime rules apply when a context without any coverage state needs the TLS fallback.
     if _PY_GE_314:
         return _get_active_collector(getattr(_tls_coverage, "stack", ()))
     return None
@@ -101,6 +104,8 @@ def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
             for collector in reversed(stack):
                 if not collector.closed:
                     return collector._covered_lines
+        # An expired copied context drops late lines rather than borrowing the thread's collector.
+        return defaultdict(CoverageLines)
     if _PY_GE_314:
         if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
             return active_collector._covered_lines
@@ -116,6 +121,8 @@ def _get_ctx_covered_files() -> set[str]:
             for collector in reversed(stack):
                 if not collector.closed:
                     return collector._covered_files
+        # An expired copied context drops late files rather than borrowing the thread's collector.
+        return set()
     if _PY_GE_314:
         if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
             return active_collector._covered_files

@@ -52,6 +52,41 @@ def test_tls_fallback_skips_completed_inherited_collectors(monkeypatch, mismatch
     assert "/repo/late.py" not in test_collector.get_covered_lines()
 
 
+def test_expired_copied_context_does_not_borrow_the_thread_collector(monkeypatch):
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    with coverage_code.ModuleCodeCollector.CollectInContext() as first:
+        # This copy is made while the first collector is active, so it keeps the
+        # coverage ContextVars even after that collector completes.
+        expired = copy_context()
+
+    with coverage_code.ModuleCodeCollector.CollectInContext() as second:
+        # Late work in the expired copy must not be attributed to the thread's
+        # new collector, so it is dropped like on Python versions before 3.14.
+        expired.run(collector.hook_line, "/repo/late.py", 1)
+        expired.run(collector.hook_file, "/repo/late_file.py")
+        assert "/repo/late.py" not in second.get_covered_lines()
+        assert "/repo/late_file.py" not in second.get_covered_file_paths()
+        assert "/repo/late.py" not in first.get_covered_lines()
+        assert "/repo/late_file.py" not in first.get_covered_file_paths()
+
+        # A context without any coverage state still falls back to the thread's
+        # active collector.
+        Context().run(collector.hook_line, "/repo/fresh.py", 2)
+        assert 2 in second.get_covered_lines()["/repo/fresh.py"].to_sorted_list()
+
+        stale_lines = expired.run(coverage_code._get_ctx_covered_lines)
+        stale_files = expired.run(coverage_code._get_ctx_covered_files)
+        assert not stale_lines
+        assert not stale_files
+
+
 def test_coverage_stacks_are_isolated_across_copied_contexts():
     from contextvars import copy_context
 
