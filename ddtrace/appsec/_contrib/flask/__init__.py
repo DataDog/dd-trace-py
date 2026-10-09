@@ -2,7 +2,6 @@ from collections.abc import Mapping
 from collections.abc import MutableMapping
 import io
 import json
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -29,6 +28,7 @@ from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
@@ -37,9 +37,6 @@ from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
 import ddtrace.vendor.xmltodict as xmltodict
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.native._native import SpanData
 
 logger = get_logger(__name__)
 
