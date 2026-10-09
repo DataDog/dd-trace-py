@@ -13,3 +13,4 @@ def unlisten() -> None:
     LLMObsAnthropicSpanStartingSubscriber.unregister()
     LLMObsAnthropicSpanStartedSubscriber.unregister()
     LLMObsAnthropicSpanFinishingSubscriber.unregister()
+    LLMObsAnthropicSpanStartingSubscriber.forget_integration()
