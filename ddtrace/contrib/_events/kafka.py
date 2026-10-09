@@ -37,3 +37,4 @@ class KafkaConsumeEvent(MessagingConsumeEvent, KafkaEvent):
 
     message_headers: list[dict[str, Any]] = event_field(default_factory=list)
     propagation_as_span_links: bool = event_field(default=False)
+    previous_active_context: Any = event_field(default=None)

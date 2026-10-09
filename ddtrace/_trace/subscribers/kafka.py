@@ -122,7 +122,7 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
                 event.distributed_context = parent
                 event.use_active_context = False
         if event.activate and event.distributed_context is not None:
-            ctx.set_item("kafka_previous_active_context", tracer.context_provider.active())
+            event.previous_active_context = tracer.context_provider.active()
         super()._on_context_started(ctx)
 
     @classmethod
@@ -139,7 +139,7 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
         finally:
             # A remote parent cannot restore the local span displaced by activation.
             if event.activate and event.distributed_context is not None:
-                tracer.context_provider.activate(ctx.get_item("kafka_previous_active_context"))
+                tracer.context_provider.activate(event.previous_active_context)
 
     @classmethod
     def on_ended(
