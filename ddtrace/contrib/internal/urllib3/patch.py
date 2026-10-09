@@ -1,60 +1,71 @@
+import sys
+from types import ModuleType
+from typing import Optional
 from urllib import parse
 
-import urllib3
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace import config
+from ddtrace._trace.settings import DistributedTracingConfigMixin
+from ddtrace._trace.settings import HttpIntegrationConfigMixin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.settings import env
+from ddtrace.internal.settings._config import config as _global_config
+from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings.integration import IntegrationEnvConfig
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
 # Ports which, if set, will not be used in hostnames/service names
 DROP_PORTS = (80, 443)
 
-# Initialize the default config vars
-config._add(
-    "urllib3",
-    {
-        "_default_service": schematize_service_name("urllib3"),
-        "distributed_tracing": asbool(env.get("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
-        "default_http_tag_query_string": config._http_client_tag_query_string,
-        "split_by_domain": asbool(env.get("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
-    },
-)
+# IntegrationPlugin surface.
+name = "urllib3"
+default_enabled = False
+supported_versions = {"urllib3": ">=1.25.0"}
 
 
-def get_version() -> str:
-    return getattr(urllib3, "__version__", "")
+class Urllib3Config(IntegrationEnvConfig, HttpIntegrationConfigMixin, DistributedTracingConfigMixin):
+    split_by_domain = DDConfig.v(bool, "split_by_domain", default=False)
+
+    _default_service = schematize_service_name("urllib3")
+    default_http_tag_query_string = _global_config._http_client_tag_query_string
 
 
-def _supported_versions() -> dict[str, str]:
-    return {"urllib3": ">=1.25.0"}
+Urllib3Retry: Optional[type] = None
 
 
-def patch():
-    """Enable tracing for all urllib3 requests"""
-    if getattr(urllib3, "__datadog_patch", False):
-        return
-    urllib3.__datadog_patch = True
-
-    _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
+def _set_retry_class(retry_module: ModuleType) -> None:
+    global Urllib3Retry
+    Urllib3Retry = retry_module.Retry
 
 
-def unpatch():
-    """Disable trace for all urllib3 requests"""
-    if getattr(urllib3, "__datadog_patch", False):
-        urllib3.__datadog_patch = False
+def _patch_connectionpool(connectionpool: ModuleType) -> None:
+    _w(connectionpool.HTTPConnectionPool, "urlopen", _wrap_urlopen)
 
-        _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
+
+def _unpatch_connectionpool(connectionpool: ModuleType) -> None:
+    _u(connectionpool.HTTPConnectionPool, "urlopen")
+
+
+def enable() -> None:
+    ModuleWatchdog.register_module_hook("urllib3.util.retry", _set_retry_class)
+    ModuleWatchdog.register_module_hook("urllib3.connectionpool", _patch_connectionpool)
+
+
+def disable() -> None:
+    ModuleWatchdog.unregister_module_hook("urllib3.connectionpool", _patch_connectionpool)
+    ModuleWatchdog.unregister_module_hook("urllib3.util.retry", _set_retry_class)
+
+    connectionpool = sys.modules.get("urllib3.connectionpool")
+    if connectionpool is not None:
+        _unpatch_connectionpool(connectionpool)
 
 
 def _wrap_urlopen(func, instance, args, kwargs):
@@ -99,7 +110,8 @@ def _wrap_urlopen(func, instance, args, kwargs):
     if not is_tracing_enabled():
         return func(*args, **kwargs)
 
-    service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(None, config.urllib3)
+    int_config = _global_config.urllib3
+    service = hostname if int_config.split_by_domain else trace_utils.ext_service(None, int_config)
 
     # Ensure headers is always a mutable mapping for HttpClientRequestEvent subscribers.
     # Distributed tracing enablement is handled by subscribers (via integration config).
@@ -112,15 +124,19 @@ def _wrap_urlopen(func, instance, args, kwargs):
             http_operation="urllib3.request",
             service=service,
             measured=False,
-            component=config.urllib3.integration_name,
-            integration_config=config.urllib3,
+            component=int_config.integration_name,
+            integration_config=int_config,
             request_method=str(request_method),
             request_headers=request_headers,
             request_url=ensure_text(request_url),
             query=ensure_text(parsed_uri.query),
             target_host=instance.host,
             server_address=instance.host,
-            retries_remain=request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None,
+            retries_remain=(
+                request_retries.total
+                if Urllib3Retry is not None and isinstance(request_retries, Urllib3Retry)
+                else None
+            ),
         )
     ) as ctx:
         response = None

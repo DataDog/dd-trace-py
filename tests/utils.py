@@ -327,13 +327,18 @@ def override_config(integration, values):
     """
     options = getattr(ddtrace.config, integration)
 
-    original = dict((key, options.get(key)) for key in values.keys())
+    # Plain attribute access (getattr/setattr), not dict-style (.get()/.update()): works identically
+    # for both IntegrationConfig (AttrDict-based) and IntegrationEnvConfig (envier-based, migrated
+    # integrations), which doesn't implement dict-style access at all.
+    original = {key: getattr(options, key, None) for key in values.keys()}
 
-    options.update(values)
+    for key, value in values.items():
+        setattr(options, key, value)
     try:
         yield
     finally:
-        options.update(original)
+        for key, value in original.items():
+            setattr(options, key, value)
         ddtrace.config._reset()
 
 

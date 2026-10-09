@@ -22,7 +22,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Tests distributed tracing headers are passed by default"""
         # Check that distributed tracing headers are passed down; raise an error rather than make the
         # request since we don't care about the response at all
-        config.urllib3["distributed_tracing"] = True
+        config.urllib3.distributed_tracing = True
         self.tracer.enabled = False
         # Ensure the ASM SpanProcessor is set
         self.tracer.configure(apm_tracing_disabled=True, appsec_enabled=True)
@@ -72,7 +72,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
     def test_distributed_tracing_apm_opt_out_false(self):
         """Test with distributed tracing disabled does not propagate the headers"""
-        config.urllib3["distributed_tracing"] = True
+        config.urllib3.distributed_tracing = True
         # Ensure the ASM SpanProcessor is set.
         self.tracer.configure(apm_tracing_disabled=False, appsec_enabled=True)
         self.tracer.enabled = False

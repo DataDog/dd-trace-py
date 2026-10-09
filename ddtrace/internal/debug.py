@@ -7,6 +7,7 @@ from typing import Union
 
 from ddtrace import _monkey
 from ddtrace.internal import agent
+from ddtrace.internal.integrations import registry as _integration_registry
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -69,7 +70,12 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
 
     packages_available = {name: version for (name, version) in get_distributions().items()}
     integration_configs: dict[str, Union[dict[str, Any], str]] = {}
-    for module, enabled in _monkey.PATCH_MODULES.items():
+    patch_modules = dict(_monkey.PATCH_MODULES)
+    # Migrated plugins (e.g. "urllib3") are discovered via IntegrationRegistry, not PATCH_MODULES --
+    # merge them in so this diagnostic still reports their status.
+    for plugin in _integration_registry:
+        patch_modules.setdefault(plugin.name, plugin.default_enabled)
+    for module, enabled in patch_modules.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
         module_available = module in packages_available
