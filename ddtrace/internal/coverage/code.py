@@ -62,8 +62,9 @@ ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 # carries its own still-open collector, for instance one copied while that collector was active, always takes
 # precedence over the thread's latest state. A copied context whose collectors have all completed is expired
 # and never borrows the thread's collector, which keeps late work from a finished scope out of the next one.
-# Exits restore the TLS stack that was current when the scope was entered, so a scope that runs entirely
-# inside a copied context does not leave the mirror pointing at that context's stack.
+# The mirror is best effort: it reflects the stack of whichever context last entered or exited a collector on
+# this thread, and Context.run does not restore thread-local state, so interleaved scopes across copied contexts
+# can leave it approximate until the next enter or exit.
 _tls_coverage = _threading.local()
 
 
@@ -434,7 +435,6 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
-            self._tls_prev_stack: tuple[ModuleCodeCollector.CollectInContext, ...] = ()
 
         def __enter__(self):
             # Collector objects compare by identity, so value-based context restores
@@ -451,9 +451,6 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes,
             # so also store in thread-local as a fallback for the hook.
             if _PY_GE_314:
-                # Remember the fallback stack that was current when this scope starts, so
-                # the exit can restore it when the scope ends inside a copied context.
-                self._tls_prev_stack = getattr(_tls_coverage, "stack", ())
                 _tls_coverage.stack = ctx_collectors.get()
 
             # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
@@ -479,24 +476,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Closing the shared collector expires it in every inherited stack.
             self.closed = True
             stack = ctx_collectors.get()
-            exiting_innermost = bool(stack) and stack[-1] is self
-            if exiting_innermost:
+            if stack and stack[-1] is self:
                 stack = stack[:-1]
                 ctx_collectors.set(stack)
             # An exit in a different context must preserve that context's collectors.
             coverage_enabled = bool(stack) and (not stack[-1].closed or _get_active_collector(stack) is not None)
             ctx_coverage_enabled.set(coverage_enabled)
             if _PY_GE_314:
-                if exiting_innermost:
-                    # The scope ended in the context where it was innermost. Restore the
-                    # fallback stack that was current when the scope was entered, because
-                    # returning from a copied context restores ContextVar values but not
-                    # this thread-local mirror.
-                    _tls_coverage.stack = self._tls_prev_stack
-                else:
-                    # The scope ended in a context that did not enter it, so re-sync the
-                    # mirror to the stack of the context that is actually executing.
-                    _tls_coverage.stack = stack
+                _tls_coverage.stack = stack
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = self._covered_lines
