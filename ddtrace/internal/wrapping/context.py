@@ -946,6 +946,11 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     else:
                         raise ValueError("Function already wrapped")
 
+                if is_obfuscated_code(original_code):
+                    raise ObfuscatedCodeError(
+                        f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                    )
+
                 # sys.monitoring dispatches per code object. Clone the code so
                 # unwrapped siblings that share the same CodeType are not affected.
                 from ddtrace.internal.bytecode_injection import migrate_line_hooks
