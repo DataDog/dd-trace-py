@@ -25,6 +25,32 @@ URL_200 = f"http://{SOCKET}/status/200"
 URL_500 = f"http://{SOCKET}/status/500"
 
 
+@pytest.mark.subprocess(env={"DD_LOGS_OTEL_ENABLED": "true"})
+def test_otel_export_not_traced():
+    from unittest import mock
+
+    import urllib3
+
+    from ddtrace.contrib.internal.urllib3.patch import patch
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    patch()
+    tracer._span_aggregator.writer = DummyWriter()
+    pool = urllib3.connectionpool.HTTPConnectionPool("collector.example", 4318)
+    response = urllib3.response.HTTPResponse(status=200)
+    response.msg = {}
+    with mock.patch.object(pool, "_make_request", return_value=response):
+        out = pool.urlopen(
+            "POST",
+            "/v1/logs",
+            headers={"User-Agent": "OTel-OTLP-Exporter-Python/1.45.0"},
+            preload_content=False,
+        )
+    assert out.status == 200
+    assert tracer._span_aggregator.writer.pop() == []
+
+
 class BaseUrllib3TestCase(TracerTestCase):
     """Provides the setup and teardown for patching/unpatching the urllib3 integration"""
 
