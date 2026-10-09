@@ -27,6 +27,8 @@ from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace.internal.utils import deprecations as deprecation_utils
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -1703,6 +1705,40 @@ def setup_coverage_collection() -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # The legacy pytest plugin (ddtrace/contrib/internal/pytest) has been removed. The
+    # DD_PYTEST_USE_NEW_PLUGIN* environment variables no longer select a plugin: surface stale
+    # configuration with a deprecation warning, but do nothing else. This runs before the kill
+    # switch check because the notice is about plugin selection, not test tracing.
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "DD_PYTEST_USE_NEW_PLUGIN is deprecated",
+                    message=(
+                        "the legacy pytest plugin has been removed. The environment variable no longer has any "
+                        "effect; this pytest plugin is always used. Remove the environment variable from your "
+                        "configuration."
+                    ),
+                    removal_version="5.0.0",
+                )
+            ),
+            stacklevel=2,
+        )
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "DD_PYTEST_USE_NEW_PLUGIN_BETA is deprecated",
+                    message=(
+                        "the legacy pytest plugin has been removed. The environment variable no longer has any "
+                        "effect and can be removed from your configuration."
+                    ),
+                    removal_version="5.0.0",
+                )
+            ),
+            stacklevel=2,
+        )
+
     # We register the marker even if the kill switch is on, to avoid "Unknown pytest.mark.dd_tags" warnings in tests
     # when the plugin is disabled. This is similar to command line arguments, which are also registered in
     # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
