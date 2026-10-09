@@ -105,7 +105,7 @@ Some older or specialized integrations still call `integration.trace()` and `int
 
 ## Streaming
 
-Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/llmobs/_integrations/base_stream_handler.py`:
+Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/contrib/internal/stream_handler.py`:
 
 - `initialize_chunk_storage()` — set up accumulators for content, usage, role
 - `process_chunk(chunk)` — accumulate text, tool blocks, usage from each chunk

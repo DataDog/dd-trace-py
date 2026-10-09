@@ -12,10 +12,10 @@ from mistralai.client.models.embeddingresponse import EmbeddingResponse
 from ddtrace import config
 from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import MistralAIIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 
 

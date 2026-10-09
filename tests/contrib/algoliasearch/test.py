@@ -1,3 +1,7 @@
+import importlib
+import sys
+from unittest import mock
+
 from ddtrace import config
 from ddtrace._monkey import _patch_all
 from ddtrace.contrib.internal.algoliasearch.patch import algoliasearch_version
@@ -107,6 +111,38 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
         assert span.get_tag("query.args.unsupportedTotallyNewArgument") is None
         config.algoliasearch.collect_query_text = original
+
+    def test_algoliasearch_with_query_text_as_keyword(self):
+        self.patch_algoliasearch()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            # wrapt passes the instance separately, so a keyword-only call leaves no
+            # positional arguments for the query text lookup to read.
+            self.index.search(query="test search")
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].get_tag("query.text") == "test search"
+
+    def test_algoliasearch_with_empty_query_text(self):
+        self.patch_algoliasearch()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            # An empty query is a valid search that returns every record, so it has to
+            # stay distinguishable from a call that supplied no query at all.
+            self.perform_search("")
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].get_tag("query.text") == ""
 
     def test_algoliasearch_with_query_args_nontext(self):
         self.patch_algoliasearch()
@@ -236,3 +272,34 @@ class AlgoliasearchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].name == "algoliasearch.search.request"
         unpatch()
+
+
+def _reload_patch_module():
+    return importlib.reload(sys.modules["ddtrace.contrib.internal.algoliasearch.patch"])
+
+
+# get_version() has to return a string: the telemetry writer rejects other types and the
+# resulting TypeError escapes into whichever import triggered patching, taking the
+# application down with it.
+def test_get_version_without_version_submodule():
+    # algoliasearch >= 4 replaced the version submodule with a package level __version__.
+    import algoliasearch
+
+    try:
+        with (
+            mock.patch.dict(sys.modules, {"algoliasearch.version": None}),
+            mock.patch.object(algoliasearch, "__version__", "4.44.4", create=True),
+        ):
+            module = _reload_patch_module()
+            assert module.get_version() == "4.44.4"
+    finally:
+        _reload_patch_module()
+
+
+def test_get_version_without_algoliasearch_installed():
+    try:
+        with mock.patch.dict(sys.modules, {"algoliasearch": None}):
+            module = _reload_patch_module()
+            assert module.get_version() == ""
+    finally:
+        _reload_patch_module()
