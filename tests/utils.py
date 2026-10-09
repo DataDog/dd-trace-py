@@ -1297,6 +1297,7 @@ def snapshot_context(
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
+        dd_config._trace_compute_stats = compute_stats_enabled
         # Subprocesses must use the same stats setting as the snapshot writer.
         os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = str(compute_stats_enabled).lower()
 
@@ -1405,6 +1406,7 @@ def snapshot_context(
             os.environ.pop("DD_TRACE_STATS_COMPUTATION_ENABLED", None)
         else:
             os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = original_stats_env
+        dd_config._trace_compute_stats = original_compute_stats_enabled
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()

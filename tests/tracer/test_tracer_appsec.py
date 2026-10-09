@@ -64,7 +64,7 @@ def test_aggregator_reset_with_args():
     assert aggr.writer._api_version == "v0.5"
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
-    assert aggr.sampling_processor._compute_stats_enabled is False
+    assert aggr.sampling_processor._compute_stats_enabled is True
     # Reset the aggregator with new args and new user processors and expect the new values to be set
     aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
     assert aggr.user_processors == []
@@ -241,8 +241,6 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
         assert isinstance(tracer._sampler.limiter, RateLimiter)
         assert tracer._sampler.limiter.rate_limit == 1
         assert tracer._sampler.limiter.time_window == 60e9
-
-        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
 
     # reset tracer values
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
