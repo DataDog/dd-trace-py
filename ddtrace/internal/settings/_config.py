@@ -131,6 +131,7 @@ INTEGRATION_CONFIGS = frozenset(
         "gevent",
         "sanic",
         "snowflake",
+        "temporal",
         "pymemcache",
         "azure_cosmos",
         "azure_eventhubs",

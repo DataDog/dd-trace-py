@@ -1,0 +1,62 @@
+"""Datadog tracing interceptor for Temporal activity inbound calls."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from typing import Any
+
+import temporalio.activity
+import temporalio.worker
+
+from ddtrace.internal.utils.fnv import fnv1_64
+
+from .constants import OperationNames
+from .constants import SpanAttributes
+
+
+if TYPE_CHECKING:
+    from .interceptor import DatadogTracingInterceptor
+
+
+class _ActivityInboundInterceptor(temporalio.worker.ActivityInboundInterceptor):  # type: ignore[misc]
+    def __init__(
+        self,
+        next: temporalio.worker.ActivityInboundInterceptor,
+        root: DatadogTracingInterceptor,
+    ) -> None:
+        super().__init__(next)
+        self.root = root
+
+    async def execute_activity(self, input: temporalio.worker.ExecuteActivityInput) -> Any:
+        return await self.root._run_span(
+            self._get_span(input),
+            OperationNames.RUN_ACTIVITY,
+            super().execute_activity(input),
+        )
+
+    def _get_span(self, input: temporalio.worker.ExecuteActivityInput) -> Any:
+        info = temporalio.activity.info()
+        return self.root._start_span(
+            operation_name=OperationNames.RUN_ACTIVITY,
+            parent_ctx=self.root.propagator.extract_headers(input.headers),
+            resource_name=info.activity_type,
+            activate=True,
+            span_id=fnv1_64(f"{info.workflow_run_id}:{info.activity_id}:{info.attempt}".encode()),
+            attributes=self._get_activity_attributes(info),
+            parent_from_header=True,
+        )
+
+    @staticmethod
+    def _get_activity_attributes(info: temporalio.activity.Info) -> dict[str, Any]:
+        attributes: dict[str, Any] = {
+            SpanAttributes.ACTIVITY_ID: info.activity_id,
+            SpanAttributes.ACTIVITY_TYPE: info.activity_type,
+            SpanAttributes.ATTEMPT: info.attempt,
+        }
+        if info.workflow_id:
+            attributes[SpanAttributes.WORKFLOW_ID] = info.workflow_id
+        if info.workflow_run_id:
+            attributes[SpanAttributes.RUN_ID] = info.workflow_run_id
+        if info.workflow_namespace:
+            attributes[SpanAttributes.NAMESPACE] = info.workflow_namespace
+        return attributes

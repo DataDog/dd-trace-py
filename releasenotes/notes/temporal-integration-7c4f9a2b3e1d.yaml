@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    temporal: Adds automatic tracing for workflows and activities run with the Temporal Python SDK (``temporalio``).
+    Use ``ddtrace.contrib.temporal.DatadogTracingInterceptor`` to customize tracing.
