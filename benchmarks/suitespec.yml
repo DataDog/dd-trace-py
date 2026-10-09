@@ -58,8 +58,9 @@ components:
     - ddtrace/ext/test_visibility/*
   appsec_iast:
     - ddtrace/appsec/iast/*
-    - ddtrace/appsec/*
-    - ddtrace/internal/settings/asm.py
+    - ddtrace/appsec/_iast/*
+    - ddtrace/appsec/_iast_context.py
+    - ddtrace/internal/iast/*
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
@@ -107,7 +108,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/span/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -117,7 +117,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/tracer/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -127,7 +126,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/core_api/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -137,7 +135,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/encoder_v05/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -155,7 +152,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/set_http_meta/*
     cpus_per_run: 1
     type: 'microbenchmark'
@@ -164,7 +160,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - ddtrace/internal/telemetry/constants.py
       - ddtrace/internal/telemetry/writer.py
       - benchmarks/telemetry_add_metric/*
@@ -176,7 +171,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - '@opentelemetry'
       - benchmarks/otel_span/*
       - benchmarks/suitespec.yml
@@ -187,7 +181,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - '@opentelemetry'
       - benchmarks/otel_sdk_span/*
       - benchmarks/suitespec.yml
@@ -198,7 +191,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/recursive_computation/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -208,7 +200,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/sampling_rule_matches/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -218,7 +209,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/http_propagation_extract/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -228,7 +218,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/http_propagation_inject/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -238,7 +227,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - benchmarks/rate_limiter/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -247,7 +235,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - benchmarks/appsec_iast_aspects/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -256,7 +243,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_aspects_ospath/*
       - benchmarks/suitespec.yml
@@ -266,7 +252,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_aspects_re_module/*
       - benchmarks/suitespec.yml
@@ -276,7 +261,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_aspects_split/*
       - benchmarks/suitespec.yml
@@ -286,7 +270,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_propagation/*
       - benchmarks/suitespec.yml
@@ -311,7 +294,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - '@flask'
       - benchmarks/fork_time/*
       - benchmarks/suitespec.yml
@@ -322,7 +304,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - '@django'
       - benchmarks/django_simple/*
       - benchmarks/suitespec.yml
@@ -333,7 +314,6 @@ suites:
       - '@bootstrap'
       - '@tracing'
       - '@core'
-      - '@vendor'
       - '@flask'
       - benchmarks/flask_simple/*
       - benchmarks/suitespec.yml
@@ -344,7 +324,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - '@flask'
       - benchmarks/flask_sqli/*
       - benchmarks/suitespec.yml
@@ -354,7 +333,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@errortracking'
       - benchmarks/errortracking_monitoring/*
       - benchmarks/suitespec.yml
@@ -377,7 +355,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@tracing'
       - '@errortracking'
       - '@django'
@@ -389,7 +366,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@tracing'
       - '@errortracking'
       - '@flask'
@@ -401,7 +377,6 @@ suites:
     paths:
       - '@bootstrap'
       - '@core'
-      - '@vendor'
       - '@tracing'
       - '@flask'
       - '@django'
@@ -427,7 +402,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - ddtrace/internal/telemetry/dependency*.py
       - ddtrace/appsec/sca/*
       - benchmarks/telemetry_dependencies/*
@@ -448,9 +422,7 @@ suites:
     # Subprocess-based (like `startup`); cProfile is disabled for this scenario.
     paths:
       - '@bootstrap'
-      - '@core'
       - '@tracing'
-      - '@vendor'
       - '@ci_visibility_benchmark'
       - benchmarks/pytest_plugin/*
       - benchmarks/suitespec.yml

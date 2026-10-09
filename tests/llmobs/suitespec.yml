@@ -40,9 +40,6 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@anthropic'
       - '@requests'
       - '@llmobs'
@@ -61,9 +58,6 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@claude_agent_sdk'
       - '@llmobs'
       - tests/contrib/claude_agent_sdk/*
@@ -88,9 +82,6 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@google_adk'
       - '@llmobs'
       - tests/contrib/google_adk/*
@@ -106,9 +97,6 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@google_genai'
       - '@llmobs'
       - tests/contrib/google_genai/*
@@ -122,9 +110,6 @@ suites:
   vertexai:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@vertexai'
       - '@llmobs'
       - tests/contrib/vertexai/*
@@ -140,9 +125,6 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@llama_index'
       - '@llmobs'
       - tests/contrib/llama_index/*
@@ -166,9 +148,6 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@langchain'
       - '@requests'
       - '@llmobs'
@@ -191,9 +170,6 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@litellm'
       - '@llmobs'
       - tests/contrib/litellm/*
@@ -215,8 +191,6 @@ suites:
   llmobs:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
       - tests/cassettes/anthropic/*
@@ -246,9 +220,6 @@ suites:
   mcp:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@mcp'
       - '@llmobs'
       - tests/contrib/mcp/*
@@ -267,9 +238,6 @@ suites:
   mistralai:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@mistralai'
       - '@llmobs'
       - tests/contrib/mistralai/*
@@ -289,9 +257,6 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@openai'
       - '@requests'
       - '@llmobs'
@@ -324,9 +289,6 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@langgraph'
       - '@requests'
       - '@llmobs'
@@ -364,9 +326,6 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@crewai'
       - '@requests'
       - '@llmobs'
@@ -386,9 +345,6 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@openai_agents'
       - '@llmobs'
       - tests/contrib/openai_agents/*
@@ -420,9 +376,6 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@pydantic_ai'
       - '@llmobs'
       - tests/contrib/pydantic_ai/*
@@ -447,10 +400,6 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
-      - '@vllm'
       - '@llmobs'
       - tests/contrib/vllm/*
       - tests/snapshots/tests.contrib.vllm.*
