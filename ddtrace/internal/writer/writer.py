@@ -915,7 +915,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if exporter is not None and not getattr(self, "_exporter_dropped", False):
                 if self._discarded_by_refresh:
                     # The refresh's nonblocking drop can lose the lock to a non-send holder (e.g. the
-                    # telemetry callback) that never retries; shutting down would send the old stats.
+                    # telemetry callback) that never retries. Shutting down would flush the old stats now;
+                    # drop() still leaves the exporter's native workers running (see the MicroVM known gap).
                     self._drop_exporter()
                 else:
                     self._shutdown_exporter(exporter)
@@ -1109,7 +1110,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _downgrade(self, status, client):
         if self._discarded_by_refresh:
-            return  # Do not rebuild the exporter or send the old one's stats.
+            return  # Do not rebuild the exporter or flush the old one's stats by shutting it down.
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
@@ -1397,7 +1398,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if self._exporter_dropped:
             return
         if self._discarded_by_refresh:
-            # Finish the refresh's discard: no final flush, no pending stats sent.
+            # Finish the refresh's discard without the final flush. drop() avoids shutdown()'s stats flush but
+            # leaves the exporter's native workers running (see the MicroVM known gap).
             self._drop_exporter()
             self._exporter_dropped = True
             return
