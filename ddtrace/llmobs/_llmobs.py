@@ -103,6 +103,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._context import LLMObsContextProvider
+from ddtrace.llmobs._contrib import listen_integrations
 from ddtrace.llmobs._eval_metric import _build_evaluation_metric_event
 from ddtrace.llmobs._eval_metric import _build_feedback_metric_event
 from ddtrace.llmobs._eval_metric import _SubmissionTelemetryContext
@@ -1101,6 +1102,10 @@ class LLMObs(Service):
                 sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
+
+            # Covers setups that patch LLM integrations without ddtrace-run, where the
+            # product's post_preload never runs.
+            listen_integrations()
 
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)

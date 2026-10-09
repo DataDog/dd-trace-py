@@ -65,6 +65,8 @@ it's patched. **Without this entry, integration config settings are silently ign
 Create `ddtrace/llmobs/_integrations/{name}.py` subclassing `BaseLLMIntegration`.
 Read `ddtrace/llmobs/_integrations/anthropic.py` for the canonical pattern.
 Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__`).
+Connect it to the contrib with `LlmEvents` subscribers in `ddtrace/llmobs/_contrib/{name}/`
+(see `ddtrace/llmobs/_contrib/anthropic/`) so the contrib does not import `ddtrace.llmobs`.
 
 See the **llmobs-integrations** skill for the full LLM-specific implementation guide.
 

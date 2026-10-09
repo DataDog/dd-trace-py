@@ -5,8 +5,9 @@ Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integra
 ## Design: Two-Layer Architecture
 
 LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
-- Patch code creates a subclass instance and stores it on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
-- Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and calls `integration.llmobs_set_tags()` when the event ends
+- Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and dispatches `LlmEvents.SPAN_STARTING`, `SPAN_STARTED`, and `SPAN_FINISHING` with the execution context
+- LLMObs subscribers in `ddtrace/llmobs/_contrib/{name}/` listen to those events, build the `BaseLLMIntegration` subclass lazily, and call it to set the span type, base tags, and LLMObs tags, so the contrib never imports `ddtrace.llmobs`
+- Older integrations instead store the instance on the module (`module._datadog_integration = ...`) and pass it as `LlmRequestEvent(llmobs_integration=...)`; `LlmTracingSubscriber` then calls it directly
 - The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, token, metadata, and tool extraction
 - Some existing or specialized integrations still call `integration.trace()` directly for direct child spans; follow the closest current reference before using that pattern
 
@@ -16,6 +17,7 @@ This separation keeps APM patching decoupled from LLMObs data extraction.
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
 - **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
+- **Step 1b (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers and register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
 - **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and token extraction (this guide)
 - **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
 - **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
@@ -90,15 +92,26 @@ Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__` entry
 
 ## Step 1 Expanded: Patch Layer (`LlmRequestEvent`)
 
-Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the current event-based pattern. The patch layer constructs the event, stores the response on `event.response`, and calls `ctx.dispatch_ended_event()`; `ddtrace/_trace/subscribers/llm.py` handles span creation, base tags, LLMObs extraction, errors, and span finish under the hood.
+Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the current event-based pattern. The patch layer constructs the event, stores the response on `event.response`, and calls `ctx.dispatch_ended_event()`; `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and span finish, and dispatches `LlmEvents` so LLMObs subscribers can add base tags and LLMObs data.
 
 Key points:
-- Construct `LlmRequestEvent(..., llmobs_integration=integration, submit_to_llmobs=True, request_kwargs=kwargs, ...)`
+- Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset
+- Set APM tags the contrib owns (for example `{name}.request.model`) through the event's `tags`, not in the `BaseLLMIntegration`
+- Shared stream helpers live in `ddtrace/contrib/internal/stream_handler.py`; pass `None` as the integration when the contrib has none
 - The event/subscriber path owns span creation and finishing; patch wrappers should not call `tracer.trace()`, `integration.trace()`, or create spans directly for standard request spans
 - Use `with core.context_with_event(event, dispatch_end_event=False) as ctx:` when streaming or when the wrapper needs to dispatch the ended event manually
 - For non-streaming success, set `event.response = resp` and call `ctx.dispatch_ended_event()`
 - For errors, call `ctx.dispatch_ended_event(*sys.exc_info())` and re-raise; do not call `span.set_exc_info()` or `span.finish()` directly in the patch wrapper
-- LLMObs tag setting is handled by `LlmTracingSubscriber`, not directly in the patch wrapper
+- LLMObs tag setting is handled by the LLMObs subscribers, not directly in the patch wrapper
+
+## Step 1b Expanded: LLMObs Subscribers
+
+Read `ddtrace/llmobs/_contrib/anthropic/` for the pattern. `LlmTracingSubscriber` dispatches three events with the `ExecutionContext`. They are shared by every LLM integration, so each handler returns early unless `ctx.event.component` matches:
+- `LlmEvents.SPAN_STARTING` runs before the span exists. This is the only point where `event.span_type` can still be set to `SpanTypes.LLM`, which `LLMObs._on_span_start` needs at creation.
+- `LlmEvents.SPAN_STARTED` runs after the span is created. Use it for `_set_base_span_tags()`, `_annotate_integration_tag()`, and `_stamp_llmobs_span_kind_at_start()`.
+- `LlmEvents.SPAN_FINISHING` runs before the span is finished. Call `integration.llmobs_set_tags()` here.
+
+Subscribers set `auto_register = False`. Register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py` on the `{name}.patch` core event, and unregister them on `{name}.unpatch` -- except the `SPAN_FINISHING` subscriber, which stays registered so requests and deferred streams already in flight at unpatch time still get finalized. `listen_integrations()` runs from both the product's `post_preload` and `LLMObs.enable()`. Applications that call `patch()` manually without `ddtrace-run` or `LLMObs.enable()` are not a supported setup for subscriber-based integrations: their subscribers never register, so those spans lack the LLMObs shadow tags. Do not add registration hooks to `ddtrace.patch()` or `ddtrace/_monkey.py` to cover it. Test fixtures that call the contrib's `patch()` directly should call `listen_integrations()` first.
 - The async variant is identical but uses `async def` / `await`
 
 Some older or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly. Use that pattern when modifying an existing integration that already does so, when the closest current reference uses it (for example Google GenAI), or when the behavior requires direct child spans (for example OpenAI MCP tool spans or agent/tool child spans).
@@ -212,7 +225,8 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 
 - [ ] `ddtrace/llmobs/_integrations/{name}.py` — `BaseLLMIntegration` subclass
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
-- [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans (see anthropic for pattern)
+- [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans, with no `ddtrace.llmobs` imports (see anthropic for pattern)
+- [ ] `ddtrace/llmobs/_contrib/{name}/` — `LlmEvents` subscribers, registered from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
