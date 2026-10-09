@@ -22,7 +22,7 @@ jobs:
       run: ${{ steps.check.outputs.run }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -70,13 +70,13 @@ jobs:
     needs: [download-s3-wheels]
     steps:
       - name: Checkout datadog-lambda-python
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           repository: "DataDog/datadog-lambda-python"
 
       - name: Download wheel to binaries directory
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wheels-manylinux_x86_64
           path: artifacts/
@@ -88,7 +88,7 @@ jobs:
 
       # The workspace root holds datadog-lambda-python, so local actions live in a subdirectory.
       - name: Checkout local actions
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: .github/actions
@@ -103,7 +103,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@8e69c91f546c10d3e468bef2a2f85ad81ead656b
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e0ec61e73bd0301382aa8d49f3f06549b47c19f1
     secrets: inherit
     with:
       library: python_lambda
@@ -118,13 +118,13 @@ jobs:
     needs: [download-s3-wheels]
     steps:
       - name: Checkout local actions
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: .github/actions
 
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wheels-*
           path: binaries/
@@ -140,7 +140,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@8e69c91f546c10d3e468bef2a2f85ad81ead656b
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e0ec61e73bd0301382aa8d49f3f06549b47c19f1
     secrets: inherit
     with:
       library: python
@@ -152,7 +152,7 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@8e69c91f546c10d3e468bef2a2f85ad81ead656b
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e0ec61e73bd0301382aa8d49f3f06549b47c19f1
     with:
       library: python
       ref: '8e69c91f546c10d3e468bef2a2f85ad81ead656b'
