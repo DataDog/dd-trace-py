@@ -18,6 +18,7 @@ components:
     - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
+    - ddtrace/contrib/internal/stream_handler.py
   mcp:
     - ddtrace/contrib/internal/mcp/*
   mistralai:

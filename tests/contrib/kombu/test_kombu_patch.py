@@ -22,10 +22,13 @@ class TestKombuPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, kombu):
-        pass
+        self.assert_wrapped(kombu.Producer._publish)
+        self.assert_wrapped(kombu.Consumer.receive)
 
     def assert_not_module_patched(self, kombu):
-        pass
+        self.assert_not_wrapped(kombu.Producer._publish)
+        self.assert_not_wrapped(kombu.Consumer.receive)
 
     def assert_not_module_double_patched(self, kombu):
-        pass
+        self.assert_not_double_wrapped(kombu.Producer._publish)
+        self.assert_not_double_wrapped(kombu.Consumer.receive)

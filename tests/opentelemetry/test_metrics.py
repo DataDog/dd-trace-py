@@ -85,6 +85,17 @@ def test_otel_metrics_enabled():
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_ENV": "test_env"})
+def test_otel_metrics_resource_uses_stable_environment_attribute():
+    from ddtrace.internal.opentelemetry.metrics import _build_resource
+
+    resource = _build_resource()
+    assert resource is not None
+    assert resource.attributes["deployment.environment.name"] == "test_env"
+    assert "deployment.environment" not in resource.attributes
+
+
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
 @pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_METRICS_OTEL_ENABLED": [None, "false"]})
 def test_otel_metrics_disabled_and_unset():
     """
