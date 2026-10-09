@@ -13,6 +13,18 @@ import subprocess
 import typing as t
 
 
+# Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
+NO_PROXY_ADDITIONS = (
+    "icanhazdadjoke.com",
+    "doesnotexist.google.com",
+    "api.stripe.com",
+    "us-central1-aiplatform.googleapis.com",
+    "github.com",
+    "api.github.com",
+    ".amazonaws.com",
+)
+
+
 @dataclass
 class JobSpec:
     name: str
@@ -29,6 +41,7 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    no_proxy: bool = False
 
     def __str__(self) -> str:
         lines = []
@@ -68,6 +81,14 @@ class JobSpec:
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
+        if self.no_proxy:
+            no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
+            lines.append("    - |")
+            lines.append(f'      no_proxy_additions="{no_proxy_additions}"')
+            lines.append('      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"')
+            lines.append('      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      echo "NO_PROXY=${NO_PROXY}"')
         if wait_for:
             if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
@@ -269,6 +290,7 @@ def gen_pre_checks() -> None:
     if not checks:
         return
 
+    no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
     with TESTS_GEN.open("a") as f:
         f.write(
             """
@@ -276,6 +298,15 @@ prechecks:
   extends: .testrunner
   stage: setup
   needs: []
+  before_script:
+    - !reference [.testrunner, before_script]
+    - |
+      no_proxy_additions="""
+            + no_proxy_additions
+            + """
+      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"
+      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
+      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:

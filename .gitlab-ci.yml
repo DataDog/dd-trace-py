@@ -1,9 +1,12 @@
 stages:
   - package
+  - shared-pipeline-build
   - tests
   - shared-pipeline
+  - shared-pipeline-test
   - benchmarks
   - release
+  - shared-pipeline-publish
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -14,7 +17,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "9daccd578f30ad15d66011b3550f4f35b2e9be52"
+  SYSTEM_TESTS_REF: "f5a10b7a61f4ef7ff99765335c2989e211e10af6"
 
 default:
   interruptible: true
@@ -186,6 +189,15 @@ publish-lib-init-pinned-tags:
     - job: create-multiarch-lib-injection-image
     - job: generate-lib-init-pinned-tag-values
       artifacts: true
+
+# Keep the existing 3.19 publishing flow without mutable-tag rollouts.
+rollout-mutable-tags-staging:
+  rules:
+    - when: never
+
+rollout-mutable-tags-prod:
+  rules:
+    - when: never
 
 configure_system_tests:
   variables:

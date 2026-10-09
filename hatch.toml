@@ -54,7 +54,7 @@ checks = [
     "spelling",
     "riot",
     "security",
-    "test",
+    "hatch run scripts:test",
     "suitespec-check",
     "error-log-check",
     "sg",

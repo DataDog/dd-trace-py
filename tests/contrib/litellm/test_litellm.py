@@ -90,7 +90,7 @@ async def test_litellm_atext_completion(litellm, snapshot_context, request_vcr, 
                     pass
 
 
-@pytest.mark.parametrize("model", ["command-r", "anthropic/claude-3-5-sonnet-20240620"])
+@pytest.mark.parametrize("model", ["cohere_chat/command-r", "anthropic/claude-3-5-sonnet-20240620"])
 def test_litellm_completion_different_models(litellm, snapshot_context, request_vcr, model):
     with snapshot_context(
         token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["meta.litellm.request.model"]

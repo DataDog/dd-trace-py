@@ -154,4 +154,12 @@ def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, qu
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
         span._set_tag_str(http.URL, strip_query_string(url))
     else:
-        span._set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+        span._set_tag_str(
+            http.URL,
+            redact_url(
+                url,
+                config._obfuscation_query_string_pattern,
+                query,
+                preserve_delimiter=config._query_string_obfuscation_preserve_delimiter,
+            ),
+        )

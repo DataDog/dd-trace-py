@@ -48,7 +48,7 @@ log = get_logger(__name__)
 ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
-    r"(?ix)"
+    r"(?i)"
     r"(?:"  # JSON-ish leading quote
     r'(?:"|%22)?'
     r")"
@@ -81,10 +81,11 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r'(?:"|%22)'  # closing '"' at end of value
     r")"
     r"|(?:"  # other common secret values
-    r" bearer(?:\s|%20)+[a-z0-9._\-]+"
+    r"bearer(?:\s|%20)+[a-z0-9._\-]+"
     r"|token(?::|%3A)[a-z0-9]{13}"
     r"|gh[opsu]_[0-9a-zA-Z]{36}"
-    r"|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
+    r"|(^|[^\w%-]|%[0-9a-f]{2})ey[I-L][\w-]+(?:=|%3D)*\.ey[I-L][\w-]+(?:=|%3D)*"
+    r"(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
     r"|-{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY-{5}[^\-]+-{5}END"
     r"(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY(?:-{5})?(?:\n|%0A)?"
     r"|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\s|%20|%09)+(?:[a-z0-9/.+]"
@@ -614,6 +615,9 @@ class Config(object):
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+        )
+        self._query_string_obfuscation_preserve_delimiter = (
+            dd_trace_obfuscation_query_string_regexp == DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
         self._global_query_string_obfuscation_disabled = dd_trace_obfuscation_query_string_regexp == ""
         self._obfuscation_query_string_pattern = None

@@ -56,7 +56,7 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
-      - run: pip install cibuildwheel==3.1.4
+      - run: pip install cibuildwheel==3.4.0
       - id: set-matrix
         env:
           CIBW_BUILD: ${{ inputs.cibw_build }}
@@ -140,14 +140,10 @@ jobs:
         with:
           platforms: all
 
-      # The pypa/cibuildwheel action of this version calls actions/setup-python
-      # by tag, and the repository policy rejects actions that are not pinned
-      # to a commit SHA. Keep this version in sync with build-wheels-matrix.
       - name: Build wheels
-        shell: bash
-        run: |
-          python -m pip install cibuildwheel==3.1.4
-          python -m cibuildwheel --only "${{ matrix.only }}" 2>&1
+        uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+        with:
+          only: ${{ matrix.only }}
 
       - name: Validate wheel RECORD files
         shell: bash
