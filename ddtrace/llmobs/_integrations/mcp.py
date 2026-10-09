@@ -94,7 +94,9 @@ class MCPIntegration(BaseLLMIntegration):
                 input_schema["required"] = []
 
             input_schema["properties"][TELEMETRY_KEY] = dd_trace_input_schema()
-            input_schema["required"].append(INTENT_KEY)
+            # The intent is passed as telemetry.intent, so telemetry is the top-level requirement
+            if TELEMETRY_KEY not in input_schema["required"]:
+                input_schema["required"].append(TELEMETRY_KEY)
 
     def _parse_mcp_text_content(self, item: Any) -> dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
