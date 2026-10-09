@@ -209,6 +209,26 @@ def test_symbols_decorated_methods():
     assert bar_scope.name == "bar"
 
 
+def test_symbols_skips_obfuscated_function():
+    class Foo:
+        def bar(self):
+            pass
+
+        def baz(self):
+            pass
+
+    # PyArmor's default mode protects individual functions, so the module
+    # level check alone does not keep them from being inspected.
+    obfuscated = Foo.bar.__code__
+    with mock.patch(
+        "ddtrace.internal.symbol_db.symbols.is_obfuscated_code", side_effect=lambda code: code is obfuscated
+    ):
+        scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
+
+    assert scope is not None
+    assert [s.name for s in scope.scopes] == ["baz"]
+
+
 @pytest.mark.subprocess
 def test_symbols_finds_decorator_discarded_function():
     # tests.submod.custom_decorated_stuff's "home" function is rebound to None

@@ -277,7 +277,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
         Raises KeyError if the module was never tracked, e.g. because it was
         imported before this watchdog was installed, or its loader has no
-        ``get_code`` (as with C extension modules). Callers must handle that
+        get_code (as with C extension modules). Callers must handle that
         case explicitly rather than treating an untracked module as a
         confirmed negative.
         """

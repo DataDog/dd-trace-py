@@ -422,6 +422,11 @@ class Scope:
             return None
         data.seen.add(code_id)
 
+        # PyArmor's default mode protects individual functions rather than the
+        # whole module, so the module-level check does not catch these.
+        if is_obfuscated_code(code):
+            return None
+
         if (code_origin := resolved_code_origin(code)) != data.origin:
             # Comes from another module.
             return None
