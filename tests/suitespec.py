@@ -83,7 +83,7 @@ SUITESPEC = _collect_suitespecs()
 def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
-    >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest")
+    >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest_benchmark")
     True
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
     >>> SUITESPEC["suites"] = {"debugger": {"paths": ["@core", "@debugging", "tests/d/*"]}}
