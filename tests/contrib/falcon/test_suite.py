@@ -166,6 +166,27 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag("component") == "falcon"
         assert span.get_tag("span.kind") == "server"
 
+    def _assert_non_str_status(self, url, resource_class):
+        out = self.make_test_call(url, expected_status_code=202)
+        assert out.content.decode("utf-8") == "Accepted"
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        span = traces[0][0]
+
+        assert span.name == "falcon.request"
+        assert span.resource == "GET tests.contrib.falcon.app.resources.%s" % resource_class
+        assert_span_http_status_code(span, 202)
+        assert span.error == 0
+
+    def test_int_status(self):
+        # Falcon 4's resp.status_code setter also stores an int in resp.status.
+        self._assert_non_str_status("/int_status", "ResourceIntStatus")
+
+    def test_http_status_enum(self):
+        self._assert_non_str_status("/http_status", "ResourceHTTPStatus")
+
     def test_500(self):
         out = self.make_test_call("/500", expected_status_code=500)
         assert out.content.decode("utf-8") == "Failure"
