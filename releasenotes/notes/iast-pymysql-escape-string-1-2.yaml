@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes an issue where SQL values escaped by PyMySQL 1.2 are not recognized as sanitized.
