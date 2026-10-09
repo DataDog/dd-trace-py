@@ -70,6 +70,9 @@ candidate:
   variables:
     DDTRACE_INSTALL_VERSION: "${CI_PROJECT_DIR}/${CANDIDATE_WHL}"
 
+    # See https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/7223313012/Flaky+Benchmarks+Monitoring for more details.
+    FLAKY_BENCHMARKS_REGEX: ""
+
     # Benchmark's env variables. Modify to tweak benchmark parameters.
     DD_TRACE_DEBUG: "false"
     DD_RUNTIME_METRICS_ENABLED: "false"
