@@ -182,6 +182,7 @@ exclude_dirs = [
   "ddtrace/sourcecode/_utils.py",
   "scripts/ext_cache.py",
   "scripts/check_no_new_aidev_anchors.py",
+  "scripts/check_no_rst_markup_in_prose.py",
   "setup.py",
 ]
 
