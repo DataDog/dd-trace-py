@@ -1,0 +1,3 @@
+fixes:
+  - |
+    internal: Fixes an issue where package installers reject Python 3.15.
