@@ -58,7 +58,7 @@ ddtrace/aiguard/
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
 ├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks,
 │                           #   gated per integration by DD_AI_GUARD_<LLM>_ENABLED
-├── _context.py             # contextvar depth counter to avoid double-scanning
+├── _context.py             # framework claims to avoid double-scanning
 ├── _common.py              # _get(), wrap_abort_error(), evaluate_auto() helpers
 ├── _redaction.py           # applies the service's redaction_replacements
 ├── _trace_utils.py         # _aiguard_manual_keep(): force-keep the AI Guard trace
@@ -173,9 +173,30 @@ messages are the redacted ones — never slice on them.
 
 A framework integration (LangChain, Strands) and a provider integration
 (OpenAI, Anthropic) can both fire for the same call. To avoid scanning twice,
-the framework wraps its dispatch + LLM call with the `aiguard_context()`
-context manager (a contextvar depth counter), and provider listeners
-short-circuit when `is_aiguard_context_active()` returns `True`.
+the framework claims the AI Guard context for its whole model call, and
+provider listeners short-circuit when `is_aiguard_context_active()` returns
+`True`. The framework evaluates both the request and the response itself:
+
+| Framework path | Claim held from / to |
+|----------------|----------------------|
+| LangChain `generate` / `agenerate` | `.before` to `.finally` |
+| LangChain `stream` / `astream` | iteration start to stream end (`.stream.started` / `.stream.finally`) |
+| Strands invocation | before-invocation to after-invocation |
+
+A claim is a shared object released by the handle `set_aiguard_context_active`
+returns, so a release from another asyncio task is seen by the claiming task.
+Strands keeps the handle on `invocation_state`; a LangChain generate keeps it on
+its `_CallScope`, and a stream on the per-stream state the contrib passes to
+both stream events.
+
+With `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` on, LangChain itself buffers
+`stream()` / `astream()`: every chunk is read, the response is evaluated, and
+only then are the chunks returned. The run manager's `on_llm_new_token` /
+`on_llm_end` are held meanwhile (`_CallScope`), inside `generate` too, and a
+single-prompt call is evaluated in `on_llm_end`, so callbacks, `astream_events()`
+and LangGraph's messages mode see nothing before AI Guard evaluates the
+response. A block closes the run with `on_llm_error`; a batch is evaluated in
+`.generate.after`.
 
 ## Configuration
 
