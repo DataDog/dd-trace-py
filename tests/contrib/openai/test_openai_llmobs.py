@@ -2512,6 +2512,23 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
     )
+    def test_decision_generator_args(self, openai, openai_llmobs, test_spans):
+        """Generator questions and input are consumed by the SDK, so they must be captured before the request."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(
+                model="gpt-6-luna",
+                input=(m for m in [{"role": "user", "content": DECISION_INPUT}]),
+                questions=(q for q in DECISION_QUESTIONS),
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_metadata(spans[0])["questions"] == DECISION_QUESTIONS
+        assert get_llmobs_input_messages(spans[0]) == [{"content": DECISION_INPUT, "role": "user"}]
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
     async def test_decision_async(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
             client = openai.AsyncOpenAI()

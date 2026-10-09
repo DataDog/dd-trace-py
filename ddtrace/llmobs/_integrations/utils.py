@@ -1432,7 +1432,6 @@ def openai_set_meta_tags_from_decision(span: Span, kwargs: dict[str, Any], respo
     """Extract input, questions, and answers from a decisions api call."""
     metadata: dict[str, Any] = {}
     questions = kwargs.get("questions")
-    # questions is typed as an Iterable, so a generator would already be consumed by the request
     if isinstance(questions, (list, tuple)):
         metadata["questions"] = [load_data_value(q) for q in questions]
     _annotate_llmobs_span_data(
