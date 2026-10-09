@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: ``LLMObs.annotate()`` and ``LLMObs.annotation_context()`` now accept a list as a tag value
+    to set several values for the same tag key, for example ``tags={"resource": ["dashboard:abc", "audience:team"]}``.
+    Each value is reported as a separate ``key:value`` tag. The ``ml_app``, ``session_id``, ``service``, ``env``,
+    and ``version`` tags keep a single value. When spans are sent through the APM agentless intake, a multi-valued
+    tag reports only its last value.

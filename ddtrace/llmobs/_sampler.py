@@ -57,12 +57,17 @@ class LLMObsSamplingRule:
         self._sample_rate = min(1.0, max(0.0, float(sample_rate)))
         self._sampling_id_threshold = self._sample_rate * MAX_UINT_64BITS
 
-    def matches(self, tags: dict[str, str]) -> bool:
-        """Return whether this rule applies to a root span carrying the given tags."""
+    def matches(self, tags: dict[str, Any]) -> bool:
+        """Return whether this rule applies to a root span carrying the given tags.
+
+        A multi-valued tag matches when any of its values matches.
+        """
         for tag_key, matcher in self.tags.items():
             if tag_key not in tags:
                 return False
-            if not matcher.match(str(tags[tag_key])):
+            value = tags[tag_key]
+            values = value if isinstance(value, list) else [value]
+            if not any(matcher.match(str(v)) for v in values):
                 return False
         return True
 
@@ -132,14 +137,14 @@ class LLMObsSampler:
                 log.warning("Skipping invalid LLMObs sampling rule %r.", rule, exc_info=True)
         return parsed
 
-    def match(self, tags: dict[str, str]) -> Optional[LLMObsSamplingRule]:
+    def match(self, tags: dict[str, Any]) -> Optional[LLMObsSamplingRule]:
         """Return the first rule matching the given root-span tags, or ``None``."""
         for rule in self.rules:
             if rule.matches(tags):
                 return rule
         return None
 
-    def sample(self, span: _Sampleable, tags: Optional[dict[str, str]] = None) -> tuple[bool, str]:
+    def sample(self, span: _Sampleable, tags: Optional[dict[str, Any]] = None) -> tuple[bool, str]:
         """Make the sampling decision for the root span of an LLMObs trace.
 
         :returns: A ``(sampled, sample_rate)`` pair, where ``sample_rate`` is the formatted rate of
@@ -193,7 +198,7 @@ class LLMObsSamplingResolver:
     read the decision. Ctx items are never serialized and are never scrubbed.
     """
 
-    def __init__(self, sampler: LLMObsSampler, tags_getter: Callable[[Any], Optional[dict[str, str]]]) -> None:
+    def __init__(self, sampler: LLMObsSampler, tags_getter: Callable[[Any], Optional[dict[str, Any]]]) -> None:
         self._sampler = sampler
         self._tags_getter = tags_getter
         self._lock = forksafe.Lock()

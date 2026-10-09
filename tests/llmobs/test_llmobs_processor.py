@@ -164,6 +164,25 @@ class TestExportModeKeepsMetaStruct:
             assert dd["sample_rate"] == "0"
             llmobs_service.disable()
 
+    def test_apm_agentless_collapses_multi_valued_tags_to_last_value(self, tracer):
+        """APM agentless ingestion accepts one string per tag key, so a list value keeps its last element."""
+        llmobs_service.disable()
+        with override_global_config(
+            {"_llmobs_ml_app": "test-ml-app", "_dd_api_key": "<not-a-real-key>", "service": "tests.llmobs"}
+        ):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            llmobs_service._instance._export_mode = LLMObsExportMode.APM_AGENTLESS
+            with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                _annotate_llm_span(span)
+                llmobs_service.annotate(
+                    span=span, tags={"resource": ["dashboard:abc", "audience:team"], "empty": [], "a.b": ["x"]}
+                )
+            tags = _get_llmobs_data_metastruct(span)["tags"]
+            assert tags["resource"] == "audience:team"
+            assert tags["a_b"] == "x"
+            assert "empty" not in tags
+            llmobs_service.disable()
+
     def test_llmobs_direct_mode_still_enqueues_and_scrubs(self, tracer):
         llmobs_service.disable()
         with override_global_config(

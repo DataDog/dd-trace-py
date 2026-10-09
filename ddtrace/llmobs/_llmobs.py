@@ -156,15 +156,18 @@ from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import TagValue
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
+from ddtrace.llmobs._utils import _normalize_tag_value
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _resolve_parent_agent
 from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _stamp_agent_attribution
+from ddtrace.llmobs._utils import _tag_values
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
@@ -393,15 +396,16 @@ class LLMObsSpan:
 
     input: list[Message] = field(default_factory=list)
     output: list[Message] = field(default_factory=list)
-    _tags: dict[str, str] = field(default_factory=dict)
+    _tags: dict[str, TagValue] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def get_tag(self, key: str) -> Optional[str]:
+    def get_tag(self, key: str) -> Optional[TagValue]:
         """Get a tag from the span.
 
         :param str key: The key of the tag to get.
-        :return: The value of the tag or None if the tag does not exist.
-        :rtype: Optional[str]
+        :return: The value of the tag, a list of values if the tag was set with several values,
+            or None if the tag does not exist.
+        :rtype: Optional[Union[str, list[str]]]
         """
         return self._tags.get(key)
 
@@ -798,8 +802,13 @@ class LLMObs(Service):
             llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
-            # replace them with underscores before encoding.
-            tags = {k.replace(".", "_"): v for k, v in llmobs_data.get(LLMOBS_STRUCT.TAGS, {}).items()}
+            # replace them with underscores before encoding. It also accepts only one string value
+            # per key, so a multi-valued tag keeps its last value on this path.
+            tags: dict[str, TagValue] = {}
+            for k, v in llmobs_data.get(LLMOBS_STRUCT.TAGS, {}).items():
+                values = _tag_values(v)
+                if values:
+                    tags[k.replace(".", "_")] = values[-1]
             llmobs_data[LLMOBS_STRUCT.TAGS] = tags
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
@@ -874,7 +883,7 @@ class LLMObs(Service):
             if err_type:
                 tags["error_type"] = err_type
 
-        return sorted(f"{k}:{v}" for k, v in tags.items())
+        return sorted(f"{k}:{v}" for k, value in tags.items() for v in _tag_values(value))
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
@@ -1965,7 +1974,8 @@ class LLMObs(Service):
         Annotations are applied in the order in which annotation contexts are entered.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
-                     regarding the span's context.
+                     regarding the span's context. A list value sets several values for the same key,
+                     e.g. ``{"resource": ["dashboard:abc", "audience:team"]}``.
         :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only),
                           emitted based on this span. Each key must already exist on the span—via the `tags` argument
                           in this call, a prior annotation on the same span, or an integration.
@@ -3070,7 +3080,8 @@ class LLMObs(Service):
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
-                     regarding the span's context.
+                     regarding the span's context. A list value sets several values for the same key,
+                     e.g. ``{"resource": ["dashboard:abc", "audience:team"]}``.
         :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only),
                           emitted based on this span. Each key must already exist on the span—via the `tags` argument
                           in this call, a prior annotation on the same span, or an integration.
@@ -3126,7 +3137,9 @@ class LLMObs(Service):
                 else:
                     session_id = tags.get("session_id")
                     if session_id:
-                        _annotate_llmobs_span_data(span, session_id=str(session_id))
+                        _annotate_llmobs_span_data(
+                            span, session_id=cast(str, _normalize_tag_value("session_id", session_id))
+                        )
                     _annotate_llmobs_span_data(span, tags=tags)
             if agent is not None:
                 agent_version = agent.get("version") if isinstance(agent, dict) else None
