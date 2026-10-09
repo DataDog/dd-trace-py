@@ -3066,10 +3066,13 @@ class LLMObs(Service):
         :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
                       ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
                       ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag on
-                      the agent span and its child spans within the same process. The rest is
-                      reported as the agent's manifest, on agent spans only. All keys are optional;
-                      unreportable values are dropped, not raised, and an unset value leaves what
-                      an earlier annotation declared in place.
+                      the agent span and its child spans within the same process. Each span copies
+                      the version from its direct parent when it starts, so a version set after the
+                      agent has started only reaches spans started directly under the agent after
+                      this call, and their descendants. The rest is reported as the agent's
+                      manifest, on agent spans only. All keys are optional; unreportable values are
+                      dropped, not raised, and an unset value leaves what an earlier annotation
+                      declared in place.
         """
         error = None
         try:
