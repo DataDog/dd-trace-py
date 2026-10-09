@@ -563,6 +563,37 @@ def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
     mock_llmobs_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
 
 
+@pytest.mark.parametrize("kind", ["llm", "embedding", "tool", "task", "workflow", "agent", "retrieval"])
+def test_manual_span_sets_apm_shadow_tags(llmobs, kind):
+    with getattr(llmobs, kind)() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == kind
+    assert span.get_metric("_dd.llmobs.enabled") == 1
+
+
+def test_manual_llm_span_sets_apm_shadow_model_tags(llmobs):
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_tag("_dd.llmobs.model_provider") == "test_provider"
+
+
+def test_manual_llm_span_skips_unknown_apm_shadow_model_tags(llmobs):
+    with llmobs.llm() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") is None
+    assert span.get_tag("_dd.llmobs.model_provider") is None
+
+
+def test_manual_span_sets_apm_shadow_tags_while_disabled(llmobs):
+    llmobs.disable()
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+
+
 def test_start_span_uses_kind_as_default_name(llmobs):
     with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
         assert span.name == "llm"

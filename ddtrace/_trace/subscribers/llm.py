@@ -14,6 +14,7 @@ from ddtrace.internal.span_bus import span_from_context
 # Duplicated from ddtrace.llmobs._constants to avoid importing
 # ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
 _PROXY_REQUEST = "llmobs.proxy_request"
+_LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
 
 log = get_logger(__name__)
@@ -47,7 +48,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._remove_attribute(COMPONENT)
         span._remove_attribute(SPAN_KIND)
 
-        if event.llmobs_integration is None:
+        if event.submit_to_llmobs:
             core.dispatch(LlmEvents.SPAN_STARTED.value, (ctx,))
             return
 

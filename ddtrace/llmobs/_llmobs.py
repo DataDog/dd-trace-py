@@ -78,6 +78,10 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
@@ -2652,6 +2656,10 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+        try:
+            self._set_apm_shadow_tags(span, operation_kind, model_name, model_provider)
+        except Exception:
+            log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
 
         if not self.enabled:
             return span
@@ -2680,6 +2688,25 @@ class LLMObs(Service):
             agent_service,
         )
         return span
+
+    def _set_apm_shadow_tags(
+        self,
+        span: Span,
+        span_kind: str,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+    ) -> None:
+        """Set LLMObs shadow tags on the APM span of a manually instrumented span.
+
+        Runs whether or not LLMObs is enabled, so the enabled metric reports 0 for spans that have no
+        LLMObs data.
+        """
+        span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
+        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.enabled else 0)
+        if model_name and model_name != UNKNOWN_MODEL_NAME:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
+        if model_provider and model_provider != UNKNOWN_MODEL_PROVIDER:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
 
     @classmethod
     def llm(

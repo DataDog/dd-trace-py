@@ -15,6 +15,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.writer import serialize_suite
 
 
 class TestModuleRef:
@@ -327,3 +328,44 @@ class TestITRTestSkippingEnabledTags:
             item.start()
             item.finish()
             assert item.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] == expected
+
+
+class TestSuiteITRReporting:
+    @pytest.mark.parametrize("level", [ITRSkippingLevel.TEST, ITRSkippingLevel.SUITE])
+    @pytest.mark.parametrize("itr_enabled,reporting_enabled", [(True, True), (False, True), (True, False)])
+    @pytest.mark.parametrize(
+        "outcomes,skipped",
+        [
+            ([], False),
+            (["pass", "skip"], False),
+            (["itr", "pass"], True),
+            (["itr", "fail"], True),
+            (["itr", "itr"], True),
+            (["suite"], True),
+        ],
+    )
+    def test_serialized_suite_indicator(self, level, itr_enabled, reporting_enabled, outcomes, skipped):
+        session = TestSession("pytest")
+        session.set_itr_attributes(itr_enabled, True, level)
+        session.itr_suite_reporting_enabled = reporting_enabled
+        module, _ = session.get_or_create_child("module")
+        suite, _ = module.get_or_create_child("suite")
+        suite.start()
+        for index, outcome in enumerate(outcomes):
+            if outcome == "suite":
+                suite.mark_skipped_by_itr()
+            else:
+                test, _ = suite.get_or_create_child(str(index))
+                if outcome == "itr":
+                    test.mark_skipped_by_itr()
+                test.set_status(TestStatus.SKIP if outcome == "itr" else TestStatus(outcome))
+        status = suite.get_status()
+        suite.finish()
+        content = serialize_suite(suite)["content"]
+        assert content["meta"]["test.status"] == status.value
+        if itr_enabled and reporting_enabled:
+            assert content["metrics"][TestTag.ITR_TESTS_SKIPPING_COUNT] == int(skipped)
+            assert content["meta"][TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("true" if skipped else "false")
+        else:
+            assert TestTag.ITR_TESTS_SKIPPING_COUNT not in content["metrics"]
+            assert TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED not in content["meta"]

@@ -978,6 +978,48 @@ def test_memory_collector_allocation_during_shutdown() -> None:
             allocation_thread.join(timeout=1)
 
 
+@pytest.mark.subprocess(err=None)
+def test_m_free_uninstalls_hooks_deterministic() -> None:
+    """Deterministic regression for the m_free fix.
+
+    Forcing module collection from Python is unreliable: importlib machinery,
+    __spec__, __loader__, and parent-package attributes all hold back-references
+    that survive gc.collect(), so m_free never fires through the GC path in a
+    unit test context.
+
+    Instead we use _test_invoke_module_free() and _test_m_free_registered(),
+    test hooks compiled unconditionally into the extension, to invoke and verify
+    the cleanup path directly.
+    """
+    import pytest
+
+    from ddtrace.profiling.collector import _memalloc
+
+    _memalloc.start(64, 1, False)
+
+    # hooks are active before we invoke module_free.
+    _memalloc.heap()  # must not raise
+
+    # Verify that m_free is actually registered in module_def. Calling
+    # _test_invoke_module_free() directly tests the cleanup logic but not the
+    # registration at line 543 of _memalloc.cpp.
+    assert _memalloc._test_m_free_registered(), (
+        "module_def.m_free is not set to memalloc_module_free — "
+        "the finalizer is not registered and CPython will never call it"
+    )
+
+    # Directly invoke the module-free cleanup (same logic CPython calls on
+    # module deallocation during interpreter shutdown).
+    _memalloc._test_invoke_module_free()
+
+    # Post-condition: memalloc_enabled must be false and hooks must be gone.
+    with pytest.raises(RuntimeError, match="not started"):
+        _memalloc.heap()
+
+    # Allocations must not crash (OBJ/MEM domain restored to original allocator).
+    _ = ["post-free alloc" + str(i) for i in range(500)]
+
+
 def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
     """Test that the memory collector handles buffer pool exhaustion.
     This test creates multiple threads that simultaneously allocate with very deep
@@ -1027,44 +1069,45 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
 
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        # Get sample type indices
-        alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
-        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+    # Stop collection before analysing the profile so assertion allocations are not profiled.
+    # Get sample type indices
+    alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
+    assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        deep_alloc_total_count = 0
-        max_stack_depth = 0
-        sampled_thread_ids: set[int] = set()
+    deep_alloc_total_count = 0
+    max_stack_depth = 0
+    sampled_thread_ids: set[int] = set()
 
-        for sample in profile.sample:
-            # Buffer pool test: All samples should have stack frames
-            assert len(sample.location_id) > 0, "Buffer pool test: All samples should have stack frames"
-            stack_depth = len(sample.location_id)
-            max_stack_depth = max(max_stack_depth, stack_depth)
+    for sample in profile.sample:
+        # Buffer pool test: All samples should have stack frames
+        assert len(sample.location_id) > 0, "Buffer pool test: All samples should have stack frames"
+        stack_depth = len(sample.location_id)
+        max_stack_depth = max(max_stack_depth, stack_depth)
 
-            if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
-                # Samples with identical stack traces are merged in pprof profiles,
-                # so we need to sum the alloc-samples count value
-                deep_alloc_total_count += sample.value[alloc_count_idx]
-                # Track which threads got sampled
-                thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
-                if thread_id_label is not None:
-                    sampled_thread_ids.add(thread_id_label.num)
+        if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
+            # Samples with identical stack traces are merged in pprof profiles,
+            # so we need to sum the alloc-samples count value
+            deep_alloc_total_count += sample.value[alloc_count_idx]
+            # Track which threads got sampled
+            thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+            if thread_id_label is not None:
+                sampled_thread_ids.add(thread_id_label.num)
 
-        assert deep_alloc_total_count >= 10, (
-            f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
-        )
+    assert deep_alloc_total_count >= 10, (
+        f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+    )
 
-        # Verify we got samples from all threads
-        assert sampled_thread_ids == thread_ids, (
-            f"Buffer pool test: Expected samples from all {num_threads} threads, "
-            f"but only got samples from {len(sampled_thread_ids)} threads. "
-            f"Missing: {thread_ids - sampled_thread_ids}"
-        )
+    # Verify we got samples from all threads
+    assert sampled_thread_ids == thread_ids, (
+        f"Buffer pool test: Expected samples from all {num_threads} threads, "
+        f"but only got samples from {len(sampled_thread_ids)} threads. "
+        f"Missing: {thread_ids - sampled_thread_ids}"
+    )
 
-        assert max_stack_depth >= 50, (
-            f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
-            f"but max depth was only {max_stack_depth}"
-        )
+    assert max_stack_depth >= 50, (
+        f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
+        f"but max depth was only {max_stack_depth}"
+    )
 
 
 def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
@@ -1104,14 +1147,13 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        worker_samples = 0
-        for sample in profile.sample:
-            if has_function_in_profile_sample(profile, sample, worker):
-                worker_samples += 1
+    # Stop collection before analysing the profile so assertion allocations are not profiled.
+    worker_samples = 0
+    for sample in profile.sample:
+        if has_function_in_profile_sample(profile, sample, worker):
+            worker_samples += 1
 
-        assert worker_samples > 0, (
-            "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
-        )
+    assert worker_samples > 0, "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
 
 
 def test_start_twice() -> None:

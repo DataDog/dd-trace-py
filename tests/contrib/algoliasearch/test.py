@@ -1,3 +1,7 @@
+import importlib
+import sys
+from unittest import mock
+
 from ddtrace import config
 from ddtrace._monkey import _patch_all
 from ddtrace.contrib.internal.algoliasearch.patch import algoliasearch_version
@@ -236,3 +240,34 @@ class AlgoliasearchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].name == "algoliasearch.search.request"
         unpatch()
+
+
+def _reload_patch_module():
+    return importlib.reload(sys.modules["ddtrace.contrib.internal.algoliasearch.patch"])
+
+
+# get_version() has to return a string: the telemetry writer rejects other types and the
+# resulting TypeError escapes into whichever import triggered patching, taking the
+# application down with it.
+def test_get_version_without_version_submodule():
+    # algoliasearch >= 4 replaced the version submodule with a package level __version__.
+    import algoliasearch
+
+    try:
+        with (
+            mock.patch.dict(sys.modules, {"algoliasearch.version": None}),
+            mock.patch.object(algoliasearch, "__version__", "4.44.4", create=True),
+        ):
+            module = _reload_patch_module()
+            assert module.get_version() == "4.44.4"
+    finally:
+        _reload_patch_module()
+
+
+def test_get_version_without_algoliasearch_installed():
+    try:
+        with mock.patch.dict(sys.modules, {"algoliasearch": None}):
+            module = _reload_patch_module()
+            assert module.get_version() == ""
+    finally:
+        _reload_patch_module()
