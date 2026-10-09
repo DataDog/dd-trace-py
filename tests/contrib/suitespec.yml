@@ -431,6 +431,7 @@ suites:
       - azureservicebusemulator
   botocore:
     parallelism: 11
+    no_proxy: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -770,12 +771,14 @@ suites:
       - '@tracing'
       - '@httplib'
       - tests/contrib/httplib/*
+    no_proxy: true
     runner: riot
     services:
       - httpbin
     snapshot: true
   httpx:
     parallelism: 3
+    no_proxy: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1108,6 +1111,7 @@ suites:
     snapshot: true
   requests:
     parallelism: 1
+    no_proxy: true
     paths:
       - '@bootstrap'
       - '@core'

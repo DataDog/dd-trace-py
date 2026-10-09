@@ -49,6 +49,7 @@ from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.openfeature import config as ffe_config
@@ -145,6 +146,7 @@ def override_global_config(values):
         "_trace_compute_stats",
         "_trace_resource_renaming_always_simplified_endpoint",
         "_obfuscation_query_string_pattern",
+        "_query_string_obfuscation_preserve_delimiter",
         "_global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
@@ -191,6 +193,11 @@ def override_global_config(values):
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
+    if "_obfuscation_query_string_pattern" in values and "_query_string_obfuscation_preserve_delimiter" not in values:
+        pattern = values["_obfuscation_query_string_pattern"]
+        ddtrace.config._query_string_obfuscation_preserve_delimiter = (
+            pattern is not None and pattern.pattern == DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode("ascii")
+        )
     # rebuild asm config from env vars and global config
     for key, value in values.items():
         if key in asm_config_keys:

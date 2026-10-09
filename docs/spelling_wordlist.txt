@@ -169,6 +169,7 @@ langchain
 langchain_community
 libdatadog
 libddwaf
+lication
 lifecycle
 linters
 litellm

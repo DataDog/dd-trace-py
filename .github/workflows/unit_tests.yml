@@ -25,7 +25,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions-rust-lang/setup-rust-toolchain@9d7e65c320fdb52dcd45ffaa68deb6c02c8754d9 # v1.12.0
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
       - name: Install latest stable toolchain and rustfmt
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
 
