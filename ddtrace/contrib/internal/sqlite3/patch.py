@@ -8,10 +8,10 @@ from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -43,11 +43,7 @@ def patch():
     _w(sqlite3, "connect", traced_connect)
     _w(sqlite3.dbapi2, "connect", traced_connect)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-
-        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
+    core.dispatch("sqlite3.patch", ())
 
 
 def unpatch():
