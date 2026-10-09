@@ -7,6 +7,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from typing import Any
 from typing import Optional
 
@@ -14,6 +15,28 @@ import yaml
 
 
 SHOULD_PROFILE = os.environ.get("PROFILE_BENCHMARKS", "0") == "1"
+
+
+def append_placement_record(
+    output_dir: str, cname: str, cpus: Optional[list[int]], start: float, end: float, pid: int
+) -> None:
+    # EXPERIMENT (do not merge): join key between a config's result and the CPU
+    # watch's per-core samples -- which CPUs the config ran on and when. The
+    # side (candidate/baseline) is the output dir's name; run-benchmarks.sh
+    # passes "$ARTIFACTS_DIR/<side>" as output_dir. Written after the config
+    # finishes so the timed path is unchanged. See PR #20052 / APMSP-4059.
+    side = os.path.basename(os.path.normpath(output_dir))
+    record = {
+        "scenario": os.environ.get("SCENARIO"),
+        "side": side,
+        "config": cname,
+        "cpus": cpus,
+        "start": start,
+        "end": end,
+        "pid": pid,
+    }
+    with open(os.path.join(output_dir, "placement.jsonl"), "a") as fp:
+        fp.write(json.dumps(record) + "\n")
 
 
 def read_config(path):
@@ -85,7 +108,9 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
             cmd.append(str(cvarval))
 
     proc = subprocess.Popen(cmd)
+    start = time.time()
     proc.wait()
+    append_placement_record(output_dir, cname, cpus, start, time.time(), proc.pid)
 
 
 if __name__ == "__main__":
