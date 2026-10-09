@@ -8,6 +8,7 @@ from langgraph.graph import StateGraph
 import pytest
 
 from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
+from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 
 from .conftest import State
 
@@ -77,6 +78,14 @@ async def test_simple_graph_async(simple_graph, test_spans):
     await simple_graph.ainvoke({"a_list": [], "which": "a"})
     spans = test_spans.pop_traces()[0]
     assert_simple_graph_spans(spans)
+
+
+def test_graph_instance_not_retained_without_llmobs(simple_graph, test_spans):
+    """With LLM Observability off, graph spans must not be mapped to their graph instances."""
+    simple_graph.invoke({"a_list": [], "which": "a"})
+    spans = test_spans.pop_traces()[0]  # keep the spans alive so weak entries can't vanish on their own
+    assert_simple_graph_spans(spans)
+    assert len(LangGraphIntegration._graph_spans_to_graph_instances) == 0
 
 
 def test_simple_graph_stream(simple_graph, test_spans):
