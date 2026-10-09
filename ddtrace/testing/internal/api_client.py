@@ -141,7 +141,15 @@ class APIClient:
         known_test_ids: set[TestRef] = set()
         max_pages = _get_known_tests_max_pages()
 
+        pages_fetched = 0
+        total_request_ms = 0.0
+        from ddtrace.internal.utils.time import StopWatch
+
+        fetch_sw = StopWatch()
+        fetch_sw.start()
+
         for page_number in range(max_pages):
+            pages_fetched += 1
             # First page: empty page_info lets backend use its default max (10k).
             # Subsequent pages: only send page_state.
             page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
@@ -168,8 +176,12 @@ class APIClient:
                 return set()
 
             try:
+                request_sw = StopWatch()
+                request_sw.start()
                 result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
                 result.on_error_raise_exception()
+                request_sw.stop()
+                total_request_ms += request_sw.elapsed() * 1000
 
             except Exception as e:
                 log.warning("Error getting known tests from API: %s", e)
@@ -218,7 +230,11 @@ class APIClient:
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
             return set()
 
+        fetch_sw.stop()
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
+        self.telemetry_api.record_known_tests_pages_fetched(pages_fetched)
+        self.telemetry_api.record_known_tests_total_fetch_ms(fetch_sw.elapsed() * 1000)
+        self.telemetry_api.record_known_tests_total_request_ms(total_request_ms)
         return known_test_ids
 
     def get_test_management_properties(
