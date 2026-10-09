@@ -34,12 +34,7 @@ MAX_TOTAL_TEST_JOBS = 600
 # changed files would select. Jobs stay per-scenario, so per-job CI
 # configuration is unchanged. Set to None to restore normal generation.
 BENCHMARK_SCENARIO_ALLOWLIST = (
-    "span",
-    "tracer",
-    "telemetry_add_metric",
-    "http_propagation_inject",
-    "appsec_iast_aspects_ospath",
-    "appsec_iast_aspects_split",
+    # overhead-check run: control scenario only, watch off
     "recursive_computation",
 )
 # Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
