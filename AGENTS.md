@@ -154,3 +154,19 @@ Existing anchors were removed from the repository (#20143).
 - CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
   lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
   its tests are excluded because they document or exercise the deprecation.
+
+## rST Markup in tests/ and scripts/
+
+Neither `tests/` nor `scripts/` is Sphinx-rendered (no `automodule` directive
+under `docs/` points at either), so per the Docstrings and Comments convention
+above, any reStructuredText double-backtick literal (`` ``like_this`` ``) added
+there is always noise, not a documentation requirement.
+
+- CI (`scripts/check_no_rst_markup_in_prose.py`) blocks new `` ``double-backtick``
+  `` literals added under `tests/` or `scripts/` on added diff lines only;
+  pre-existing occurrences elsewhere are not retroactively flagged. The
+  checker script and its own test are excluded since they document/exercise
+  the pattern being banned.
+- Write identifiers as plain text instead, for example `finish()` rather than
+  ``` ``finish()`` ```.
+
