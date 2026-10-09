@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    LLM Observability: Adds support for tracing OpenAI Decisions API calls (``client.decisions.create``). Each call
-    records the input, questions, and answers, and stores each answer under ``metadata.decisions`` for filtering.
+    LLM Observability: Adds support for tracing OpenAI Decisions API calls (``client.decisions.create``), capturing the
+    input, questions, answers, and token usage.

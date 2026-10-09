@@ -31,7 +31,6 @@ from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instr
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _inline_image_budget
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
-from ddtrace.llmobs._integrations.utils import _openai_decision_from_answer
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_messages
 from ddtrace.llmobs._integrations.utils import format_image_part
@@ -1917,44 +1916,3 @@ class TestAnthropicToolDefinitions:
         assert get_tool_definitions_from_anthropic_tools(tools) == [
             {"name": "deferred", "description": "", "schema": {}}
         ]
-
-
-class TestOpenAIDecisionFromAnswer:
-    def test_choice_drops_probabilities_and_adds_selection(self):
-        answer = {
-            "type": "choice",
-            "name": "department",
-            "choice": "billing",
-            "confidence": 0.93,
-            "probabilities": [{"value": "billing", "probability": 0.93}],
-        }
-        assert _openai_decision_from_answer(answer) == {
-            "type": "choice",
-            "question": "department",
-            "choice": "billing",
-            "confidence": 0.93,
-            "selection": "department:billing",
-        }
-
-    def test_boolean_choice_selection(self):
-        answer = {"type": "choice", "name": "approve", "choice": True, "confidence": 0.8}
-        assert _openai_decision_from_answer(answer)["selection"] == "approve:true"
-
-    def test_unnamed_answer_has_no_question_or_selection(self):
-        assert _openai_decision_from_answer({"type": "choice", "choice": "billing"}) == {
-            "type": "choice",
-            "choice": "billing",
-        }
-
-    @pytest.mark.parametrize(
-        ("question", "choice", "selection"),
-        [
-            ("a:b", "c", "a%3Ab:c"),
-            ("a", "b:c", "a:b%3Ac"),
-            ("50%", "c", "50%25:c"),
-            ("a%3Ab", "c", "a%253Ab:c"),
-        ],
-    )
-    def test_selection_encoding(self, question, choice, selection):
-        answer = {"type": "choice", "name": question, "choice": choice}
-        assert _openai_decision_from_answer(answer)["selection"] == selection

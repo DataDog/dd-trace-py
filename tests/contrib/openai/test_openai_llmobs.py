@@ -77,18 +77,6 @@ DECISION_QUESTIONS = [
     {"type": "predicate", "name": "needs_refund", "instructions": "Is the customer asking for a refund?"},
     {"type": "predicate", "name": "legal_threat", "instructions": "Is the customer threatening legal action?"},
 ]
-DECISION_EXPECTED_DECISIONS = [
-    {
-        "type": "choice",
-        "question": "department",
-        "choice": "billing",
-        "confidence": 0.93,
-        "selection": "department:billing",
-    },
-    {"type": "score", "question": "severity", "score": 1.1, "confidence": 0.55},
-    {"type": "predicate", "question": "needs_refund", "probability": 0.92},
-    {"type": "refusal", "question": "legal_threat"},
-]
 
 
 class TestLLMObsOpenaiV1:
@@ -2498,7 +2486,7 @@ MUL: "*"
                     "content": safe_json([a.model_dump(mode="json", exclude_none=True) for a in resp.answers]),
                 }
             ],
-            metadata={"questions": DECISION_QUESTIONS, "decisions": DECISION_EXPECTED_DECISIONS},
+            metadata={"questions": DECISION_QUESTIONS},
             metrics={
                 "input_tokens": 168,
                 "output_tokens": 4,
@@ -2509,6 +2497,7 @@ MUL: "*"
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+        assert "decisions" not in get_llmobs_metadata(spans[0])
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
@@ -2526,7 +2515,7 @@ MUL: "*"
             model_name="gpt-6-luna",
             model_provider="openai",
             input_messages=[{"content": DECISION_INPUT, "role": "user"}],
-            metadata={"questions": DECISION_QUESTIONS, "decisions": DECISION_EXPECTED_DECISIONS},
+            metadata={"questions": DECISION_QUESTIONS},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
@@ -2553,7 +2542,6 @@ MUL: "*"
             error=mock.ANY,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
-        assert "decisions" not in get_llmobs_metadata(spans[0])
         assert spans[0].error == 1
 
     @pytest.mark.skipif(
