@@ -11,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
@@ -140,9 +141,10 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
-            span._set_attribute("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
+            if (query_text := get_argument_value(wrapt_args, wrapt_kwargs, 0, "query", optional=True)) is not None:
+                span._set_attribute("query.text", query_text)
 
-        query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
+        query_args = get_argument_value(wrapt_args, wrapt_kwargs, 1, function_query_arg_name, optional=True)
 
         if query_args and isinstance(query_args, dict):
             for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
