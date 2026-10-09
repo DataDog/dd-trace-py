@@ -42,7 +42,9 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.testing.internal.pytest.benchmark import BENCHMARK_INFO_TAG as BENCHMARK_INFO
+
+
+BENCHMARK_INFO = BENCHMARK_TAG_MAP["duration_info"]
 
 
 log = get_logger(__name__)
