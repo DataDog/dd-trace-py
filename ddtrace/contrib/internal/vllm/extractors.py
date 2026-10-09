@@ -61,6 +61,23 @@ def get_embedding_shape(tensor) -> tuple[int, Optional[int]]:
     return first, last
 
 
+def get_num_cached_tokens(req_state: RequestState, engine_core_output: EngineCoreOutput) -> int:
+    """Return the number of prefix-cached prompt tokens across vLLM versions.
+
+    vLLM < 0.20 sends num_cached_tokens on every EngineCoreOutput. vLLM >= 0.20 replaced it with
+    prefill_stats, which is only sent on a request's first output, so later outputs fall back to the
+    value RequestState kept from earlier iterations.
+    """
+    num_cached_tokens = getattr(engine_core_output, "num_cached_tokens", None)
+    if num_cached_tokens is None:
+        prefill_stats = getattr(engine_core_output, "prefill_stats", None)
+        if prefill_stats is not None:
+            num_cached_tokens = getattr(prefill_stats, "num_cached_tokens", None)
+        else:
+            num_cached_tokens = getattr(req_state, "num_cached_tokens", None)
+    return int(num_cached_tokens or 0)
+
+
 def extract_request_data(req_state: RequestState, engine_core_output: EngineCoreOutput) -> RequestData:
     """Extract request data from engine-side structures.
 
@@ -85,7 +102,7 @@ def extract_request_data(req_state: RequestState, engine_core_output: EngineCore
         prompt=prompt_text,
         input_tokens=req_state.prompt_len or 0,
         lora_name=req_state.lora_name,
-        num_cached_tokens=engine_core_output.num_cached_tokens,
+        num_cached_tokens=get_num_cached_tokens(req_state, engine_core_output),
         temperature=req_state.temperature,
         top_p=req_state.top_p,
         n=req_state.n,

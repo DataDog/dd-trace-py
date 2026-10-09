@@ -1,3 +1,9 @@
+from types import SimpleNamespace
+
+import pytest
+
+from ddtrace.contrib.internal.vllm.extractors import extract_request_data
+from ddtrace.contrib.internal.vllm.extractors import get_num_cached_tokens
 from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
 
 
@@ -243,3 +249,60 @@ class TestParsePromptToMessages:
         result = parse_prompt_to_messages(prompt)
         assert len(result) == 2
         assert result[0] == {"role": "system", "content": "Line 1\nLine 2\nLine 3"}
+
+
+def _req_state(num_cached_tokens=0):
+    return SimpleNamespace(
+        prompt="hello",
+        prompt_token_ids=[1, 2, 3],
+        prompt_len=3,
+        detokenizer=SimpleNamespace(output_text="world"),
+        lora_name=None,
+        temperature=0.5,
+        top_p=1.0,
+        n=1,
+        max_tokens_param=16,
+        num_cached_tokens=num_cached_tokens,
+    )
+
+
+def _legacy_output(num_cached_tokens):
+    """EngineCoreOutput shape for vLLM < 0.20."""
+    return SimpleNamespace(pooling_output=None, finish_reason=None, num_cached_tokens=num_cached_tokens)
+
+
+def _output(prefill_stats=None):
+    """EngineCoreOutput shape for vLLM >= 0.20, which has no num_cached_tokens attribute."""
+    return SimpleNamespace(pooling_output=None, finish_reason=None, prefill_stats=prefill_stats)
+
+
+@pytest.mark.no_gpu
+class TestGetNumCachedTokens:
+    def test_legacy_output_attribute(self):
+        assert get_num_cached_tokens(_req_state(), _legacy_output(7)) == 7
+
+    def test_prefill_stats_on_first_output(self):
+        output = _output(prefill_stats=SimpleNamespace(num_cached_tokens=5))
+        assert get_num_cached_tokens(_req_state(), output) == 5
+
+    def test_falls_back_to_request_state_after_first_output(self):
+        assert get_num_cached_tokens(_req_state(num_cached_tokens=4), _output()) == 4
+
+    def test_defaults_to_zero(self):
+        assert get_num_cached_tokens(SimpleNamespace(), SimpleNamespace()) == 0
+
+
+@pytest.mark.no_gpu
+class TestExtractRequestData:
+    def test_engine_core_output_without_num_cached_tokens(self):
+        """vLLM >= 0.20 removed EngineCoreOutput.num_cached_tokens; extraction must not raise (MLOS-950)."""
+        data = extract_request_data(_req_state(num_cached_tokens=2), _output())
+        assert data.num_cached_tokens == 2
+        assert data.prompt == "hello"
+        assert data.input_tokens == 3
+        assert data.output_text == "world"
+        assert data.max_tokens == 16
+
+    def test_legacy_engine_core_output(self):
+        data = extract_request_data(_req_state(), _legacy_output(3))
+        assert data.num_cached_tokens == 3
