@@ -120,6 +120,20 @@ def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_TAGS": "deployment.environment.name:tag_env"})
+def test_otel_logs_resource_preserves_stable_environment_tag():
+    from ddtrace.internal.opentelemetry.logs import _build_resource
+
+    resource = _build_resource()
+    assert resource is not None
+    assert resource.attributes["deployment.environment.name"] == "tag_env"
+    assert "deployment.environment" not in resource.attributes
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
 def test_otel_logs_support_enabled():
     """Test OpenTelemetry logs exporter auto-configuration when DD_LOGS_OTEL_ENABLED is set."""

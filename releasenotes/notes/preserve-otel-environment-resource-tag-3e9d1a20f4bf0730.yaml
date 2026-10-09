@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    otel: Fixes an issue where ``deployment.environment.name`` set in ``DD_TAGS`` was replaced by an empty value in OTLP log and metric resources when ``DD_ENV`` was unset.
