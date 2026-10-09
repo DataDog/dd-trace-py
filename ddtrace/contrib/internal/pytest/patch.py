@@ -8,4 +8,4 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"pytest": ">=7.4.4"}
+    return {"pytest": ">=6.0"}

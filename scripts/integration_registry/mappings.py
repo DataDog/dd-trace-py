@@ -7,7 +7,6 @@ EXCLUDED_FROM_TESTING = {
     "asgi",
     "wsgi",
     "boto",
-    "pytest",
     "pytest_bdd",
     "pytest_benchmark",
     "urllib",
