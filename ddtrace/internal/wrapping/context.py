@@ -123,10 +123,9 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
 _STORAGE_OWNER = "__dd_wrapping_context_owner__"
-# Set in per-call storage when __return__ raises, or entry fails before pushing
-# new storage, so the synthetic unwind does not trigger __exit__. Consumed by
-# _UniversalWrappingContext._exit (bytecode path, >=3.11) and on_py_unwind
-# (sys.monitoring path, >=3.15).
+# Set in per-call storage when __return__ raises, so the synthetic unwind does
+# not trigger __exit__. Consumed by _UniversalWrappingContext._exit (bytecode
+# path, >=3.11) and on_py_unwind (sys.monitoring path, >=3.15).
 _SKIP_EXIT_KEY = "__dd_wrapping_context_skip_exit__"
 
 # Free lists of storage context variables, keyed by variable name.
@@ -875,22 +874,13 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         # ddtrace registers for these events on a given code object.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
-        # PY_RETURN. _SKIP_EXIT_KEY suppresses __exit__ after a failing __return__
-        # or an entry failure before pushing storage for the new call;
-        # a failing __enter__ still exits any contexts that entered before it.
+        # PY_RETURN. A failing __enter__ exits any contexts that entered before
+        # it; _SKIP_EXIT_KEY suppresses __exit__ after a failing __return__.
         # The flag lives in per-call storage (a ContextVar), not a plain attribute,
         # because this same instance is shared across concurrent calls.
 
         def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
-            before = self._storage.get()
-            try:
-                self.__enter__()
-            except BaseException:
-                storage = self._storage.get()
-                if storage is before and storage is not None:
-                    # The pending unwind belongs to the failed call, not its recursive caller.
-                    storage[_SKIP_EXIT_KEY] = True
-                raise
+            self.__enter__()
 
         def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
             self.__return__(retval)

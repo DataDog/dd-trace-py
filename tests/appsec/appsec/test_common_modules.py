@@ -31,7 +31,6 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.wrapping.context import BaseWrappingContext
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 from ddtrace.internal.wrapping.context import wrapping_context_for
@@ -330,59 +329,6 @@ def test_failed_reentrant_enter_exits_previous_contexts_and_restores_storage():
         assert all(context._storage.get() is None for context in (entered, raiser, universal))
     finally:
         raiser.unwrap()
-        entered.unwrap()
-
-
-@pytest.mark.skipif(not is_at_least_py(3, 15), reason="Python 3.15 uses monitoring callbacks for entry")
-@pytest.mark.parametrize("reentrant", [False, True])
-def test_entry_failure_before_storage_push_preserves_outer_call(monkeypatch, reentrant):
-    fail_next = not reentrant
-    original_enter = BaseWrappingContext.__enter__
-    returned = []
-    exited = []
-
-    class _Entered(WrappingContext):
-        def __return__(self, value):
-            returned.append(value)
-            return super().__return__(value)
-
-        def __exit__(self, *exc):
-            exited.append(exc)
-            super().__exit__(*exc)
-
-    def fail_before_push(self):
-        nonlocal fail_next
-        if self is universal and fail_next:
-            fail_next = False
-            raise KeyboardInterrupt("entry interrupted")
-        return original_enter(self)
-
-    def target(value):
-        nonlocal fail_next
-        if value == "outer":
-            outer_storage = [context._storage.get() for context in (entered, universal)]
-            fail_next = True
-            with pytest.raises(KeyboardInterrupt):
-                target("inner")
-            for context, storage in zip((entered, universal), outer_storage):
-                assert context._storage.get() is storage
-        return value
-
-    entered = _Entered(target)
-    entered.wrap()
-    universal = _UniversalWrappingContext.extract(target)
-    monkeypatch.setattr(BaseWrappingContext, "__enter__", fail_before_push)
-    try:
-        if reentrant:
-            assert target("outer") == "outer"
-            assert returned == ["outer"]
-        else:
-            with pytest.raises(KeyboardInterrupt):
-                target("inner")
-            assert returned == []
-        assert exited == []
-        assert all(context._storage.get() is None for context in (entered, universal))
-    finally:
         entered.unwrap()
 
 
