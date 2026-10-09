@@ -357,11 +357,11 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.23.7', aiomysql]
         - name: aiomysql
-          python: ['3.13', '3.14']
-          dependencies: [pytest-randomly, pytest-asyncio, 'aiomysql~=0.1.0']
+          python: ['3.13', '3.14', '3.15']
+          dependencies: [cryptography, pytest-randomly, pytest-asyncio, 'aiomysql~=0.1.0']
         - name: aiomysql
-          python: ['3.13', '3.14']
-          dependencies: [pytest-randomly, pytest-asyncio, aiomysql]
+          python: ['3.13', '3.14', '3.15']
+          dependencies: [cryptography, pytest-randomly, pytest-asyncio, aiomysql]
   aiokafka:
     venvs_per_job: 4
     env:
@@ -411,8 +411,10 @@ suites:
           python: ['3.9']
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=0.16.0']
         - name: aiopg
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.0']
         - name: aiopg
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.4.0']
   algoliasearch:
     venvs_per_job: 5
@@ -518,6 +520,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.23.0']
         - name: asyncpg
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, asyncpg]
         - name: asyncpg
           python: ['3.10']
@@ -931,8 +934,10 @@ suites:
       command: pytest --no-cov {cmdargs} tests/contrib/consul
       variants:
         - name: consul
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['python-consul>=1.1,<1.2', pytest-randomly]
         - name: consul
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [python-consul, pytest-randomly]
   datastreams:
     paths:
@@ -1139,13 +1144,16 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'dogpile.cache~=0.6.0']
         - name: dogpile_cache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'dogpile.cache~=0.9']
         - name: dogpile_cache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'dogpile.cache~=1.0']
         - name: dogpile_cache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, dogpile.cache]
         - name: dogpile_cache
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'dogpile.cache~=1.1']
   dramatiq:
     env:
@@ -1857,9 +1865,10 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'mariadb~=1.0']
         - name: mariadb
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mariadb]
         - name: mariadb
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mariadb~=1.1.2']
   mlflow:
     venvs_per_job: 4
@@ -1935,7 +1944,7 @@ suites:
           python: ['3.11']
           dependencies: [pytest-randomly, mysql-connector-python]
         - name: mysql
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mysql-connector-python]
   mysqlpython:
     paths:
@@ -2053,9 +2062,11 @@ suites:
       command: pytest {cmdargs} tests/contrib/psycopg
       variants:
         - name: psycopg:psycopg2
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'psycopg2-binary~=2.9.2']
           command: pytest {cmdargs} tests/contrib/psycopg2
         - name: psycopg:psycopg2
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, psycopg2-binary]
           command: pytest {cmdargs} tests/contrib/psycopg2
         - name: psycopg
@@ -2068,7 +2079,7 @@ suites:
           python: ['3.12']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.23.7']
         - name: psycopg
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio>=1.0']
   pylibmc:
     venvs_per_job: 5
@@ -2089,6 +2100,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'pylibmc~=1.6.2']
         - name: pylibmc
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pylibmc]
   pymemcache:
     venvs_per_job: 4
@@ -2171,6 +2183,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'pymysql~=1.0']
         - name: pymysql
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pymysql]
   pynamodb:
     venvs_per_job: 6
@@ -2197,7 +2210,7 @@ suites:
           python: ['3.9']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
     venvs_per_job: 1
@@ -2271,6 +2284,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'pyodbc~=4.0.34']
         - name: pyodbc
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pyodbc]
   pyramid:
     paths:
@@ -2533,6 +2547,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: ['responses~=0.16.0', 'cryptography<39', pytest-randomly, 'snowflake-connector-python~=2.9.0']
         - name: snowflake
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['responses~=0.16.0', 'cryptography<39', pytest-randomly, snowflake-connector-python]
         - name: snowflake
           python: ['3.10']
@@ -2578,7 +2593,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.1.0']
         - name: sqlalchemy
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.2.4']
   starlette:
     venvs_per_job: 5
@@ -2874,7 +2889,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', 'yaaredis~=2.0.0']
         - name: yaaredis
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', yaaredis]
   valkey:
     venvs_per_job: 4
@@ -2895,4 +2910,5 @@ suites:
       command: pytest {cmdargs} tests/contrib/valkey
       variants:
         - name: valkey
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [valkey, pytest-randomly, 'pytest-asyncio==0.23.7']
