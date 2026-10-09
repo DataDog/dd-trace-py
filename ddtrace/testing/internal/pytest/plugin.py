@@ -27,6 +27,7 @@ from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -76,7 +77,6 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
-import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import _get_async_flush_events
@@ -1607,8 +1607,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
-    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_addoption(parser)
-
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
     return not asbool(env.get("DD_CIVISIBILITY_ENABLED", "true"))
@@ -1779,7 +1777,10 @@ def pytest_configure(config: pytest.Config) -> None:
         except Exception:
             log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
 
-    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
+    # Disable telemetry dependency collection for test sessions. This used to live in
+    # tracer_api/pytest_hooks.py alongside the IAST integration that was removed from the
+    # plugin; it is not IAST-related, so it is kept here.
+    telemetry_config.DEPENDENCY_COLLECTION = False
 
     # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
