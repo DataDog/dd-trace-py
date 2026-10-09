@@ -117,7 +117,9 @@ async def traced_send(func, instance, args, kwargs):
         service=trace_utils.ext_service(None, config.aiokafka),
         cluster_id=cluster_id,
         tombstone=value is None,
-        message_key=key.decode("utf-8", errors="replace") if key else "None",
+        message_key=(key.decode("utf-8", errors="replace") if isinstance(key, (bytes, bytearray)) else key)
+        if key
+        else "None",
         partition=partition,
     )
 
@@ -204,7 +206,9 @@ async def traced_getone(func, instance, args, kwargs):
         event.received_message = message is not None
 
         if message is not None:
-            message_key = message.key.decode("utf-8", errors="replace") if message.key else None
+            message_key = message.key
+            if isinstance(message_key, (bytes, bytearray)):
+                message_key = message_key.decode("utf-8", errors="replace") if message_key else None
             event.tombstone = message.value is None
             if isinstance(message_key, str):
                 event.message_key = message_key
