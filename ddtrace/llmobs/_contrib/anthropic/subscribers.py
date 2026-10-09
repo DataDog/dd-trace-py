@@ -8,6 +8,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 
@@ -65,6 +66,8 @@ class LLMObsAnthropicSpanStartedSubscriber(LLMObsAnthropicSubscriber):
         event = ctx.event
         span = span_from_context(ctx)
         integration = cls.integration()
+        if event.submit_to_llmobs:
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if integration.llmobs_enabled else 0)
         integration._set_base_span_tags(span, instance=event.instance)
         if integration._is_instrumented_proxy_url(integration._get_base_url(instance=event.instance)):  # type: ignore[arg-type]
             span._set_ctx_item(PROXY_REQUEST, True)

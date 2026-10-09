@@ -48,9 +48,14 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._remove_attribute(COMPONENT)
         span._remove_attribute(SPAN_KIND)
 
-        if event.submit_to_llmobs:
+        if event.llmobs_integration is None:
             core.dispatch(LlmEvents.SPAN_STARTED.value, (ctx,))
             return
+
+        if event.submit_to_llmobs:
+            span._set_attribute(
+                _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if event.llmobs_integration.llmobs_enabled else 0
+            )
 
         event.llmobs_integration._set_base_span_tags(
             span,
