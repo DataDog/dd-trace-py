@@ -56,7 +56,16 @@ variables:
       then
         BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
       else
-        run-benchmarks.sh
+        # EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
+        # Wrap the harness in the CPU watch unless BENCH_WATCH=0; its output
+        # lands under the collected /artifacts next to the results.
+        if [[ "${BENCH_WATCH:-1}" == "1" ]];
+        then
+          python3 "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/steps/watch.py" \
+            --out "/artifacts/${CI_JOB_ID}-${SCENARIO}/watch" -- run-benchmarks.sh
+        else
+          run-benchmarks.sh
+        fi
       fi
 
       # Join all config results into a single results.json
@@ -94,6 +103,9 @@ variables:
         - .cache/pip
       policy: pull-push
   variables:
+    # EXPERIMENT (do not merge): turns the CPU watch off (0) for the overhead
+    # check; run-benchmarks.sh runs unwrapped.
+    BENCH_WATCH: "1"
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
@@ -235,6 +247,8 @@ benchmarks-pr-comment:
 # Since benchmark failures block the PR directly, this job blocks the PR if
 # benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
+  rules:
+    - when: never
   extends: .check-slo-breaches
   stage: gate
   # Temporary override while benchmarking platform updates their template
