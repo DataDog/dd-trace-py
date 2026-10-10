@@ -13,14 +13,12 @@ TEST_HOST = REDISCLUSTER_CONFIG["host"]
 TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def redis_cluster():
     startup_nodes = [redis.asyncio.cluster.ClusterNode(TEST_HOST, int(port)) for port in TEST_PORTS.split(",")]
     yield redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def traced_redis_cluster(tracer, test_spans):
     patch()
