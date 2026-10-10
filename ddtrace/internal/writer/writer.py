@@ -2,6 +2,7 @@ import abc
 import binascii
 from collections import defaultdict
 from collections.abc import Sequence
+from functools import partial
 import gzip
 import os
 import socket
@@ -74,6 +75,7 @@ from .writer_client import WriterClientBase
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.http import HTTPConnection  # noqa:F401
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
     from ddtrace.vendor.dogstatsd import DogStatsd
 
 
@@ -899,6 +901,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._accepting_writes = True
         self._exporter_dropped = False
         self._owner_pid = os.getpid()
+        self._telemetry_writer: Optional[TelemetryWriter] = None
+        self._telemetry_worker_subscribed = False
+        # A MicroVM worker change that arrived while a send held the exporter lock.
+        self._pending_telemetry_worker: Optional[tuple] = None
+        # Serializes publishing a pending worker with a send consuming one, so the newer is not lost.
+        self._pending_telemetry_worker_lock = forksafe.Lock()
 
         # Native exporter methods require exclusive access because PyO3 rejects
         # overlapping mutable borrows.
@@ -911,6 +919,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             if getattr(self, "_owner_pid", None) != os.getpid():
                 return
+            self._unsubscribe_telemetry_worker()
             exporter = getattr(self, "_exporter", None)
             if exporter is not None and not getattr(self, "_exporter_dropped", False):
                 if self._discarded_by_refresh:
@@ -1013,14 +1022,57 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         exporter = builder.build(get_native_runtime())
         if shared_worker is not None:
             exporter.set_telemetry_handle(shared_worker)
-            telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
+            late_callback = (
+                partial(self._on_telemetry_worker_changed, exporter=exporter) if telemetry_writer._is_microvm else None
+            )
+            if telemetry_writer._is_microvm:
+                # Publish before subscribing: worker-change notifications re-point self._exporter,
+                # so a refresh before the caller assigns this result would otherwise miss it.
+                self._exporter = exporter
+                telemetry_writer._subscribe_worker_changes(
+                    self._on_telemetry_worker_changed, shared_worker, late_callback
+                )
+            else:
+                telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed, shared_worker)
+            self._telemetry_writer = telemetry_writer
+            self._telemetry_worker_subscribed = True
         return exporter
 
-    def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
+    def _unsubscribe_telemetry_worker(self) -> None:
+        if not self._telemetry_worker_subscribed:
+            return
+        telemetry_writer = self._telemetry_writer
+        self._telemetry_writer = None
+        self._telemetry_worker_subscribed = False
+        if telemetry_writer is not None:
+            telemetry_writer._unsubscribe_worker_changes(self._on_telemetry_worker_changed)
+
+    def _on_telemetry_worker_changed(
+        self,
+        worker: "Optional[native.TelemetryWorker]",
+        exporter: "Optional[native.TraceExporter]" = None,
+    ) -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
+        # A send holds the exporter lock across its retries, and MicroVM identity refresh rebuilds
+        # the telemetry worker on the /run thread: leave the worker for the next send to apply.
+        if not self._exporter_lock.acquire(blocking=self._writer_lock is None):
+            with self._pending_telemetry_worker_lock:
+                self._pending_telemetry_worker = (worker, exporter)
+            return
         try:
-            with self._exporter_lock:
-                self._exporter.set_telemetry_handle(worker)
+            self._pending_telemetry_worker = None
+            self._set_telemetry_handle(worker, exporter)
+        finally:
+            self._exporter_lock.release()
+
+    def _set_telemetry_handle(
+        self,
+        worker: "Optional[native.TelemetryWorker]",
+        exporter: "Optional[native.TraceExporter]" = None,
+    ) -> None:
+        # Caller holds the exporter lock.
+        try:
+            (exporter if exporter is not None else self._exporter).set_telemetry_handle(worker)
         except Exception:
             log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
@@ -1053,9 +1105,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def shutdown_exporter(self) -> None:
         """Tear down the native exporter without going through ``stop()``."""
+        self._unsubscribe_telemetry_worker()
         self._shutdown_exporter(self._exporter)
 
     def _drop_exporter(self) -> None:
+        self._unsubscribe_telemetry_worker()
         with self._exporter_lock:
             # The refresh, the finishing sender, and on_shutdown() may all get here; only one drops.
             if not self._exporter_dropped:
@@ -1116,13 +1170,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = "v0.4"
             # Built outside the exporter lock: _create_exporter() can take the telemetry enable lock,
             # whose holder notifies _on_telemetry_worker_changed(), which takes the exporter lock.
+            # Read the old exporter first: in MicroVMs _create_exporter() publishes its result.
+            old_exporter = self._exporter
             new_exporter = self._create_exporter()
             with self._exporter_lock:
                 # A refresh may have dropped the exporter since the check above; a replacement
                 # installed now would be skipped by on_shutdown() and leak.
                 discarded = self._discarded_by_refresh
                 if not discarded:
-                    old_exporter, self._exporter = self._exporter, new_exporter
+                    self._exporter = new_exporter
             if discarded:
                 new_exporter.drop()
                 return
@@ -1191,6 +1247,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 # starts after a refresh and none reaches a dropped exporter.
                 if self._discarded_by_refresh:
                     return
+                if self._pending_telemetry_worker is not None:
+                    with self._pending_telemetry_worker_lock:
+                        pending, self._pending_telemetry_worker = self._pending_telemetry_worker, None
+                    self._set_telemetry_handle(*pending)
                 response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
@@ -1396,6 +1456,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def on_shutdown(self):
         if self._exporter_dropped:
+            self._unsubscribe_telemetry_worker()
             return
         if self._discarded_by_refresh:
             # Finish the refresh's discard without the final flush. drop() avoids shutdown()'s stats flush but
@@ -1406,6 +1467,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             self.periodic()
         finally:
+            self._unsubscribe_telemetry_worker()
             self._shutdown_exporter(self._exporter)
 
 
