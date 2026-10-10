@@ -1,4 +1,6 @@
 import asyncio
+import contextvars
+import sys
 import time
 
 import pytest
@@ -114,3 +116,21 @@ async def test_propagation_with_new_context(tracer, test_spans):
     span = traces[0][0]
     assert span.trace_id == 100
     assert span.parent_id == 101
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="create_task(context=...) requires Python 3.11+")
+@pytest.mark.asyncio
+async def test_create_task_uses_explicit_context(tracer, test_spans):
+    task_context = contextvars.Context()
+    task_context.run(tracer.context_provider.activate, Context(trace_id=200, span_id=201))
+    tracer.context_provider.activate(Context(trace_id=100, span_id=101))
+
+    async def child():
+        with tracer.trace("child"):
+            pass
+
+    await asyncio.get_running_loop().create_task(child(), context=task_context)
+
+    span = test_spans.pop_traces()[0][0]
+    assert span.trace_id == 200
+    assert span.parent_id == 201
