@@ -109,6 +109,7 @@ PATCH_MODULES = {
     "tornado": False,
     "trio": True,
     "openai": True,
+    "elevenlabs": True,
     "langchain": True,
     "anthropic": True,
     "crewai": True,

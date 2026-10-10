@@ -28,3 +28,15 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+## ElevenLabs Agents
+
+The ElevenLabs patch module wraps conversation worker lifecycle and uses
+conversation-local WebSocket proxies. It replaces only the SDK's imported
+asynchronous module binding; the global websockets module remains unchanged.
+The SDK's audio interfaces and application callbacks are preserved. See the LLMObs
+implementation guide for per-turn span layout and audio timing eligibility.
+
+Optional raw vad_score events are observed by the same connection-local proxies
+before SDK filtering. They do not require new callbacks, patch points, or event
+subscriptions. See the LLMObs guide for the bounded clip-relative activity schema.

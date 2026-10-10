@@ -1,0 +1,8 @@
+features:
+  - |
+    elevenlabs: Adds LLM Observability support for Python Agents conversations over
+    WebSocket, including conversation audio, transcripts, and client tools. Set
+    ``DD_TRACE_ELEVENLABS_ENABLED=false`` to disable automatic instrumentation.
+    For improved user-speaking colors, enable ``vad_score`` in the agent's
+    Advanced settings under Client Events. Audio playback remains available
+    without this optional event.

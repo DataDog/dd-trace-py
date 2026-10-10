@@ -1379,6 +1379,26 @@
         ]
     },
     {
+        "dependencyName": "elevenlabs",
+        "integrationName": "elevenlabs",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10",
+                        "3.12"
+                    ]
+                },
+                "supportedRange": ">=2.70.0",
+                "tested": [
+                    "2.70.0"
+                ]
+            }
+        ],
+        "pinned": true
+    },
+    {
         "dependencyName": "falcon",
         "integrationName": "falcon",
         "autoInstrumented": true,

@@ -266,6 +266,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "anthropic": "anthropic",
     "bedrock": "botocore",
     "openai": "openai",
+    "elevenlabs": "elevenlabs",
     "langchain": "langchain",
     "google_adk": "google_adk",
     "google_genai": "google_genai",
