@@ -74,6 +74,33 @@ class ParseTests(unittest.TestCase):
             self.assertEqual(probe.parse_irq_effective_affinity(base / "nope"), {})
 
 
+class ScenarioContractTests(unittest.TestCase):
+    """The probe's contract: names say what is measured, units match names."""
+
+    def test_scenario_names_and_units(self):
+        self.assertEqual(
+            probe.SCENARIOS,
+            ("int", "simd", "alloc", "fault", "stream", "mem-read", "mem-write", "gc-read", "gc-write"),
+        )
+        self.assertEqual(
+            probe.SCENARIO_UNITS,
+            {
+                "int": "iterations",
+                "simd": "bytes",
+                "alloc": "objects",
+                "fault": "pages",
+                "stream": "bytes",
+                "mem-read": "accesses",
+                "mem-write": "accesses",
+                "gc-read": "collections",
+                "gc-write": "batches",
+            },
+        )
+        # no stragglers from the latency/gc renames or missing units
+        self.assertEqual(set(probe.SCENARIO_UNITS), set(probe.SCENARIOS))
+        self.assertTrue(set(probe.NATIVE_SCENARIOS) < set(probe.SCENARIOS))
+
+
 class PythonCoreTests(unittest.TestCase):
     """Each core runs for a tiny window and returns positive ops."""
 
@@ -84,7 +111,9 @@ class PythonCoreTests(unittest.TestCase):
             ("fault", lambda: probe.py_fault(0.02)),
             ("simd", lambda: probe.py_memcpy(0.02, *probe.make_memcpy_bufs(1 << 20))),
             ("mem-read", lambda: probe.py_mem_read(0.02, probe.build_mem_read_table(1 << 20))),
+            ("mem-write", lambda: probe.py_mem_write(0.02, probe.build_mem_write_table(1 << 20))),
             ("gc-read", lambda: probe.py_gc_read(0.02, 2000)),
+            ("gc-write", lambda: probe.py_gc_write(0.02, pool_size=512)),
         ):
             with self.subTest(scenario=name):
                 ops, seconds = fn()
@@ -105,6 +134,34 @@ class PythonCoreTests(unittest.TestCase):
             if idx == 0:
                 break
         self.assertEqual(length, n)
+
+    def test_mem_write_table_is_one_full_cycle(self):
+        # mem-write's trail is the same Sattolo single cycle, over the
+        # even (trail) slots of the interleaved pairs
+        tbl = probe.build_mem_write_table(1 << 12)
+        n = len(tbl) // 2
+        idx = 0
+        length = 0
+        while True:
+            idx = tbl[idx]
+            length += 1
+            if idx == 0:
+                break
+        self.assertEqual(length, n)
+        # the chase stays on trail (even) slots; the odd slots are targets
+        self.assertEqual(sorted(tbl[0::2]), list(range(0, 2 * n, 2)))
+
+    def test_py_mem_write_stores_and_preserves_trail(self):
+        # name fidelity: the write path must actually store (slots change)
+        # while the single-cycle trail is left untouched (writes hit the
+        # slot sharing the line, never the trail entry)
+        tbl = probe.build_mem_write_table(1 << 12)
+        before = list(tbl)
+        ops, seconds = probe.py_mem_write(0.02, tbl)
+        self.assertGreater(ops, 0)
+        self.assertGreater(seconds, 0.0)
+        self.assertNotEqual(list(tbl[1::2]), before[1::2])
+        self.assertEqual(list(tbl[0::2]), before[0::2])
 
     def test_rep_times(self):
         self.assertEqual(probe.rep_times([(100, 1.0), (200, 1.0), (0, 1.0)]), [0.01, 0.005])
@@ -146,6 +203,49 @@ class GCReadCoreTests(unittest.TestCase):
         ops, seconds = probe.py_gc_read(0.05, n=3000)
         self.assertGreater(ops, 0)
         self.assertGreater(seconds, 0.0)
+
+
+class GCWriteCoreTests(unittest.TestCase):
+    """The gc-write scenario: churn in a recycled pool, no forced collect."""
+
+    def test_py_gc_write_runs_and_returns_batches(self):
+        ops, seconds = probe.py_gc_write(0.05, pool_size=512)
+        self.assertGreater(ops, 0)
+        self.assertGreater(seconds, 0.0)
+
+    def test_py_gc_write_never_forces_collect(self):
+        # name fidelity: gc-read times forced collections; gc-write must
+        # not -- a counting stand-in has to see zero gc.collect() calls
+        # while the churn runs
+        import gc as gc_module
+
+        calls = []
+        original = gc_module.collect
+        gc_module.collect = lambda *a, **k: calls.append(1)
+        try:
+            ops, _seconds = probe.py_gc_write(0.05, pool_size=512)
+        finally:
+            gc_module.collect = original
+        self.assertGreater(ops, 0)
+        self.assertEqual(calls, [])
+
+    def test_py_gc_write_discards_and_relinks(self):
+        # the churn itself: pool nodes get fresh payload strings and two
+        # fresh satellites that cross-reference each other and the node
+        pool = probe.build_gc_write_pool(512)
+        before = [node.payload for node in pool]
+        ops, _seconds = probe.py_gc_write(0.05, pool=pool)
+        self.assertGreater(ops, 0)
+        churned = 0
+        for node in pool:
+            if node.refs:
+                self.assertEqual(len(node.refs), 3)
+                a, b, _peer = node.refs
+                self.assertIs(b.refs[0], a)  # the satellites cross-link
+                self.assertIs(a.refs[1], node)
+                churned += 1
+        self.assertGreater(churned, 0)
+        self.assertTrue(any(node.payload != p for node, p in zip(pool, before)))
 
 
 class StatsTests(unittest.TestCase):
@@ -206,6 +306,7 @@ class StatsTests(unittest.TestCase):
         native = {s: "native" for s in probe.SCENARIOS}
         native["alloc"] = "python-workload"
         native["gc-read"] = "python-workload"
+        native["gc-write"] = "python-workload"
         self.assertEqual(probe.decide_verdict({"pinned": True}, native, {}, []), "clean")
         self.assertEqual(
             probe.decide_verdict({"pinned": True}, native, {"24": [{"scenario": "alloc"}]}, []),
@@ -243,6 +344,17 @@ class NativeBuildTests(unittest.TestCase):
         if binary is None:
             self.skipTest("no C compiler available")
         reps = probe.run_native(binary, "mem-read", 0.05, 2, 4 << 20)
+        self.assertEqual(len(reps), 2)
+        for ops, seconds in reps:
+            self.assertGreater(ops, 0)
+            self.assertGreater(seconds, 0)
+
+    def test_native_mem_write_with_size(self):
+        # the write-path twin: same trail shape, one store per step
+        binary, _toolchain, _path = probe.compile_native()
+        if binary is None:
+            self.skipTest("no C compiler available")
+        reps = probe.run_native(binary, "mem-write", 0.05, 2, 4 << 20)
         self.assertEqual(len(reps), 2)
         for ops, seconds in reps:
             self.assertGreater(ops, 0)
@@ -330,6 +442,8 @@ class ProbeRunTests(unittest.TestCase):
             finally:
                 probe.compile_native = original
             self.assertEqual(probe_obj.fidelity["alloc"], "python-workload")
+            self.assertEqual(probe_obj.fidelity["gc-read"], "python-workload")
+            self.assertEqual(probe_obj.fidelity["gc-write"], "python-workload")
             self.assertEqual(probe_obj.native_info["path"], "fallback-python")
             self.assertIn("no compiler", probe_obj.native_info["build"])
             for scenario in probe.NATIVE_SCENARIOS:

@@ -35,7 +35,10 @@ variables:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       interruptible: false
     - interruptible: true
-  timeout: 30m
+  # EXPERIMENT (do not merge): raised for the CPU-asymmetry probe (PR
+  # #20052 / APMSP-4059) -- the per-CPU sweep alone is capped at 22 m and
+  # each pass job now measures two benchmark configs per side.
+  timeout: 45m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
     if [[ -n "$CI_JOB_TOKEN" ]];
@@ -49,7 +52,8 @@ variables:
     # EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
     # Before the benchmark runs, sweep every allowed CPU of this host once
     # with per-scenario microbenchmarks
-    # (int/simd/alloc/fault/stream/mem-read/gc-read, each pinned per CPU); the
+    # (int/simd/alloc/fault/stream/mem-read/mem-write/gc-read/gc-write, each
+    # pinned per CPU); the
     # report lands in the collected /artifacts so each of the matrix jobs
     # (one runner each) yields one host report. Unconditional but guarded:
     # it can never fail the job.
@@ -90,6 +94,12 @@ variables:
 
     # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
     cp -R /artifacts ${CI_PROJECT_DIR}/
+
+    # EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
+    # The probe's unit tests run last, so a failure can never cost the run's
+    # data (artifacts are collected when: always) but is still visible in the
+    # job result -- this branch has no other CI path that executes them.
+    python3 "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/steps/test_probe.py"
   artifacts:
     name: "reports"
     when: always

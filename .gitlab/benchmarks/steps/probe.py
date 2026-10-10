@@ -7,7 +7,7 @@ hosts, CPU 24 runs allocation-heavy code ~1.4x slower than its neighbors
 (clean on 25/36/37) while every OS-level counter looks identical, so the
 probe measures the work itself on every CPU instead of watching counters.
 
-Seven scenarios run on EVERY allowed CPU, with the process pinned to that
+Nine scenarios run on EVERY allowed CPU, with the process pinned to that
 single CPU for the duration (median of --reps reps kept, default 3):
   int     tight arithmetic loop, no allocation
   simd    bulk memcpy on 8 MiB blocks
@@ -18,19 +18,27 @@ single CPU for the duration (median of --reps reps kept, default 3):
   stream  memcpy between buffers larger than L3
   mem-read  pointer-chase through a shuffled table larger than L3,
           one dependent load per step (was "latency")
+  mem-write  same single-cycle trail as mem-read, but each step also
+          stores to a slot sharing the target's cache line, so every
+          visited line goes dirty and each eviction is a writeback -- the
+          write/ownership path (C core, with a Python fallback)
   gc-read  build a large cyclic object graph (payload strings like IAST
           taint ranges, cross-references) and time forced gc.collect() --
           always pure Python, same reason as alloc (was "gc")
+  gc-write  build, cross-link and discard objects in a recycled pool
+          (payload strings + small satellites referencing each other),
+          timed per batch with NO forced gc.collect() -- the churn itself
+          (always pure Python, same reason as alloc)
 
-int/simd/fault/stream/mem-read run in a checked-in C core (probe_native.c,
-no dependencies) compiled on first use; the toolchain policy preflights
-cc, then gcc, then clang, and if none exists tries ONE guarded
-apt-get install of gcc before falling back. If no compiler can be had or
-the build fails, the scenarios fall back to pure-Python cores and the
-report records fidelity "fallback-python" per scenario (the mem-read
-fallback is interpreter-bound and says so); the report's native.path
-field records which path was taken (found / installed / cached /
-fallback). alloc is always "python-workload".
+int/simd/fault/stream/mem-read/mem-write run in a checked-in C core
+(probe_native.c, no dependencies) compiled on first use; the toolchain
+policy preflights cc, then gcc, then clang, and if none exists tries ONE
+guarded apt-get install of gcc before falling back. If no compiler can
+be had or the build fails, the scenarios fall back to pure-Python cores
+and the report records fidelity "fallback-python" per scenario (the
+mem-read and mem-write fallbacks are interpreter-bound and say so); the
+report's native.path field records which path was taken (found /
+installed / cached / fallback). alloc is always "python-workload".
 
 Output (--out DIR, default ./probe-report):
   report.json  per-scenario host median, per-CPU deviation, flags,
@@ -68,10 +76,11 @@ import sys
 import time
 
 
-SCENARIOS = ("int", "simd", "alloc", "fault", "stream", "mem-read", "gc-read")
-NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "mem-read")
+SCENARIOS = ("int", "simd", "alloc", "fault", "stream", "mem-read", "mem-write", "gc-read", "gc-write")
+NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "mem-read", "mem-write")
 ALLOC = "alloc"  # always the pure-Python workload mirror
 GC_READ = "gc-read"  # same: the cyclic-GC graph chase mirrors the real workload
+GC_WRITE = "gc-write"  # same: the object churn mirrors the real workload
 SCENARIO_UNITS = {
     "int": "iterations",
     "simd": "bytes",
@@ -79,7 +88,9 @@ SCENARIO_UNITS = {
     "fault": "pages",
     "stream": "bytes",
     "mem-read": "accesses",
+    "mem-write": "accesses",
     "gc-read": "collections",
+    "gc-write": "batches",
 }
 DEFAULT_REPS = 3
 DEFAULT_REP_SECONDS = 1.5
@@ -89,6 +100,8 @@ PAGE = 4096
 L3_FALLBACK_BYTES = 256 << 20
 # the pure-Python mem-read fallback shuffles its table once; 64 MiB keeps
 # that one-time cost to a few seconds while still exceeding any L3
+# (mem-write shares the cap: its fallback table interleaves trail/slot
+# pairs, so half the entries for the same byte cap)
 MEM_FALLBACK_CAP = 64 << 20
 # the gc-read scenario's live cyclic graph: 150k nodes with string payloads and
 # 3-way cross-references is roughly 40 MB / 450k tracked objects, spanning
@@ -97,12 +110,18 @@ GC_OBJECTS = 150_000
 GC_PAYLOAD_CHARS = 32  # payload string length per node, like an IAST taint range
 GC_CHURN_NODES = 512  # fresh cyclic garbage nodes per collection
 GC_SEVER = 64  # live nodes whose refs are dropped and rebuilt per collection
+# the gc-write scenario's recycled pool: fixed size so the heap does not
+# grow; a rotating slice is re-payloaded per batch and its satellites are
+# discarded (strings + small cross-linked objects, like taint ranges)
+GC_WRITE_POOL = 4096
+GC_WRITE_CHURN = 256  # pool nodes re-payloaded per batch
 FLAG_MIN_PCT = 5.0
 FLAG_SPREAD_MULT = 3.0
 # hard wall-clock cap on the sweep so the probe can never eat a CI job
-# (7 scenarios x 24 CPUs x 3 reps x 1.5 s measured plus per-rep setup lands
-# around 14 min; 16 min leaves margin while staying inside the 30 m job)
-MAX_SWEEP_S = 16 * 60.0
+# (9 scenarios x 24 CPUs x 3 reps x 1.5 s measured plus per-rep setup --
+# table/graph builds -- lands around 18-19 min; 22 min keeps the sweep
+# whole while staying inside the raised 45 m job)
+MAX_SWEEP_S = 22 * 60.0
 NATIVE_BUILD_TIMEOUT_S = 60.0
 # toolchain policy: preflight cc, then gcc, then clang; if none exists, ONE
 # best-effort apt-get install of gcc (Linux only, never fatal) before falling
@@ -309,6 +328,48 @@ def py_mem_read(seconds: float, tbl):
     return ops, time.monotonic() - start
 
 
+def build_mem_write_table(bytes_: int):
+    """Interleaved u32 trail/slot pairs for the mem-write fallback.
+
+    Even indexes carry the same Sattolo single-cycle trail as mem-read
+    (a permutation of even values, so a chase stays on even indexes);
+    odd indexes are the write targets. Each step reads the trail and
+    writes the slot of the same node -- same 64-byte line -- so every
+    step takes line ownership before the next. Built once per probe.
+    """
+    n = max(2, bytes_ // 8)
+    tbl = array("I", range(2 * n))
+    rng = random.Random(0xC0FFEE)
+    for i in range(n - 1, 0, -1):
+        j = rng.randrange(i)  # strictly below i: one cycle over all n nodes
+        tbl[2 * i], tbl[2 * j] = tbl[2 * j], tbl[2 * i]
+    return tbl
+
+
+def py_mem_write(seconds: float, tbl):
+    """Fallback for the C mem-write core: same trail as py_mem_read, but
+    each step also increments the slot beside the trail entry (same
+    cache line), turning every visited line dirty. Interpreter-bound:
+    the store runs, but per-step interpreter overhead dominates.
+    """
+    idx = 0
+    for _ in range(1 << 18):  # untimed warm-up, mirrors the C core
+        idx = tbl[idx]
+        tbl[idx + 1] = (tbl[idx + 1] + 1) & 0xFFFFFFFF
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        for _ in range(256):
+            nxt = tbl[idx]
+            tbl[idx + 1] = (tbl[idx + 1] + 1) & 0xFFFFFFFF
+            idx = nxt
+        ops += 256
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
 # -- gc-read scenario: cyclic object graph + forced collection ----------
 
 
@@ -373,6 +434,59 @@ def py_gc_read(seconds: float, n: int = GC_OBJECTS):
         for k in range(GC_SEVER):
             i = (base + k) % n
             nodes[i].refs = (nodes[(i * 7 + 3) % n], nodes[(i * 31 + 11) % n], nodes[(i + 5) % n])
+        ops += 1
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+# -- gc-write scenario: object churn in a recycled pool -------------------
+
+
+class _GCSatellite:
+    """Small satellite object for gc-write: refs only, no payload."""
+
+    __slots__ = ("refs",)
+
+    def __init__(self, refs=()):
+        self.refs = refs
+
+
+def build_gc_write_pool(pool_size: int = GC_WRITE_POOL):
+    """The recycled pool: nodes with taint-range-like payload strings."""
+    return [_GCNode(_gc_payload(i)) for i in range(pool_size)]
+
+
+def py_gc_write(seconds: float, pool=None, pool_size: int = GC_WRITE_POOL):
+    """Time object churn in a recycled pool, per batch, no forced collect.
+
+    Per batch (one op), a rotating slice of the pool gets a fresh payload
+    string plus two fresh _GCSatellite objects that reference each other
+    and the pool node -- strings + small cross-linked satellites, like
+    IAST taint ranges and their dependents -- and the old payload and
+    satellites are discarded. Nothing calls gc.collect() here (that is
+    gc-read's job): the dead satellite pairs are cycles, freed by the
+    generational collector whenever the churn itself trips its
+    thresholds, which is part of the workload being measured.
+    """
+    if pool is None:
+        pool = build_gc_write_pool(pool_size)
+    rng = random.Random(0xBADC0DE)  # same churn sequence every rep
+    n = len(pool)
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        base = (ops * 611) % n  # rotate the churn slice every batch
+        for k in range(GC_WRITE_CHURN):
+            i = (base + k) % n
+            node = pool[i]
+            node.payload = _gc_payload(rng.randrange(1 << 20))
+            a = _GCSatellite()
+            b = _GCSatellite()
+            a.refs = (b, node)  # the cross-link: a and b reference each
+            b.refs = (a, node)  # other, so the dead pair needs the
+            node.refs = (a, b, pool[(i * 7 + 3) % n])  # generational GC
         ops += 1
         if time.monotonic() >= deadline:
             break
@@ -574,6 +688,7 @@ class Probe:
         self._simd_bufs = None
         self._stream_bufs = None
         self._mem_read_tbl = None
+        self._mem_write_tbl = None
 
     # -- static snapshot --------------------------------------------------
 
@@ -667,8 +782,9 @@ class Probe:
             self.fidelity[scenario] = "native" if self.native_binary else "fallback-python"
         self.fidelity[ALLOC] = "python-workload"
         self.fidelity[GC_READ] = "python-workload"
+        self.fidelity[GC_WRITE] = "python-workload"
         if self.native_binary is None:
-            self.notes.append("native core unavailable: int/simd/fault/stream/mem-read use fallback-python")
+            self.notes.append("native core unavailable: int/simd/fault/stream/mem-read/mem-write use fallback-python")
 
     # -- scenario execution -----------------------------------------------
 
@@ -685,6 +801,10 @@ class Probe:
             if self._mem_read_tbl is None:
                 self._mem_read_tbl = build_mem_read_table(min(self.mem_bytes, MEM_FALLBACK_CAP))
             return self._mem_read_tbl
+        if scenario == "mem-write":
+            if self._mem_write_tbl is None:
+                self._mem_write_tbl = build_mem_write_table(min(self.mem_bytes, MEM_FALLBACK_CAP))
+            return self._mem_write_tbl
         return None
 
     def _python_core(self, scenario):
@@ -700,8 +820,12 @@ class Probe:
             return py_memcpy(self.rep_seconds, *self._ensure_buffers("stream"))
         if scenario == "mem-read":
             return py_mem_read(self.rep_seconds, self._ensure_buffers("mem-read"))
+        if scenario == "mem-write":
+            return py_mem_write(self.rep_seconds, self._ensure_buffers("mem-write"))
         if scenario == "gc-read":
             return py_gc_read(self.rep_seconds)
+        if scenario == "gc-write":
+            return py_gc_write(self.rep_seconds)
         raise ValueError("unknown scenario %s" % scenario)
 
     def _run_scenario(self, scenario):
@@ -717,6 +841,8 @@ class Probe:
             elif scenario == "stream":
                 size = self.stream_bytes
             elif scenario == "mem-read":
+                size = self.mem_bytes
+            elif scenario == "mem-write":
                 size = self.mem_bytes
             try:
                 return {"reps": run_native(self.native_binary, scenario, self.rep_seconds, self.reps, size)}
@@ -795,8 +921,23 @@ class Probe:
         stats = compute_scenario_stats(per_cpu)
         stats["fidelity"] = self.fidelity.get(scenario)
         stats["unit"] = SCENARIO_UNITS[scenario]
-        if scenario == "mem-read" and stats["fidelity"] == "fallback-python":
+        if scenario in ("mem-read", "mem-write") and stats["fidelity"] == "fallback-python":
             stats["note"] = "interpreter-bound"
+        elif scenario == "mem-write":
+            # name fidelity: what the timed loop actually adds over mem-read
+            stats["note"] = (
+                "per step: dependent trail load + slot store on the same line; every"
+                " visited line goes dirty so each eviction is a writeback. Single core"
+                " means the load already holds line ownership -- the store adds the"
+                " writeback path, not an extra RFO round-trip per step"
+            )
+        elif scenario == "gc-write":
+            stats["note"] = (
+                "per batch: fresh payload strings + cross-linked satellites in a"
+                " recycled pool, old ones discarded; no forced gc.collect() -- dead"
+                " satellite cycles are freed by the generational collector the churn"
+                " itself trips"
+            )
         for cpu, entry in self.results[scenario].items():
             if "error" in (entry or {}):
                 stats.setdefault("errors", {})[cpu] = entry["error"]
@@ -863,7 +1004,9 @@ class Probe:
             self._build_native()
         except Exception as exc:  # noqa: BLE001
             for scenario in SCENARIOS:
-                self.fidelity[scenario] = "fallback-python" if scenario not in (ALLOC, GC_READ) else "python-workload"
+                self.fidelity[scenario] = (
+                    "fallback-python" if scenario not in (ALLOC, GC_READ, GC_WRITE) else "python-workload"
+                )
             self.notes.append("native build crashed: %r" % exc)
         try:
             self.sweep(cpus)

@@ -13,6 +13,8 @@
  *   fault    mmap fresh anonymous 1 MiB chunks and touch every page
  *   mem-read  pointer-chase through a SIZE-byte shuffled u32 permutation
  *            (named mem-read in probe.py; the argv spelling here)
+ *   mem-write same single-cycle trail as mem-read as {next, slot} pairs,
+ *            each step also stores to the slot on the same line
  *
  * Usage: probe_native SCENARIO SECONDS REPS [SIZE]
  * Exit codes: 2 unknown scenario, 3 core mechanism failed (probe.py then
@@ -183,6 +185,67 @@ run_mem_read(double seconds, size_t bytes, int rep)
     report(rep, ops, now_s() - start);
 }
 
+/*
+ * mem-write: the same Sattolo single-cycle trail as mem-read, but as
+ * {u32 next, u32 slot} pairs: each step reads the trail (the dependent
+ * load that keeps the chase serial) and increments the slot that shares
+ * that line's 64 bytes, so every visited line goes dirty and every
+ * eviction is a writeback. Single core: the load already holds line
+ * ownership, so the store adds the writeback path, not an extra RFO
+ * round-trip per step -- that difference is the write-path measurement.
+ */
+static void
+run_mem_write(double seconds, size_t bytes, int rep)
+{
+    size_t n = bytes / 8, i, idx = 0;
+    uint32_t* tbl = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    uint64_t ops = 0;
+    double start, deadline;
+    if (tbl == MAP_FAILED) {
+        fprintf(stderr, "mmap %zu failed\n", bytes);
+        exit(3);
+    }
+#ifdef MADV_NOHUGEPAGE
+    madvise(tbl, bytes, MADV_NOHUGEPAGE);
+#endif
+    if (n < 2) {
+        fprintf(stderr, "table too small: %zu\n", bytes);
+        exit(3);
+    }
+    for (i = 0; i < n; i++) {
+        tbl[2 * i] = (uint32_t)(2 * i); /* trail: self-loops to start */
+        tbl[2 * i + 1] = 0;            /* slot: the write target */
+    }
+    /* Sattolo's shuffle over the trail fields only: exactly one cycle
+     * over all n nodes, same guarantee as mem-read. */
+    for (i = n - 1; i > 0; i--) {
+        size_t j = (size_t)(rng_next() % i);
+        uint32_t t = tbl[2 * i];
+        tbl[2 * i] = tbl[2 * j];
+        tbl[2 * j] = t;
+    }
+    for (i = 0; i < (1u << 22); i++) { /* untimed warm-up, full step */
+        uint32_t next = tbl[idx];
+        tbl[idx + 1] += 1;
+        idx = next;
+    }
+    start = now_s();
+    deadline = start + seconds;
+    for (;;) {
+        for (int k = 0; k < 256; k++) {
+            uint32_t next = tbl[idx];
+            tbl[idx + 1] += 1; /* the store: line ownership before the next step */
+            idx = next;
+        }
+        ops += 256;
+        if (now_s() >= deadline)
+            break;
+    }
+    g_sink32 = tbl[idx] + tbl[idx + 1];
+    munmap(tbl, bytes);
+    report(rep, ops, now_s() - start);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -213,6 +276,8 @@ main(int argc, char** argv)
             run_fault(seconds, rep);
         } else if (strcmp(scenario, "mem-read") == 0) {
             run_mem_read(seconds, size ? size : (size_t)256 << 20, rep);
+        } else if (strcmp(scenario, "mem-write") == 0) {
+            run_mem_write(seconds, size ? size : (size_t)256 << 20, rep);
         } else {
             fprintf(stderr, "unknown scenario %s\n", scenario);
             return 2;
