@@ -119,6 +119,14 @@ pub struct PyAnonymousFileHandle {
 }
 
 #[pyfunction]
+pub fn stable_configuration_paths() -> (String, String) {
+    (
+        Configurator::FLEET_STABLE_CONFIGURATION_PATH.to_string(),
+        Configurator::LOCAL_STABLE_CONFIGURATION_PATH.to_string(),
+    )
+}
+
+#[pyfunction]
 #[allow(dead_code)]
 pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle> {
     let metadata = TracerMetadata {
