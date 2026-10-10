@@ -16,17 +16,18 @@ single CPU for the duration (median of --reps reps kept, default 3):
           CPU 24
   fault   mmap fresh anonymous 1 MiB pages and touch every page
   stream  memcpy between buffers larger than L3
-  latency pointer-chase through a shuffled table larger than L3
-  gc      build a large cyclic object graph (payload strings like IAST
+  mem-read  pointer-chase through a shuffled table larger than L3,
+          one dependent load per step (was "latency")
+  gc-read  build a large cyclic object graph (payload strings like IAST
           taint ranges, cross-references) and time forced gc.collect() --
-          always pure Python, same reason as alloc
+          always pure Python, same reason as alloc (was "gc")
 
-int/simd/fault/stream/latency run in a checked-in C core (probe_native.c,
+int/simd/fault/stream/mem-read run in a checked-in C core (probe_native.c,
 no dependencies) compiled on first use; the toolchain policy preflights
 cc, then gcc, then clang, and if none exists tries ONE guarded
 apt-get install of gcc before falling back. If no compiler can be had or
 the build fails, the scenarios fall back to pure-Python cores and the
-report records fidelity "fallback-python" per scenario (the latency
+report records fidelity "fallback-python" per scenario (the mem-read
 fallback is interpreter-bound and says so); the report's native.path
 field records which path was taken (found / installed / cached /
 fallback). alloc is always "python-workload".
@@ -67,18 +68,18 @@ import sys
 import time
 
 
-SCENARIOS = ("int", "simd", "alloc", "fault", "stream", "latency", "gc")
-NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "latency")
+SCENARIOS = ("int", "simd", "alloc", "fault", "stream", "mem-read", "gc-read")
+NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "mem-read")
 ALLOC = "alloc"  # always the pure-Python workload mirror
-GC = "gc"  # same: the cyclic-GC graph chase mirrors the real workload
+GC_READ = "gc-read"  # same: the cyclic-GC graph chase mirrors the real workload
 SCENARIO_UNITS = {
     "int": "iterations",
     "simd": "bytes",
     "alloc": "objects",
     "fault": "pages",
     "stream": "bytes",
-    "latency": "hops",
-    "gc": "collections",
+    "mem-read": "accesses",
+    "gc-read": "collections",
 }
 DEFAULT_REPS = 3
 DEFAULT_REP_SECONDS = 1.5
@@ -86,10 +87,10 @@ SIMD_BYTES = 8 << 20
 FAULT_CHUNK = 1 << 20
 PAGE = 4096
 L3_FALLBACK_BYTES = 256 << 20
-# the pure-Python latency fallback shuffles its table once; 64 MiB keeps
+# the pure-Python mem-read fallback shuffles its table once; 64 MiB keeps
 # that one-time cost to a few seconds while still exceeding any L3
-LATENCY_FALLBACK_CAP = 64 << 20
-# the gc scenario's live cyclic graph: 150k nodes with string payloads and
+MEM_FALLBACK_CAP = 64 << 20
+# the gc-read scenario's live cyclic graph: 150k nodes with string payloads and
 # 3-way cross-references is roughly 40 MB / 450k tracked objects, spanning
 # well beyond L2 and around the judges' 37 MB L3, like a taint-object heap
 GC_OBJECTS = 150_000
@@ -275,7 +276,7 @@ def py_fault(seconds: float):
     return ops, time.monotonic() - start
 
 
-def build_latency_table(bytes_: int):
+def build_mem_read_table(bytes_: int):
     """Shuffled u32 permutation in an array (a superset of the C core's table).
 
     Sattolo's shuffle, like the C core: exactly one cycle over the whole
@@ -292,7 +293,7 @@ def build_latency_table(bytes_: int):
     return tbl
 
 
-def py_latency(seconds: float, tbl):
+def py_mem_read(seconds: float, tbl):
     idx = 0
     for _ in range(1 << 18):  # untimed warm-up, mirrors the C core
         idx = tbl[idx]
@@ -308,7 +309,7 @@ def py_latency(seconds: float, tbl):
     return ops, time.monotonic() - start
 
 
-# -- gc scenario: cyclic object graph + forced collection ------------------
+# -- gc-read scenario: cyclic object graph + forced collection ----------
 
 
 class _GCNode:
@@ -337,7 +338,7 @@ def build_gc_graph(n: int = GC_OBJECTS):
     return nodes
 
 
-def py_gc(seconds: float, n: int = GC_OBJECTS):
+def py_gc_read(seconds: float, n: int = GC_OBJECTS):
     """Time forced full collections over a large live cyclic graph.
 
     The graph is rebuilt the same way for every rep (outside the timed
@@ -569,10 +570,10 @@ class Probe:
             pass
         self.l3 = l3
         self.stream_bytes = 2 * l3 if l3 else L3_FALLBACK_BYTES
-        self.latency_bytes = self.stream_bytes
+        self.mem_bytes = self.stream_bytes
         self._simd_bufs = None
         self._stream_bufs = None
-        self._latency_tbl = None
+        self._mem_read_tbl = None
 
     # -- static snapshot --------------------------------------------------
 
@@ -665,9 +666,9 @@ class Probe:
         for scenario in NATIVE_SCENARIOS:
             self.fidelity[scenario] = "native" if self.native_binary else "fallback-python"
         self.fidelity[ALLOC] = "python-workload"
-        self.fidelity[GC] = "python-workload"
+        self.fidelity[GC_READ] = "python-workload"
         if self.native_binary is None:
-            self.notes.append("native core unavailable: int/simd/fault/stream/latency use fallback-python")
+            self.notes.append("native core unavailable: int/simd/fault/stream/mem-read use fallback-python")
 
     # -- scenario execution -----------------------------------------------
 
@@ -680,10 +681,10 @@ class Probe:
             if self._stream_bufs is None:
                 self._stream_bufs = make_memcpy_bufs(self.stream_bytes)
             return self._stream_bufs
-        if scenario == "latency":
-            if self._latency_tbl is None:
-                self._latency_tbl = build_latency_table(min(self.latency_bytes, LATENCY_FALLBACK_CAP))
-            return self._latency_tbl
+        if scenario == "mem-read":
+            if self._mem_read_tbl is None:
+                self._mem_read_tbl = build_mem_read_table(min(self.mem_bytes, MEM_FALLBACK_CAP))
+            return self._mem_read_tbl
         return None
 
     def _python_core(self, scenario):
@@ -697,10 +698,10 @@ class Probe:
             return py_memcpy(self.rep_seconds, *self._ensure_buffers("simd"))
         if scenario == "stream":
             return py_memcpy(self.rep_seconds, *self._ensure_buffers("stream"))
-        if scenario == "latency":
-            return py_latency(self.rep_seconds, self._ensure_buffers("latency"))
-        if scenario == "gc":
-            return py_gc(self.rep_seconds)
+        if scenario == "mem-read":
+            return py_mem_read(self.rep_seconds, self._ensure_buffers("mem-read"))
+        if scenario == "gc-read":
+            return py_gc_read(self.rep_seconds)
         raise ValueError("unknown scenario %s" % scenario)
 
     def _run_scenario(self, scenario):
@@ -715,8 +716,8 @@ class Probe:
                 size = SIMD_BYTES
             elif scenario == "stream":
                 size = self.stream_bytes
-            elif scenario == "latency":
-                size = self.latency_bytes
+            elif scenario == "mem-read":
+                size = self.mem_bytes
             try:
                 return {"reps": run_native(self.native_binary, scenario, self.rep_seconds, self.reps, size)}
             except (NativeError, OSError, subprocess.TimeoutExpired) as exc:
@@ -794,7 +795,7 @@ class Probe:
         stats = compute_scenario_stats(per_cpu)
         stats["fidelity"] = self.fidelity.get(scenario)
         stats["unit"] = SCENARIO_UNITS[scenario]
-        if scenario == "latency" and stats["fidelity"] == "fallback-python":
+        if scenario == "mem-read" and stats["fidelity"] == "fallback-python":
             stats["note"] = "interpreter-bound"
         for cpu, entry in self.results[scenario].items():
             if "error" in (entry or {}):
@@ -862,7 +863,7 @@ class Probe:
             self._build_native()
         except Exception as exc:  # noqa: BLE001
             for scenario in SCENARIOS:
-                self.fidelity[scenario] = "fallback-python" if scenario not in (ALLOC, GC) else "python-workload"
+                self.fidelity[scenario] = "fallback-python" if scenario not in (ALLOC, GC_READ) else "python-workload"
             self.notes.append("native build crashed: %r" % exc)
         try:
             self.sweep(cpus)

@@ -11,7 +11,8 @@
  *   simd     bulk memcpy on SIZE-byte blocks (default 8 MiB)
  *   stream   bulk memcpy on SIZE-byte blocks (probe.py passes > L3 sizes)
  *   fault    mmap fresh anonymous 1 MiB chunks and touch every page
- *   latency  pointer-chase through a SIZE-byte shuffled u32 permutation
+ *   mem-read  pointer-chase through a SIZE-byte shuffled u32 permutation
+ *            (named mem-read in probe.py; the argv spelling here)
  *
  * Usage: probe_native SCENARIO SECONDS REPS [SIZE]
  * Exit codes: 2 unknown scenario, 3 core mechanism failed (probe.py then
@@ -127,7 +128,7 @@ run_fault(double seconds, int rep)
 }
 
 /*
- * Latency note: the table is mmap'd and explicitly MADV_NOHUGEPAGE'd.
+ * mem-read note: the table is mmap'd and explicitly MADV_NOHUGEPAGE'd.
  * Without that, the first rep chases 4K pages and later reps 2M transparent
  * hugepages once khugepaged collapses the region, which alone produced the
  * ~2x rep-to-rep spread seen on the benchmarking hosts (uniform across all
@@ -135,7 +136,7 @@ run_fault(double seconds, int rep)
  * pass keeps page-table/first-touch state out of rep 0 as well.
  */
 static void
-run_latency(double seconds, size_t bytes, int rep)
+run_mem_read(double seconds, size_t bytes, int rep)
 {
     size_t n = bytes / 4, i, idx = 0;
     uint32_t* tbl = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -210,8 +211,8 @@ main(int argc, char** argv)
             run_memcpy(seconds, size ? size : (size_t)256 << 20, rep);
         } else if (strcmp(scenario, "fault") == 0) {
             run_fault(seconds, rep);
-        } else if (strcmp(scenario, "latency") == 0) {
-            run_latency(seconds, size ? size : (size_t)256 << 20, rep);
+        } else if (strcmp(scenario, "mem-read") == 0) {
+            run_mem_read(seconds, size ? size : (size_t)256 << 20, rep);
         } else {
             fprintf(stderr, "unknown scenario %s\n", scenario);
             return 2;

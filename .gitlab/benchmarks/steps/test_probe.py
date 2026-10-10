@@ -83,19 +83,19 @@ class PythonCoreTests(unittest.TestCase):
             ("alloc", lambda: probe.py_alloc(0.02)),
             ("fault", lambda: probe.py_fault(0.02)),
             ("simd", lambda: probe.py_memcpy(0.02, *probe.make_memcpy_bufs(1 << 20))),
-            ("latency", lambda: probe.py_latency(0.02, probe.build_latency_table(1 << 20))),
-            ("gc", lambda: probe.py_gc(0.02, 2000)),
+            ("mem-read", lambda: probe.py_mem_read(0.02, probe.build_mem_read_table(1 << 20))),
+            ("gc-read", lambda: probe.py_gc_read(0.02, 2000)),
         ):
             with self.subTest(scenario=name):
                 ops, seconds = fn()
                 self.assertGreater(ops, 0)
                 self.assertGreater(seconds, 0.0)
 
-    def test_latency_table_is_one_full_cycle(self):
+    def test_mem_read_table_is_one_full_cycle(self):
         # Sattolo's shuffle: the chase starting anywhere must visit every
         # entry before returning, so no rep can land in a cache-resident
         # short cycle (the bug behind the 54-74% rep spread of probe v1/v2)
-        tbl = probe.build_latency_table(1 << 20)
+        tbl = probe.build_mem_read_table(1 << 20)
         n = len(tbl)
         idx = 0
         length = 0
@@ -114,8 +114,8 @@ class PythonCoreTests(unittest.TestCase):
         self.assertEqual(probe.spread_pct([1.0]), 0.0)
 
 
-class GCCoreTests(unittest.TestCase):
-    """The gc scenario's graph: deterministic, cyclic, and collectable."""
+class GCReadCoreTests(unittest.TestCase):
+    """The gc-read scenario's graph: deterministic, cyclic, and collectable."""
 
     def test_build_gc_graph_deterministic(self):
         g1 = probe.build_gc_graph(64)
@@ -142,8 +142,8 @@ class GCCoreTests(unittest.TestCase):
         else:
             self.fail("refs[0] chain never returned to the starting node")
 
-    def test_py_gc_runs_and_returns_collections(self):
-        ops, seconds = probe.py_gc(0.05, n=3000)
+    def test_py_gc_read_runs_and_returns_collections(self):
+        ops, seconds = probe.py_gc_read(0.05, n=3000)
         self.assertGreater(ops, 0)
         self.assertGreater(seconds, 0.0)
 
@@ -205,7 +205,7 @@ class StatsTests(unittest.TestCase):
     def test_verdicts(self):
         native = {s: "native" for s in probe.SCENARIOS}
         native["alloc"] = "python-workload"
-        native["gc"] = "python-workload"
+        native["gc-read"] = "python-workload"
         self.assertEqual(probe.decide_verdict({"pinned": True}, native, {}, []), "clean")
         self.assertEqual(
             probe.decide_verdict({"pinned": True}, native, {"24": [{"scenario": "alloc"}]}, []),
@@ -236,13 +236,13 @@ class NativeBuildTests(unittest.TestCase):
         with self.assertRaises(probe.NativeError):
             probe.run_native(binary, "int", 0.01, 0)  # reps <= 0 -> rc 2
 
-    def test_native_latency_with_size(self):
+    def test_native_mem_read_with_size(self):
         # the chase table is mmap'd + MADV_NOHUGEPAGE'd with an untimed
         # warm-up pass: verify the core runs and both reps report
         binary, _toolchain, _path = probe.compile_native()
         if binary is None:
             self.skipTest("no C compiler available")
-        reps = probe.run_native(binary, "latency", 0.05, 2, 4 << 20)
+        reps = probe.run_native(binary, "mem-read", 0.05, 2, 4 << 20)
         self.assertEqual(len(reps), 2)
         for ops, seconds in reps:
             self.assertGreater(ops, 0)
@@ -296,7 +296,7 @@ class ProbeRunTests(unittest.TestCase):
     def _tiny_probe(self, out, cpus=None):
         p = probe.Probe(Path(out), reps=1, rep_seconds=0.02, cpus=cpus)
         p.stream_bytes = 1 << 21
-        p.latency_bytes = 1 << 21
+        p.mem_bytes = 1 << 21
         return p
 
     def test_run_unpinned_writes_inconclusive_report(self):
