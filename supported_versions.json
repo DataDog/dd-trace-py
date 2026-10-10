@@ -45,6 +45,17 @@
                 "tested": [
                     "3.9.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.0.0",
+                "tested": [
+                    "3.9.1"
+                ]
             }
         ]
     },
@@ -93,6 +104,17 @@
                 "supportedRange": ">=1.15.32",
                 "tested": [
                     "1.43.56"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.15.32",
+                "tested": [
+                    "1.43.75"
                 ]
             }
         ]
@@ -182,7 +204,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=0.9.0",
@@ -479,7 +502,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -533,7 +557,8 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -566,6 +591,18 @@
                 "tested": [
                     "4.9.0",
                     "4.15.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=4.9.0",
+                "tested": [
+                    "4.9.0",
+                    "4.17.1"
                 ]
             }
         ],
@@ -727,6 +764,17 @@
                 "tested": [
                     "7.14.2"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=7.14.0",
+                "tested": [
+                    "7.14.3"
+                ]
             }
         ],
         "pinned": true
@@ -744,7 +792,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "tested": [
@@ -768,7 +817,8 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": "*",
@@ -833,6 +883,17 @@
                 "supportedRange": ">=4.4",
                 "tested": [
                     "5.5.3"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=4.4",
+                "tested": [
+                    "5.6.3"
                 ]
             }
         ]
@@ -2086,7 +2147,8 @@
                     "python": [
                         "3.12",
                         "3.13",
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=4.6.6",
@@ -2814,6 +2876,17 @@
                 "supportedRange": "*",
                 "tested": [
                     "7.35.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "7.36.2"
                 ]
             }
         ]
