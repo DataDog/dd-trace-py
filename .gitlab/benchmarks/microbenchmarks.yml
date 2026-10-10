@@ -36,7 +36,7 @@ variables:
       interruptible: false
     - interruptible: true
   # EXPERIMENT (do not merge): raised for the CPU-asymmetry probe (PR
-  # #20052 / APMSP-4059) -- the per-CPU sweep alone is capped at 26 m and
+  # #20052 / APMSP-4059) -- the per-CPU sweep alone is capped at 33 m and
   # each pass job now measures two benchmark configs per side.
   timeout: 45m
   dependencies: [ "baseline:build", "candidate" ]
@@ -53,7 +53,9 @@ variables:
     # Before the benchmark runs, sweep every allowed CPU of this host once
     # with per-scenario microbenchmarks
     # (int/simd/alloc/fault/stream/mem-read/mem-write/gc-read/gc-write/slice, each
-    # pinned per CPU); the
+    # pinned per CPU; slice-aspect additionally builds a venv from the pass
+    # job's candidate/baseline ddtrace wheel and times the aspect-patched
+    # call in a child process); the
     # report lands in the collected /artifacts so each of the matrix jobs
     # (one runner each) yields one host report. Unconditional but guarded:
     # it can never fail the job.

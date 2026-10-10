@@ -7,8 +7,9 @@ hosts, CPU 24 runs allocation-heavy code ~1.4x slower than its neighbors
 (clean on 25/36/37) while every OS-level counter looks identical, so the
 probe measures the work itself on every CPU instead of watching counters.
 
-Ten scenarios run on EVERY allowed CPU, with the process pinned to that
-single CPU for the duration (median of --reps reps kept, default 3):
+Ten synthetic/plain scenarios run on EVERY allowed CPU, plus the
+aspect-machinery scenario, with the process pinned to that single CPU for
+the duration (median of --reps reps kept, default 3):
   int     tight arithmetic loop, no allocation
   simd    bulk memcpy on 8 MiB blocks
   alloc   small-object churn (short strings/tuples) -- always pure Python
@@ -35,6 +36,17 @@ single CPU for the duration (median of --reps reps kept, default 3):
           this probe's plain harness (perf_counter around calibrated
           batches), NOT pyperf and NOT the repo's harness, to split the
           benchmark's loop shape from the pyperf harness (T10)
+  slice-aspect  the benchmark's aspect-patched call in the same plain
+          harness (T11): a child process (probe_slice_aspect.py) under a
+          venv built from the pass job's candidate/baseline ddtrace wheel
+          replicates the benchmark's verbatim IAST enable + import
+          (scenario.py:11-15), then times TWO variants per CPU: the patched
+          plain call (the noaspect config's executed loop, the F21
+          finding) and the aspect config's explicit aspect call. The
+          per-call absolute time is the fidelity record: ~5.3 us means the
+          machinery is engaged (F20's 5-7x gap), ~0.75 us means the AST
+          patch did NOT fire in the child and the report records that
+          plainly instead of pretending
 
 int/simd/fault/stream/mem-read/mem-write run in a checked-in C core
 (probe_native.c, no dependencies) compiled on first use; the toolchain
@@ -47,7 +59,8 @@ report's native.path field records which path was taken (found /
 installed / cached / fallback). alloc is always "python-workload"; so are
 gc-read/gc-write (the collector and the churn are interpreter work) and
 slice (it IS the real benchmark's own Python loop -- a C core could not
-copy it faithfully).
+copy it faithfully); slice-aspect reports "ddtrace-child" (it runs in the
+wheel venv's child) or "unavailable" when no wheel/venv could be had.
 
 The slice scenario copies, verbatim:
   benchmarks/appsec_iast_aspects_ospath/functions.py:45-46 -- the
@@ -57,6 +70,15 @@ The slice scenario copies, verbatim:
   with function_name = "ospathbasename_noaspect" from config.yaml
 The probe's structural test (test_probe.py, SliceScenarioTests) enforces
 the copy stays verbatim against that source.
+
+The slice-aspect scenario mirrors the benchmark's setup the same way, in
+the child (probe_slice_aspect.py): scenario.py:1-8 (imports), :11-15 (the
+enable block, with `import functions` inside the enabled state so the
+ModuleWatchdog AST-patches it), :29-31 (the per-iteration call shape),
+:33-34 (which context wraps which config) and config.yaml's two
+function_names; test_probe.py's SliceAspectScenarioTests enforces the
+mirror stays verbatim. The child runs ONLY under the wheel venv; the unit
+tests never run it.
 
 Output (--out DIR, default ./probe-report):
   report.json  per-scenario host median, per-CPU deviation, flags,
@@ -106,12 +128,14 @@ SCENARIOS = (
     "gc-read",
     "gc-write",
     "slice",
+    "slice-aspect",
 )
 NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "mem-read", "mem-write")
 ALLOC = "alloc"  # always the pure-Python workload mirror
 GC_READ = "gc-read"  # same: the cyclic-GC graph chase mirrors the real workload
 GC_WRITE = "gc-write"  # same: the object churn mirrors the real workload
 SLICE = "slice"  # the real benchmark's own noaspect loop, copied verbatim
+SLICE_ASPECT = "slice-aspect"  # the benchmark's aspect-patched call, in this probe's plain harness
 SCENARIO_UNITS = {
     "int": "iterations",
     "simd": "bytes",
@@ -123,6 +147,7 @@ SCENARIO_UNITS = {
     "gc-read": "collections",
     "gc-write": "batches",
     "slice": "iterations",
+    "slice-aspect": "iterations",
 }
 DEFAULT_REPS = 3
 DEFAULT_REP_SECONDS = 1.5
@@ -155,14 +180,27 @@ SLICE_REP_SECONDS = 2.0
 # window is long enough for perf_counter's resolution and short enough
 # that the batch-count quantization stays coarse
 SLICE_BATCH_TARGET_S = 0.05
+# slice-aspect windows: the main variant (the patched plain call) gets the
+# same 2.0 s window as slice so the two are directly comparable; the
+# secondary explicit-aspect variant gets 1.0 s -- it only needs to separate
+# ~0.75 us from ~5 us and +-40%, not to be a primary metric
+SLICE_ASPECT_REP_SECONDS = 2.0
+SLICE_ASPECT_EXPLICIT_REP_SECONDS = 1.0
+# the aspect venv lives in the gitignored repo target dir next to the
+# native binary; one best-effort pip install of the wheel, never fatal
+_SLICE_ASPECT_CHILD = Path(__file__).with_name("probe_slice_aspect.py")
+SLICE_ASPECT_VENV_TIMEOUT_S = 120.0
+SLICE_ASPECT_INSTALL_TIMEOUT_S = 300.0
+SLICE_ASPECT_CHILD_TIMEOUT_S = 180.0
 FLAG_MIN_PCT = 5.0
 FLAG_SPREAD_MULT = 3.0
 # hard wall-clock cap on the sweep so the probe can never eat a CI job
-# (10 scenarios x 24 CPUs x 3 reps: 9 synthetic at 1.5 s + slice at 2.0 s
-# measured, plus per-rep setup -- table/graph builds, slice calibration --
-# lands around 21-22 min; 26 min keeps the sweep whole while staying
-# inside the raised 45 m job)
-MAX_SWEEP_S = 26 * 60.0
+# (11 scenarios x 24 CPUs x 3 reps: 9 synthetic at 1.5 s, slice at 2.0 s,
+# slice-aspect at 2.0 s main + 1.0 s explicit measured plus a ~5-6 s
+# child startup per CPU, plus per-rep setup -- table/graph builds, slice
+# calibration -- lands around 27-28 min; 33 min keeps the sweep whole
+# while staying inside the raised 45 m job)
+MAX_SWEEP_S = 33 * 60.0
 NATIVE_BUILD_TIMEOUT_S = 60.0
 # toolchain policy: preflight cc, then gcc, then clang; if none exists, ONE
 # best-effort apt-get install of gcc (Linux only, never fatal) before falling
@@ -599,6 +637,124 @@ def py_slice(seconds: float, functions=None, batch=None):
     return ops, elapsed
 
 
+# -- slice-aspect scenario: the benchmark's aspect machinery, in a child --
+
+
+class SliceAspectError(Exception):
+    pass
+
+
+def find_aspect_wheel(root=None):
+    """The benchmark's ddtrace wheel: candidate build first (what the
+    benchmark's candidate side measures), baseline second. The pass jobs
+    fetch both as artifacts (candidate-wheel/ from the candidate job,
+    baseline-wheel/ from baseline:build -- microbenchmarks.yml); in a no-op
+    run both hold the same code. None when absent (local runs), which makes
+    slice-aspect record itself unavailable instead of pretending.
+    """
+    base = Path(root) if root is not None else _REPO_ROOT
+    for name in ("candidate-wheel", "baseline-wheel"):
+        wheel_dir = base / name
+        try:
+            wheels = sorted(wheel_dir.glob("*.whl"))
+        except OSError:
+            continue
+        if wheels:
+            return wheels[0]
+    return None
+
+
+def prepare_slice_aspect(root=None):
+    """Best-effort venv with the benchmark's ddtrace wheel, for slice-aspect.
+
+    Never fatal: every failure returns (None, info) with the reason in
+    info["state"] and the scenario records itself unavailable. Returns
+    (venv_python_or_None, info) so the report shows the wheel used and
+    what happened.
+    """
+    base = Path(root) if root is not None else _REPO_ROOT
+    info = {"state": "not attempted", "wheel": None, "python": None, "install_s": None}
+    wheel = find_aspect_wheel(base)
+    if wheel is None:
+        info["state"] = "unavailable: no ddtrace wheel (candidate-wheel/ or baseline-wheel/ absent)"
+        return None, info
+    info["wheel"] = wheel.name
+    venv_python = base / "target" / "slice-aspect-venv" / "bin" / "python"
+    try:
+        if not venv_python.exists():
+            made = subprocess.run(
+                [sys.executable, "-m", "venv", str(venv_python.parent)],
+                capture_output=True,
+                timeout=SLICE_ASPECT_VENV_TIMEOUT_S,
+            )
+            if made.returncode != 0 or not venv_python.exists():
+                info["state"] = "unavailable: venv creation failed: %s" % made.stderr.decode("utf-8", "replace")[:200]
+                return None, info
+        importable = subprocess.run(
+            [str(venv_python), "-c", "import ddtrace.appsec._iast"], capture_output=True, timeout=60
+        )
+        if importable.returncode != 0:
+            started = time.monotonic()
+            installed = subprocess.run(
+                [str(venv_python), "-m", "pip", "install", "--quiet", str(wheel)],
+                capture_output=True,
+                timeout=SLICE_ASPECT_INSTALL_TIMEOUT_S,
+            )
+            info["install_s"] = round(time.monotonic() - started, 1)
+            if installed.returncode != 0:
+                info["state"] = (
+                    "unavailable: pip install failed: %s" % installed.stderr.decode("utf-8", "replace")[:300]
+                )
+                return None, info
+        checked = subprocess.run(
+            [str(venv_python), "-c", "import ddtrace.appsec._iast"], capture_output=True, timeout=60
+        )
+        if checked.returncode != 0:
+            info["state"] = (
+                "unavailable: ddtrace not importable in the venv: %s" % checked.stderr.decode("utf-8", "replace")[:200]
+            )
+            return None, info
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        info["state"] = "unavailable: %r" % exc
+        return None, info
+    info["python"] = str(venv_python)
+    info["state"] = "ok"
+    return venv_python, info
+
+
+def run_slice_aspect_child(venv_python, reps, seconds, explicit_seconds, timeout):
+    """One slice-aspect child on the current (inherited) CPU pin.
+
+    Returns the child's JSON dict (reps, explicit_reps, engagement). Raises
+    SliceAspectError on crash, timeout or unusable output so the caller can
+    record the error per CPU without failing the sweep.
+    """
+    cmd = [
+        str(venv_python),
+        str(_SLICE_ASPECT_CHILD),
+        "--reps",
+        str(reps),
+        "--seconds",
+        repr(seconds),
+        "--explicit-seconds",
+        repr(explicit_seconds),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise SliceAspectError("child rc=%d: %s" % (proc.returncode, proc.stderr.decode("utf-8", "replace")[-300:]))
+    parsed = None
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        try:
+            rec = json.loads(line)
+            if isinstance(rec, dict):
+                parsed = rec
+        except ValueError:
+            continue
+    if not parsed or not parsed.get("reps"):
+        raise SliceAspectError("child produced no usable JSON")
+    return parsed
+
+
 # -- native C core --------------------------------------------------------
 
 
@@ -781,6 +937,8 @@ class Probe:
         }  # scenario -> cpu -> {"reps": [(ops, s)...]} | {"error"/"skipped": str}
         self.pin = {"pinned": False, "reason": "not run yet"}
         self.static = {}
+        self.slice_aspect_info = {"state": "not attempted"}
+        self.slice_aspect_python = None
         self.started = time.time()
         # working-set sizes, overridable for tests
         l3 = None
@@ -890,8 +1048,21 @@ class Probe:
         self.fidelity[GC_READ] = "python-workload"
         self.fidelity[GC_WRITE] = "python-workload"
         self.fidelity[SLICE] = "python-workload"
+        # slice-aspect's fidelity is set by _prepare_slice_aspect (ddtrace-child
+        # or unavailable); only its fallback branch below must not touch it
         if self.native_binary is None:
             self.notes.append("native core unavailable: int/simd/fault/stream/mem-read/mem-write use fallback-python")
+
+    def _prepare_slice_aspect(self) -> None:
+        """Build (once) the aspect venv the slice-aspect children run under."""
+        venv_python, info = prepare_slice_aspect()
+        self.slice_aspect_info = info
+        self.slice_aspect_python = venv_python
+        if venv_python is None:
+            self.fidelity[SLICE_ASPECT] = "unavailable"
+            self.notes.append("slice-aspect %s" % info.get("state", "unavailable"))
+        else:
+            self.fidelity[SLICE_ASPECT] = "ddtrace-child"
 
     # -- scenario execution -----------------------------------------------
 
@@ -944,6 +1115,28 @@ class Probe:
         Returns {"reps": [(ops, seconds), ...]}; raises only if the scenario
         is unavailable on this platform.
         """
+        if scenario == SLICE_ASPECT:
+            # its own child process under the aspect venv; per-CPU failures
+            # are recorded, never raised, so one flaky child cannot mark the
+            # whole scenario unavailable
+            if not self.slice_aspect_python:
+                return {"skipped": self.slice_aspect_info.get("state", "not prepared")}
+            try:
+                out = run_slice_aspect_child(
+                    self.slice_aspect_python,
+                    self.reps,
+                    SLICE_ASPECT_REP_SECONDS,
+                    SLICE_ASPECT_EXPLICIT_REP_SECONDS,
+                    SLICE_ASPECT_CHILD_TIMEOUT_S,
+                )
+            except (SliceAspectError, OSError, subprocess.TimeoutExpired) as exc:
+                return {"error": repr(exc)}
+            entry = {"reps": [(int(ops), float(seconds)) for ops, seconds in out["reps"]]}
+            if out.get("explicit_reps"):
+                entry["explicit_reps"] = [(int(ops), float(seconds)) for ops, seconds in out["explicit_reps"]]
+            if isinstance(out.get("engagement"), dict):
+                entry["engagement"] = out["engagement"]
+            return entry
         if scenario in NATIVE_SCENARIOS and self.native_binary:
             size = None
             if scenario == "simd":
@@ -1061,6 +1254,47 @@ class Probe:
                 " batches in this probe's own harness -- no pyperf, no repo"
                 " harness; rep window %s s (its own, not --rep-seconds)" % SLICE_REP_SECONDS
             )
+        elif scenario == SLICE_ASPECT:
+            stats["note"] = (
+                "the benchmark's aspect machinery in this probe's plain harness:"
+                " a child (probe_slice_aspect.py) under a venv built from the"
+                " pass job's ddtrace wheel replicates the benchmark's verbatim"
+                " IAST enable + import (scenario.py:1-8 and scenario.py:11-15)"
+                " and times the AST-patched os.path.basename call -- the"
+                " noaspect config's executed loop (scenario.py:29-31,"
+                ' function_name "ospathbasename_noaspect" from config.yaml,'
+                " timed inside _without_iast_context per scenario.py:33-34) --"
+                " plus the aspect config's explicit aspect call"
+                " (functions.py:41-42, function_name"
+                ' "iast_ospathbasename_aspect", inside _with_iast_context) as'
+                " the explicit_aspect rows. Same plain calibrated-batch"
+                " harness as slice (no pyperf, no worker process, default"
+                " GC); rep windows %s s main / %s s explicit."
+                " Per-call absolute time is the fidelity record: ~5.3 us"
+                " means the machinery is engaged (F20's 5-7x gap over slice's"
+                " ~0.75 us), ~0.75 us means the AST patch did NOT fire in the"
+                " child -- see machinery_engaged.ast_patched, recorded as-is"
+                % (SLICE_ASPECT_REP_SECONDS, SLICE_ASPECT_EXPLICIT_REP_SECONDS)
+            )
+            # the explicit aspect call: same harness, cannot fail to engage
+            per_cpu_explicit = {}
+            engaged = {}
+            for cpu, entry in self.results[scenario].items():
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("explicit_reps"):
+                    times = rep_times(entry["explicit_reps"])
+                    if times:
+                        per_cpu_explicit[cpu] = times
+                if isinstance(entry.get("engagement"), dict):
+                    engaged[cpu] = bool(entry["engagement"].get("ast_patched"))
+            stats["explicit_aspect"] = compute_scenario_stats(per_cpu_explicit)
+            stats["explicit_aspect"]["unit"] = SCENARIO_UNITS[scenario]
+            if engaged:
+                stats["machinery_engaged"] = {"ast_patched": engaged, "engaged": any(engaged.values())}
+                for cpu in engaged:
+                    if cpu in stats.get("cpus", {}):
+                        stats["cpus"][cpu]["ast_patched"] = engaged[cpu]
         for cpu, entry in self.results[scenario].items():
             if "error" in (entry or {}):
                 stats.setdefault("errors", {})[cpu] = entry["error"]
@@ -1068,6 +1302,14 @@ class Probe:
                 stats.setdefault("skipped", {})[cpu] = entry["skipped"]
             elif "reps" in (entry or {}) and cpu in stats["cpus"]:
                 stats["cpus"][cpu]["ops_per_s"] = [round(ops / seconds, 1) for ops, seconds in entry["reps"]]
+                if (
+                    scenario == SLICE_ASPECT
+                    and entry.get("explicit_reps")
+                    and cpu in stats["explicit_aspect"].get("cpus", {})
+                ):
+                    stats["explicit_aspect"]["cpus"][cpu]["ops_per_s"] = [
+                        round(ops / seconds, 1) for ops, seconds in entry["explicit_reps"]
+                    ]
         return stats
 
     def build_report(self):
@@ -1095,6 +1337,7 @@ class Probe:
                 "tier": "ci" if (os.environ.get("CI") or os.environ.get("GITLAB_CI")) else "local",
                 "platform": platform.platform(),
                 "native": self.native_info,
+                "slice_aspect": self.slice_aspect_info,
                 "pin": self.pin,
                 "notes": self.notes,
             },
@@ -1127,10 +1370,18 @@ class Probe:
             self._build_native()
         except Exception as exc:  # noqa: BLE001
             for scenario in SCENARIOS:
+                if scenario == SLICE_ASPECT:
+                    continue  # set by _prepare_slice_aspect below
                 self.fidelity[scenario] = (
                     "fallback-python" if scenario not in (ALLOC, GC_READ, GC_WRITE, SLICE) else "python-workload"
                 )
             self.notes.append("native build crashed: %r" % exc)
+        try:
+            self._prepare_slice_aspect()
+        except Exception as exc:  # noqa: BLE001 - never fatal
+            self.slice_aspect_info = {"state": "unavailable: %r" % exc}
+            self.fidelity[SLICE_ASPECT] = "unavailable"
+            self.notes.append("slice-aspect setup crashed: %r" % exc)
         try:
             self.sweep(cpus)
         except Exception as exc:  # noqa: BLE001
@@ -1174,6 +1425,14 @@ def render_markdown(report):
         lines.append("- deviant CPUs: none")
     if meta.get("notes"):
         lines.append("- notes: %s" % "; ".join(meta["notes"]))
+    slice_aspect = report["scenarios"].get("slice-aspect", {})
+    if "machinery_engaged" in slice_aspect:
+        # the T11 fidelity record, stated up top so a ~0.75 us row can never
+        # be mistaken for engaged machinery
+        lines.append(
+            "- slice-aspect AST patch engaged: %s (per-CPU ast_patched in report.json)"
+            % ("yes" if slice_aspect["machinery_engaged"]["engaged"] else "NO")
+        )
     lines += ["", "| CPU | scenario | fidelity | time/op | deviation | flagged |", "|---|---|---|---|---|---|"]
     for scenario, stats in report["scenarios"].items():
         fid = stats.get("fidelity", "?")
@@ -1190,6 +1449,23 @@ def render_markdown(report):
                     "**FLAG**" if entry.get("flagged") else "",
                 )
             )
+        extra = stats.get("explicit_aspect")
+        if extra and extra.get("cpus"):
+            # the slice-aspect secondary variant: same harness, explicit
+            # aspect call, cannot fail to engage
+            for cpu, entry in sorted(extra["cpus"].items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 0):
+                dev = entry.get("deviation_pct")
+                lines.append(
+                    "| %s | %s (explicit aspect call) | %s | %s | %s | %s |"
+                    % (
+                        cpu,
+                        scenario,
+                        fid,
+                        _fmt_time(entry.get("median_s_per_op", float("nan"))),
+                        "%+0.1f%%" % dev if dev is not None else "-",
+                        "**FLAG**" if entry.get("flagged") else "",
+                    )
+                )
     return "\n".join(lines) + "\n"
 
 

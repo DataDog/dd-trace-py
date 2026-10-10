@@ -83,7 +83,19 @@ class ScenarioContractTests(unittest.TestCase):
     def test_scenario_names_and_units(self):
         self.assertEqual(
             probe.SCENARIOS,
-            ("int", "simd", "alloc", "fault", "stream", "mem-read", "mem-write", "gc-read", "gc-write", "slice"),
+            (
+                "int",
+                "simd",
+                "alloc",
+                "fault",
+                "stream",
+                "mem-read",
+                "mem-write",
+                "gc-read",
+                "gc-write",
+                "slice",
+                "slice-aspect",
+            ),
         )
         self.assertEqual(
             probe.SCENARIO_UNITS,
@@ -98,6 +110,7 @@ class ScenarioContractTests(unittest.TestCase):
                 "gc-read": "collections",
                 "gc-write": "batches",
                 "slice": "iterations",
+                "slice-aspect": "iterations",
             },
         )
         # no stragglers from the latency/gc renames or missing units
@@ -310,6 +323,284 @@ class SliceScenarioTests(unittest.TestCase):
         self.assertIn("scenario.py:31", stats["note"])
 
 
+class SliceAspectScenarioTests(unittest.TestCase):
+    """slice-aspect: the benchmark's aspect machinery in the probe's harness.
+
+    Structural only: the child's setup is compared against the benchmark
+    source it mirrors (and the parent's plumbing against the child), so
+    drift in either file fails in CI. The child is NEVER run here -- it
+    needs a venv with the benchmark's ddtrace wheel; behavioral validation
+    is CI-only, in the probe pass jobs.
+    """
+
+    REPO_ROOT = Path(__file__).resolve().parents[3]
+    BENCH = REPO_ROOT / "benchmarks" / "appsec_iast_aspects_ospath"
+    CHILD = Path(probe.__file__).parent / "probe_slice_aspect.py"
+
+    @staticmethod
+    def _module_with_block(path):
+        # the FIRST module-level `with` -- the enable block in both files
+        tree = ast.parse(Path(path).read_text())
+        for node in tree.body:
+            if isinstance(node, ast.With):
+                return node
+        raise AssertionError("no module-level with block in %s" % path)
+
+    def test_enable_block_is_verbatim(self):
+        # the child's enable block must be an exact AST copy of
+        # scenario.py:11-15: IAST_ENV override, both asm_config flags,
+        # enable_iast_propagation(), and `import functions` INSIDE the with
+        # (that placement is what AST-patches the benchmark's functions.py)
+        bench = self._module_with_block(self.BENCH / "scenario.py")
+        child = self._module_with_block(self.CHILD)
+        self.assertEqual(ast.dump(child), ast.dump(bench))
+
+    def test_child_imports_mirror_scenario(self):
+        # the imports the enable block needs are scenario.py:1-8's, verbatim;
+        # bm imports before them so the watchdog never patches bm, same as
+        # the benchmark (scenario.py:1 runs before the enable block)
+        src = self.CHILD.read_text()
+        for line in (
+            "import bm",
+            "from bm.iast_utils import IAST_ENV",
+            "from bm.iast_utils import _with_iast_context",
+            "from bm.iast_utils import _without_iast_context",
+            "from bm.iast_utils import asm_config",
+            "from bm.utils import override_env",
+            "from ddtrace.appsec._iast import enable_iast_propagation",
+        ):
+            self.assertIn(line, src)
+
+    def test_timed_call_patterns_match_benchmark(self):
+        # scenario.py:29-31's per-iteration shape, with the two names
+        # config.yaml resolves for the two configs; the child's generic
+        # batch helper must use the exact call shape (getattr on the
+        # functions module, result discarded into _) and only the names
+        # vary, exactly like the benchmark loop's self.function_name
+        child = self.CHILD.read_text()
+        self.assertIn("_ = getattr(functions, function_name)()", child)
+        self.assertIn('"ospathbasename_noaspect"', child)
+        self.assertIn('"iast_ospathbasename_aspect"', child)
+        self.assertIn("_ = getattr(functions, self.function_name)()", (self.BENCH / "scenario.py").read_text())
+        config = (self.BENCH / "config.yaml").read_text()
+        self.assertIn('function_name: "iast_ospathbasename_aspect"', config)
+        self.assertIn('function_name: "ospathbasename_noaspect"', config)
+
+    def test_variant_contexts_wrap_the_right_calls(self):
+        # scenario.py:33-34: the noaspect config (iast_enabled: false) times
+        # inside _without_iast_context, the aspect config inside
+        # _with_iast_context; the child must wrap the matching variant the
+        # same way, and the plain (main) variant must be measured before any
+        # request context is ever started
+        tree = ast.parse(self.CHILD.read_text())
+        main = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "main")
+        wrapped = {}
+        for node in ast.walk(main):
+            if isinstance(node, ast.With):
+                ctx = ast.unparse(node.items[0].context_expr)
+                names = wrapped.setdefault(ctx, set())
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Constant) and sub.value in (
+                        "ospathbasename_noaspect",
+                        "iast_ospathbasename_aspect",
+                    ):
+                        names.add(sub.value)
+        self.assertEqual(wrapped.get("_without_iast_context()"), {"ospathbasename_noaspect"})
+        self.assertEqual(wrapped.get("_with_iast_context()"), {"iast_ospathbasename_aspect"})
+        self.assertIn(
+            "context = _with_iast_context if self.iast_enabled else _without_iast_context",
+            (self.BENCH / "scenario.py").read_text(),
+        )
+
+    def test_engagement_check_is_structural(self):
+        # engagement must be decided from the code object (a plain compile
+        # of the same source vs the loaded module) and the _ddtrace_ prefix
+        # the visitor injects, never from the timing
+        child = self.CHILD.read_text()
+        self.assertIn("co_code", child)
+        self.assertIn('k.startswith("_ddtrace_")', child)
+        self.assertIn("ast_patched", child)
+
+    def test_report_note_cites_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe_obj = probe.Probe(Path(tmp), reps=1, rep_seconds=0.02)
+            probe_obj.fidelity["slice-aspect"] = "ddtrace-child"
+            stats = probe_obj._scenario_stats("slice-aspect")
+        for cite in (
+            "scenario.py:1-8",
+            "scenario.py:11-15",
+            "scenario.py:29-31",
+            "scenario.py:33-34",
+            "functions.py:41-42",
+        ):
+            self.assertIn(cite, stats["note"])
+        self.assertIn("machinery_engaged", stats["note"])
+
+    def test_stats_record_secondary_and_engagement(self):
+        # the explicit aspect call gets its own per-CPU stats and the
+        # engagement verdict is carried into the scenario stats, so a
+        # not-engaged run can never be mistaken for a clean one
+        with tempfile.TemporaryDirectory() as tmp:
+            probe_obj = probe.Probe(Path(tmp), reps=2, rep_seconds=0.02)
+            probe_obj.fidelity["slice-aspect"] = "ddtrace-child"
+            probe_obj.results["slice-aspect"] = {
+                "24": {
+                    "reps": [(100, 1.0), (100, 1.0)],
+                    "explicit_reps": [(100, 1.4), (100, 1.4)],
+                    "engagement": {"ast_patched": True},
+                },
+                "25": {
+                    "reps": [(100, 0.7), (100, 0.7)],
+                    "explicit_reps": [(100, 1.0), (100, 1.0)],
+                    "engagement": {"ast_patched": True},
+                },
+                "26": {
+                    "reps": [(100, 0.7), (100, 0.7)],
+                    "explicit_reps": [(100, 1.0), (100, 1.0)],
+                    "engagement": {"ast_patched": True},
+                },
+            }
+            stats = probe_obj._scenario_stats("slice-aspect")
+        self.assertTrue(stats["machinery_engaged"]["engaged"])
+        self.assertTrue(stats["cpus"]["24"]["ast_patched"])
+        self.assertTrue(stats["cpus"]["24"]["flagged"])  # main: +43% over the host median
+        self.assertFalse(stats["cpus"]["25"]["flagged"])
+        self.assertTrue(stats["explicit_aspect"]["cpus"]["24"]["flagged"])  # explicit: +40%
+        self.assertFalse(stats["explicit_aspect"]["cpus"]["25"]["flagged"])
+        self.assertEqual(stats["explicit_aspect"]["unit"], "iterations")
+
+    def test_markdown_renders_extras(self):
+        report = {
+            "verdict": "clean",
+            "meta": {
+                "pin": {"probed_cpus": [24, 25]},
+                "reps": 2,
+                "rep_seconds": 1.5,
+                "platform": "test",
+                "tier": "local",
+                "native": {"build": "ok"},
+                "notes": [],
+            },
+            "static": {"cpu_model": "test cpu", "kernel": "k", "allowed_cpus": [24, 25], "l3_bytes": 1},
+            "scenarios": {
+                "slice-aspect": {
+                    "fidelity": "ddtrace-child",
+                    "unit": "iterations",
+                    "cpus": {
+                        "24": {"median_s_per_op": 5.3e-6, "deviation_pct": 1.0, "flagged": False},
+                        "25": {"median_s_per_op": 5.2e-6, "deviation_pct": -1.0, "flagged": False},
+                    },
+                    "machinery_engaged": {"engaged": True, "ast_patched": {"24": True, "25": True}},
+                    "explicit_aspect": {
+                        "unit": "iterations",
+                        "cpus": {
+                            "24": {"median_s_per_op": 5.4e-6, "deviation_pct": 1.2, "flagged": False},
+                            "25": {"median_s_per_op": 5.3e-6, "deviation_pct": -1.2, "flagged": False},
+                        },
+                    },
+                }
+            },
+            "deviant_cpus": {},
+        }
+        md = probe.render_markdown(report)
+        self.assertIn("slice-aspect AST patch engaged: yes", md)
+        self.assertIn("slice-aspect (explicit aspect call)", md)
+
+
+class SliceAspectWheelTests(unittest.TestCase):
+    """The aspect venv plumbing: wheel resolution and install policy.
+
+    No behavioral runs: subprocess is faked or the no-wheel path is taken
+    (no wheel exists outside the CI pass jobs). The child itself is never
+    executed.
+    """
+
+    def test_wheel_resolution_prefers_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertIsNone(probe.find_aspect_wheel(root))
+            (root / "baseline-wheel").mkdir()
+            (root / "baseline-wheel" / "ddtrace-base-1.0-py3-none-any.whl").write_text("")
+            self.assertEqual(probe.find_aspect_wheel(root).name, "ddtrace-base-1.0-py3-none-any.whl")
+            (root / "candidate-wheel").mkdir()
+            (root / "candidate-wheel" / "ddtrace-cand-2.0-py3-none-any.whl").write_text("")
+            # the candidate build is what the benchmark's candidate side runs
+            self.assertEqual(probe.find_aspect_wheel(root).name, "ddtrace-cand-2.0-py3-none-any.whl")
+
+    def test_no_wheel_records_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            venv_python, info = probe.prepare_slice_aspect(Path(tmp))
+        self.assertIsNone(venv_python)
+        self.assertIn("unavailable", info["state"])
+        self.assertIn("no ddtrace wheel", info["state"])
+
+    def test_install_runs_only_when_import_fails(self):
+        """A cached importable venv is reused; pip runs exactly once when not."""
+        import subprocess as subprocess_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            wheel_dir = root / "candidate-wheel"
+            wheel_dir.mkdir()
+            wheel = wheel_dir / "ddtrace-cand-2.0-cp312-cp312-manylinux2014_x86_64.whl"
+            wheel.write_text("")
+            fake_python = root / "target" / "slice-aspect-venv" / "bin" / "python"
+            fake_python.parent.mkdir(parents=True)
+            fake_python.write_text("#!/bin/sh\n")  # pre-created: venv step skipped
+            calls = []
+
+            def fake_run(cmd, **kwargs):
+                if cmd[1:3] == ["-c", "import ddtrace.appsec._iast"]:
+                    calls.append("import-check")
+                    # import fails before install, succeeds after
+                    return subprocess_mod.CompletedProcess(cmd, 0 if "pip" in calls else 1, stdout=b"", stderr=b"boom")
+                if cmd[1:3] == ["-m", "pip"]:
+                    calls.append("pip")
+                    return subprocess_mod.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
+                raise AssertionError("unexpected command %r" % cmd)
+
+            original_run = probe.subprocess.run
+            probe.subprocess.run = fake_run
+            try:
+                venv_python, info = probe.prepare_slice_aspect(root)
+            finally:
+                probe.subprocess.run = original_run
+        self.assertEqual(venv_python, fake_python)
+        self.assertEqual(info["state"], "ok")
+        self.assertEqual(info["wheel"], wheel.name)
+        self.assertIsNotNone(info["install_s"])
+        self.assertEqual(calls, ["import-check", "pip", "import-check"])  # imported twice, installed once
+
+    def test_failed_install_records_reason(self):
+        import subprocess as subprocess_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            wheel_dir = root / "candidate-wheel"
+            wheel_dir.mkdir()
+            (wheel_dir / "ddtrace-cand-2.0-cp312-cp312-manylinux2014_x86_64.whl").write_text("")
+            fake_python = root / "target" / "slice-aspect-venv" / "bin" / "python"
+            fake_python.parent.mkdir(parents=True)
+            fake_python.write_text("#!/bin/sh\n")
+
+            def fake_run(cmd, **kwargs):
+                if cmd[1:3] == ["-c", "import ddtrace.appsec._iast"]:
+                    return subprocess_mod.CompletedProcess(cmd, 1, stdout=b"", stderr=b"boom")
+                if cmd[1:3] == ["-m", "pip"]:
+                    return subprocess_mod.CompletedProcess(cmd, 2, stdout=b"", stderr=b"network on fire")
+                raise AssertionError("unexpected command %r" % cmd)
+
+            original_run = probe.subprocess.run
+            probe.subprocess.run = fake_run
+            try:
+                venv_python, info = probe.prepare_slice_aspect(root)
+            finally:
+                probe.subprocess.run = original_run
+        self.assertIsNone(venv_python)
+        self.assertIn("pip install failed", info["state"])
+        self.assertIn("network on fire", info["state"])
+
+
 class StatsTests(unittest.TestCase):
     @staticmethod
     def _per_cpu(slow_24=False):
@@ -370,6 +661,7 @@ class StatsTests(unittest.TestCase):
         native["gc-read"] = "python-workload"
         native["gc-write"] = "python-workload"
         native["slice"] = "python-workload"
+        native["slice-aspect"] = "ddtrace-child"
         self.assertEqual(probe.decide_verdict({"pinned": True}, native, {}, []), "clean")
         self.assertEqual(
             probe.decide_verdict({"pinned": True}, native, {"24": [{"scenario": "alloc"}]}, []),
@@ -486,7 +778,11 @@ class ProbeRunTests(unittest.TestCase):
                 self.assertIn(scenario, md)
                 self.assertIn(scenario, report["scenarios"])
                 fid = report["scenarios"][scenario]["fidelity"]
-                self.assertIn(fid, ("native", "fallback-python", "python-workload"))
+                # slice-aspect is "unavailable" wherever the pass-job wheel
+                # artifacts are absent (everywhere but the CI pass jobs)
+                self.assertIn(fid, ("native", "fallback-python", "python-workload", "ddtrace-child", "unavailable"))
+            self.assertEqual(report["scenarios"]["slice-aspect"]["fidelity"], "unavailable")
+            self.assertIn("no ddtrace wheel", report["meta"]["slice_aspect"]["state"])
             if probe.compile_native()[0] is not None:
                 self.assertEqual(report["scenarios"]["alloc"]["fidelity"], "python-workload")
             for scenario in probe.NATIVE_SCENARIOS:
