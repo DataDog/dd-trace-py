@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import importlib.util
 import json
 import os
 from pathlib import Path
 import queue
+import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -15,6 +18,27 @@ import yaml
 
 
 SHOULD_PROFILE = os.environ.get("PROFILE_BENCHMARKS", "0") == "1"
+
+# EXPERIMENT (do not merge): T6 of the CPU-asymmetry probe (PR #20052 /
+# APMSP-4059). Each config's taskset'd process tree is counted (cycles,
+# instructions, cache misses, task-clock, context switches, migrations, page
+# faults) so the readout can compare CPU 24 against 25/36/37. Preferred tool:
+# `perf stat -x,` wrapping the tree (inheritance is perf stat's default), one
+# CSV per config and side next to the results. Events are user-only (:u): the
+# CI containers run unprivileged under perf_event_paranoid=2, which forbids
+# kernel-inclusive counts, and the benchmark workload itself is user space.
+# Fallback when the perf binary is missing but perf_event_open works: a
+# stdlib ctypes counting event per metric opened on the benchmark process
+# with inherit=1 (hardware events ask for exclude_kernel for the same reason).
+# Every failure is recorded and degrades to an unwrapped run; nothing here
+# can fail the job.
+PERF_STAT_EVENTS = (
+    "task-clock,cycles:u,instructions:u,cache-references:u,cache-misses:u,context-switches,cpu-migrations,page-faults"
+)
+
+_watch_module = None
+_watch_module_loaded = False
+_perf_probe_state: Optional[dict] = None
 
 
 def append_placement_record(
@@ -77,6 +101,155 @@ def cpu_affinity_to_cpu_groups(cpu_affinity: str, cpus_per_run: int) -> list[lis
     return cpu_groups
 
 
+def _load_watch_module():
+    # EXPERIMENT (T6): the repo's watch.py already carries the ctypes
+    # perf_event_open plumbing (attr struct, raw syscall) for its own passive
+    # counters; load it from this scenario's location instead of duplicating
+    # kernel-ABI code in the benchmark harness. The scenario tree is the repo
+    # checkout, so watch.py sits three levels up from run.py.
+    global _watch_module, _watch_module_loaded
+    if _watch_module_loaded:
+        return _watch_module
+    _watch_module_loaded = True
+    try:
+        path = Path(__file__).resolve().parents[2] / ".gitlab" / "benchmarks" / "steps" / "watch.py"
+        spec = importlib.util.spec_from_file_location("cpu_probe_watch", path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _watch_module = module
+    except Exception:
+        return None
+    return _watch_module
+
+
+def perf_probe() -> dict:
+    """Decide once per process how to count the benchmark tree: perf stat if a
+    functional trial succeeds, else the ctypes counter if perf_event_open
+    accepts a per-process software event, else nothing. The decision (and its
+    reason) is printed once and cached; never raises.
+    """
+    global _perf_probe_state
+    if _perf_probe_state is not None:
+        return _perf_probe_state
+    state: dict[str, Any] = {"mode": "none", "reason": ""}
+    if shutil.which("perf"):
+        try:
+            trial = subprocess.run(
+                ["perf", "stat", "-x,", "-e", PERF_STAT_EVENTS, "-o", os.devnull, "--", "true"],
+                capture_output=True,
+                timeout=120,
+            )
+            if trial.returncode == 0:
+                state = {"mode": "perf", "reason": ""}
+            else:
+                state["reason"] = "perf stat trial rc=%d: %s" % (
+                    trial.returncode,
+                    trial.stderr.decode("utf-8", "replace").strip()[:300],
+                )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            state["reason"] = "perf stat trial: %s" % exc
+    else:
+        state["reason"] = "perf binary missing"
+    if state["mode"] == "none" and state["reason"] == "perf binary missing":
+        watch = _load_watch_module()
+        if watch is None:
+            state["reason"] = "perf binary missing and watch.py not loadable for the ctypes fallback"
+        else:
+            try:
+                fd = watch.perf_event_open(
+                    watch.PerfEventAttr(watch.PERF_TYPE_SOFTWARE, watch.PERF_COUNT_SW_TASK_CLOCK), 0, -1
+                )
+                os.close(fd)
+                state = {"mode": "ctypes", "reason": ""}
+            except OSError as exc:
+                state["reason"] = "perf binary missing and perf_event_open blocked: %s" % exc
+    print("perf probe (T6): %s" % json.dumps(state))
+    _perf_probe_state = state
+    return state
+
+
+class CtypesPerfCounter:
+    """perf stat replacement for when the perf binary is missing but
+    perf_event_open works: one inherit=1 counting event per metric, opened on
+    the benchmark process right after spawn and read after exit. Values are
+    stored raw with their enabled/running times so the readout can scale any
+    kernel multiplexing; hardware events that need exclude_kernel (unprivileged
+    perf_event_paranoid) retry with it and the constraint is recorded.
+    """
+
+    # (metric, type, config); ids from perf_event_open(2)
+    EVENTS = (
+        ("task-clock", 1, 1),
+        ("cycles", 0, 0),
+        ("instructions", 0, 1),
+        ("cache-references", 0, 2),
+        ("cache-misses", 0, 3),
+        ("context-switches", 1, 3),
+        ("cpu-migrations", 1, 4),
+        ("page-faults", 1, 2),
+    )
+
+    def __init__(self, pid: int):
+        watch = _load_watch_module()
+        if watch is None:
+            raise RuntimeError("watch module not loadable")
+        self.watch = watch
+        self.fds: dict[str, int] = {}
+        self.exclude_kernel = True
+        read_format = watch._READ_TIME_ENABLED | watch._READ_TIME_RUNNING
+        for name, ptype, config in self.EVENTS:
+            # user-only by default (perf_event_paranoid=2): hardware events
+            # ask for exclude_kernel; only an ancient kernel rejecting the
+            # bit (EINVAL) retries kernel-inclusive
+            attr = watch.PerfEventAttr(
+                ptype,
+                config,
+                inherit=True,
+                exclude_kernel=ptype == watch.PERF_TYPE_HARDWARE,
+                read_format=read_format,
+            )
+            try:
+                self.fds[name] = watch.perf_event_open(attr, pid, -1)
+            except OSError:
+                if ptype != watch.PERF_TYPE_HARDWARE or not attr.flags & watch._BIT_EXCLUDE_KERNEL:
+                    self.close()
+                    raise
+                attr = watch.PerfEventAttr(ptype, config, inherit=True, read_format=read_format)
+                try:
+                    self.fds[name] = watch.perf_event_open(attr, pid, -1)
+                    self.exclude_kernel = False
+                except OSError:
+                    self.close()
+                    raise
+
+    def close(self) -> None:
+        for fd in self.fds.values():
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        self.fds = {}
+
+    def write_output(self, output_dir: str, cname: str) -> None:
+        # PERF_FORMAT_TOTAL_TIME_ENABLED|TOTAL_TIME_RUNNING layout: the counter
+        # value then its enabled and running times (ns); the readout scales
+        # value by enabled/running when the kernel multiplexed the event.
+        metrics = {}
+        for name, fd in self.fds.items():
+            try:
+                data = os.read(fd, 24)
+                if len(data) == 24:
+                    value, enabled, running = struct.unpack("<QQQ", data)
+                    metrics[name] = {"value": value, "enabled": enabled, "running": running}
+            except OSError:
+                continue
+        out = {"mode": "ctypes", "exclude_kernel": self.exclude_kernel, "metrics": metrics}
+        (Path(output_dir) / ("perf.%s.json" % cname)).write_text(json.dumps(out, indent=1) + "\n")
+        self.close()
+
+
 def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cpus: Optional[list[int]] = None):
     cmd: list[str] = []
 
@@ -121,9 +294,38 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
         else:
             cmd.append(str(cvarval))
 
+    # EXPERIMENT (T6): count the whole taskset'd tree. perf stat is outermost
+    # (taskset execs the benchmark in place, so the measured pid stays the
+    # spawned one); the ctypes counter attaches to the spawned pid after
+    # Popen with inherit=1. Either way the timed path is unchanged and any
+    # failure degrades to an unwrapped run.
+    probe = perf_probe()
+    counter = None
+    if probe["mode"] == "perf":
+        cmd = [
+            "perf",
+            "stat",
+            "-x,",
+            "-e",
+            PERF_STAT_EVENTS,
+            "-o",
+            str(Path(output_dir) / ("perf.%s.txt" % cname)),
+            "--",
+        ] + cmd
+
     proc = subprocess.Popen(cmd)
+    if probe["mode"] == "ctypes":
+        try:
+            counter = CtypesPerfCounter(proc.pid)
+        except (OSError, RuntimeError):
+            counter = None
     start = time.time()
     proc.wait()
+    if counter is not None:
+        try:
+            counter.write_output(output_dir, cname)
+        except OSError:
+            counter.close()
     append_placement_record(output_dir, cname, cpus, start, time.time(), proc.pid)
 
 

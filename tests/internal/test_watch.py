@@ -19,11 +19,21 @@ import pytest
 
 _WATCH_PATH = pathlib.Path(__file__).resolve().parents[2] / ".gitlab" / "benchmarks" / "steps" / "watch.py"
 _RUN_PATH = pathlib.Path(__file__).resolve().parents[2] / "benchmarks" / "base" / "run.py"
+_JITTER_PATH = pathlib.Path(__file__).resolve().parents[2] / ".gitlab" / "benchmarks" / "steps" / "jitter.py"
 
 
 @pytest.fixture(scope="module")
 def watch_mod():
     spec = importlib.util.spec_from_file_location("watch", _WATCH_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def jitter_mod():
+    spec = importlib.util.spec_from_file_location("jitter", _JITTER_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -271,3 +281,185 @@ def test_sample_join_shapes(watch_mod, tmp_path):
         loaded = json.loads(fp.read().decode("utf-8"))
     assert loaded["t"] == 123.45
     assert loaded["stat"]["cpu0"][0] == 10
+
+
+PROC_SCHEDSTAT = """\
+cpu0  5703795  940284  1316737
+cpu1  5704001  940300  1316800
+domain0 0 0 0
+"""
+
+
+def test_read_schedstat_rows(watch_mod):
+    # T6: per-CPU /proc/schedstat (run-queue wait); the parser stays
+    # column-agnostic because the field meanings moved across kernels.
+    parsed = watch_mod.read_schedstat(PROC_SCHEDSTAT)
+    assert parsed["0"] == [5703795, 940284, 1316737]
+    assert parsed["1"] == [5704001, 940300, 1316800]
+    # non-"cpuN" rows (sched domains) are dropped
+    assert "domain0" not in parsed
+
+
+def test_read_pid_schedstat(watch_mod):
+    # T6: /proc/<pid>/schedstat triple -- time on cpu, run_delay, timeslices
+    assert watch_mod.read_pid_schedstat("123456789 987654321 42\n") == [123456789, 987654321, 42]
+
+
+PID_STATUS = """\
+Name:\tpython3
+State:\tR (running)
+voluntary_ctxt_switches:\t152
+nonvoluntary_ctxt_switches:\t7
+"""
+
+
+def test_read_pid_status_ctxt(watch_mod):
+    # T6: the benchmark processes' preemption counters (H6 support)
+    assert watch_mod.read_pid_status_ctxt(PID_STATUS) == {"voluntary": 152, "nonvoluntary": 7}
+    # missing or malformed lines are skipped, never raised
+    assert watch_mod.read_pid_status_ctxt("Name:\tpython3\nvoluntary_ctxt_switches:\tnope\n") == {}
+
+
+def test_read_irq_per_cpu_count(watch_mod):
+    # T6: /sys/kernel/irq/<N>/per_cpu_count -- the unmasked stand-in for
+    # /proc/interrupts; offline/unknown entries parse to None
+    counts = watch_mod.read_irq_per_cpu_count("0,0,123,0\n")
+    assert counts == [0, 0, 123, 0]
+    assert watch_mod.read_irq_per_cpu_count("0,,123,") == [0, None, 123, None]
+
+
+def test_source_probe_shapes(watch_mod, tmp_path):
+    # T6: every source read lands as {source, available, error}; empty counts
+    # as not available (that is how /proc/interrupts is masked) and nothing
+    # raises
+    ok = tmp_path / "ok"
+    ok.write_text("content\n")
+    empty = tmp_path / "empty"
+    empty.write_text("\n")
+    missing = tmp_path / "missing"
+    assert watch_mod.source_probe(ok) == {"source": str(ok), "available": True, "error": None}
+    assert watch_mod.source_probe(empty) == {"source": str(empty), "available": False, "error": "empty"}
+    probe = watch_mod.source_probe(missing)
+    assert probe["available"] is False
+    assert "missing" in probe["error"] or "No such" in probe["error"]
+
+
+def test_perf_stat_events_are_user_only(run_mod):
+    # T6: the perf stat wrap counts user space only -- perf_event_paranoid=2
+    # in the unprivileged CI containers forbids kernel-inclusive counts
+    events = run_mod.PERF_STAT_EVENTS.split(",")
+    for name in ("cycles", "instructions", "cache-references", "cache-misses"):
+        assert "%s:u" % name in events
+    assert "task-clock" in events
+
+
+def test_perf_event_attr_layout(watch_mod):
+    # the truncated attr struct must be exactly 56 bytes (type..bp_type) and
+    # set the flag bits perf_event_open(2) defines; the readout of the
+    # hardware counters depends on this ABI staying correct.
+    import ctypes
+
+    attr = watch_mod.PerfEventAttr(watch_mod.PERF_TYPE_TRACEPOINT, 42, inherit=True)
+    assert ctypes.sizeof(watch_mod.PerfEventAttr) == 56 == attr.size
+    assert attr.type == watch_mod.PERF_TYPE_TRACEPOINT
+    assert attr.config == 42
+    assert attr.flags == 1 << 1  # inherit
+    attr = watch_mod.PerfEventAttr(0, 0, exclude_kernel=True, read_format=3)
+    assert attr.flags == 1 << 4
+    assert attr.read_format == 3
+
+
+def test_tracepoint_id_found_and_missing(watch_mod, tmp_path):
+    # T6: irq:irq_handler_entry id resolution from tracingfs, via the
+    # injectable bases so the test does not need a mounted host.
+    events = tmp_path / "events" / "irq" / "irq_handler_entry"
+    events.mkdir(parents=True)
+    (events / "id").write_text("4242\n")
+    assert watch_mod.tracepoint_id("irq/irq_handler_entry", bases=(tmp_path,)) == 4242
+    assert watch_mod.tracepoint_id("irq/irq_handler_exit", bases=(tmp_path,)) is None
+
+
+def test_pmu_event_config_assembles_format_masks(watch_mod, tmp_path):
+    # T6: msr/smi event -> (type, config) assembled from the PMU's event
+    # terms and format masks; the layout mirrors the real msr PMU sysfs.
+    msr = tmp_path / "msr"
+    (msr / "events").mkdir(parents=True)
+    (msr / "format").mkdir(parents=True)
+    (msr / "events" / "smi").write_text("event=0x00,umask=0x01\n")
+    (msr / "format" / "event").write_text("config:0-7\n")
+    (msr / "format" / "umask").write_text("config:8-15\n")
+    (msr / "type").write_text("9\n")
+    assert watch_mod.pmu_event_config("msr", "smi", devices=tmp_path) == (9, 0x100)
+    assert watch_mod.pmu_event_config("msr", "tsc", devices=tmp_path) is None
+
+
+def test_perf_probe_degrades_when_perf_missing(run_mod, monkeypatch):
+    # T6: the perf-stat wrap must never block a benchmark -- with no perf
+    # binary and no loadable watch module (ctypes fallback), the probe says
+    # "none" and records why, instead of raising.
+    monkeypatch.setattr(run_mod.shutil, "which", lambda name: None)
+    monkeypatch.setattr(run_mod, "_load_watch_module", lambda: None)
+    monkeypatch.setattr(run_mod, "_perf_probe_state", None)
+    state = run_mod.perf_probe()
+    assert state["mode"] == "none"
+    assert "perf binary missing" in state["reason"]
+
+
+def test_ctypes_counter_event_ids(run_mod):
+    # the fallback counter must ask perf_event_open for the same events
+    # `perf stat -e` names; ids from perf_event_open(2)
+    events = {name: (ptype, config) for name, ptype, config in run_mod.CtypesPerfCounter.EVENTS}
+    assert events["task-clock"] == (1, 1)
+    assert events["cycles"] == (0, 0)
+    assert events["instructions"] == (0, 1)
+    assert events["cache-references"] == (0, 2)
+    assert events["cache-misses"] == (0, 3)
+    assert events["context-switches"] == (1, 3)
+    assert events["cpu-migrations"] == (1, 4)
+    assert events["page-faults"] == (1, 2)
+
+
+def test_calibrate_threshold_floor_and_multiple(jitter_mod):
+    # T6 jitter probe: the threshold is the 5 us floor or 10x the loop's
+    # median spacing, whichever is larger, so no host turns its own ordinary
+    # iterations into "gaps"
+    assert jitter_mod.calibrate_threshold([100, 120, 90], 5000) == 5000
+    assert jitter_mod.calibrate_threshold([900, 1000, 1100], 5000) == 10000
+    assert jitter_mod.calibrate_threshold([], 5000) == 5000
+
+
+def test_histogram_buckets(jitter_mod):
+    counts = jitter_mod.histogram([4999, 5000, 2000000, 2000001], (5000, 10000))
+    assert counts == {"0-5000": 1, "5000-10000": 1, "10000-inf": 2}
+    assert jitter_mod.histogram([], (1,)) == {"0-1": 0, "1-inf": 0}
+
+
+def test_jitter_summarize(jitter_mod):
+    # T6 jitter probe: one summary per CPU -- count, stolen time net of one
+    # baseline iteration per gap, size histogram, and the inter-gap interval
+    # histogram the H7 periodicity judgement reads
+    gaps = [(0, 6000), (100_000_000, 600_000), (200_000_000, 7000)]  # (t_ns, gap_ns)
+    summary = jitter_mod.summarize(gaps, 5000, 100, 1.0)
+    assert summary["gap_count"] == 3
+    assert summary["total_gap_ns"] == 6000 + 600_000 + 7000
+    assert summary["total_stolen_ns"] == 6000 + 600_000 + 7000 - 3 * 100
+    assert summary["stolen_fraction"] == summary["total_gap_ns"] / 1e9
+    assert summary["size_histogram_ns"]["5000-10000"] == 2
+    assert summary["interval_histogram_s"]["0.1-1.0"] == 2  # two 0.1 s inter-gap intervals
+    assert summary["max_gap_ns"] == 600_000
+    empty = jitter_mod.summarize([], 5000, 100, 1.0)
+    assert empty["gap_count"] == 0
+    assert empty["stolen_fraction"] == 0.0
+
+
+def test_probe_cpu_unavailable_is_recorded(jitter_mod, monkeypatch):
+    # a CPU the process cannot pin to is recorded {available, error}, never
+    # raised -- the probe cannot fail the job
+    def refuse(pid, cpus):
+        raise OSError(1, "not permitted")
+
+    monkeypatch.setattr(jitter_mod.os, "sched_setaffinity", refuse)
+    record = jitter_mod.probe_cpu(24, 0.1, 0.1, 5000, 100)
+    assert record["cpu"] == 24
+    assert record["available"] is False
+    assert "not permitted" in record["error"]

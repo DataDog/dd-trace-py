@@ -10,11 +10,23 @@ time window it ran on. See the spec card and lab notebook in the vault.
 Usage: watch.py --out DIR -- CMD [ARGS...]
 
 Output (under DIR):
-  static.json      one-time snapshot: topology, NUMA, IRQ affinities, cpufreq
-                   policy, kernel, cgroup cpuset, allowed CPUs, source readability
+  static.json      one-time snapshot: topology, NUMA, IRQ affinities (allowed
+                   AND effective) with device names, per-IRQ per-CPU counts
+                   (/sys/kernel/irq, the unmasked stand-in for /proc/interrupts),
+                   cpufreq policy, kernel, cgroup cpuset, allowed CPUs,
+                   per-source {source, available, error} records, why
+                   /proc/interrupts reads empty (diagnosis only), perf/MSR
+                   preflight
   samples.jsonl.gz 1 Hz samples: per-CPU /proc/stat, /proc/interrupts,
-                   /proc/softirqs, PSI, selected vmstat, numastat, thermal
-                   throttle counts, per-CPU frequency, per-process stat
+                   /proc/softirqs, /proc/schedstat (run-queue wait),
+                   /proc/<pid>/schedstat (per-process run_delay) and
+                   /proc/<pid>/status context switches, per-IRQ per-CPU
+                   counts, per-CPU irq:irq_handler_entry counter, PSI,
+                   selected vmstat, numastat, thermal throttle counts,
+                   per-CPU frequency, per-process stat
+  end.json         end-of-run snapshot: IRQ effective affinities re-read, final
+                   per-CPU irq:irq_handler_entry counts, SMI counts (start and
+                   end), per-source {source, available, error} records
   meta.json        run summary: pinning decision, own CPU time, read errors
 
 Self-intrusion controls:
@@ -22,8 +34,17 @@ Self-intrusion controls:
     discovered from the affinity of taskset-pinned descendants; records the
     decision when pinning isn't possible.
   - Records its own CPU time; per-process samples include the watch itself.
-  - Never touches MSRs or perf/PMU, and generates no load beyond reading
-    /proc and /sys at 1 Hz.
+  - Generates no load beyond reading /proc and /sys at 1 Hz and reading its
+    own counter file descriptors. T6 additions: it holds two read-only
+    per-CPU counting events open for its lifetime (irq:irq_handler_entry and
+    msr/smi via perf_event_open, so /proc/interrupts being masked does not
+    blind the probe) and may read MSR_SMI_COUNT (0x34) from /dev/cpu/N/msr.
+    These are pure syscall attempts: under perf_event_paranoid=2 without
+    capabilities they fail with EACCES and that is recorded. Every probe and
+    source read is best-effort, recorded as {source, available, error}, and
+    none can fail the job. The watch never mounts or umounts anything: the
+    runtime's /proc/interrupts mask is deliberate, and the watch only
+    diagnoses it and reads the unmasked equivalents instead.
 
 Stdlib only; the samples file is gzip JSONL, one JSON object per line with an
 "t" epoch-seconds key that joins with placement.jsonl timestamps from the
@@ -33,11 +54,15 @@ harness's run.py.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import gzip
 import json
 import os
 from pathlib import Path
+import platform
 import re
+import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -194,6 +219,67 @@ def read_proc_pid_stat(text: str) -> list:
     return [pid_part.split("(", 1)[1] or "", int(fields[1]), int(fields[11]), int(fields[12]), int(fields[36])]
 
 
+def read_schedstat(text: str) -> dict:
+    """Rows of /proc/schedstat: "cpuN <ints...>". The column meanings moved
+    across kernel versions (on current kernels the second field is the
+    runqueue's accumulated run_delay in ns), so the parser stays
+    layout-agnostic and the readout picks the column.
+    """
+    rows: dict[str, list] = {}
+    for line in text.splitlines():
+        tokens = line.split()
+        if len(tokens) < 2 or not tokens[0].startswith("cpu") or not tokens[0][3:].isdigit():
+            continue
+        try:
+            rows[tokens[0][3:]] = [int(t) for t in tokens[1:]]
+        except ValueError:
+            continue
+    return rows
+
+
+def read_pid_schedstat(text: str) -> list:
+    """One /proc/<pid>/schedstat line: time-on-cpu (ns), time waiting on the
+    runqueue i.e. run_delay (ns), timeslices run.
+    """
+    return [int(t) for t in text.split()]
+
+
+def read_pid_status_ctxt(text: str) -> dict:
+    """The two context-switch counters of /proc/<pid>/status: voluntary and
+    nonvoluntary. Nonvoluntary growth on a benchmark CPU means the scheduler
+    preempted it for something else (H6).
+    """
+    out = {}
+    for line in text.splitlines():
+        if line.startswith("voluntary_ctxt_switches:"):
+            try:
+                out["voluntary"] = int(line.split("\t", 1)[1])
+            except (IndexError, ValueError):
+                pass
+        elif line.startswith("nonvoluntary_ctxt_switches:"):
+            try:
+                out["nonvoluntary"] = int(line.split("\t", 1)[1])
+            except (IndexError, ValueError):
+                pass
+    return out
+
+
+def read_irq_per_cpu_count(text: str) -> list:
+    """One /sys/kernel/irq/<N>/per_cpu_count line: "N,N,N,..." with one
+    cumulative count per possible CPU (this is the unmasked stand-in for
+    /proc/interrupts). Entries that are not plain integers (offline CPUs
+    show blank on some kernels) parse to None.
+    """
+    values = []
+    for token in text.replace("\n", "").split(","):
+        token = token.strip()
+        try:
+            values.append(int(token))
+        except ValueError:
+            values.append(None)
+    return values
+
+
 def read_cpuinfo(text: str) -> list:
     """/proc/cpuinfo condensed to per-processor model, microcode and MHz."""
     procs = []
@@ -241,23 +327,432 @@ def _read(path: Path):
         return None
 
 
+def source_probe(path) -> dict:
+    """Best-effort readability record for one source: {source, available,
+    error}. Never raises; a source that reads back empty counts as not
+    available (the containers mask /proc/interrupts that way).
+    """
+    source = str(path)
+    try:
+        text = Path(path).read_text()
+    except OSError as exc:
+        return {"source": source, "available": False, "error": "%s: %s" % (type(exc).__name__, exc)}
+    if not text.strip():
+        return {"source": source, "available": False, "error": "empty"}
+    return {"source": source, "available": True, "error": None}
+
+
 def sample_procs() -> dict:
-    """Per-process stat for every /proc-visible pid: comm, ppid, utime, stime,
-    last CPU. Lets the readout split a core's busy time into "ours" vs
-    "someone else's" (H6).
+    """Per-process stat, schedstat and context switches for every
+    /proc-visible pid. The stat fields (comm, ppid, utime, stime, last CPU)
+    let the readout split a core's busy time into "ours" vs "someone else's"
+    (H6); the schedstat triple gives the benchmark processes' own run_delay
+    and the status counters their preemptions (T6). Pids whose schedstat or
+    status is missing or unreadable simply have no entry there.
     """
     procs: dict[str, list] = {}
+    sched: dict[str, list] = {}
+    ctxt: dict[str, dict] = {}
     for entry in os.listdir("/proc"):
         if not entry.isdigit():
             continue
-        text = _read(Path("/proc") / entry / "stat")
+        base = Path("/proc") / entry
+        text = _read(base / "stat")
         if text is None:
             continue
         try:
             procs[entry] = read_proc_pid_stat(text)
         except (IndexError, ValueError):
             continue
-    return procs
+        stext = _read(base / "schedstat")
+        if stext is not None:
+            try:
+                sched[entry] = read_pid_schedstat(stext)
+            except ValueError:
+                pass
+        utext = _read(base / "status")
+        if utext is not None:
+            entry_ctxt = read_pid_status_ctxt(utext)
+            if entry_ctxt:
+                ctxt[entry] = entry_ctxt
+    return {"procs": procs, "sched": sched, "ctxt": ctxt}
+
+
+# -- passive perf counters and best-effort source probes (T6) --------------
+
+PERF_TYPE_HARDWARE = 0
+PERF_TYPE_SOFTWARE = 1
+PERF_TYPE_TRACEPOINT = 2
+PERF_COUNT_SW_TASK_CLOCK = 1
+MSR_SMI_COUNT = 0x34
+PERF_EVENT_OPEN_SYSCALL = {"x86_64": 298}
+
+# attr.flags bits from perf_event_open(2)
+_BIT_INHERIT = 1 << 1
+_BIT_EXCLUDE_KERNEL = 1 << 4
+# read_format bits from perf_event_open(2)
+_READ_TIME_ENABLED = 1
+_READ_TIME_RUNNING = 2
+
+
+class PerfEventAttr(ctypes.Structure):
+    """perf_event_attr truncated after bp_type (56 bytes): counting-only
+    events set no field beyond it, and the kernel accepts attr sizes smaller
+    than its own struct (zeroing the tail), which is the perf_event_attr
+    versioning mechanism.
+    """
+
+    _fields_ = [
+        ("type", ctypes.c_uint),
+        ("size", ctypes.c_uint),
+        ("config", ctypes.c_ulonglong),
+        ("sample_period", ctypes.c_ulonglong),
+        ("sample_type", ctypes.c_ulonglong),
+        ("read_format", ctypes.c_ulonglong),
+        ("flags", ctypes.c_ulonglong),
+        ("wakeup", ctypes.c_uint),
+        ("bp_type", ctypes.c_uint),
+    ]
+
+    def __init__(self, type_, config, inherit=False, exclude_kernel=False, read_format=0):
+        super().__init__()
+        self.type = type_
+        self.size = ctypes.sizeof(PerfEventAttr)
+        self.config = config
+        flags = 0
+        if inherit:
+            flags |= _BIT_INHERIT
+        if exclude_kernel:
+            flags |= _BIT_EXCLUDE_KERNEL
+        self.flags = flags
+        self.read_format = read_format
+
+
+_libc: ctypes.CDLL | None = None
+
+
+def perf_event_open(attr: PerfEventAttr, pid: int, cpu: int) -> int:
+    """Open a counting event via the raw perf_event_open syscall (2), without
+    libperf; raises OSError on failure so callers can record it and continue.
+    """
+    if not sys.platform.startswith("linux"):
+        raise OSError("perf_event_open: not Linux (%r)" % sys.platform)
+    nr = PERF_EVENT_OPEN_SYSCALL.get(platform.machine())
+    if nr is None:
+        raise OSError("perf_event_open: no syscall number for %r" % platform.machine())
+    global _libc
+    if _libc is None:
+        _libc = ctypes.CDLL(None, use_errno=True)
+    rc = _libc.syscall(
+        ctypes.c_long(nr),
+        ctypes.byref(attr),
+        ctypes.c_long(pid),
+        ctypes.c_long(cpu),
+        ctypes.c_long(-1),
+        ctypes.c_ulong(0),
+    )
+    if rc < 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err))
+    return rc
+
+
+def read_perf_counter(fd: int) -> int:
+    """Current value of a plain (read_format=0) counting event."""
+    data = os.read(fd, 8)
+    if len(data) != 8:
+        raise OSError("short counter read: %d bytes" % len(data))
+    return struct.unpack("<Q", data)[0]
+
+
+_PMU_DEVICES = Path("/sys/bus/event_source/devices")
+_TRACING_BASES = (Path("/sys/kernel/tracing"), Path("/sys/kernel/debug/tracing"))
+_FORMAT_TERM_RE = re.compile(r"config:(\d+)-(\d+)$")
+
+
+def tracepoint_id(name: str, bases=_TRACING_BASES) -> int | None:
+    """Numeric id of a tracepoint like "irq/irq_handler_entry" from tracingfs;
+    None when tracingfs is not mounted or the event is absent.
+    """
+    for base in bases:
+        text = _read(base / "events" / name / "id")
+        if text is not None:
+            try:
+                return int(text.strip())
+            except ValueError:
+                return None
+    return None
+
+
+def pmu_event_config(pmu: str, event: str, devices: Path = _PMU_DEVICES) -> tuple[int, int] | None:
+    """(type, config) for a sysfs PMU event like msr/smi, assembled from the
+    event file's term=value pairs and the PMU's format masks; None when the
+    PMU, the event or a needed format file is missing or uses a layout this
+    parser does not handle.
+    """
+    base = devices / pmu
+    etext = _read(base / "events" / event)
+    if etext is None:
+        return None
+    config = 0
+    for term in etext.strip().split(","):
+        key, _, value = term.partition("=")
+        fmt = _read(base / "format" / key)
+        if fmt is None:
+            return None
+        m = _FORMAT_TERM_RE.match(fmt.strip())
+        if m is None:
+            return None  # only whole-value config layouts (msr and friends)
+        lo, hi = int(m.group(1)), int(m.group(2))
+        try:
+            number = int(value, 0)
+        except ValueError:
+            return None
+        config |= (number << lo) & (((1 << (hi - lo + 1)) - 1) << lo)
+    ttext = _read(base / "type")
+    if ttext is None:
+        return None
+    try:
+        return int(ttext.strip()), config
+    except ValueError:
+        return None
+
+
+def read_msr_smi_count(cpus: list) -> dict | None:
+    """Absolute SMI counts per CPU from MSR 0x34 (/dev/cpu/N/msr), or None
+    when the msr character devices are not usable in this container.
+    """
+    values: dict[int, int] = {}
+    try:
+        for cpu in cpus:
+            fd = os.open("/dev/cpu/%d/msr" % cpu, os.O_RDONLY)
+            try:
+                data = os.pread(fd, 8, MSR_SMI_COUNT)
+                if len(data) != 8:
+                    return None
+                values[cpu] = struct.unpack("<Q", data)[0]
+            finally:
+                os.close(fd)
+    except OSError:
+        return None
+    return values
+
+
+class PassivePerfCounters:
+    """Read-only per-CPU counting events held open for the watch's lifetime:
+    irq:irq_handler_entry (per-CPU hardware-IRQ entry counts -- the fallback
+    for /proc/interrupts being masked) and msr/smi (SMI deltas). Every open or
+    read failure is recorded in `status` verbatim and degrades to an empty
+    result; nothing here can fail the job.
+    """
+
+    def __init__(self, cpus: list):
+        self.cpus = list(cpus)
+        self.status: dict[str, str] = {}
+        self.last_error = ""
+        self.irq_fds: dict[int, int] = {}
+        tp = tracepoint_id("irq/irq_handler_entry")
+        if tp is None:
+            self.status["irq_entry"] = "tracepoint id not found (tracingfs not mounted?)"
+        elif not self.cpus:
+            self.status["irq_entry"] = "no allowed CPUs"
+        else:
+            self.irq_fds = self._open_per_cpu(PERF_TYPE_TRACEPOINT, tp)
+            if not self.irq_fds:
+                self.status["irq_entry"] = "perf_event_open cpu-wide failed: " + self.last_error
+        self.smi_method = "unavailable"
+        self.smi_fds: dict[int, int] = {}
+        self.smi_start: dict[int, int] = {}
+        self._init_smi()
+
+    def _open_per_cpu(self, ptype: int, config: int) -> dict:
+        """One cpu-wide counting event fd per CPU; {} (and last_error set) on
+        the first failure, closing what was opened.
+        """
+        fds: dict[int, int] = {}
+        for cpu in self.cpus:
+            try:
+                fds[cpu] = perf_event_open(PerfEventAttr(ptype, config), -1, cpu)
+            except OSError as exc:
+                self.last_error = "cpu %d: %s" % (cpu, exc)
+                for fd in fds.values():
+                    os.close(fd)
+                return {}
+        return fds
+
+    def _init_smi(self) -> None:
+        direct = read_msr_smi_count(self.cpus)
+        if direct is not None:
+            # absolute counts; re-read at the end for the delta
+            self.smi_method = "msr0x34"
+            self.smi_start = direct
+            return
+        cfg = pmu_event_config("msr", "smi")
+        if cfg is None:
+            self.status["smi"] = "msr PMU smi event not found"
+            return
+        fds = self._open_per_cpu(cfg[0], cfg[1])
+        if not fds:
+            self.status["smi"] = "perf_event_open cpu-wide failed: " + self.last_error
+            return
+        try:
+            self.smi_start = {cpu: read_perf_counter(fd) for cpu, fd in fds.items()}
+        except OSError as exc:
+            self.status["smi"] = "counter read failed: %s" % exc
+            for fd in fds.values():
+                os.close(fd)
+            return
+        self.smi_method = "msr_pmu"
+        self.smi_fds = fds
+
+    def sample(self) -> dict:
+        """{cpu: cumulative irq:irq_handler_entry count} for the 1 Hz timeline."""
+        counts: dict[str, int] = {}
+        for cpu, fd in self.irq_fds.items():
+            try:
+                counts[str(cpu)] = read_perf_counter(fd)
+            except OSError:
+                # a transient read error leaves the CPU out of this tick; the
+                # final read in finish() records a persistent one
+                continue
+        return counts
+
+    def finish(self) -> dict:
+        """Serializable end state: final per-CPU IRQ counts and the SMI story;
+        closes every fd.
+        """
+        out: dict[str, object] = {"status": self.status}
+        irq_counts = {}
+        for cpu, fd in self.irq_fds.items():
+            try:
+                irq_counts[str(cpu)] = read_perf_counter(fd)
+            except OSError as exc:
+                self.status["irq_entry"] = "final read failed: %s" % exc
+            os.close(fd)
+        self.irq_fds = {}
+        out["irq_entry_counts"] = irq_counts
+        if self.smi_method == "msr0x34":
+            out["smi"] = {"method": "msr0x34", "start": self.smi_start, "end": read_msr_smi_count(self.cpus)}
+        elif self.smi_method == "msr_pmu":
+            end = {}
+            for cpu, fd in self.smi_fds.items():
+                try:
+                    end[cpu] = read_perf_counter(fd)
+                except OSError as exc:
+                    self.status["smi"] = "final read failed: %s" % exc
+                os.close(fd)
+            self.smi_fds = {}
+            out["smi"] = {"method": "msr_pmu", "start": self.smi_start, "end": end}
+        else:
+            out["smi"] = {"method": "unavailable"}
+        return out
+
+
+def perf_preflight(cpus: list) -> dict:
+    """What perf/MSR observability this container allows (T6). Read-only
+    probes: the perf binary's presence and version, the paranoid level, the
+    PMU inventory, the msr event files, and whether perf_event_open accepts a
+    per-process and a cpu-wide counting event. Every probe lands both as a
+    convenience key and as a {source, available, error} record; failures are
+    recorded, never raised. The cpu-wide tracepoint and msr/smi attempts are
+    pure syscalls: without capabilities they fail with EACCES harmlessly.
+    """
+    probes: list[dict] = []
+
+    def record(source: str, ok: bool, error: str | None) -> None:
+        probes.append({"source": source, "available": ok, "error": error})
+
+    pf: dict[str, object] = {"probes": probes}
+    pf["perf"] = shutil.which("perf") or "missing"
+    record("perf binary", pf["perf"] != "missing", None if pf["perf"] != "missing" else "not in PATH")
+    if pf["perf"] != "missing":
+        try:
+            version = subprocess.run(["perf", "--version"], capture_output=True, text=True, timeout=10).stdout.strip()
+            if version:
+                pf["perf_version"] = version
+        except (OSError, subprocess.SubprocessError) as exc:
+            record("perf --version", False, str(exc))
+    paranoid = _read(Path("/proc/sys/kernel/perf_event_paranoid"))
+    pf["perf_event_paranoid"] = paranoid.strip() if paranoid is not None else None
+    record(
+        "/proc/sys/kernel/perf_event_paranoid",
+        paranoid is not None,
+        None if paranoid is not None else "unreadable",
+    )
+    pmu_list = sorted(d.name for d in _PMU_DEVICES.glob("*")) if _PMU_DEVICES.is_dir() else []
+    pf["pmus"] = pmu_list
+    if not pmu_list:
+        record("/sys/bus/event_source/devices", False, "no PMU devices visible")
+    msr_events = {}
+    if (_PMU_DEVICES / "msr" / "events").is_dir():
+        for f in sorted((_PMU_DEVICES / "msr" / "events").glob("*")):
+            text = _read(f)
+            if text is not None:
+                msr_events[f.name] = text.strip()
+    pf["msr_events"] = msr_events
+    if not msr_events:
+        record("/sys/bus/event_source/devices/msr/events", False, "no msr event files")
+    try:
+        os.close(perf_event_open(PerfEventAttr(PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK), 0, -1))
+        pf["probe_per_process"] = "ok"
+        record("perf_event_open per-process task-clock", True, None)
+    except OSError as exc:
+        pf["probe_per_process"] = str(exc)
+        record("perf_event_open per-process task-clock", False, str(exc))
+    tp = tracepoint_id("irq/irq_handler_entry")
+    if tp is None or not cpus:
+        pf["probe_cpu_wide"] = "not probed (no tracepoint id or no allowed CPUs)"
+        record(
+            "tracepoint irq/irq_handler_entry id",
+            False,
+            "tracingfs not mounted or no allowed CPUs",
+        )
+    else:
+        try:
+            os.close(perf_event_open(PerfEventAttr(PERF_TYPE_TRACEPOINT, tp), -1, cpus[0]))
+            pf["probe_cpu_wide"] = "ok"
+            record("perf_event_open cpu-wide tracepoint", True, None)
+        except OSError as exc:
+            pf["probe_cpu_wide"] = str(exc)
+            record("perf_event_open cpu-wide tracepoint", False, str(exc))
+    return pf
+
+
+def diagnose_proc_interrupts() -> dict:
+    """Why /proc/interrupts reads back empty on the current hosts (it was
+    readable in the first probe run): stat the file, show the mounts covering
+    it, and try the same file through other /proc roots -- a bind-mount mask
+    hides exactly one path, so the alternates tell masked-file from
+    kernel-side emptiness. Read-only diagnosis: the mask is deliberate
+    container hardening, so this run never mounts or umounts anything, it
+    just records the evidence and reads the unmasked sources
+    (/sys/kernel/irq/<N>/per_cpu_count, /proc/irq/<N>/effective_affinity_list)
+    instead.
+    """
+    diag: dict[str, object] = {}
+    try:
+        st = os.stat("/proc/interrupts")
+        diag["stat"] = {"size": st.st_size, "mode": oct(st.st_mode), "dev": st.st_dev, "ino": st.st_ino}
+    except OSError as exc:
+        diag["stat"] = str(exc)
+    mounts = []
+    text = _read(Path("/proc/self/mountinfo"))
+    if text is not None:
+        for line in text.splitlines():
+            fields = line.split()
+            # mountinfo: <id> <parent> <major:minor> <root> <mount point> ...
+            if "interrupts" in (fields[4] if len(fields) > 4 else ""):
+                mounts.append(line)
+    diag["mountinfo"] = mounts
+    alt: dict[str, object] = {}
+    for path in ("/proc/self/root/proc/interrupts", "/proc/1/root/proc/interrupts"):
+        try:
+            with open(path, "rb") as fp:
+                alt[path] = len(fp.read(64))
+        except OSError as exc:
+            alt[path] = str(exc)
+    diag["alt_reads"] = alt
+    return diag
 
 
 def _descendant_pids(root_pid: int) -> list:
@@ -310,6 +805,7 @@ class CpuWatch:
         self.errors: dict[str, int] = {}
         self.bench_cpus: list[int] = []
         self.pin_state: dict[str, object] = {}
+        self.perf: PassivePerfCounters | None = None
         self._samples_file = None
         self._child = None
         self._lock = threading.Lock()
@@ -390,6 +886,35 @@ class CpuWatch:
         else:
             self._err("proc_interrupts")
 
+        # /sys/kernel/irq per-CPU counts at 1 Hz: the IRQ/s-by-device-and-CPU
+        # timeline the H1 readout needs when /proc/interrupts is masked
+        irq_counts = {}
+        for irq_dir in sorted(Path("/sys/kernel/irq").glob("[0-9]*")):
+            text = _read(irq_dir / "per_cpu_count")
+            if text is not None:
+                try:
+                    irq_counts[irq_dir.name] = read_irq_per_cpu_count(text)
+                except ValueError:
+                    self._err("sys_kernel_irq")
+        if irq_counts:
+            sample["irq_per_cpu_counts"] = irq_counts
+        else:
+            self._err("sys_kernel_irq")
+
+        text = _read(Path("/proc/schedstat"))
+        if text is not None:
+            if text.strip():
+                sample["schedstat"] = read_schedstat(text)
+            else:
+                self._err("proc_schedstat")
+        else:
+            self._err("proc_schedstat")
+
+        if self.perf is not None:
+            counts = self.perf.sample()
+            if counts:
+                sample["irq_entry_counts"] = counts
+
         text = _read(Path("/proc/softirqs"))
         if text is not None:
             sample["softirqs"] = read_softirqs(text)
@@ -448,7 +973,12 @@ class CpuWatch:
             self._err("cpuinfo_mhz")
 
         try:
-            sample["procs"] = sample_procs()
+            proc_sample = sample_procs()
+            sample["procs"] = proc_sample["procs"]
+            if proc_sample["sched"]:
+                sample["pid_sched"] = proc_sample["sched"]
+            if proc_sample["ctxt"]:
+                sample["pid_ctxt"] = proc_sample["ctxt"]
         except OSError:
             self._err("procs")
 
@@ -528,17 +1058,49 @@ class CpuWatch:
         irq_affinity = {}
         devices = {}
         interrupts = _read(Path("/proc/interrupts")) or ""
+        interrupts_report: dict[str, object] = {
+            "diag": diagnose_proc_interrupts(),
+            "bytes": len(interrupts),
+        }
+        snap["proc_interrupts_report"] = interrupts_report
         if interrupts.strip():
             parsed = read_interrupts(interrupts)
             devices = {key: row["dev"] for key, row in parsed.get("rows", {}).items()}
         for irq_dir in sorted(Path("/proc/irq").glob("[0-9]*")):
             aff = _read(irq_dir / "smp_affinity_list")
-            if aff is not None:
-                irq_affinity[irq_dir.name] = {
-                    "affinity": aff.strip(),
-                    "dev": devices.get(irq_dir.name, ""),
-                }
+            eff = _read(irq_dir / "effective_affinity_list")
+            actions = _read(irq_dir / "actions")
+            if aff is None and eff is None:
+                continue
+            # allowed (smp_affinity_list) vs where the kernel actually routes
+            # each line (effective_affinity_list) vs its device names (actions,
+            # /proc/interrupts's trailing column when readable) -- the join the
+            # H1 readout needs on the 20 lines allowed near CPU 24 (F12)
+            irq_affinity[irq_dir.name] = {
+                "affinity": aff.strip() if aff is not None else None,
+                "effective": eff.strip() if eff is not None else None,
+                "actions": actions.strip() if actions is not None else None,
+                "dev": devices.get(irq_dir.name, ""),
+            }
         snap["irq_affinity"] = irq_affinity
+
+        # /sys/kernel/irq/<N>/per_cpu_count: per-CPU cumulative counts per IRQ
+        # line, readable even where /proc/interrupts is masked. Sampled again
+        # every second, it gives hardware IRQs/s by device and CPU (H1).
+        kernel_irq = {}
+        for irq_dir in sorted(Path("/sys/kernel/irq").glob("[0-9]*")):
+            counts = _read(irq_dir / "per_cpu_count")
+            if counts is None:
+                continue
+            try:
+                kernel_irq[irq_dir.name] = {
+                    "counts": read_irq_per_cpu_count(counts),
+                    "actions": (_read(irq_dir / "actions") or "").strip(),
+                    "effective": (_read(irq_dir / "effective_affinity_list") or "").strip(),
+                }
+            except (OSError, ValueError):
+                continue
+        snap["irq_per_cpu_counts"] = kernel_irq
 
         cgroup = _read(Path("/proc/self/cgroup"))
         snap["cgroup"] = cgroup.strip() if cgroup is not None else None
@@ -569,17 +1131,89 @@ class CpuWatch:
             "freq": any(
                 _read(d / "cpufreq" / "scaling_cur_freq") is not None for d in list(_CPU_SYS.glob("cpu[0-9]*"))[:1]
             ),
+            "proc_schedstat": bool((_read(Path("/proc/schedstat")) or "").strip()),
+            "pid_schedstat": bool((_read(Path("/proc/self/schedstat")) or "").strip()),
             "proc_pid_stat": _read(Path("/proc/self/stat")) is not None,
         }
         snap["sources_readable"] = sources
+        snap["perf_preflight"] = perf_preflight(self.allowed)
+        snap["source_probes"] = self._source_probes()
         return snap
 
+    def _source_probes(self) -> list:
+        """One best-effort {source, available, error} record per counter
+        source the run depends on (T6): every read this watch makes is
+        accounted for, with the error string when it failed. Never raises.
+        """
+        probes = [
+            source_probe(Path("/proc/stat")),
+            source_probe(Path("/proc/interrupts")),
+            source_probe(Path("/proc/softirqs")),
+            source_probe(Path("/proc/schedstat")),
+            source_probe(Path("/proc/self/schedstat")),
+            source_probe(Path("/proc/self/status")),
+            source_probe(Path("/proc/self/stat")),
+            source_probe(Path("/proc/pressure/cpu")),
+            source_probe(Path("/proc/vmstat")),
+            source_probe(next(iter(_NODE_SYS.glob("node*")), _NODE_SYS / "node0") / "numastat"),
+            source_probe(
+                next(iter(_CPU_SYS.glob("cpu[0-9]*")), _CPU_SYS / "cpu0") / "thermal_throttle" / "core_throttle_count"
+            ),
+            source_probe(next(iter(_CPU_SYS.glob("cpu[0-9]*")), _CPU_SYS / "cpu0") / "cpufreq" / "scaling_cur_freq"),
+        ]
+        for base in (Path("/proc/irq"), Path("/sys/kernel/irq")):
+            first = next(iter(sorted(base.glob("[0-9]*"))), None)
+            if first is None:
+                probes.append({"source": str(base), "available": False, "error": "no irq directories"})
+            else:
+                probes.append(source_probe(first / "effective_affinity_list"))
+                probes.append(source_probe(first / "actions"))
+                if base == Path("/sys/kernel/irq"):
+                    probes.append(source_probe(first / "per_cpu_count"))
+        if self.allowed:
+            probes.append(source_probe(Path("/dev/cpu/%d/msr" % self.allowed[0])))
+        return probes
+
     # -- main --------------------------------------------------------------
+
+    def _irq_effective_now(self) -> dict:
+        """/proc/irq/*/effective_affinity_list re-read at end: irqbalance on the
+        host can move lines between the static snapshot and the end of the
+        job, which is exactly the T6 question (where the 20 lines allowed near
+        CPU 24 actually land).
+        """
+        eff = {}
+        for irq_dir in sorted(Path("/proc/irq").glob("[0-9]*")):
+            value = _read(irq_dir / "effective_affinity_list")
+            if value is not None:
+                eff[irq_dir.name] = value.strip()
+        return eff
+
+    def _end_snapshot(self) -> dict:
+        end: dict[str, object] = {"t": time.time(), "irq_effective": self._irq_effective_now()}
+        if self.perf is not None:
+            end["perf"] = self.perf.finish()
+        # the same best-effort accounting for the end-of-run re-reads (T6):
+        # whatever failed to re-read is recorded with its error, never raised
+        end["source_probes"] = [
+            source_probe(
+                next(iter(sorted(Path("/proc/irq").glob("[0-9]*"))), Path("/proc/irq/0")) / "effective_affinity_list"
+            ),
+            source_probe(
+                next(iter(sorted(Path("/sys/kernel/irq").glob("[0-9]*"))), Path("/sys/kernel/irq/0")) / "per_cpu_count"
+            ),
+        ]
+        if self.allowed:
+            end["source_probes"].append(source_probe(Path("/dev/cpu/%d/msr" % self.allowed[0])))
+        return end
 
     def run(self) -> int:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         static = self._static_snapshot()
         (self.out_dir / "static.json").write_text(json.dumps(static, indent=1) + "\n")
+        # per-CPU irq:irq_handler_entry and msr/smi counters for the whole run;
+        # failures are recorded inside, never raised (T6)
+        self.perf = PassivePerfCounters(self.allowed)
 
         self.start_time = time.time()
         try:
@@ -611,6 +1245,10 @@ class CpuWatch:
             self.stop.set()
             sampler.join(timeout=5 * SAMPLE_INTERVAL_S)
             self.end_time = time.time()
+            try:
+                (self.out_dir / "end.json").write_text(json.dumps(self._end_snapshot(), indent=1) + "\n")
+            except OSError:
+                pass  # meta.json below still explains the run
             try:
                 self._samples_file.close()
             except OSError:

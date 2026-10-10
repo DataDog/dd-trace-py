@@ -50,6 +50,47 @@ variables:
     do
       export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
 
+      # EXPERIMENT (T6, do not merge): CPU-asymmetry probe (APMSP-4059).
+      # Record what perf/MSR/IRQ observability this job's container allows.
+      # Informational only: nothing here gates or fails the benchmarks; every
+      # probe is best-effort, the job's exit status never depends on one, and
+      # run.py re-probes functionally before wrapping a run with perf stat.
+      mkdir -p "/artifacts/${CI_JOB_ID}-${SCENARIO}"
+      {
+        echo "preflight $(date -u +%FT%TZ) job=${CI_JOB_ID} scenario=${SCENARIO}"
+        echo "uid=$(id -u 2>/dev/null) caps=$(grep -m1 CapEff /proc/self/status 2>/dev/null | tr -d '\\n')"
+        echo -n "perf: "; command -v perf || echo missing
+        perf --version 2>&1 | head -n 1 || true
+        echo -n "perf_event_paranoid: "; cat /proc/sys/kernel/perf_event_paranoid 2>/dev/null || echo unreadable
+        echo -n "pmu_devices: "; ls /sys/bus/event_source/devices 2>/dev/null | tr '\n' ' '; echo
+        echo -n "msr_events: "; ls /sys/bus/event_source/devices/msr/events 2>/dev/null | tr '\n' ' '; echo
+        echo -n "dev_cpu_msr: "; ls /dev/cpu 2>/dev/null | tr '\n' ' '; echo
+        echo -n "proc_interrupts_bytes: "; wc -c < /proc/interrupts 2>/dev/null || echo unreadable
+        echo -n "proc_schedstat_bytes: "; wc -c < /proc/schedstat 2>/dev/null || echo unreadable
+        echo -n "sys_kernel_irq_dirs: "; ls /sys/kernel/irq 2>/dev/null | grep -c '^[0-9]' || echo unreadable
+        echo -n "sys_kernel_irq_per_cpu_count(24): "; head -c 120 /sys/kernel/irq/24/per_cpu_count 2>/dev/null || echo unreadable; echo
+        echo -n "sys_kernel_irq_actions(24): "; cat /sys/kernel/irq/24/actions 2>/dev/null || echo unreadable
+        echo -n "proc_irq_effective_affinity(24): "; cat /proc/irq/24/effective_affinity_list 2>/dev/null || echo unreadable
+        echo -n "proc_irq_actions(24): "; cat /proc/irq/24/actions 2>/dev/null || echo unreadable
+        echo -n "proc_pid_schedstat: "; cat /proc/self/schedstat 2>/dev/null || echo unreadable
+        if command -v perf >/dev/null 2>&1; then
+          perf stat -x, -e task-clock,cycles:u,instructions:u,cache-references:u,cache-misses:u,context-switches,cpu-migrations,page-faults -- true >/dev/null 2>/tmp/perf-trial.err
+          echo "perf_stat_user_only_trial_rc: $?"
+          sed -n 1,5p /tmp/perf-trial.err
+          perf stat -x, -e msr/smi/ -C "${BENCH_CPUS_CANDIDATE:-24}" -- true >/dev/null 2>/tmp/perf-cpuwide-trial.err
+          echo "perf_cpu_wide_trial_rc: $?"
+          sed -n 1,5p /tmp/perf-cpuwide-trial.err
+        fi
+      } | tee "/artifacts/${CI_JOB_ID}-${SCENARIO}/preflight.txt"
+
+      # EXPERIMENT (T6, do not merge): jitter probe -- tight perf_counter_ns
+      # loops pinned to the probe CPUs, strictly before the benchmark starts
+      # (see steps/jitter.py) so it never competes with it. Best-effort with a
+      # hard timeout: its failure can never fail the job.
+      timeout 90 python3 "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/steps/jitter.py" \
+        --out "/artifacts/${CI_JOB_ID}-${SCENARIO}/jitter.json" \
+        --cpus "${BENCH_JITTER_CPUS:-24,25,36,37}" --seconds 20 || true
+
       capture-hardware-software-info.sh
 
       if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];

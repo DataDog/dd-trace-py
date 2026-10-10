@@ -28,16 +28,17 @@ import typing as t
 MAX_BENCHMARKS_PER_GROUP = 2
 MAX_TOTAL_TEST_JOBS = 600
 # EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
-# T5: one scenario, one config, on chosen CPU pairs. When set, restricts the
+# T6: one scenario, one config, on chosen CPU pairs. When set, restricts the
 # generated microbenchmark matrix to exactly these suites regardless of which
 # suites the changed files would select. Set to None to restore normal
 # generation.
 BENCHMARK_SCENARIO_ALLOWLIST = ("appsec_iast_aspects_ospath",)
-# EXPERIMENT (do not merge): T5 single-benchmark CPU probe. Each listed scenario
-# runs one config alone per job, on chosen CPU pairs: benchmarks/base/run.py
-# replaces that side's CPU_AFFINITY (24-35 candidate / 36-47 baseline, set by
-# run-benchmarks.sh) with BENCH_CPUS_<side> when the env var is set. Candidate
-# and baseline still run concurrently inside each job. Every pass and every
+# EXPERIMENT (do not merge): T6 single-benchmark CPU probe -- the cause run.
+# benchmarks/base/run.py replaces that side's CPU_AFFINITY (24-35 candidate /
+# 36-47 baseline, set by run-benchmarks.sh) with BENCH_CPUS_<side> when the
+# env var is set. Candidate and baseline still run concurrently inside each
+# job. Passes: the CPU-24 pair (24/36), a clean pair (25/37), and the swap
+# (36/24); 25/36 is dropped, T5 already showed it clean. Every pass and every
 # repetition is its own matrix job so all runs land in parallel.
 BENCHMARK_CPU_PROBE = {
     "appsec_iast_aspects_ospath": {
@@ -47,7 +48,6 @@ BENCHMARK_CPU_PROBE = {
         "passes": (
             ("cand24-base36", "24", "36"),
             ("cand25-base37", "25", "37"),
-            ("cand25-base36", "25", "36"),
             ("cand36-base24", "36", "24"),
         ),
         "repetitions": 2,
