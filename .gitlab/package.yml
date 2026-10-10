@@ -74,6 +74,8 @@ variables:
       .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" ${UPLOAD_SUFFIX:-}
 
 "build sdist":
+  rules:
+    - when: never
   extends: .build_base
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: [ "arch:${ARCH_TAG}" ]
@@ -145,6 +147,8 @@ variables:
     - .gitlab/scripts/build-wheel.sh
 
 "build linux serverless":
+  rules:
+    - when: never
   extends: "build linux"
   parallel:
     matrix:
@@ -185,12 +189,16 @@ variables:
     sccache --show-stats
 
 "build macos amd64":
+  rules:
+    - when: never
   extends: .build_macos_base
   tags: [ "macos:sonoma-amd64", "specific:true" ]
   variables:
     ARCH_TAG: "amd64"
 
 "build macos arm64":
+  rules:
+    - when: never
   extends: .build_macos_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
   tags: [ "macos:tart" ]
@@ -213,6 +221,8 @@ variables:
 
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux"
@@ -280,6 +290,8 @@ variables:
       done
 
 "patch manylinux2014 wheel versions":
+  rules:
+    - when: never
   extends: .patch_wheel_versions_base
   needs:
     - job: "build linux"
@@ -295,6 +307,8 @@ variables:
     - job: "package version"
 
 "patch macos wheel versions":
+  rules:
+    - when: never
   extends: .patch_wheel_versions_base
   needs:
     - job: "build macos amd64"
@@ -305,6 +319,8 @@ variables:
 
 # All manylinux2014 wheels
 "upload manylinux2014":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux"
@@ -323,6 +339,8 @@ variables:
 
 # Only the limited artifacts needed by downstream serverless jobs
 "upload serverless":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux serverless"
@@ -352,6 +370,8 @@ variables:
 
 
 "test sdist":
+  rules:
+    - when: never
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
   tags: [ "arch:arm64" ]
   stage: package
@@ -373,6 +393,8 @@ variables:
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
 "build windows":
+  rules:
+    - when: never
   stage: package
   extends: .retry_on_all_failure
   tags: ["windows-v2:2022"]
@@ -396,6 +418,8 @@ variables:
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
+  rules:
+    - when: never
   image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
@@ -430,12 +454,7 @@ download_dependency_wheels:
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   rules:
-    # TODO(py-315): 3.15 cell skipped — registry.ddbuild.io/images/mirror/python has
-    # no 3.15 tag. When DataDog/images dest-tags rc2 or GA, bump PYTHON_IMAGE_TAG
-    # off 3.15.0rc1 and remove this never-rule.
-    - if: '$PYTHON_VERSION == "3.15"'
-      when: never
-    - when: on_success
+    - when: never
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.9.13"
@@ -464,6 +483,8 @@ download_dependency_wheels:
       - "pywheels-dep/"
 
 "upload all":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs: [ "ddtrace package", "package version" ]
   script:
@@ -486,12 +507,7 @@ download_dependency_wheels:
     - job: "build linux"
       artifacts: true
   rules:
-    # Automatically run on releases/RCs
-    - if: !reference [.is_release]
-      when: on_success
-    # Manual trigger for any other pipeline
-    - when: manual
-      allow_failure: true
+    - when: never
   script:
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
@@ -533,6 +549,8 @@ download_dependency_wheels:
 # Aggregates all Windows wheel artifacts
 # DEV: "ddtrace package" has a limit of 50 jobs it can depend on
 "collect windows wheels":
+  rules:
+    - when: never
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -563,6 +581,8 @@ download_dependency_wheels:
 
 # Do not prune here: "upload all" publishes this artifact as the SHA S3 index.
 "ddtrace package":
+  rules:
+    - when: never
   extends: .package_base
   needs:
     - "build linux"
@@ -575,6 +595,8 @@ download_dependency_wheels:
     - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
+  rules:
+    - when: never
   extends: .package_base
   needs:
     - "build linux serverless"
