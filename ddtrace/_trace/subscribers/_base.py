@@ -17,7 +17,6 @@ from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
 
@@ -36,18 +35,20 @@ def _finish_span(
     Once every integration adopts the events API, trace_handlers._finish_span
     should be completely removed.
     """
-    span = span_from_context(ctx)
+    span = ctx.get_item("_inner_span")
     if not span:
         return
 
-    set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
+    try:
+        set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
 
-    exc_type, exc_value, exc_traceback = exc_info
-    if exc_type and exc_value and exc_traceback:
-        span.set_exc_info(exc_type, exc_value, exc_traceback)
-    elif ctx.get_item("should_set_traceback", False):
-        span.set_traceback()
-    span.finish()
+        exc_type, exc_value, exc_traceback = exc_info
+        if exc_type and exc_value and exc_traceback:
+            span.set_exc_info(exc_type, exc_value, exc_traceback)
+        elif ctx.get_item("should_set_traceback", False):
+            span.set_traceback()
+    finally:
+        span.finish()
 
 
 def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
@@ -91,6 +92,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         span_kwargs.setdefault("child_of", default_child_of)
 
     span = tracer.start_span(event.operation_name, **span_kwargs)
+    store_span_on_context(ctx, span)
     span._set_attribute(COMPONENT, event.component)
     span._set_attribute(SPAN_KIND, event.span_kind)
     for _k, _v in event.tags.items():
@@ -100,7 +102,6 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     set_service_and_source(span, event.service or ctx.get_item("service") or "", integration_config or dict())
-    store_span_on_context(ctx, span)
 
     if config._inferred_proxy_services_enabled:
         # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
@@ -145,6 +146,10 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         ctx: core.ExecutionContext[TracingEventType],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
+        # No subclass start hook ran if span creation failed before ownership.
+        # Its end hooks must not acquire a fallback or an active parent span.
+        if ctx.get_item("_inner_span") is None:
+            return
         try:
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)

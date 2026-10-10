@@ -1,12 +1,16 @@
 from dataclasses import InitVar
 from dataclasses import dataclass
+from unittest import mock
 
 import pytest
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.subscribers._base import TracingSubscriber
+from ddtrace._trace.subscribers.http_client import HttpClientTracingSubscriber
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
@@ -15,6 +19,7 @@ from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
+from tests.utils import override_global_config
 
 
 called: list[str] = []
@@ -203,6 +208,304 @@ def test_base_context_subscriber_inheritance():
     assert called == ["parent_started", "child_started", "parent_ended", "child_ended"], (
         "callbacks are not called in the right order, should be from parent to children; got %r" % (called,)
     )
+
+
+@pytest.mark.parametrize("deferred", [False, True])
+def test_context_subscriber_completion_survives_unregister(deferred):
+    class LifecycleSubscriber(ContextSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_started(cls, ctx):
+            called.append("started")
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            assert ctx.event.event_name == SubscriberEvent.event_name
+            called.append("ended")
+
+    with core.context_with_event(SubscriberEvent(), dispatch_end_event=not deferred) as ctx:
+        LifecycleSubscriber.unregister()
+        LifecycleSubscriber.unregister()
+        with core.context_with_event(SubscriberEvent()):
+            pass
+        assert called == ["started"]
+
+    if deferred:
+        assert called == ["started"]
+        ctx.dispatch_ended_event()
+    ctx.dispatch_ended_event()
+    assert called == ["started", "ended"]
+    assert ctx._event is None
+
+    LifecycleSubscriber.register()
+    LifecycleSubscriber.register()
+    with core.context_with_event(SubscriberEvent()):
+        pass
+    assert called == ["started", "ended", "started", "ended"]
+
+
+@pytest.mark.parametrize("context", [False, True])
+def test_unregister_rejects_pending_admission_and_retains_other_listeners(context):
+    event_name = ("context.started." if context else "") + SubscriberEvent.event_name
+    core.on(event_name, lambda *args: LateSubscriber.unregister(), name="disable")
+
+    class LateSubscriber(ContextSubscriber if context else Subscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_event(cls, event):
+            called.append("admitted")
+
+        @classmethod
+        def on_started(cls, ctx):
+            called.append("admitted")
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            called.append("ended")
+
+    core.on(event_name, lambda *args: called.append("other"), name="other")
+    if context:
+        with core.context_with_event(SubscriberEvent()):
+            pass
+    else:
+        core.dispatch_event(SubscriberEvent())
+    assert called == ["other"]
+    assert core.has_listeners(event_name)
+
+
+def test_context_completion_requires_its_own_admission():
+    with core.context_with_event(SubscriberEvent()):
+
+        class LateSubscriber(ContextSubscriber):
+            event_names = (SubscriberEvent.event_name,)
+
+            @classmethod
+            def on_ended(cls, ctx, exc_info):
+                called.append("ended")
+
+    assert called == []
+    with core.context_with_event(SubscriberEvent()) as ctx:
+        LateSubscriber.unregister()
+        LateSubscriber.register()
+    ctx.dispatch_ended_event()
+    assert called == ["ended"]
+
+
+@pytest.mark.parametrize("unregister", [False, True])
+def test_context_subscriber_completion_order(unregister):
+    core.on("context.ended." + SubscriberEvent.event_name, lambda *args: called.append("legacy.before"))
+
+    class LifecycleSubscriber(ContextSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            called.append("subscriber")
+
+    core.on("context.ended." + SubscriberEvent.event_name, lambda *args: called.append("legacy.after"))
+    with core.context_with_event(SubscriberEvent()):
+        if unregister:
+            LifecycleSubscriber.unregister()
+    assert called == (
+        ["legacy.before", "legacy.after", "subscriber"]
+        if unregister
+        else ["legacy.before", "subscriber", "legacy.after"]
+    )
+
+
+@pytest.mark.parametrize("unregister", [False, True])
+@pytest.mark.parametrize(
+    "error_type,raise_errors", [(RuntimeError, False), (RuntimeError, True), (BlockingException, False)]
+)
+def test_context_subscriber_end_failure_still_completes_other_owners(unregister, error_type, raise_errors):
+    error = error_type()
+
+    class FailingSubscriber(ContextSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            called.append("failure")
+            raise error
+
+    class CleanupSubscriber(ContextSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            assert ctx.event.event_name == SubscriberEvent.event_name
+            called.append("cleanup")
+
+    with core.context_with_data("parent") as parent:
+        with override_global_config({"_raise": raise_errors}):
+            ctx = core.context_with_event(SubscriberEvent())
+
+            def run():
+                with ctx:
+                    if unregister:
+                        FailingSubscriber.unregister()
+                        CleanupSubscriber.unregister()
+
+            if issubclass(error_type, Exception) and not raise_errors:
+                run()
+            else:
+                with pytest.raises(error_type) as raised:
+                    run()
+                assert raised.value is error
+
+        assert core.current is parent
+    ctx.dispatch_ended_event()
+    assert called == ["failure", "cleanup"]
+    assert ctx._event is None
+
+
+def test_context_subscriber_partial_entry_completes_tracing_and_preserves_blocking(test_spans):
+    @dataclass
+    class BlockingEvent(TracingEvent):
+        event_name = "test.subscriber.blocking"
+        operation_name = "blocked.operation"
+        span_type = "custom"
+        span_kind = "internal"
+
+    class SpanSubscriber(TracingSubscriber):
+        event_names = (BlockingEvent.event_name,)
+
+    error = BlockingException()
+
+    class BlockingSubscriber(ContextSubscriber):
+        event_names = (BlockingEvent.event_name,)
+
+        @classmethod
+        def on_started(cls, ctx):
+            called.append("started")
+            raise error
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            assert exc_info[:2] == (BlockingException, error)
+            called.append("cleanup")
+            raise RuntimeError("secondary cleanup failure")
+
+    with core.context_with_data("parent") as parent:
+        ctx = core.context_with_event(BlockingEvent(component="test", integration_config={}))
+        with pytest.raises(BlockingException) as raised:
+            with ctx:
+                pytest.fail("Blocked operation must not execute")
+        assert raised.value is error
+        assert core.current is parent
+    ctx.dispatch_ended_event()
+    assert called == ["started", "cleanup"]
+    assert ctx._event is None
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+    assert spans[0].finished
+
+
+@pytest.mark.parametrize("span_created", [False, True])
+def test_tracing_subscriber_partial_start_finishes_only_its_owned_span(test_spans, span_created):
+    @dataclass
+    class FailingEvent(TracingEvent):
+        event_name = "test.subscriber.partial_start"
+        operation_name = "partial.operation"
+        span_type = "custom"
+        span_kind = "internal"
+
+    class SpanSubscriber(TracingSubscriber):
+        event_names = (FailingEvent.event_name,)
+
+    with core.context_with_data("parent") as parent:
+        ctx = core.context_with_event(FailingEvent(component="test", integration_config={}))
+        target = "ddtrace._trace.subscribers._base." + (
+            "set_service_and_source" if span_created else "tracer.start_span"
+        )
+        with mock.patch(target, side_effect=RuntimeError("initialization failed")):
+            with pytest.raises(RuntimeError, match="initialization failed"):
+                with ctx:
+                    pytest.fail("Failed operation must not execute")
+        assert core.current is parent
+
+    spans = test_spans.get_spans()
+    assert len(spans) == int(span_created)
+    if span_created:
+        assert spans[0].name == "partial.operation"
+    assert ctx._event is None
+
+
+def test_context_subscriber_recursive_completion_runs_once():
+    class RecursiveSubscriber(ContextSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            called.append("ended")
+            ctx.dispatch_ended_event()
+
+    with core.context_with_event(SubscriberEvent()) as ctx:
+        pass
+    ctx.dispatch_ended_event()
+    assert called == ["ended"]
+
+
+def test_context_completion_preserves_first_legacy_failure_and_drains_all_owners():
+    error = BlockingException()
+
+    def fail_legacy(ctx, exc_info):
+        raise error
+
+    core.on("context.ended." + SubscriberEvent.event_name, fail_legacy)
+
+    class FailingCleanupSubscriber(ContextSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            called.append("failed.cleanup")
+            raise SystemExit("secondary failure")
+
+    class CleanupSubscriber(ContextSubscriber):
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            called.append("cleanup")
+
+    with core.context_with_data("parent") as parent:
+        with pytest.raises(BlockingException) as raised:
+            with core.context_with_event(SubscriberEvent()) as ctx:
+                pass
+        assert raised.value is error
+        assert core.current is parent
+    ctx.dispatch_ended_event()
+    assert called == ["failed.cleanup", "cleanup"]
+    assert ctx._event is None
+
+
+def test_http_client_partial_entry_does_not_finish_parent_or_create_fallback(test_spans):
+    HttpClientTracingSubscriber.register()
+    core.root.set_item("tracer", tracer)
+    event = HttpClientRequestEvent(
+        http_operation="http.request",
+        component="httpx",
+        integration_config={},
+        request_method="GET",
+        request_headers={},
+        request_url="https://example.test/",
+        query="",
+    )
+    ctx = core.context_with_event(event)
+    with tracer.trace("parent") as parent:
+        with mock.patch.object(tracer, "start_span", side_effect=RuntimeError("start failed")):
+            with pytest.raises(RuntimeError, match="start failed"):
+                with ctx:
+                    pytest.fail("Failed operation must not execute")
+        assert not parent.finished
+        assert ctx.get_item("_inner_span") is None
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "parent"
 
 
 def test_base_tracing_subscriber(test_spans):

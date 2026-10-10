@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -32,11 +33,30 @@ class TestTracedCursor(TracerTestCase):
 
     def test_query_is_blocked_before_execution(self):
         for method in ("execute", "executemany"):
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException):
+            listener = mock.Mock(side_effect=BlockingException)
+            core.on(DbQueryEvent.event_name, listener)
+            try:
                 with pytest.raises(BlockingException):
                     getattr(TracedCursor(self.cursor, cfg={}), method)("SELECT 1")
+            finally:
+                core.reset_listeners(DbQueryEvent.event_name, listener)
 
             getattr(self.cursor, method).assert_not_called()
+
+    def test_queries_skip_optional_event_preparation_without_consumers(self):
+        self.cursor.rowcount = 0
+        traced_cursor = TracedCursor(self.cursor, cfg={})
+        assert not core.has_listeners(DbQueryEvent.event_name)
+        with mock.patch("ddtrace.contrib.dbapi.DbQueryEvent", wraps=DbQueryEvent) as event_type:
+            event_type.event_name = DbQueryEvent.event_name
+            for method in ("execute", "executemany"):
+                result = getattr(traced_cursor, method)("SELECT 1")
+                assert result is getattr(self.cursor, method).return_value
+            event_type.assert_not_called()
+
+        spans = self.pop_spans()
+        assert len(spans) == 2
+        assert all(span.resource == "SELECT 1" for span in spans)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):
