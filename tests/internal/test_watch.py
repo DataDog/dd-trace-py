@@ -355,13 +355,15 @@ def test_perf_stat_events_are_user_only(run_mod):
 
 
 def test_perf_event_attr_layout(watch_mod):
-    # the truncated attr struct must be exactly 56 bytes (type..bp_type) and
-    # set the flag bits perf_event_open(2) defines; the readout of the
-    # hardware counters depends on this ABI staying correct.
+    # the attr struct must be exactly 64 bytes (PERF_ATTR_SIZE_VER0, through
+    # config1) and set the flag bits perf_event_open(2) defines: the kernel
+    # rejects sizes below VER0 with E2BIG, which is how the first T6 run
+    # lost every perf counter (observed as "Argument list too long" on the
+    # CI hosts).
     import ctypes
 
     attr = watch_mod.PerfEventAttr(watch_mod.PERF_TYPE_TRACEPOINT, 42, inherit=True)
-    assert ctypes.sizeof(watch_mod.PerfEventAttr) == 56 == attr.size
+    assert ctypes.sizeof(watch_mod.PerfEventAttr) == 64 == attr.size
     assert attr.type == watch_mod.PERF_TYPE_TRACEPOINT
     assert attr.config == 42
     assert attr.flags == 1 << 1  # inherit
@@ -394,16 +396,48 @@ def test_pmu_event_config_assembles_format_masks(watch_mod, tmp_path):
     assert watch_mod.pmu_event_config("msr", "tsc", devices=tmp_path) is None
 
 
-def test_perf_probe_degrades_when_perf_missing(run_mod, monkeypatch):
+def test_perf_probe_degrades_when_perf_missing(run_mod, monkeypatch, tmp_path):
     # T6: the perf-stat wrap must never block a benchmark -- with no perf
     # binary and no loadable watch module (ctypes fallback), the probe says
     # "none" and records why, instead of raising.
     monkeypatch.setattr(run_mod.shutil, "which", lambda name: None)
     monkeypatch.setattr(run_mod, "_load_watch_module", lambda: None)
+    monkeypatch.setattr(run_mod, "_watch_module_error", "no watch.py under any of []")
     monkeypatch.setattr(run_mod, "_perf_probe_state", None)
     state = run_mod.perf_probe()
     assert state["mode"] == "none"
     assert "perf binary missing" in state["reason"]
+    assert "no watch.py" in state["reason"]
+
+
+def test_load_watch_module_via_project_dir(run_mod, monkeypatch, tmp_path):
+    # T6: the harness copies run.py next to the scenario it runs, so the
+    # repo-relative path is wrong in CI; CI_PROJECT_DIR must find watch.py
+    # (and the fallback error must name what was tried)
+    fake_repo = tmp_path / "repo"
+    (fake_repo / ".gitlab" / "benchmarks" / "steps").mkdir(parents=True)
+    (fake_repo / ".gitlab" / "benchmarks" / "steps" / "watch.py").write_text(
+        "PERF_TYPE_SOFTWARE = 1\nPERF_COUNT_SW_TASK_CLOCK = 1\n"
+    )
+    monkeypatch.setenv("CI_PROJECT_DIR", str(fake_repo))
+    monkeypatch.chdir(tmp_path)
+    # the harness copies run.py two levels deep in a scratch dir, so the
+    # repo-relative candidate does not exist and only CI_PROJECT_DIR can win
+    monkeypatch.setattr(run_mod, "__file__", str(tmp_path / "scratch" / "venv" / "run.py"))
+    monkeypatch.setattr(run_mod, "_watch_module", None)
+    monkeypatch.setattr(run_mod, "_watch_module_loaded", False)
+    monkeypatch.setattr(run_mod, "_watch_module_error", "")
+    watch = run_mod._load_watch_module()
+    assert watch is not None
+    assert watch.PERF_TYPE_SOFTWARE == 1
+    monkeypatch.setattr(run_mod, "_watch_module", None)
+    monkeypatch.setattr(run_mod, "_watch_module_loaded", False)
+    monkeypatch.setattr(run_mod, "_watch_module_error", "")
+    monkeypatch.delenv("CI_PROJECT_DIR")
+    # no candidate exists under the copied run.py's location or the cwd: the
+    # error records what was tried so the CI readout can explain the fallback
+    assert run_mod._load_watch_module() is None
+    assert "watch.py" in run_mod._watch_module_error
 
 
 def test_ctypes_counter_event_ids(run_mod):

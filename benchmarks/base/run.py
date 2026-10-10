@@ -38,6 +38,7 @@ PERF_STAT_EVENTS = (
 
 _watch_module = None
 _watch_module_loaded = False
+_watch_module_error = ""
 _perf_probe_state: Optional[dict] = None
 
 
@@ -104,23 +105,39 @@ def cpu_affinity_to_cpu_groups(cpu_affinity: str, cpus_per_run: int) -> list[lis
 def _load_watch_module():
     # EXPERIMENT (T6): the repo's watch.py already carries the ctypes
     # perf_event_open plumbing (attr struct, raw syscall) for its own passive
-    # counters; load it from this scenario's location instead of duplicating
-    # kernel-ABI code in the benchmark harness. The scenario tree is the repo
-    # checkout, so watch.py sits three levels up from run.py.
-    global _watch_module, _watch_module_loaded
+    # counters; load it instead of duplicating kernel-ABI code in the benchmark
+    # harness. The harness copies this run.py next to the scenario it runs, so
+    # the repo-relative path is only one of the candidates: CI_PROJECT_DIR (set
+    # in the benchmark jobs) and the cwd cover the copied-layout cases. The
+    # last error is kept so perf_probe can explain a missing fallback.
+    global _watch_module, _watch_module_loaded, _watch_module_error
     if _watch_module_loaded:
         return _watch_module
     _watch_module_loaded = True
+    bases = []
+    project = os.environ.get("CI_PROJECT_DIR")
+    if project:
+        bases.append(Path(project))
     try:
-        path = Path(__file__).resolve().parents[2] / ".gitlab" / "benchmarks" / "steps" / "watch.py"
-        spec = importlib.util.spec_from_file_location("cpu_probe_watch", path)
-        if spec is None or spec.loader is None:
-            return None
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        _watch_module = module
-    except Exception:
-        return None
+        bases.append(Path(__file__).resolve().parents[2])
+    except IndexError:
+        pass
+    bases.append(Path.cwd())
+    for base in bases:
+        path = base / ".gitlab" / "benchmarks" / "steps" / "watch.py"
+        try:
+            if not path.is_file():
+                continue
+            spec = importlib.util.spec_from_file_location("cpu_probe_watch", path)
+            if spec is None or spec.loader is None:
+                continue
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            _watch_module = module
+            return _watch_module
+        except Exception as exc:
+            _watch_module_error = "%s (tried %s)" % (exc, path)
+    _watch_module_error = _watch_module_error or "no watch.py under any of %s" % (bases,)
     return _watch_module
 
 
@@ -155,7 +172,9 @@ def perf_probe() -> dict:
     if state["mode"] == "none" and state["reason"] == "perf binary missing":
         watch = _load_watch_module()
         if watch is None:
-            state["reason"] = "perf binary missing and watch.py not loadable for the ctypes fallback"
+            state["reason"] = (
+                "perf binary missing and watch.py not loadable for the ctypes fallback: %s" % _watch_module_error
+            )
         else:
             try:
                 fd = watch.perf_event_open(

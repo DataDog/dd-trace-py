@@ -396,10 +396,11 @@ _READ_TIME_RUNNING = 2
 
 
 class PerfEventAttr(ctypes.Structure):
-    """perf_event_attr truncated after bp_type (56 bytes): counting-only
-    events set no field beyond it, and the kernel accepts attr sizes smaller
-    than its own struct (zeroing the tail), which is the perf_event_attr
-    versioning mechanism.
+    """perf_event_attr truncated after config1 (64 bytes = PERF_ATTR_SIZE_VER0,
+    the v2.6.32 layout): counting-only events set no field beyond it, but the
+    kernel rejects attr sizes smaller than VER0 with E2BIG, so the struct
+    must be exactly 64 bytes, not shorter (sizes larger than the kernel knows
+    are the direction that is versioned forward).
     """
 
     _fields_ = [
@@ -412,6 +413,7 @@ class PerfEventAttr(ctypes.Structure):
         ("flags", ctypes.c_ulonglong),
         ("wakeup", ctypes.c_uint),
         ("bp_type", ctypes.c_uint),
+        ("config1", ctypes.c_ulonglong),
     ]
 
     def __init__(self, type_, config, inherit=False, exclude_kernel=False, read_format=0):
