@@ -725,7 +725,7 @@ integrations:
   tested_versions_by_dependency:
     mysqlclient:
       min: 2.2.1
-      max: 2.2.6
+      max: 2.3.0
 
 - integration_name: openai
   is_external_package: true

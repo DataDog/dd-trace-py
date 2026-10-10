@@ -49,7 +49,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"mysqldb": "*"}
+    return {"MySQLdb": "*"}
 
 
 def patch():

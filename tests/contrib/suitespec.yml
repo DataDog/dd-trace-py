@@ -1949,6 +1949,7 @@ suites:
           python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mysql-connector-python]
   mysqlpython:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -1960,9 +1961,9 @@ suites:
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
     pattern: mysqldb$
-    skip: true
     services:
       - mysql
+    snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/mysqldb
       variants:
@@ -1978,6 +1979,9 @@ suites:
         - name: mysqldb
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
+        - name: mysqldb
+          python: ['3.15']
+          dependencies: [pytest-randomly, mysqlclient]
   opentelemetry:
     venvs_per_job: 4
     paths:
