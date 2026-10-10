@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    data streams monitoring: Fixes an issue where services running with process tags enabled could
+    see short-lived duplicate nodes in their Data Streams Monitoring (DSM) topology after each
+    rolling deploy, and could have DSM data dropped once the resulting number of distinct pathways
+    exceeded the per-service limit. Process tags and the agent-reported container tags are no longer
+    part of the pathway hash. Database Monitoring is unaffected.
