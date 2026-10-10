@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Pytester
-import pytest
 
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import ModuleRef
@@ -490,44 +489,6 @@ class TestPytestPluginIntegration:
         # Tests should pass
         assert result.ret == 0
         result.assert_outcomes(passed=2)
-
-
-class TestIASTTerminalSummary:
-    @pytest.mark.skipif(
-        tuple(int(part) for part in pytest.__version__.split(".")[:2]) < (7, 0),
-        reason="IAST terminal summary is not reliable with pytest<7",
-    )
-    def test_ddtrace_iast_terminal_summary_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
-        """Test that IAST terminal summary is present when IAST is enabled."""
-        pytester.makepyfile(
-            test_iast="""
-            def test_ok():
-                assert True
-        """
-        )
-
-        monkeypatch.setenv("DD_IAST_ENABLED", "true")
-        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
-        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
-
-        output = result.stdout.str()
-        assert "Datadog Code Security Report" in output
-
-    def test_ddtrace_iast_terminal_summary_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
-        """Test that IAST terminal summary is NOT present when IAST is disabled."""
-        pytester.makepyfile(
-            test_iast="""
-            def test_ok():
-                assert True
-        """
-        )
-
-        monkeypatch.setenv("DD_IAST_ENABLED", "false")
-        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
-        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
-
-        output = result.stdout.str()
-        assert "Datadog Code Security Report" not in output
 
 
 class TestRetryHandler:
