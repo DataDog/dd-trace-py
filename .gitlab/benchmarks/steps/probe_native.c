@@ -154,13 +154,19 @@ run_latency(double seconds, size_t bytes, int rep)
     }
     for (i = 0; i < n; i++)
         tbl[i] = (uint32_t)i;
+    /* Sattolo's shuffle: j < i yields exactly one cycle over the whole
+     * table, so every rep chases the same-size full-DRAM circuit. Plain
+     * Fisher-Yates instead leaves the cycle containing index 0 at a
+     * uniformly random length (measured across reps: 0.1% to 98% of the
+     * table), which let whole reps sit in cache and alone caused the huge
+     * rep-to-rep spread of earlier probe versions. */
     for (i = n - 1; i > 0; i--) {
-        size_t j = (size_t)(rng_next() % (i + 1));
+        size_t j = (size_t)(rng_next() % i);
         uint32_t t = tbl[i];
         tbl[i] = tbl[j];
         tbl[j] = t;
     }
-    for (i = 0; i < (1u << 20); i++) /* untimed warm-up */
+    for (i = 0; i < (1u << 22); i++) /* untimed warm-up */
         idx = tbl[idx];
     start = now_s();
     deadline = start + seconds;

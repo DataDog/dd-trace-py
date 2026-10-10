@@ -276,10 +276,19 @@ def py_fault(seconds: float):
 
 
 def build_latency_table(bytes_: int):
-    """Shuffled u32 permutation in an array (a superset of the C core's table)."""
+    """Shuffled u32 permutation in an array (a superset of the C core's table).
+
+    Sattolo's shuffle, like the C core: exactly one cycle over the whole
+    table, so every rep chases a full-DRAM circuit instead of a
+    random-length cycle that may sit in cache. Built once per probe and
+    reused; the Python loop is the price of the no-compiler fallback.
+    """
     n = max(2, bytes_ // 4)
     tbl = array("I", range(n))
-    random.Random(0xC0FFEE).shuffle(tbl)
+    rng = random.Random(0xC0FFEE)
+    for i in range(n - 1, 0, -1):
+        j = rng.randrange(i)  # strictly below i: one cycle over all n
+        tbl[i], tbl[j] = tbl[j], tbl[i]
     return tbl
 
 

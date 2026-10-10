@@ -91,6 +91,21 @@ class PythonCoreTests(unittest.TestCase):
                 self.assertGreater(ops, 0)
                 self.assertGreater(seconds, 0.0)
 
+    def test_latency_table_is_one_full_cycle(self):
+        # Sattolo's shuffle: the chase starting anywhere must visit every
+        # entry before returning, so no rep can land in a cache-resident
+        # short cycle (the bug behind the 54-74% rep spread of probe v1/v2)
+        tbl = probe.build_latency_table(1 << 20)
+        n = len(tbl)
+        idx = 0
+        length = 0
+        while True:
+            idx = tbl[idx]
+            length += 1
+            if idx == 0:
+                break
+        self.assertEqual(length, n)
+
     def test_rep_times(self):
         self.assertEqual(probe.rep_times([(100, 1.0), (200, 1.0), (0, 1.0)]), [0.01, 0.005])
 
