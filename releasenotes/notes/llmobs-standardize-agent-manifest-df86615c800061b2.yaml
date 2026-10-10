@@ -1,0 +1,31 @@
+---
+features:
+  - |
+    LLM Observability: CrewAI, Google ADK, LangGraph, OpenAI Agents, and Claude Agent SDK agent spans
+    now report agent configuration with a consistent set of fields, including instructions, tool
+    parameters, handoffs, and settings where the framework declares them.
+upgrade:
+  - |
+    LLM Observability: Agent configuration fields reported by CrewAI, Google ADK, LangGraph, OpenAI
+    Agents, and Claude Agent SDK agent spans changed shape. CrewAI ``goal`` and ``backstory`` are
+    reported as ``instructions``, Google ADK ``description`` as ``handoff_description``, iteration
+    limits move under ``agent_settings``, and Google ADK ``model_configuration`` and
+    ``session_management`` and LangGraph and Claude Agent SDK ``dependencies`` are no longer
+    reported. Tool parameters drop ``title`` and ``strict_json_schema``. Comparing agent versions
+    recorded before and after upgrading, or across services on different tracer versions, shows
+    differences caused by the tracer rather than the agent.
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the agent configuration reported for OpenAI Agents
+    included model settings ``extra_headers``, ``extra_body``, ``extra_query`` and ``extra_args``,
+    and hosted MCP tool ``headers``, ``authorization`` and ``server_url``. Rotate any credentials
+    set in these fields.
+  - |
+    LLM Observability: Fixes an issue where Google ADK and OpenAI Agents instructions defined as a
+    function were reported as the function's memory address, which changed on every restart.
+  - |
+    LLM Observability: Fixes a ``ValueError`` raised by LangGraph's ``create_react_agent`` when
+    the model is a string without a ``provider:`` prefix.
+  - |
+    LLM Observability: Fixes an issue where the model was missing from the Google ADK agent
+    configuration when the agent's model is set as a string.

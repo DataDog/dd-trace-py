@@ -17,64 +17,76 @@ from tests.llmobs._utils import assert_llmobs_span_data
 CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
 
 
+class _OneOf:
+    """Equal to any of the given values."""
+
+    def __init__(self, *values):
+        self.values = values
+
+    def __eq__(self, other):
+        return other in self.values
+
+    def __repr__(self):
+        return f"OneOf{self.values!r}"
+
+
+def _declared_or_interpolated(template):
+    # Instructions read the goal and backstory before kickoff inputs are interpolated, but these module
+    # level agents are copied by some crews, and a copy keeps only the interpolated text.
+    return _OneOf(template, template.replace("{topic}", "AI"))
+
+
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Senior Research Scientist": {
         "framework": "CrewAI",
         "name": "Senior Research Scientist",
-        "goal": "Uncover cutting-edge developments in AI",
-        "backstory": "You're a seasoned researcher with a knack for uncovering the latest developments in AI. "
-        "Known for your ability to find the most relevant information and present it in a clear "
-        "and concise manner.",
+        "instructions": _declared_or_interpolated(
+            "Uncover cutting-edge developments in {topic}\n\n"
+            "You're a seasoned researcher with a knack for uncovering the latest developments in {topic}. "
+            "Known for your ability to find the most relevant information and present it in a clear "
+            "and concise manner."
+        ),
         "model": "gpt-4o-mini",
-        "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
-        "code_execution_permissions": {"code_execution_mode": "safe"},
-        "max_iterations": 25,
-        "tools": [],
+        "agent_settings": {"max_iter": 25, "max_retry_limit": 2},
     },
     "AI Reporting Analyst": {
         "framework": "CrewAI",
         "name": "AI Reporting Analyst",
-        "goal": "Create detailed reports based on AI data analysis and research findings",
-        "backstory": "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
-        "complex data into clear and concise reports, making it easy for others to understand and act on the "
-        "information you provide.",
+        "instructions": _declared_or_interpolated(
+            "Create detailed reports based on {topic} data analysis and research findings\n\n"
+            "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
+            "complex data into clear and concise reports, making it easy for others to understand and act on "
+            "the information you provide."
+        ),
         "model": "gpt-4o-mini",
-        "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
-        "code_execution_permissions": {"code_execution_mode": "safe"},
-        "max_iterations": 25,
-        "tools": [],
+        "agent_settings": {"max_iter": 25, "max_retry_limit": 2},
     },
     "Python Data Analyst": {
         "framework": "CrewAI",
         "name": "Python Data Analyst",
-        "goal": "Analyze data and provide insights using Python",
-        "backstory": "You are an experienced data analyst with strong Python skills.",
+        "instructions": "Analyze data and provide insights using Python\n\n"
+        "You are an experienced data analyst with strong Python skills.",
         "model": "gpt-4o-mini",
-        "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
-        "code_execution_permissions": {"code_execution_mode": "safe"},
-        "max_iterations": 25,
+        "agent_settings": {"max_iter": 25, "max_retry_limit": 2},
         "tools": [
             {
                 "name": "Average Calculator",
-                "description": "Tool Name: Average Calculator\nTool Arguments: {'entries': {'description': None, "
-                "'type': 'list'}}\nTool Description: This tool returns the average of a list of numbers.",
+                "description": "This tool returns the average of a list of numbers.",
+                "parameters": {"entries": {"type": "array", "required": True}},
             }
         ],
     },
     "Tour Guide": {
         "framework": "CrewAI",
         "name": "Tour Guide",
-        "goal": "Recommend fun activities for a group of humans.",
-        "backstory": "You are a tour guide with a passion for finding the best activities for groups of people.",
+        "instructions": "Recommend fun activities for a group of humans.\n\n"
+        "You are a tour guide with a passion for finding the best activities for groups of people.",
         "model": "gpt-4o-mini",
-        "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
-        "code_execution_permissions": {"code_execution_mode": "safe"},
-        "max_iterations": 25,
-        "tools": [],
+        "agent_settings": {"max_iter": 25, "max_retry_limit": 2},
     },
 }
 

@@ -28,25 +28,22 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "framework": "OpenAI",
         "name": "Simple Agent",
         "instructions": "You are a helpful assistant who answers questions concisely and accurately.",
-        "handoff_description": None,
         "model": "gpt-4o",
-        "model_settings": mock.ANY,  # different versions of the library have different model settings
+        "agent_settings": mock.ANY,
     },
     "Simple Agent with Guardrails": {
         "framework": "OpenAI",
         "name": "Simple Agent",
         "instructions": "You are a helpful assistant specialized in addition calculations.",
-        "handoff_description": None,
         "model": "gpt-4o",
-        "model_settings": mock.ANY,  # different versions of the library have different model settings
+        "agent_settings": mock.ANY,
         "tools": [
             {
                 "name": "add",
                 "description": "Add two numbers together",
-                "strict_json_schema": True,
                 "parameters": {
-                    "a": {"type": "integer", "title": "A", "required": True},
-                    "b": {"type": "integer", "title": "B", "required": True},
+                    "a": {"type": "integer", "required": True},
+                    "b": {"type": "integer", "required": True},
                 },
             }
         ],
@@ -56,17 +53,15 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "framework": "OpenAI",
         "name": "Addition Agent",
         "instructions": mock.ANY,
-        "handoff_description": None,
         "model": "gpt-4o",
-        "model_settings": mock.ANY,
+        "agent_settings": mock.ANY,
         "tools": [
             {
                 "name": "add",
                 "description": "Add two numbers together",
-                "strict_json_schema": True,
                 "parameters": {
-                    "a": {"type": "integer", "title": "A", "required": True},
-                    "b": {"type": "integer", "title": "B", "required": True},
+                    "a": {"type": "integer", "required": True},
+                    "b": {"type": "integer", "required": True},
                 },
             }
         ],
@@ -76,40 +71,35 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "name": "Researcher",
         "instructions": "You are a helpful assistant that can research a topic using your research tool. "
         "Always research the topic before summarizing.",
-        "handoff_description": None,
         "model": "gpt-4o",
-        "model_settings": mock.ANY,
+        "agent_settings": mock.ANY,
         "tools": [
             {
                 "name": "research",
                 "description": "Research the internet on a topic.",
-                "strict_json_schema": True,
-                "parameters": {"query": {"type": "string", "title": "Query", "required": True}},
+                "parameters": {"query": {"type": "string", "required": True}},
             }
         ],
         "handoffs": [
-            {"handoff_description": None, "agent_name": "Summarizer"},
+            {"agent_name": "Summarizer"},
         ],
     },
     "Summarizer": {
         "framework": "OpenAI",
         "name": "Summarizer",
         "instructions": "You are a helpful assistant that can summarize a research results.",
-        "handoff_description": None,
         "model": "gpt-4o",
-        "model_settings": mock.ANY,
+        "agent_settings": mock.ANY,
     },
     "Weather Agent": {
         "framework": "OpenAI",
         "name": "Weather Agent",
         "instructions": "You are a helpful assistant specialized in searching the web for weather information.",
-        "handoff_description": None,
         "model": "gpt-4o",
-        "model_settings": mock.ANY,
+        "agent_settings": mock.ANY,
         "tools": [
             {
                 "name": "web_search_preview",
-                "user_location": {"type": "approximate", "city": "New York"},
                 "search_context_size": "medium",
             }
         ],

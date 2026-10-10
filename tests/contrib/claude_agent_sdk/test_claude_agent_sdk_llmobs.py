@@ -1,4 +1,5 @@
 from unittest.mock import ANY
+from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 
 import claude_agent_sdk
@@ -16,6 +17,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TE
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
+from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
 from tests.contrib.claude_agent_sdk.utils import MOCK_COMPACTION_STATUS_VALUE
 from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
@@ -141,7 +143,7 @@ class TestLLMObsClaudeAgentSdk:
             metadata={
                 "max_turns": 3,
                 "stop_reason": "end_turn",
-                "_dd": {"agent_manifest": expected_agent_manifest(max_iterations=3)},
+                "_dd": {"agent_manifest": expected_agent_manifest(max_turns=3)},
             },
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
@@ -236,10 +238,14 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="agent",
             input_value=safe_json(input_msgs),
             output_value=safe_json([{"content": ""}]),
-            metadata={"_dd": {"agent_manifest": {"framework": "Claude Agent SDK"}}},
+            metadata={},
             metrics={},
             tags=COMMON_TAGS,
             error={"type": "builtins.ValueError", "message": "Connection failed", "stack": ANY},
+        )
+        # Nothing was declared, so no manifest ships rather than one naming only the framework.
+        assert "agent_manifest" not in _get_llmobs_data_metastruct(agent_span)["meta"].get("metadata", {}).get(
+            "_dd", {}
         )
 
     async def test_llmobs_assistant_message_error_marks_llm_span_as_error(
@@ -703,6 +709,33 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+
+    async def test_llmobs_client_query_reports_client_options(
+        self, claude_agent_sdk, claude_agent_sdk_llmobs, test_spans
+    ):
+        """ClaudeSDKClient takes options at construction, so query() spans must read them off the client."""
+
+        async def mock_receive_messages():
+            for msg in MOCK_CLIENT_RAW_MESSAGES:
+                yield msg
+
+        options = claude_agent_sdk.ClaudeAgentOptions(system_prompt="You are a terse assistant.", max_turns=3)
+        client = claude_agent_sdk.ClaudeSDKClient(options=options)
+        client._query = MagicMock()
+        client._query.receive_messages = mock_receive_messages
+        client._transport = MagicMock()
+        client._transport.write = AsyncMock(return_value=None)
+
+        await client.query(prompt="Hello from client!")
+        async for _ in client.receive_messages():
+            pass
+
+        agent_span = next(s for trace in test_spans.pop_traces() for s in trace if s.name.endswith(".query"))
+        metadata = _get_llmobs_data_metastruct(agent_span)["meta"]["metadata"]
+        assert metadata["_dd"]["agent_manifest"] == {
+            **expected_agent_manifest(max_turns=3),
+            "instructions": "You are a terse assistant.",
+        }
 
     async def test_llmobs_client_query_with_async_iterable_prompt(
         self, mock_client, claude_agent_sdk_llmobs, test_spans

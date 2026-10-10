@@ -130,6 +130,8 @@ async def traced_client_query(func, instance, args, kwargs):
     integration = claude_agent_sdk._datadog_integration
 
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
+    # The client takes its options at construction, so query() never receives them.
+    tag_kwargs = {**kwargs, "options": getattr(instance, "options", None)}
 
     span = integration.trace(
         "claude_agent_sdk.ClaudeSDKClient.query",
@@ -147,7 +149,7 @@ async def traced_client_query(func, instance, args, kwargs):
     instance._dd_query_args = {
         "span": span,
         "args": args,
-        "kwargs": kwargs,
+        "kwargs": tag_kwargs,
         "before_context": before_context,
     }
 
@@ -155,7 +157,7 @@ async def traced_client_query(func, instance, args, kwargs):
         return await func(*wrapped_args, **wrapped_kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="request")
+        integration.llmobs_set_tags(span, args=args, kwargs=tag_kwargs, response=None, operation="request")
         span.finish()
         instance._dd_query_args = None
         raise

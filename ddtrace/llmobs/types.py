@@ -66,7 +66,12 @@ class AgentCapability(TypedDict, total=False):
 
 
 class AgentInstructionResolver(TypedDict, total=False):
-    """A callable that decides instruction text at run time, recorded by name and never evaluated."""
+    """Instruction text decided outside the declared config, recorded by name and never evaluated.
+
+    type says what the name refers to: a run-time callable (dynamic_instructions,
+    dynamic_system_prompt, dynamic_global_instruction, dynamic_prompt), a stored prompt id (prompt),
+    or a framework preset (preset).
+    """
 
     name: str
     type: str
@@ -105,13 +110,15 @@ class AgentManifest(TypedDict, total=False):
     system_prompts: list[str]
     extra_instructions: list[AgentInstructionResolver]
     model: str
+    model_provider: str
     model_settings: dict[str, Any]
     agent_settings: dict[str, Any]
     tools: list[dict[str, Any]]
     capabilities: list[AgentCapability]
     data_contracts: dict[str, Any]
     guardrails: list[str]
-    handoffs: list[Any]
+    # A list of targets, or {"allow_delegation": bool} for frameworks that only report a flag.
+    handoffs: Union[list[dict[str, Any]], dict[str, Any]]
     handoff_description: str
     memory_policies: list[str]
     metadata: dict[str, Any]
