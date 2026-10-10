@@ -27,6 +27,21 @@ import typing as t
 
 MAX_BENCHMARKS_PER_GROUP = 2
 MAX_TOTAL_TEST_JOBS = 600
+# EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
+# When set, restricts the generated microbenchmark matrix to exactly these
+# suites -- the six known-flaky scenarios plus recursive_computation as a
+# clean control (no flagged rows on Oct 1) -- regardless of which suites the
+# changed files would select. Jobs stay per-scenario, so per-job CI
+# configuration is unchanged. Set to None to restore normal generation.
+BENCHMARK_SCENARIO_ALLOWLIST = (
+    "span",
+    "tracer",
+    "telemetry_add_metric",
+    "http_propagation_inject",
+    "appsec_iast_aspects_ospath",
+    "appsec_iast_aspects_split",
+    "recursive_computation",
+)
 # Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
 NO_PROXY_ADDITIONS = (
     "icanhazdadjoke.com",
@@ -323,6 +338,12 @@ def gen_required_suites() -> None:
 def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
+
+    # EXPERIMENT (do not merge): see BENCHMARK_SCENARIO_ALLOWLIST above.
+    # Suites are keyed "benchmarks::<name>"; match on the clean name.
+    if BENCHMARK_SCENARIO_ALLOWLIST is not None:
+        required_suites = [s for s in suites if s.split("::")[-1] in BENCHMARK_SCENARIO_ALLOWLIST]
+        LOGGER.info("Benchmark allowlist active, generating only: %s", required_suites)
 
     if not required_suites:
         MICROBENCHMARKS_GEN.write_text(

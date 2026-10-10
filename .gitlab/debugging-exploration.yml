@@ -67,10 +67,6 @@
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
   rules:
-    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-      changes: *exploration_changes
-      allow_failure: true
-    - changes: *exploration_changes
     - when: never
   variables:
     BOTO3_TAG: "1.38.44"
@@ -89,10 +85,6 @@
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
   rules:
-    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-      changes: *exploration_changes
-      allow_failure: true
-    - changes: *exploration_changes
     - when: never
   variables:
     BOTO3_TAG: "1.38.44"
