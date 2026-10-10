@@ -214,7 +214,7 @@ run_mem_write(double seconds, size_t bytes, int rep)
     }
     for (i = 0; i < n; i++) {
         tbl[2 * i] = (uint32_t)(2 * i); /* trail: self-loops to start */
-        tbl[2 * i + 1] = 0;            /* slot: the write target */
+        tbl[2 * i + 1] = 0;             /* slot: the write target */
     }
     /* Sattolo's shuffle over the trail fields only: exactly one cycle
      * over all n nodes, same guarantee as mem-read. */
