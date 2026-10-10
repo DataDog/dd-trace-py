@@ -19,10 +19,14 @@ single CPU for the duration (median of --reps reps kept, default 2):
   latency pointer-chase through a shuffled table larger than L3
 
 int/simd/fault/stream/latency run in a checked-in C core (probe_native.c,
-no dependencies) compiled with `cc -O2` on first use; if the toolchain or
-build fails they fall back to pure-Python cores and the report records
-fidelity "fallback-python" per scenario (the latency fallback is
-interpreter-bound and says so). alloc is always "python-workload".
+no dependencies) compiled on first use; the toolchain policy preflights
+cc, then gcc, then clang, and if none exists tries ONE guarded
+apt-get install of gcc before falling back. If no compiler can be had or
+the build fails, the scenarios fall back to pure-Python cores and the
+report records fidelity "fallback-python" per scenario (the latency
+fallback is interpreter-bound and says so); the report's native.path
+field records which path was taken (found / installed / cached /
+fallback). alloc is always "python-workload".
 
 Output (--out DIR, default ./probe-report):
   report.json  per-scenario host median, per-CPU deviation, flags,
@@ -49,6 +53,7 @@ import os
 from pathlib import Path
 import platform
 import random
+import shutil
 import statistics
 import subprocess
 import sys
@@ -80,6 +85,10 @@ FLAG_SPREAD_MULT = 3.0
 # hard wall-clock cap on the sweep so the probe can never eat a CI job
 MAX_SWEEP_S = 12 * 60.0
 NATIVE_BUILD_TIMEOUT_S = 60.0
+# toolchain policy: preflight cc, then gcc, then clang; if none exists, ONE
+# best-effort apt-get install of gcc (Linux only, never fatal) before falling
+# back to the Python cores
+APT_INSTALL_TIMEOUT_S = 120.0
 
 _SOURCE_NATIVE = Path(__file__).with_name("probe_native.c")
 _REPO_ROOT = Path(__file__).resolve().parents[3]  # steps -> benchmarks -> .gitlab -> repo
@@ -277,31 +286,63 @@ class NativeError(Exception):
     pass
 
 
-def compile_native(binary_path: Path = _NATIVE_BINARY, source: Path = _SOURCE_NATIVE):
-    """Best-effort `cc -O2` build of the C core.
+def _find_compiler():
+    """Preflight the toolchain in policy order (cc, gcc, clang).
 
-    Returns (binary_path_or_None, toolchain_string_or_None); the toolchain
-    string lands in the report so a silent fallback is explainable.
+    Returns (compiler_name, first --version line) or (None, None).
     """
-    try:
-        if binary_path.exists() and binary_path.stat().st_mtime >= source.stat().st_mtime:
-            return binary_path, None
-    except OSError:
-        pass
-    cc = None
-    toolchain = None
-    for candidate in ("cc", "clang", "gcc"):
-        found = None
+    for candidate in ("cc", "gcc", "clang"):
         try:
             found = subprocess.run([candidate, "--version"], capture_output=True, timeout=10)
         except (OSError, subprocess.TimeoutExpired):
             continue
         if found.returncode == 0:
-            cc = candidate
-            toolchain = found.stdout.decode("utf-8", "replace").splitlines()[0]
-            break
+            return candidate, found.stdout.decode("utf-8", "replace").splitlines()[0]
+    return None, None
+
+
+def _install_gcc():
+    """ONE cheap best-effort install of gcc; only on Linux with apt-get.
+
+    Never fatal: any failure just means the caller falls back to the Python
+    cores. Returns True only if apt-get reports success.
+    """
+    if not sys.platform.startswith("linux") or not shutil.which("apt-get"):
+        return False
+    try:
+        proc = subprocess.run(
+            ["apt-get", "install", "-y", "--no-install-recommends", "gcc"],
+            capture_output=True,
+            timeout=APT_INSTALL_TIMEOUT_S,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0
+
+
+def compile_native(binary_path: Path = _NATIVE_BINARY, source: Path = _SOURCE_NATIVE):
+    """Best-effort `cc -O2` build of the C core, following the toolchain policy.
+
+    Preflight cc, then gcc, then clang; if none exists, try ONE apt-get install
+    of gcc before falling back. Returns (binary_path_or_None, toolchain_or_None,
+    path) where path records what happened for the report: "found:<cc>",
+    "installed:<gcc>", "cached", or "fallback-python".
+    """
+    try:
+        if binary_path.exists() and binary_path.stat().st_mtime >= source.stat().st_mtime:
+            # cached binary; still preflight so the report shows the toolchain
+            _cc, toolchain = _find_compiler()
+            return binary_path, toolchain, "cached"
+    except OSError:
+        pass
+    cc, toolchain = _find_compiler()
+    path = "found:%s" % cc if cc is not None else None
+    if cc is None and _install_gcc():
+        cc, toolchain = _find_compiler()
+        if cc is not None:
+            path = "installed:%s" % cc
     if cc is None:
-        return None, toolchain
+        return None, None, "fallback-python"
     try:
         binary_path.parent.mkdir(parents=True, exist_ok=True)
         built = subprocess.run(
@@ -310,10 +351,10 @@ def compile_native(binary_path: Path = _NATIVE_BINARY, source: Path = _SOURCE_NA
             timeout=NATIVE_BUILD_TIMEOUT_S,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return None, toolchain
+        return None, toolchain, path or "fallback-python"
     if built.returncode != 0 or not binary_path.exists():
-        return None, toolchain
-    return binary_path, toolchain
+        return None, toolchain, path or "fallback-python"
+    return binary_path, toolchain, path
 
 
 def run_native(binary, scenario: str, seconds: float, reps: int, size=None):
@@ -502,15 +543,18 @@ class Probe:
     # -- native build -----------------------------------------------------
 
     def _build_native(self) -> None:
-        binary, toolchain = compile_native()
-        self.native_info = {"toolchain": toolchain, "binary": str(binary) if binary else None}
+        binary, toolchain, path = compile_native()
+        self.native_info = {"toolchain": toolchain, "binary": str(binary) if binary else None, "path": path}
         if binary is not None:
             self.native_binary = binary
             self.native_info["build"] = "ok"
             self.sources["native_build"] = "available"
         else:
-            self.native_info["build"] = "failed; using Python fallbacks"
-            self.sources["native_build"] = "error: cc build failed or no compiler"
+            if path == "fallback-python":
+                self.native_info["build"] = "no compiler after preflight (cc, gcc, clang) and install attempt"
+            else:
+                self.native_info["build"] = "failed; using Python fallbacks"
+            self.sources["native_build"] = "error: %s" % self.native_info["build"]
         for scenario in NATIVE_SCENARIOS:
             self.fidelity[scenario] = "native" if self.native_binary else "fallback-python"
         self.fidelity[ALLOC] = "python-workload"

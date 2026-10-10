@@ -152,9 +152,10 @@ class StatsTests(unittest.TestCase):
 
 class NativeBuildTests(unittest.TestCase):
     def test_compile_and_run_native(self):
-        binary, _toolchain = probe.compile_native()
+        binary, _toolchain, path = probe.compile_native()
         if binary is None:
             self.skipTest("no C compiler available")
+        self.assertTrue(path.startswith(("found:", "installed:", "cached")), path)
         reps = probe.run_native(binary, "int", 0.02, 2)
         self.assertEqual(len(reps), 2)
         for ops, seconds in reps:
@@ -164,6 +165,47 @@ class NativeBuildTests(unittest.TestCase):
             probe.run_native(binary, "not-a-scenario", 0.01, 1)
         with self.assertRaises(probe.NativeError):
             probe.run_native(binary, "int", 0.01, 0)  # reps <= 0 -> rc 2
+
+    def test_compiler_policy_install_path(self):
+        """No preflight hit, one successful install, compiler then found."""
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp) / "probe_native"
+            original_find, original_install = probe._find_compiler, probe._install_gcc
+            calls = []
+
+            def fake_find():
+                calls.append(1)
+                return (None, None) if len(calls) == 1 else ("cc", "cc test 1.0")
+
+            try:
+                probe._find_compiler = fake_find
+                probe._install_gcc = lambda: True
+                result = probe.compile_native(binary_path=binary)
+            finally:
+                probe._find_compiler, probe._install_gcc = original_find, original_install
+            if result[0] is None:
+                self.skipTest("no C compiler available")
+            self.assertEqual(result[2], "installed:cc")
+            self.assertEqual(result[1], "cc test 1.0")
+
+    def test_compiler_policy_falls_back_after_failed_install(self):
+        original_find, original_install = probe._find_compiler, probe._install_gcc
+        try:
+            probe._find_compiler = lambda: (None, None)
+            probe._install_gcc = lambda: False
+            result = probe.compile_native(binary_path=Path("/nonexistent-dir/probe_native"))
+        finally:
+            probe._find_compiler, probe._install_gcc = original_find, original_install
+        self.assertEqual(result, (None, None, "fallback-python"))
+
+    def test_install_gcc_skipped_without_apt(self):
+        # no apt-get on PATH -> the install is skipped without running anything
+        original_which = probe.shutil.which
+        try:
+            probe.shutil.which = lambda name: None
+            self.assertFalse(probe._install_gcc())
+        finally:
+            probe.shutil.which = original_which
 
 
 class ProbeRunTests(unittest.TestCase):
@@ -201,11 +243,13 @@ class ProbeRunTests(unittest.TestCase):
             probe_obj.native_binary = None
             original = probe.compile_native
             try:
-                probe.compile_native = lambda *a, **k: (None, None)  # simulate no toolchain
+                probe.compile_native = lambda *a, **k: (None, None, "fallback-python")  # simulate no toolchain
                 probe_obj._build_native()
             finally:
                 probe.compile_native = original
             self.assertEqual(probe_obj.fidelity["alloc"], "python-workload")
+            self.assertEqual(probe_obj.native_info["path"], "fallback-python")
+            self.assertIn("no compiler", probe_obj.native_info["build"])
             for scenario in probe.NATIVE_SCENARIOS:
                 self.assertEqual(probe_obj.fidelity[scenario], "fallback-python")
 
