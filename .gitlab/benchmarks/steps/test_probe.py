@@ -84,6 +84,7 @@ class PythonCoreTests(unittest.TestCase):
             ("fault", lambda: probe.py_fault(0.02)),
             ("simd", lambda: probe.py_memcpy(0.02, *probe.make_memcpy_bufs(1 << 20))),
             ("latency", lambda: probe.py_latency(0.02, probe.build_latency_table(1 << 20))),
+            ("gc", lambda: probe.py_gc(0.02, 2000)),
         ):
             with self.subTest(scenario=name):
                 ops, seconds = fn()
@@ -96,6 +97,40 @@ class PythonCoreTests(unittest.TestCase):
     def test_spread_pct(self):
         self.assertAlmostEqual(probe.spread_pct([1.0, 1.1]), 100 * 0.1 / 1.05)
         self.assertEqual(probe.spread_pct([1.0]), 0.0)
+
+
+class GCCoreTests(unittest.TestCase):
+    """The gc scenario's graph: deterministic, cyclic, and collectable."""
+
+    def test_build_gc_graph_deterministic(self):
+        g1 = probe.build_gc_graph(64)
+        g2 = probe.build_gc_graph(64)
+        self.assertEqual(len(g1), 64)
+        self.assertEqual([n.payload for n in g1], [n.payload for n in g2])
+        # both builds follow the same cross-reference pattern
+        for i, node in enumerate(g1):
+            self.assertIs(node.refs[0], g1[(i * 7 + 3) % 64])
+            self.assertIs(node.refs[1], g1[(i * 31 + 11) % 64])
+            self.assertIs(node.refs[2], g1[(i + 5) % 64])
+        self.assertEqual([n.refs[0].payload for n in g1], [n.refs[0].payload for n in g2])
+
+    def test_graph_is_cyclic(self):
+        # every node has 3 cross-references and following refs[0] must come
+        # back to the start: the permutation (i*7+3) % n forms real cycles
+        # the collector has to chase
+        nodes = probe.build_gc_graph(64)
+        cur = nodes[0]
+        for _ in range(64):
+            cur = cur.refs[0]
+            if cur is nodes[0]:
+                break
+        else:
+            self.fail("refs[0] chain never returned to the starting node")
+
+    def test_py_gc_runs_and_returns_collections(self):
+        ops, seconds = probe.py_gc(0.05, n=3000)
+        self.assertGreater(ops, 0)
+        self.assertGreater(seconds, 0.0)
 
 
 class StatsTests(unittest.TestCase):
@@ -128,6 +163,25 @@ class StatsTests(unittest.TestCase):
         self.assertGreater(stats["flag_threshold_pct"], 100.0)
         self.assertFalse(any(e["flagged"] for e in stats["cpus"].values()))
 
+    def test_flag_requires_consistent_direction(self):
+        # CPU 24 is +10% on the median but fast in one rep: threshold-boundary
+        # flapping must stay unflagged even when the median exceeds 5%
+        per_cpu = {"24": [1.4e-6, 0.8e-6]}
+        for c in range(25, 29):
+            per_cpu[str(c)] = [1.0e-6, 1.0e-6]
+        stats = probe.compute_scenario_stats(per_cpu)
+        self.assertFalse(stats["cpus"]["24"]["flagged"])
+        self.assertFalse(stats["cpus"]["24"]["direction_consistent"])
+        self.assertGreater(stats["cpus"]["24"]["deviation_pct"], 5.0)
+
+    def test_flag_with_consistent_direction(self):
+        per_cpu = {"24": [1.4e-6, 1.4e-6]}
+        for c in range(25, 29):
+            per_cpu[str(c)] = [1.0e-6, 1.0e-6]
+        stats = probe.compute_scenario_stats(per_cpu)
+        self.assertTrue(stats["cpus"]["24"]["flagged"])
+        self.assertTrue(stats["cpus"]["24"]["direction_consistent"])
+
     def test_single_cpu_no_deviation(self):
         stats = probe.compute_scenario_stats({"24": [1e-6, 1.1e-6]})
         self.assertTrue(stats["ran"])
@@ -136,6 +190,7 @@ class StatsTests(unittest.TestCase):
     def test_verdicts(self):
         native = {s: "native" for s in probe.SCENARIOS}
         native["alloc"] = "python-workload"
+        native["gc"] = "python-workload"
         self.assertEqual(probe.decide_verdict({"pinned": True}, native, {}, []), "clean")
         self.assertEqual(
             probe.decide_verdict({"pinned": True}, native, {"24": [{"scenario": "alloc"}]}, []),
@@ -165,6 +220,18 @@ class NativeBuildTests(unittest.TestCase):
             probe.run_native(binary, "not-a-scenario", 0.01, 1)
         with self.assertRaises(probe.NativeError):
             probe.run_native(binary, "int", 0.01, 0)  # reps <= 0 -> rc 2
+
+    def test_native_latency_with_size(self):
+        # the chase table is mmap'd + MADV_NOHUGEPAGE'd with an untimed
+        # warm-up pass: verify the core runs and both reps report
+        binary, _toolchain, _path = probe.compile_native()
+        if binary is None:
+            self.skipTest("no C compiler available")
+        reps = probe.run_native(binary, "latency", 0.05, 2, 4 << 20)
+        self.assertEqual(len(reps), 2)
+        for ops, seconds in reps:
+            self.assertGreater(ops, 0)
+            self.assertGreater(seconds, 0)
 
     def test_compiler_policy_install_path(self):
         """No preflight hit, one successful install, compiler then found."""

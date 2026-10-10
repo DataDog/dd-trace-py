@@ -17,21 +17,25 @@
  * Exit codes: 2 unknown scenario, 3 core mechanism failed (probe.py then
  * records the scenario as unavailable instead of trusting partial data).
  */
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <time.h>
 #include <sys/mman.h>
+#include <time.h>
 
-static double now_s(void) {
+static double
+now_s(void)
+{
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
 static uint64_t rng_state = 0x243F6A8885A308D3ULL;
-static uint64_t rng_next(void) {
+static uint64_t
+rng_next(void)
+{
     uint64_t x = rng_state;
     x ^= x << 13;
     x ^= x >> 7;
@@ -44,12 +48,16 @@ static uint64_t rng_next(void) {
 static volatile uint64_t g_sink64;
 static volatile uint32_t g_sink32;
 
-static void report(int rep, uint64_t ops, double seconds) {
+static void
+report(int rep, uint64_t ops, double seconds)
+{
     printf("{\"rep\":%d,\"ops\":%llu,\"seconds\":%.6f}\n", rep, (unsigned long long)ops, seconds);
     fflush(stdout);
 }
 
-static void run_int(double seconds, int rep) {
+static void
+run_int(double seconds, int rep)
+{
     uint64_t x = 0x9E3779B97F4A7C15ULL, ops = 0;
     double start = now_s(), deadline = start + seconds;
     for (;;) {
@@ -67,9 +75,11 @@ static void run_int(double seconds, int rep) {
     report(rep, ops, now_s() - start);
 }
 
-static void run_memcpy(double seconds, size_t size, int rep) {
-    unsigned char *src = malloc(size);
-    unsigned char *dst = malloc(size);
+static void
+run_memcpy(double seconds, size_t size, int rep)
+{
+    unsigned char* src = malloc(size);
+    unsigned char* dst = malloc(size);
     uint64_t ops = 0;
     double start, deadline;
     if (!src || !dst) {
@@ -92,13 +102,15 @@ static void run_memcpy(double seconds, size_t size, int rep) {
     report(rep, ops, now_s() - start);
 }
 
-static void run_fault(double seconds, int rep) {
+static void
+run_fault(double seconds, int rep)
+{
     const size_t chunk = 1u << 20;
     const size_t page = 1u << 12;
     uint64_t ops = 0;
     double start = now_s(), deadline = start + seconds;
     for (;;) {
-        unsigned char *p = mmap(NULL, chunk, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        unsigned char* p = mmap(NULL, chunk, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         size_t off;
         if (p == MAP_FAILED) {
             fprintf(stderr, "mmap failed\n");
@@ -114,13 +126,30 @@ static void run_fault(double seconds, int rep) {
     report(rep, ops, now_s() - start);
 }
 
-static void run_latency(double seconds, size_t bytes, int rep) {
+/*
+ * Latency note: the table is mmap'd and explicitly MADV_NOHUGEPAGE'd.
+ * Without that, the first rep chases 4K pages and later reps 2M transparent
+ * hugepages once khugepaged collapses the region, which alone produced the
+ * ~2x rep-to-rep spread seen on the benchmarking hosts (uniform across all
+ * CPUs, so pure measurement artifact, not asymmetry). The untimed warm-up
+ * pass keeps page-table/first-touch state out of rep 0 as well.
+ */
+static void
+run_latency(double seconds, size_t bytes, int rep)
+{
     size_t n = bytes / 4, i, idx = 0;
-    uint32_t *tbl = malloc(bytes);
+    uint32_t* tbl = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     uint64_t ops = 0;
     double start, deadline;
-    if (!tbl || n < 2) {
-        fprintf(stderr, "malloc %zu failed\n", bytes);
+    if (tbl == MAP_FAILED) {
+        fprintf(stderr, "mmap %zu failed\n", bytes);
+        exit(3);
+    }
+#ifdef MADV_NOHUGEPAGE
+    madvise(tbl, bytes, MADV_NOHUGEPAGE);
+#endif
+    if (n < 2) {
+        fprintf(stderr, "table too small: %zu\n", bytes);
         exit(3);
     }
     for (i = 0; i < n; i++)
@@ -131,6 +160,8 @@ static void run_latency(double seconds, size_t bytes, int rep) {
         tbl[i] = tbl[j];
         tbl[j] = t;
     }
+    for (i = 0; i < (1u << 20); i++) /* untimed warm-up */
+        idx = tbl[idx];
     start = now_s();
     deadline = start + seconds;
     for (;;) {
@@ -141,12 +172,14 @@ static void run_latency(double seconds, size_t bytes, int rep) {
             break;
     }
     g_sink32 = tbl[idx];
-    free(tbl);
+    munmap(tbl, bytes);
     report(rep, ops, now_s() - start);
 }
 
-int main(int argc, char **argv) {
-    const char *scenario;
+int
+main(int argc, char** argv)
+{
+    const char* scenario;
     double seconds;
     int reps, rep;
     size_t size;

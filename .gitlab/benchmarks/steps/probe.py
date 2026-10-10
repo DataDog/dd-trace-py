@@ -7,8 +7,8 @@ hosts, CPU 24 runs allocation-heavy code ~1.4x slower than its neighbors
 (clean on 25/36/37) while every OS-level counter looks identical, so the
 probe measures the work itself on every CPU instead of watching counters.
 
-Six scenarios run on EVERY allowed CPU, with the process pinned to that
-single CPU for the duration (median of --reps reps kept, default 2):
+Seven scenarios run on EVERY allowed CPU, with the process pinned to that
+single CPU for the duration (median of --reps reps kept, default 3):
   int     tight arithmetic loop, no allocation
   simd    bulk memcpy on 8 MiB blocks
   alloc   small-object churn (short strings/tuples) -- always pure Python
@@ -17,6 +17,9 @@ single CPU for the duration (median of --reps reps kept, default 2):
   fault   mmap fresh anonymous 1 MiB pages and touch every page
   stream  memcpy between buffers larger than L3
   latency pointer-chase through a shuffled table larger than L3
+  gc      build a large cyclic object graph (payload strings like IAST
+          taint ranges, cross-references) and time forced gc.collect() --
+          always pure Python, same reason as alloc
 
 int/simd/fault/stream/latency run in a checked-in C core (probe_native.c,
 no dependencies) compiled on first use; the toolchain policy preflights
@@ -35,7 +38,10 @@ Output (--out DIR, default ./probe-report):
   report.md    one row per CPU x scenario
 
 Flag rule: a CPU deviates in a scenario when its median time per op
-exceeds max(5%, 3x the median rep-to-rep spread) of the host median.
+exceeds max(5%, 3x the median rep-to-rep spread) of the host median AND
+every rep deviates from the host's rep-wise median in the same direction;
+the direction clause keeps single-CPU flapping at the 5% boundary
+unflagged unless it is really one-sided.
 
 Best-effort everywhere: every failing source or mechanism is recorded
 as unavailable; the script never raises and always writes its report.
@@ -47,6 +53,7 @@ from __future__ import annotations
 import argparse
 from array import array
 import ctypes
+import gc
 import json
 import mmap as mmap_mod
 import os
@@ -60,9 +67,10 @@ import sys
 import time
 
 
-SCENARIOS = ("int", "simd", "alloc", "fault", "stream", "latency")
+SCENARIOS = ("int", "simd", "alloc", "fault", "stream", "latency", "gc")
 NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "latency")
 ALLOC = "alloc"  # always the pure-Python workload mirror
+GC = "gc"  # same: the cyclic-GC graph chase mirrors the real workload
 SCENARIO_UNITS = {
     "int": "iterations",
     "simd": "bytes",
@@ -70,8 +78,9 @@ SCENARIO_UNITS = {
     "fault": "pages",
     "stream": "bytes",
     "latency": "hops",
+    "gc": "collections",
 }
-DEFAULT_REPS = 2
+DEFAULT_REPS = 3
 DEFAULT_REP_SECONDS = 1.5
 SIMD_BYTES = 8 << 20
 FAULT_CHUNK = 1 << 20
@@ -80,10 +89,19 @@ L3_FALLBACK_BYTES = 256 << 20
 # the pure-Python latency fallback shuffles its table once; 64 MiB keeps
 # that one-time cost to a few seconds while still exceeding any L3
 LATENCY_FALLBACK_CAP = 64 << 20
+# the gc scenario's live cyclic graph: 150k nodes with string payloads and
+# 3-way cross-references is roughly 40 MB / 450k tracked objects, spanning
+# well beyond L2 and around the judges' 37 MB L3, like a taint-object heap
+GC_OBJECTS = 150_000
+GC_PAYLOAD_CHARS = 32  # payload string length per node, like an IAST taint range
+GC_CHURN_NODES = 512  # fresh cyclic garbage nodes per collection
+GC_SEVER = 64  # live nodes whose refs are dropped and rebuilt per collection
 FLAG_MIN_PCT = 5.0
 FLAG_SPREAD_MULT = 3.0
 # hard wall-clock cap on the sweep so the probe can never eat a CI job
-MAX_SWEEP_S = 12 * 60.0
+# (7 scenarios x 24 CPUs x 3 reps x 1.5 s measured plus per-rep setup lands
+# around 14 min; 16 min leaves margin while staying inside the 30 m job)
+MAX_SWEEP_S = 16 * 60.0
 NATIVE_BUILD_TIMEOUT_S = 60.0
 # toolchain policy: preflight cc, then gcc, then clang; if none exists, ONE
 # best-effort apt-get install of gcc (Linux only, never fatal) before falling
@@ -267,6 +285,8 @@ def build_latency_table(bytes_: int):
 
 def py_latency(seconds: float, tbl):
     idx = 0
+    for _ in range(1 << 18):  # untimed warm-up, mirrors the C core
+        idx = tbl[idx]
     ops = 0
     start = time.monotonic()
     deadline = start + seconds
@@ -274,6 +294,76 @@ def py_latency(seconds: float, tbl):
         for _ in range(256):
             idx = tbl[idx]
         ops += 256
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+# -- gc scenario: cyclic object graph + forced collection ------------------
+
+
+class _GCNode:
+    """One node of the cyclic graph: a payload string plus cross-references."""
+
+    __slots__ = ("refs", "payload")
+
+    def __init__(self, payload):
+        self.payload = payload
+        self.refs = ()
+
+
+def _gc_payload(i: int) -> str:
+    """Deterministic per-node payload, shaped like an IAST taint range."""
+    return "range %d:%d = %s" % (i, (i * 31) % 4096, "taint"[i % 5] * GC_PAYLOAD_CHARS)
+
+
+def build_gc_graph(n: int = GC_OBJECTS):
+    """Build the live cyclic graph: n nodes, each with a payload and 3
+    cross-references into pseudo-randomly spread peers, so pointer-chasing
+    it during collection walks far beyond L2. Deterministic in n.
+    """
+    nodes = [_GCNode(_gc_payload(i)) for i in range(n)]
+    for i, node in enumerate(nodes):
+        node.refs = (nodes[(i * 7 + 3) % n], nodes[(i * 31 + 11) % n], nodes[(i + 5) % n])
+    return nodes
+
+
+def py_gc(seconds: float, n: int = GC_OBJECTS):
+    """Time forced full collections over a large live cyclic graph.
+
+    The graph is rebuilt the same way for every rep (outside the timed
+    window); each timed iteration drops a rotating slice of references,
+    adds a ring of fresh cyclic garbage that points back into the graph,
+    rebuilds the slice, and forces gc.collect(). One op = one collection.
+    """
+    nodes = build_gc_graph(n)
+    rng = random.Random(0x5EED)  # same churn sequence every rep
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        # drop a rotating slice of live references
+        base = (ops * 611) % n
+        for k in range(GC_SEVER):
+            nodes[(base + k) % n].refs = ()
+        # fresh cyclic garbage: a ring of nodes referencing each other and
+        # two live nodes each, unreachable as soon as the locals die
+        first = prev = None
+        for _ in range(GC_CHURN_NODES):
+            node = _GCNode(_gc_payload(rng.randrange(n)))
+            node.refs = (prev, nodes[rng.randrange(n)], nodes[rng.randrange(n)])
+            if first is None:
+                first = node
+            prev = node
+        first.refs = (prev, nodes[rng.randrange(n)])
+        first = prev = node = None
+        gc.collect()
+        # rebuild the severed slice inside the timed window: the tuple
+        # construction is part of the churn, like real taint objects
+        for k in range(GC_SEVER):
+            i = (base + k) % n
+            nodes[i].refs = (nodes[(i * 7 + 3) % n], nodes[(i * 31 + 11) % n], nodes[(i + 5) % n])
+        ops += 1
         if time.monotonic() >= deadline:
             break
     return ops, time.monotonic() - start
@@ -400,7 +490,9 @@ def compute_scenario_stats(per_cpu: dict):
 
     per_cpu: {cpu_key: [seconds_per_op, ...]} for the CPUs that ran.
     A CPU is flagged when its median deviates from the host median by more
-    than max(5%, 3x the median per-CPU rep-to-rep spread).
+    than max(5%, 3x the median per-CPU rep-to-rep spread) AND every rep
+    deviates from the host's rep-wise median in the same direction; the
+    direction clause keeps threshold-boundary flapping unflagged.
     """
     stats = {"ran": bool(per_cpu), "cpus": {}}
     if len(per_cpu) < 2:
@@ -411,15 +503,21 @@ def compute_scenario_stats(per_cpu: dict):
     host_median = statistics.median(medians.values())
     med_spread = statistics.median([spread_pct(t) for t in per_cpu.values()])
     threshold = max(FLAG_MIN_PCT, FLAG_SPREAD_MULT * med_spread)
+    # host median per rep index, to judge a CPU's per-rep direction
+    n_reps = max(len(t) for t in per_cpu.values())
+    rep_medians = [statistics.median([t[r] for t in per_cpu.values() if len(t) > r]) for r in range(n_reps)]
     stats["host_median_s_per_op"] = host_median
     stats["rep_spread_pct"] = med_spread
     stats["flag_threshold_pct"] = threshold
     for cpu, med in medians.items():
         dev = (med - host_median) / host_median * 100.0
+        deltas = [t - rep_medians[r] for r, t in enumerate(per_cpu[cpu]) if r < n_reps]
+        consistent = all(d >= 0 for d in deltas) or all(d <= 0 for d in deltas)
         stats["cpus"][cpu] = {
             "median_s_per_op": med,
             "deviation_pct": round(dev, 2),
-            "flagged": abs(dev) > threshold,
+            "direction_consistent": consistent,
+            "flagged": abs(dev) > threshold and consistent,
         }
     return stats
 
@@ -558,6 +656,7 @@ class Probe:
         for scenario in NATIVE_SCENARIOS:
             self.fidelity[scenario] = "native" if self.native_binary else "fallback-python"
         self.fidelity[ALLOC] = "python-workload"
+        self.fidelity[GC] = "python-workload"
         if self.native_binary is None:
             self.notes.append("native core unavailable: int/simd/fault/stream/latency use fallback-python")
 
@@ -591,6 +690,8 @@ class Probe:
             return py_memcpy(self.rep_seconds, *self._ensure_buffers("stream"))
         if scenario == "latency":
             return py_latency(self.rep_seconds, self._ensure_buffers("latency"))
+        if scenario == "gc":
+            return py_gc(self.rep_seconds)
         raise ValueError("unknown scenario %s" % scenario)
 
     def _run_scenario(self, scenario):
@@ -752,7 +853,7 @@ class Probe:
             self._build_native()
         except Exception as exc:  # noqa: BLE001
             for scenario in SCENARIOS:
-                self.fidelity[scenario] = "fallback-python" if scenario != ALLOC else "python-workload"
+                self.fidelity[scenario] = "fallback-python" if scenario not in (ALLOC, GC) else "python-workload"
             self.notes.append("native build crashed: %r" % exc)
         try:
             self.sweep(cpus)
@@ -819,7 +920,7 @@ def render_markdown(report):
 def main() -> int:
     parser = argparse.ArgumentParser(description="per-CPU microbenchmarks that flag asymmetric cores")
     parser.add_argument("--out", default="./probe-report", help="output directory (default ./probe-report)")
-    parser.add_argument("--reps", type=int, default=DEFAULT_REPS, help="reps per CPU and scenario (default 2)")
+    parser.add_argument("--reps", type=int, default=DEFAULT_REPS, help="reps per CPU and scenario (default 3)")
     parser.add_argument(
         "--rep-seconds", type=float, default=DEFAULT_REP_SECONDS, help="measured seconds per rep (default 1.5)"
     )
