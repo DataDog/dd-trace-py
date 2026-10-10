@@ -20,6 +20,7 @@ import pytest
 _WATCH_PATH = pathlib.Path(__file__).resolve().parents[2] / ".gitlab" / "benchmarks" / "steps" / "watch.py"
 _RUN_PATH = pathlib.Path(__file__).resolve().parents[2] / "benchmarks" / "base" / "run.py"
 _JITTER_PATH = pathlib.Path(__file__).resolve().parents[2] / ".gitlab" / "benchmarks" / "steps" / "jitter.py"
+_PREFLIGHT_PATH = pathlib.Path(__file__).resolve().parents[2] / ".gitlab" / "benchmarks" / "steps" / "preflight.py"
 
 
 @pytest.fixture(scope="module")
@@ -463,3 +464,40 @@ def test_probe_cpu_unavailable_is_recorded(jitter_mod, monkeypatch):
     assert record["cpu"] == 24
     assert record["available"] is False
     assert "not permitted" in record["error"]
+
+
+@pytest.fixture(scope="module")
+def preflight_mod():
+    spec = importlib.util.spec_from_file_location("preflight", _PREFLIGHT_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_preflight_read_source_shapes(preflight_mod, tmp_path):
+    # T6: the preflight's best-effort read records {source, available, error}
+    # plus size/preview; empty (masked) reads stay available=True with bytes=0
+    ok = tmp_path / "ok"
+    ok.write_text("content")
+    empty = tmp_path / "empty"
+    empty.write_text("")
+    missing = tmp_path / "missing"
+    rec = preflight_mod.read_source(ok)
+    assert (rec["available"], rec["error"], rec["bytes"]) == (True, None, 7)
+    rec = preflight_mod.read_source(empty)
+    assert (rec["available"], rec["bytes"]) == (True, 0)
+    rec = preflight_mod.read_source(missing)
+    assert rec["available"] is False
+    assert rec["error"]
+
+
+def test_preflight_probe_never_raises(preflight_mod):
+    # the preflight runs before the benchmarks in the CI job and must never
+    # raise, whatever the container allows -- every source here is missing
+    # or unreadable in the test environment, which is exactly the point
+    report = preflight_mod.probe([24, 25, 36, 37])
+    assert report["records"]
+    assert all("source" in r and "available" in r for r in report["records"])
+    # a missing perf binary is recorded, not fatal
+    assert report["perf"] in ("missing", None) or "/" in str(report["perf"])
