@@ -11,9 +11,7 @@ benchmark-serverless:
   needs:
     - job: "upload serverless"
   rules:
-    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
-      allow_failure: true
-    - allow_failure: false
+    - when: never
   variables:
     DD_TAGS: "SLS_CI_BRANCH:$SLS_CI_BRANCH"
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
