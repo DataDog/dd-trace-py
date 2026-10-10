@@ -12,4 +12,9 @@ shift
 TAG="$1"
 shift
 
-docker build -t "${TAG}" --build-arg SCENARIO="${SCENARIO}" benchmarks/
+BUILD_ARGS=()
+if [[ -n "${PYTHON_VERSION:-}" ]]; then
+    BUILD_ARGS+=(--build-arg "PYTHON_VERSION=${PYTHON_VERSION}")
+fi
+
+docker build -t "${TAG}" "${BUILD_ARGS[@]}" --build-arg SCENARIO="${SCENARIO}" benchmarks/
