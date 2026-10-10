@@ -166,6 +166,13 @@ After running this skill, you should have:
 3. Impact assessment for each change
 4. Files in our codebase that need updates
 
+## Profiling bring-up
+
+If this diff is for Continuous Profiler, hand off to
+`migrate-profiling-new-cpython` (catalog + short runbook pointers) rather than
+inventing a parallel plan.
+
 ## Related
 
 - **find-cpython-usage skill**: Use to identify what to compare
+- **migrate-profiling-new-cpython skill**: Pointers for profiling bring-up (catalog + short runbook)
