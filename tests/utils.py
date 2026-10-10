@@ -1344,19 +1344,32 @@ def snapshot_context(
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
+        # Subprocesses that export OTLP traces send them to the test agent, whose OTLP port can be
+        # remapped locally (see scripts/run-tests).
+        otlp_url = os.environ.get("DD_TEST_OTLP_URL")
+        previous_otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+        if otlp_url:
+            os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = otlp_url.rstrip("/") + "/v1/traces"
         try:
             yield SnapshotTest(
                 token=token,
             )
         finally:
-            # Force a flush so all traces are submitted.
-            tracer._span_aggregator.writer.flush_queue()
-            if async_mode:
-                if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                    tracer._span_aggregator.writer.set_test_session_token(None)
-                else:
-                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+            try:
+                # Force a flush so all traces are submitted.
+                tracer._span_aggregator.writer.flush_queue()
+                if async_mode:
+                    if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                        tracer._span_aggregator.writer.set_test_session_token(None)
+                    else:
+                        del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
+                    del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+            finally:
+                if otlp_url:
+                    if previous_otlp_endpoint is None:
+                        os.environ.pop("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", None)
+                    else:
+                        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = previous_otlp_endpoint
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
