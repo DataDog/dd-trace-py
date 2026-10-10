@@ -46,6 +46,15 @@ variables:
     (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
+    # EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
+    # Before the benchmark runs, sweep every allowed CPU of this host once
+    # with per-scenario microbenchmarks (int/simd/alloc/fault/stream/latency,
+    # each pinned per CPU); the report lands in the collected /artifacts so
+    # each of the 6 matrix jobs (one runner each) yields one host report.
+    # Unconditional but guarded: it can never fail the job.
+    mkdir -p /artifacts/probe-report
+    python3 "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/steps/probe.py" --out /artifacts/probe-report || true
+
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
       export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
