@@ -679,16 +679,21 @@ def prepare_slice_aspect(root=None):
         info["state"] = "unavailable: no ddtrace wheel (candidate-wheel/ or baseline-wheel/ absent)"
         return None, info
     info["wheel"] = wheel.name
-    venv_python = base / "target" / "slice-aspect-venv" / "bin" / "python"
+    venv_dir = base / "target" / "slice-aspect-venv"
+    venv_python = venv_dir / "bin" / "python"
     try:
         if not venv_python.exists():
             made = subprocess.run(
-                [sys.executable, "-m", "venv", str(venv_python.parent)],
+                [sys.executable, "-m", "venv", str(venv_dir)],
                 capture_output=True,
                 timeout=SLICE_ASPECT_VENV_TIMEOUT_S,
             )
             if made.returncode != 0 or not venv_python.exists():
-                info["state"] = "unavailable: venv creation failed: %s" % made.stderr.decode("utf-8", "replace")[:200]
+                info["state"] = "unavailable: venv creation failed: rc=%d stdout=%s stderr=%s" % (
+                    made.returncode,
+                    made.stdout.decode("utf-8", "replace")[:120],
+                    made.stderr.decode("utf-8", "replace")[:120],
+                )
                 return None, info
         importable = subprocess.run(
             [str(venv_python), "-c", "import ddtrace.appsec._iast"], capture_output=True, timeout=60

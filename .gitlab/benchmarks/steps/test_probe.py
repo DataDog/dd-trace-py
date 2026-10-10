@@ -535,7 +535,9 @@ class SliceAspectWheelTests(unittest.TestCase):
         self.assertIn("no ddtrace wheel", info["state"])
 
     def test_install_runs_only_when_import_fails(self):
-        """A cached importable venv is reused; pip runs exactly once when not."""
+        """The venv is created at target/slice-aspect-venv (not .../bin);
+        pip runs exactly once when the import check fails.
+        """
         import subprocess as subprocess_mod
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -544,16 +546,25 @@ class SliceAspectWheelTests(unittest.TestCase):
             wheel_dir.mkdir()
             wheel = wheel_dir / "ddtrace-cand-2.0-cp312-cp312-manylinux2014_x86_64.whl"
             wheel.write_text("")
-            fake_python = root / "target" / "slice-aspect-venv" / "bin" / "python"
-            fake_python.parent.mkdir(parents=True)
-            fake_python.write_text("#!/bin/sh\n")  # pre-created: venv step skipped
+            venv_dir = root / "target" / "slice-aspect-venv"
+            venv_python = venv_dir / "bin" / "python"
             calls = []
 
             def fake_run(cmd, **kwargs):
+                if cmd[1:3] == ["-m", "venv"]:
+                    calls.append("venv")
+                    # simulate the interpreter: create bin/python at the
+                    # requested venv root, exactly where a real one would
+                    self.assertEqual(Path(cmd[3]), venv_dir)  # not .../bin -- the path bug the first CI run found
+                    (venv_dir / "bin").mkdir(parents=True, exist_ok=True)
+                    venv_python.write_text("")
+                    return subprocess_mod.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
                 if cmd[1:3] == ["-c", "import ddtrace.appsec._iast"]:
                     calls.append("import-check")
-                    # import fails before install, succeeds after
-                    return subprocess_mod.CompletedProcess(cmd, 0 if "pip" in calls else 1, stdout=b"", stderr=b"boom")
+                    # importable only once pip has installed the wheel
+                    return subprocess_mod.CompletedProcess(
+                        cmd, 0 if "pip" in calls else 1, stdout=b"", stderr=b"no module named ddtrace"
+                    )
                 if cmd[1:3] == ["-m", "pip"]:
                     calls.append("pip")
                     return subprocess_mod.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
@@ -562,14 +573,14 @@ class SliceAspectWheelTests(unittest.TestCase):
             original_run = probe.subprocess.run
             probe.subprocess.run = fake_run
             try:
-                venv_python, info = probe.prepare_slice_aspect(root)
+                got_python, info = probe.prepare_slice_aspect(root)
             finally:
                 probe.subprocess.run = original_run
-        self.assertEqual(venv_python, fake_python)
+        self.assertEqual(got_python, venv_python)
         self.assertEqual(info["state"], "ok")
         self.assertEqual(info["wheel"], wheel.name)
         self.assertIsNotNone(info["install_s"])
-        self.assertEqual(calls, ["import-check", "pip", "import-check"])  # imported twice, installed once
+        self.assertEqual(calls, ["venv", "import-check", "pip", "import-check"])
 
     def test_failed_install_records_reason(self):
         import subprocess as subprocess_mod
@@ -579,11 +590,13 @@ class SliceAspectWheelTests(unittest.TestCase):
             wheel_dir = root / "candidate-wheel"
             wheel_dir.mkdir()
             (wheel_dir / "ddtrace-cand-2.0-cp312-cp312-manylinux2014_x86_64.whl").write_text("")
-            fake_python = root / "target" / "slice-aspect-venv" / "bin" / "python"
-            fake_python.parent.mkdir(parents=True)
-            fake_python.write_text("#!/bin/sh\n")
+            venv_dir = root / "target" / "slice-aspect-venv"
 
             def fake_run(cmd, **kwargs):
+                if cmd[1:3] == ["-m", "venv"]:
+                    (venv_dir / "bin").mkdir(parents=True, exist_ok=True)
+                    (venv_dir / "bin" / "python").write_text("")
+                    return subprocess_mod.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
                 if cmd[1:3] == ["-c", "import ddtrace.appsec._iast"]:
                     return subprocess_mod.CompletedProcess(cmd, 1, stdout=b"", stderr=b"boom")
                 if cmd[1:3] == ["-m", "pip"]:
@@ -599,6 +612,32 @@ class SliceAspectWheelTests(unittest.TestCase):
         self.assertIsNone(venv_python)
         self.assertIn("pip install failed", info["state"])
         self.assertIn("network on fire", info["state"])
+
+    def test_venv_creation_failure_records_rc_and_streams(self):
+        # the first CI run failed with an empty message because only stderr
+        # was recorded; rc and stdout must land in the state too
+        import subprocess as subprocess_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "candidate-wheel").mkdir()
+            (root / "candidate-wheel" / "ddtrace-cand-2.0-cp312-cp312-manylinux2014_x86_64.whl").write_text("")
+
+            def fake_run(cmd, **kwargs):
+                if cmd[1:3] == ["-m", "venv"]:
+                    # rc 0 but nothing created: the pathological case
+                    return subprocess_mod.CompletedProcess(cmd, 0, stdout=b"weird stdout", stderr=b"")
+                raise AssertionError("unexpected command %r" % cmd)
+
+            original_run = probe.subprocess.run
+            probe.subprocess.run = fake_run
+            try:
+                venv_python, info = probe.prepare_slice_aspect(root)
+            finally:
+                probe.subprocess.run = original_run
+        self.assertIsNone(venv_python)
+        self.assertIn("rc=0", info["state"])
+        self.assertIn("weird stdout", info["state"])
 
 
 class StatsTests(unittest.TestCase):
@@ -781,8 +820,15 @@ class ProbeRunTests(unittest.TestCase):
                 # slice-aspect is "unavailable" wherever the pass-job wheel
                 # artifacts are absent (everywhere but the CI pass jobs)
                 self.assertIn(fid, ("native", "fallback-python", "python-workload", "ddtrace-child", "unavailable"))
-            self.assertEqual(report["scenarios"]["slice-aspect"]["fidelity"], "unavailable")
-            self.assertIn("no ddtrace wheel", report["meta"]["slice_aspect"]["state"])
+            # the local run has no wheel artifacts; in a CI pass job they
+            # exist (candidate-wheel/ is a job dependency), so there the
+            # scenario is prepared (ddtrace-child) or records a reason --
+            # never silently pretending; both environments must hold
+            sa_state = report["meta"]["slice_aspect"]["state"]
+            if "no ddtrace wheel" in sa_state:
+                self.assertEqual(report["scenarios"]["slice-aspect"]["fidelity"], "unavailable")
+            else:
+                self.assertIn(report["scenarios"]["slice-aspect"]["fidelity"], ("unavailable", "ddtrace-child"))
             if probe.compile_native()[0] is not None:
                 self.assertEqual(report["scenarios"]["alloc"]["fidelity"], "python-workload")
             for scenario in probe.NATIVE_SCENARIOS:
