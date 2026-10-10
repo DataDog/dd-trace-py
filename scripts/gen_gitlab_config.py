@@ -39,10 +39,15 @@ BENCHMARK_SCENARIO_ALLOWLIST = ("appsec_iast_aspects_ospath",)
 # run-benchmarks.sh) with BENCH_CPUS_<side> when the env var is set. Candidate
 # and baseline still run concurrently inside each job. Every pass and every
 # repetition is its own matrix job so all runs land in parallel.
+# T9 control: both configs of the real benchmark run per pass job (comma-
+# separated BENCHMARK_CONFIGS, run.py's existing filter), so aspect (the IAST
+# taint machinery) and noaspect (plain string/allocation churn) are measured
+# on the same CPU pair, same host, same run.
 BENCHMARK_CPU_PROBE = {
     "appsec_iast_aspects_ospath": {
-        # existing run.py config filter (BENCHMARK_CONFIGS), not a new one
-        "configs": "ospathbasename_aspect",
+        # existing run.py config filter (BENCHMARK_CONFIGS), not a new one;
+        # both configs share the pass's single pinned CPU per side
+        "configs": "ospathbasename_aspect,ospathbasename_noaspect",
         # (pass name, candidate CPUs, baseline CPUs)
         "passes": (
             ("cand24-base36", "24", "36"),
