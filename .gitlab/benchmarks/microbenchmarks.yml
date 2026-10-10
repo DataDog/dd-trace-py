@@ -36,7 +36,7 @@ variables:
       interruptible: false
     - interruptible: true
   # EXPERIMENT (do not merge): raised for the CPU-asymmetry probe (PR
-  # #20052 / APMSP-4059) -- the per-CPU sweep alone is capped at 22 m and
+  # #20052 / APMSP-4059) -- the per-CPU sweep alone is capped at 26 m and
   # each pass job now measures two benchmark configs per side.
   timeout: 45m
   dependencies: [ "baseline:build", "candidate" ]
@@ -52,7 +52,7 @@ variables:
     # EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
     # Before the benchmark runs, sweep every allowed CPU of this host once
     # with per-scenario microbenchmarks
-    # (int/simd/alloc/fault/stream/mem-read/mem-write/gc-read/gc-write, each
+    # (int/simd/alloc/fault/stream/mem-read/mem-write/gc-read/gc-write/slice, each
     # pinned per CPU); the
     # report lands in the collected /artifacts so each of the matrix jobs
     # (one runner each) yields one host report. Unconditional but guarded:

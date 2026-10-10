@@ -5,9 +5,12 @@ Run from the repo root or the steps directory:
     python3 .gitlab/benchmarks/steps/test_probe.py
 """
 
+import ast
+import inspect
 from pathlib import Path
 import sys
 import tempfile
+import types
 import unittest
 
 
@@ -80,7 +83,7 @@ class ScenarioContractTests(unittest.TestCase):
     def test_scenario_names_and_units(self):
         self.assertEqual(
             probe.SCENARIOS,
-            ("int", "simd", "alloc", "fault", "stream", "mem-read", "mem-write", "gc-read", "gc-write"),
+            ("int", "simd", "alloc", "fault", "stream", "mem-read", "mem-write", "gc-read", "gc-write", "slice"),
         )
         self.assertEqual(
             probe.SCENARIO_UNITS,
@@ -94,6 +97,7 @@ class ScenarioContractTests(unittest.TestCase):
                 "mem-write": "accesses",
                 "gc-read": "collections",
                 "gc-write": "batches",
+                "slice": "iterations",
             },
         )
         # no stragglers from the latency/gc renames or missing units
@@ -114,6 +118,7 @@ class PythonCoreTests(unittest.TestCase):
             ("mem-write", lambda: probe.py_mem_write(0.02, probe.build_mem_write_table(1 << 20))),
             ("gc-read", lambda: probe.py_gc_read(0.02, 2000)),
             ("gc-write", lambda: probe.py_gc_write(0.02, pool_size=512)),
+            ("slice", lambda: probe.py_slice(0.02, batch=4096)),
         ):
             with self.subTest(scenario=name):
                 ops, seconds = fn()
@@ -248,6 +253,63 @@ class GCWriteCoreTests(unittest.TestCase):
         self.assertTrue(any(node.payload != p for node, p in zip(pool, before)))
 
 
+class SliceScenarioTests(unittest.TestCase):
+    """The slice scenario: the benchmark's own noaspect loop, verbatim.
+
+    Structural only: these tests compare the copied loop against the
+    benchmark source it was copied from, so drift in either file fails in
+    CI. They never time anything.
+    """
+
+    REPO_ROOT = Path(__file__).resolve().parents[3]
+    BENCH = REPO_ROOT / "benchmarks" / "appsec_iast_aspects_ospath"
+
+    @staticmethod
+    def _function_def(path, name):
+        tree = ast.parse(Path(path).read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == name:
+                return node
+        raise AssertionError("%s not found in %s" % (name, path))
+
+    def test_copied_function_is_verbatim(self):
+        # the probe's ospathbasename_noaspect must be an exact AST copy of
+        # the benchmark's functions.py:45-46: same signature, same body
+        bench = self._function_def(self.BENCH / "functions.py", "ospathbasename_noaspect")
+        copied = self._function_def(probe.__file__, "ospathbasename_noaspect")
+        self.assertEqual(ast.dump(copied.args), ast.dump(bench.args))
+        self.assertEqual([ast.dump(s) for s in copied.body], [ast.dump(s) for s in bench.body])
+
+    def test_timed_loop_matches_benchmark_call_pattern(self):
+        # scenario.py's noaspect branch (line 31) resolves the callee by
+        # getattr on the functions module and discards the result into _;
+        # the probe's timed batch must use that exact call shape
+        scenario_src = (self.BENCH / "scenario.py").read_text()
+        batch_src = inspect.getsource(probe._slice_batch)
+        self.assertIn('_ = getattr(functions, "ospathbasename_noaspect")()', batch_src)
+        # the benchmark's own call pattern, and the config that resolves
+        # function_name for the noaspect config
+        self.assertIn("_ = getattr(functions, self.function_name)()", scenario_src)
+        config = (self.BENCH / "config.yaml").read_text()
+        self.assertIn('function_name: "ospathbasename_noaspect"', config)
+
+    def test_functions_mirror_is_a_module(self):
+        # the benchmark getattr's on a real module, so the mirror must be
+        # one; the copied function ignores its args exactly like the source
+        functions = probe.build_slice_functions()
+        self.assertIsInstance(functions, types.ModuleType)
+        self.assertEqual(functions.ospathbasename_noaspect(), "file")
+
+    def test_report_note_cites_source(self):
+        # the report must say what was copied and from where, file:line
+        with tempfile.TemporaryDirectory() as tmp:
+            probe_obj = probe.Probe(Path(tmp), reps=1, rep_seconds=0.02)
+            probe_obj.fidelity["slice"] = "python-workload"
+            stats = probe_obj._scenario_stats("slice")
+        self.assertIn("functions.py:45-46", stats["note"])
+        self.assertIn("scenario.py:31", stats["note"])
+
+
 class StatsTests(unittest.TestCase):
     @staticmethod
     def _per_cpu(slow_24=False):
@@ -307,6 +369,7 @@ class StatsTests(unittest.TestCase):
         native["alloc"] = "python-workload"
         native["gc-read"] = "python-workload"
         native["gc-write"] = "python-workload"
+        native["slice"] = "python-workload"
         self.assertEqual(probe.decide_verdict({"pinned": True}, native, {}, []), "clean")
         self.assertEqual(
             probe.decide_verdict({"pinned": True}, native, {"24": [{"scenario": "alloc"}]}, []),

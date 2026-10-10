@@ -7,7 +7,7 @@ hosts, CPU 24 runs allocation-heavy code ~1.4x slower than its neighbors
 (clean on 25/36/37) while every OS-level counter looks identical, so the
 probe measures the work itself on every CPU instead of watching counters.
 
-Nine scenarios run on EVERY allowed CPU, with the process pinned to that
+Ten scenarios run on EVERY allowed CPU, with the process pinned to that
 single CPU for the duration (median of --reps reps kept, default 3):
   int     tight arithmetic loop, no allocation
   simd    bulk memcpy on 8 MiB blocks
@@ -29,6 +29,12 @@ single CPU for the duration (median of --reps reps kept, default 3):
           (payload strings + small satellites referencing each other),
           timed per batch with NO forced gc.collect() -- the churn itself
           (always pure Python, same reason as alloc)
+  slice   the REAL benchmark's own noaspect inner loop, copied verbatim:
+          one os.path.basename("/path/to/file") per iteration through
+          _ = getattr(functions, "ospathbasename_noaspect")() -- but in
+          this probe's plain harness (perf_counter around calibrated
+          batches), NOT pyperf and NOT the repo's harness, to split the
+          benchmark's loop shape from the pyperf harness (T10)
 
 int/simd/fault/stream/mem-read/mem-write run in a checked-in C core
 (probe_native.c, no dependencies) compiled on first use; the toolchain
@@ -38,7 +44,19 @@ be had or the build fails, the scenarios fall back to pure-Python cores
 and the report records fidelity "fallback-python" per scenario (the
 mem-read and mem-write fallbacks are interpreter-bound and say so); the
 report's native.path field records which path was taken (found /
-installed / cached / fallback). alloc is always "python-workload".
+installed / cached / fallback). alloc is always "python-workload"; so are
+gc-read/gc-write (the collector and the churn are interpreter work) and
+slice (it IS the real benchmark's own Python loop -- a C core could not
+copy it faithfully).
+
+The slice scenario copies, verbatim:
+  benchmarks/appsec_iast_aspects_ospath/functions.py:45-46 -- the
+  ospathbasename_noaspect body, os.path.basename("/path/to/file")
+  benchmarks/appsec_iast_aspects_ospath/scenario.py:31 -- the noaspect
+  branch's per-iteration call, _ = getattr(functions, self.function_name)()
+  with function_name = "ospathbasename_noaspect" from config.yaml
+The probe's structural test (test_probe.py, SliceScenarioTests) enforces
+the copy stays verbatim against that source.
 
 Output (--out DIR, default ./probe-report):
   report.json  per-scenario host median, per-CPU deviation, flags,
@@ -74,13 +92,26 @@ import statistics
 import subprocess
 import sys
 import time
+import types
 
 
-SCENARIOS = ("int", "simd", "alloc", "fault", "stream", "mem-read", "mem-write", "gc-read", "gc-write")
+SCENARIOS = (
+    "int",
+    "simd",
+    "alloc",
+    "fault",
+    "stream",
+    "mem-read",
+    "mem-write",
+    "gc-read",
+    "gc-write",
+    "slice",
+)
 NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "mem-read", "mem-write")
 ALLOC = "alloc"  # always the pure-Python workload mirror
 GC_READ = "gc-read"  # same: the cyclic-GC graph chase mirrors the real workload
 GC_WRITE = "gc-write"  # same: the object churn mirrors the real workload
+SLICE = "slice"  # the real benchmark's own noaspect loop, copied verbatim
 SCENARIO_UNITS = {
     "int": "iterations",
     "simd": "bytes",
@@ -91,6 +122,7 @@ SCENARIO_UNITS = {
     "mem-write": "accesses",
     "gc-read": "collections",
     "gc-write": "batches",
+    "slice": "iterations",
 }
 DEFAULT_REPS = 3
 DEFAULT_REP_SECONDS = 1.5
@@ -115,13 +147,22 @@ GC_SEVER = 64  # live nodes whose refs are dropped and rebuilt per collection
 # discarded (strings + small cross-linked objects, like taint ranges)
 GC_WRITE_POOL = 4096
 GC_WRITE_CHURN = 256  # pool nodes re-payloaded per batch
+# the slice scenario runs the real benchmark's own loop with its own rep
+# window (pre-registered in T10: 2-4 s per rep), NOT the global
+# --rep-seconds, which the synthetic scenarios use
+SLICE_REP_SECONDS = 2.0
+# one calibrated slice batch aims for this many seconds, so each timed
+# window is long enough for perf_counter's resolution and short enough
+# that the batch-count quantization stays coarse
+SLICE_BATCH_TARGET_S = 0.05
 FLAG_MIN_PCT = 5.0
 FLAG_SPREAD_MULT = 3.0
 # hard wall-clock cap on the sweep so the probe can never eat a CI job
-# (9 scenarios x 24 CPUs x 3 reps x 1.5 s measured plus per-rep setup --
-# table/graph builds -- lands around 18-19 min; 22 min keeps the sweep
-# whole while staying inside the raised 45 m job)
-MAX_SWEEP_S = 22 * 60.0
+# (10 scenarios x 24 CPUs x 3 reps: 9 synthetic at 1.5 s + slice at 2.0 s
+# measured, plus per-rep setup -- table/graph builds, slice calibration --
+# lands around 21-22 min; 26 min keeps the sweep whole while staying
+# inside the raised 45 m job)
+MAX_SWEEP_S = 26 * 60.0
 NATIVE_BUILD_TIMEOUT_S = 60.0
 # toolchain policy: preflight cc, then gcc, then clang; if none exists, ONE
 # best-effort apt-get install of gcc (Linux only, never fatal) before falling
@@ -493,6 +534,71 @@ def py_gc_write(seconds: float, pool=None, pool_size: int = GC_WRITE_POOL):
     return ops, time.monotonic() - start
 
 
+# -- slice scenario: the real benchmark's own noaspect loop ------------
+
+
+def ospathbasename_noaspect(*args, **kwargs):  # copied verbatim from
+    return os.path.basename("/path/to/file")  # appsec_iast_aspects_ospath/functions.py:45-46
+
+
+def build_slice_functions():
+    """The benchmark's functions module, mirrored for the slice scenario.
+
+    The real loop (scenario.py:31, noaspect branch) resolves its callee by
+    getattr on the imported module, so the mirror is a real module holding
+    the verbatim-copied function -- the per-iteration call pattern below
+    is then indistinguishable from the benchmark's.
+    """
+    functions = types.ModuleType("functions")
+    functions.ospathbasename_noaspect = ospathbasename_noaspect
+    return functions
+
+
+def _slice_batch(functions, iterations: int):
+    """One timed batch: iterations of the benchmark's per-iteration shape
+    (scenario.py:31 with the name resolved from config.yaml), perf_counter
+    around the whole batch. The assignment to _ is part of the copied
+    shape, not decoration: the benchmark stores the result the same way.
+    """
+    start = time.perf_counter()
+    for _ in range(iterations):
+        _ = getattr(functions, "ospathbasename_noaspect")()
+    return time.perf_counter() - start
+
+
+def _slice_calibrate(functions, target_s: float = SLICE_BATCH_TARGET_S):
+    """Grow a batch size until one batch takes at least target_s seconds,
+    so every timed window clears perf_counter's resolution. Untimed setup.
+    """
+    n = 1024
+    while _slice_batch(functions, n) < target_s:
+        n *= 4
+    return n
+
+
+def py_slice(seconds: float, functions=None, batch=None):
+    """Time the benchmark's own noaspect loop in the probe's plain harness.
+
+    The timed body is the verbatim copy documented above (functions.py:45-46
+    reached through scenario.py:31's call pattern); each batch of calibrated
+    size is wrapped in perf_counter and only those windows count -- the
+    calibration runs before the clock starts and nothing but the copied loop
+    runs inside a window. No pyperf, no worker process, no repo harness:
+    that isolation is the point of the scenario. Returns (ops, seconds)
+    like the other cores, seconds being the sum of the batch windows.
+    """
+    if functions is None:
+        functions = build_slice_functions()
+    if batch is None:
+        batch = _slice_calibrate(functions)
+    ops = 0
+    elapsed = 0.0
+    while elapsed < seconds:
+        elapsed += _slice_batch(functions, batch)
+        ops += batch
+    return ops, elapsed
+
+
 # -- native C core --------------------------------------------------------
 
 
@@ -783,6 +889,7 @@ class Probe:
         self.fidelity[ALLOC] = "python-workload"
         self.fidelity[GC_READ] = "python-workload"
         self.fidelity[GC_WRITE] = "python-workload"
+        self.fidelity[SLICE] = "python-workload"
         if self.native_binary is None:
             self.notes.append("native core unavailable: int/simd/fault/stream/mem-read/mem-write use fallback-python")
 
@@ -826,6 +933,9 @@ class Probe:
             return py_gc_read(self.rep_seconds)
         if scenario == "gc-write":
             return py_gc_write(self.rep_seconds)
+        if scenario == SLICE:
+            # its own pre-registered window, not the synthetic scenarios'
+            return py_slice(SLICE_REP_SECONDS)
         raise ValueError("unknown scenario %s" % scenario)
 
     def _run_scenario(self, scenario):
@@ -938,6 +1048,19 @@ class Probe:
                 " satellite cycles are freed by the generational collector the churn"
                 " itself trips"
             )
+        elif scenario == SLICE:
+            stats["note"] = (
+                "copied verbatim from the real benchmark's noaspect path:"
+                " ospathbasename_noaspect returning"
+                ' os.path.basename("/path/to/file")'
+                " (benchmarks/appsec_iast_aspects_ospath/functions.py:45-46),"
+                " called per iteration as"
+                ' _ = getattr(functions, "ospathbasename_noaspect")()'
+                " (scenario.py:31, noaspect branch, function_name from"
+                " config.yaml). Timed with perf_counter around calibrated"
+                " batches in this probe's own harness -- no pyperf, no repo"
+                " harness; rep window %s s (its own, not --rep-seconds)" % SLICE_REP_SECONDS
+            )
         for cpu, entry in self.results[scenario].items():
             if "error" in (entry or {}):
                 stats.setdefault("errors", {})[cpu] = entry["error"]
@@ -1005,7 +1128,7 @@ class Probe:
         except Exception as exc:  # noqa: BLE001
             for scenario in SCENARIOS:
                 self.fidelity[scenario] = (
-                    "fallback-python" if scenario not in (ALLOC, GC_READ, GC_WRITE) else "python-workload"
+                    "fallback-python" if scenario not in (ALLOC, GC_READ, GC_WRITE, SLICE) else "python-workload"
                 )
             self.notes.append("native build crashed: %r" % exc)
         try:
