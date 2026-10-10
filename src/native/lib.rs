@@ -16,6 +16,7 @@ mod debugger;
 mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
+mod gil;
 mod http_client;
 mod library_config;
 mod log;
@@ -41,6 +42,9 @@ pub extern "C" fn ddtrace_force_export_for_windows() {}
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Capture the thread that may safely re-acquire the GIL during interpreter finalization
+    gil::record_main_thread(m.py());
+
     #[cfg(feature = "stats")]
     {
         m.add_class::<ddsketch::DDSketchPy>()?;
