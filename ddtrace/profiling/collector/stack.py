@@ -260,10 +260,13 @@ class StackCollector(collector.Collector):
             already_owned: bool = foreign_handler[0]
             owner: str = foreign_handler[1]
             sampling_stopped: bool = foreign_handler[2]
+            # already_owned covers both end-of-warmup foreign ownership and the
+            # no-warmup path (process_vm_readv unavailable); avoid "warming up"
+            # / "upgraded" wording that only fits one of those.
             when: str = (
-                "already lost when the profiler finished warming up"
+                "already lost before the profiler could use the faster copy"
                 if already_owned
-                else "lost after the profiler had upgraded to the faster copy"
+                else "lost after the profiler had been using the faster copy"
             )
             lost: str = _lost_ownership_clause(owner)
             normalized_owner: str = _normalize_foreign_handler_owner(owner)

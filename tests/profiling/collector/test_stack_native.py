@@ -1522,7 +1522,7 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
         (
             False,
             "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace",
-            "lost after the profiler had upgraded to the faster copy",
+            "lost after the profiler had been using the faster copy",
             "does not own SIGSEGV",
             "false",
             "libtorch_cpu.so",
@@ -1531,7 +1531,7 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
         (
             True,
             "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace",
-            "already lost when the profiler finished warming up",
+            "already lost before the profiler could use the faster copy",
             "does not own SIGSEGV",
             "true",
             "libtorch_cpu.so",
@@ -1540,7 +1540,7 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
         (
             False,
             "SIGSEGV=ddtrace, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
-            "lost after the profiler had upgraded to the faster copy",
+            "lost after the profiler had been using the faster copy",
             "does not own SIGBUS",
             "false",
             "libfoo.so",
@@ -1549,7 +1549,7 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
         (
             False,
             "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
-            "lost after the profiler had upgraded to the faster copy",
+            "lost after the profiler had been using the faster copy",
             "does not own SIGSEGV and SIGBUS",
             "false",
             "libfoo.so",

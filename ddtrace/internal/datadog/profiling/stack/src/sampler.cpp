@@ -514,8 +514,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
                                   << "; keeping the syscall-based memory copy to avoid crashing. "
                                   << "Handler owners: " << ownership.owners << std::endl;
                     }
-                } else if (!saw_owned_handlers && segv_handler_installed()) {
-                    saw_owned_handlers = true;
                 }
             } else if (fast_copy_active) {
                 const bool handlers_owned = segv_handler_installed();
