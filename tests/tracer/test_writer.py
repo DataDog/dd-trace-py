@@ -34,6 +34,7 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
+from ddtrace.internal.writer.writer import HTTPWriter
 from ddtrace.internal.writer.writer import compute_agentless_intake_url
 from ddtrace.trace import Span
 from tests.utils import AnyInt
@@ -1091,6 +1092,106 @@ def test_writer_recreate_keeps_response_callback():
     writer = writer.recreate()
     assert isinstance(writer, NativeWriter)
     assert writer._response_cb is response_callback
+
+
+def test_native_writer_closed_microvm_writer_rejects_writes_without_restarting(monkeypatch):
+    """A writer closed by the identity refresh drops later spans and is not restarted by them."""
+    from ddtrace.internal.service import ServiceStatus
+
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    try:
+        writer._clients[0].encoder.put([Span("buffered")])
+
+        writer._stop_accepting_writes()
+        writer.write([Span("late")])
+
+        # Spans buffered before the close stay for the final flush; the late span is dropped.
+        assert len(writer._clients[0].encoder) == 1
+        assert writer.status == ServiceStatus.STOPPED
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_native_writer_microvm_close_waits_for_in_flight_sync_flush(monkeypatch):
+    """Refresh shuts a sync writer's exporter down after closing it, so closing must wait out a flush."""
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    flush_entered = threading.Event()
+    release_flush = threading.Event()
+
+    def blocking_send(payload):
+        flush_entered.set()
+        release_flush.wait()
+        return "{}"
+
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock(send=mock.Mock(side_effect=blocking_send))
+    try:
+        write = threading.Thread(target=writer.write, args=([Span("in-flight")],), daemon=True)
+        write.start()
+        assert flush_entered.wait(5)
+
+        close = threading.Thread(target=writer._stop_accepting_writes, daemon=True)
+        close.start()
+        close.join(0.2)
+        assert close.is_alive()
+
+        release_flush.set()
+        write.join(5)
+        close.join(5)
+        assert not write.is_alive()
+        assert not close.is_alive()
+        assert exporter.send.call_count == 1
+        assert writer._accepting_writes is False
+
+        # Nothing is flushed through the closed writer.
+        writer.write([Span("late")])
+        assert exporter.send.call_count == 1
+    finally:
+        release_flush.set()
+        real_exporter.drop()
+
+
+def test_native_writer_stop_accepting_writes_is_noop_outside_microvm(monkeypatch):
+    monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
+    writer = NativeWriter("http://dne:1234")
+    try:
+        assert writer._writer_lock is None
+
+        writer._stop_accepting_writes()
+        with mock.patch.object(writer, "start"):
+            writer.write([Span("span")])
+
+        assert writer._accepting_writes is True
+        assert len(writer._clients[0].encoder) == 1
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_http_writer_closed_microvm_writer_rejects_writes(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+
+    class Writer(HTTPWriter):
+        def recreate(self):
+            return self
+
+    client = mock.Mock()
+    writer = Writer("http://dne:1234", [client])
+
+    writer._stop_accepting_writes()
+    writer.write([Span("late")])
+
+    assert writer._accepting_writes is False
+    client.encoder.put.assert_not_called()
+
+
+def test_log_writer_stop_accepting_writes_is_noop():
+    writer = LogWriter()
+
+    writer._stop_accepting_writes()
+
+    assert not hasattr(writer, "_accepting_writes")
 
 
 @pytest.mark.parametrize(
