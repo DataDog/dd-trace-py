@@ -10,7 +10,7 @@
 #       --build-arg PYTHON_VERSION=3.10 \
 #       -t ddtrace-py-stackv2-fuzz .
 #
-# Run locally (defaults to fuzz_echion_remote_read):
+# Run locally (defaults to fuzz_echion_frame_create):
 #   $ docker run --rm -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz
 #
 # Run a specific target locally:
@@ -58,7 +58,7 @@ ENV LD_LIBRARY_PATH="/fuzzer/builds/"
 # FUZZ_TARGET selects which binary to run (for local testing).
 # FUZZ_APP and FUZZ_BUILD_ID are derived from it automatically.
 # In CI, fuzz_infra.py builds per-binary images that override all three via ENV.
-ENV FUZZ_TARGET=fuzz_echion_remote_read
+ENV FUZZ_TARGET=fuzz_echion_frame_create
 ENV PYTHON_VERSION_COMPACT=${PYTHON_VERSION}
 RUN echo "$(git -C /src rev-parse --short HEAD 2>/dev/null || echo unknown)" > /fuzzer/.git_sha
 

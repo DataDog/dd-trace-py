@@ -47,6 +47,7 @@ from functools import lru_cache
 from pathlib import Path
 import re
 import sys
+import time
 
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -95,18 +96,32 @@ class SilencedItem:
     location: Location
 
 
+PYPI_ATTEMPTS = 5
+
+
 @lru_cache(maxsize=100)
 def get_pypi_latest_version(package: str) -> Version | None:
-    """Query PyPI for the latest version of a package."""
-    try:
-        url = f"https://pypi.org/pypi/{package}/json"
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            return Version(data["info"]["version"])
-    except Exception:
-        pass
-    return None
+    """Query PyPI for the latest version of a package
+
+    Returns None if PyPI does not know the package.
+    Transient PyPI errors are retried, and a lookup that keeps failing aborts the run.
+    """
+    url = f"https://pypi.org/pypi/{package}/json"
+    last_error: Exception | None = None
+    for attempt in range(PYPI_ATTEMPTS):
+        if attempt:
+            time.sleep(2**attempt)
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return Version(response.json()["info"]["version"])
+        except Exception as e:
+            last_error = e
+    raise SystemExit(
+        f"❌ Could not query PyPI for the latest {package} version after {PYPI_ATTEMPTS} attempts: {last_error}"
+    )
 
 
 def load_pyproject() -> tuple[dict, str]:

@@ -212,6 +212,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
+      - tests/appsec/integrations/fixtures/*
       - tests/appsec/integrations/packages_tests/*
     retry: 2
     services:
@@ -226,7 +227,7 @@ suites:
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
         - name: appsec_integrations_packages
-          dependencies: [gevent, pytest-xdist, pytest-asyncio, requests, SQLAlchemy, 'psycopg2-binary~=2.9.9', psycopg, pymysql, 'mysqlclient==2.1.1', mysql-connector-python, 'MarkupSafe~=2.1.1', 'Werkzeug~=3.0.6', babel]
+          dependencies: [gevent, pytest-xdist, pytest-asyncio, requests, SQLAlchemy, 'psycopg2-binary~=2.9.9', psycopg, pymysql, 'mysqlclient==2.1.1', mysql-connector-python, 'MarkupSafe~=2.1.1', 'Werkzeug~=3.0.6', babel, numpy, protobuf]
   appsec_integrations_stripe:
     venvs_per_job: 15
     paths:
@@ -235,19 +236,20 @@ suites:
       - '@tracing'
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
+      - tests/cassettes/stripe/*
     retry: 2
-    no_proxy: true
+    snapshot: true
     matrix:
       command: 'pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ '
       variants:
         - name: appsec_integrations_stripe
-          dependencies: [stripe, vcrpy]
+          dependencies: [stripe]
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=11.0', vcrpy]
+          dependencies: ['stripe~=11.0']
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=12.0', vcrpy]
+          dependencies: ['stripe~=12.0']
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=13.0', vcrpy]
+          dependencies: ['stripe~=13.0']
   appsec_integrations_langchain:
     venvs_per_job: 11
     paths:
@@ -861,7 +863,6 @@ suites:
         DD_APPSEC_ENABLED: 'true'
         DD_IAST_ENABLED: 'false'
         DD_TRACE_AGENT_URL: http://testagent:9126
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
@@ -907,7 +908,6 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_WEAK_HASH_ALGORITHMS: NOTexist
         DD_TRACE_AGENT_URL: http://testagent:9126
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
@@ -965,8 +965,6 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/appsec/sca/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: sca
           dependencies: [jsonschema]
