@@ -1887,8 +1887,9 @@ suites:
       command: pytest {cmdargs} tests/contrib/mlflow/
       variants:
         - name: mlflow
+          # mlflow 2.11 imports sqlalchemy.pool.FallbackAsyncAdaptedQueuePool, which SQLAlchemy 2.1 removed.
           python: ['3.10', '3.11']
-          dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82']
+          dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
           python: ['3.12', '3.13', '3.14']
