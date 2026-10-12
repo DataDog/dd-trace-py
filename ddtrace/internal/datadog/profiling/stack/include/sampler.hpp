@@ -53,6 +53,9 @@ class Sampler
     // This class manages the initialization of echion as well as the sampling thread.
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
+    //
+    // Keep larger / better-aligned members first so the class does not waste
+    // space on padding (clang-tidy Padding check).
     std::unique_ptr<EchionSampler> echion;
 
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
@@ -63,75 +66,17 @@ class Sampler
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
 
-    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit.
-    // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
-    // where stop() could miss the notification and hang forever (or until timeout).
-    std::atomic<bool> thread_running{ false };
-    // Whether the sampler is currently active. Unlike thread_running (which tracks
-    // the thread's actual lifecycle) this is set synchronously in start/stop, so
-    // it is not subject to the sampling-thread startup race.
-    // It becomes false in stop and also when the sampling thread aborts on an
-    // unexpected exception, since the sampler is then no longer active.
-    // prefork reads this to decide whether to restart the sampler after fork,
-    // ensuring a sampler that stopped due to an error is not silently restarted.
-    std::atomic<bool> sampler_active_{ false };
-    std::mutex thread_exit_mutex;
-    std::condition_variable thread_exit_cv;
-
-    // Pause synchronization — allows the faulthandler wrapper to temporarily
-    // suspend sampling so signal handlers can be safely swapped without racing
-    // with in-flight safe_memcpy calls.
-    std::atomic<bool> pause_requested_{ false };
-    std::atomic<bool> paused_{ false };
-    std::mutex pause_mutex_;
-    std::condition_variable pause_cv_;
-
-    // Set when the sampling thread aborts on an unexpected exception. The sampling thread
-    // has no GIL, so the failure is stashed here for the Python side to drain and report.
-    std::mutex sampling_thread_error_mutex_;
-    std::optional<SamplingThreadError> sampling_thread_error_;
-    void record_sampling_thread_error(const std::exception& e);
-
-    std::mutex foreign_segv_handler_mutex_;
-    std::optional<ForeignSegvHandler> foreign_segv_handler_;
-    // Stays set after the first record so stop/start cannot re-emit the notice.
-    // Cleared in atfork_child so the child can report its own takeover.
-    bool foreign_segv_handler_reported_ = false;
-    void record_foreign_segv_handler(bool already_owned, const std::string& owner, bool sampling_stopped) noexcept;
-
-    // This is a singleton, so no public constructor
-    Sampler();
-
-    // One-time setup of echion
-    void one_time_setup();
-
     // Internal perf counters
     uint64_t process_count = 0;
     uint64_t sampler_thread_count = 0;
 
-    bool do_adaptive_sampling = true;
     double target_overhead = g_target_overhead;
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
-    unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
-    bool gc_tracking_enabled_ = false;
     std::minstd_rand rng{ std::random_device{}() };
-
-    struct ThreadCandidate
-    {
-        PyThreadState tstate;
-        PyObject* gc_frame;
-    };
-    std::vector<ThreadCandidate> thread_candidates;
-    void adapt_sampling_interval();
-
-    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
-    // when max_threads_per_sample is set).
-    void capture_samples(microsecond_t wall_time_us);
 
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
     // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
     // that doesn't collapse to zero during brief idle periods.
-    std::vector<double> process_delta_window;
     size_t process_delta_window_head = 0;
 
     // Baseline CPU budget (us per adapt window) corresponding to an absolute floor overhead.
@@ -145,12 +90,70 @@ class Sampler
     // Fast-copy startup warmup in seconds.
     double fast_copy_warmup_seconds = 15.0;
 
+    struct ThreadCandidate
+    {
+        PyThreadState tstate;
+        PyObject* gc_frame;
+    };
+    std::vector<ThreadCandidate> thread_candidates;
+    std::vector<double> process_delta_window;
+
+    // Thread exit / pause / diagnostic mutexes (kept contiguous for packing).
+    std::mutex thread_exit_mutex;
+    std::mutex pause_mutex_;
+    // Set when the sampling thread aborts on an unexpected exception. The sampling thread
+    // has no GIL, so the failure is stashed here for the Python side to drain and report.
+    std::mutex sampling_thread_error_mutex_;
+    std::mutex foreign_segv_handler_mutex_;
+    std::condition_variable thread_exit_cv;
+    // Pause synchronization — allows the faulthandler wrapper to temporarily
+    // suspend sampling so signal handlers can be safely swapped without racing
+    // with in-flight safe_memcpy calls.
+    std::condition_variable pause_cv_;
+    std::optional<ForeignSegvHandler> foreign_segv_handler_;
+    std::optional<SamplingThreadError> sampling_thread_error_;
+
+    unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
 
+    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit.
+    // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
+    // where stop() could miss the notification and hang forever (or until timeout).
+    std::atomic<bool> thread_running{ false };
+    // Whether the sampler is currently active. Unlike thread_running (which tracks
+    // the thread's actual lifecycle) this is set synchronously in start/stop, so
+    // it is not subject to the sampling-thread startup race.
+    // It becomes false in stop and also when the sampling thread aborts on an
+    // unexpected exception, since the sampler is then no longer active.
+    // prefork reads this to decide whether to restart the sampler after fork,
+    // ensuring a sampler that stopped due to an error is not silently restarted.
+    std::atomic<bool> sampler_active_{ false };
+    std::atomic<bool> pause_requested_{ false };
+    std::atomic<bool> paused_{ false };
+    // Stays set after the first record so stop/start cannot re-emit the notice.
+    // Cleared in atfork_child so the child can report its own takeover.
+    bool foreign_segv_handler_reported_ = false;
+    bool do_adaptive_sampling = true;
+    bool gc_tracking_enabled_ = false;
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
+
+    void record_sampling_thread_error(const std::exception& e);
+    void record_foreign_segv_handler(bool already_owned, const std::string& owner, bool sampling_stopped) noexcept;
+
+    // This is a singleton, so no public constructor
+    Sampler();
+
+    // One-time setup of echion
+    void one_time_setup();
+
+    void adapt_sampling_interval();
+
+    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
+    // when max_threads_per_sample is set).
+    void capture_samples(microsecond_t wall_time_us);
 
     void atfork_child();
     friend void stack_atfork_prepare();
