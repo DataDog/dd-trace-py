@@ -258,6 +258,29 @@ def test_iast_listener_registered_before_sql_patch():
         )
 
 
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="true"), err=None)
+def test_sql_instrumentation_metric_in_uwsgi_master():
+    import sqlite3  # noqa: F401
+    from unittest import mock
+
+    from ddtrace.internal import products
+    from ddtrace.internal import telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.internal.uwsgi import uWSGIMasterProcess
+
+    with (
+        mock.patch.object(products, "check_uwsgi", side_effect=uWSGIMasterProcess),
+        mock.patch.object(products.manager, "start_products", wraps=products.manager.start_products) as start_products,
+        mock.patch.object(telemetry.telemetry_writer, "add_count_metric") as metric,
+    ):
+        import ddtrace.auto  # noqa: F401
+
+        start_products.assert_not_called()
+        metric.assert_any_call(
+            TELEMETRY_NAMESPACE.IAST, "instrumented.sink", 1, (("vulnerability_type", "SQL_INJECTION"),)
+        )
+
+
 def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer, test_agent_session):
     with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")

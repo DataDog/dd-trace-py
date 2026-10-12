@@ -19,7 +19,6 @@ from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._langchain import langchain_listen
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
-from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_sql_patch
 from ddtrace.internal import core
 
 
@@ -62,7 +61,6 @@ def iast_listen():
     core.on("context.ended.asgi.__call__", _iast_context_end)
 
     # Sink points
-    core.on("sql.patch", _on_sql_patch)
     core.on("db_query_check", _on_report_sqli)
 
     langchain_listen(core)

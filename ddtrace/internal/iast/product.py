@@ -31,6 +31,7 @@ objects that must remain valid throughout its lifecycle.
 
 import sys
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -77,10 +78,12 @@ def post_preload():
         # Import locally to avoid early module loading conflicts
         from ddtrace.appsec._iast import enable_iast_propagation
         from ddtrace.appsec._iast.main import patch_iast
+        from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_sql_patch
 
         log.debug("Enabling IAST by auto import")
         enable_iast_propagation()
         patch_iast()
+        core.on("sql.patch", _on_sql_patch)
 
         # Remove modules that can conflict with Gevent's monkey patching
         # These modules must be cleaned up to prevent memory conflicts that
