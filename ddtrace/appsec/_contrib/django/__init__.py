@@ -1,8 +1,6 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-from typing import cast
 
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
@@ -36,9 +34,6 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.native._native import SpanData
 
 log = get_logger(__name__)
 
@@ -193,9 +188,7 @@ def _on_django_process(
                 hash_login = _hash_user_id(user_login)
                 span._set_attribute(APPSEC.USER_LOGIN_USERNAME, hash_login)
             span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
-            set_user(
-                None, hash_id, propagate=True, session_id=session_key, may_block=False, span=cast("SpanData", span)
-            )
+            set_user(None, hash_id, propagate=True, session_id=session_key, may_block=False, span=span)
         elif mode == LOGIN_EVENTS_MODE.IDENT:
             if user_id:
                 span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
@@ -210,7 +203,7 @@ def _on_django_process(
                 name=user_extra.get("name"),
                 session_id=session_key,
                 may_block=False,
-                span=cast("SpanData", span),
+                span=span,
             )
         if in_asm_context():
             custom_data = {

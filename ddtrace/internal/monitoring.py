@@ -14,6 +14,7 @@ object to the corresponding unregister function to remove it.
 """
 
 from abc import ABC
+import atexit
 import sys
 from types import CodeType
 from typing import Any
@@ -89,8 +90,8 @@ class _IdentityWeakKeyDictionary:
             item = self._data.get(key_id)
             if item is not None and item[0] is ref:
                 self._data.pop(key_id, None)
-                if self._on_remove is not None:
-                    self._on_remove()
+                if (on_remove := self._on_remove) is not None:
+                    on_remove()
 
         return remove
 
@@ -153,6 +154,17 @@ def _on_code_registration_collected() -> None:
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_registration_collected)
+
+
+def _disarm_registry_cleanup() -> None:
+    global _registry
+
+    with _registry_lock:
+        registry, _registry = _registry, _IdentityWeakKeyDictionary()
+        registry.clear()
+
+
+atexit.register(_disarm_registry_cleanup)
 
 
 class MonitoringEventHandler(ABC):

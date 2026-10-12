@@ -74,7 +74,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest --no-cov {cmdargs} tests/coverage -s
-      variants: [{name: dd_coverage}]
+      variants: [{name: dd_coverage, dependencies: [asgiref]}]
   pytest:
     venvs_per_job: 9
     paths:

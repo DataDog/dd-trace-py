@@ -3,40 +3,40 @@ import time
 import pytest
 
 
-def spend_1():
+def spend_1() -> None:
     time.sleep(1)
 
 
-def spend_3():
+def spend_3() -> None:
     time.sleep(3)
 
 
-def spend_4():
+def spend_4() -> None:
     spend_3()
     spend_1()
 
 
-def spend_7():
+def spend_7() -> None:
     spend_3()
     spend_1()
     spend_cpu_3()
 
 
-def spend_16():
+def spend_16() -> None:
     spend_4()
     spend_7()
     spend_cpu_2()
     spend_3()
 
 
-def spend_cpu_2():
+def spend_cpu_2() -> None:
     # Active wait for 2 seconds
     now = time.thread_time_ns()
     while time.thread_time_ns() - now < 2e9:
         pass
 
 
-def spend_cpu_3():
+def spend_cpu_3() -> None:
     # Active wait for 3 seconds
     now = time.thread_time_ns()
     while time.thread_time_ns() - now < 3e9:
@@ -77,7 +77,7 @@ def assert_within_tolerance(
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
     )
 )
-def test_accuracy_stack():
+def test_accuracy_stack() -> None:
     import collections
     import os
 

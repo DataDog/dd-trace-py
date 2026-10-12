@@ -177,7 +177,7 @@ def test_lock_repr(
     assert re.match(pattern, repr_str), f"repr {repr_str!r} didn't match pattern {pattern!r}"
 
 
-def test_patch():
+def test_patch() -> None:
     lock = threading.Lock
     collector = ThreadingLockCollector()
     collector.start()
@@ -196,7 +196,7 @@ def test_patch():
 # Run in a subprocess: pops threading from sys.modules to simulate gevent's
 # cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
 @pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
-def test_lock_patching_survives_module_reimport():
+def test_lock_patching_survives_module_reimport() -> None:
     """Test that lock patches are re-applied when threading is re-imported.
 
     This simulates what cleanup_loaded_modules() does when gevent is installed:
@@ -238,7 +238,7 @@ def test_lock_patching_survives_module_reimport():
 # Run in a subprocess: pops threading from sys.modules to simulate gevent's
 # cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
 @pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
-def test_lock_unpatch_after_module_reimport():
+def test_lock_unpatch_after_module_reimport() -> None:
     """Test that stop/unpatch works correctly after module has been swapped."""
     import importlib
     import sys
@@ -297,7 +297,7 @@ def test_all_threading_collectors_survive_module_reimport(
 
 
 @pytest.mark.subprocess()
-def test_lock_patching_survives_simulated_gevent_monkey_patch():
+def test_lock_patching_survives_simulated_gevent_monkey_patch() -> None:
     """Test that lock patches are re-applied after gevent-style in-place attribute replacement.
 
     Exercises the full _ensure_gevent_monkey_hook path by injecting a fake
@@ -315,10 +315,10 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch():
     fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_all():
+    def fake_patch_all() -> None:
         threading.Lock = fake_lock_type
 
-    def fake_patch_thread():
+    def fake_patch_thread() -> None:
         threading.Lock = fake_lock_type
 
     fake_monkey.patch_all = fake_patch_all
@@ -344,7 +344,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch():
 
 
 @pytest.mark.subprocess()
-def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
+def test_lock_patching_survives_simulated_gevent_monkey_patch_thread() -> None:
     """Test that direct gevent.monkey.patch_thread() calls also trigger re-patching."""
     import sys
     import threading
@@ -356,7 +356,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
     fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_thread():
+    def fake_patch_thread() -> None:
         threading.Lock = fake_lock_type
 
     fake_monkey.patch_all = lambda: None
@@ -379,7 +379,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
 
 
 @pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
-def test_lock_patching_full_sequence_cleanup_reimport_gevent():
+def test_lock_patching_full_sequence_cleanup_reimport_gevent() -> None:
     """Test the full ddtrace-run + gevent worker sequence:
     1. Profiler patches threading.Lock (gevent hook also registered)
     2. cleanup_loaded_modules() removes threading from sys.modules
@@ -399,7 +399,7 @@ def test_lock_patching_full_sequence_cleanup_reimport_gevent():
     fake_lock_type = type("GeventLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_all():
+    def fake_patch_all() -> None:
         new_threading = sys.modules.get("threading")
         if new_threading is not None:
             new_threading.Lock = fake_lock_type
@@ -435,7 +435,7 @@ def test_lock_patching_full_sequence_cleanup_reimport_gevent():
 
 
 @pytest.mark.subprocess()
-def test_all_collectors_survive_simulated_gevent_monkey_patch():
+def test_all_collectors_survive_simulated_gevent_monkey_patch() -> None:
     """Test that all lock collector types (Lock, RLock, Semaphore, etc.) re-patch after
     simulated gevent monkey-patching.
     """
@@ -461,7 +461,7 @@ def test_all_collectors_survive_simulated_gevent_monkey_patch():
     fake_types = {name: type("Fake" + name, (), {}) for _, name in collector_pairs}
     fake_monkey = types.ModuleType("gevent.monkey")
 
-    def fake_patch_all():
+    def fake_patch_all() -> None:
         for _, lock_name in collector_pairs:
             setattr(threading, lock_name, fake_types[lock_name])
 
@@ -493,7 +493,7 @@ def test_all_collectors_survive_simulated_gevent_monkey_patch():
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess()
-def test_lock_patching_survives_real_gevent_monkey_patch():
+def test_lock_patching_survives_real_gevent_monkey_patch() -> None:
     """Integration test: verify lock profiler survives real gevent.monkey.patch_all().
 
     Imports gevent.monkey before starting the collector so _ensure_gevent_monkey_hook
@@ -526,7 +526,7 @@ def test_lock_patching_survives_real_gevent_monkey_patch():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
 # For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
-def test_user_threads_have_native_id():
+def test_user_threads_have_native_id() -> None:
     from os import getpid
     from threading import Thread
     from threading import _MainThread
@@ -741,7 +741,7 @@ def test_rlock_gevent_tasks() -> None:
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
-def test_assertion_error_raised_with_enable_asserts():
+def test_assertion_error_raised_with_enable_asserts() -> None:
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
     from unittest import mock

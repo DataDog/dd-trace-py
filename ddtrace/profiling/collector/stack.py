@@ -37,7 +37,7 @@ class StackCollector(collector.Collector):
         "_native_call_monitor",
     )
 
-    def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
+    def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None) -> None:
         super().__init__()
 
         self.nframes = nframes if nframes is not None else config.max_frames

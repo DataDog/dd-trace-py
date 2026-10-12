@@ -13,7 +13,7 @@ from ruamel.yaml import YAML  # noqa
 TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
 SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
-LOCK_ROOT = Path(".riot/requirements")
+LOCK_ROOT = Path("tests/requirements_locks")
 LOCK_PLATFORM = "linux"
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")

@@ -5,7 +5,7 @@ components:
     - docker-compose.base.yml
     - docker-compose.podman.yml
     - docker-compose.yml
-    - .riot/requirements/*
+    - tests/requirements_locks/*
     - scripts/ddtest
     - pyproject.toml
     - tests/conftest.py
