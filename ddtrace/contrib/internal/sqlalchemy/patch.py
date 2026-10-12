@@ -24,7 +24,7 @@ def patch():
     _w("sqlalchemy", "create_engine", _wrap_create_engine)
     _w("sqlalchemy.engine", "create_engine", _wrap_create_engine)
 
-    core.dispatch("sqlalchemy.patch", ())
+    core.dispatch("sql.patch", ())
 
 
 def unpatch():

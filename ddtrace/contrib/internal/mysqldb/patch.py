@@ -66,7 +66,7 @@ def patch():
     if hasattr(MySQLdb, "connect"):
         _w("MySQLdb", "connect", _connect)
 
-    core.dispatch("mysqldb.patch", ())
+    core.dispatch("sql.patch", ())
 
 
 def unpatch():

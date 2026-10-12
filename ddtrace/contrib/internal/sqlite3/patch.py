@@ -43,7 +43,7 @@ def patch():
     _w(sqlite3, "connect", traced_connect)
     _w(sqlite3.dbapi2, "connect", traced_connect)
 
-    core.dispatch("sqlite3.patch", ())
+    core.dispatch("sql.patch")
 
 
 def unpatch():
