@@ -1887,8 +1887,9 @@ suites:
       command: pytest {cmdargs} tests/contrib/mlflow/
       variants:
         - name: mlflow
+          # mlflow 2.11 imports sqlalchemy.pool.FallbackAsyncAdaptedQueuePool, which SQLAlchemy 2.1 removed.
           python: ['3.10', '3.11']
-          dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82']
+          dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
           python: ['3.12', '3.13', '3.14']
@@ -2155,7 +2156,7 @@ suites:
           python: ['3.9']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.11']
         - name: pymongo
-          dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.0']
+          dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.17.0']
         - name: pymongo
           dependencies: [mongoengine, pytest-randomly, pymongo]
         - name: pymongo
@@ -2822,6 +2823,9 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.25.8']
         - name: urllib3
+          dependencies: [pytest-randomly, pytest-xdist, urllib3]
+        - name: urllib3
+          python: ['3.15']
           dependencies: [pytest-randomly, pytest-xdist, urllib3]
         - name: urllib3
           python: ['3.10']
