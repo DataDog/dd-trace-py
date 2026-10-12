@@ -31,12 +31,18 @@ using namespace Datadog;
 // sent us here and this description are separate reads of the dispositions, so both
 // signals can be ours again by the time we get here, leaving nothing specific to name.
 static std::string
-lost_ownership_clause(const char* verb, const std::string& foreign_signals)
+lost_ownership_clause(const char* verb, const std::string& foreign_signals) noexcept
 {
-    if (foreign_signals.empty()) {
-        return "cannot confirm it owns SIGSEGV and SIGBUS";
+    // Outside the sampling try/catch — if string allocation fails, degrade the
+    // warning text rather than let the exception kill the sampling thread.
+    try {
+        if (foreign_signals.empty()) {
+            return "cannot confirm it owns SIGSEGV and SIGBUS";
+        }
+        return std::string(verb) + " " + foreign_signals;
+    } catch (...) {
+        return {};
     }
-    return std::string(verb) + " " + foreign_signals;
 }
 
 static void
