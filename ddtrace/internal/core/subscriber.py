@@ -21,13 +21,16 @@ from typing import Any
 from typing import ClassVar
 from typing import Generic
 from typing import Optional
+import weakref
 
 from ddtrace.internal import core
+from ddtrace.internal import forksafe
 
 from .events import EventType
 
 
 log = logging.getLogger(__name__)
+_subscription_lock = forksafe.RLock()
 
 
 class Subscriber:
@@ -60,7 +63,6 @@ class Subscriber:
     event_names: Sequence[str]
     auto_register: ClassVar[bool] = True
     _event_handlers: tuple = ()
-    _registered: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Automatically register listeners at subclass definition.
@@ -68,7 +70,6 @@ class Subscriber:
         behavior composition (a child class benefit from the parent class hook)
         """
         super().__init_subclass__(**kwargs)
-        cls._registered = False
 
         cls._event_handlers = tuple(
             base_cls.on_event
@@ -88,14 +89,12 @@ class Subscriber:
     @classmethod
     def register(cls) -> None:
         """Register this subscriber for its declared events."""
-        cls._registered = True
         for event_name in cls.event_names:
             core.on(event_name, cls._on_event, name=cls.__name__)
 
     @classmethod
     def unregister(cls) -> None:
         """Unregister this subscriber from its declared events."""
-        cls._registered = False
         for event_name in cls.event_names:
             core.reset_listeners(event_name, cls._on_event)
 
@@ -111,8 +110,6 @@ class Subscriber:
     @classmethod
     def _on_event(cls, event_instance):
         """Internal handler that calls all _on_event methods from parent to children"""
-        if not cls._registered:
-            return
         for handler in cls._event_handlers:
             handler(event_instance)
 
@@ -153,6 +150,7 @@ class ContextSubscriber(Generic[EventType]):
     _started_handlers: tuple = ()
     _ended_handlers: tuple = ()
     _registered: ClassVar[bool] = False
+    _live_events: ClassVar[dict[int, weakref.ReferenceType[Any]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Automatically register listeners at subclass definition.
@@ -162,6 +160,7 @@ class ContextSubscriber(Generic[EventType]):
 
         super().__init_subclass__(**kwargs)
         cls._registered = False
+        cls._live_events = {}
 
         cls._started_handlers = tuple(
             base_cls.on_started
@@ -190,35 +189,48 @@ class ContextSubscriber(Generic[EventType]):
     @classmethod
     def register(cls) -> None:
         """Register this subscriber for its declared context events."""
-        cls._registered = True
-        for event_name in cls.event_names:
-            core.on(
-                f"context.started.{event_name}",
-                cls._admit_context,
-                name=f"{cls.__name__}.started",
-            )
-            core.on(
-                f"context.ended.{event_name}",
-                cls._complete_context,
-                name=f"{cls.__name__}.ended",
-            )
+        with _subscription_lock:
+            cls._registered = True
+            for event_name in cls.event_names:
+                core.on(
+                    f"context.started.{event_name}",
+                    cls._admit_context,
+                    name=f"{cls.__name__}.started",
+                )
+                core.on(
+                    f"context.ended.{event_name}",
+                    cls._complete_context,
+                    name=f"{cls.__name__}.ended",
+                )
 
     @classmethod
     def unregister(cls) -> None:
         """Unregister this subscriber from its declared context events."""
-        cls._registered = False
-        for event_name in cls.event_names:
-            core.reset_listeners(f"context.started.{event_name}", cls._admit_context)
-            core.reset_listeners(f"context.ended.{event_name}", cls._complete_context)
+        with _subscription_lock:
+            cls._registered = False
+            for event_name in cls.event_names:
+                core.reset_listeners(f"context.started.{event_name}", cls._admit_context)
+                if not cls._live_events:
+                    core.reset_listeners(f"context.ended.{event_name}", cls._complete_context)
 
     @classmethod
     def _admit_context(cls, ctx: core.ExecutionContext[EventType]) -> None:
-        if not cls._registered:
-            return
-        # Capture completion before invoking start, which may allocate state and
-        # then fail. Its lifetime belongs to this context rather than the registry.
-        ctx._add_ended_callback(cls, cls._on_context_ended)
+        with _subscription_lock:
+            if not cls._registered:
+                return
+            if ctx._event is not None:
+                ctx._data.setdefault("_context_subscribers", set()).add(cls)
+                event_id = id(ctx._event)
+                # Deferred completion keeps the event alive after the context exits.
+                cls._live_events[event_id] = weakref.ref(ctx._event, lambda _ref: cls._release_event(event_id))
         cls._on_context_started(ctx)
+
+    @classmethod
+    def _release_event(cls, event_id: int) -> None:
+        with _subscription_lock:
+            del cls._live_events[event_id]
+            if not cls._live_events and not cls._registered:
+                cls.unregister()
 
     @classmethod
     def _complete_context(
@@ -226,9 +238,14 @@ class ContextSubscriber(Generic[EventType]):
         ctx: core.ExecutionContext[EventType],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        callback = ctx._take_ended_callback(cls)
-        if callback is not None:
-            callback(ctx, exc_info)
+        subscribers = ctx._data.get("_context_subscribers")
+        if subscribers is not None:
+            if cls not in subscribers:
+                return
+            subscribers.remove(cls)
+        elif ctx._event is not None or not cls._registered:
+            return
+        cls._on_context_ended(ctx, exc_info)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[EventType]):
