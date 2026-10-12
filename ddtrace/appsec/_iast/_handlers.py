@@ -390,10 +390,13 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
 
 
 def _on_sql_integration_patch():
-    _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
+    if asm_config._iast_enabled:
+        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
 def _on_iast_fastapi_patch():
+    if not asm_config._iast_enabled:
+        return
     try:
         iast_funcs = WrapFunctonsForIAST()
         # Cookies sources
