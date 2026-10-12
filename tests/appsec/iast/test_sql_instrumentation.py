@@ -74,15 +74,31 @@ def test_sql_instrumentation_bootstrap_order():
             assert connection.execute("SELECT 1").fetchone() == (1,)
 
 
-@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="false", DD_APPSEC_ENABLED="false"), err=None)
+@pytest.mark.subprocess(
+    env=dict(DD_IAST_ENABLED="false"),
+    parametrize=dict(DD_APPSEC_ENABLED=["false", "true"]),
+    err=None,
+)
 def test_sql_instrumentation_without_iast():
+    from importlib.machinery import EXTENSION_SUFFIXES
+    import os
     import sqlite3
     import sys
 
+    import ddtrace.auto  # noqa: F401
     from ddtrace.contrib.internal.sqlite3.patch import patch
+    from ddtrace.internal.settings.asm import config as asm_config
 
     patch()
+    assert asm_config._asm_enabled == (os.environ["DD_APPSEC_ENABLED"] == "true")
     assert "ddtrace.appsec._iast._metrics" not in sys.modules
     assert "ddtrace.appsec._iast.constants" not in sys.modules
     with sqlite3.connect(":memory:") as connection:
         assert connection.execute("SELECT 1").fetchone() == (1,)
+    iast_extensions = [
+        name
+        for name, module in sys.modules.copy().items()
+        if name.startswith("ddtrace.appsec._iast.")
+        and (getattr(module, "__file__", None) or "").endswith(tuple(EXTENSION_SUFFIXES))
+    ]
+    assert not iast_extensions, iast_extensions
