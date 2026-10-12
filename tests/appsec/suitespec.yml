@@ -863,7 +863,7 @@ suites:
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
         - name: appsec_threats_aiohttp_no_iast
-          python: ['3.9', '3.12']
+          python: ['3.9', '3.11']
           dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'aiohttp~=3.8.0', 'yarl<1.10']
         - name: appsec_threats_aiohttp_no_iast
           python: ['3.10', '3.14']

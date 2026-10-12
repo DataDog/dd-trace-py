@@ -28,6 +28,7 @@ pytest-mock==3.16.0
 pytest-xdist==3.8.0
 requests==2.34.2
 sortedcontainers==2.4.0
+tomli==2.5.0
 typing-extensions==4.16.0
 urllib3==2.8.0
 yarl==1.9.11
