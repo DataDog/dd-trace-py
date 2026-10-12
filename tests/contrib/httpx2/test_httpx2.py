@@ -53,7 +53,7 @@ def test_patching():
 
 @pytest.mark.skipif(not hasattr(httpx2, "alias_httpx"), reason="httpx2.alias_httpx requires httpx2>=2.9.0")
 @pytest.mark.subprocess(ddtrace_run=True)
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot()
 def test_alias_httpx():
     import httpx2
 
@@ -61,7 +61,9 @@ def test_alias_httpx():
 
     import httpx
 
-    response = httpx.get("http://localhost:8001/status/200")
+    from tests.contrib.httpx2.test_httpx2 import DEFAULT_HEADERS
+
+    response = httpx.get("http://localhost:8001/status/200", headers=DEFAULT_HEADERS)
     assert response.status_code == 200
 
 
