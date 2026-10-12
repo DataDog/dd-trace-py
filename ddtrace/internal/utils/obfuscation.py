@@ -20,13 +20,8 @@ still guard the rewrite itself defensively, since this check can miss more
 aggressive obfuscation modes.
 """
 
-import sys
 from types import CodeType
 from types import ModuleType
-import typing as t
-
-from ddtrace.internal.module import BaseModuleWatchdog
-from ddtrace.internal.threads import Lock
 
 
 # Legacy PyArmor (<= 8.x, "RFT"/restrict mode) calls into module-level
@@ -38,87 +33,6 @@ _ARMOR_MARKERS = frozenset(("__armor_enter__", "__armor_exit__"))
 # functions (e.g. ``C_ENTER_CO_OBJECT_INDEX``) in ``co_consts``. These are
 # builtin functions whose ``__module__`` lives in the runtime package.
 _RUNTIME_MODULE_PREFIXES = ("pytransform", "pyarmor_runtime")
-
-# Once the obfuscation runtime is seen, it is never unloaded, so a positive
-# result can be cached permanently. A negative result cannot: the runtime may
-# be imported lazily, well after code that predates it has already been
-# checked. Rather than re-scanning sys.modules on every call until it flips
-# to True (expensive: O(loaded modules) per call, paid for the life of the
-# process by the common, non-obfuscated case), a module watchdog observes
-# future imports for us, so the fallback scan only has to run once.
-_obfuscation_runtime_seen: bool = False
-_obfuscation_watchdog_installed: bool = False
-# Set to the watchdog class below once it has been installed, so that it can
-# be uninstalled again as soon as it has served its purpose.
-_obfuscation_runtime_watchdog_cls: t.Optional[type[BaseModuleWatchdog]] = None
-# Guards the one-time sys.modules scan/watchdog install below, so a concurrent
-# caller cannot observe the in-progress state as a confirmed negative (i.e.
-# get a stale ``False`` before the scan/watchdog install has completed).
-_init_lock = Lock()
-
-
-def _mark_obfuscation_runtime_seen() -> None:
-    global _obfuscation_runtime_seen
-    _obfuscation_runtime_seen = True
-    if _obfuscation_runtime_watchdog_cls is not None:
-        _obfuscation_runtime_watchdog_cls.uninstall()
-
-
-def _runtime_seen() -> bool:
-    # Routing the read through a function call (rather than inlining the
-    # global lookup) stops type checkers from narrowing it to a fixed literal
-    # across the ``with _init_lock`` block below: another thread can flip it
-    # while we wait for the lock, so the two checks in
-    # ``obfuscation_runtime_loaded`` are not guaranteed to agree.
-    return _obfuscation_runtime_seen
-
-
-def obfuscation_runtime_loaded() -> bool:
-    global _obfuscation_watchdog_installed
-    global _obfuscation_runtime_watchdog_cls
-
-    if _runtime_seen():
-        return True
-
-    with _init_lock:
-        # Re-check: another thread may have finished initialization (or found
-        # the runtime) while we were waiting for the lock.
-        if _runtime_seen():
-            return True
-
-        if _obfuscation_watchdog_installed:
-            return False
-
-        _obfuscation_watchdog_installed = True
-
-        # Install the watchdog *before* scanning sys.modules, not after: a
-        # concurrent `import pyarmor_runtime_...` that finds its loader via
-        # the pre-existing finders (i.e. started before our watchdog joined
-        # sys.meta_path) will never be wrapped by it, since find_spec() is
-        # only consulted once, at the very start of an import. Installing
-        # first means any such import that finishes after this point is
-        # still observed via after_import(); scanning second catches any
-        # import that had already fully landed in sys.modules beforehand.
-        # This narrows the race to the (unavoidable, and here irreducible
-        # without hooking CPython's import lock) sliver between another
-        # thread's finder lookup and our watchdog joining meta_path, which is
-        # consistent with this module's best-effort, not-a-guarantee scope.
-        class _ObfuscationRuntimeWatchdog(BaseModuleWatchdog):
-            def after_import(self, module: ModuleType) -> None:
-                name = getattr(module, "__name__", None)
-                if isinstance(name, str) and name.startswith(_RUNTIME_MODULE_PREFIXES):
-                    _mark_obfuscation_runtime_seen()
-
-        _obfuscation_runtime_watchdog_cls = _ObfuscationRuntimeWatchdog
-        _obfuscation_runtime_watchdog_cls.install()
-
-        # Snapshot the keys: sys.modules can mutate (e.g. a concurrent
-        # import) as we iterate it.
-        if _runtime_seen() or any(name.startswith(_RUNTIME_MODULE_PREFIXES) for name in tuple(sys.modules)):
-            _mark_obfuscation_runtime_seen()
-            return True
-
-        return False
 
 
 def _is_runtime_object(obj: object) -> bool:
@@ -138,19 +52,8 @@ def is_obfuscated_code(code: CodeType) -> bool:
     """Check whether a code object looks like it was wrapped by PyArmor.
 
     This is a coarse, best-effort heuristic, not a guarantee: it can produce
-    false negatives (some obfuscation modes leave no detectable marker), but
-    should not produce false positives.
-    """
-    # Cheap gate: only bother inspecting the code object if an obfuscation
-    # runtime is actually loaded in the process.
-    return obfuscation_runtime_loaded() and has_obfuscation_markers(code)
-
-
-def has_obfuscation_markers(code: CodeType) -> bool:
-    """Check for the structural PyArmor markers in a code object.
-
-    Unlike is_obfuscated_code, this does not depend on the obfuscation runtime
-    being loaded, so it can be evaluated on a code object before it runs (i.e.
-    before it gets the chance to import the runtime itself).
+    false negatives (some obfuscation modes leave no detectable marker). It
+    only looks at the code object itself, so it also works before the code
+    has run (i.e. before it gets the chance to import the obfuscation runtime).
     """
     return not _ARMOR_MARKERS.isdisjoint(code.co_names) or any(_is_runtime_object(c) for c in code.co_consts)

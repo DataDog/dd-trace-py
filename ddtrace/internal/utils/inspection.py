@@ -16,8 +16,7 @@ from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import miss
-from ddtrace.internal.utils.obfuscation import has_obfuscation_markers
-from ddtrace.internal.utils.obfuscation import obfuscation_runtime_loaded
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
@@ -241,16 +240,13 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         )
 
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
-        # Only the structural markers are extracted here, rather than keeping
-        # the top-level code object around, since that would also pin all of
-        # its constants (e.g. large top-level literals) for as long as the
-        # entry lives. The runtime check has to wait until is_obfuscated() is
-        # called: an obfuscated module imports the runtime from its own
-        # top-level code, which has not run yet.
+        # Only the obfuscation verdict is kept, rather than the top-level code
+        # object itself, since that would also pin all of its constants (e.g.
+        # large top-level literals) for as long as the entry lives.
         self._code[module] = (
             list(collect_code_objects(code)),
             set(self._subscribers),
-            has_obfuscation_markers(code),
+            is_obfuscated_code(code),
         )
         return code
 
@@ -289,8 +285,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         """
         if not cls.is_installed():
             raise KeyError(module)
-        has_markers = cast("ModuleCodeCollector", cls._instance)._code[module][2]
-        return has_markers and obfuscation_runtime_loaded()
+        return cast("ModuleCodeCollector", cls._instance)._code[module][2]
 
     @classmethod
     def release(cls, module: ModuleType, subscriber: str) -> None:

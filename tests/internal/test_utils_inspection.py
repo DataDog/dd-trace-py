@@ -283,30 +283,6 @@ def test_module_code_collector_is_obfuscated_false_for_normal_module():
 
 
 @pytest.mark.subprocess
-def test_module_code_collector_is_obfuscated_checks_runtime_lazily():
-    # The obfuscation runtime gate must not be evaluated at compile time: an
-    # obfuscated module imports the runtime from its own top-level code, which
-    # only runs after the collector has seen it.
-    from unittest import mock
-
-    from ddtrace.internal.utils.inspection import ModuleCodeCollector
-
-    with (
-        mock.patch("ddtrace.internal.utils.inspection.has_obfuscation_markers", return_value=True),
-        mock.patch("ddtrace.internal.utils.inspection.obfuscation_runtime_loaded") as mock_runtime_loaded,
-    ):
-        ModuleCodeCollector.register("test")
-
-        import tests.submod.custom_decorated_stuff as custom_decorated_stuff
-
-        mock_runtime_loaded.assert_not_called()
-
-        mock_runtime_loaded.return_value = True
-        assert ModuleCodeCollector.is_obfuscated(custom_decorated_stuff) is True
-        mock_runtime_loaded.assert_called_once()
-
-
-@pytest.mark.subprocess
 def test_module_code_collector_does_not_retain_module_code():
     # Keeping the top-level code object would pin all of its constants for as
     # long as the entry lives.
