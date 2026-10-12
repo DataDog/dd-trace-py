@@ -841,6 +841,57 @@ suites:
           dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
         - name: appsec_threats_flask_rc
           dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=3.0']
+  appsec_threats_aiohttp_no_iast:
+    venvs_per_job: 5
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@aiohttp'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    matrix:
+      command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_aiohttp.py::Test_Aiohttp {cmdargs}
+      env:
+        AGENT_VERSION: testagent
+        DD_API_SECURITY_SAMPLE_DELAY: '0'
+        DD_APPSEC_ENABLED: 'true'
+        DD_IAST_ENABLED: 'false'
+        DD_TRACE_AGENT_URL: http://testagent:9126
+      variants:
+        - name: appsec_threats_aiohttp_no_iast
+          python: ['3.9', '3.12']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'aiohttp~=3.8.0', 'yarl<1.10']
+        - name: appsec_threats_aiohttp_no_iast
+          python: ['3.10', '3.14']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, aiohttp]
+  appsec_threats_aiohttp_rc:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@aiohttp'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    matrix:
+      command: pytest tests/appsec/contrib_appsec/test_aiohttp.py::Test_Aiohttp_RC
+        {cmdargs}
+      env:
+        AGENT_VERSION: testagent
+        DD_API_SECURITY_SAMPLE_DELAY: '0'
+        DD_IAST_ENABLED: 'false'
+        DD_REMOTE_CONFIGURATION_ENABLED: 'true'
+        DD_TRACE_AGENT_URL: http://testagent:9126
+      python: ['3.10', '3.14']
+      variants:
+        - name: appsec_threats_aiohttp_rc
+          dependencies: [requests, httpx, httpx2, aiohttp]
   appsec_threats_tornado_no_iast:
     venvs_per_job: 5
     paths:

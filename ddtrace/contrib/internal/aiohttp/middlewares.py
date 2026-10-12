@@ -4,6 +4,8 @@ from aiohttp.web_urldispatcher import SystemRoute
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -73,7 +75,14 @@ async def trace_middleware(app, handler):
             request[REQUEST_CONTEXT_KEY] = req_span.context
 
             try:
-                response = await handler(request)
+                try:
+                    response = await _handle_request(ctx, request, handler)
+                except BaseException as exc:
+                    if (blocking := find_exception(exc, BlockingException)) is None:
+                        raise
+                    response = _blocked_response(request, blocking.args[0])
+                finally:
+                    core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
                 if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
                     if isinstance(response, web.StreamResponse):
                         request.task.add_done_callback(lambda _: finish_request_span(request, response))
@@ -83,6 +92,27 @@ async def trace_middleware(app, handler):
                 raise
 
     return attach_context
+
+
+async def _handle_request(ctx, request, handler):
+    request_body = core.dispatch_with_results("aiohttp.request.start", (ctx, request)).aiohttp_request_body
+    if request_body and request_body.value is not None:
+        await request_body.value
+    try:
+        response = await handler(request)
+    except web.HTTPException as exc:
+        core.dispatch("aiohttp.request.response", (request, exc))
+        raise
+    core.dispatch("aiohttp.request.response", (request, response))
+    return response
+
+
+def _blocked_response(request, block_config):
+    block_response = core.dispatch_with_results("aiohttp.request.block", (request, block_config)).aiohttp_block_response
+    if not block_response or block_response.value is None:
+        raise BlockingException(block_config)
+    status, headers, body = block_response.value
+    return web.Response(status=status, headers=headers, body=body)
 
 
 def finish_request_span(request, response):

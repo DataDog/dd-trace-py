@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AAP: Adds threat detection and request blocking for aiohttp web applications traced with
+    ``ddtrace.contrib.aiohttp.trace_app``.
