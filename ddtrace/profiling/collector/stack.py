@@ -92,9 +92,9 @@ def _normalize_foreign_handler_owner(owner: str) -> str:
 def _foreign_signal_names(owner: str) -> str:
     """Name the signals the sampler did not own, from the owner string it recorded.
 
-    describe_signal_owner() in danger.cc reports exactly ``ddtrace`` when our handler owns
-    a signal and can deliver the recovery, so any other component - ``SIG_DFL`` and
-    ``ddtrace+missing_sa_siginfo`` included - is a signal we lost.
+    describe_signal_owner() in danger.cc reports exactly ddtrace when our handler owns
+    a signal and can deliver the recovery, so any other component - SIG_DFL and
+    ddtrace+missing_sa_siginfo included - is a signal we lost.
     """
     sigsegv_part: str
     sep: str
