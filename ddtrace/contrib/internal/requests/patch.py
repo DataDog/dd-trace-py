@@ -5,8 +5,7 @@ import requests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.contrib._events.http_client import HttpClientEvents
-from ddtrace.contrib._events.http_client import HttpClientOperationEvent
+from ddtrace.contrib._events.http_client import RequestsRequestEvent
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
@@ -18,8 +17,7 @@ from .connection import _wrap_send
 from .session import TracedSession
 
 
-_REQUEST_OPERATION = HttpClientEvents.REQUESTS_OPERATION.value
-_REQUEST_OPERATION_STARTED = "context.started." + _REQUEST_OPERATION
+_REQUEST_STARTED = "context.started." + RequestsRequestEvent.event_name
 
 
 # requests default settings
@@ -48,12 +46,11 @@ def _supported_versions() -> dict[str, str]:
 
 
 def _wrap_request(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    if not core.has_listeners(_REQUEST_OPERATION_STARTED):
+    if not core.has_listeners(_REQUEST_STARTED):
         return func(*args, **kwargs)
 
     with core.context_with_event(
-        HttpClientOperationEvent(request_url=args[1] if len(args) > 1 else kwargs.get("url")),
-        context_name_override=_REQUEST_OPERATION,
+        RequestsRequestEvent(request_url=args[1] if len(args) > 1 else kwargs.get("url")),
     ) as ctx:
         ctx.event.response = func(*args, **kwargs)
         return ctx.event.response

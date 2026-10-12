@@ -20,6 +20,10 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
+from ddtrace.appsec._contrib.httplib import patch as httplib_appsec
+from ddtrace.appsec._contrib.requests import listen as requests_listen
+from ddtrace.appsec._contrib.requests import subscribers as requests_appsec
+from ddtrace.appsec._contrib.requests import unlisten as requests_unlisten
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
@@ -1364,20 +1368,20 @@ def test_urllib3_traceback_frames_come_only_from_the_tracing_contrib():
 
 
 @pytest.fixture
-def http_operation_subscribers():
-    activation = cmp._activation
-    cmp.listen_http_client_operations()
+def requests_subscriber():
+    activation = requests_appsec.AppSecRequestsSubscriber.activation
+    requests_listen()
     try:
         yield
     finally:
-        cmp.unlisten_http_client_operations()
+        requests_unlisten()
         if activation is not None:
-            cmp._activation = activation
-            cmp.AppSecHttpClientOperationSubscriber.register()
+            requests_appsec.AppSecRequestsSubscriber.activation = activation
+            requests_appsec.AppSecRequestsSubscriber.register()
 
 
 @pytest.mark.parametrize("reactivate", [False, True])
-def test_requests_operation_preserves_original_url_result_and_lazy_body(http_operation_subscribers, reactivate):
+def test_requests_operation_preserves_original_url_result_and_lazy_body(requests_subscriber, reactivate):
     import requests
 
     from ddtrace.contrib.internal.requests.patch import patch
@@ -1396,17 +1400,17 @@ def test_requests_operation_preserves_original_url_result_and_lazy_body(http_ope
         assert core.find_item("full_url") is url
         assert kwargs["stream"] is True
         if reactivate:
-            cmp.unlisten_http_client_operations()
-            cmp.listen_http_client_operations()
+            requests_unlisten()
+            requests_listen()
         return response
 
     patch()
     try:
         with (
-            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
-            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
-            mock.patch.object(cmp, "should_analyze_body_response", return_value=reactivate),
-            mock.patch.object(cmp, "call_waf_callback") as waf,
+            mock.patch.object(requests_appsec, "get_rasp_capability", return_value=True),
+            mock.patch.object(requests_appsec, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(requests_appsec, "should_analyze_body_response", return_value=reactivate),
+            mock.patch.object(requests_appsec, "call_waf_callback") as waf,
         ):
             session = requests.Session()
             session.send = send
@@ -1424,9 +1428,8 @@ def test_requests_operation_preserves_original_url_result_and_lazy_body(http_ope
         unpatch()
 
 
-@pytest.mark.parametrize("client, block", [("requests", False), ("requests", True), ("httplib", True)])
-def test_http_operations_analyze_once_before_transport(http_operation_subscribers, client, block):
-    import http.client
+@pytest.mark.parametrize("block", [False, True])
+def test_requests_analyzes_once_before_transport(requests_subscriber, block):
     import io
 
     import requests
@@ -1455,27 +1458,28 @@ def test_http_operations_analyze_once_before_transport(http_operation_subscriber
     try:
         with (
             mock.patch.object(tracer, "enabled", False),
+            mock.patch.object(asm_config, "_asm_enabled", True),
+            mock.patch.object(asm_config, "_ep_enabled", True),
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
-            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(requests_appsec, "get_rasp_capability", return_value=True),
+            mock.patch.object(httplib_appsec, "get_rasp_capability", return_value=True),
+            mock.patch.object(httplib_appsec, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(requests_appsec, "_get_asm_context", return_value=mock.Mock()),
             mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
-            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
+            mock.patch.object(requests_appsec, "should_analyze_body_response", return_value=False),
             mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
             mock.patch.object(cmp, "call_waf_callback", side_effect=waf),
+            mock.patch.object(requests_appsec, "call_waf_callback", side_effect=waf),
             mock.patch.object(urllib3.connection.HTTPConnection, "_new_conn", return_value=sock) as transport,
         ):
-            connection = http.client.HTTPConnection("example.test")
-            connection._send_request = mock.Mock()
 
             def operation():
-                if client == "requests":
-                    return requests.get("http://example.test/path", proxies={"http": None, "https": None})
-                return connection.request("GET", "/path")
+                return requests.get("http://example.test/path", proxies={"http": None, "https": None})
 
             if block:
                 with pytest.raises(BlockingException):
                     operation()
                 transport.assert_not_called()
-                connection._send_request.assert_not_called()
             else:
                 response = operation()
                 assert response.status_code == 200

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Union
@@ -9,6 +8,7 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpBaseEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.contrib._events.http import _HttpResponse
+from ddtrace.contrib._events.http import _HttpResponseWithStatusCode
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import Event
@@ -26,23 +26,22 @@ class HttpClientEvents(Enum):
     HTTPX_REQUEST = "httpx.request"
     HTTP_SEND_REQUEST = "http.client.send_request"
     HTTPX_SEND_REQUEST = "httpx.send_request"
-    REQUESTS_OPERATION = "requests.operation"
-    HTTPLIB_OPERATION = "httplib.operation"
+    REQUESTS_REQUEST = "requests.request"
 
 
 @dataclass
-class HttpClientOperationEvent(Event):
-    """An unprepared client call, preserving the original URL object and return value.
+class RequestsRequestEvent(Event):
+    """A Session.request call before Requests prepares the original URL.
 
-    Requests emits this around Session.request, before URL preparation can lose taint.
-    HTTPConnection.request emits it even when tracing skips the operation. Consumers
-    inspect the library-native response only when they need it; producers never read its body.
+    Unlike the traced Session.send event, this scope includes preparation and all redirect
+    hops and exists even when tracing skips the call. Consumers inspect the native response
+    only when needed; the producer never reads its body.
     """
 
-    event_name = "http.client.operation"
+    event_name = HttpClientEvents.REQUESTS_REQUEST.value
 
-    request_url: Any = event_field()
-    response: Any = event_field(default=None)
+    request_url: object = event_field()
+    response: Optional[_HttpResponseWithStatusCode] = event_field(default=None)
 
 
 @dataclass
