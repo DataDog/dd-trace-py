@@ -78,6 +78,10 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
@@ -167,6 +171,7 @@ from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
 from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_session_id
@@ -187,14 +192,13 @@ from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import Agent
-from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
-from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
@@ -645,7 +649,7 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
-        # Before _prepare_llmobs_span_data, which rewrites dotted tag keys in APM_AGENTLESS mode.
+        self._enrich_with_http_client_ip(span)
         self._sampling_resolver.resolve_if_root(span)
 
         span_event = None
@@ -669,6 +673,25 @@ class LLMObs(Service):
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
+
+    def _enrich_with_http_client_ip(self, span: Span) -> None:
+        # Only enrich the LLMObs root span; non-root spans join against the root at query time.
+        if get_llmobs_parent_id(span) != ROOT_PARENT_ID:
+            return
+        local_root = span._local_root
+        if not local_root:
+            return
+        # Read IP tags set by AppSec or DD_TRACE_CLIENT_IP_ENABLED on the APM root span.
+        client_ip = local_root.get_tag("http.client_ip")
+        network_client_ip = local_root.get_tag("network.client.ip")
+        if not client_ip and not network_client_ip:
+            return
+        ip_tags = {}
+        if client_ip:
+            ip_tags["http.client_ip"] = client_ip
+        if network_client_ip:
+            ip_tags["network.client.ip"] = network_client_ip
+        _annotate_llmobs_span_data(span, tags=ip_tags)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -1011,9 +1034,9 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
-        if app_key:
+        if api_key or app_key:
             # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
-            # before the app key was configured, so it rebuilds with the new key.
+            # before credentials were configured, so it rebuilds with the new keys.
             with cls._prompt_manager_lock:
                 cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
@@ -2080,6 +2103,8 @@ class LLMObs(Service):
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
+        Agent-delivered or cached prompts need no keys in your application. Fetching other prompts requires credentials.
+
         :param prompt_id: The unique identifier of the prompt in the registry
         :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
         :param label: Deprecated; set ``DD_ENV`` instead. Must be ``production`` or ``development``.
@@ -2181,7 +2206,7 @@ class LLMObs(Service):
     def create_prompt(
         cls,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         title: str = "",
         description: str = "",
@@ -2222,7 +2247,7 @@ class LLMObs(Service):
     def create_prompt_version(
         cls,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         description: str = "",
         user_version: str = "",
@@ -2372,8 +2397,6 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-        if not api_key:
-            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
@@ -2647,6 +2670,10 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+        try:
+            self._set_apm_shadow_tags(span, operation_kind, model_name, model_provider)
+        except Exception:
+            log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
 
         if not self.enabled:
             return span
@@ -2675,6 +2702,25 @@ class LLMObs(Service):
             agent_service,
         )
         return span
+
+    def _set_apm_shadow_tags(
+        self,
+        span: Span,
+        span_kind: str,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+    ) -> None:
+        """Set LLMObs shadow tags on the APM span of a manually instrumented span.
+
+        Runs whether or not LLMObs is enabled, so the enabled metric reports 0 for spans that have no
+        LLMObs data.
+        """
+        span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
+        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.enabled else 0)
+        if model_name and model_name != UNKNOWN_MODEL_NAME:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
+        if model_provider and model_provider != UNKNOWN_MODEL_PROVIDER:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
 
     @classmethod
     def llm(
