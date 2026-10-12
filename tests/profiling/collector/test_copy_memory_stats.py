@@ -222,3 +222,79 @@ def test_foreign_handler_after_warmup_fallback_and_oneshot_drain() -> None:
         assert stack.take_foreign_segv_handler() is None
     finally:
         stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        _DD_PROFILING_STACK_FAST_COPY="1",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_foreign_handler_notice_not_reissued_after_restart() -> None:
+    """Stop/start must not emit a second foreign-handler notice in the same process."""
+    import signal
+    import time
+    from typing import Optional
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    def _wait_for_upgrade() -> None:
+        saw_warmup: bool = False
+        upgrade_deadline: float = time.monotonic() + 10
+        while time.monotonic() < upgrade_deadline:
+            active: bool = _stack.fast_copy_memory_active()
+            if not saw_warmup:
+                if active is False:
+                    saw_warmup = True
+            elif active is True:
+                return
+            time.sleep(0.05)
+        raise AssertionError("sampler never upgraded to safe_memcpy after warmup")
+
+    def _wait_for_notice() -> tuple[bool, str, bool]:
+        notice_deadline: float = time.monotonic() + 10
+        while time.monotonic() < notice_deadline:
+            notice: Optional[tuple[bool, str, bool]] = stack.take_foreign_segv_handler()
+            if notice is not None:
+                return notice
+            time.sleep(0.05)
+        raise AssertionError("sampler never recorded the foreign SIGSEGV notice")
+
+    _stack._set_fast_copy_warmup_seconds(1.0)
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+    try:
+        _wait_for_upgrade()
+        signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+        assert _stack.segv_handler_installed() is False
+        first: tuple[bool, str, bool] = _wait_for_notice()
+        assert first[0] is False
+        assert "SIGSEGV=SIG_DFL" in first[1]
+        assert first[2] is False
+    finally:
+        stack.stop()
+
+    # Restart re-enables fast copy from config. Warmup ends with the same foreign
+    # handler still installed; without a process latch a second notice appears.
+    _stack._set_fast_copy_warmup_seconds(1.0)
+    stack.set_fast_copy(True)
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+    try:
+        assert _stack.segv_handler_installed() is False
+        # Past the 1s warmup plus a little slack for the sampling thread to run.
+        time.sleep(2.5)
+        reissue_deadline: float = time.monotonic() + 2
+        while time.monotonic() < reissue_deadline:
+            assert stack.take_foreign_segv_handler() is None, "foreign-handler notice reissued after restart"
+            time.sleep(0.05)
+    finally:
+        stack.stop()

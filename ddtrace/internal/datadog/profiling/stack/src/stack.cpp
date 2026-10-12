@@ -1133,15 +1133,14 @@ stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
     if (!handler.has_value()) {
         Py_RETURN_NONE;
     }
-    // dladdr paths are filesystem bytes; "s" would raise and abort snapshot().
-    PyObject* owner = PyUnicode_DecodeFSDefault(handler->owner.c_str());
+    // dladdr paths may contain non-UTF-8 bytes. DecodeFSDefault uses
+    // surrogateescape on POSIX, and those surrogates fail when the telemetry
+    // Rust layer encodes to String — after take() has already cleared the latch.
+    // Replace so the owner stays encodable and the telemetry event is not lost.
+    PyObject* owner =
+      PyUnicode_Decode(handler->owner.c_str(), static_cast<Py_ssize_t>(handler->owner.size()), "utf-8", "replace");
     if (owner == nullptr) {
-        PyErr_Clear();
-        owner =
-          PyUnicode_Decode(handler->owner.c_str(), static_cast<Py_ssize_t>(handler->owner.size()), "utf-8", "replace");
-        if (owner == nullptr) {
-            return nullptr;
-        }
+        return nullptr;
     }
     return Py_BuildValue(
       "(ONO)", handler->already_owned ? Py_True : Py_False, owner, handler->sampling_stopped ? Py_True : Py_False);

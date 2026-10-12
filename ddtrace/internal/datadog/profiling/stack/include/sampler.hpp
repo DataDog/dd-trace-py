@@ -94,6 +94,9 @@ class Sampler
 
     std::mutex foreign_segv_handler_mutex_;
     std::optional<ForeignSegvHandler> foreign_segv_handler_;
+    // Stays set after the first record so stop/start cannot re-emit the notice.
+    // Cleared in atfork_child so the child can report its own takeover.
+    bool foreign_segv_handler_reported_ = false;
     void record_foreign_segv_handler(bool already_owned, const std::string& owner, bool sampling_stopped) noexcept;
 
     // This is a singleton, so no public constructor
@@ -196,7 +199,8 @@ class Sampler
     // reported at most once.
     std::optional<SamplingThreadError> take_sampling_thread_error();
 
-    // Take-once drain of the recorded foreign SIGSEGV/SIGBUS owner.
+    // Drain the recorded foreign SIGSEGV/SIGBUS owner (at most once per process;
+    // record_foreign_segv_handler refuses a second store until after fork).
     std::optional<ForeignSegvHandler> take_foreign_segv_handler();
 
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
