@@ -41,7 +41,6 @@ jobs:
         run: |
           docker build `
             -t ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }} `
-            -t ghcr.io/datadog/dd-trace-py/windows-build:latest `
             -f docker/Dockerfile.windows `
             .
         shell: powershell
@@ -50,5 +49,13 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           docker push ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }}
+        shell: powershell
+
+      # Manual runs from feature branches publish only their SHA tag so they
+      # cannot move the image that main consumers resolve through latest.
+      - name: Push latest Windows Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }} ghcr.io/datadog/dd-trace-py/windows-build:latest
           docker push ghcr.io/datadog/dd-trace-py/windows-build:latest
         shell: powershell
