@@ -27,6 +27,14 @@ def test_environment_hash_is_independent_of_dependency_order() -> None:
     assert _test_environment_hash(_NAME, _PYTHON, scrambled) == forward
 
 
+def test_environment_hash_is_independent_of_casefold_tie_order() -> None:
+    # Same casefolded value, different original strings — YAML order must not matter.
+    forward: tuple[str, ...] = ("Foo", "foo")
+    reverse: tuple[str, ...] = ("foo", "Foo")
+
+    assert _test_environment_hash(_NAME, _PYTHON, forward) == _test_environment_hash(_NAME, _PYTHON, reverse)
+
+
 def test_environment_hash_changes_when_inputs_change() -> None:
     baseline: str = _test_environment_hash(_NAME, _PYTHON, _DEPS)
 
