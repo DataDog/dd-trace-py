@@ -1,10 +1,10 @@
-# Microbenchmark SLO thresholds owned by @DataDog/apm-sdk-capabilities-python.
+# Microbenchmark SLO thresholds owned by @DataDog/apm-sdk-capabilities.
 #
 # This file is one of several per-team SLO sources that gen_gitlab_config.py
 # merges into the single generated
 # .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml consumed by
 # the check-slo-breaches gate. Ownership is enforced by .github/CODEOWNERS via
-# this file's path, so editing a threshold here routes review to @DataDog/apm-sdk-capabilities-python -- no
+# this file's path, so editing a threshold here routes review to @DataDog/apm-sdk-capabilities -- no
 # inline owner comment is needed.
 #
 # Scenario names are `<lowercased benchmark class>-<config>` (see

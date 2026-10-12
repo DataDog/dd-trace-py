@@ -6,6 +6,20 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Coverage collection contexts
+
+`ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
+collection scope, such as a test or an import. A `ContextVar` holds an immutable
+tuple of these collectors. Copying an execution context shares the collectors
+and their data, while entering or exiting a scope replaces only that context's
+stack. Collectors compare by identity so context restoration can distinguish
+scopes even when both have empty coverage. Exiting a collector marks it closed
+in all inherited stacks; writes resolve to the nearest collector still active.
+
+On Python 3.14+, monitoring callbacks can observe a snapshot that does not see
+current `ContextVar` values. Thread-local storage (TLS) provides a fallback stack
+for these callbacks, using the same rules to skip completed collectors.
+
 
 ## The Product Protocol
 
