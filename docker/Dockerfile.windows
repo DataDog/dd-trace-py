@@ -35,6 +35,9 @@ RUN $GIT_VERSION = '2.50.1'; `
 # The Clang component provides the x64 libclang.dll that bindgen loads from Rust
 # build scripts, which run on the host for both amd64 and x86 targets.
 ENV LIBCLANG_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin"
+# Start-Process -Wait would also wait for helper processes the installer leaves
+# running, so only the bootstrapper is awaited, with a deadline. Installer logs
+# are the only diagnostic for a quiet install, so print them on any failure.
 RUN Invoke-WebRequest `
         -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' `
         -OutFile C:\vs_buildtools.exe; `
@@ -43,14 +46,24 @@ RUN Invoke-WebRequest `
                       '--add', 'Microsoft.VisualStudio.Workload.VCTools', `
                       '--add', 'Microsoft.VisualStudio.Component.VC.Llvm.Clang', `
                       '--includeRecommended' `
-        -Wait -PassThru -NoNewWindow; `
-    Remove-Item C:\vs_buildtools.exe -Force; `
-    if (($p.ExitCode -ne 0) -and ($p.ExitCode -ne 3010)) { `
-        throw "VS Build Tools installer failed with exit code $($p.ExitCode)" `
+        -PassThru -NoNewWindow; `
+    $null = $p.Handle; `
+    $failure = $null; `
+    if (-not $p.WaitForExit(45 * 60 * 1000)) { `
+        $failure = 'VS Build Tools installer timed out after 45 minutes' `
+    } elseif (($p.ExitCode -ne 0) -and ($p.ExitCode -ne 3010)) { `
+        $failure = "VS Build Tools installer failed with exit code $($p.ExitCode)" `
+    } elseif (-not (Test-Path (Join-Path $env:LIBCLANG_PATH 'libclang.dll'))) { `
+        $failure = "libclang.dll not found in $env:LIBCLANG_PATH" `
     }; `
-    if (-not (Test-Path (Join-Path $env:LIBCLANG_PATH 'libclang.dll'))) { `
-        throw "libclang.dll not found in $env:LIBCLANG_PATH" `
-    }
+    if ($failure) { `
+        Get-ChildItem $env:TEMP -Filter 'dd_*.log' -Recurse -ErrorAction SilentlyContinue | ForEach-Object { `
+            Write-Host "===== $($_.FullName) ====="; `
+            Get-Content $_.FullName -Tail 200 `
+        }; `
+        throw $failure `
+    }; `
+    Remove-Item C:\vs_buildtools.exe -Force
 
 # Install 32-bit VC++ redistributable (needed for x86 wheel builds)
 RUN Invoke-WebRequest `
