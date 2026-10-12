@@ -16,6 +16,8 @@ from typing import Union
 from typing import cast
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.context import _get_runtime_identity_generation
+from ddtrace._trace.context import _set_runtime_identity_generation
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
@@ -24,6 +26,7 @@ from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterPr
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import _RUNTIME_IDENTITY_GENERATION_KEY
 from ddtrace._trace.span import Span
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
@@ -50,9 +53,12 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
+from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
+from ddtrace.internal.serverless import in_aws_lambda_microvm
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
@@ -192,8 +198,10 @@ class Tracer:
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = Lock()
-        self._post_fork_lock = forksafe.Lock()
+        # Reentrant because the exit-signal handler can run shutdown() on a thread that holds it.
+        self._post_fork_lock = forksafe.RLock()
         self._post_fork_writer_pending = False
+        self._shutting_down = False
         self._new_process = False
 
         self._store_metadata()
@@ -443,9 +451,73 @@ class Tracer:
         with self._post_fork_lock:
             if not self._post_fork_writer_pending:
                 return False
-            self._recreate(reset_buffer=False, flush_writer=False)
+            # In a MicroVM, shutdown(timeout) can stop waiting for this lock and finish while a retried refresh
+            # rebuild runs, so skip a rebuild nothing would stop, and stop one that shutdown missed.
+            microvm = in_aws_lambda_microvm()
+            if microvm and self._shutting_down:
+                return False
+            try:
+                self._recreate(reset_buffer=False, flush_writer=False)
+            except BaseException as e:
+                # In a MicroVM this retries a failed refresh rebuild from the app's span start: keep it pending
+                # instead of failing the span start.
+                if not microvm or not (isinstance(e, Exception) or is_panic_exception(e)):
+                    raise
+                log.warning("Failed to rebuild the trace writer, retrying on the next span start", exc_info=True)
+                return False
             self._post_fork_writer_pending = False
+            if microvm and self._shutting_down:
+                self._stop_replacement_writer()
             return True
+
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        """Swap in a new trace writer and drop pre-refresh trace state after a MicroVM identity refresh, so
+        nothing from the snapshot reports under the new runtime ID.
+
+        A failed rebuild is retried on the next span start, and a replacement that races shutdown() is stopped.
+        """
+        with self._post_fork_lock:
+            if self._shutting_down:
+                return
+            stale_generation = self._span_aggregator._runtime_identity_generation
+            try:
+                self._recreate(reset_buffer=True, drop_buffered_traces=True)
+            except BaseException as e:
+                self._post_fork_writer_pending = True
+                if not is_panic_exception(e):
+                    raise
+                log.warning("Failed to rebuild the trace writer after a runtime identity refresh", exc_info=True)
+                return
+            finally:
+                self._store_metadata()
+            self._post_fork_writer_pending = False
+            if self._shutting_down:
+                self._stop_replacement_writer()
+                return
+            self._detach_stale_context(stale_generation)
+
+    def _stop_replacement_writer(self) -> None:
+        # Caller holds _post_fork_lock and just installed a writer that shutdown() will not stop.
+        writer = self._span_aggregator.writer
+        try:
+            writer.stop(self.SHUTDOWN_TIMEOUT)
+        except ServiceStatusError:
+            shutdown_exporter = getattr(writer, "shutdown_exporter", None)
+            if shutdown_exporter is not None:
+                shutdown_exporter()
+
+    def _detach_stale_context(self, stale_generation: Optional[int] = None) -> None:
+        # The /run hook fires before request-header extraction, so an active context
+        # belongs to the snapshot rather than the request that triggered the refresh.
+        active = self.context_provider.active()
+        current_generation = self._span_aggregator._runtime_identity_generation
+        if isinstance(active, Span):
+            if active._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY) != current_generation:
+                self.context_provider.activate(None)
+        elif isinstance(active, Context):
+            if stale_generation is not None:
+                _set_runtime_identity_generation(active, stale_generation)
+            self.context_provider.activate(None)
 
     def _recreate(
         self,
@@ -456,6 +528,7 @@ class Tracer:
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
         flush_writer: Optional[bool] = None,
+        drop_buffered_traces: bool = False,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
@@ -468,6 +541,7 @@ class Tracer:
             llmobs_enabled=llmobs_enabled,
             reset_buffer=reset_buffer,
             flush_writer=flush_writer,
+            drop_buffered_traces=drop_buffered_traces,
         )
         self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
@@ -616,8 +690,33 @@ class Tracer:
             if config._report_hostname:
                 span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
 
+        runtime_id = None
+        identity = self._span_aggregator._runtime_identity
+        if identity is not None:
+            # MicroVM only. A refresh publishes the generation and runtime ID together, so reading them
+            # once keeps a span's generation and runtime-id tag on the same writer without a lock.
+            identity_generation, runtime_id = identity
+            if parent is not None:
+                parent_generation = parent._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY)
+                if parent_generation is not None:
+                    identity_generation = parent_generation
+            elif isinstance(child_of, Context):
+                # A retained context may be used after a MicroVM refresh. Keep its old
+                # generation so the span is rejected instead of joining the new runtime trace.
+                parent_generation = _get_runtime_identity_generation(child_of)
+                if parent_generation is not None:
+                    identity_generation = parent_generation
+                else:
+                    _set_runtime_identity_generation(child_of, identity_generation)
+            span._set_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY, identity_generation)
+            if not self._span_aggregator._identity_generation_is_current(identity_generation):
+                # on_span_start() never runs for this span, so record its context here; otherwise
+                # child_of=span.context would be treated as current and join the new runtime.
+                _set_runtime_identity_generation(span.context, identity_generation)
+                return span
+
         if not span._parent:
-            span._set_attribute("runtime-id", get_runtime_id())
+            span._set_attribute("runtime-id", runtime_id or get_runtime_id())
             span._set_attribute(PID, self._pid)
 
         # Apply default global tags.
@@ -675,12 +774,19 @@ class Tracer:
         # PERF: active() pops finished spans off the active context (via _update_active), so it must
         # run unconditionally. Skip current_span()'s extra isinstance check when debug logging is off.
         active = self.context_provider.active()
+        identity_refresh_enabled = self._span_aggregator._runtime_identity is not None
+        # A MicroVM identity refresh invalidates the old logical runtime before its
+        # spans finish. Do not let those spans reach side-effecting finish hooks.
+        if identity_refresh_enabled and not self._span_aggregator._is_span_identity_current(span):
+            return
         if log.isEnabledFor(logging.DEBUG):
             # Debug check: if the finishing span has a parent and its parent
             # is not the next active span then this is an error in synchronous tracing.
             if span._parent is not None and active is not span._parent:
                 log.debug(
-                    "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+                    "span %r closing after its parent %r, this is an error when not using async",
+                    span,
+                    span._parent,
                 )
 
         # run handlers before flushing that don't need the span in its final state
@@ -703,6 +809,9 @@ class Tracer:
                     p.on_span_finish(span)
 
         log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
+        if identity_refresh_enabled:
+            # Send outside the aggregator lock so a sync send stuck in retries cannot block span starts or /run.
+            self._span_aggregator._flush_pending_sync_write()
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -1021,9 +1130,24 @@ class Tracer:
             # Already shutting down from this or another thread — skip re-entrant call
             return
         try:
-            # Do not recreate an inherited writer only to shut it down. The span aggregator
-            # discards its buffered traces during shutdown.
-            self._post_fork_writer_pending = False
+            # In a MicroVM, bound the wait by timeout: a refresh on another thread can hold this lock while
+            # waiting for an aggregator or writer lock held by the thread an exit-signal handler interrupted
+            # to run this. A refresh still in flight after the wait stops the writer it installs once it sees
+            # the flag.
+            # Lock.acquire() rejects negative timeouts other than -1, which shutdown() used to accept.
+            wait = max(timeout, 0) if timeout is not None and in_aws_lambda_microvm() else -1
+            locked = self._post_fork_lock.acquire(timeout=wait)
+            try:
+                # Normally wait out an in-flight identity refresh (bounded in a MicroVM, see above) so the writer
+                # it installs is the one stopped below, and make later refreshes skip building a writer that
+                # nothing would stop.
+                self._shutting_down = True
+                # Do not recreate an inherited writer only to shut it down. The span aggregator
+                # discards its buffered traces during shutdown.
+                self._post_fork_writer_pending = False
+            finally:
+                if locked:
+                    self._post_fork_lock.release()
             self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
