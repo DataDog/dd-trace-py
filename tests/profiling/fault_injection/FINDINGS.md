@@ -5,13 +5,63 @@ Result: **17 failed, 14 passed, 499 deselected** (34.6s). *(Post-hoc verificatio
 reclassifies F1/F2/F4 — the only profiler bugs standing are F3 (confirmed) and F5 (open).)*
 
 > Reading guide: several late failures show 3 leaked `ddtrace.profiling.scheduler:Scheduler`
-> threads with *identical object addresses* — that is cross-test pollution from findings F1/F2
-> below (the native `ddtrace.internal._threads.periodic_threads` registry is process-global).
-> The genuinely stranded threads per run: 1 from run-path faults, 2 from stop-path faults.
+> threads with *identical object addresses* — that is cross-test pollution (F8): tests that
+> fail *before* stopping their profiler abandon a running scheduler worker in the
+> process-global `ddtrace.internal._threads.periodic_threads` registry, and every later
+> leak assertion reports it. This pollution is what produced the original F1/F2 "leaks"
+> and F4's never-fired symptom (see post-hoc verification below).
 
 ---
 
-## F1 — Run-path exception in periodic work strands the Scheduler worker thread  *(profiler bug)*
+## Executive summary — what we did, what we found
+
+**What we did.**
+
+1. Built a fault-injection framework for the profiler *lifecycle* (`tests/profiling/fault_injection/`),
+   complementing the existing memory-read fuzzing tests. Any call on the lifecycle path —
+   exporter `config`/`start`, collector `start`/`snapshot`/`stop`, scheduler `periodic`/`flush`,
+   `ddup.upload`, start/stop races, `fork`, SIGTERM — can be made to `raise`, `hang`, `skip`, or
+   `kill` (`faultlib.Injector`, with once/nth/probability/predicate policies).
+2. Defined three oracles for the profiler under *any* single fault: **liveness** (`start`/`stop`
+   must return within a deadline — a profiler may not wedge the host thread), **containment**
+   (faults must never escape into application threads), **cleanliness** (no profiler worker
+   threads left after `stop`, restartability; leak detection uses both `threading.enumerate()`
+   and the native periodic-thread registry, split per product so profiler leaks fail hard while
+   telemetry/remote-config leftovers are only recorded).
+3. Ran the suite in the sanctioned containerized flow (py3.12): 31 tests, **17 failures**,
+   classified into findings F1–F8 below.
+4. Post-hoc verification: one standalone reproducer per finding (`repro/`), isolated reruns of
+   the failing tests, and a full-suite rerun — which **reclassified** the findings.
+
+**What we found.**
+
+- **F3 (high, confirmed twice standalone + in-suite): a hang in periodic work — e.g. a stuck
+  exporter upload — wedges `Profiler.stop()` indefinitely and also hangs host-application
+  exit** via the native atexit join of periodic threads: no timeout, no diagnostic anywhere.
+  A degraded exporter takes down the application's shutdown.
+- **F5 (open, investigation): lock-collector invariant violation** (`acquired_time` set when
+  the acquire was not sampled) surfacing *inside application threads* while the profiler
+  machinery is faulted — potential lock-metric data integrity issue.
+- **F1/F2/F4 (reclassified as artifacts, not profiler bugs): run/stop-path exceptions and the
+  stack-snapshot arm initially looked like genuine thread leaks / a dead arm, but isolated
+  runs pass and standalone repros confirm the exceptions are properly contained.** The
+  full-run failures are cross-test pollution: tests failing before their stop abandon running
+  profilers in the process-global registry (F8). The profiler's exception containment is in
+  fact solid — its weakness is hangs (F3).
+- **F8 (top framework work item): the fault-injection suite itself lacks isolation** — teardown
+  must stop abandoned profilers, and the leak oracle should assert on a per-test registry
+  diff. Fixing this re-baselines the suite before any new leak bug is filed.
+- **F6 (clarified): the telemetry `_TelemetryDependencyCollector` is an import-time global**, not
+  tied to profiler activation/stop — the pin test's assumption was wrong.
+- **F7 (trivial): py3.12's multi-threaded `fork()` DeprecationWarning** trips the subprocess
+  empty-stderr check — test-hygiene fix.
+
+Net: 17 suite failures → 2 genuine profiler issues (F3 confirmed, F5 open), 1 framework work
+item (F8) that explains 8 of the failures, and 3 test/doc fixes. Full-suite failures are
+deterministic and bisectable; every finding has a standalone reproducer and a fix direction
+(`repro/INVESTIGATION.md`).
+
+## F1 — Run-path exception in periodic work strands the Scheduler worker thread  *(RECLASSIFIED after verification: pollution artifact, not a profiler bug — see post-hoc verification)*
 
 **Severity: medium-high.** An exception raised inside a scheduled flush (e.g. `memalloc.MemoryCollector.snapshot()` or `ddup.upload()`) leaves a `ddtrace.profiling.scheduler:Scheduler` `PeriodicThread` registered and alive after `Profiler.stop()` returns. `stop()` itself completes (no watchdog deadline hit) but does not join/reap the worker, and the dead/parked worker never unregisters.
 
@@ -20,7 +70,7 @@ reclassifies F1/F2/F4 — the only profiler bugs standing are F3 (confirmed) and
 - **Root-cause hypothesis (for investigator):** the C++ periodic worker exits on exception without unregistering, or `Scheduler._stop_service` skips `join()` when the worker status is not cleanly stopped.
 - **Follow-up:** reproduce minimal case; check `_threads` unregister path on exception; decide whether `stop()` should hard-join with timeout or force-unregister dead workers.
 
-## F2 — Stop-path exceptions strand 2+ Scheduler workers  *(profiler bug)*
+## F2 — Stop-path exceptions strand 2+ Scheduler workers  *(RECLASSIFIED after verification: pollution artifact, not a profiler bug — see post-hoc verification)*
 
 **Severity: medium-high.** Exceptions during shutdown — final upload (`ddup.upload`), `Collector.stop()`, or `Scheduler.flush()` at stop — are contained (stop returns) but strand the scheduler workers. Adds 2 new leaked threads on first occurrence (`test_stop_fault_final_upload_raises` shows the set grow from 1 → 3).
 
@@ -36,7 +86,7 @@ reclassifies F1/F2/F4 — the only profiler bugs standing are F3 (confirmed) and
 - **Standalone repro:** `/tmp/wedge_repro.py` on r1 (hung `ddup.upload` → `stop()` never returns; child that skips its watchdog `os._exit` parks forever in atexit).
 - **Follow-up:** bound `PeriodicThread.stop()/join()` with a timeout at the atexit level (at minimum), log a diagnostic when the join times out; consider making `stop()` interruptible or moving the final upload off the caller's thread.
 
-## F4 — `stack_collector.snapshot` fault never fires  *(test/framework bug — investigation)*
+## F4 — `stack_collector.snapshot` fault never fires  *(RECLASSIFIED after verification: order-dependent harness state, not a dead arm — fires in a fresh process)*
 
 The injector armed on `StackCollector.snapshot` never records a fire during a 0.8s run @ 0.2s scheduler interval (`fired == 0`), while the same harness *does* fire on `memalloc_collector.snapshot` and `ddup.upload`. Either the arm point misses the call path the scheduler actually uses for the stack collector (native worker may call it via a different symbol/bound method), or the first-fire window is longer than the run.
 
@@ -51,7 +101,7 @@ The workload containment oracle caught lock events whose `lock_events`-invariant
 - **Impact (if real):** lock-time metrics misattribute acquire latency when lock profiling is enabled and the profiler machinery is degraded — a data-integrity issue, not just liveness.
 - **Follow-up:** reproduce in isolation (lock collector + kill scheduler worker); determine whether the unsampled-acquire path skips `acquired_time` clearing under error paths, or whether the oracle's invariant is too strict (cross-check `tests/profiling/collector/test_lock.py` semantics).
 
-## F6 — Telemetry dependency-collector lifecycle vs profiler  *(cross-product behavior — refine test)*
+## F6 — Telemetry dependency-collector lifecycle vs profiler  *(clarified: import-time global — rewrite pin test as documentation)*
 
 The deliberate telemetry pin ("dependency collector outlives `Profiler.stop()`") did **not** hold in this run: no telemetry threads remained after a short start/stop, while in earlier runs the `_TelemetryDependencyCollector` thread lingered after every profiler stop. The telemetry writer thread's lifetime evidently depends on its own flush/idle cadence (~30s) and activation bookkeeping — not simply on profiler stop. The per-product oracle split is in place; the pin test needs to observe telemetry state *at activation time* rather than after a sub-second stop, or accept both outcomes with a documented explanation.
 

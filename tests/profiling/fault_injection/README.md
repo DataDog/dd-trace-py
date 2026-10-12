@@ -79,3 +79,28 @@ riot -v 3.12 -s profiling-fault-injection --pass-env "PYTEST_ADDOPTS" run -k fau
 # or, with an already-importable ddtrace checkout:
 python -m pytest tests/profiling/fault_injection/ -x -v
 ```
+
+## What we ran and what we found (summary)
+
+Full run of the suite in the sanctioned containerized flow (py3.12): 31 tests,
+17 failures — classified into 8 findings (F1–F8). Post-hoc verification (one
+standalone reproducer per finding in `repro/`, isolated reruns of the failing
+tests, full-suite rerun) then reclassified them:
+
+- **Genuine profiler bug (high, confirmed)** — **F3**: a hang in periodic work
+  (e.g. stuck exporter upload) wedges `Profiler.stop()` indefinitely and also
+  hangs host-application exit via the native atexit join — no timeout, no
+  diagnostic.
+- **Open profiler question** — **F5**: lock-collector invariant violation
+  (`acquired_time` set when the acquire was not sampled) surfacing inside
+  application threads while the machinery is degraded.
+- **Everything else reclassified** — the run/stop-path "thread leaks" (F1/F2)
+  and the never-firing stack arm (F4) are cross-test pollution: tests failing
+  before their stop abandon running profilers in the process-global registry
+  (F8, the framework's own isolation gap). The profiler's exception containment
+  held up everywhere we could reproduce it in isolation — its weakness is
+  hangs. F6 (telemetry lifecycle) and F7 (fork DeprecationWarning) are test/doc
+  fixes.
+
+Full details, evidence, and fix directions: `FINDINGS.md` (executive summary
+at the top) and `repro/INVESTIGATION.md`.

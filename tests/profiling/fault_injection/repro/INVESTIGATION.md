@@ -5,6 +5,18 @@
 Full classification lives in `../FINDINGS.md`; this folder adds one **standalone
 reproducer per finding** so an investigator can verify each without pytest.
 
+> **High-level picture.** We injected raise/hang/kill/skip faults at every
+> lifecycle call site of the profiler (exporter, collectors, scheduler, upload,
+> races, fork, SIGTERM) and checked three properties: `start`/`stop` return in
+> time, nothing escapes into application threads, and no worker threads are
+> left after `stop`. The suite failed 17/31; verification with the repros below
+> then showed most of those failures were the suite's own cross-test pollution,
+> leaving **two standing profiler issues**: **F3** — a hang in periodic work
+> wedges `stop()` *and* process exit (no timeout anywhere); **F5** — a
+> lock-collector invariant violated inside application threads while degraded.
+> Fix the suite's isolation first (**F8**) — it explains the other failures —
+> then re-baseline before filing new leak bugs.
+
 ## Running the repros
 
 On r1 (`workspace-fullhost-r1`), repo at `~/dd/dd-trace-py-fi`:
@@ -53,17 +65,92 @@ Environment notes:
   `test_subprocess_hung_snapshot_does_not_wedge_stop` print
   `HUNG: stop with hung upload did not complete within 5.0s` (both now xfail-marked).
 - **Mechanism:** `ddup.upload` (or a snapshot) parks forever inside the scheduler
-  worker's periodic call; `Scheduler.stop()` → worker `join()` blocks on
-  `stopped_event`, which the parked worker never sets. If the app never regains
-  control, interpreter exit parks in the native atexit join of periodic threads
-  (no timeout, no diagnostic) → host application hangs.
-- **Look at:** `ddtrace/internal/_threads/` C++ (PeriodicThread::stop/join, the
-  atexit handler), `ddtrace/internal/atexit.py` (note: `DD_TESTING_RAISE` behavior).
-- **Fix directions:** bound the join with a timeout (log a diagnostic, then abandon
-  or detach the worker) at minimum in the atexit path; consider making the final
-  upload interruptible (deadline/abortable IO) or moving it off the caller's thread.
-- **Verify:** repro (a) child exits 0 (stop returned); repro (b) child exits promptly;
-  un-xfail the two suite tests and they pass.
+  worker's periodic call; `Scheduler.stop()` signals the worker, but the subsequent
+  `join()` waits on `stopped_event`, which the parked worker never sets. The public
+  profiler's atexit callback can hang here. Independently, the native periodic-thread
+  atexit handler also joins without a timeout.
+- **Code:** `ddtrace/profiling/profiler.py:510` (scheduler join), `:517`
+  (synchronous final flush); `ddtrace/internal/_threads.cpp:1182` (native exit join);
+  `ddtrace/internal/datadog/profiling/dd_wrapper/src/uploader.cpp:204`
+  (`Uploader::cancel_inflight`).
+
+### Full-host investigation — 2026-10-12
+
+**Assessment:** real shutdown-containment weakness, but **not an ordinary HTTP
+timeout failure**. No spontaneous production collector deadlock was identified
+in this investigation. The permanent-hang case needs work outside the HTTP
+timeout to get stuck; slow shutdown against an unhealthy endpoint is more plausible.
+
+**When it could bother applications:**
+
+- An overloaded or wedged Agent/proxy accepts an upload but never responds.
+  The default HTTP timeout is 10 seconds, and `stop(flush=True)` can spend almost
+  **20 seconds** waiting for the current upload and then a final upload. This can
+  exceed a short shutdown grace period, leading to forced termination and loss
+  of the final profile. It is slow shutdown, not an infinite network hang.
+- A collector/snapshot deadlock, stuck native lock/serialization operation, or
+  blocked file-output I/O can prevent shutdown indefinitely. These are plausible
+  fault classes, not observed production incidents here. A concrete native
+  file-output reproduction is described below; it uses an unusual debug setup.
+- **No Agent listening makes local shutdown faster:** connection refusal returns
+  immediately. It does not exercise slow-response behavior. A controlled local
+  endpoint is sufficient for that; no Datadog intake or credentials are needed.
+
+**Reproduction environment:** `workspace-fullhost-r1`, Python 3.12.13,
+`ddtrace 4.16.0rc1`, editable install at `~/dd/dd-trace-py-fi/.venv-fi`.
+Relevant synchronized source files match local branch `profiler-fault-injection`
+at `e71e2b6be8`. Endpoint experiments used clean subprocesses and external watchdogs.
+
+| Scenario | Observed result |
+| --- | --- |
+| Connection refused / healthy local endpoint | `stop(flush=True)` returned in about 4–5 ms. |
+| Endpoint accepts `/profiling/v1/input` but never responds; `DD_PROFILING_API_TIMEOUT_MS=1500` | Upload timed out at 1.50 s; `stop(flush=False)` took 1.35 s, `stop(flush=True)` took 2.95 s. Normal exit completed. |
+| Same stalled endpoint; default timeout of 10000 ms | `stop(flush=True)` returned after 19.87 s; both uploads timed out normally. |
+| Injected indefinitely hung upload or snapshot | Both existing tests failed with exit 42 and a 5-second stop deadline when run with `--runxfail`. Standalone stop and process-exit reproductions also hung. |
+| Real native file output to a FIFO with no reader | `stop(flush=False)`, normal profiler exit, and isolated native periodic-thread exit remained blocked until the 7-second watchdog killed the process. HTTP timeout did not apply. |
+
+For the FIFO case, `DD_PROFILING_OUTPUT_PPROF` targeted a prefix whose first
+`.pprof` file was a named pipe without a reader. The real uploader ran unchanged;
+the Scheduler was observed in the kernel `wait_for_partner` path. This proves
+an unbounded native I/O path, not an ordinary Agent-upload failure.
+
+Unregistering the public profiler's atexit callback confirmed that the native
+periodic-thread exit hook hangs independently. The original standalone reproducer
+uses the internal profiler and already exercises that native exit path.
+
+**Fix experiments and recommendation; decision still pending:**
+
+- A scheduler join timeout **alone is insufficient**: with a 300 ms join timeout,
+  `stop(flush=True)` still hung in the synchronous final flush.
+- The existing native uploader supports cancellation. Calling
+  `Uploader::cancel_inflight()` during a stalled HTTP upload made
+  `stop(flush=False)` complete in about 3 ms despite a 10-second HTTP timeout.
+  With `flush=True`, the subsequent final upload still consumed its timeout.
+- Recommend a narrow improvement for slow-upload shutdown: expose native upload
+  cancellation and apply a shared shutdown deadline, giving the final upload only
+  the remaining budget. Handle the race where shutdown begins before the upload
+  publishes its cancellation token. This does **not** solve arbitrary hung
+  snapshots or blocked file operations.
+- Keep general bounded-exit containment as a separate hardening decision.
+  Workers are already OS-detached. Abandoning a worker requires a safe policy for
+  collector ownership, profiler restart, and interpreter finalization; stopping
+  collectors while the worker can still access them risks races. Do not claim a
+  parked worker has been reaped merely because its join timed out.
+- Full F3 verification still requires bounded stop and process exit, safe behavior
+  if a timed-out worker later resumes, and a defined cleanup contract before
+  un-xfailing the existing tests.
+
+**Artifacts on r1:** `/tmp/f3-investigation.py` and `/tmp/f3-investigation/`
+contain the endpoint matrix, cancellation/FIFO experiments, stack dumps, kernel
+wait states, original repro log, and suite log. No profiler source changes were made.
+
+Targeted suite rerun (both tests fail as expected):
+
+```bash
+DD_TEST_PODMAN_COMPAT=1 scripts/run-tests --venv e7cd703 -- \
+  -k 'test_subprocess_hung_upload_does_not_wedge_stop or test_subprocess_hung_snapshot_does_not_wedge_stop' \
+  --runxfail -p no:randomly
+```
 
 ## F4 — `StackCollector.snapshot` class-level patch never fires  · *status: order-dependent test-harness bug — fires fine in a fresh process*
 
