@@ -145,9 +145,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 endpoint_name=endpoint_name,
                 child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 operation=operation,
-                service=schematize_service_name(
-                    "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
-                ),
+                service=schematize_service_name(f"{ext_service(pin, int_config=config.botocore)}.{endpoint_name}"),
                 call_trace=False,
                 pin=pin,
                 span_name=span_name,

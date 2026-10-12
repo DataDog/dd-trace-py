@@ -4,8 +4,7 @@ from importlib.metadata import version
 import json
 import os
 from textwrap import dedent
-
-import mock
+from unittest import mock
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct

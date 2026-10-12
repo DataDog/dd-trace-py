@@ -20,10 +20,10 @@ FIXTURES_SECRETS_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_
 def test_weak_randomness(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
-    getattr(mod, "random_{}".format(random_func))()
+    getattr(mod, f"random_{random_func}")()
     span_report = get_iast_reporter()
     line, hash_value = get_line_and_hash(
-        "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_PATH
+        f"weak_randomness_{random_func}", VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_PATH
     )
     vulnerability = list(span_report.vulnerabilities)[0]
     assert span_report.sources == []
@@ -31,7 +31,7 @@ def test_weak_randomness(random_func, iast_context_defaults):
     assert vulnerability.location.path == FIXTURES_RANDOM_PATH
     assert vulnerability.location.line == line
     assert vulnerability.hash == hash_value
-    assert vulnerability.evidence.value == "Random.{}".format(random_func)
+    assert vulnerability.evidence.value == f"Random.{random_func}"
     assert vulnerability.evidence.valueParts is None
 
 
@@ -50,10 +50,10 @@ def test_weak_randomness_no_dynamic_import(iast_context_defaults):
 def test_weak_randomness_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_module")
 
-    getattr(mod, "random_{}".format(random_func))()
+    getattr(mod, f"random_{random_func}")()
     span_report = get_iast_reporter()
     line, hash_value = get_line_and_hash(
-        "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_MODULE_PATH
+        f"weak_randomness_{random_func}", VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_MODULE_PATH
     )
     vulnerability = list(span_report.vulnerabilities)[0]
     assert span_report.sources == []
@@ -61,7 +61,7 @@ def test_weak_randomness_module(random_func, iast_context_defaults):
     assert vulnerability.location.path == FIXTURES_RANDOM_MODULE_PATH
     assert vulnerability.location.line == line
     assert vulnerability.hash == hash_value
-    assert vulnerability.evidence.value == "Random.{}".format(random_func)
+    assert vulnerability.evidence.value == f"Random.{random_func}"
     assert vulnerability.evidence.valueParts is None
 
 
@@ -72,7 +72,7 @@ def test_weak_randomness_module(random_func, iast_context_defaults):
 def test_weak_randomness_secure_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_secure_module")
 
-    getattr(mod, "random_{}".format(random_func))()
+    getattr(mod, f"random_{random_func}")()
     span_report = get_iast_reporter()
     assert span_report is None
 

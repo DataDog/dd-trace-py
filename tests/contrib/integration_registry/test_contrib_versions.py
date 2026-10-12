@@ -51,7 +51,7 @@ def _get_integration_supported_versions(internal_contrib_dir: Path, integration_
 
     for py_file in integration_dir.glob("*.py"):
         try:
-            with open(py_file, "r", encoding="utf-8") as f:
+            with open(py_file, encoding="utf-8") as f:
                 content = f.read()
 
             # Look for the _supported_versions function and its return statement

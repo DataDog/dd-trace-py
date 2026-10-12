@@ -1,4 +1,3 @@
-# Borrowed from langchain .riot/requirements/a311bc2.txt
 ai21==3.0.1
 ai21-tokenizer==0.12.0
 aiohttp==3.9.5

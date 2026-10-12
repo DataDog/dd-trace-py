@@ -23,7 +23,7 @@ def decoratorwitharg(arg):
     return decorator
 
 
-class Stuff(object):
+class Stuff:
     @staticmethod
     def staticstuff(foo):
         return foo
@@ -99,7 +99,7 @@ def excstuff():
 alias = modulestuff
 
 
-class AliasStuff(object):
+class AliasStuff:
     def foo(self):
         pass
 
@@ -116,7 +116,7 @@ def lambdastuff():
     return (lambda x: x << 1)(21)
 
 
-class PropertyStuff(object):
+class PropertyStuff:
     import operator
 
     def __init__(self):

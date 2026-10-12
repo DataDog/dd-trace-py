@@ -1,7 +1,7 @@
 import logging
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace.internal.logger
@@ -15,7 +15,7 @@ ALL_LEVEL_NAMES = ("debug", "info", "warning", "error", "exception", "critical",
 
 class LoggerTestCase(BaseTestCase):
     def setUp(self):
-        super(LoggerTestCase, self).setUp()
+        super().setUp()
 
         self.manager = logging.root.manager
 
@@ -34,7 +34,7 @@ class LoggerTestCase(BaseTestCase):
         ddtrace.internal.logger._buckets.clear()
         ddtrace.internal.logger._rate_limit = 60
 
-        super(LoggerTestCase, self).tearDown()
+        super().tearDown()
 
     def _make_record(
         self,

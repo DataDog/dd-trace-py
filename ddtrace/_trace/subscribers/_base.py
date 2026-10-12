@@ -1,9 +1,9 @@
+from collections.abc import Sequence
 from types import TracebackType
 from typing import Any
 from typing import ClassVar
 from typing import Generic
 from typing import Optional
-from typing import Sequence
 from typing import TypeVar
 
 from ddtrace import config

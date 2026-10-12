@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import itertools
 import os
 import traceback
@@ -20,10 +19,10 @@ from ddtrace.internal.settings._telemetry import config
 from ...internal import atexit
 from ...internal import excepthook
 from ...internal import forksafe
+from .._runtime_id import get_ancestor_runtime_id
+from .._runtime_id import get_parent_runtime_id
+from .._runtime_id import get_runtime_id
 from ..periodic import PeriodicService
-from ..runtime import get_ancestor_runtime_id
-from ..runtime import get_parent_runtime_id
-from ..runtime import get_runtime_id
 from ..utils.formats import get_test_session_token
 from ..utils.version import version as tracer_version
 from .constants import TELEMETRY_APM_PRODUCT
@@ -163,12 +162,12 @@ class TelemetryWriter:
         self._agentless = agentless
 
         # The native worker, lazily built in enable() once the native runtime exists.
-        self._worker: Optional["TelemetryWorker"] = None
+        self._worker: Optional[TelemetryWorker] = None
         # Registered native metric contexts, keyed by (namespace, name, type) - deliberately NOT
         # by tags, which ride along with each point instead, so this stays bounded by the number of
         # distinct metrics. ContextKeys are worker-specific, so it is cleared on every worker
         # rebuild (see enable()).
-        self._metric_contexts: dict[tuple[TELEMETRY_NAMESPACE, str, str], "MetricContext"] = {}
+        self._metric_contexts: dict[tuple[TELEMETRY_NAMESPACE, str, str], MetricContext] = {}
         # Serializes first-time metric-context registration so two threads recording the same new
         # metric can't both register it (which would create duplicate native contexts / split the
         # series). Only taken on a cache miss; the hot add path reads the cache lock-free.
@@ -972,7 +971,7 @@ class TelemetryWriter:
                         1,
                         (("integration_name", integration_name), ("error_type", tp.__name__)),
                     )
-                    error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                    error_msg = f"{filename}:{lineno} {str(value)}"
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             self.app_shutdown()

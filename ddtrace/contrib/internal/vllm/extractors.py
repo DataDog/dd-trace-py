@@ -61,7 +61,7 @@ def get_embedding_shape(tensor) -> tuple[int, Optional[int]]:
     return first, last
 
 
-def extract_request_data(req_state: "RequestState", engine_core_output: "EngineCoreOutput") -> RequestData:
+def extract_request_data(req_state: RequestState, engine_core_output: EngineCoreOutput) -> RequestData:
     """Extract request data from engine-side structures.
 
     Args:
@@ -115,7 +115,7 @@ def get_model_name(instance) -> Optional[str]:
     return getattr(instance, ATTR_MODEL_NAME, None)
 
 
-def extract_latency_metrics(stats: Optional["RequestStateStats"]) -> Optional[LatencyMetrics]:
+def extract_latency_metrics(stats: Optional[RequestStateStats]) -> Optional[LatencyMetrics]:
     """Extract latency metrics from vLLM RequestStateStats.
 
     Single source of truth for latency calculation logic.

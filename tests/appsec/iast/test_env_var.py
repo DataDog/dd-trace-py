@@ -26,8 +26,7 @@ def _run_python_file(*args, **kwargs):
     assert ret.returncode == 0
 
 
-def test_env_var_iast_enabled(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     env["DD_TRACE_DEBUG"] = "true"
@@ -37,8 +36,7 @@ def test_env_var_iast_enabled(capfd):
     assert "hi" in captured.out
 
 
-def test_env_var_iast_disabled(monkeypatch, capfd):
-    # type: (...) -> None
+def test_env_var_iast_disabled(monkeypatch, capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "false"
     env["DD_TRACE_DEBUG"] = "true"
@@ -48,8 +46,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     assert "iast::instrumentation::starting IAST" not in captured.err
 
 
-def test_env_var_iast_unset(monkeypatch, capfd):
-    # type: (...) -> None
+def test_env_var_iast_unset(monkeypatch, capfd) -> None:
     _run_python_file(env={"DD_TRACE_DEBUG": "true"})
     captured = capfd.readouterr()
     assert "hi" in captured.out
@@ -151,8 +148,7 @@ def test_env_var_iast_enabled_no__native_module_warning():
 
 
 @pytest.mark.skip(reason="IAST not working with Gevent yet")
-def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled_gevent_unload_modules_true(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     env["DD_TRACE_DEBUG"] = "true"
@@ -164,8 +160,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
 
 
 @pytest.mark.skip(reason="IAST not working with Gevent yet")
-def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled_gevent_unload_modules_false(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     env["DD_TRACE_DEBUG"] = "true"
@@ -177,8 +172,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
 
 
 @pytest.mark.skip(reason="IAST not working with Gevent yet")
-def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled_gevent_patch_all_true(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     env["DD_TRACE_DEBUG"] = "true"
@@ -211,8 +205,7 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
         ("pytest", iastpatch.DENIED_NOT_FOUND),
     ),
 )
-def test_env_var_iast_modules_to_patch(module_name, expected_result):
-    # type: (...) -> None
+def test_env_var_iast_modules_to_patch(module_name, expected_result) -> None:
     os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
         ["ddtrace.allowed.", "please_patch.", "also.that.", "please_patch.do_not.but_yes."]
     )
@@ -247,8 +240,7 @@ def assert_configure_right_enabled(monkeypatch, capfd, iast_enabled, env):
     assert "ImportError: IAST not enabled" not in captured.err
 
 
-def test_env_var__configure_wrong(monkeypatch, capfd):
-    # type: (...) -> None
+def test_env_var__configure_wrong(monkeypatch, capfd) -> None:
     env = os.environ.copy()
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"
@@ -260,8 +252,7 @@ def test_env_var__configure_wrong(monkeypatch, capfd):
     assert_configure_wrong(monkeypatch, capfd, iast_enabled, env)
 
 
-def test_env_var__configure_right(monkeypatch, capfd):
-    # type: (...) -> None
+def test_env_var__configure_right(monkeypatch, capfd) -> None:
     env = os.environ.copy()
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"

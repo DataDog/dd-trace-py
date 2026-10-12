@@ -96,7 +96,7 @@ def traced_processor_process_inputs(func, instance, args, kwargs):
 
 
 def _capture_request_states(
-    instance: "OutputProcessor",
+    instance: OutputProcessor,
     engine_core_outputs: Any,
 ) -> dict[str, dict[str, Any]]:
     """Capture request state data before original function removes them.
@@ -124,7 +124,7 @@ def _capture_request_states(
 def _create_finished_spans(
     integration: VLLMIntegration,
     model_name: Optional[str],
-    instance: "OutputProcessor",
+    instance: OutputProcessor,
     spans_data: dict[str, dict[str, Any]],
 ) -> None:
     """Create and finish spans for completed requests."""

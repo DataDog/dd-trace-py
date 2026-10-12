@@ -1,11 +1,11 @@
 import atexit
 from collections import Counter
+from collections.abc import Generator
 from contextlib import contextmanager
 import json
 from time import monotonic
 from time import sleep
 from typing import Any
-from typing import Generator
 from typing import cast
 
 from ddtrace.debugging._config import di_config
@@ -27,7 +27,7 @@ class PayloadWaitTimeout(Exception):
     pass
 
 
-class MockDebuggingRCV07(object):
+class MockDebuggingRCV07:
     def __init__(self, *args, **kwargs):
         self.probes = {}
 
@@ -61,17 +61,17 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
 
 class TestSignalCollector(SignalCollector):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super(TestSignalCollector, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.test_queue = []
         self.signal_state_counter = Counter()
 
     def push(self, signal):
         self.signal_state_counter.update({signal.state: 1})
-        super(TestSignalCollector, self).push(signal)
+        super().push(signal)
 
     def _enqueue(self, snapshot):
         self.test_queue.append(snapshot)
-        return super(TestSignalCollector, self)._enqueue(snapshot)
+        return super()._enqueue(snapshot)
 
     @property
     def queue(self):
@@ -92,7 +92,7 @@ class MockSignalUploader(SignalUploader):
     __collector__ = TestSignalCollector
 
     def __init__(self, interval=0.0):
-        super(MockSignalUploader, self).__init__(interval)
+        super().__init__(interval)
         self.queue = []
         self._state = self._online
 

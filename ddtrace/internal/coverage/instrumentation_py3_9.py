@@ -52,7 +52,7 @@ if sys.version_info < (3, 10):
             self.offset = offset
             self.opcode = opcode
             self.arg = arg
-            self.targets: list["Branch"] = []
+            self.targets: list[Branch] = []
 
     class Branch(ABC):
         def __init__(self, start: Instruction, end: Instruction) -> None:

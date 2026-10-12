@@ -30,6 +30,6 @@ def quantize(span):
     quantized_url = ID_REGEXP.sub(ID_PLACEHOLDER, url)
     quantized_url = INDEX_REGEXP.sub(INDEX_PLACEHOLDER, quantized_url)
 
-    span.resource = "{method} {url}".format(method=method, url=quantized_url)
+    span.resource = f"{method} {quantized_url}"
 
     return span

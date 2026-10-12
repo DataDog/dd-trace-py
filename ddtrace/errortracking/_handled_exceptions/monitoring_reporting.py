@@ -7,6 +7,7 @@ from typing import Callable
 
 from ddtrace import tracer
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
+from ddtrace.internal import monitoring
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import filename_to_package  # noqa: F401
 from ddtrace.internal.packages import is_stdlib  # noqa: F401
@@ -77,28 +78,26 @@ def cached_should_report_exception(file_name: str):
     return _should_report_exception(file_name, file_path)
 
 
-def _install_sys_monitoring_reporting():
-    if (not config._configured_modules) is False:
-        MonitorHandledExceptionReportingWatchdog.install()
+class _HandledExceptionHandler(monitoring.MonitoringEventHandler):
+    """Report handled exceptions attached to an active span."""
 
-    sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
-    sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
-
-    def _exc_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
         span = tracer.current_span()
         if span and cached_should_report_exception(code.co_filename):
             _default_errortracking_exc_callback(span=span, exc=exception)
-        return True
-
-    sys.monitoring.register_callback(
-        config.HANDLED_EXCEPTIONS_MONITORING_ID,
-        sys.monitoring.events.EXCEPTION_HANDLED,
-        _exc_event_handler,
-    )
 
 
-def _disable_monitoring():
-    sys.monitoring.free_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID)
+_handler = _HandledExceptionHandler()
+
+
+def _install_sys_monitoring_reporting() -> None:
+    if (not config._configured_modules) is False:
+        MonitorHandledExceptionReportingWatchdog.install()
+    monitoring.register_global(_handler)
+
+
+def _uninstall_sys_monitoring_reporting() -> None:
+    monitoring.unregister_global(_handler)
 
 
 class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):

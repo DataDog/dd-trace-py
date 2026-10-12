@@ -722,7 +722,7 @@ def _assert_ns(actual, expected, tolerance_ns=1_000):
     seconds>)` - and a float64 can only resolve ~256 ns at unix-epoch magnitudes. That rounding is
     immaterial next to audio timings measured in milliseconds, so don't assert on it.
     """
-    assert abs(actual - expected) <= tolerance_ns, "{} != {} (within {} ns)".format(actual, expected, tolerance_ns)
+    assert abs(actual - expected) <= tolerance_ns, f"{actual} != {expected} (within {tolerance_ns} ns)"
 
 
 def test_realtime_state_user_speech_anchored_on_vad_onset(monkeypatch):
@@ -790,7 +790,7 @@ def test_realtime_state_consecutive_turns_do_not_overlap(monkeypatch):
     speech = sorted([w for w in windows if w[0] != "realtime audio turn"], key=lambda w: w[1])
     assert [name for name, _, _ in speech] == ["user speech", "agent speech", "user speech", "agent speech"]
     for (_, _, prev_end), (name, start, _) in zip(speech, speech[1:]):
-        assert start >= prev_end, "{} starts before the previous window ended".format(name)
+        assert start >= prev_end, f"{name} starts before the previous window ended"
     # The turn roots (whole perceived turns) don't overlap either.
     turns = [w for w in windows if w[0] == "realtime audio turn"]
     assert turns[1][1] >= turns[0][2]
@@ -1207,7 +1207,7 @@ def _server_messages():
 def _by_operation(spans):
     """Spans keyed by operation (resource); a turn emits at most one span per phase."""
     by_operation = {s.resource: s for s in spans}
-    assert len(by_operation) == len(spans), "unexpected duplicate phase spans: {}".format([s.resource for s in spans])
+    assert len(by_operation) == len(spans), f"unexpected duplicate phase spans: {[s.resource for s in spans]}"
     return by_operation
 
 

@@ -63,7 +63,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a aiomysql cursor and traces its queries."""
 
     def __init__(self, cursor, db_tags):
-        super(AIOTracedCursor, self).__init__(cursor)
+        super().__init__(cursor)
         self._self_datadog_name = schematize_database_operation("mysql.query", database_provider="mysql")
         self._self_db_tags = db_tags
 
@@ -127,7 +127,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
 class AIOTracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, db_tags, cursor_cls=AIOTracedCursor):
-        super(AIOTracedConnection, self).__init__(conn)
+        super().__init__(conn)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls

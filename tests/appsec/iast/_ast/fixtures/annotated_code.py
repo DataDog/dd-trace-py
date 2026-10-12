@@ -4,7 +4,7 @@
 from typing import Any
 from typing import Optional
 from typing import Sequence
-from typing import TypeVar  # noqa:F401
+from typing import TypeVar
 
 
 _T_co = TypeVar("_T_co", bound=Any, covariant=True)

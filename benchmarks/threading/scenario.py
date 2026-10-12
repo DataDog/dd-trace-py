@@ -1,7 +1,7 @@
+from collections.abc import Generator
 import concurrent.futures
 import random
 from typing import Callable
-from typing import Generator
 
 import bm
 

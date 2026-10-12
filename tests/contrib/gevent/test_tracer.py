@@ -53,14 +53,14 @@ class TestGeventTracer(TracerTestCase):
         """Before each test case, configure gevent patching with serialized tracer setup"""
         # Acquire lock for entire test lifecycle (setUp → test → tearDown)
         TestGeventTracer._gevent_test_lock.acquire()
-        super(TestGeventTracer, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
         """After each test case, clean up gevent patching with serialized tracer teardown"""
         try:
             unpatch()
-            super(TestGeventTracer, self).tearDown()
+            super().tearDown()
         finally:
             # Always release lock to prevent deadlocks
             TestGeventTracer._gevent_test_lock.release()

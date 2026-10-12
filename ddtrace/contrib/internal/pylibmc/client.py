@@ -53,7 +53,7 @@ class TracedClient(ObjectProxy):
                 category=DDTraceDeprecationWarning,
             )
 
-        super(TracedClient, self).__init__(client)
+        super().__init__(client)
         self._configure_client(client, service)
 
     @classmethod

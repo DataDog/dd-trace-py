@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
@@ -1254,21 +1255,24 @@ class TestAPMShadowTags:
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY) is None
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY) is None
 
-    @pytest.mark.parametrize("span_kind", ["llm", "embedding", "agent", "workflow"])
-    def test_no_gen_ai_tags_when_llmobs_disabled(self, tracer, span_kind):
-        """gen_ai.* attributes are an LLMObs product feature, so they stay off APM-only spans."""
+    @pytest.mark.parametrize("span_kind", ["llm", "embedding"])
+    def test_gen_ai_tags_marked_artificial_when_llmobs_disabled(self, tracer, span_kind):
+        """gen_ai.* attributes are still emitted with LLMObs disabled, marked artificial so the
+        backend doesn't mistake the APM span for an LLMObs one.
+        """
         integration = self._make_integration(llmobs_enabled=False)
 
         with tracer.trace("test") as span:
             metrics = {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
             integration._apply_shadow_metrics(span, metrics, span_kind, "gpt-4", "openai")
 
-        assert span.get_tag(GEN_AI_OPERATION_NAME_TAG_KEY) is None
-        assert span.get_tag(GEN_AI_REQUEST_MODEL_TAG_KEY) is None
-        assert span.get_tag(GEN_AI_PROVIDER_NAME_TAG_KEY) is None
-        assert span.get_metric(GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY) is None
-        assert span.get_metric(GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY) is None
-        assert span.get_metric(GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY) is None
+        assert span.get_tag(GEN_AI_OPERATION_NAME_TAG_KEY) == span_kind
+        assert span.get_tag(GEN_AI_REQUEST_MODEL_TAG_KEY) == "gpt-4"
+        assert span.get_tag(GEN_AI_PROVIDER_NAME_TAG_KEY) == "openai"
+        assert span.get_metric(GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY) == 10
+        assert span.get_metric(GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY) == 20
+        assert span.get_metric(GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY) == 30
+        assert span.get_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY) == "true"
 
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
@@ -1676,7 +1680,7 @@ class TestSpanEventJSONSafety:
             self.value = value
 
         def __str__(self):
-            return "RawObject({})".format(self.value)
+            return f"RawObject({self.value})"
 
     def test_agent_version_tag_is_stringified(self, llmobs):
         """annotate(agent=...) is not type-validated, and the version is written into tags at finish,

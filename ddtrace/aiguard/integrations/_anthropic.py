@@ -18,11 +18,11 @@ it, and support can spot integration drift.
 """
 
 from collections.abc import Iterator
+from collections.abc import Sequence
 import json
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
-from typing import Sequence
 from typing import Union
 
 from ddtrace.aiguard._api_client import AIGuardAbortError

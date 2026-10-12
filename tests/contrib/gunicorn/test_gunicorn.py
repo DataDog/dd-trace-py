@@ -4,12 +4,12 @@ import os
 import subprocess
 import sys
 import time
-from typing import NamedTuple  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import NamedTuple
+from typing import Optional
 
 import pytest
 
-from ddtrace.internal.utils.retry import RetryError  # noqa:F401
+from ddtrace.internal.utils.retry import RetryError
 from tests.utils import snapshot_context
 from tests.webclient import Client
 
@@ -17,19 +17,15 @@ from tests.webclient import Client
 SERVICE_INTERVAL = 1
 
 
-GunicornServerSettings = NamedTuple(
-    "GunicornServerSettings",
-    [
-        ("env", dict[str, str]),
-        ("directory", str),
-        ("app_path", str),
-        ("num_workers", str),
-        ("worker_class", str),
-        ("bind", str),
-        ("use_ddtracerun", bool),
-        ("import_auto_in_postworkerinit", bool),
-    ],
-)
+class GunicornServerSettings(NamedTuple):
+    env: dict[str, str]
+    directory: str
+    app_path: str
+    num_workers: str
+    worker_class: str
+    bind: str
+    use_ddtracerun: bool
+    import_auto_in_postworkerinit: bool
 
 
 IMPORT_AUTO = "import ddtrace.auto"
@@ -86,20 +82,15 @@ def build_config_file(gunicorn_server_settings):
     post_worker_init = "    {}".format(
         IMPORT_AUTO if gunicorn_server_settings.import_auto_in_postworkerinit else "",
     )
-    cfg = """
+    cfg = f"""
 def post_worker_init(worker):
     pass
 {post_worker_init}
 
-workers = {num_workers}
-worker_class = "{worker_class}"
-bind = "{bind}"
-""".format(
-        post_worker_init=post_worker_init,
-        bind=gunicorn_server_settings.bind,
-        num_workers=gunicorn_server_settings.num_workers,
-        worker_class=gunicorn_server_settings.worker_class,
-    )
+workers = {gunicorn_server_settings.num_workers}
+worker_class = "{gunicorn_server_settings.worker_class}"
+bind = "{gunicorn_server_settings.bind}"
+"""
     return cfg
 
 
@@ -191,9 +182,7 @@ def test_span_schematization(ddtrace_tmp_path):
                 schema_version=schema_version,
             )
             with snapshot_context(
-                token="tests.contrib.gunicorn.test_gunicorn.test_span_schematization[{}-{}]".format(
-                    service_name, schema_version
-                ),
+                token=f"tests.contrib.gunicorn.test_gunicorn.test_span_schematization[{service_name}-{schema_version}]",
                 ignores=["meta.result_class"],
             ):
                 with gunicorn_server(gunicorn_settings, ddtrace_tmp_path) as context:

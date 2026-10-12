@@ -173,9 +173,9 @@ def _build_evaluation_metric_event(
         "label": str(label),
         "metric_type": metric_type,
         "timestamp_ms": timestamp_ms,
-        "{}_value".format(metric_type): value,  # type: ignore
+        f"{metric_type}_value": value,  # type: ignore
         "ml_app": ml_app,
-        "tags": ["{}:{}".format(key, tag_value) for key, tag_value in evaluation_tags.items()],
+        "tags": [f"{key}:{tag_value}" for key, tag_value in evaluation_tags.items()],
         "eval_scope": eval_scope,
     }
 
@@ -265,11 +265,11 @@ def _build_feedback_metric_event(
         telemetry_context.target_type = target_name
         direct_target = targets[target_name]
         if not isinstance(direct_target, str):
-            telemetry_context.error = "invalid_{}".format(target_name)
-            raise TypeError("`{}` must be a non-empty string.".format(target_name))
+            telemetry_context.error = f"invalid_{target_name}"
+            raise TypeError(f"`{target_name}` must be a non-empty string.")
         if not direct_target:
-            telemetry_context.error = "invalid_{}".format(target_name)
-            raise ValueError("`{}` must be a non-empty string.".format(target_name))
+            telemetry_context.error = f"invalid_{target_name}"
+            raise ValueError(f"`{target_name}` must be a non-empty string.")
         target_value = direct_target
 
     if not isinstance(submitter, dict) or not isinstance(submitter.get("id"), str):
@@ -342,9 +342,9 @@ def _build_feedback_metric_event(
         "label": str(label),
         "metric_type": metric_type,
         "timestamp_ms": timestamp_ms,
-        "{}_value".format(metric_type): value,  # type: ignore
+        f"{metric_type}_value": value,  # type: ignore
         "ml_app": ml_app,
-        "tags": ["{}:{}".format(key, tag_value) for key, tag_value in feedback_tags.items()],
+        "tags": [f"{key}:{tag_value}" for key, tag_value in feedback_tags.items()],
         "submitter": feedback_submitter,
     }
     if telemetry_context.target_type == "span_id":

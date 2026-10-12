@@ -20,7 +20,7 @@ def _test_logging(output, span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
     if dd_trace_id > MAX_UINT_64BITS:
-        dd_trace_id = "{:032x}".format(dd_trace_id)
+        dd_trace_id = f"{dd_trace_id:032x}"
 
     assert json.loads(output[0].args[0])["event"] == "Hello!"
     assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
@@ -208,7 +208,7 @@ def test_log_trace_128bit_trace_ids():
     output = cf.logger.calls
 
     assert json.loads(output[0].args[0])["event"] == "Hello!"
-    assert json.loads(output[0].args[0])["dd.trace_id"] == "{:032x}".format(span.trace_id)
+    assert json.loads(output[0].args[0])["dd.trace_id"] == f"{span.trace_id:032x}"
     assert json.loads(output[0].args[0])["dd.span_id"] == str(span.span_id)
     assert json.loads(output[0].args[0])["dd.env"] == "global.env"
     assert json.loads(output[0].args[0])["dd.service"] == "logging"
@@ -250,7 +250,7 @@ def test_log_DD_TAGS():
     output = cf.logger.calls
 
     assert json.loads(output[0].args[0])["event"] == "Hello!"
-    assert json.loads(output[0].args[0])["dd.trace_id"] == "{:032x}".format(span.trace_id)
+    assert json.loads(output[0].args[0])["dd.trace_id"] == f"{span.trace_id:032x}"
     assert json.loads(output[0].args[0])["dd.span_id"] == str(span.span_id)
     assert json.loads(output[0].args[0])["dd.env"] == "ddenv"
     assert json.loads(output[0].args[0])["dd.service"] == "ddtagservice"
@@ -294,7 +294,7 @@ def test_tuple_processor_list():
     output = cf.logger.calls
 
     assert json.loads(output[0].args[0])["event"] == "Hello!"
-    assert json.loads(output[0].args[0])["dd.trace_id"] == "{:032x}".format(span.trace_id)
+    assert json.loads(output[0].args[0])["dd.trace_id"] == f"{span.trace_id:032x}"
     assert json.loads(output[0].args[0])["dd.span_id"] == str(span.span_id)
     assert json.loads(output[0].args[0])["dd.env"] == "global.env"
     assert json.loads(output[0].args[0])["dd.service"] == "logging"
@@ -335,8 +335,8 @@ def test_no_configured_processor():
     output = cf.logger.calls
 
     assert "Hello!" in output[0].args[0]
-    assert "dd.trace_id={}".format("{:032x}".format(span.trace_id)) in output[0].args[0]
-    assert "dd.span_id={}".format(str(span.span_id)) in output[0].args[0]
+    assert "dd.trace_id={}".format(f"{span.trace_id:032x}") in output[0].args[0]
+    assert f"dd.span_id={str(span.span_id)}" in output[0].args[0]
     assert "dd.env=global.env" in output[0].args[0]
     assert "dd.service=logging" in output[0].args[0]
     assert "dd.version=global.version" in output[0].args[0]

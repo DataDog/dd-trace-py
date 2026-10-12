@@ -1,7 +1,7 @@
 # stdlib
 import time
+from unittest import mock
 
-import mock
 import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Composed
@@ -24,12 +24,12 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 class PsycopgCore(TracerTestCase):
     def setUp(self):
-        super(PsycopgCore, self).setUp()
+        super().setUp()
 
         patch()
 
     def tearDown(self):
-        super(PsycopgCore, self).tearDown()
+        super().tearDown()
 
         unpatch()
 
@@ -124,7 +124,7 @@ class PsycopgCore(TracerTestCase):
 
     def test_psycopg3_connection_with_string(self):
         # Regression test for DataDog/dd-trace-py/issues/5926
-        configs_arr = ["{}={}".format(k, v) for k, v in POSTGRES_CONFIG.items()]
+        configs_arr = [f"{k}={v}" for k, v in POSTGRES_CONFIG.items()]
         configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
         conn = psycopg.connect(" ".join(configs_arr))
 
@@ -136,7 +136,7 @@ class PsycopgCore(TracerTestCase):
         conn = self._get_conn()
         t = type(conn.cursor())
         with conn.cursor() as cur:
-            assert t == type(cur), "{} != {}".format(t, type(cur))
+            assert t == type(cur), f"{t} != {type(cur)}"
             cur.execute(query="""select 'blah'""")
             rows = cur.fetchall()
             assert len(rows) == 1, rows

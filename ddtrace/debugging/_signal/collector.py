@@ -20,7 +20,7 @@ log = get_logger(__name__)
 meter = metrics.get_meter("signal.collector")
 
 
-class SignalCollector(object):
+class SignalCollector:
     """Debugger signal collector.
 
     This is used to collect and encode signals emitted by probes as soon as

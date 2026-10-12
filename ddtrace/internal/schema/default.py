@@ -4,6 +4,7 @@ import typing as t
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._inferred_base_service import detect_service
 from ddtrace.internal.utils.formats import asbool
 
@@ -16,8 +17,8 @@ log = logging.getLogger(__name__)
 
 def _validate_schema(version: str) -> bool:
     error_message = (
-        "You have specified an invalid span attribute schema version: '{}'.".format(version),
-        "Valid options are: {}. You can change the specified value by updating".format(VALID_VERSIONS),
+        f"You have specified an invalid span attribute schema version: '{version}'.",
+        f"Valid options are: {VALID_VERSIONS}. You can change the specified value by updating",
         "the value exported in the 'DD_TRACE_SPAN_ATTRIBUTE_SCHEMA' environment variable.",
     )
 
@@ -30,7 +31,8 @@ def _validate_schema(version: str) -> bool:
 
 def _get_schema_version() -> t.Any:
     version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
-    if not _validate_schema(version):
+    if not _validate_schema(version) or agent_config._trace_otel_semantics_enabled:
+        # Two module scopes call this, so the conflict is reported once from Config instead.
         version = "v0"
     return version
 

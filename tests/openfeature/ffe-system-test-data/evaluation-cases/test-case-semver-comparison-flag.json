@@ -1,0 +1,169 @@
+[
+  {
+    "attributes": {
+      "app_version": "1.2.3-alpha.4"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "legacy"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "1.2.3-alpha.5"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "legacy"
+    },
+    "targetingKey": "bob",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "2.3.4"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "stable"
+    },
+    "targetingKey": "carol",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "2.9.1"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "stable"
+    },
+    "targetingKey": "dave",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "3.4.5-beta.1"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "stable"
+    },
+    "targetingKey": "eve",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "3.4.5-beta.2"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "beta"
+    },
+    "targetingKey": "frank",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "4.5.6-rc.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "beta"
+    },
+    "targetingKey": "grace",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "4.5.6-rc.1"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "launch"
+    },
+    "targetingKey": "henry",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "4.5.6-rc.1+build.42"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "launch"
+    },
+    "targetingKey": "mia",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "4.5.6"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "future"
+    },
+    "targetingKey": "iris",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "5.6.7"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "DEFAULT",
+      "value": "unknown"
+    },
+    "targetingKey": "jane",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "app_version": "not-a-semver"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "DEFAULT",
+      "value": "unknown"
+    },
+    "targetingKey": "kyle",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {},
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "DEFAULT",
+      "value": "unknown"
+    },
+    "targetingKey": "liam",
+    "variationType": "STRING"
+  }
+]

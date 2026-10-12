@@ -1,7 +1,6 @@
 from types import ModuleType
 from typing import Any
 from typing import Optional
-from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -27,7 +26,7 @@ class UntrustedSerialization(VulnerabilityBase):
     secure_mark = VulnerabilityType.UNTRUSTED_SERIALIZATION
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
@@ -112,7 +111,7 @@ def _is_yaml_safe_load(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
     return loader is not None and loader is _yaml_safe_loader
 
 
-def _iast_report_untrusted_serializastion(code_string: Optional[Text]) -> None:
+def _iast_report_untrusted_serializastion(code_string: Optional[str]) -> None:
     try:
         if is_iast_request_enabled():
             if (

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from contextlib import asynccontextmanager
 import copy
@@ -10,6 +12,7 @@ from typing import cast
 
 import pytest
 
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
@@ -488,7 +491,7 @@ async def test_double_async_for_with_exception():
     class StreamConsumed(Exception):
         pass
 
-    class AsyncIteratorByteStream(object):
+    class AsyncIteratorByteStream:
         def __init__(self, stream):
             self._stream = stream
             self._is_stream_consumed = False
@@ -1188,6 +1191,55 @@ async def test_wrapping_context_async_generator():
 
 
 @pytest.mark.asyncio
+async def test_wrapping_context_async_generator_exc():
+    # On Python 3.10 the context head must be placed after GEN_START, otherwise
+    # GEN_START pops the __exit__ method and the exception surfaces as a
+    # TypeError instead of the original one.
+    async def arange(count):
+        for i in range(count):
+            yield i
+            await asyncio.sleep(0.0)
+        raise ValueError("foo")
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    a = []
+    with pytest.raises(ValueError, match="foo"):
+        async for _ in arange(3):
+            a.append(_)
+
+    assert a == list(range(3))
+
+    assert wc.entered
+    assert wc.return_value is NOTSET
+    assert wc.exited
+
+    assert wc.exc_info is not None
+    _type, exc, _ = wc.exc_info
+    assert _type is ValueError
+    assert exc.args == ("foo",)
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_generator_aclose():
+    async def arange(count):
+        for i in range(count):
+            yield i
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    agen = arange(10)
+    assert await agen.__anext__() == 0
+    await agen.aclose()
+
+    assert wc.entered
+    assert wc.exited
+    assert wc.exc_info[0] is GeneratorExit
+
+
+@pytest.mark.asyncio
 async def test_wrapping_context_async_happy() -> None:
     async def coro():
         return 1
@@ -1343,7 +1395,7 @@ class DummyLazyWrappingContext(LazyWrappingContext):
         return super().__enter__()
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 15), reason="LazyWrappingContext is eager on 3.15+")
+@pytest.mark.skipif(is_at_least_py(3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy():
     free = 42
 
@@ -1421,7 +1473,7 @@ def test_wrapping_context_lazy_multiple_wrappers():
     assert c1.count == c2.count == 0
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 15), reason="LazyWrappingContext is eager on 3.15+")
+@pytest.mark.skipif(is_at_least_py(3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy_unwrap_before_call():
     free = 42
 
@@ -1804,7 +1856,7 @@ def test_wrapping_context_thread_concurrent() -> None:
     errors: list[str] = []
 
     class ThreadIsolationContext(DummyWrappingContext):
-        def __enter__(self) -> "ThreadIsolationContext":
+        def __enter__(self) -> ThreadIsolationContext:
             super().__enter__()
             self.set("tid", threading.get_ident())
             return self
@@ -1852,7 +1904,7 @@ async def test_wrapping_context_async_recursive() -> None:
     values: list[tuple[str, int]] = []
 
     class AsyncRecursiveContext(DummyWrappingContext):
-        def __enter__(self) -> "AsyncRecursiveContext":
+        def __enter__(self) -> AsyncRecursiveContext:
             super().__enter__()
             n: int = self.__frame__.f_locals["n"]
             self.set("n", n)

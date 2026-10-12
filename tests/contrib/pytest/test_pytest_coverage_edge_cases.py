@@ -1,8 +1,7 @@
 """Test edge cases for coverage collection."""
 
 import threading
-
-import mock
+from unittest import mock
 
 from ddtrace.contrib.internal.pytest._plugin_v2 import _current_coverage_collector
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings

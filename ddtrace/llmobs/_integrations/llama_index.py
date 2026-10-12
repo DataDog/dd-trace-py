@@ -150,7 +150,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
                     # Single query: one embedding vector
                     embedding_count = 1
                     embedding_dim = len(response)
-                output_value = "[{} embedding(s) returned with size {}]".format(embedding_count, embedding_dim)
+                output_value = f"[{embedding_count} embedding(s) returned with size {embedding_dim}]"
 
         _annotate_llmobs_span_data(
             span,

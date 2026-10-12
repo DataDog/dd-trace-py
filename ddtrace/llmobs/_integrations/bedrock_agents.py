@@ -10,6 +10,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -57,6 +58,8 @@ def _build_step_span(
 ) -> Span:
     # activate=False so the post-stream reconstructed spans don't pollute the active context.
     span = tracer.start_span(span_name, child_of=parent, span_type=SpanTypes.LLM, activate=False)
+    # Step spans are only built when LLMObs is enabled (see translate_bedrock_traces).
+    span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1)
     span.start_ns = int(start_ns if start_ns is not None else root_span.start_ns)
 
     annotate_kwargs: dict[str, Any] = {
@@ -142,7 +145,7 @@ def _get_or_create_bedrock_trace_step_span(
         return step_span
     trace_type = _extract_trace_type(trace) or "Bedrock Agent"
     step_span = _build_step_span(
-        "{} Step".format(trace_type),
+        f"{trace_type} Step",
         root_span,
         root_span,
         "workflow",
