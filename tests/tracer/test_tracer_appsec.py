@@ -225,9 +225,16 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
 
 
-@pytest.mark.parametrize("sca_enabled", ["true", "false"])
-@pytest.mark.parametrize("appsec_enabled", [True, False])
-@pytest.mark.parametrize("iast_enabled", [True, False])
+@pytest.mark.subprocess(
+    parametrize={
+        "sca_enabled",
+        ["true", "false"],
+        "appsec_enabled",
+        [True, False],
+        "iast_enabled",
+        [True, False],
+    }
+)
 def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
