@@ -2597,7 +2597,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.1.0']
         - name: sqlalchemy
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.2.4']
   starlette:
     venvs_per_job: 5
