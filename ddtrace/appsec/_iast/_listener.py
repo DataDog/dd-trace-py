@@ -1,3 +1,4 @@
+import sys
 from types import TracebackType
 from typing import Optional
 
@@ -72,6 +73,26 @@ def iast_listen():
         core.on(f"{integration}.patch", _on_sql_integration_patch)
 
     langchain_listen(core)
+
+    _replay_missed_patch_events()
+
+
+def _replay_missed_patch_events():
+    # Integrations dispatch their "<name>.patch" event once, guarded by their patch flag. When IAST is
+    # enabled after they were patched (e.g. Tracer.configure(iast_enabled=True)), nobody was listening,
+    # so run the handlers here to avoid silently missing sources and sinks.
+    fastapi = sys.modules.get("fastapi")
+    if fastapi is not None and getattr(fastapi, "_datadog_patch", False):
+        _on_iast_fastapi_patch()
+
+    sql_modules = (
+        (sys.modules.get("mysql"), "_datadog_patch"),
+        (sys.modules.get("MySQLdb"), "_datadog_patch"),
+        (sys.modules.get("sqlalchemy.engine"), "__datadog_patch"),
+        (sys.modules.get("sqlite3"), "_datadog_patch"),
+    )
+    if any(module is not None and getattr(module, flag, False) for module, flag in sql_modules):
+        _on_sql_integration_patch()
 
 
 def _on_grpc_server_response(message):
