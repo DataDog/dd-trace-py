@@ -28,10 +28,6 @@ SPECIAL_CASES_ALLOWLIST = {
     "celery": ">=4.4",
     # pytest 6.0 cannot be tested due to our tests targeting later pytest versions.
     "pytest": ">=6.0",
-    # Dedicated mysql-connector suite was never migrated to suitespec after Riot removal
-    # (#19713). Registry regen only sees sqlalchemy's unpinned mysql-connector-python pins
-    # (9.4+), so min tested drifts above the supported >=8.0.5 claim.
-    "mysql": ">=8.0.5",
 }
 
 
