@@ -1,14 +1,17 @@
 from dataclasses import dataclass
 from enum import Enum
+from http.client import HTTPConnection
+from typing import Any
 from typing import Callable
+from typing import Generic
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpBaseEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.contrib._events.http import _HttpResponse
-from ddtrace.contrib._events.http import _HttpResponseWithStatusCode
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import Event
@@ -27,21 +30,8 @@ class HttpClientEvents(Enum):
     HTTP_SEND_REQUEST = "http.client.send_request"
     HTTPX_SEND_REQUEST = "httpx.send_request"
     REQUESTS_REQUEST = "requests.request"
-
-
-@dataclass
-class RequestsRequestEvent(Event):
-    """A Session.request call before Requests prepares the original URL.
-
-    Unlike the traced Session.send event, this scope includes preparation and all redirect
-    hops and exists even when tracing skips the call. Consumers inspect the native response
-    only when needed; the producer never reads its body.
-    """
-
-    event_name = HttpClientEvents.REQUESTS_REQUEST.value
-
-    request_url: object = event_field()
-    response: Optional[_HttpResponseWithStatusCode] = event_field(default=None)
+    HTTPLIB_REQUEST = "httplib.request"
+    HTTPLIB_RESPONSE = "httplib.response"
 
 
 @dataclass
@@ -77,4 +67,17 @@ class HttpClientSendEvent(HttpBaseEvent):
     """
 
     event_name = HttpClientEvents.HTTP_SEND_REQUEST.value
-    request_body: Callable[[], Union[str, bytes]] = event_field()
+    # Keep native bodies lazy: clients can provide bytes, text, streams, or no body.
+    request_body: Callable[[], Any] = event_field()
+    connection: Optional[HTTPConnection] = event_field(default=None)
+
+
+ResponseType = TypeVar("ResponseType")
+
+
+@dataclass
+class HttpClientResponseEvent(Event, Generic[ResponseType]):
+    """A native response returned separately from the call that sent the request."""
+
+    event_name = HttpClientEvents.HTTPLIB_RESPONSE.value
+    response: ResponseType = event_field()

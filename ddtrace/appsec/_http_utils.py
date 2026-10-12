@@ -1,9 +1,11 @@
 import base64
+from collections.abc import Iterable
 from collections.abc import Mapping
 from collections.abc import MutableMapping
 from http.cookies import SimpleCookie
 import json
 from typing import Optional
+from typing import Union
 from urllib.parse import parse_qs
 
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
@@ -72,3 +74,17 @@ def extract_cookies_from_headers(
                 cookie.load(header)
             return {k: v.value for k, v in cookie.items()}
     return None
+
+
+def build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[str]]]:
+    res: dict[str, Union[str, list[str]]] = {}
+    for a, b in lst:
+        if a in res:
+            v = res[a]
+            if isinstance(v, str):
+                res[a] = [v, b]
+            else:
+                v.append(b)
+        else:
+            res[a] = b
+    return res

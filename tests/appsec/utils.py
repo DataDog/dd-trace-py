@@ -3,7 +3,10 @@ import sys
 import typing
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._processor import AppSecSpanProcessor
+from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import _observator
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
 from ddtrace.trace import Span
@@ -92,3 +95,7 @@ def asm_context(
 
 def is_blocked(span: Span) -> bool:
     return span.get_tag("appsec.blocked") == "true" and span.get_tag("appsec.event") == "true"
+
+
+def blocking_waf_result():
+    return DDWaf_result(1, [], {WAF_ACTIONS.BLOCK_ACTION: {}}, 0.0, 0.0, False, _observator(), {})

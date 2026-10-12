@@ -3,6 +3,7 @@ from types import TracebackType
 from typing import Any
 from typing import ClassVar
 from typing import Optional
+from typing import cast
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -11,7 +12,9 @@ from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import get_rasp_capability
-from ddtrace.contrib._events.http_client import RequestsRequestEvent
+from ddtrace.contrib._events.http import _HttpResponseWithStatusCode
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import ContextSubscriber
 
@@ -19,13 +22,13 @@ from ddtrace.internal.core.subscriber import ContextSubscriber
 APPSEC_REQUESTS_CONTEXT_KEY = "appsec.requests.activation"
 
 
-class AppSecRequestsSubscriber(ContextSubscriber[RequestsRequestEvent]):
+class AppSecRequestsSubscriber(ContextSubscriber[HttpClientRequestEvent]):
     auto_register = False
-    event_names = (RequestsRequestEvent.event_name,)
+    event_names = (HttpClientEvents.REQUESTS_REQUEST.value,)
     activation: ClassVar[Optional[object]] = None
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext[RequestsRequestEvent]) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
         activation = cls.activation
         if activation is None or not get_rasp_capability("ssrf"):
             return
@@ -42,12 +45,12 @@ class AppSecRequestsSubscriber(ContextSubscriber[RequestsRequestEvent]):
         ctx.set_item(APPSEC_REQUESTS_CONTEXT_KEY, activation)
         ctx.set_item("full_url", url)
         ctx.set_item("use_body", should_analyze_body_response(asm_context))
-        open_rasp_subcontext_scope()
+        open_rasp_subcontext_scope(inherit=False)
 
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext[RequestsRequestEvent],
+        ctx: core.ExecutionContext[HttpClientRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         # A later activation cannot finish an operation that was disabled in flight.
@@ -57,7 +60,10 @@ class AppSecRequestsSubscriber(ContextSubscriber[RequestsRequestEvent]):
             return
 
         response = ctx.event.response
-        if response is None or response.__class__.__name__ != "Response" or 300 <= response.status_code < 400:
+        if response is None or response.__class__.__name__ != "Response":
+            return
+        response = cast(_HttpResponseWithStatusCode, response)
+        if 300 <= response.status_code < 400:
             return
 
         addresses: dict[str, Any] = {

@@ -199,6 +199,7 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
 # (which walks up the context tree), and it is released when that scope ends.
 
 _RASP_SUBCONTEXT = "asm::rasp_subcontext"
+SSRF_REQUEST_ANALYZED = "asm::ssrf_request_analyzed"
 
 _SSRF_RULE_TYPES = frozenset(
     (
@@ -216,7 +217,7 @@ class _RaspSubcontextHolder:
         self.subctx: Optional[Any] = None
 
 
-def open_rasp_subcontext_scope() -> None:
+def open_rasp_subcontext_scope(inherit: bool = True) -> None:
     """Establish the current core context as the owner of an SSRF subcontext.
 
     Called by SSRF integrations from the per-outgoing-request core context (``url_open_analysis``,
@@ -227,8 +228,9 @@ def open_rasp_subcontext_scope() -> None:
 
     Reentrant: if an enclosing scope already owns a holder (e.g. ``requests`` driving ``urllib3``),
     this is a no-op and the inner operation shares the outer subcontext.
+    Pass inherit=False at an independent client API boundary, including calls from response hooks.
     """
-    if core.find_item(_RASP_SUBCONTEXT) is None:
+    if not inherit or core.find_item(_RASP_SUBCONTEXT) is None:
         core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
 
 
