@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Awaitable
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 from typing import Any
 
 import temporalio.client
@@ -16,15 +15,11 @@ from .constants import OperationNames
 from .constants import SpanAttributes
 
 
-if TYPE_CHECKING:
-    from .interceptor import DatadogTracingInterceptor
-
-
 class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.client.OutboundInterceptor,
-        root: DatadogTracingInterceptor,
+        root: Any,  # DatadogTracingInterceptor; not imported to avoid a circular import with .interceptor
     ) -> None:
         super().__init__(next)
         self.root = root

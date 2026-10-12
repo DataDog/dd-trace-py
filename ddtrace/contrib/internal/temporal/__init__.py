@@ -15,8 +15,8 @@ Usage (manual)::
     client = await Client.connect("localhost:7233", interceptors=[interceptor])
 
 Or enable automatically via :func:`ddtrace.patch` (auto-injects a default
-interceptor into every ``Client`` and registers the ``ddtrace`` namespace as
-passthrough with the Temporal workflow sandbox so workflow code can call
+interceptor into every ``Client`` and allows the ``ddtrace`` namespace through
+the Temporal workflow sandbox so workflow code can call
 ``span_from_workflow_context``)::
 
     from ddtrace import patch

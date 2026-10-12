@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from typing import Any
 
 import nexusrpc.handler
@@ -12,15 +11,11 @@ from .constants import OperationNames
 from .constants import SpanAttributes
 
 
-if TYPE_CHECKING:
-    from .interceptor import DatadogTracingInterceptor
-
-
 class _NexusOperationInboundInterceptor(temporalio.worker.NexusOperationInboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.worker.NexusOperationInboundInterceptor,
-        root: DatadogTracingInterceptor,
+        root: Any,  # DatadogTracingInterceptor; not imported to avoid a circular import with .interceptor
     ) -> None:
         super().__init__(next)
         self.root = root
