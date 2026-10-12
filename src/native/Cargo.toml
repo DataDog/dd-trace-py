@@ -97,6 +97,6 @@ path = "lib.rs"
 crate-type = ["cdylib"]
 
 [target.'cfg(any(target_os = "windows", all(target_pointer_width = "64", any(target_os = "linux", target_os = "macos"))))'.dependencies]
-libddwaf = { git = "https://github.com/DataDog/libddwaf-rust", rev = "b7569bea223b1eb329944154d95bf804fa9fae67", default-features = false, optional = true }
+libddwaf = { git = "https://github.com/DataDog/libddwaf-rust", rev = "7e044bf5b0d7de03c8eefcc49c5cfd047486057d", default-features = false, optional = true }
 # The high-level crate does not forward the downloader's TLS provider features.
-libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", rev = "b7569bea223b1eb329944154d95bf804fa9fae67", default-features = false, features = ["ring"], optional = true }
+libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", rev = "7e044bf5b0d7de03c8eefcc49c5cfd047486057d", default-features = false, features = ["ring"], optional = true }

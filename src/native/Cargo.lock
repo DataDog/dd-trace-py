@@ -2358,7 +2358,7 @@ dependencies = [
 [[package]]
 name = "libddwaf"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=b7569bea223b1eb329944154d95bf804fa9fae67#b7569bea223b1eb329944154d95bf804fa9fae67"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=7e044bf5b0d7de03c8eefcc49c5cfd047486057d#7e044bf5b0d7de03c8eefcc49c5cfd047486057d"
 dependencies = [
  "libddwaf-sys",
 ]
@@ -2366,7 +2366,7 @@ dependencies = [
 [[package]]
 name = "libddwaf-sys"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=b7569bea223b1eb329944154d95bf804fa9fae67#b7569bea223b1eb329944154d95bf804fa9fae67"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=7e044bf5b0d7de03c8eefcc49c5cfd047486057d#7e044bf5b0d7de03c8eefcc49c5cfd047486057d"
 dependencies = [
  "bindgen",
  "flate2",
