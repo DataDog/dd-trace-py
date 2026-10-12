@@ -5,7 +5,7 @@ from tests.suitespec import _test_environment_hash
 
 _NAME: str = "contrib::flask"
 _PYTHON: str = "3.12"
-# Mixed case so a default ``sorted()`` payload differs from ``str.casefold``.
+# Mixed case so a default sorted() payload differs from str.casefold.
 _DEPS: tuple[str, ...] = ("requests", "Zope", "Flask>=2")
 _DIGEST: str = "143e39bc2db5"
 
