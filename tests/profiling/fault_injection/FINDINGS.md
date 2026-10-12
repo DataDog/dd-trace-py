@@ -1,7 +1,8 @@
 # Fault-injection findings — profiler lifecycle suite (py3.12, run 2025-xx-xx on r1)
 
 Run: `DD_TEST_PODMAN_COMPAT=1 scripts/run-tests --venv e7cd703 -- -k "lifecycle_faults or thread_faults or outlive_profiler" -p no:randomly`
-Result: **17 failed, 14 passed, 499 deselected** (34.6s).
+Result: **17 failed, 14 passed, 499 deselected** (34.6s). *(Post-hoc verification below
+reclassifies F1/F2/F4 — the only profiler bugs standing are F3 (confirmed) and F5 (open).)*
 
 > Reading guide: several late failures show 3 leaked `ddtrace.profiling.scheduler:Scheduler`
 > threads with *identical object addresses* — that is cross-test pollution from findings F1/F2
@@ -76,9 +77,23 @@ Leaked threads from F1/F2 persist in the process-global registry and make every 
 
 | Ticket | Finding | Component | Type |
 |---|---|---|---|
-| 1 | F3 | profiling (PeriodicThread/join/atexit) | bug, high |
-| 2 | F1+F2 | profiling (scheduler stop/exception handling) | bug, med-high |
-| 3 | F5 | profiling (lock collector data integrity) | investigation |
-| 4 | F4 | tests/profiling/fault_injection (arm point) | test bug |
-| 5 | F6 | telemetry lifecycle vs product activation | doc/behavior |
-| 6 | F7+F8 | fault_injection framework | test hygiene |
+| 1 | F3 | profiling (PeriodicThread join / atexit) | bug, high |
+| 2 | F5 | profiling (lock collector data integrity) | investigation |
+| 3 | F8 (+ F1/F2/F4 reclassification) | tests/profiling/fault_injection (isolation, teardown, oracle diff) | test framework |
+| 4 | F6 | telemetry lifecycle vs product activation | doc/behavior |
+| 5 | F7 | fault_injection fork test stderr | test hygiene |
+
+### Post-hoc verification (isolated reruns + standalone repros, see repro/INVESTIGATION.md)
+
+- **F1/F2 reclassified as pollution artifacts**: the 5 leak/fire tests PASS when run in
+  isolation (`-k "test_run_fault_raises_every_flush or test_stop_fault_final_upload_raises or
+  test_stop_fault_collector_stop_raises"` — all green, 5.67s); the full-run "leaks" were
+  scheduler threads abandoned by tests failing before their stop (see F8).
+- **F4 is order-dependent harness state**: the stack-snapshot arm fires in a fresh process;
+  deterministic full-run suppression — bisectable.
+- **F3 confirmed** standalone (stop-wedge AND process-exit-wedge) and in-suite (xfailed).
+- **F6 clarified**: the telemetry `_TelemetryDependencyCollector` thread is an import-time
+  global (running before any `Profiler.start()`, persists through stop) — the pin test's
+  assumption was wrong.
+- **F7 confirmed** standalone.
+- Full-suite failures are **deterministic** (15 failed + 2 xfailed, same set on rerun).
