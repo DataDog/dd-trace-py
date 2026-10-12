@@ -1,0 +1,5 @@
+fixes:
+  - |
+    CI Visibility: Fixes excessive memory use when generating Code Coverage
+    reports for large projects when using coverage.py, particularly
+    when tests run with multiple workers.

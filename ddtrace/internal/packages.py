@@ -639,7 +639,9 @@ def _reset_prefetch_after_fork() -> None:
 def _entry_records(entry: str, module_suffixes: list[str], warn: _WarnBadDist) -> t.Optional[list[_DistributionRecord]]:
     """Records for the distributions under one sys.path entry; None if the scan failed."""
     try:
-        dists, errors = scan_distributions(entry, module_suffixes)
+        # Only the prefetch thread, which is joined before interpreter shutdown,
+        # may release the GIL: see scan_distributions.
+        dists, errors = scan_distributions(entry, module_suffixes, getattr(_IN_PREFETCH, "active", False))
     except Exception as exc:
         warn(entry, exc)
         return None

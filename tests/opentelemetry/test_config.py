@@ -293,6 +293,7 @@ def test_otel_resource_attributes_unified_tags():
     assert config.service == "bleh"
     assert config.version == "1.0"
     assert config.env == "prod"
+    assert config.tags == {"env": "prod"}
 
 
 @pytest.mark.subprocess(
@@ -302,6 +303,7 @@ def test_otel_resource_attributes_prefer_stable_environment():
     from ddtrace import config
 
     assert config.env == "stable"
+    assert config.tags == {"env": "stable"}
 
 
 @pytest.mark.subprocess(
