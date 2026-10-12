@@ -10,15 +10,15 @@ from typing import Any
 from ruamel.yaml import YAML  # noqa
 
 
-TESTS: Path = Path(__file__).parents[1] / "tests"
-BENCHMARKS: Path = Path(__file__).parents[1] / "benchmarks"
-SEARCH_ROOTS: tuple[tuple[Path, str], ...] = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
-LOCK_ROOT: Path = Path("tests/requirements_locks")
-LOCK_PLATFORM: str = "linux"
+TESTS = Path(__file__).parents[1] / "tests"
+BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
+SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
+LOCK_ROOT = Path("tests/requirements_locks")
+LOCK_PLATFORM = "linux"
 
-_REQUIREMENT_NAME: re.Pattern[str] = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
+_REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
 
-DEFAULT_DEPENDENCIES: tuple[str, ...] = (
+DEFAULT_DEPENDENCIES = (
     "mock",
     "pytest",
     "pytest-mock",
@@ -27,8 +27,8 @@ DEFAULT_DEPENDENCIES: tuple[str, ...] = (
     "opentracing",
     "hypothesis<6.45.1",
 )
-DEFAULT_PYTHON_VERSIONS: tuple[str, ...] = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14")
-DEFAULT_ENVIRONMENT: dict[str, str] = {
+DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14")
+DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
@@ -42,33 +42,33 @@ DEFAULT_ENVIRONMENT: dict[str, str] = {
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
-NIGHTLY_ENVIRONMENT: dict[str, str] = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
+NIGHTLY_ENVIRONMENT = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
 
 
 class MatrixError(ValueError):
     """Raised when a test matrix declaration is invalid."""
 
 
-def _collect_suitespecs() -> dict[str, Any]:
-    suitespec: dict[str, Any] = {"components": {}, "suites": {}}
+def _collect_suitespecs() -> dict:
+    suitespec = {"components": {}, "suites": {}}
 
-    specfiles: list[tuple[Path, Path, str]] = []
+    specfiles = []
     for root, ns_prefix in SEARCH_ROOTS:
         for f in root.rglob("suitespec.yml"):
             specfiles.append((f, root, ns_prefix))
 
     for s, root, ns_prefix in specfiles:
-        path_parts: tuple[str, ...] = s.relative_to(root).parts[:-1]
-        namespace: str | None = "::".join(path_parts) if path_parts else ns_prefix or None
+        path_parts = s.relative_to(root).parts[:-1]
+        namespace = "::".join(path_parts) if path_parts else ns_prefix or None
         with YAML(typ="safe") as yaml:
-            data: Any = yaml.load(s)
+            data = yaml.load(s)
         suitespec["components"].update(data.get("components", {}))
 
-        source: str = s.relative_to(TESTS.parent).as_posix()
+        source = s.relative_to(TESTS.parent).as_posix()
         for name, value in data["suites"].items():
-            spec: dict[str, Any] = value.copy()
+            spec = value.copy()
             spec["paths"] = [*spec["paths"], source]
-            full_name: str = f"{namespace}::{name}" if namespace is not None else name
+            full_name = f"{namespace}::{name}" if namespace is not None else name
             if namespace is not None and "pattern" not in spec:
                 spec["pattern"] = name
             suitespec["suites"][full_name] = spec
@@ -76,7 +76,7 @@ def _collect_suitespecs() -> dict[str, Any]:
     return suitespec
 
 
-SUITESPEC: dict[str, Any] = _collect_suitespecs()
+SUITESPEC = _collect_suitespecs()
 
 
 @cache
@@ -92,19 +92,19 @@ def get_patterns(suite: str) -> set[str]:
     >>> get_patterns("foobar")
     set()
     """
-    compos: dict[str, Any] = SUITESPEC["components"]
+    compos = SUITESPEC["components"]
     if suite not in SUITESPEC["suites"]:
         return set()
 
-    suite_patterns: set[str] = set(SUITESPEC["suites"][suite]["paths"])
+    suite_patterns = set(SUITESPEC["suites"][suite]["paths"])
 
     # Include patterns from include-always components
     for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
         suite_patterns |= set(patterns)
 
-    def resolve(patterns: set[str]) -> set[str]:
-        refs: set[str] = {_ for _ in patterns if _.startswith("@")}
-        resolved_patterns: set[str] = patterns - refs
+    def resolve(patterns: set) -> set:
+        refs = {_ for _ in patterns if _.startswith("@")}
+        resolved_patterns = patterns - refs
 
         # Recursively resolve references
         for ref in refs:
@@ -118,7 +118,7 @@ def get_patterns(suite: str) -> set[str]:
     return {_.format(suite=suite.replace("::", ".")) for _ in resolve(suite_patterns)}
 
 
-def get_suites() -> dict[str, dict[str, Any]]:
+def get_suites() -> dict[str, dict]:
     """Get the list of suites."""
     return SUITESPEC["suites"]
 
@@ -156,11 +156,9 @@ class TestEnvironment:
 
 
 def _requirement_key(requirement: str) -> str:
-    match: re.Match[str] | None = _REQUIREMENT_NAME.match(requirement)
+    match = _REQUIREMENT_NAME.match(requirement)
     if match is None:
         raise MatrixError(f"invalid dependency requirement: {requirement}")
-    name: str
-    extras: str | None
     name, extras = match.groups()
     return f"{name}{extras or ''}".lower().replace("_", "-")
 
@@ -181,9 +179,9 @@ def _merge_dependencies(*groups: tuple[str, ...]) -> tuple[str, ...]:
     merged: dict[str, str] = {}
     for group in groups:
         for requirement in group:
-            name: str = _requirement_key(requirement)
+            name = _requirement_key(requirement)
             _, separator, marker = requirement.partition(";")
-            key: str = f"{name};{marker.strip()}" if separator else name
+            key = f"{name};{marker.strip()}" if separator else name
             merged[key] = requirement
     return tuple(merged.values())
 
@@ -198,12 +196,12 @@ def _runs(
     if not run_specs:
         raise MatrixError("runs must not be empty")
 
-    runs: list[TestRun] = []
+    runs = []
     for run in run_specs:
-        run_environment: dict[str, str] = base_environment.copy()
+        run_environment = base_environment.copy()
         if "env" in run:
             run_environment.update(run["env"])
-        run_command: str | None = run.get("command", command)
+        run_command = run.get("command", command)
         if not isinstance(run_command, str):
             raise MatrixError("each matrix run needs a command")
         runs.append(TestRun(command=run_command, env=tuple(sorted(run_environment.items()))))
@@ -217,8 +215,8 @@ def _variant_settings(
     variant: dict[str, Any],
     nightly: bool,
 ) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
-    dependencies: tuple[str, ...] = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
-    environment: dict[str, str] = DEFAULT_ENVIRONMENT.copy()
+    dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
+    environment = DEFAULT_ENVIRONMENT.copy()
     if nightly:
         environment.update(NIGHTLY_ENVIRONMENT)
     if "env" in matrix:
@@ -226,9 +224,9 @@ def _variant_settings(
     if "env" in variant:
         environment.update(variant["env"])
 
-    command: str | None = variant.get("command", matrix.get("command"))
-    run_specs: list[dict[str, Any]] | None = variant.get("runs", matrix.get("runs"))
-    integration: str = variant.get("integration", suite_config.get("integration", variant["name"].split(":", 1)[0]))
+    command = variant.get("command", matrix.get("command"))
+    run_specs = variant.get("runs", matrix.get("runs"))
+    integration = variant.get("integration", suite_config.get("integration", variant["name"].split(":", 1)[0]))
     return dependencies, integration, _runs(command, environment, run_specs)
 
 
@@ -239,24 +237,20 @@ def _expand_suite_matrix(
     nightly: bool,
 ) -> tuple[TestEnvironment, ...]:
     """Expand one compact suite matrix into concrete test environments."""
-    matrix: dict[str, Any] = suite_config["matrix"]
-    variants: list[dict[str, Any]] = matrix["variants"]
+    matrix = suite_config["matrix"]
+    variants = matrix["variants"]
     if not variants:
         raise MatrixError(f"variants for {suite} must not be empty")
 
-    environments: list[TestEnvironment] = []
+    environments = []
     for variant in variants:
-        raw_name: Any = variant.get("name")
-        if not isinstance(raw_name, str) or not raw_name.strip():
+        name = variant.get("name")
+        if not isinstance(name, str) or not name.strip():
             raise MatrixError(f"every variant for {suite} needs a name")
-        name: str = raw_name
-        python_value: Any = variant.get("python", matrix.get("python", DEFAULT_PYTHON_VERSIONS))
-        python_versions: tuple[str, ...] = tuple(python_value)
+        python_value = variant.get("python", matrix.get("python", DEFAULT_PYTHON_VERSIONS))
+        python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies: tuple[str, ...]
-        integration: str
-        runs: tuple[TestRun, ...]
         dependencies, integration, runs = _variant_settings(
             suite,
             suite_config,
@@ -282,7 +276,7 @@ def _expand_suite_matrix(
 @cache
 def get_test_environments(*, nightly: bool) -> dict[str, tuple[TestEnvironment, ...]]:
     """Return every concrete test environment declared by suitespec."""
-    environments: dict[str, tuple[TestEnvironment, ...]] = {
+    environments = {
         suite: _expand_suite_matrix(suite, config, nightly=nightly)
         for suite, config in get_suites().items()
         if "matrix" in config
@@ -291,7 +285,7 @@ def get_test_environments(*, nightly: bool) -> dict[str, tuple[TestEnvironment, 
     for matrix in environments.values():
         for environment in matrix:
             if environment.hash in hashes:
-                other: TestEnvironment = hashes[environment.hash]
+                other = hashes[environment.hash]
                 raise MatrixError(
                     f"environment hash {environment.hash} is shared by {other.suite}/{other.name} "
                     f"and {environment.suite}/{environment.name}"
