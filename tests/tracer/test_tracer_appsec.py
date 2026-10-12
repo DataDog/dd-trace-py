@@ -227,12 +227,9 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
 
 @pytest.mark.subprocess(
     parametrize={
-        "sca_enabled",
-        ["true", "false"],
-        "appsec_enabled",
-        [True, False],
-        "iast_enabled",
-        [True, False],
+        "sca_enabled": ["true", "false"],
+        "appsec_enabled": [True, False],
+        "iast_enabled": [True, False],
     }
 )
 def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer):

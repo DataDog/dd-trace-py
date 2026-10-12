@@ -631,7 +631,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check test locks",
         command="scripts/test-requirements check",
-        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-requirements", "tests/suitespec.py"},
+        paths={"**/suitespec.yml", "tests/requirements_locks/*", "scripts/test-requirements", "tests/suitespec.py"},
     )
     check(
         name="Check microbenchmark SLO ownership",

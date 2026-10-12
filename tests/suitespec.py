@@ -13,7 +13,7 @@ from ruamel.yaml import YAML  # noqa
 TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
 SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
-LOCK_ROOT = Path(".riot/requirements")
+LOCK_ROOT = Path("tests/requirements_locks")
 LOCK_PLATFORM = "linux"
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
@@ -27,7 +27,7 @@ DEFAULT_DEPENDENCIES = (
     "opentracing",
     "hypothesis<6.45.1",
 )
-DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14")
+DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15")
 DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",
