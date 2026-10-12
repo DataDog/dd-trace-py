@@ -59,7 +59,10 @@ def _normalize_foreign_handler_owner_component(component: str) -> str:
         if offset and all(ch in _HEX_DIGITS for ch in offset):
             path = path[:offset_sep]
     basename: str = os.path.basename(path)
-    return (basename or path) + why
+    # add_log joins tags on commas; a basename that contains one would become an
+    # extra tag and scramble the rest of the payload.
+    owner_tag: str = (basename or path).replace(",", "_")
+    return owner_tag + why
 
 
 def _normalize_foreign_handler_owner(owner: str) -> str:

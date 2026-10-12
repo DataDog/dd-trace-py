@@ -32,7 +32,8 @@ struct SamplingThreadError
     std::string message;
 };
 
-// already_owned: foreign at warmup end. sampling_stopped: no syscall fallback, sampling ended.
+// already_owned: foreign at warmup end, or foreign on the first check when warmup
+// never ran (no syscall fallback). sampling_stopped: no syscall fallback, sampling ended.
 struct ForeignSegvHandler
 {
     bool already_owned;

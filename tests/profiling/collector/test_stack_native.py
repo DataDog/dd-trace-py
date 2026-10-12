@@ -85,7 +85,7 @@ def test_native_call_registry_is_bounded_for_dynamic_code() -> None:
             )
             namespace["f"]('{"value": "abcxdef"}')  # type: ignore[operator]
 
-        assert _stack._native_call_registry_size() == 4096  # type: ignore[attr-defined]
+        assert _stack._native_call_registry_size() == 4096
     finally:
         native_call_monitor.stop()
 
@@ -1659,10 +1659,15 @@ def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: py
         ("/usr/lib/x86_64-linux-gnu/libfoo.so.1.0+dfsg+0xabc (bar)", "libfoo.so.1.0+dfsg"),
         ("/opt/foo (bar).so+0x7c4 (handler)", "foo (bar).so"),
         ("/opt/lib+0xdead.so", "lib+0xdead.so"),
+        # Comma is legal in a Linux basename; strip it so add_log tag joining stays intact.
+        ("/opt/libfoo,bar.so+0x7c4 (foo_handler)", "libfoo_bar.so"),
+        ("/opt/libfoo,bar.so+0x7c4 (foo_handler)+missing_sa_siginfo", "libfoo_bar.so+missing_sa_siginfo"),
     ],
 )
 def test_normalize_foreign_handler_owner_component(component: str, expected: str) -> None:
-    assert stack._normalize_foreign_handler_owner_component(component) == expected
+    got: str = stack._normalize_foreign_handler_owner_component(component)
+    assert got == expected
+    assert "," not in got
 
 
 @pytest.mark.parametrize(
