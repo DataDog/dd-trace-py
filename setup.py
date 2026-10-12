@@ -137,13 +137,6 @@ CARGO_TARGET_DIR = Path(
 ).absolute()
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
-# TODO(py-315): locked pyo3 is 0.28.3 (ABI3_MAX_MINOR = 14). Native 3.15
-# support is pyo3 0.29.0, but libdatadog v43.0.0 libdd-ffe still requires
-# pyo3 = "^0.28" and cargo cannot unify (both crates links = "python").
-# Keep this env-var workaround until libdd publishes a tag that allows ^0.29.
-if sys.version_info >= (3, 15):
-    os.environ.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
-
 
 def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
@@ -180,7 +173,7 @@ WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 LIBDDWAF_VERSION = "2.1.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v35.0.0 requires rust 1.87.0.
+# libdatadog v45.0.0 requires rust 1.87.0.
 RUST_MINIMUM_VERSION = "1.87.0"
 
 
