@@ -7,12 +7,11 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import sysconfig
 
 import pytest
 
+from ddtrace.internal.native import _native
 
-ROOT = Path(__file__).resolve().parents[3]
 
 LOADER = """
 import gc
@@ -42,9 +41,7 @@ rules = json.dumps({"version": "2.2", "rules": [{
 
 
 def probe(code):
-    artifact = os.environ.get("DD_WAF_TEST_EXTENSION") or str(
-        ROOT / "ddtrace/internal/native" / ("_native" + sysconfig.get_config_var("EXT_SUFFIX"))
-    )
+    artifact = os.environ.get("DD_WAF_TEST_EXTENSION") or _native.__file__
     assert Path(artifact).is_file(), artifact
     subprocess.run([sys.executable, "-c", LOADER + code, artifact], check=True, timeout=30)
 
