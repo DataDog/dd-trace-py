@@ -71,8 +71,8 @@ pub struct RequestFailedErrorPy {
 #[pymethods]
 impl RequestFailedErrorPy {
     #[new]
-    fn new(status: u16, body: String) -> (Self, HttpClientErrorPy) {
-        (Self { status, body }, HttpClientErrorPy)
+    fn new(status: u16, body: String) -> PyClassInitializer<Self> {
+        PyClassInitializer::from(HttpClientErrorPy).add_subclass(Self { status, body })
     }
 
     fn __str__(&self) -> String {
