@@ -102,8 +102,6 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/strands_hooks/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: ai_guard_strands
