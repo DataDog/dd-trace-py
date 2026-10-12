@@ -99,7 +99,8 @@ class TestRateSampler:
                     "sampling should give the same result for a given trace_id"
                 )
 
-    def test_deterministic_behavior_with_list_of_trace_ids(self):
+    @pytest.mark.parametrize("high_bits", [0, 0x123456789ABCDEF0])
+    def test_deterministic_behavior_with_list_of_trace_ids(self, high_bits):
         """Test that specific trace IDs are consistently kept or dropped"""
         sample_rate = 0.5
         rule = SamplingRule(sample_rate=sample_rate)
@@ -116,7 +117,7 @@ class TestRateSampler:
         ]
 
         for trace_id, expected_decision in test_cases:
-            span = Span(name="test.span", trace_id=trace_id)
+            span = Span(name="test.span", trace_id=(high_bits << 64) | trace_id)
 
             for _ in range(10):
                 rule_sample_decision = rule.sample(span)
@@ -127,9 +128,15 @@ class TestRateSampler:
                     f"and RateSampler:{rate_sample_decision}"
                 )
 
-    def test_negative_sample_rate_raises_error(self, tracer):
-        tracer._sampler = RateSampler(sample_rate=-0.5)
-        assert tracer._sampler.sample_rate == 0
+    @pytest.mark.parametrize("sample_rate,expected", [(-0.5, 0.0), (0.0, 0.0), (1.0, 1.0), (1.5, 1.0)])
+    def test_sample_rate_clamping(self, sample_rate, expected):
+        assert RateSampler(sample_rate=sample_rate).sample_rate == expected
+
+    @pytest.mark.parametrize("sample_rate", [0.0, 0.5, 1.0])
+    def test_zero_hash_is_kept(self, sample_rate):
+        # A valid 128-bit ID can have zero low bits; equality with the threshold still keeps it.
+        span = Span(name="test.span", trace_id=1 << 64)
+        assert RateSampler(sample_rate=sample_rate).sample(span)
 
     def test_sample_rate_0_does_not_reset_to_1(self, tracer):
         tracer._sampler = RateSampler(sample_rate=0)

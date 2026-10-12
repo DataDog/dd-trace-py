@@ -1,0 +1,5 @@
+"""Metadata limits shared by reporting products and the trace encoder."""
+
+MAX_SPAN_META_KEY_LEN = 200
+MAX_SPAN_META_VALUE_LEN = 25000
+TRUNCATED_SPAN_ATTRIBUTE_LEN = 2500

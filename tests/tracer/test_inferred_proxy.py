@@ -4,6 +4,26 @@ from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace.span import Span
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.inferred_spans import is_inferred_span
+
+
+@pytest.mark.parametrize("marker", [None, 1])
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("aws.apigateway", True),
+        ("aws.httpapi", True),
+        ("azure.apim", True),
+        ("gcp.pubsub.receive", True),
+        ("aws.lambda", False),
+        ("http.request", False),
+    ],
+)
+def test_inferred_carrier_identification(name, expected, marker):
+    span = Span(name)
+    if marker is not None:
+        span._set_attribute("_dd.inferred_span", marker)
+    assert is_inferred_span(span) is expected
 
 
 @pytest.mark.parametrize("missing_resource_path", [False, True])

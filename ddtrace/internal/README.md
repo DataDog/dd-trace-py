@@ -6,6 +6,25 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Shared reporting primitives
+
+Reporting products use these modules without importing tracing implementations:
+
+- `rate_sampler.RateSampler` makes deterministic decisions from the low 64 bits
+  of a carrier's trace ID. Construction clamps the rate to `[0, 1]`; the hash
+  comparison includes the threshold. It does not set sampling priorities.
+- `utils.endpoint.SimplifiedEndpointComputer` simplifies URL paths using the
+  same parameter rules and eight-segment limit for tracing and API Security.
+  Missing or malformed URLs produce `/`. Tracing owns when to apply that result
+  to a span; API Security owns when to use it for schema collection.
+- `_limits` owns metadata key/value limits and truncation length shared by
+  reporting products and the encoder.
+- `inferred_spans` identifies inferred carriers by their established operation
+  names, independently of the inferred-span marker. Tracing owns construction,
+  parenting, and completion of those carriers.
+
+The previous imports under `ddtrace._trace` remain available for compatibility.
+
 ## Coverage collection contexts
 
 `ModuleCodeCollector.CollectInContext` owns the line and file coverage for one

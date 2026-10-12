@@ -23,7 +23,6 @@ from ddtrace.appsec._metrics import set_waf_request_metrics
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
-from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
@@ -31,6 +30,7 @@ from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import Constant_Class
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.inferred_spans import is_inferred_span
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config

@@ -219,26 +219,33 @@ class TestApiSecurityManager:
 
         mock_report_api_security.assert_called_with(True, 7, "test")
 
-    def test_schema_callback_oversized_schema(self, api_manager, mock_environment, mock_report_api_security):
-        """Test that _schema_callback handles oversized schemas correctly.
-        Expects that an exception is caught when schema size exceeds limits and no schemas are reported.
-        """
+    @pytest.mark.parametrize(
+        "compressed_size,accepted", [(18747, True), (18750, False), (18753, False), (100000, False)]
+    )
+    def test_schema_callback_size_limit(
+        self, api_manager, mock_environment, mock_report_api_security, compressed_size, accepted
+    ):
+        """The encoded schema must be strictly shorter than the shared metadata limit."""
         mock_waf_result = MagicMock()
         large_schema = {"type": "object", "properties": {f"prop_{i}": {"type": "string"} for i in range(10000)}}
         mock_waf_result.api_security = {"_dd.appsec.s.req.body": large_schema}
         mock_environment.waf_callable.return_value = mock_waf_result
 
         with patch("gzip.compress") as mock_compress:
-            mock_compress.return_value = b"x" * 100000  # data exceeding MAX_SPAN_META_VALUE_LEN
+            # Base64 expands these lengths to 24996, 25000, and 25004 characters at the boundary.
+            mock_compress.return_value = b"x" * compressed_size
             mock_environment.waf_addresses = {SPAN_DATA_NAMES.REQUEST_BODY: {"name": "test"}}
 
             with patch("ddtrace.appsec._api_security.api_manager.log") as mock_log:
                 api_manager._schema_callback(mock_environment)
 
-            mock_log.warning.assert_called_once()
+            if accepted:
+                mock_log.warning.assert_not_called()
+            else:
+                mock_log.warning.assert_called_once()
             entry_span = mock_environment.entry_span
-            assert len(entry_span._get_str_attributes()) == 0
-            mock_report_api_security.assert_called_with(True, 0, "test")
+            assert entry_span._has_attribute("_dd.appsec.s.req.body") is accepted
+            mock_report_api_security.assert_called_with(True, int(accepted), "test")
 
     def test_schema_callback_parse_response_body_disabled(
         self, api_manager, mock_environment, caplog, mock_report_api_security
