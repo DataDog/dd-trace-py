@@ -10,11 +10,11 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
+from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 class _RecordingMixin:

@@ -75,7 +75,7 @@ integrations:
   tested_versions_by_dependency:
     algoliasearch:
       min: 2.6.3
-      max: 2.6.3
+      max: 3.0.0
 
 - integration_name: anthropic
   is_external_package: true
@@ -295,7 +295,7 @@ integrations:
   tested_versions_by_dependency:
     coverage:
       min: 7.2.2
-      max: 7.8.0
+      max: 7.13.1
 
 - integration_name: crewai
   is_external_package: true
@@ -1047,7 +1047,7 @@ integrations:
   tested_versions_by_dependency:
     urllib3:
       min: 1.25.8
-      max: 2.7.0
+      max: 2.8.0
 
 - integration_name: valkey
   is_external_package: true
