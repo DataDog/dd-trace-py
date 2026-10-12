@@ -1361,3 +1361,135 @@ def test_urllib3_traceback_frames_come_only_from_the_tracing_contrib():
         with contextlib.suppress(Exception):
             urllib3_contrib.unpatch()
         unpatch_common_modules()
+
+
+@pytest.fixture
+def http_operation_subscribers():
+    activation = cmp._activation
+    cmp.listen_http_client_operations()
+    try:
+        yield
+    finally:
+        cmp.unlisten_http_client_operations()
+        if activation is not None:
+            cmp._activation = activation
+            cmp.AppSecHttpClientOperationSubscriber.register()
+
+
+@pytest.mark.parametrize("reactivate", [False, True])
+def test_requests_operation_preserves_original_url_result_and_lazy_body(http_operation_subscribers, reactivate):
+    import requests
+
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+
+    class OriginalUrl(str):
+        pass
+
+    url = OriginalUrl("http://example.test/path")
+    response = requests.Response()
+    response.status_code = 200
+    response.json = mock.Mock()
+    original_context = core.current
+
+    def send(prepared, **kwargs):
+        assert core.find_item("full_url") is url
+        assert kwargs["stream"] is True
+        if reactivate:
+            cmp.unlisten_http_client_operations()
+            cmp.listen_http_client_operations()
+        return response
+
+    patch()
+    try:
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(cmp, "should_analyze_body_response", return_value=reactivate),
+            mock.patch.object(cmp, "call_waf_callback") as waf,
+        ):
+            session = requests.Session()
+            session.send = send
+            assert session.request("GET", url, stream=True) is response
+            response.json.assert_not_called()
+            assert waf.call_count == int(not reactivate)
+
+            error = requests.exceptions.ConnectionError("transport failed")
+            session.send = mock.Mock(side_effect=error)
+            with pytest.raises(requests.exceptions.ConnectionError) as raised:
+                session.request("GET", url)
+            assert raised.value is error
+            assert core.current is original_context
+    finally:
+        unpatch()
+
+
+@pytest.mark.parametrize("client, block", [("requests", False), ("requests", True), ("httplib", True)])
+def test_http_operations_analyze_once_before_transport(http_operation_subscribers, client, block):
+    import http.client
+    import io
+
+    import requests
+    import urllib3.connection
+
+    from ddtrace import tracer
+    from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
+    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+    from ddtrace.contrib.internal.requests.patch import patch as requests_patch
+    from ddtrace.contrib.internal.requests.patch import unpatch as requests_unpatch
+
+    sock = mock.Mock()
+    sock.makefile.return_value = io.BytesIO(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+    inspected = []
+
+    def waf(addresses=None, **kwargs):
+        inspected.append((kwargs["rule_type"], addresses, core.find_item(_RASP_SUBCONTEXT)))
+        return _blocking_waf_result() if block else None
+
+    original_context = core.current
+    unpatch_common_modules()
+    requests_patch()
+    httplib_patch()
+    patch_common_modules()
+    try:
+        with (
+            mock.patch.object(tracer, "enabled", False),
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock()),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "should_analyze_body_response", return_value=False),
+            mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=waf),
+            mock.patch.object(urllib3.connection.HTTPConnection, "_new_conn", return_value=sock) as transport,
+        ):
+            connection = http.client.HTTPConnection("example.test")
+            connection._send_request = mock.Mock()
+
+            def operation():
+                if client == "requests":
+                    return requests.get("http://example.test/path", proxies={"http": None, "https": None})
+                return connection.request("GET", "/path")
+
+            if block:
+                with pytest.raises(BlockingException):
+                    operation()
+                transport.assert_not_called()
+                connection._send_request.assert_not_called()
+            else:
+                response = operation()
+                assert response.status_code == 200
+                assert response.content == b"{}"
+                transport.assert_called_once()
+            assert [rule for rule, _, _ in inspected] == (
+                [EXPLOIT_PREVENTION.TYPE.SSRF_REQ]
+                if block
+                else [EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_RES]
+            )
+            assert inspected[0][1][EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://example.test/path"
+            assert all(holder is inspected[0][2] for _, _, holder in inspected)
+            assert core.current is original_context
+    finally:
+        requests_unpatch()
+        httplib_unpatch()
+        unpatch_common_modules()

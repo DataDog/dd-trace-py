@@ -1,16 +1,25 @@
+from typing import Any
+from typing import Callable
+
 import requests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientOperationEvent
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 
 from .connection import _wrap_adapter_send
 from .connection import _wrap_send
 from .session import TracedSession
+
+
+_REQUEST_OPERATION = HttpClientEvents.REQUESTS_OPERATION.value
+_REQUEST_OPERATION_STARTED = "context.started." + _REQUEST_OPERATION
 
 
 # requests default settings
@@ -38,6 +47,18 @@ def _supported_versions() -> dict[str, str]:
     return {"requests": ">=2.25.1"}
 
 
+def _wrap_request(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    if not core.has_listeners(_REQUEST_OPERATION_STARTED):
+        return func(*args, **kwargs)
+
+    with core.context_with_event(
+        HttpClientOperationEvent(request_url=args[1] if len(args) > 1 else kwargs.get("url")),
+        context_name_override=_REQUEST_OPERATION,
+    ) as ctx:
+        ctx.event.response = func(*args, **kwargs)
+        return ctx.event.response
+
+
 def patch():
     """Activate http calls tracing"""
     if getattr(requests, "__datadog_patch", False):
@@ -45,11 +66,7 @@ def patch():
     requests.__datadog_patch = True
 
     _w("requests", "Session.send", _wrap_send)
-    # IAST needs to wrap this function because `Session.send` is too late
-    if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-
-        _w("requests", "Session.request", _wrap_request)
+    _w("requests", "Session.request", _wrap_request)
 
 
 def unpatch():

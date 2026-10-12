@@ -1,6 +1,8 @@
 import functools
 import http.client as httplib
 import sys
+from typing import Any
+from typing import Callable
 from urllib import parse
 
 import wrapt
@@ -9,16 +11,18 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientOperationEvent
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
@@ -26,6 +30,9 @@ from ddtrace.trace import tracer
 
 span_name = "http.client.request"
 span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
+
+_REQUEST_OPERATION = HttpClientEvents.HTTPLIB_OPERATION.value
+_REQUEST_OPERATION_STARTED = "context.started." + _REQUEST_OPERATION
 
 log = get_logger(__name__)
 
@@ -77,10 +84,13 @@ def _wrap_getresponse(func, instance, args, kwargs):
             log.debug("error applying request tags", exc_info=True)
 
 
-def _call_asm_wrap(func, instance, *args, **kwargs):
-    from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
-
-    _wrap_request_asm(func, instance, args, kwargs)
+def _call_request(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    with core.context_with_event(
+        HttpClientOperationEvent(request_url=args[1] if len(args) > 1 else kwargs.get("url")),
+        context_name_override=_REQUEST_OPERATION,
+    ) as ctx:
+        ctx.event.response = func(*args, **kwargs)
+        return ctx.event.response
 
 
 def _finish_span(instance, exc_info=None):
@@ -98,10 +108,7 @@ def _finish_span(instance, exc_info=None):
 
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    if asm_config._asm_enabled and asm_config._ep_enabled:
-        func_to_call = functools.partial(_call_asm_wrap, func, instance)
-    else:
-        func_to_call = func
+    func_to_call = functools.partial(_call_request, func) if core.has_listeners(_REQUEST_OPERATION_STARTED) else func
 
     pin = Pin.get_from(instance)
     if should_skip_request(pin, instance):

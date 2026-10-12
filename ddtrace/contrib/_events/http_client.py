@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Union
@@ -10,6 +11,7 @@ from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.contrib._events.http import _HttpResponse
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -24,6 +26,23 @@ class HttpClientEvents(Enum):
     HTTPX_REQUEST = "httpx.request"
     HTTP_SEND_REQUEST = "http.client.send_request"
     HTTPX_SEND_REQUEST = "httpx.send_request"
+    REQUESTS_OPERATION = "requests.operation"
+    HTTPLIB_OPERATION = "httplib.operation"
+
+
+@dataclass
+class HttpClientOperationEvent(Event):
+    """An unprepared client call, preserving the original URL object and return value.
+
+    Requests emits this around Session.request, before URL preparation can lose taint.
+    HTTPConnection.request emits it even when tracing skips the operation. Consumers
+    inspect the library-native response only when they need it; producers never read its body.
+    """
+
+    event_name = "http.client.operation"
+
+    request_url: Any = event_field()
+    response: Any = event_field(default=None)
 
 
 @dataclass

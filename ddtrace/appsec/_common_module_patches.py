@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+import contextlib
 import io
 import json
 from types import TracebackType
@@ -26,8 +27,11 @@ from ddtrace.appsec._contrib.webbrowser.patch import unpatch as unpatch_webbrows
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientOperationEvent
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
@@ -475,7 +479,7 @@ class _SsrfUrllib3MakeRequest(_ScopedRaspContext):
 
         # Own core context so concurrent urllib3 requests get distinct subcontexts. It has to span
         # the call: the SSRF_RES side comes from http.client's getresponse underneath this one.
-        self._open_core_context("rasp.ssrf.urllib3")
+        self._open_core_context("rasp.ssrf.urllib3", **{_HTTP_REQUEST_ANALYZED: True})
         open_rasp_subcontext_scope()
 
         headers = _parse_headers_urllib3(self._arg("headers", {}))
@@ -562,36 +566,74 @@ class _SsrfUrllib3Request(_ScopedRaspContext):
         super().__exit__(exc_type, exc_value, exc_tb)
 
 
-def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
-    """
-    wrapper for third party requests.request function
-    https://requests.readthedocs.io
-    """
-    if get_rasp_capability("ssrf"):
-        url = args[1] if len(args) > 1 else kwargs.get("url", None)
-        valid_url = isinstance(url, str) and bool(url)
-        if valid_url and url and (ctx := _get_asm_context()):
-            use_body = should_analyze_body_response(ctx)
-            with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
-                # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
-                open_rasp_subcontext_scope()
-                # API10, doing all request calls in HTTPConnection.request
-                try:
-                    response = original_request_callable(*args, **kwargs)
-                    if response.__class__.__name__ == "Response" and not (300 <= response.status_code < 400):
-                        addresses = {
-                            "DOWN_RES_STATUS": str(response.status_code),
-                            "DOWN_RES_HEADERS": dict(response.headers),
-                        }
-                        if use_body:
-                            try:
-                                addresses["DOWN_RES_BODY"] = response.json()
-                            except Exception:
-                                pass  # nosec
-                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-                    return response
-                except Exception:
-                    raise
-        elif valid_url:
+_ACTIVATION_KEY = "appsec.http_operation.activation"
+_HTTP_REQUEST_ANALYZED = "appsec.http_request_analyzed"
+_activation: Optional[object] = None
+
+
+class AppSecHttpClientOperationSubscriber(ContextSubscriber[HttpClientOperationEvent]):
+    auto_register = False
+    event_names = (HttpClientEvents.REQUESTS_OPERATION.value, HttpClientEvents.HTTPLIB_OPERATION.value)
+
+    @classmethod
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientOperationEvent]) -> None:
+        if _activation is None or not get_rasp_capability("ssrf"):
+            return
+
+        if ctx.identifier == HttpClientEvents.HTTPLIB_OPERATION.value and (
+            ctx.find_item("full_url") is not None or ctx.find_item(_HTTP_REQUEST_ANALYZED, False)
+        ):
+            # The enclosing client owns the URL and sampling; urllib3 may have inspected it already.
+            return
+
+        url = ctx.event.request_url
+        if not (isinstance(url, str) and url):
+            return
+
+        asm_context = _get_asm_context()
+        if asm_context is None:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
-    return original_request_callable(*args, **kwargs)
+            return
+
+        ctx.set_item(_ACTIVATION_KEY, _activation)
+        ctx.set_item("full_url", url)
+        ctx.set_item("use_body", should_analyze_body_response(asm_context))
+        open_rasp_subcontext_scope()
+
+    @classmethod
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext[HttpClientOperationEvent],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        # Unsubscribing drops pending analysis. A later activation cannot finish this operation.
+        if _activation is None or ctx.get_item(_ACTIVATION_KEY) is not _activation:
+            return
+        if exc_info[0] is not None or not get_rasp_capability("ssrf"):
+            return
+
+        response = ctx.event.response
+        if response.__class__.__name__ != "Response" or 300 <= response.status_code < 400:
+            return
+
+        addresses: dict[str, Any] = {
+            "DOWN_RES_STATUS": str(response.status_code),
+            "DOWN_RES_HEADERS": dict(response.headers),
+        }
+        if ctx.get_item("use_body"):
+            with contextlib.suppress(Exception):
+                addresses["DOWN_RES_BODY"] = response.json()
+        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+
+
+def listen_http_client_operations() -> None:
+    global _activation
+    if _activation is None:
+        _activation = object()
+    AppSecHttpClientOperationSubscriber.register()
+
+
+def unlisten_http_client_operations() -> None:
+    global _activation
+    _activation = None
+    AppSecHttpClientOperationSubscriber.unregister()
