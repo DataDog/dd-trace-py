@@ -137,6 +137,10 @@ CARGO_TARGET_DIR = Path(
 ).absolute()
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
+if sys.platform == "win32":
+    # The native module uses CPython APIs which PyO3's raw-dylib mode does not declare.
+    os.environ.setdefault("PYO3_USE_RAW_DYLIB", "0")
+
 
 def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
