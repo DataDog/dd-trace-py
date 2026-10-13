@@ -1,5 +1,25 @@
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
+
+
+log = get_logger(__name__)
+
+_DEFAULT_TIMEOUT_MS = 10_000
+
+
+def _parse_timeout(raw: str) -> int:
+    # The client floors the timeout to whole seconds, so anything below 1000ms would become 0.
+    timeout = int(raw)
+    if timeout // 1000 <= 0:
+        log.warning(
+            "Invalid value for %s: %d is applied in whole seconds and must be at least 1000; using the default of %d",
+            AI_GUARD.ENV_TIMEOUT,
+            timeout,
+            _DEFAULT_TIMEOUT_MS,
+        )
+        return _DEFAULT_TIMEOUT_MS
+    return timeout
 
 
 class AIGuardConfig(DDConfig):
@@ -8,7 +28,7 @@ class AIGuardConfig(DDConfig):
     _ai_guard_block = DDConfig.var(bool, AI_GUARD.BLOCK_ENV, default=True)
     _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD.ENV_MAX_CONTENT_SIZE, default=512 * 1024)
     _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD.ENV_MAX_MESSAGES_LENGTH, default=16)
-    _ai_guard_timeout = DDConfig.var(int, AI_GUARD.ENV_TIMEOUT, default=10_000)
+    _ai_guard_timeout = DDConfig.var(int, AI_GUARD.ENV_TIMEOUT, default=_DEFAULT_TIMEOUT_MS, parser=_parse_timeout)
     # Global kill switch for sensitive data redaction: when false the tracer never applies the
     # redaction_replacements returned by the backend, even though evaluation still runs.
     _ai_guard_redaction_enabled = DDConfig.var(bool, AI_GUARD.ENV_REDACTION_ENABLED, default=True)
