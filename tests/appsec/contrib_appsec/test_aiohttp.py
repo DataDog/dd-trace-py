@@ -1,12 +1,14 @@
 import asyncio
 from http.cookies import SimpleCookie
 import json
+import time
 from typing import Any
 from typing import Optional
 import urllib.parse
 
 from aiohttp import ClientError
 from aiohttp import ClientSession
+from aiohttp import web
 from aiohttp.test_utils import TestServer
 from multidict import CIMultiDict
 import pytest
@@ -64,8 +66,15 @@ class AiohttpTestClient:
         self._interface.SERVER_PORT = self._server.port
         return self._loop.run_until_complete(self._request(method, path, **kwargs))
 
-    def settle(self) -> None:
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        return self._loop
+
+    def settle(self, until=None, timeout: float = 2.0) -> None:
+        deadline = time.monotonic() + timeout
         self._loop.run_until_complete(asyncio.sleep(0.05))
+        while until is not None and not until() and time.monotonic() < deadline:
+            self._loop.run_until_complete(asyncio.sleep(0.05))
 
     def get(self, path: str, **kwargs: Any) -> AiohttpResponse:
         return self._run("GET", path, **kwargs)
@@ -212,6 +221,33 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             assert self.status(response) == 200
             assert utils._addresses_store, "no waf addresses stored"
             assert utils._addresses_store[0]["http.request.headers"]["x-repeated"] == "first, second"
+
+    def test_truncated_request_body(self, interface, entry_span, get_entry_span_tag):
+        loop = interface.client.loop
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            runner = web.AppRunner(get_app())
+            loop.run_until_complete(runner.setup())
+            site = web.TCPSite(runner, "127.0.0.1", 0)
+            loop.run_until_complete(site.start())
+            port = site._server.sockets[0].getsockname()[1]
+
+            async def send_truncated_body():
+                _, writer = await asyncio.open_connection("127.0.0.1", port)
+                writer.write(
+                    b"POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
+                    b'Content-Length: 100\r\n\r\n{"a":'
+                )
+                await writer.drain()
+                writer.close()
+
+            try:
+                loop.run_until_complete(send_truncated_body())
+                interface.client.settle(until=lambda: entry_span() is not None)
+            finally:
+                loop.run_until_complete(runner.cleanup())
+            assert get_entry_span_tag(http.STATUS_CODE) == "200"
+            assert not entry_span().error
 
     def test_unhandled_error_response_status(self, interface):
         with override_global_config(dict(_asm_enabled=True)):

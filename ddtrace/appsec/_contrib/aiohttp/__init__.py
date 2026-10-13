@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import Coroutine
 from collections.abc import Mapping
 import json
@@ -33,7 +32,6 @@ import ddtrace.vendor.xmltodict as xmltodict
 logger = get_logger(__name__)
 
 _PARSED_MEDIA_TYPES = frozenset((MediaType.JSON, MediaType.XML, MediaType.FORM_URLENCODED, MediaType.MULTIPART))
-_DEFAULT_CLIENT_MAX_SIZE = 1024**2
 
 
 def _multidict_to_dict(multidict: Any) -> dict[str, Any]:
@@ -67,7 +65,9 @@ def _block_request() -> None:
     _check_blocked()
 
 
-def _on_request_start(ctx: core.ExecutionContext[Any], request: Any) -> Optional[Coroutine[Any, Any, None]]:
+def _on_request_start(
+    ctx: core.ExecutionContext[Any], request: Any, max_body_size: int
+) -> Optional[Coroutine[Any, Any, Optional[bytes]]]:
     if not asm_config._asm_enabled or get_active_asm_context() is None:
         return None
     logger.debug("aiohttp::srb_on_request")
@@ -95,26 +95,19 @@ def _on_request_start(ctx: core.ExecutionContext[Any], request: Any) -> Optional
     if media_type not in _PARSED_MEDIA_TYPES:
         return None
     content_length = request.content_length
-    max_size = getattr(request, "_client_max_size", 0) or _DEFAULT_CLIENT_MAX_SIZE
-    if content_length is None or content_length > max_size:
+    if content_length is None or content_length > max_body_size:
         return None
     if request.headers.get("Content-Encoding", "identity").lower() != "identity":
         return None
     return _analyze_body(request, media_type)
 
 
-def _restore_body(request: Any, body: bytes) -> None:
-    from aiohttp.streams import StreamReader
-
-    stream = StreamReader(request.protocol, max(len(body), 2**16), loop=asyncio.get_running_loop())
-    stream.feed_data(body)
-    stream.feed_eof()
-    request._payload = stream
-
-
-async def _analyze_body(request: Any, media_type: MediaType) -> None:
-    raw_body = await request.content.read()
-    _restore_body(request, raw_body)
+async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
+    try:
+        raw_body: bytes = await request.content.read()
+    except Exception:
+        logger.debug("aiohttp::failed to read request body", exc_info=True)
+        return None
     body: Any = None
     try:
         with iast_disabled_taint_sources():
@@ -130,11 +123,12 @@ async def _analyze_body(request: Any, media_type: MediaType) -> None:
                     body = parse_form_multipart(text_body, request.headers)
     except Exception:
         logger.debug("aiohttp::failed to parse request body", exc_info=True)
-        return
+        return raw_body
     if body:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_BODY, body)
         call_waf_callback()
         _check_blocked()
+    return raw_body
 
 
 def _set_response_addresses(status: int, headers: Mapping[str, str], body: Any) -> None:

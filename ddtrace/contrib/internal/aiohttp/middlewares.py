@@ -1,6 +1,7 @@
 import asyncio
 
 from aiohttp import web
+from aiohttp.streams import StreamReader
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
@@ -20,6 +21,7 @@ REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
+DEFAULT_CLIENT_MAX_SIZE = 1024**2
 
 
 async def trace_middleware(app, handler):
@@ -100,9 +102,14 @@ async def trace_middleware(app, handler):
 
 
 async def _handle_request(ctx, request, handler):
-    request_body = core.dispatch_with_results("aiohttp.request.start", (ctx, request)).aiohttp_request_body
+    max_body_size = getattr(request, "_client_max_size", 0) or DEFAULT_CLIENT_MAX_SIZE
+    request_body = core.dispatch_with_results(
+        "aiohttp.request.start", (ctx, request, max_body_size)
+    ).aiohttp_request_body
     if request_body and request_body.value is not None:
-        await request_body.value
+        body = await request_body.value
+        if body is not None:
+            _restore_request_body(request, body)
     try:
         response = await handler(request)
     except web.HTTPException as exc:
@@ -117,6 +124,13 @@ async def _handle_request(ctx, request, handler):
     if REQUEST_STARTED_RESPONSE_KEY not in request:
         core.dispatch("aiohttp.request.response", (request, response))
     return response
+
+
+def _restore_request_body(request, body):
+    stream = StreamReader(request.protocol, max(len(body), 2**16), loop=asyncio.get_running_loop())
+    stream.feed_data(body)
+    stream.feed_eof()
+    request._payload = stream
 
 
 def _blocked_response(request, block_config):

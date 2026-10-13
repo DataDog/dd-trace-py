@@ -2,4 +2,5 @@
 features:
   - |
     AAP: Adds threat detection and request blocking for aiohttp web applications traced with
-    ``ddtrace.contrib.aiohttp.trace_app``.
+    ``ddtrace.contrib.aiohttp.trace_app``. Request bodies sent with chunked transfer encoding or
+    compression, or larger than the application's ``client_max_size``, are not inspected.
