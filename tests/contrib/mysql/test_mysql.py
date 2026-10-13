@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import closing
 from unittest import mock
 
 import mysql
@@ -8,8 +9,6 @@ from ddtrace.contrib.internal.mysql.patch import patch
 from ddtrace.contrib.internal.mysql.patch import unpatch
 from tests.contrib import shared_tests
 from tests.contrib.config import MYSQL_CONFIG
-from tests.contrib.shared_tests import assert_byte_query_event
-from tests.contrib.shared_tests import capture_db_query_events
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -359,16 +358,8 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         # C extension cursors reference their connection differently from pure Python ones
         for use_pure in (True, False) if mysql.connector.HAVE_CEXT else (True,):
             for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
-                query = "SELECT 'é'".encode(codec)
-                conn = mysql.connector.connect(**MYSQL_CONFIG, charset=charset, use_pure=use_pure)
-                try:
-                    cursor = conn.cursor()
-                    with capture_db_query_events() as events:
-                        cursor.execute(query)
-                    assert cursor.fetchall() == [("é",)]
-                finally:
-                    conn.close()
-                assert_byte_query_event(events, query, codec, "mysql")
+                with closing(mysql.connector.connect(**MYSQL_CONFIG, charset=charset, use_pure=use_pure)) as conn:
+                    shared_tests._test_byte_query_event(conn.cursor(), codec, "mysql")
 
     def test_patch_unpatch(self):
         unpatch()

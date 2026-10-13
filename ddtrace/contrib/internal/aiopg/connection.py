@@ -8,12 +8,14 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.dbapi import _dispatch_db_query_event
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.contrib.internal.psycopg.cursor import psycopg2_python_encoding
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -66,14 +68,20 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        _dispatch_db_query_event(query, "postgres", self._dbapi_query_encoding)
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=decode_db_query(query, self._dbapi_query_encoding), span_name_prefix="postgres")
+            )
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        _dispatch_db_query_event(query, "postgres", self._dbapi_query_encoding)
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=decode_db_query(query, self._dbapi_query_encoding), span_name_prefix="postgres")
+            )
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 

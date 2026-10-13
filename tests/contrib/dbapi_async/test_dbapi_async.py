@@ -35,25 +35,16 @@ class TestTracedAsyncCursor(AsyncioTestCase):
 
     @mark_asyncio
     async def test_query_is_blocked_before_execution(self):
-        events = []
-
-        def block(event):
-            events.append(event)
-            raise BlockingException()
-
-        core.on(DbQueryEvent.event_name, block)
-        try:
-            for query in ("SELECT 1", b"SELECT 1"):
-                for method in ("execute", "executemany"):
-                    cursor = TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"})
+        for query in ("SELECT 1", b"SELECT 1"):
+            for method in ("execute", "executemany"):
+                with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
                     with pytest.raises(BlockingException):
-                        await getattr(cursor, method)(query)
+                        await getattr(
+                            TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"}), method
+                        )(query)
 
-                    assert events == [DbQueryEvent(query=query, span_name_prefix="postgres")]
-                    events.clear()
-                    getattr(self.cursor, method).assert_not_awaited()
-        finally:
-            core.reset_listeners(DbQueryEvent.event_name, block)
+                dispatch_event.assert_called_once_with(DbQueryEvent(query=query, span_name_prefix="postgres"))
+                getattr(self.cursor, method).assert_not_awaited()
 
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     @mark_asyncio

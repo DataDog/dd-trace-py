@@ -1,6 +1,8 @@
 import inspect
 
 from ddtrace import config
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -14,7 +16,6 @@ from ..ext import SpanKind
 from ..ext import SpanTypes
 from .dbapi import TracedConnection
 from .dbapi import TracedCursor
-from .dbapi import _dispatch_db_query_event
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import is_tracing_enabled
 from .internal.trace_utils import iswrapped
@@ -97,7 +98,13 @@ class TracedAsyncCursor(TracedCursor):
     async def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
-        _dispatch_db_query_event(query, self._self_dbapi_span_name_prefix, self._dbapi_query_encoding)
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(
+                    query=decode_db_query(query, self._dbapi_query_encoding),
+                    span_name_prefix=self._self_dbapi_span_name_prefix,
+                )
+            )
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -117,7 +124,13 @@ class TracedAsyncCursor(TracedCursor):
     async def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        _dispatch_db_query_event(query, self._self_dbapi_span_name_prefix, self._dbapi_query_encoding)
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(
+                    query=decode_db_query(query, self._dbapi_query_encoding),
+                    span_name_prefix=self._self_dbapi_span_name_prefix,
+                )
+            )
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects

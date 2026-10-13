@@ -5,7 +5,8 @@ from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.dbapi import _dispatch_db_query_event
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -106,14 +107,20 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                     s._set_attribute("db.rownumber", self.rownumber)
 
     async def executemany(self, query, *args, **kwargs):
-        _dispatch_db_query_event(query, "mysql", self._dbapi_query_encoding)
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=decode_db_query(query, self._dbapi_query_encoding), span_name_prefix="mysql")
+            )
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        _dispatch_db_query_event(query, "mysql", self._dbapi_query_encoding)
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=decode_db_query(query, self._dbapi_query_encoding), span_name_prefix="mysql")
+            )
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 

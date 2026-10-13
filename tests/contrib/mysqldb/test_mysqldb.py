@@ -1,3 +1,4 @@
+from contextlib import closing
 from unittest import mock
 
 import MySQLdb
@@ -7,8 +8,6 @@ from ddtrace.contrib.internal.mysqldb.patch import patch
 from ddtrace.contrib.internal.mysqldb.patch import unpatch
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests
-from tests.contrib.shared_tests import assert_byte_query_event
-from tests.contrib.shared_tests import capture_db_query_events
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -431,7 +430,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def tearDown(self):
         super().tearDown()
 
-    def _connect_with_kwargs(self):
+    def _connect_with_kwargs(self, **kwargs):
         return MySQLdb.Connect(
             **{
                 "host": MYSQL_CONFIG["host"],
@@ -439,7 +438,8 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                 "passwd": MYSQL_CONFIG["password"],
                 "db": MYSQL_CONFIG["database"],
                 "port": MYSQL_CONFIG["port"],
-            }
+            },
+            **kwargs,
         )
 
     def _get_conn(self):
@@ -461,24 +461,9 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         return self.conn
 
     def test_byte_query_uses_connection_encoding(self):
-        for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "cp1252")):
-            query = "SELECT 'é'".encode(codec)
-            conn = MySQLdb.Connect(
-                host=MYSQL_CONFIG["host"],
-                user=MYSQL_CONFIG["user"],
-                passwd=MYSQL_CONFIG["password"],
-                db=MYSQL_CONFIG["database"],
-                port=MYSQL_CONFIG["port"],
-                charset=charset,
-            )
-            try:
-                cursor = conn.cursor()
-                with capture_db_query_events() as events:
-                    cursor.execute(query)
-                assert cursor.fetchall() == (("é",),)
-            finally:
-                conn.close()
-            assert_byte_query_event(events, query, codec, "mysql")
+        for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+            with closing(self._connect_with_kwargs(charset=charset)) as conn:
+                shared_tests._test_byte_query_event(conn.cursor(), codec, "mysql")
 
     def test_patch_unpatch(self):
         unpatch()

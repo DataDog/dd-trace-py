@@ -23,29 +23,6 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
-## DBAPI Query Events
-
-SQL cursors send queries to DbQueryEvent subscribers (RASP SQL injection) through
-`ddtrace.contrib.dbapi._dispatch_db_query_event()` before executing them. Never
-build DbQueryEvent by hand in an integration.
-
-- str queries are sent as they are.
-- bytes, bytearray and memoryview queries are only processed when a subscriber
-  is present. They are decoded with the connection encoding returned by the
-  `query_encoding` callable. UTF-8 queries are sent as bytes without decoding.
-- Decoding is best effort so that an inspection is never skipped. Undecodable
-  bytes are replaced. An encoding that cannot be resolved falls back to UTF-8.
-  Blocking exceptions raised by subscribers propagate.
-- TracedCursor resolves the encoding with `_dbapi_query_encoding()`. By default
-  that calls the `_dbapi_query_encoding(driver_cursor)` integration config entry,
-  which returns a Python codec name (mysql, mysqldb, pymysql). Cursor classes
-  can override it instead, as psycopg does because psycopg2 and psycopg 3 share
-  one config. Cursors that don't derive from TracedCursor (aiopg, aiomysql) pass
-  their own callable. Leave the hook unset when the driver always uses UTF-8
-  (mariadb, vertica) or rejects byte queries (sqlite3, pyodbc, snowflake).
-- The decoded copy is only for inspection. Tracing and the driver always get
-  the original query and parameters.
-
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable

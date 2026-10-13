@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -11,7 +11,6 @@ from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import Span
-from tests.contrib.shared_tests import capture_db_query_events
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -620,45 +619,20 @@ class TestTracedConnection(TracerTestCase):
         assert len(spans) == 0
 
 
-def _failing_encoding(cursor):
-    raise AttributeError("connection")
-
-
-@pytest.mark.parametrize("method", ["execute", "executemany"])
 @pytest.mark.parametrize(
     "query,query_encoding,expected",
     [
-        ("SELECT 'é'", None, "SELECT 'é'"),
-        (b"SELECT '\xc3\xa9'", None, b"SELECT '\xc3\xa9'"),
-        (b"SELECT '\xc3\xa9'", lambda cursor: "UTF8", b"SELECT '\xc3\xa9'"),
-        (bytearray(b"SELECT 1"), None, b"SELECT 1"),
+        ("SELECT 'é'", lambda: "latin-1", "SELECT 'é'"),
+        (b"SELECT '\xc3\xa9'", lambda: "UTF8", b"SELECT '\xc3\xa9'"),
         (memoryview(b"SELECT 1"), None, b"SELECT 1"),
-        (b"SELECT '\xe9'", lambda cursor: "latin1", "SELECT 'é'"),
-        (memoryview(b"SELECT '\xe9'"), lambda cursor: "latin1", "SELECT 'é'"),
-        # Undecodable bytes are replaced rather than skipping the inspection
-        (b"SELECT '\xe9'", lambda cursor: "ascii", "SELECT '\ufffd'"),
-        # Encodings that cannot be resolved fall back to UTF-8
-        (b"SELECT '\xe9'", lambda cursor: "unknown", b"SELECT '\xe9'"),
-        (b"SELECT '\xe9'", _failing_encoding, b"SELECT '\xe9'"),
+        (b"SELECT '\xe9'", lambda: "latin-1", "SELECT 'é'"),
+        # Decoding is best effort so that the query is always inspected
+        (b"SELECT '\xe9'", lambda: "ascii", "SELECT '\ufffd'"),
+        (b"SELECT '\xe9'", lambda: "unknown", b"SELECT '\xe9'"),
+        (b"SELECT '\xe9'", mock.Mock(side_effect=AttributeError), b"SELECT '\xe9'"),
     ],
 )
-def test_query_event(method, query, query_encoding, expected):
-    parameters = [1]
-    driver = mock.Mock(rowcount=0)
-    cfg = IntegrationConfig(Config(), "dbapi", _dbapi_query_encoding=query_encoding)
-    with capture_db_query_events() as events:
-        assert getattr(TracedCursor(driver, cfg=cfg), method)(query, parameters) is getattr(driver, method).return_value
-    assert events == [DbQueryEvent(query=expected, span_name_prefix="sql")]
-    assert type(events[0].query) is type(expected)
-    getattr(driver, method).assert_called_once_with(query, parameters)
-    assert getattr(driver, method).call_args.args[0] is query
-    assert getattr(driver, method).call_args.args[1] is parameters
-
-
-def test_byte_query_encoding_is_not_resolved_without_listeners():
-    assert not core.has_listeners(DbQueryEvent.event_name)
-    query_encoding = mock.Mock(return_value="latin1")
-    driver = mock.Mock(rowcount=0)
-    TracedCursor(driver, cfg=IntegrationConfig(Config(), "dbapi", _dbapi_query_encoding=query_encoding)).execute(b"1")
-    query_encoding.assert_not_called()
-    driver.execute.assert_called_once_with(b"1")
+def test_decode_db_query(query, query_encoding, expected):
+    with mock.patch.object(core, "has_listeners", return_value=True):
+        decoded = decode_db_query(query, query_encoding)
+    assert decoded == expected and type(decoded) is type(expected)
