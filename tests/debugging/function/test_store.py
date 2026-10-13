@@ -4,10 +4,10 @@ from mock.mock import call
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.discovery import undecorated
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
 import tests.submod.stuff as stuff
@@ -176,6 +176,21 @@ def test_function_wrap_obfuscated_code_reports_failure():
 
         stuff.modulestuff(None)
         arg.assert_not_called()
+
+
+def test_function_inject_obfuscated_code_reports_failure():
+    with FunctionStore() as store:
+        lo = min(linenos(stuff.modulestuff))
+        function = FunctionDiscovery.from_module(stuff).at_line(lo)[0]
+        hook = mock.Mock()
+
+        with mock.patch("ddtrace.internal.bytecode_injection.is_obfuscated_code", return_value=True):
+            failed = store.inject_hooks(function, [(hook, lo, MockProbe("probe"))])
+
+        assert failed == {"probe"}
+
+        stuff.modulestuff(None)
+        hook.assert_not_called()
 
 
 def test_function_unwrap():
