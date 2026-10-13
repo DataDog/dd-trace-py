@@ -3,6 +3,7 @@ import os
 import socket
 import tempfile
 import threading
+import time
 
 import pytest
 
@@ -79,7 +80,12 @@ def otlp_endpoint(collector, monkeypatch):
 def sleeps(monkeypatch):
     """Record the writer's retry delays instead of waiting."""
     delays = []
-    monkeypatch.setattr(_usage_metrics_writer.time, "sleep", delays.append)
+
+    def wait(stopping, seconds):
+        delays.append(seconds)
+        return stopping.is_set()
+
+    monkeypatch.setattr(_usage_metrics_writer, "_wait", wait)
     return delays
 
 
@@ -223,9 +229,39 @@ def test_on_shutdown_tries_pending_exports_once_without_waiting(otlp_endpoint, s
     sent, waited = len(Collector.requests), len(sleeps)
     writer.record(PROVIDER_ATTEMPT, *observation(user="u2"))
     writer.on_shutdown()
-    # The oldest export is tried once and still fails, so the newer one is not tried.
-    assert len(Collector.requests) == sent + 1
+    # Each export is tried once, the kept one first; none can wait for a later flush.
+    assert len(Collector.requests) == sent + 2
     assert len(sleeps) == waited
+    assert not writer._pending
+
+
+def test_shutdown_does_not_wait_behind_a_retrying_flush(otlp_endpoint):
+    Collector.status, Collector.retry_after = 503, "5"
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    flushing = threading.Thread(target=writer.flush)
+    flushing.start()
+    while not Collector.requests:
+        time.sleep(0.01)
+    started = time.monotonic()
+    writer.on_shutdown()
+    flushing.join(5)
+    # The flush in progress stops retrying instead of waiting out Retry-After twice.
+    assert time.monotonic() - started < 3
+    assert not flushing.is_alive()
+
+
+def test_shutdown_time_is_bounded(otlp_endpoint, monkeypatch, sleeps):
+    monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0)
+    Collector.status = 503
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    sent = len(Collector.requests)
+    writer.on_shutdown()
+    # Out of time: what is left is dropped, not sent.
+    assert len(Collector.requests) == sent
+    assert not writer._pending
 
 
 @pytest.mark.parametrize("path", ["/custom?tenant=a%20b", ""])
@@ -270,10 +306,16 @@ def test_rejections_and_issues_are_counted_in_telemetry(otlp_endpoint, monkeypat
 
 def test_reset_drops_the_parent_points(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
+    sender = writer._otlp
     writer.record(PROVIDER_ATTEMPT, *observation())
     writer.reset()
     writer.flush()
     assert Collector.requests == []
+    # A forked child does not reuse the parent's HTTP client.
+    assert writer._otlp is not sender
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert len(Collector.requests) == 1
 
 
 def test_on_shutdown_flushes(otlp_endpoint):

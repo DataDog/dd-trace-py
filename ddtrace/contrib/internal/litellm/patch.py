@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -350,6 +351,7 @@ def _enable_usage_metrics():
         litellm.callbacks.append(logger)
     writer.start()
     atexit.register(writer.on_shutdown)
+    forksafe.register(logger.reset)
     litellm._datadog_usage_metrics_writer = writer
     litellm._datadog_usage_metrics_logger = logger
     wrap("litellm", "litellm_core_utils.streaming_handler.CustomStreamWrapper.chunk_creator", traced_chunk_creator)
@@ -368,8 +370,10 @@ def _disable_usage_metrics():
         ModuleWatchdog.unregister_module_hook(module, hook)
     _unwrap_stream_methods()
     atexit.unregister(writer.on_shutdown)
+    forksafe.unregister(logger.reset)
     writer.stop()
-    writer.flush()
+    # The same bounded last flush as at exit.
+    writer.on_shutdown()
     del litellm._datadog_usage_metrics_logger
     del litellm._datadog_usage_metrics_writer
 

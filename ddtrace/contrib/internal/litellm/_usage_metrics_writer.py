@@ -54,6 +54,13 @@ _RETRY_DELAYS_SECONDS = (0.5, 1.0)
 _MAX_RETRY_DELAY_SECONDS = 5.0
 # Exports kept for a later flush while the endpoint is unavailable; the oldest is dropped first.
 _MAX_PENDING_EXPORTS = 8
+# How long the last flush at exit may spend sending what is left.
+_SHUTDOWN_SECONDS = 5.0
+
+
+def _wait(stopping: Any, seconds: float) -> bool:
+    """Wait before a retry. Return True early when the writer is stopping."""
+    return bool(stopping.wait(seconds))
 
 
 def _parse_headers(raw: str) -> list[tuple[str, str]]:
@@ -88,8 +95,8 @@ class _OtlpSender:
             treat_http_errors_as_errors=False,
         )
 
-    def send(self, payload: bytes, retry: bool = True) -> bool:
-        """Send one export, retrying a retryable failure after a short backoff.
+    def send(self, payload: bytes, stopping: Any, retry: bool = True) -> bool:
+        """Send one export, retrying a retryable failure after a short backoff, unless stopping is set.
 
         Return False when the export still failed in a way worth trying again at the next flush: a retryable
         status, a refused connection, a timeout, or a broken response. Any other failure drops it.
@@ -115,7 +122,8 @@ class _OtlpSender:
                 requested = _retry_after(response.header("Retry-After"))
             if attempt < len(delays):
                 delay = requested if requested is not None else delays[attempt] * random.uniform(0.5, 1.0)  # nosec B311
-                time.sleep(min(delay, _MAX_RETRY_DELAY_SECONDS))
+                if _wait(stopping, min(delay, _MAX_RETRY_DELAY_SECONDS)):
+                    break
         log.debug(
             "LiteLLM usage metrics: OTLP export to %s failed (%s), kept for the next flush", self.endpoint, failure
         )
@@ -207,6 +215,8 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._usage = ai_usage.UsageMetrics(metrics)
         self._window_start_ns = time.time_ns()
         self._flush_lock = forksafe.Lock()
+        # Set at exit: a flush in progress stops retrying, so the last flush does not wait behind it.
+        self._stopping = forksafe.Event()
         self._otlp: Optional[_OtlpSender] = None
         self._dogstatsd: Optional[_DogStatsdSender] = None
         # OTLP exports that failed in a retryable way, oldest first.
@@ -238,14 +248,18 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self.flush()
 
     def on_shutdown(self) -> None:  # type: ignore[override]
-        # The process is exiting: try each pending export once, without waiting between retries.
+        # The process is exiting: stop retrying, then try each pending export once, within a bounded time.
+        self._stopping.set()
         self.flush(retry=False)
 
     def reset(self) -> None:
-        # In a forked child, drop the parent's points and pending exports: the parent exports them.
+        # In a forked child, drop the parent's points and pending exports (the parent exports them), and the
+        # parent's connections.
         self._usage = ai_usage.UsageMetrics(self._metric_names)
         self._window_start_ns = time.time_ns()
         self._pending.clear()
+        if self._otlp is not None:
+            self._otlp = _OtlpSender()
         if self._dogstatsd is not None:
             self._dogstatsd.close()
 
@@ -269,15 +283,22 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
                 log.debug("LiteLLM usage metrics: export failed", exc_info=True)
 
     def _send_pending(self, sender: _OtlpSender, retry: bool) -> None:
-        """Send the pending exports in order, stopping at the first that has to wait for a later flush."""
+        """Send the pending exports in order. Normally stop at the first that has to wait for a later flush; at
+        exit (retry False), try each once, as long as the shutdown time allows, since none can wait.
+        """
+        deadline = None if retry else time.monotonic() + _SHUTDOWN_SECONDS
         while self._pending:
+            if deadline is not None and time.monotonic() >= deadline:
+                log.debug("LiteLLM usage metrics: dropping %d unsent OTLP exports at exit", len(self._pending))
+                self._pending.clear()
+                return
             try:
-                done = sender.send(self._pending[0], retry=retry)
+                done = sender.send(self._pending[0], self._stopping, retry=retry)
             except Exception:
                 # A failure that a retry would not fix, such as an invalid endpoint: drop the export.
                 log.debug("LiteLLM usage metrics: OTLP export failed", exc_info=True)
                 done = True
-            if not done:
+            if not done and deadline is None:
                 return
             self._pending.popleft()
 

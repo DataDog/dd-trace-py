@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import importlib
 import json
+import os
 
 import litellm
 import pytest
@@ -466,15 +467,11 @@ def test_failure_event_does_not_close_a_retry_that_started(logger, writer):
 PARTIAL_USAGE = {"prompt_tokens": 8, "completion_tokens": 1}
 
 
-def charged(proxy, usage, cost):
-    """The request data LiteLLM 1.104 gives its failure hook after a stream broke partway: the failure event's
-    partial usage and the cost the proxy charges for it.
+def charged(usage, cost):
+    """The request data LiteLLM 1.104 gives its failure hook after a stream broke partway: the recovered partial
+    usage and the cost the proxy charges for it. The logging payload is lifted only if it already exists.
     """
-    return {
-        "combined_usage_object": litellm.Usage(**usage),
-        "response_cost": cost,
-        "standard_logging_object": proxy.kwargs(usage, cost, error_class="ReadError")["standard_logging_object"],
-    }
+    return {"combined_usage_object": litellm.Usage(**usage), "response_cost": cost}
 
 
 @pytest.mark.parametrize("event_first", [True, False])
@@ -485,7 +482,7 @@ def test_midstream_provider_failure_is_charged(logger, writer, event_first):
     logger.observe_stream("call-1", False, False)
     if event_first:
         proxy.failed_midstream(0.4, usage=PARTIAL_USAGE, cost=1.8e-6)
-    proxy.failed(Exception(), **charged(proxy, PARTIAL_USAGE, 1.8e-6))
+    proxy.failed(Exception(), **charged(PARTIAL_USAGE, 1.8e-6))
     if not event_first:
         proxy.failed_midstream(0.4, usage=PARTIAL_USAGE, cost=1.8e-6)
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
@@ -706,13 +703,14 @@ def test_usage_fields_read_reported_modalities():
         "completion_tokens_details": {"audio_tokens": 5, "text_tokens": 2},
     }
     fields = usage_fields(usage, embeddings=False)
-    assert fields["input_tokens_by_modality"] == {"text": 4, "audio": 8}
-    assert fields["output_tokens_by_modality"] == {"text": 2, "audio": 5}
+    # Text parts are not read: LiteLLM fills them itself on several routes. A reported zero is a part.
+    assert fields["input_tokens_by_modality"] == {"audio": 8, "image": 0}
+    assert fields["output_tokens_by_modality"] == {"audio": 5}
     assert "input_tokens_by_modality" not in usage_fields(usage, embeddings=False, modality=False)
-    # Parts that add up to more than the total are not used.
-    usage["prompt_tokens_details"]["text_tokens"] = 40
-    assert "input_tokens_by_modality" not in usage_fields(usage, embeddings=False)
     assert "output_tokens_by_modality" not in usage_fields(usage, embeddings=True)
+    # Parts that add up to more than the total are passed on: the projector flags them.
+    usage["prompt_tokens_details"]["audio_tokens"] = 40
+    assert usage_fields(usage, embeddings=False)["input_tokens_by_modality"] == {"audio": 40, "image": 0}
 
 
 def test_reported_modalities_are_recorded(logger, writer):
@@ -726,7 +724,7 @@ def test_reported_modalities_are_recorded(logger, writer):
     }
     proxy.succeeded(0.5, usage=usage, model="gpt-4o-audio-preview")
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
-    assert attempt["input_tokens_by_modality"] == {"text": 4, "audio": 8}
+    assert attempt["input_tokens_by_modality"] == {"audio": 8}
 
 
 def test_streamed_response_model_comes_from_the_stream(logger, writer):
@@ -904,18 +902,138 @@ def test_unpatch_restores_the_stream_methods():
     assert isinstance(original, staticmethod)
 
 
-def test_a_retry_no_hook_reported_is_recorded_when_the_request_succeeds(logger, writer):
-    # Before async_post_call_failure_deployment_hook, nothing reports a failed embeddings retry; the next attempt
-    # starting is the only sign that it ended.
+def test_a_retry_no_hook_reported_is_counted_but_not_recorded(logger, writer):
+    # Before async_post_call_failure_deployment_hook, nothing reports a failed embeddings retry. When it ended is
+    # unknown (the router may wait before the next attempt), so it has no duration to record.
     proxy = Proxy(logger, call_type="aembedding", route="embed")
     proxy.start()
     proxy.attempt(0, model="text-embedding-3-small")
     proxy.attempt(0.3, model="text-embedding-3-small")
     proxy.succeeded(0.5, usage={"prompt_tokens": 3, "completion_tokens": 0}, model="text-embedding-3-small")
-    failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
-    assert failed["error_type"] == "error"
-    assert failed["duration_seconds"] == pytest.approx(0.3)
+    [(succeeded, _)] = writer.of(PROVIDER_ATTEMPT)
     assert "error_type" not in succeeded and succeeded["input_tokens"] == 3
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["provider_operations"] == 2
     assert logger._requests == {}
+
+
+def test_usage_fields_read_the_native_shapes():
+    # LiteLLM 1.6x hands over the response's own usage on the Responses and Anthropic Messages routes.
+    responses = {
+        "input_tokens": 12,
+        "output_tokens": 7,
+        "input_tokens_details": {"cached_tokens": 4},
+        "output_tokens_details": {"reasoning_tokens": 3},
+    }
+    assert usage_fields(responses, embeddings=False) == {
+        "input_tokens": 12,
+        "input_basis": "includes_cache",
+        "output_tokens": 7,
+        "output_basis": "includes_reasoning",
+        "cache_read_input_tokens": 4,
+        "reasoning_output_tokens": 3,
+    }
+    anthropic = {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "cache_read_input_tokens": 20,
+        "cache_creation_input_tokens": 30,
+        "cache_creation": {"ephemeral_5m_input_tokens": 18, "ephemeral_1h_input_tokens": 12},
+    }
+    assert usage_fields(anthropic, embeddings=False) == {
+        "input_tokens": 10,
+        "input_basis": "excludes_cache",
+        "output_tokens": 5,
+        "output_basis": "includes_reasoning",
+        "cache_read_input_tokens": 20,
+        "cache_write_input_tokens": 30,
+        "cache_write_5m_input_tokens": 18,
+        "cache_write_1h_input_tokens": 12,
+    }
+
+
+def test_native_usage_is_recorded_from_the_response(logger, writer):
+    proxy = Proxy(logger, call_type="aresponses")
+    proxy.start()
+    proxy.attempt(0)
+    kwargs = proxy.kwargs(None, 5.7e-6)
+    kwargs["standard_logging_object"]["metadata"].pop("usage_object")
+    response = type("Response", (), {"usage": {"input_tokens": 12, "output_tokens": 7}})()
+    run(logger.async_log_success_event(kwargs, response, T0, at(0.5)))
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert (attempt["input_tokens"], attempt["output_tokens"]) == (12, 7)
+
+
+def test_failed_stream_before_its_logging_payload_exists(logger, writer):
+    # The failure hook first, with only the recovered usage and cost: the attempt keeps them, and the model and
+    # token sources its stream showed.
+    proxy = Proxy(logger, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    logger.observe_stream("call-1", False, False, "gpt-4o-mini-2024-07-18")
+    proxy.failed(Exception(), **charged(PARTIAL_USAGE, 1.8e-6))
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["input_tokens"] == 8 and attempt["cost_usd"] == 1.8e-6
+    assert attempt["response_model"] == "gpt-4o-mini-2024-07-18"
+    assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["estimated_cost_usd"] == 1.8e-6
+
+
+@pytest.mark.skipif(_usage_metrics.guardrail_information_cost is None, reason="LiteLLM before 1.104")
+@pytest.mark.parametrize(
+    "guardrails, stream_cost, expected",
+    [
+        ([{"guardrail_name": "pii", "guardrail_cost": 0.25}], None, 0.25),
+        ([{"guardrail_name": "pii", "guardrail_cost": 0.25}], 0.01, 0.26),
+        ([{"guardrail_name": "pii", "guardrail_cost": 0.25, "guardrail_cost_in_spend": False}], None, 0.0),
+    ],
+)
+def test_failed_request_is_charged_its_billed_guardrails(logger, writer, guardrails, stream_cost, expected):
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0)
+    proxy.attempt_failed(Exception())
+    request_data = {"litellm_metadata": {"standard_logging_guardrail_information": guardrails}}
+    if stream_cost is not None:
+        request_data.update(charged(PARTIAL_USAGE, stream_cost))
+    proxy.failed(Exception(), **request_data)
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["estimated_cost_usd"] == pytest.approx(expected)
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+@pytest.mark.subprocess()
+def test_a_fork_does_not_inherit_the_logger_lock_or_requests():
+    # LiteLLM's worker threads take the logger's lock: a fork while one holds it must not leave the child locked,
+    # and the parent's requests in flight are not the child's.
+    import os
+    import signal
+    import threading
+
+    from ddtrace.contrib.internal.litellm._usage_metrics import UsageMetricsLogger
+    from ddtrace.internal import forksafe
+
+    logger = UsageMetricsLogger(None, frozenset(), None, {})
+    forksafe.register(logger.reset)
+    logger._request("parent-call")
+    held, release = threading.Event(), threading.Event()
+
+    def hold():
+        with logger._lock:
+            held.set()
+            release.wait(10)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    assert held.wait(10)
+    pid = os.fork()
+    if pid == 0:
+        signal.alarm(5)
+        ok = logger._request("child-call") is not None and list(logger._requests) == ["child-call"]
+        os._exit(0 if ok else 1)
+    _, status = os.waitpid(pid, 0)
+    release.set()
+    thread.join()
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+    assert list(logger._requests) == ["parent-call"]
