@@ -1,5 +1,6 @@
 from typing import Mapping
 from typing import Optional
+from typing import Union
 from urllib import parse
 
 import urllib3
@@ -15,6 +16,9 @@ from ddtrace.internal.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.constants import USER_AGENT_HEADER
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._opentelemetry import ExporterConfig
+from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -100,7 +104,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
 
-    if not is_tracing_enabled() or _is_otlp_export(request_headers):
+    if not is_tracing_enabled() or _is_otlp_export(request_url, request_headers):
         return func(*args, **kwargs)
 
     service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(None, config.urllib3)
@@ -136,11 +140,57 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 ctx.event.set_response(response)
 
 
-def _is_otlp_export(headers: Optional[Mapping[str, str]]) -> bool:
-    if not config._otel_enabled or not headers:
+def _is_otlp_export(url: str, headers: Optional[Mapping[str, Union[str, bytes]]]) -> bool:
+    if not config._otel_enabled:
         return False
-    for name, value in headers.items():
-        if name.lower() == USER_AGENT_HEADER:
-            normalized_user_agent = value.lower().replace(" ", "-")
-            return OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent
-    return False
+    if headers:
+        for name, value in headers.items():
+            if name.lower() == USER_AGENT_HEADER:
+                normalized_user_agent = ensure_text(value).lower().replace(" ", "-")
+                if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent:
+                    return True
+                break
+    return _normalize_otlp_url(url) in _OTLP_EXPORT_URLS
+
+
+def _normalize_otlp_url(url: str) -> Optional[tuple]:
+    parsed = parse.urlparse(url)
+    if not parsed.hostname:
+        return None
+    return (parsed.scheme, parsed.hostname, parsed.port, parsed.path.rstrip("/"))
+
+
+def _otlp_export_urls() -> frozenset:
+    """Full export URLs for the enabled OTLP signals, resolved as the OpenTelemetry SDK does."""
+    base = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    urls = set()
+    for enabled, signal_endpoint_var, endpoint, path in (
+        (
+            config._otel_metrics_enabled,
+            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+            otel_config.exporter.METRICS_ENDPOINT,
+            ExporterConfig.METRICS_PATH,
+        ),
+        (
+            config._otel_logs_enabled,
+            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+            otel_config.exporter.LOGS_ENDPOINT,
+            ExporterConfig.LOGS_PATH,
+        ),
+        (
+            _is_otlp_traces_exporter_enabled(otel_config.exporter),
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+            otel_config.exporter.TRACES_ENDPOINT,
+            ExporterConfig.TRACES_PATH,
+        ),
+    ):
+        if not enabled:
+            continue
+        url = base.rstrip("/") + path if base and not env.get(signal_endpoint_var) else endpoint
+        normalized = _normalize_otlp_url(url)
+        if normalized is not None:
+            urls.add(normalized)
+    return frozenset(urls)
+
+
+_OTLP_EXPORT_URLS = _otlp_export_urls()
