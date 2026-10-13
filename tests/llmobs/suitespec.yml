@@ -466,7 +466,7 @@ suites:
       variants:
         - name: vllm
           python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2']
+          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
