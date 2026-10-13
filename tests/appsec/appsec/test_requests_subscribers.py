@@ -104,7 +104,6 @@ def test_requests_analyzes_once_before_transport(requests_subscriber, block):
     from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
     from ddtrace.contrib.internal.requests.patch import patch as requests_patch
     from ddtrace.contrib.internal.requests.patch import unpatch as requests_unpatch
-    from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 
     sock = mock.Mock()
     sock.makefile.return_value = io.BytesIO(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
@@ -150,7 +149,6 @@ def test_requests_analyzes_once_before_transport(requests_subscriber, block):
 
                     def independent(host, path):
                         connection = http.client.HTTPConnection(host)
-                        setattr(connection, _HTTPLIB_NO_TRACE_REQUEST, True)
                         connection._send_request = mock.Mock(return_value=None)
                         connection.request("GET", path)
 
@@ -204,3 +202,58 @@ def test_requests_analyzes_once_before_transport(requests_subscriber, block):
         requests_unpatch()
         httplib_unpatch()
         unpatch_common_modules()
+
+
+def test_requests_publishes_the_original_url_and_body_with_tracing_disabled(requests_subscriber):
+    """Session.send skips its traced context when tracing is off; the transport hop must not depend on it."""
+    import io
+
+    import requests
+    import urllib3.connection
+
+    from ddtrace import tracer
+    from ddtrace.contrib.internal.requests.patch import patch as requests_patch
+    from ddtrace.contrib.internal.requests.patch import unpatch as requests_unpatch
+
+    sock = mock.Mock()
+    sock.makefile.return_value = io.BytesIO(
+        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"
+    )
+    inspected = []
+
+    def waf(addresses=None, **kwargs):
+        inspected.append((kwargs["rule_type"], addresses))
+
+    env = mock.Mock(downstream_requests=0)
+    unpatch_common_modules()
+    requests_patch()
+    patch_common_modules()
+    try:
+        with (
+            mock.patch.object(tracer, "enabled", False),
+            mock.patch.object(standalone_config, "apm_tracing_enabled", True),
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=env),
+            mock.patch.object(cmp, "call_waf_callback", side_effect=waf),
+            mock.patch.object(requests_appsec, "get_rasp_capability", return_value=True),
+            mock.patch.object(requests_appsec, "_get_asm_context", return_value=env),
+            mock.patch.object(requests_appsec, "should_analyze_body_response", return_value=True),
+            mock.patch.object(requests_appsec, "call_waf_callback", side_effect=waf),
+            mock.patch.object(httplib_appsec, "get_rasp_capability", return_value=True),
+            mock.patch.object(httplib_appsec, "get_active_asm_context", return_value=env),
+            mock.patch.object(httplib_appsec, "call_waf_callback", side_effect=waf),
+            mock.patch.object(urllib3.connection.HTTPConnection, "_new_conn", return_value=sock),
+        ):
+            assert not standalone_config.apm_opt_out
+            # The host's case is normalized during preparation, so only the original input keeps it.
+            response = requests.post("http://Example.test/path", json={"q": 1}, proxies={"http": None, "https": None})
+            assert response.status_code == 200
+    finally:
+        requests_unpatch()
+        unpatch_common_modules()
+
+    assert [rule for rule, _ in inspected] == [EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_RES]
+    request_addresses = inspected[0][1]
+    assert request_addresses[EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://Example.test/path"
+    assert request_addresses["DOWN_REQ_BODY"] == {"q": 1}
+    assert inspected[1][1]["DOWN_RES_BODY"] == {}

@@ -8,14 +8,10 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.http_client import HttpClientEvents
-from ddtrace.contrib.internal.httplib.events import patch_http_client_events
-from ddtrace.contrib.internal.httplib.events import unpatch_http_client_events
+from ddtrace.contrib.internal.httplib.events import is_internal_connection
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
-from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -196,20 +192,13 @@ def _wrap_putheader(func, instance, args, kwargs):
 
 def should_skip_request(pin, request):
     """Helper to determine if the provided request should be traced"""
-    if getattr(request, _HTTPLIB_NO_TRACE_REQUEST, False):
-        return True
-
     if not pin or not pin.enabled():
         return True
 
     # httplib is used to send apm events (profiling,di, tracing, etc.) to the datadog agent
     # Tracing these requests introduces a significant noise and instability in ddtrace tests.
     # TO DO: Avoid tracing requests to APM internal services (ie: extend this functionality to agentless products).
-    agent_url = tracer.agent_trace_url
-    if agent_url:
-        parsed = parse.urlparse(agent_url)
-        return request.host == parsed.hostname and request.port == parsed.port
-    return False
+    return is_internal_connection(request)
 
 
 def patch():
@@ -217,7 +206,6 @@ def patch():
     if getattr(httplib, "__datadog_patch", False):
         return
     httplib.__datadog_patch = True
-    patch_http_client_events()
 
     # Patch the desired methods
     httplib.HTTPConnection.__init__ = wrapt.FunctionWrapper(httplib.HTTPConnection.__init__, _wrap_init)
@@ -238,7 +226,3 @@ def unpatch():
     _u(httplib.HTTPConnection, "request")
     _u(httplib.HTTPConnection, "putrequest")
     _u(httplib.HTTPConnection, "putheader")
-    if not core.has_listeners("context.started." + HttpClientEvents.HTTPLIB_REQUEST.value) and not core.has_listeners(
-        HttpClientEvents.HTTPLIB_RESPONSE.value
-    ):
-        unpatch_http_client_events()

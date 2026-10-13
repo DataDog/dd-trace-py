@@ -6,6 +6,7 @@ from typing import ClassVar
 from typing import Optional
 from typing import cast
 
+from ddtrace.appsec._asm_request_context import SSRF_CLIENT_TRANSPORT
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
@@ -15,7 +16,8 @@ from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.contrib._events.http import _HttpResponseWithStatusCode
 from ddtrace.contrib._events.http_client import HttpClientEvents
-from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientHopEvent
+from ddtrace.contrib._events.http_client import HttpClientOperationEvent
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import ContextSubscriber
 
@@ -30,13 +32,13 @@ class _RequestsOperation:
     use_body: bool
 
 
-class AppSecRequestsSubscriber(ContextSubscriber[HttpClientRequestEvent]):
+class AppSecRequestsSubscriber(ContextSubscriber[HttpClientOperationEvent]):
     auto_register = False
     event_names = (HttpClientEvents.REQUESTS_REQUEST.value,)
     activation: ClassVar[Optional[object]] = None
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientOperationEvent]) -> None:
         activation = cls.activation
         if activation is None or not get_rasp_capability("ssrf"):
             return
@@ -59,7 +61,7 @@ class AppSecRequestsSubscriber(ContextSubscriber[HttpClientRequestEvent]):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext[HttpClientRequestEvent],
+        ctx: core.ExecutionContext[HttpClientOperationEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         # A later activation cannot finish an operation that was disabled in flight.
@@ -86,13 +88,13 @@ class AppSecRequestsSubscriber(ContextSubscriber[HttpClientRequestEvent]):
         call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
 
 
-class AppSecRequestsSendSubscriber(ContextSubscriber[HttpClientRequestEvent]):
+class AppSecRequestsSendSubscriber(ContextSubscriber[HttpClientHopEvent]):
     auto_register = False
-    event_names = (HttpClientEvents.HTTP_REQUEST.value,)
+    event_names = (HttpClientEvents.REQUESTS_HOP.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
-        if ctx.event.component != "requests" or not get_rasp_capability("ssrf"):
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientHopEvent]) -> None:
+        if not get_rasp_capability("ssrf"):
             return
         operation = ctx.find_item(APPSEC_REQUESTS_CONTEXT_KEY)
         if operation is None or operation.activation is not AppSecRequestsSubscriber.activation:
@@ -102,3 +104,4 @@ class AppSecRequestsSendSubscriber(ContextSubscriber[HttpClientRequestEvent]):
         ctx.set_item("full_url", operation.pending_url or ctx.event.request_url)
         operation.pending_url = None
         ctx.set_item("use_body", operation.use_body)
+        ctx.set_item(SSRF_CLIENT_TRANSPORT, True)

@@ -30,6 +30,7 @@ class HttpClientEvents(Enum):
     HTTP_SEND_REQUEST = "http.client.send_request"
     HTTPX_SEND_REQUEST = "httpx.send_request"
     REQUESTS_REQUEST = "requests.request"
+    REQUESTS_HOP = "requests.hop"
     HTTPLIB_REQUEST = "httplib.request"
     HTTPLIB_RESPONSE = "httplib.response"
 
@@ -72,6 +73,24 @@ class HttpClientSendEvent(HttpBaseEvent):
     connection: Optional[HTTPConnection] = event_field(default=None)
 
 
+@dataclass
+class HttpClientOperationEvent(Event):
+    """A client API call as the application made it, before the client prepares or sends anything."""
+
+    event_name = HttpClientEvents.REQUESTS_REQUEST.value
+    request_url: Any = event_field()
+    request_method: Any = event_field()
+    response: Optional[Any] = event_field(default=None)
+
+
+@dataclass
+class HttpClientHopEvent(Event):
+    """One transport attempt of a client operation: the first send, a redirect, or an auth retry."""
+
+    event_name = HttpClientEvents.REQUESTS_HOP.value
+    request_url: Optional[str] = event_field(default=None)
+
+
 ResponseType = TypeVar("ResponseType")
 
 
@@ -81,3 +100,6 @@ class HttpClientResponseEvent(Event, Generic[ResponseType]):
 
     event_name = HttpClientEvents.HTTPLIB_RESPONSE.value
     response: ResponseType = event_field()
+    # Valid only while the event is dispatched. Returns None for ddtrace's own connections, whose
+    # responses are not the application's.
+    get_connection: Callable[[], Optional[HTTPConnection]] = event_field(default=lambda: None)

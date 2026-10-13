@@ -1,10 +1,10 @@
-import io
 import json
 from types import TracebackType
 from typing import Any
 from typing import Optional
 from urllib.parse import urlunparse
 
+from ddtrace.appsec._asm_request_context import SSRF_CLIENT_TRANSPORT
 from ddtrace.appsec._asm_request_context import SSRF_REQUEST_ANALYZED
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_active_asm_context
@@ -21,6 +21,7 @@ from ddtrace.appsec._contrib.subprocess.patch import unpatch as unpatch_subproce
 from ddtrace.appsec._contrib.webbrowser.patch import patch as patch_webbrowser_for_appsec
 from ddtrace.appsec._contrib.webbrowser.patch import unpatch as unpatch_webbrowser_for_appsec
 from ddtrace.appsec._http_utils import build_headers
+from ddtrace.appsec._http_utils import parse_http_response_body
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
@@ -77,19 +78,6 @@ def unpatch_common_modules():
 
     log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False
-
-
-def _parse_http_response_body(response):
-    try:
-        if response.length and response.headers.get("content-type", None) == "application/json":
-            length = response.length
-            body = response.read()
-            response.fp = io.BytesIO(body)
-            response.length = length
-            return json.loads(body)
-    except Exception:
-        return None
-    return None
 
 
 class _RaspContext(WrappingContext):
@@ -149,6 +137,8 @@ class _ScopedRaspContext(_RaspContext):
     def _open_core_context(self, name: str, **kwargs: Any) -> None:
         core_ctx = core.context_with_data(name, **kwargs)
         core_ctx.__enter__()
+        # Every scoped RASP context wraps a client transport that analyzes its own responses.
+        core_ctx.set_item(SSRF_CLIENT_TRANSPORT, True)
         self.set("core_ctx", core_ctx)
 
     def _close_core_context(self) -> None:
@@ -212,7 +202,7 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
                         "DOWN_RES_HEADERS": build_headers(response.getheaders()),
                     }
                     if self.get("use_body"):
-                        addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
+                        addresses["DOWN_RES_BODY"] = parse_http_response_body(response)
                     call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
             except Exception:
                 # Never fail the customer's call, and never let a raising __return__ reach the
@@ -375,7 +365,7 @@ class _SsrfUrllib3MakeRequest(_ScopedRaspContext):
 
     def __return__(self, response: Any) -> Any:
         # No API10 response analysis here: urllib3 bottoms out in http.client's getresponse, which
-        # already reports DOWN_RES_* for this same subcontext. Re-inspecting would double-call.
+        # reports redirect responses for this same subcontext. Re-inspecting would double-call.
         self._close_core_context()
         return super().__return__(response)
 

@@ -200,6 +200,9 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
 
 _RASP_SUBCONTEXT = "asm::rasp_subcontext"
 SSRF_REQUEST_ANALYZED = "asm::ssrf_request_analyzed"
+# Set on the scope of a client's own transport attempt (urllib, urllib3, a requests hop), so http.client
+# underneath knows that client analyzes the final response and owns the subcontext.
+SSRF_CLIENT_TRANSPORT = "asm::ssrf_client_transport"
 
 _SSRF_RULE_TYPES = frozenset(
     (
@@ -217,7 +220,7 @@ class _RaspSubcontextHolder:
         self.subctx: Optional[Any] = None
 
 
-def open_rasp_subcontext_scope(inherit: bool = True) -> None:
+def open_rasp_subcontext_scope(inherit: bool = True) -> _RaspSubcontextHolder:
     """Establish the current core context as the owner of an SSRF subcontext.
 
     Called by SSRF integrations from the per-outgoing-request core context (``url_open_analysis``,
@@ -230,8 +233,19 @@ def open_rasp_subcontext_scope(inherit: bool = True) -> None:
     this is a no-op and the inner operation shares the outer subcontext.
     Pass inherit=False at an independent client API boundary, including calls from response hooks.
     """
-    if not inherit or core.find_item(_RASP_SUBCONTEXT) is None:
-        core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
+    holder = None if not inherit else core.find_item(_RASP_SUBCONTEXT)
+    if holder is None:
+        holder = _RaspSubcontextHolder()
+        core.set_item(_RASP_SUBCONTEXT, holder)
+    return holder
+
+
+def resume_rasp_subcontext_scope(holder: _RaspSubcontextHolder) -> None:
+    """Make the current core context share a subcontext opened by a scope that has already ended.
+
+    For APIs that split one outgoing request across calls, like http.client's request and getresponse.
+    """
+    core.set_item(_RASP_SUBCONTEXT, holder)
 
 
 def get_or_create_rasp_subcontext(ddwaf: Any, ctx: Any, rule_type: Optional[str]) -> Optional[Any]:

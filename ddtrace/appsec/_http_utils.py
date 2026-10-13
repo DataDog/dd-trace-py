@@ -3,7 +3,9 @@ from collections.abc import Iterable
 from collections.abc import Mapping
 from collections.abc import MutableMapping
 from http.cookies import SimpleCookie
+import io
 import json
+from typing import Any
 from typing import Optional
 from typing import Union
 from urllib.parse import parse_qs
@@ -88,3 +90,17 @@ def build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[s
         else:
             res[a] = b
     return res
+
+
+def parse_http_response_body(response: Any) -> Any:
+    """Decode a JSON http.client response body, then put it back so the application can still read it."""
+    try:
+        if response.length and response.headers.get("content-type", None) == "application/json":
+            length = response.length
+            body = response.read()
+            response.fp = io.BytesIO(body)
+            response.length = length
+            return json.loads(body)
+    except Exception:
+        return None
+    return None

@@ -357,3 +357,177 @@ def test_absolute_downstream_url_follows_a_connect_tunnel(tunnel_host, tunnel_po
 )
 def test_carries_a_host(url, carries_host):
     assert httplib_appsec._carries_a_host(url) is carries_host
+
+
+class _FakeSocket:
+    """Accepts whatever http.client sends and replays one canned HTTP response."""
+
+    def __init__(self, raw_response):
+        self._raw_response = raw_response
+
+    def sendall(self, data):
+        pass
+
+    def makefile(self, mode, *args, **kwargs):
+        import io
+
+        return io.BytesIO(self._raw_response)
+
+    def close(self):
+        pass
+
+
+def _connection(
+    raw_response=b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 11\r\n\r\n{"a": true}',
+):
+    import http.client
+
+    connection = http.client.HTTPConnection("downstream.test", 8080, timeout=1)
+    connection.sock = _FakeSocket(raw_response)
+    return connection
+
+
+@contextlib.contextmanager
+def _rasp(use_body=False):
+    from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
+
+    env = mock.Mock(downstream_requests=0)
+    calls = []
+
+    def waf(addresses, **kwargs):
+        calls.append((kwargs["rule_type"], addresses, core.find_item(_RASP_SUBCONTEXT)))
+
+    with (
+        mock.patch.object(httplib_appsec, "get_rasp_capability", return_value=True),
+        mock.patch.object(httplib_appsec, "get_active_asm_context", return_value=env),
+        mock.patch.object(httplib_appsec, "should_analyze_body_response", return_value=use_body),
+        mock.patch.object(httplib_appsec, "call_waf_callback", side_effect=waf),
+    ):
+        yield calls
+
+
+@pytest.mark.parametrize("use_body", [False, True])
+def test_a_standalone_request_and_its_response_share_one_subcontext(use_body):
+    """With no client above http.client, the request is the whole operation, response included."""
+    with _rasp(use_body=use_body) as calls:
+        connection = _connection()
+        connection.request("POST", "/api", body='{"q": 1}', headers={"Content-Type": "application/json"})
+        response = connection.getresponse()
+        # Analyzing the body must not consume it for the application.
+        assert response.read() == b'{"a": true}'
+
+    assert [rule for rule, _, _ in calls] == [EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_RES]
+    request_addresses, response_addresses = calls[0][1], calls[1][1]
+    assert request_addresses[EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://downstream.test:8080/api"
+    assert response_addresses["DOWN_RES_STATUS"] == "200"
+    if use_body:
+        assert request_addresses["DOWN_REQ_BODY"] == {"q": 1}
+        assert response_addresses["DOWN_RES_BODY"] == {"a": True}
+    else:
+        assert "DOWN_REQ_BODY" not in request_addresses
+        assert "DOWN_RES_BODY" not in response_addresses
+    assert calls[0][2] is not None
+    assert calls[1][2] is calls[0][2]
+    assert not httplib_appsec._PENDING_RESPONSES
+
+
+@pytest.mark.parametrize("status, analyzed", [(b"200 OK", False), (b"302 Found", True)], ids=["final", "redirect"])
+def test_a_client_transport_above_keeps_the_final_response(status, analyzed):
+    """urllib, urllib3 and requests analyze the final response themselves, so only redirects are reported here."""
+    from ddtrace.appsec._asm_request_context import SSRF_CLIENT_TRANSPORT
+
+    with _rasp() as calls:
+        connection = _connection(b"HTTP/1.1 " + status + b"\r\nContent-Length: 0\r\n\r\n")
+        with core.context_with_data("test.client_transport"):
+            core.set_item(SSRF_CLIENT_TRANSPORT, True)
+            # A redirect hop: the client consumed its original URL on the first one.
+            connection.request("GET", "/next")
+            connection.getresponse()
+
+    expected = [EXPLOIT_PREVENTION.TYPE.SSRF_REQ] + ([EXPLOIT_PREVENTION.TYPE.SSRF_RES] if analyzed else [])
+    assert [rule for rule, _, _ in calls] == expected
+    assert calls[0][1][EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://downstream.test:8080/next"
+
+
+def test_an_unread_response_does_not_leak_into_the_next_request():
+    """A kept-alive connection's next request supersedes the analysis left pending by the previous one."""
+    from ddtrace.appsec._asm_request_context import SSRF_CLIENT_TRANSPORT
+
+    with _rasp() as calls:
+        connection = _connection()
+        connection.request("GET", "/first")
+        assert connection in httplib_appsec._PENDING_RESPONSES
+        connection._HTTPConnection__state = "Idle"
+        connection._HTTPConnection__response = None
+        with core.context_with_data("test.client_transport"):
+            core.set_item(SSRF_CLIENT_TRANSPORT, True)
+            connection.request("GET", "/second")
+            connection.getresponse()
+
+    assert [rule for rule, _, _ in calls] == [EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_REQ]
+    assert not httplib_appsec._PENDING_RESPONSES
+
+
+@pytest.mark.parametrize("internal", ["no_trace", "agent"])
+def test_ddtrace_own_connections_publish_nothing(internal):
+    """The tracer's own http.client traffic is not the application's downstream traffic."""
+    from urllib.parse import urlparse
+
+    from ddtrace import tracer
+    from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+
+    agent = urlparse(tracer.agent_trace_url)
+    with _rasp() as calls:
+        connection = _connection()
+        if internal == "no_trace":
+            setattr(connection, _HTTPLIB_NO_TRACE_REQUEST, True)
+        else:
+            connection.host, connection.port = agent.hostname, agent.port
+        with mock.patch.object(core, "context_with_event", wraps=core.context_with_event) as published:
+            connection.request("GET", "/v0.4/traces")
+            connection.getresponse()
+        published.assert_not_called()
+
+    assert calls == []
+    assert not httplib_appsec._PENDING_RESPONSES
+
+
+def test_the_event_never_exposes_http_client_shared_default_headers():
+    """A subscriber writing to the event's headers must not change every later request's defaults."""
+    import http.client
+
+    seen = []
+
+    def on_started(ctx):
+        ctx.event.request_headers["X-Injected"] = "1"
+        seen.append(ctx.event.request_headers)
+
+    core.on("context.started." + HttpClientEvents.HTTPLIB_REQUEST.value, on_started, "test_default_headers")
+    try:
+        connection = _connection()
+        connection.request("GET", "/")
+    finally:
+        core.reset_listeners("context.started." + HttpClientEvents.HTTPLIB_REQUEST.value, on_started)
+
+    assert seen == [{"X-Injected": "1"}]
+    assert http.client.HTTPConnection.request.__defaults__ == (None, {})
+
+
+def test_appsec_owns_the_http_client_hooks():
+    """The httplib integration installs only its spans; AppSec installs and removes the observation hooks."""
+    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    httplib_unlisten()
+    httplib_unpatch()
+    assert ("http.client", "HTTPConnection.request") not in _WRAPPING_CONTEXTS
+    try:
+        httplib_patch()
+        assert ("http.client", "HTTPConnection.request") not in _WRAPPING_CONTEXTS
+        httplib_listen()
+        assert isinstance(_WRAPPING_CONTEXTS.get(("http.client", "HTTPConnection.request")), HttpClientRequestContext)
+        httplib_unlisten()
+        assert ("http.client", "HTTPConnection.request") not in _WRAPPING_CONTEXTS
+        assert ("http.client", "HTTPConnection.getresponse") not in _WRAPPING_CONTEXTS
+    finally:
+        httplib_unpatch()

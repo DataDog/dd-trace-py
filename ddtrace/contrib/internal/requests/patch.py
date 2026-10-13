@@ -6,7 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib._events.http_client import HttpClientEvents
-from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientOperationEvent
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
@@ -51,16 +51,10 @@ def _wrap_request(func: Callable[..., Any], instance: Any, args: tuple[Any, ...]
         return func(*args, **kwargs)
 
     with core.context_with_event(
-        HttpClientRequestEvent(
-            component=config.requests.integration_name,
-            integration_config=config.requests,
-            http_operation="requests.request",
+        HttpClientOperationEvent(
             request_url=args[1] if len(args) > 1 else kwargs.get("url"),
             request_method=args[0] if args else kwargs.get("method"),
-            request_headers=kwargs.get("headers") or instance.headers,
-        ),
-        # This observes API inputs before preparation; Session.send owns tracing and propagation.
-        context_name_override=HttpClientEvents.REQUESTS_REQUEST.value,
+        )
     ) as ctx:
         ctx.event.response = func(*args, **kwargs)
         return ctx.event.response
