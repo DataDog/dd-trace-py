@@ -1,0 +1,42 @@
+---
+description: >-
+  Warn before the first push of a Python profiling branch if an open, draft,
+  or recently merged PR already covers the same issue. Use on first git push,
+  duplicate PRs, already landed work, or dup-pr-pre-push. No-op outside
+  Python profiling paths.
+globs: []
+alwaysApply: false
+---
+
+<!-- ⚠️ EDITOR WARNING ⚠️ -->
+<!-- Don't update this file. If you want to extend the rules and description, -->
+<!-- go to the skill: .claude/skills/dup-pr-pre-push/SKILL.md -->
+
+# Duplicate profiling PR check
+
+## Overview
+
+Before the **first** `git push` of a branch with no remote, if the
+merge-base diff includes Python profiling paths, run the
+**`dup-pr-pre-push`** skill. It searches for open, draft, and recently
+merged PRs on the same issue, then warns with URLs.
+
+Do not auto-close anything. Do not abandon local work. Skip when the
+diff is not profiling.
+
+## Usage
+
+Use the Skill tool with command "dup-pr-pre-push"
+
+Or run the helper directly:
+
+```bash
+scripts/search-dup-prs.sh [keyword ...]
+```
+
+The helper prints `## scope: skip` and exits 0 when the diff is not
+Python profiling. Expanding to all of dd-trace-py is a later flip.
+
+## Full Documentation
+
+See: `.claude/skills/dup-pr-pre-push/SKILL.md`
