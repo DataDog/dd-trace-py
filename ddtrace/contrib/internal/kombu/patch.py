@@ -10,8 +10,8 @@ from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal import core
-from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context

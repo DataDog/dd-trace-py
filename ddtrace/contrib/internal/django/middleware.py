@@ -10,9 +10,9 @@ import ddtrace
 from ddtrace.contrib.internal import trace_utils as contrib_trace_utils
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context

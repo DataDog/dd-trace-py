@@ -15,7 +15,7 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
-import ddtrace.internal.base.forksafe as forksafe
+import ddtrace_base.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 

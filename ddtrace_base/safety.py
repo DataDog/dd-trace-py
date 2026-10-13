@@ -5,9 +5,9 @@ from typing import Union  # noqa:F401
 
 import wrapt
 
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.utils.attrdict import AttrDict
-from ddtrace.internal.base.utils.cache import cached
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.utils.attrdict import AttrDict
+from ddtrace_base.utils.cache import cached
 
 
 NoneType = type(None)

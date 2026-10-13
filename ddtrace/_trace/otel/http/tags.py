@@ -14,9 +14,9 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.internal.base.constants import DEFAULT_SCHEME_PORTS
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cached
+from ddtrace_base.constants import DEFAULT_SCHEME_PORTS
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import cached
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config

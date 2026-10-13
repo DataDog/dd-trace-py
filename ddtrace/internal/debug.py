@@ -7,7 +7,7 @@ from typing import Union
 
 from ddtrace import _monkey
 from ddtrace.internal import agent
-from ddtrace.internal.base.utils.cache import callonce
+from ddtrace_base.utils.cache import callonce
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -18,7 +18,7 @@ from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.version import __version__
 
-from .base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

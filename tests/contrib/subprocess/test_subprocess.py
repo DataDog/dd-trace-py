@@ -12,7 +12,7 @@ from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.core.events import Event
+from ddtrace_base.core.events import Event
 from tests.utils import override_config
 from tests.utils import override_global_config
 

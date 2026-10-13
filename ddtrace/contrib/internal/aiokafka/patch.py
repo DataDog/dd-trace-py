@@ -11,10 +11,10 @@ from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.base.utils import get_argument_value
-from ddtrace.internal.base.utils import set_argument_value
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context

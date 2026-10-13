@@ -7,7 +7,7 @@ import weakref
 import ddtrace_api
 
 import ddtrace
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.wrapping.context import WrappingContext

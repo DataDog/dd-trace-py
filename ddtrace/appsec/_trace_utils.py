@@ -18,8 +18,8 @@ from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
-from ddtrace.internal.base._exceptions import BlockingException
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base._exceptions import BlockingException
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -47,8 +47,8 @@ def _maybe_hash(value: Optional[_T], mode: str) -> Optional[Union[_T, str]]:
 
 
 def _asm_manual_keep(span: SpanData) -> None:
-    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.base.constants import TraceSource
+    from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace_base.constants import TraceSource
     from ddtrace.internal.sampling import SamplingMechanism
     from ddtrace.internal.sampling import add_trace_source
 

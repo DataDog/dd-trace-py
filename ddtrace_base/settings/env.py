@@ -20,13 +20,13 @@ import logging
 import os
 from typing import Optional
 
-from ddtrace.internal.base.settings._supported_configurations import CONFIGURATION_ALIASES
-from ddtrace.internal.base.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
-from ddtrace.internal.base.settings._supported_configurations import SUPPORTED_CONFIGURATIONS
+from ddtrace_base.settings._supported_configurations import CONFIGURATION_ALIASES
+from ddtrace_base.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
+from ddtrace_base.settings._supported_configurations import SUPPORTED_CONFIGURATIONS
 
 
-# Use stdlib logging here instead of ddtrace.internal.base.logger.get_logger.
-# ddtrace/internal/base/logger.py imports ddtrace.internal.base.settings.env, so
+# Use stdlib logging here instead of ddtrace_base.logger.get_logger.
+# ddtrace_base/logger.py imports ddtrace_base.settings.env, so
 # using get_logger() would create a circular import at module-load time.
 logger = logging.getLogger(__name__)
 

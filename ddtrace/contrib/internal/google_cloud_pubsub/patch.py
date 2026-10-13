@@ -14,8 +14,8 @@ from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_reg
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.utils import get_argument_value
-from ddtrace.internal.base.utils import set_argument_value
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator

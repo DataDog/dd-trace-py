@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError

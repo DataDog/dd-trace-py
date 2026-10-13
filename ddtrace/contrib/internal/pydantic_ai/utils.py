@@ -2,7 +2,7 @@ import sys
 
 import wrapt
 
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.utils import get_argument_value
 
 
 class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):

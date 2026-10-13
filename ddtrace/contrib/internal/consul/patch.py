@@ -11,9 +11,9 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import consul as consulx
 from ddtrace.ext import net
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils.wrappers import unwrap as _u

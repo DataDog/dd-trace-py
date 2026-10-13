@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContex
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 

@@ -13,8 +13,8 @@ from ddtrace.contrib.internal.ray.constants import RAY_WAIT_NUM_RETURNS
 from ddtrace.contrib.internal.ray.constants import RAY_WAIT_TIMEOUT
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.core.events import Event
-from ddtrace.internal.base.core.events import event_field
+from ddtrace_base.core.events import Event
+from ddtrace_base.core.events import event_field
 
 
 class RayEvents(Enum):

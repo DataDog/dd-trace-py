@@ -10,7 +10,7 @@ optional OpenAI SDK.
 
 from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._common import wrap_abort_error
-import ddtrace.internal.base.logger as ddlogger
+import ddtrace_base.logger as ddlogger
 
 
 logger = ddlogger.get_logger(__name__)

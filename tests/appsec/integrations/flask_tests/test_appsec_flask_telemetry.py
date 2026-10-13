@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from ddtrace.internal.base.constants import BLOCKED_RESPONSE_JSON
+from ddtrace_base.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.http import _format_template
 from tests.appsec.appsec.test_telemetry import _assert_generate_metrics
 from tests.appsec.appsec.test_telemetry import _get_appsec_metrics

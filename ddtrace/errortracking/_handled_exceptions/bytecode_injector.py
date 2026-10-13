@@ -3,7 +3,7 @@ import sys
 from types import CodeType
 import typing as t
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation

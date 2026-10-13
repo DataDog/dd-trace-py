@@ -2,10 +2,10 @@ from itertools import count
 
 import pytest
 
-import ddtrace.internal.base.utils.retry as retry_module
-from ddtrace.internal.base.utils.retry import RetryError
-from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.internal.base.utils.retry import retry
+import ddtrace_base.utils.retry as retry_module
+from ddtrace_base.utils.retry import RetryError
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base.utils.retry import retry
 
 
 class NotEnough(Exception):

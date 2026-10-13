@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.internal.base.utils.cache import cached
+from ddtrace_base.utils.cache import cached
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.packages import get_distributions
 

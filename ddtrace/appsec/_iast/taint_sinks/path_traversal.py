@@ -10,7 +10,7 @@ from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

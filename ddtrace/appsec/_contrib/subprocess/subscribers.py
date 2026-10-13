@@ -6,7 +6,7 @@ from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
-from ddtrace.internal.base._exceptions import BlockingException
+from ddtrace_base._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import Subscriber
 
 

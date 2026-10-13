@@ -72,7 +72,7 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
     import io
     import sys
 
-    from ddtrace.internal.base.module import ModuleWatchdog
+    from ddtrace_base.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 
@@ -99,7 +99,7 @@ def test_ddtrace_iast_flask_no_patch():
     import io
     import sys
 
-    from ddtrace.internal.base.module import ModuleWatchdog
+    from ddtrace_base.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 
@@ -131,7 +131,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_auto():
     import io
     import sys
 
-    from ddtrace.internal.base.module import ModuleWatchdog
+    from ddtrace_base.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 

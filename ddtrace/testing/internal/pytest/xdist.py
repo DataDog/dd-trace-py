@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import typing as t
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.testing.internal.constants import DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX

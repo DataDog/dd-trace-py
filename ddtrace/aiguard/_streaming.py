@@ -24,7 +24,7 @@ import wrapt
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
-import ddtrace.internal.base.logger as ddlogger
+import ddtrace_base.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 

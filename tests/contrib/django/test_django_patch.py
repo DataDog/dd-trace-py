@@ -97,7 +97,7 @@ def test_setup_does_not_import_root_urlconf():
         f"django.setup() imported {settings.ROOT_URLCONF}; endpoint discovery must stay lazy"
     )
 
-    from ddtrace.internal.base.endpoints import endpoint_collection
+    from ddtrace_base.endpoints import endpoint_collection
 
     assert not endpoint_collection.endpoints
 
@@ -122,7 +122,7 @@ def test_wsgi_application_collects_endpoints():
 
     assert settings.ROOT_URLCONF in sys.modules
 
-    from ddtrace.internal.base.endpoints import endpoint_collection
+    from ddtrace_base.endpoints import endpoint_collection
 
     paths = {e.path for e in endpoint_collection.endpoints}
     assert "path/" in paths, paths
@@ -156,7 +156,7 @@ def test_wsgi_application_collects_endpoints_without_middleware_instrumentation(
 
     get_wsgi_application()
 
-    from ddtrace.internal.base.endpoints import endpoint_collection
+    from ddtrace_base.endpoints import endpoint_collection
 
     assert endpoint_collection.endpoints
 

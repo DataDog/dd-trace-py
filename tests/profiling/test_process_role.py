@@ -122,7 +122,7 @@ def test_uwsgi_postfork_worker_role_via_mock(monkeypatch: pytest.MonkeyPatch) ->
 def test_uwsgi_main_role_via_mock(monkeypatch: pytest.MonkeyPatch) -> None:
     """uWSGI main process: get_process_role() returns None before any fork."""
     import ddtrace.internal._runtime_id as _runtime_id_mod
-    import ddtrace.internal.base.forksafe as _forksafe
+    import ddtrace_base.forksafe as _forksafe
 
     # Reset process-lifetime state that may be True if subprocess.run() was called
     # earlier in this pytest session (subprocess.run uses os.fork on Linux).

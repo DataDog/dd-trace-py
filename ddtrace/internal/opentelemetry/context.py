@@ -2,7 +2,7 @@ from typing import Any
 from typing import cast
 
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.native._native import Context as DDContext
 from ddtrace.internal.native._native import SpanData as DDSpanData
 

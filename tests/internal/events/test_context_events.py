@@ -9,8 +9,8 @@ import weakref
 import pytest
 
 from ddtrace.internal import core
-from ddtrace.internal.base.core.events import Event
-from ddtrace.internal.base.core.events import event_field
+from ddtrace_base.core.events import Event
+from ddtrace_base.core.events import event_field
 from ddtrace.internal.core import event_hub
 
 

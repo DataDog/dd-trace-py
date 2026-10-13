@@ -13,7 +13,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
+from ddtrace_base.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
@@ -48,7 +48,7 @@ class SpanTestCase(TracerTestCase):
         """Test that setting DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED emits a deprecation warning."""
         import warnings
 
-        from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
         from ddtrace.internal.settings._config import Config
 
         warnings.simplefilter("always")

@@ -4,7 +4,7 @@ import itertools
 from typing import Optional
 
 from ddtrace.internal import atexit
-from ddtrace.internal.base.constants import EXPERIMENTAL_FEATURES
+from ddtrace_base.constants import EXPERIMENTAL_FEATURES
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -12,7 +12,7 @@ from ddtrace.vendor.dogstatsd import DogStatsd
 from ddtrace.vendor.dogstatsd.base import ENTITY_ID_TAG_NAME
 
 from .. import periodic
-from ..base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ..dogstatsd import get_dogstatsd_client
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL

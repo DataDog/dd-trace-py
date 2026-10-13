@@ -2,10 +2,16 @@ from collections.abc import Generator
 from collections.abc import Iterator
 from typing import Any
 
-from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import USER_KEEP
-from ddtrace.constants import USER_REJECT
+
+# Sampling priority wire values (canonical definitions; re-exported publicly by ddtrace.constants).
+# Use this to explicitly inform the backend that a trace should be rejected and not stored.
+USER_REJECT = -1
+# Used by the builtin sampler to inform the backend that a trace should be rejected and not stored.
+AUTO_REJECT = 0
+# Used by the builtin sampler to inform the backend that a trace should be kept and stored.
+AUTO_KEEP = 1
+# Use this to explicitly inform the backend that a trace should be kept and stored.
+USER_KEEP = 2
 
 
 _WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"

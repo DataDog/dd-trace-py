@@ -16,13 +16,13 @@ from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.base._exceptions import BlockingException
-from ddtrace.internal.base.compat import is_wrapted
-from ddtrace.internal.base.endpoints import endpoint_collection
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import get_argument_value
-from ddtrace.internal.base.utils import get_blocked
-from ddtrace.internal.base.utils import set_argument_value
+from ddtrace_base._exceptions import BlockingException
+from ddtrace_base.compat import is_wrapted
+from ddtrace_base.endpoints import endpoint_collection
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import get_blocked
+from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config

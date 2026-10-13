@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.openfeature import _evp_transport
 from ddtrace.internal.openfeature._evp_transport import DIRECT_RETRY_STATUSES
 from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS

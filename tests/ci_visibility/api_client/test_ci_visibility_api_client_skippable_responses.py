@@ -579,7 +579,7 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         client = self._get_test_client()
         with (
             mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5),
-            mock.patch("ddtrace.internal.base.utils.retry.sleep"),
+            mock.patch("ddtrace_base.utils.retry.sleep"),
         ):
             skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert skippable_items is None

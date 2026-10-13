@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from ddtrace.internal.base.constants import BLOCKED_RESPONSE_HTML
-from ddtrace.internal.base.constants import BLOCKED_RESPONSE_JSON
+from ddtrace_base.constants import BLOCKED_RESPONSE_HTML
+from ddtrace_base.constants import BLOCKED_RESPONSE_JSON
 import ddtrace.internal.utils.http as utils
 from tests.utils import override_env
 

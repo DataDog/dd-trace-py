@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 
 
 @pytest.fixture(autouse=True)

@@ -2,7 +2,7 @@ import logging
 import typing as t
 import uuid
 
-from ddtrace.internal.base import forksafe
+from ddtrace_base import forksafe
 from ddtrace.internal.settings import env
 
 

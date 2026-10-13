@@ -2,7 +2,7 @@ import flask
 
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

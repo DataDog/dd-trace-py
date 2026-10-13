@@ -13,8 +13,8 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.time import StopWatch
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.time import StopWatch
 from ddtrace.internal.ci_visibility._api_responses_cache import _get_normalized_cache_key
 from ddtrace.internal.ci_visibility._api_responses_cache import _read_from_cache
 from ddtrace.internal.ci_visibility._api_responses_cache import _write_to_cache

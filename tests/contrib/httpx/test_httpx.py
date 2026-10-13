@@ -5,7 +5,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 from ddtrace.internal.settings.http import HttpConfig
 from tests.utils import override_config
 from tests.utils import override_http_config

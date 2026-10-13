@@ -35,7 +35,7 @@ from ddtrace.aiguard.integrations._openai_responses import _openai_response_crea
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-import ddtrace.internal.base.logger as ddlogger
+import ddtrace_base.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 

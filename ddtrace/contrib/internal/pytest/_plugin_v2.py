@@ -61,9 +61,9 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import deprecations as deprecation_utils
-from ddtrace.internal.base.utils.deprecations import deprecate
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import deprecations as deprecation_utils
+from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY

@@ -7,8 +7,8 @@ from typing import Literal
 from typing import Optional
 from typing import Union
 
-from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.base.utils.deprecations import deprecate
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute

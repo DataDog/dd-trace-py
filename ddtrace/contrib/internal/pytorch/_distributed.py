@@ -18,8 +18,8 @@ from ddtrace.contrib.internal.pytorch._utils import set_cached_job_id
 from ddtrace.contrib.internal.trace_utils import unwrap as _unwrap
 from ddtrace.contrib.internal.trace_utils import wrap as _wrap
 from ddtrace.internal import core
-from ddtrace.internal.base import forksafe
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base import forksafe
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
 
 

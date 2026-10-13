@@ -564,7 +564,7 @@ def test_baggage_max_items_telemetry(test_agent_session, ddtrace_run_python_code
     code = """
 from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
 # Test max items exceeded
 baggage_items = {}
@@ -604,7 +604,7 @@ def test_baggage_max_bytes_telemetry(test_agent_session, ddtrace_run_python_code
     code = """
 from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 
 # Test max bytes exceeded
 large_value = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES // 2)  # Large value to exceed bytes limit

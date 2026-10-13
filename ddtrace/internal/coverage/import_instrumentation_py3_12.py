@@ -7,8 +7,8 @@ from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal import bytecode_injection as _bytecode_injection
-from ddtrace.internal.base.assembly import Assembly
-from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace_base.assembly import Assembly
+from ddtrace_base.compat import is_at_least_py
 from ddtrace.internal.bytecode_injection import HookType
 
 

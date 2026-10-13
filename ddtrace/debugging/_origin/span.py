@@ -18,10 +18,10 @@ from ddtrace.debugging._signal.model import TraceContextProtocol
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal.base.compat import NO_EXCEPTION
-from ddtrace.internal.base.compat import ExcInfoType
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.safety import _isinstance
+from ddtrace_base.compat import NO_EXCEPTION
+from ddtrace_base.compat import ExcInfoType
+from ddtrace_base.logger import get_logger
+from ddtrace_base.safety import _isinstance
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 

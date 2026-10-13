@@ -6,7 +6,7 @@ from typing import Optional
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.test import TEST_SESSION_NAME
-from ddtrace.internal.base.utils.time import StopWatch
+from ddtrace_base.utils.time import StopWatch
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE

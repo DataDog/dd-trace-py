@@ -35,7 +35,7 @@ from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_I
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
 
-# from ddtrace.internal.base.utils import _copy_trace_level_tags
+# from ddtrace_base.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_PARENT_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
@@ -59,22 +59,22 @@ from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
-from ddtrace.internal.base.compat import is_valid_ip
-from ddtrace.internal.base.compat import maybe_stringify
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.constants import FLASK_ENDPOINT
-from ddtrace.internal.base.constants import FLASK_RESOURCE_FULL
-from ddtrace.internal.base.constants import FLASK_URL_RULE
-from ddtrace.internal.base.constants import FLASK_VIEW_ARGS
-from ddtrace.internal.base.constants import HTTP_REQUEST_UPGRADED
-from ddtrace.internal.base.constants import MESSAGING_BATCH_COUNT
-from ddtrace.internal.base.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.base.constants import MESSAGING_MESSAGE_ID
-from ddtrace.internal.base.constants import MESSAGING_OPERATION
-from ddtrace.internal.base.constants import MESSAGING_SYSTEM
-from ddtrace.internal.base.constants import SPAN_LINK_KIND
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.compat import is_valid_ip
+from ddtrace_base.compat import maybe_stringify
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.constants import FLASK_ENDPOINT
+from ddtrace_base.constants import FLASK_RESOURCE_FULL
+from ddtrace_base.constants import FLASK_URL_RULE
+from ddtrace_base.constants import FLASK_VIEW_ARGS
+from ddtrace_base.constants import HTTP_REQUEST_UPGRADED
+from ddtrace_base.constants import MESSAGING_BATCH_COUNT
+from ddtrace_base.constants import MESSAGING_DESTINATION_NAME
+from ddtrace_base.constants import MESSAGING_MESSAGE_ID
+from ddtrace_base.constants import MESSAGING_OPERATION
+from ddtrace_base.constants import MESSAGING_SYSTEM
+from ddtrace_base.constants import SPAN_LINK_KIND
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.span_bus import span_from_context

@@ -9,7 +9,7 @@ import valkey.asyncio
 from ddtrace import tracer
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 from tests.utils import override_config
 
 from ..config import VALKEY_CONFIG

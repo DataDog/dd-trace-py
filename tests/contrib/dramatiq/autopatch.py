@@ -1,4 +1,4 @@
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 
 
 if __name__ == "__main__":

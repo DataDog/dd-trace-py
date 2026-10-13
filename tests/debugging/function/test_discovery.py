@@ -150,7 +150,7 @@ def test_custom_decorated_stuff():
 def test_discovery_after_external_wrapping_context():
     from ddtrace.debugging._debugger import DebuggerModuleWatchdog
     from ddtrace.debugging._function.discovery import FunctionDiscovery
-    from ddtrace.internal.base.module import origin
+    from ddtrace_base.module import origin
     from ddtrace.internal.utils.inspection import ModuleCodeCollector
     from ddtrace.internal.wrapping.context import WrappingContext
 

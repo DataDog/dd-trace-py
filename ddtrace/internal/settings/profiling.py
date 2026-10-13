@@ -14,8 +14,8 @@ from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.base import compat
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base import compat
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource

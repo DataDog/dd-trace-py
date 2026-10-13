@@ -7,8 +7,8 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.utils import ArgumentError
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
 
 
 config._add(

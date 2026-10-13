@@ -17,8 +17,8 @@ from ddtrace.contrib.internal.django.compat import user_is_authenticated
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
 from ddtrace.internal import core
-from ddtrace.internal.base import compat
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base import compat
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type

@@ -1,7 +1,7 @@
 import logging
 
-from ddtrace.internal.base.schema.span_attribute_schema import _SPAN_ATTRIBUTE_TO_FUNCTION
-from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.schema.span_attribute_schema import _SPAN_ATTRIBUTE_TO_FUNCTION
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 

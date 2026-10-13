@@ -9,7 +9,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.core import ExecutionContext
 
 

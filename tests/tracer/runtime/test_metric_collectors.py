@@ -104,7 +104,7 @@ class TestNativeProcessMetricCollector(BaseTestCase):
         self.assertEqual(collector.collect(), [])
 
     def test_stop_unregisters_fork_hook(self) -> None:
-        from ddtrace.internal.base import forksafe
+        from ddtrace_base import forksafe
 
         collector = NativeProcessMetricCollector()
         try:
@@ -118,7 +118,7 @@ class TestNativeProcessMetricCollector(BaseTestCase):
         collector.stop()
         # The guard makes a second stop() a no-op rather than an unregister of a hook
         # that is no longer in the registry (which would only log, but is still a lie).
-        with mock.patch("ddtrace.internal.base.forksafe.unregister") as unregister:
+        with mock.patch("ddtrace_base.forksafe.unregister") as unregister:
             collector.stop()
         unregister.assert_not_called()
 
@@ -127,7 +127,7 @@ class TestNativeProcessMetricCollector(BaseTestCase):
             collector = NativeProcessMetricCollector()
 
         # The smoke test bailed out before registering, so there is nothing to remove.
-        with mock.patch("ddtrace.internal.base.forksafe.unregister") as unregister:
+        with mock.patch("ddtrace_base.forksafe.unregister") as unregister:
             collector.stop()
         unregister.assert_not_called()
 
@@ -292,7 +292,7 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         assert metrics[GC_COLLECTIONS_GEN2] == 0
 
     def test_stop_unregisters_fork_hook(self) -> None:
-        from ddtrace.internal.base import forksafe
+        from ddtrace_base import forksafe
 
         collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
         try:

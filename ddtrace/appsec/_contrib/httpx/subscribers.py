@@ -15,7 +15,7 @@ from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
 from ddtrace.internal import core
-from ddtrace.internal.base._exceptions import BlockingException
+from ddtrace_base._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import ContextSubscriber
 
 

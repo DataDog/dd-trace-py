@@ -302,7 +302,7 @@ class TestContextEventsApi(unittest.TestCase):
 
     @with_config_raise_value(raise_value=False)
     def test_core_dispatch_ddblockexception_always_propagates(self):
-        from ddtrace.internal.base._exceptions import DDBlockException
+        from ddtrace_base._exceptions import DDBlockException
 
         class FakeBlock(DDBlockException):
             pass
@@ -341,8 +341,8 @@ class TestContextEventsApi(unittest.TestCase):
             dispatch_event(FakeEvent(), allow_raise=True)
 
     def test_ddblockexception_inheritance(self):
-        from ddtrace.internal.base._exceptions import BlockingException
-        from ddtrace.internal.base._exceptions import DDBlockException
+        from ddtrace_base._exceptions import BlockingException
+        from ddtrace_base._exceptions import DDBlockException
 
         # DDBlockException is BaseException-derived only, not Exception
         assert issubclass(DDBlockException, BaseException)

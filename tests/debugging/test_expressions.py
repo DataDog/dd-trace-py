@@ -8,7 +8,7 @@ from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import _is_one_shot_iterator
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._expressions import instanceof
-from ddtrace.internal.base.safety import SafeObjectProxy
+from ddtrace_base.safety import SafeObjectProxy
 
 
 class SideEffect(Exception):

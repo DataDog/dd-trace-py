@@ -14,7 +14,7 @@ from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import probe_to_signal
-from ddtrace.internal.base.compat import ExcInfoType
+from ddtrace_base.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
 
 

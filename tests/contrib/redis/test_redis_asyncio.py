@@ -8,7 +8,7 @@ import redis.asyncio
 
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 from ddtrace.trace import tracer
 from tests.utils import override_config
 

@@ -84,7 +84,7 @@ Notes:
 
 """
 
-from ddtrace.internal.base.module import ModuleWatchdog
+from ddtrace_base.module import ModuleWatchdog
 
 
 @ModuleWatchdog.after_module_imported("ddtrace.vendor.dogstatsd.base")
@@ -93,6 +93,6 @@ def _(base):
     # DEV: This helps ensure if there are connection issues we do not spam their logs
     # DEV: Overwrite `base.log` instead of `get_logger('datadog.dogstatsd')` so we do
     #      not conflict with any non-vendored datadog.dogstatsd logger
-    from ddtrace.internal.base.logger import get_logger
+    from ddtrace_base.logger import get_logger
 
     base.log = get_logger("ddtrace.vendor.dogstatsd")

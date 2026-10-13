@@ -1,7 +1,7 @@
 import pymongo
 
 from ddtrace import config
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator

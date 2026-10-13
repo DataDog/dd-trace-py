@@ -2,7 +2,7 @@ import urllib.parse
 
 import requests
 
-from ddtrace.internal.base.utils.retry import retry
+from ddtrace_base.utils.retry import retry
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 from ddtrace.trace import TraceFilter

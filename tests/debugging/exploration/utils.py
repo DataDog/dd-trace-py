@@ -4,7 +4,7 @@ from types import ModuleType
 
 from _config import ExplorationConfig
 
-from ddtrace.internal.base.module import origin
+from ddtrace_base.module import origin
 
 
 try:

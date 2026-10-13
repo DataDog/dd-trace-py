@@ -43,7 +43,7 @@ HEADER = """\
 # Run: python scripts/supported_configurations.py
 #
 # This module provides fast O(1) lookups for environment variable validation
-# in ddtrace/internal/base/settings/env.py.
+# in ddtrace_base/settings/env.py.
 """
 
 

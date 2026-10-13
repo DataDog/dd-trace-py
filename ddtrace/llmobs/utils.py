@@ -1,7 +1,7 @@
 from typing import Any
 from typing import Union
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import ImagePart

@@ -18,7 +18,7 @@ from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestSession

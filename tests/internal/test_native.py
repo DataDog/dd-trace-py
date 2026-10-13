@@ -2,7 +2,7 @@ import pytest
 
 
 def test_is_panic_exception():
-    from ddtrace.internal.base.pyo3 import is_panic_exception
+    from ddtrace_base.pyo3 import is_panic_exception
 
     class PanicException(BaseException):
         pass

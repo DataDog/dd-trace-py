@@ -9,7 +9,7 @@ from ddtrace.appsec._iast.constants import DES_DEF
 from ddtrace.appsec._iast.constants import RC2_DEF
 from ddtrace.appsec._iast.constants import RC4_DEF
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 

@@ -22,7 +22,7 @@ except ImportError:
     try:
         import sniffio
     except ImportError:
-        from ddtrace.internal.base.logger import get_logger
+        from ddtrace_base.logger import get_logger
 
         # Module import runs once, so this reports the degraded detection at startup only.
         get_logger(__name__).debug(
@@ -44,8 +44,8 @@ except ImportError:
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal._context_watcher import context_switches_require_fallback
-from ddtrace.internal.base.utils import get_argument_value
-from ddtrace.internal.base.utils import set_argument_value
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 

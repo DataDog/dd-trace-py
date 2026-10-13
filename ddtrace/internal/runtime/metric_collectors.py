@@ -4,7 +4,7 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Union
 
-from ddtrace.internal.base import forksafe
+from ddtrace_base import forksafe
 
 from .collector import ValueCollector
 from .constants import CPU_PERCENT

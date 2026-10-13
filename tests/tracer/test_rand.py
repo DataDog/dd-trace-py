@@ -14,7 +14,7 @@ import threading
 import time
 
 from ddtrace._trace.span import Span
-from ddtrace.internal.base import forksafe
+from ddtrace_base import forksafe
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native import seed

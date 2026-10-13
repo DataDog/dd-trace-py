@@ -6,9 +6,9 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 
 import typing as t
 
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.settings._supported_configurations import CONFIGURATION_ALIASES
-from ddtrace.internal.base.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings._supported_configurations import CONFIGURATION_ALIASES
+from ddtrace_base.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import FLEET_CONFIG

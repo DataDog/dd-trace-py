@@ -19,7 +19,7 @@ import os  # noqa:F401
 import sys
 
 import ddtrace.bootstrap.cloning as cloning
-from ddtrace.internal.base.logger import get_logger  # noqa:F401
+from ddtrace_base.logger import get_logger  # noqa:F401
 from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import telemetry_writer
 

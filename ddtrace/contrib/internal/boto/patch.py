@@ -14,8 +14,8 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
 from ddtrace.ext import http
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda

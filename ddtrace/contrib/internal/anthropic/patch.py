@@ -12,8 +12,8 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
-from ddtrace.internal.base._exceptions import DDBlockException
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base._exceptions import DDBlockException
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import AnthropicIntegration
 

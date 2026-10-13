@@ -1,6 +1,6 @@
 import wrapt
 
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 
 
 def get_psycopg2_extensions(psycopg_module):

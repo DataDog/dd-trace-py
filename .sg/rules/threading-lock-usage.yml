@@ -6,7 +6,7 @@ files:
   - "ddtrace/**"
 ignores:
   - "ddtrace/internal/threads.py"
-  - "ddtrace/internal/base/_unpatched.py"
+  - "ddtrace_base/_unpatched.py"
   - "ddtrace/vendor/**"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/testing/**"

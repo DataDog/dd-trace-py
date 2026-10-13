@@ -12,8 +12,8 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.flare._subscribers import DEFAULT_STALE_FLARE_DURATION_MINS
 from ddtrace.internal.flare._subscribers import TracerFlareCallback
 from ddtrace.internal.flare._subscribers import TracerFlareState

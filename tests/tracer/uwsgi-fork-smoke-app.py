@@ -2,7 +2,7 @@
 
 Under --py-call-uwsgi-fork-hooks, uwsgi drives CPython's os.register_at_fork
 machinery around every worker fork, so ddtrace's general fork-safety registry
-(ddtrace.internal.base.forksafe) should reinitialize itself in each worker without
+(ddtrace_base.forksafe) should reinitialize itself in each worker without
 any uwsgi-specific postfork bridging. This module is imported once, before any
 worker is forked (uwsgi loads the app once in non-lazy mode), then registers a
 callback that runs synchronously inside the child right after the fork -- the

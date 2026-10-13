@@ -5,7 +5,7 @@ import sys
 import threading
 import types
 
-from ddtrace.internal.base import forksafe
+from ddtrace_base import forksafe
 from ddtrace.internal.runtime import gc_monitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot

@@ -16,10 +16,10 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal.base import compat
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cached
-from ddtrace.internal.base.utils.time import StopWatch
+from ddtrace_base import compat
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import cached
+from ddtrace_base.utils.time import StopWatch
 from ddtrace.internal.settings import env
 
 

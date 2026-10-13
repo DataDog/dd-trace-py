@@ -5,7 +5,7 @@ from typing import Optional
 
 from envier import Env
 
-from ddtrace.internal.base.settings.env import dd_environ
+from ddtrace_base.settings.env import dd_environ
 
 
 def _load_stable_config() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:

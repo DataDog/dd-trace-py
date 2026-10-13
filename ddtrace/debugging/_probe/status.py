@@ -8,8 +8,8 @@ from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._uploader import build_debugger_sender
 from ddtrace.internal import runtime
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.native import DebuggerTrackType
 
 

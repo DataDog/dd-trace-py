@@ -1,6 +1,6 @@
 import unittest
 
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 
 
 class DramatiqPatchTest(unittest.TestCase):

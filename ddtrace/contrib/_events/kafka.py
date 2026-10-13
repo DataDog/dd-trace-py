@@ -5,7 +5,7 @@ from typing import Optional
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
-from ddtrace.internal.base.core.events import event_field
+from ddtrace_base.core.events import event_field
 
 
 @dataclass

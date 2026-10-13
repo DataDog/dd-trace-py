@@ -2,8 +2,8 @@ from collections.abc import Mapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cachedmethod
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import cachedmethod
 from ddtrace.internal.utils.http import normalize_header_name
 
 

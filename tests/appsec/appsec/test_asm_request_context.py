@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled
-from ddtrace.internal.base._exceptions import BlockingException
+from ddtrace_base._exceptions import BlockingException
 from ddtrace.internal.settings.asm import config as asm_config
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
@@ -164,7 +164,7 @@ def test_blocking_exception_correctly_propagated():
 
 def test_log_waf_callback(caplog):
     from ddtrace import tracer
-    import ddtrace.internal.base.logger as ddlogger
+    import ddtrace_base.logger as ddlogger
 
     with tracer.trace("test", service="test_service") as span:
         with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):
@@ -200,7 +200,7 @@ def test_log_waf_callback(caplog):
 def test_log_waf_callback_rasp_out_of_context(caplog):
     """RASP calls (rule_type set) out of context are benign: log at DEBUG, no warning, no error tag."""
     from ddtrace import tracer
-    import ddtrace.internal.base.logger as ddlogger
+    import ddtrace_base.logger as ddlogger
 
     ddlogger.set_tag_rate_limit("asm_context::call_waf_callback::not_set", 0)
     try:

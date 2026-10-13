@@ -7,7 +7,7 @@ from typing import Callable
 from typing import Optional
 from typing import TypedDict
 
-from ddtrace.internal.base.compat import ensure_text
+from ddtrace_base.compat import ensure_text
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import FeedbackSubmitter

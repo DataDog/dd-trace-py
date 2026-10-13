@@ -35,12 +35,12 @@ from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import ensure_text
-from ddtrace.internal.base.compat import ip_is_global
-from ddtrace.internal.base.constants import _WEB_REQUEST_STARTING_DISPATCHED
-from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.base.constants import W3C_TRACESTATE_KEY
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.compat import ensure_text
+from ddtrace_base.compat import ip_is_global
+from ddtrace_base.constants import _WEB_REQUEST_STARTING_DISPATCHED
+from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace_base.constants import W3C_TRACESTATE_KEY
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config

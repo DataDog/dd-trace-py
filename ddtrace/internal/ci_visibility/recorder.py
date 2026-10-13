@@ -23,8 +23,8 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItem
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
-from ddtrace.internal.base.codeowners import Codeowners
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.codeowners import Codeowners
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient

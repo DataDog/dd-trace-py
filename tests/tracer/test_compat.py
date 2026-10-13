@@ -5,8 +5,8 @@ from hypothesis import settings
 import hypothesis.strategies as st
 import pytest
 
-from ddtrace.internal.base.compat import is_integer
-from ddtrace.internal.base.compat import maybe_stringify
+from ddtrace_base.compat import is_integer
+from ddtrace_base.compat import maybe_stringify
 
 
 class TestCompat:

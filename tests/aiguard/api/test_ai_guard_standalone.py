@@ -6,8 +6,8 @@ import ddtrace
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.base.constants import SamplingMechanism
+from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace_base.constants import SamplingMechanism
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.settings.standalone import standalone_config
 from tests.aiguard.utils import mock_evaluate_response

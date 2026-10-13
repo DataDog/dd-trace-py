@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from ddtrace.internal.base.core.events import Event
+from ddtrace_base.core.events import Event
 
 
 @dataclass

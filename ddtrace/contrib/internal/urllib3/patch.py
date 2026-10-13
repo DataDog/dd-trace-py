@@ -8,9 +8,9 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import ensure_text
-from ddtrace.internal.base.utils import ArgumentError
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.compat import ensure_text
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool

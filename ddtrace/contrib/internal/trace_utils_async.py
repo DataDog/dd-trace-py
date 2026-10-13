@@ -5,7 +5,7 @@ Note that this module should only be imported in Python 3.5+.
 """
 
 from ddtrace._trace.pin import Pin
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

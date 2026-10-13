@@ -10,8 +10,8 @@ import ddtrace
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.time import StopWatch
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.time import StopWatch
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata

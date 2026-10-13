@@ -10,7 +10,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import aws
 from ddtrace.ext import http
-from ddtrace.internal.base.constants import COMPONENT
+from ddtrace_base.constants import COMPONENT
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils.formats import deep_getattr
 

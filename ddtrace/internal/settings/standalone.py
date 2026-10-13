@@ -5,7 +5,7 @@ products is enabled while APM tracing is turned off. This module owns DD_APM_TRA
 aggregates the per-product flags, so no product config has to know about the others.
 """
 
-from ddtrace.internal.base.constants import APM_TRACING_ENV
+from ddtrace_base.constants import APM_TRACING_ENV
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config

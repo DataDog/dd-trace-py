@@ -126,7 +126,7 @@ from typing import Any
 from typing import Generic
 from typing import Optional
 
-from ddtrace.internal.base.core.events import EventType
+from ddtrace_base.core.events import EventType
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401

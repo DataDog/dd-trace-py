@@ -12,7 +12,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 from ddtrace.internal.settings.openfeature import AGENTLESS

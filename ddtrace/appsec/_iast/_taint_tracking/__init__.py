@@ -48,7 +48,7 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import taint_ra
 # modules so these native wrappers can import the accessor without circular
 # bootstrap. Do not redirect this to _iast_request_context_base.
 from ddtrace.appsec._iast_context import _get_iast_context_id
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

@@ -92,7 +92,7 @@ class TestLangGraphPatch(PatchTestCase.Base):
                 """
 import sys
 
-from ddtrace.internal.base.module import ModuleWatchdog
+from ddtrace_base.module import ModuleWatchdog
 
 from wrapt import wrap_function_wrapper as wrap
 
@@ -140,7 +140,7 @@ if not patched and (
             f.write(
                 """
 import sys
-from ddtrace.internal.base.module import ModuleWatchdog
+from ddtrace_base.module import ModuleWatchdog
 from wrapt import wrap_function_wrapper as wrap
 
 supported_versions_called = False

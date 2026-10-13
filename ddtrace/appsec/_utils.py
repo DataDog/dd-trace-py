@@ -14,8 +14,8 @@ from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
-from ddtrace.internal.base._unpatched import unpatched_json_loads
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base._unpatched import unpatched_json_loads
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -425,8 +425,8 @@ def unpatching_popen() -> typing.Iterator[None]:
     import os
     import subprocess  # nosec B404
 
-    from ddtrace.internal.base._unpatched import unpatched_close
-    from ddtrace.internal.base._unpatched import unpatched_Popen
+    from ddtrace_base._unpatched import unpatched_close
+    from ddtrace_base._unpatched import unpatched_Popen
 
     original_os_close = os.close
     os.close = unpatched_close

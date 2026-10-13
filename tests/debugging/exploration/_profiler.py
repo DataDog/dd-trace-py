@@ -15,7 +15,7 @@ from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.internal.base.module import origin
+from ddtrace_base.module import origin
 
 
 # Track all instrumented functions and their call count.

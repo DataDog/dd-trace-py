@@ -9,8 +9,8 @@ import pymongo
 
 # project
 from ddtrace.ext import db
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.trace import tracer

@@ -1,7 +1,7 @@
 """
 Logging utilities for internal use.
 Usage:
-    import ddtrace.internal.base.logger as logger
+    import ddtrace_base.logger as logger
     ddlog = logger.get_logger(__name__)
 
     # Otherwise default is set to 1 minute or DD_TRACE_LOGGING_RATE
@@ -41,7 +41,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-from ddtrace.internal.base.settings import env
+from ddtrace_base.settings import env
 
 
 SECOND = 1
@@ -93,6 +93,21 @@ class LoggerPrefix:
 LOG_LEVEL_TRIE = LoggerPrefix.build_trie()
 
 
+# Split-out top-level packages keep logging under the historical ``ddtrace`` hierarchy: logger
+# names are user-facing (``logging.getLogger("ddtrace")`` configuration, DD_TRACE_DEBUG,
+# _DD_*_LOG_LEVEL), so a package move must not change them.
+_LOGGER_NAMESPACES = {
+    "ddtrace_base": "ddtrace.internal.base",
+    "ddtrace_testing": "ddtrace.testing",
+}
+
+
+def _logger_name(name: str) -> str:
+    head, sep, tail = name.partition(".")
+    ns = _LOGGER_NAMESPACES.get(head)
+    return name if ns is None else ns + sep + tail
+
+
 def get_logger(name: str) -> logging.Logger:
     """
     Retrieve or create a ``Logger`` instance with consistent behavior for internal use.
@@ -100,6 +115,7 @@ def get_logger(name: str) -> logging.Logger:
     Configure all loggers with a rate limiter filter to prevent excessive logging.
 
     """
+    name = _logger_name(name)
     logger = logging.getLogger(name)
     # addFilter will only add the filter if it is not already present
     logger.addFilter(log_filter)

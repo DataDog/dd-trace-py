@@ -19,9 +19,9 @@ from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.forksafe import ddtrace_after_in_parent
-from ddtrace.internal.base.forksafe import ddtrace_before_fork
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.forksafe import ddtrace_after_in_parent
+from ddtrace_base.forksafe import ddtrace_before_fork
+from ddtrace_base.logger import get_logger
 from ddtrace.trace import tracer
 
 

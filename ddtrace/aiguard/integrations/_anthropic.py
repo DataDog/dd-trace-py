@@ -38,7 +38,7 @@ from ddtrace.aiguard._common import wrap_abort_error
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.internal import telemetry
-import ddtrace.internal.base.logger as ddlogger
+import ddtrace_base.logger as ddlogger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 

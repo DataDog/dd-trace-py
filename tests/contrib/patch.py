@@ -9,7 +9,7 @@ from textwrap import dedent
 import unittest
 
 from ddtrace import __version__
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 from tests.subprocesstest import SubprocessTestCase
@@ -740,7 +740,7 @@ class PatchTestCase:
                         """
                         import sys
 
-                        from ddtrace.internal.base.module import ModuleWatchdog
+                        from ddtrace_base.module import ModuleWatchdog
 
                         from wrapt import wrap_function_wrapper as wrap
 
@@ -839,7 +839,7 @@ class PatchTestCase:
                     dedent(
                         """
                         import sys
-                        from ddtrace.internal.base.module import ModuleWatchdog
+                        from ddtrace_base.module import ModuleWatchdog
                         from wrapt import wrap_function_wrapper as wrap
 
                         supported_versions_called = False

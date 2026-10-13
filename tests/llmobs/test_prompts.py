@@ -11,7 +11,7 @@ import warnings
 import pytest
 
 from ddtrace import config
-from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.openfeature._source_selection import AGENTLESS
 from ddtrace.internal.openfeature._source_selection import DISABLED
 from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG

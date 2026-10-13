@@ -14,7 +14,7 @@ from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base
 from ddtrace.appsec._iast_context import _get_iast_context_id
 from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

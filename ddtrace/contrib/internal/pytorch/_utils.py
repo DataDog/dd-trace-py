@@ -7,7 +7,7 @@ import uuid
 
 import torch
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
 
 

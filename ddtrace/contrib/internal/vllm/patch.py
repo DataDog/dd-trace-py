@@ -9,7 +9,7 @@ import vllm
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.trace import tracer
 

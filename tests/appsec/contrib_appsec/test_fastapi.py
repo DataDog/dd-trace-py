@@ -22,7 +22,7 @@ class _Test_FastAPI_Base:
     def interface(self, printer, request):
         from fastapi.testclient import TestClient
 
-        from ddtrace.internal.base.endpoints import endpoint_collection
+        from ddtrace_base.endpoints import endpoint_collection
 
         # Reset the singleton endpoint collection so each app variant starts clean
         endpoint_collection.reset()

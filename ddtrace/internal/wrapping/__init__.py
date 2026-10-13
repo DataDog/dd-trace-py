@@ -11,11 +11,11 @@ import weakref
 import bytecode as bc
 from bytecode import Instr
 
-from ddtrace.internal.base.assembly import Assembly
-from ddtrace.internal.base.compat import NEXT_PY_UNSUPPORTED_MSG
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.compat import is_supported_python_version
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.assembly import Assembly
+from ddtrace_base.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.compat import is_supported_python_version
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping.asyncs import wrap_async

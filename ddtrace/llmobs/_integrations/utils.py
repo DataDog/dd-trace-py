@@ -11,7 +11,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -1809,7 +1809,7 @@ class OaiSpanAdapter:
             if messages and len(messages) > 0:
                 return messages[-1].get("content")
         except (AttributeError, IndexError):
-            from ddtrace.internal.base.logger import get_logger
+            from ddtrace_base.logger import get_logger
 
             logger = get_logger(__name__)
             logger.warning("Failed to process input messages from `response` span", exc_info=True)

@@ -12,9 +12,9 @@ if typing.TYPE_CHECKING:
     import asyncio as aio
 
     from ddtrace.internal import monitoring as _monitoring
-from ddtrace.internal.base._unpatched import _threading as ddtrace_threading
-from ddtrace.internal.base.module import ModuleWatchdog
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base._unpatched import _threading as ddtrace_threading
+from ddtrace_base.module import ModuleWatchdog
+from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.wrapping import wrap

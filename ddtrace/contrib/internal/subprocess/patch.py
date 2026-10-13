@@ -15,9 +15,9 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import get_argument_value
-from ddtrace.internal.base.utils import set_argument_value
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.runtime import get_runtime_propagation_envs
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config

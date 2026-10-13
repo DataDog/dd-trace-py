@@ -3,7 +3,7 @@ from flask.testing import FlaskClient
 
 from ddtrace.contrib.internal.flask.patch import patch
 from ddtrace.contrib.internal.flask.patch import unpatch
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 from tests.utils import TracerTestCase
 
 

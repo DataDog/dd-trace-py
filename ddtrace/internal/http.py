@@ -6,7 +6,7 @@ from typing import Any
 from typing import Optional
 from urllib.parse import urlsplit
 
-from ddtrace.internal.base import forksafe
+from ddtrace_base import forksafe
 from ddtrace.internal.runtime import container
 
 

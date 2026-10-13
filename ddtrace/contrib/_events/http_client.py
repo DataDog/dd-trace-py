@@ -10,9 +10,9 @@ from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.contrib._events.http import _HttpResponse
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.core.events import event_field
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.core.events import event_field
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
 
 

@@ -360,7 +360,7 @@ class TestLazyInstrumentationState:
         registry.clear()
         _instrumenter_mod._lazy_module_hooks.clear()
         _instrumenter_mod._lazy_module_targets.clear()
-        from ddtrace.internal.base.module import ModuleWatchdog
+        from ddtrace_base.module import ModuleWatchdog
 
         ModuleWatchdog.install()
         instance = ModuleWatchdog._instance

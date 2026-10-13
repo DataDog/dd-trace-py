@@ -13,10 +13,10 @@ import threading
 from types import ModuleType
 import typing as t
 
-from ddtrace.internal.base import forksafe
-from ddtrace.internal.base.module import origin
-from ddtrace.internal.base.pyo3 import is_panic_exception
-from ddtrace.internal.base.utils.cache import callonce
+from ddtrace_base import forksafe
+from ddtrace_base.module import origin
+from ddtrace_base.pyo3 import is_panic_exception
+from ddtrace_base.utils.cache import callonce
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.threads import Thread
 

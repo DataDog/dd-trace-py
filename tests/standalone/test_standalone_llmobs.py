@@ -16,8 +16,8 @@ import ddtrace
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.base.constants import SamplingMechanism
+from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace_base.constants import SamplingMechanism
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY

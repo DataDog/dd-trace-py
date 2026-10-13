@@ -7,7 +7,7 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

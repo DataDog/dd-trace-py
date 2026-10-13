@@ -10,7 +10,7 @@ from types import CodeType
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 

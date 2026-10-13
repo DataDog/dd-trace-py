@@ -17,10 +17,10 @@ from urllib.parse import urlsplit
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
-from ddtrace.internal.base import forksafe
-from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.settings.env import dd_environ
+from ddtrace_base import forksafe
+from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings.env import dd_environ
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE

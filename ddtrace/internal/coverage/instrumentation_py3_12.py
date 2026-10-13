@@ -15,8 +15,8 @@ import typing as t
 
 from bytecode import Bytecode
 
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName

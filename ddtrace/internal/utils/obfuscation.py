@@ -25,7 +25,7 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
-from ddtrace.internal.base.module import BaseModuleWatchdog
+from ddtrace_base.module import BaseModuleWatchdog
 from ddtrace.internal.threads import Lock
 
 

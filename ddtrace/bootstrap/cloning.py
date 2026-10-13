@@ -3,8 +3,8 @@ import sys
 import warnings
 
 import ddtrace
-from ddtrace.internal.base.module import ModuleWatchdog
-from ddtrace.internal.base.module import is_module_installed
+from ddtrace_base.module import ModuleWatchdog
+from ddtrace_base.module import is_module_installed
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 

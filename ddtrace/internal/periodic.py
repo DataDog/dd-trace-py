@@ -2,7 +2,7 @@ import typing
 
 from ddtrace.internal import service
 from ddtrace.internal._threads import PERIODIC_STOP
-from ddtrace.internal.base import forksafe
+from ddtrace_base import forksafe
 from ddtrace.internal.threads import PeriodicThread
 from ddtrace.internal.threads import RLock
 

@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr

@@ -28,13 +28,13 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import NumericType
-from ddtrace.internal.base.constants import MAX_INT_64BITS as _MAX_INT_64BITS
-from ddtrace.internal.base.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from ddtrace.internal.base.constants import MIN_INT_64BITS as _MIN_INT_64BITS
-from ddtrace.internal.base.constants import SPAN_API_DATADOG
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.time import Time
+from ddtrace_base.compat import NumericType
+from ddtrace_base.constants import MAX_INT_64BITS as _MAX_INT_64BITS
+from ddtrace_base.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace_base.constants import MIN_INT_64BITS as _MIN_INT_64BITS
+from ddtrace_base.constants import SPAN_API_DATADOG
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.time import Time
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 

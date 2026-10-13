@@ -11,8 +11,8 @@ from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import get_argument_value
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 
 
 if t.TYPE_CHECKING:

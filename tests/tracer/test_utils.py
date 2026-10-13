@@ -5,13 +5,13 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.base.utils import ArgumentError
-from ddtrace.internal.base.utils import get_argument_value
-from ddtrace.internal.base.utils import set_argument_value
-from ddtrace.internal.base.utils import time
-from ddtrace.internal.base.utils.cache import cached
-from ddtrace.internal.base.utils.cache import cachedmethod
-from ddtrace.internal.base.utils.cache import callonce
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
+from ddtrace_base.utils import time
+from ddtrace_base.utils.cache import cached
+from ddtrace_base.utils.cache import cachedmethod
+from ddtrace_base.utils.cache import callonce
 from ddtrace.internal.native._native import flatten_key_value
 from ddtrace.internal.native._native import is_sequence
 from ddtrace.internal.utils.formats import asbool

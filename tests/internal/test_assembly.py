@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from ddtrace.internal.base.assembly import Assembly
+from ddtrace_base.assembly import Assembly
 
 
 @pytest.mark.skipif(sys.version_info[:2] != (3, 11), reason="targets CPython 3.11 bytecode")

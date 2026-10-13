@@ -25,7 +25,7 @@ import pytest  # noqa: E402
 # wrapper only if _load_modules is true, which a test may have turned off by then
 import requests  # noqa: E402,F401
 
-from ddtrace.internal.base.constants import FLASK_RESOURCE_FULL  # noqa: E402
+from ddtrace_base.constants import FLASK_RESOURCE_FULL  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
 from tests.utils import TracerSpanContainer  # noqa: E402
 from tests.utils import _build_tree  # noqa: E402

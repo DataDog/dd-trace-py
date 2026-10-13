@@ -21,9 +21,9 @@ from typing import Any
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import IdentityWeakKeyDictionary
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
 

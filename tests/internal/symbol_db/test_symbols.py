@@ -482,7 +482,7 @@ def test_symbols_fork_uploads():
     import os
     import typing as t
 
-    from ddtrace.internal.base import forksafe
+    from ddtrace_base import forksafe
     from ddtrace.internal.remoteconfig import ConfigMetadata
     from ddtrace.internal.remoteconfig import Payload
     from ddtrace.internal.runtime import get_ancestor_runtime_id

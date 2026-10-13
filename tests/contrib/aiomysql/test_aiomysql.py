@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.aiomysql.patch import AIOTracedCursor
 from ddtrace.contrib.internal.aiomysql.patch import patch
 from ddtrace.contrib.internal.aiomysql.patch import unpatch
 from ddtrace.internal import core
-from ddtrace.internal.base._exceptions import BlockingException
+from ddtrace_base._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase

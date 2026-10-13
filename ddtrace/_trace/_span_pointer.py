@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 from ddtrace._trace._span_link import SpanLinkKind  # noqa: F401 - kept for backward compat
 from ddtrace._trace.telemetry import record_span_pointer_calculation_issue
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

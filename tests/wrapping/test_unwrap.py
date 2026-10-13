@@ -29,7 +29,7 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace_base.compat import is_at_least_py
 from ddtrace.internal.wrapping import unwrap as _internal_unwrap
 from ddtrace.internal.wrapping import wrap as _internal_wrap
 from ddtrace.internal.wrapping.context import WrappingContext

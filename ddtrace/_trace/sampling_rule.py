@@ -1,12 +1,12 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.base.constants import MAX_UINT_64BITS
-from ddtrace.internal.base.constants import SAMPLING_HASH_MODULO
-from ddtrace.internal.base.constants import SAMPLING_KNUTH_FACTOR
-from ddtrace.internal.base.glob_matching import GlobMatcher
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cachedmethod
+from ddtrace_base.constants import MAX_UINT_64BITS
+from ddtrace_base.constants import SAMPLING_HASH_MODULO
+from ddtrace_base.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace_base.glob_matching import GlobMatcher
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import cachedmethod
 from ddtrace.internal.native._native import SpanData
 
 

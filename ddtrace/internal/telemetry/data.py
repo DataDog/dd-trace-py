@@ -3,9 +3,9 @@ import sys
 import sysconfig
 
 from ddtrace.internal import process_tags
-from ddtrace.internal.base.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.base.utils.cache import cached
-from ddtrace.internal.base.utils.cache import callonce
+from ddtrace_base.constants import DEFAULT_SERVICE_NAME
+from ddtrace_base.utils.cache import cached
+from ddtrace_base.utils.cache import callonce
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.version import __version__
 

@@ -1,7 +1,7 @@
 import sys
 
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.trace import tracer
 

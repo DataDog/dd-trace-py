@@ -12,7 +12,7 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace_base.compat import is_at_least_py
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap

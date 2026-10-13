@@ -19,7 +19,7 @@ from pathlib import Path
 import pickle  # nosec: B403  -- pickle is only used to serialize coverage data from the child process to its parent
 import typing as t
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.code import _get_ctx_covered_lines
 from ddtrace.internal.coverage.code import ctx_coverage_enabled

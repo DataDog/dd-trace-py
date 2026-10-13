@@ -19,9 +19,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_IGNORE
-from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ddtrace.internal.base.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace_base.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace_base.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace_base.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator

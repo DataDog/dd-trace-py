@@ -5,7 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal import periodic
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.settings.profiling import config

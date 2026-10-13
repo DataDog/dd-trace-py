@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 import warnings
 
 from ddtrace import config
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import Thread
 from ddtrace.llmobs import _telemetry as telemetry

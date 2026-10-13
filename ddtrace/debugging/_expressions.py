@@ -46,9 +46,9 @@ from bytecode import Label
 
 from ddtrace.debugging._safety import safe_getitem
 from ddtrace.debugging._safety import safe_qualname
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.safety import _isinstance
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.logger import get_logger
+from ddtrace_base.safety import _isinstance
 
 
 DDASTType = Union[dict[str, Any], dict[str, list[Any]], Any]

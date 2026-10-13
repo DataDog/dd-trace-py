@@ -35,7 +35,7 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import wrapping
-from ddtrace.internal.base.compat import ensure_text
+from ddtrace_base.compat import ensure_text
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY

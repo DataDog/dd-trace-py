@@ -207,7 +207,7 @@ class TracerTestCases(TracerTestCase):
         """By default (DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=false) class scope is NOT included."""
         import warnings
 
-        from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

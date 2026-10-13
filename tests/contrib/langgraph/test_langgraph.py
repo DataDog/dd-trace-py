@@ -357,7 +357,7 @@ def test_base_exception_in_node_still_emits_root_span(langgraph, test_spans):
     The pregel stream generators previously used ``except Exception`` which silently skipped
     ``span.finish()`` on a block, so the entire trace was dropped. This test pins that fix.
     """
-    from ddtrace.internal.base._exceptions import DDBlockException
+    from ddtrace_base._exceptions import DDBlockException
 
     def blocking_node(state):
         raise DDBlockException("block")
@@ -379,7 +379,7 @@ def test_base_exception_in_node_still_emits_root_span(langgraph, test_spans):
 
 async def test_base_exception_in_node_still_emits_root_span_async(langgraph, test_spans):
     """Async variant: ainvoke path uses the astream generator which had the same bug."""
-    from ddtrace.internal.base._exceptions import DDBlockException
+    from ddtrace_base._exceptions import DDBlockException
 
     async def blocking_node_async(state):
         raise DDBlockException("block")

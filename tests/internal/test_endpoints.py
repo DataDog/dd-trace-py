@@ -3,8 +3,8 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.base.endpoints import HttpEndPoint
-from ddtrace.internal.base.endpoints import HttpEndPointsCollection
+from ddtrace_base.endpoints import HttpEndPoint
+from ddtrace_base.endpoints import HttpEndPointsCollection
 
 
 @pytest.fixture

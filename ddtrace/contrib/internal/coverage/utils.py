@@ -18,7 +18,7 @@ from ddtrace.contrib.internal.coverage.lcov import report_lcov
 from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import is_coverage_running
 from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
 

@@ -13,7 +13,7 @@ from typing import Optional
 from typing import Union
 import wave
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import AudioPart
 

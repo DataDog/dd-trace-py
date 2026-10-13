@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import ddtrace
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY

@@ -16,10 +16,10 @@ from typing import cast
 from urllib.parse import urlparse as _urlparse
 
 from ddtrace.internal._runtime_id import get_runtime_id
-from ddtrace.internal.base import forksafe
-from ddtrace.internal.base.pyo3 import is_panic_exception
-from ddtrace.internal.base.utils import _human_size
-from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base import forksafe
+from ddtrace_base.pyo3 import is_panic_exception
+from ddtrace_base.utils import _human_size
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -48,11 +48,11 @@ from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
-from ..base import compat
-from ..base.constants import _HTTPLIB_NO_TRACE_REQUEST
-from ..base.constants import W3C_TRACESTATE_KEY
-from ..base.logger import get_logger
-from ..base.utils.time import StopWatch
+from ddtrace_base import compat
+from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace_base.constants import W3C_TRACESTATE_KEY
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.time import StopWatch
 from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags

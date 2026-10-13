@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 from ddtrace.internal.ci_visibility.telemetry.constants import ERROR_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import GIT_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.constants import GIT_TELEMETRY_COMMANDS

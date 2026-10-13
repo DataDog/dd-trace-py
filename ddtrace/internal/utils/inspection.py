@@ -11,11 +11,11 @@ from typing import Optional
 from typing import cast
 import weakref
 
-from ddtrace.internal.base.module import BaseModuleWatchdog
-from ddtrace.internal.base.safety import _isinstance
-from ddtrace.internal.base.utils.cache import IdentityWeakKeyDictionary
-from ddtrace.internal.base.utils.cache import cached
-from ddtrace.internal.base.utils.cache import miss
+from ddtrace_base.module import BaseModuleWatchdog
+from ddtrace_base.safety import _isinstance
+from ddtrace_base.utils.cache import IdentityWeakKeyDictionary
+from ddtrace_base.utils.cache import cached
+from ddtrace_base.utils.cache import miss
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 

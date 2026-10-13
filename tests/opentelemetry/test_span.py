@@ -15,8 +15,8 @@ import pytest
 
 from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
-from ddtrace.internal.base.constants import W3C_TRACEPARENT_KEY
-from ddtrace.internal.base.constants import W3C_TRACESTATE_KEY
+from ddtrace_base.constants import W3C_TRACEPARENT_KEY
+from ddtrace_base.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.opentelemetry.sampling import _random_value
 from ddtrace.internal.opentelemetry.span import Span
 

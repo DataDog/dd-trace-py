@@ -7,7 +7,7 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import TagsetMaxSizeEncodeError
 from ddtrace.internal._tagset import decode_tagset_string
 from ddtrace.internal._tagset import encode_tagset_values
-from ddtrace.internal.base.compat import ensure_text
+from ddtrace_base.compat import ensure_text
 
 
 @pytest.mark.parametrize(
