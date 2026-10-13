@@ -39,6 +39,7 @@ def requests_subscriber():
         if activation is not None:
             requests_appsec.AppSecRequestsSubscriber.activation = activation
             requests_appsec.AppSecRequestsSubscriber.register()
+            requests_appsec.AppSecRequestsSendSubscriber.register()
 
 
 @pytest.mark.parametrize("reactivate", [False, True])
@@ -58,7 +59,7 @@ def test_requests_operation_preserves_original_url_result_and_lazy_body(requests
     original_context = core.current
 
     def send(prepared, **kwargs):
-        assert core.find_item("full_url") is url
+        assert core.find_item(requests_appsec.APPSEC_REQUESTS_CONTEXT_KEY).pending_url is url
         assert kwargs["stream"] is True
         if reactivate:
             requests_unlisten()
@@ -111,7 +112,11 @@ def test_requests_analyzes_once_before_transport(requests_subscriber, block):
 
     def waf(addresses=None, **kwargs):
         inspected.append((kwargs["rule_type"], addresses, core.find_item(_RASP_SUBCONTEXT)))
-        return blocking_waf_result() if block else None
+        return (
+            blocking_waf_result()
+            if block and (addresses or {}).get(EXPLOIT_PREVENTION.ADDRESS.SSRF) == "http://example.test/path"
+            else None
+        )
 
     original_context = core.current
     apm_enabled = standalone_config.apm_tracing_enabled
@@ -132,6 +137,7 @@ def test_requests_analyzes_once_before_transport(requests_subscriber, block):
             mock.patch.object(requests_appsec, "should_analyze_body_response", return_value=False),
             mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
             mock.patch.object(cmp, "call_waf_callback", side_effect=waf),
+            mock.patch.object(httplib_appsec, "should_analyze_body_response", return_value=False) as body_sampling,
             mock.patch.object(httplib_appsec, "call_waf_callback", side_effect=waf),
             mock.patch.object(requests_appsec, "call_waf_callback", side_effect=waf),
             mock.patch.object(urllib3.connection.HTTPConnection, "_new_conn", return_value=sock) as transport,
@@ -142,16 +148,24 @@ def test_requests_analyzes_once_before_transport(requests_subscriber, block):
                 with tracer.trace("incoming") as span:
                     span.context.sampling_priority = -1
 
-                    def hook(response, **kwargs):
-                        connection = http.client.HTTPConnection("hook.test")
+                    def independent(host, path):
+                        connection = http.client.HTTPConnection(host)
                         setattr(connection, _HTTPLIB_NO_TRACE_REQUEST, True)
                         connection._send_request = mock.Mock(return_value=None)
-                        connection.request("GET", "/hook")
+                        connection.request("GET", path)
+
+                    def auth(prepared):
+                        independent("auth.test", "/auth")
+                        return prepared
+
+                    def hook(response, **kwargs):
+                        independent("hook.test", "/hook")
 
                     def operation():
                         return requests.get(
                             "http://example.test/path",
                             proxies={"http": None, "https": None},
+                            auth=auth,
                             hooks={"response": hook},
                         )
 
@@ -165,19 +179,23 @@ def test_requests_analyzes_once_before_transport(requests_subscriber, block):
                         assert response.content == b"{}"
                         transport.assert_called_once()
                     assert [rule for rule, _, _ in inspected] == (
-                        [EXPLOIT_PREVENTION.TYPE.SSRF_REQ]
+                        [EXPLOIT_PREVENTION.TYPE.SSRF_REQ, EXPLOIT_PREVENTION.TYPE.SSRF_REQ]
                         if block
                         else [
+                            EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
                             EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
                             EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
                             EXPLOIT_PREVENTION.TYPE.SSRF_RES,
                         ]
                     )
-                    assert inspected[0][1][EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://example.test/path"
-                    assert inspected[-1][2] is inspected[0][2]
+                    assert inspected[0][1][EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://auth.test/auth"
+                    assert inspected[1][1][EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://example.test/path"
+                    assert inspected[0][2] is not inspected[1][2]
+                    assert inspected[-1][2] is inspected[1][2]
                     if not block:
-                        assert inspected[1][1][EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://hook.test/hook"
-                        assert inspected[1][2] is not inspected[0][2]
+                        assert inspected[2][1][EXPLOIT_PREVENTION.ADDRESS.SSRF] == "http://hook.test/hook"
+                        assert len({id(holder) for _, _, holder in inspected}) == 3
+                    assert body_sampling.call_count == (1 if block else 2)
                     assert core.current is original_context
                     assert span.context.sampling_priority == -1
             finally:

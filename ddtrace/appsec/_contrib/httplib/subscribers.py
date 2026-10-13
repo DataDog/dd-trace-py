@@ -43,7 +43,7 @@ class AppSecHttpClientRequestSubscriber(ContextSubscriber[HttpClientSendEvent]):
         if not _carries_a_host(url):
             url = _absolute_downstream_url(event.connection, event.request_url or url)
 
-        use_body = ctx.find_item("use_body")
+        use_body = ctx.find_item("use_body") if upstream_url is not None else None
         if use_body is None:
             use_body = should_analyze_body_response(env)
         open_rasp_subcontext_scope(inherit=upstream_url is not None)
