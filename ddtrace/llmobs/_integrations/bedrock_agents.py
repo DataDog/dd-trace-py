@@ -1,10 +1,8 @@
 from datetime import timezone
 import json
 import sys
-from types import TracebackType
 from typing import Any
 from typing import Optional
-from typing import Protocol
 from typing import cast
 
 from ddtrace.constants import ERROR_MSG
@@ -15,6 +13,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -30,37 +29,6 @@ from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
-
-
-class _BedrockAgentSpanProtocol(Protocol):
-    """Structural span interface the Bedrock Agents trace translation needs.
-
-    Lets this module type-annotate spans without a runtime dependency on the concrete
-    ddtrace._trace.span.Span class.
-    """
-
-    span_id: int
-    trace_id: int
-    start_ns: int
-    error: int
-
-    @property
-    def duration_ns(self) -> Optional[int]: ...
-
-    @property
-    def _parent(self) -> Optional["_BedrockAgentSpanProtocol"]: ...
-
-    def finish(self, finish_time: Optional[float] = None) -> None: ...
-
-    def set_tag(self, key: str, value: Optional[str] = None) -> None: ...
-
-    def set_exc_info(
-        self,
-        exc_type: type[BaseException],
-        exc_val: BaseException,
-        exc_tb: Optional[TracebackType],
-        limit: Optional[int] = None,
-    ) -> None: ...
 
 
 # Used when an AWS event has no duration (e.g. rationale).
@@ -81,14 +49,14 @@ class BedrockFailureException(Exception):
 
 def _build_step_span(
     span_name: str,
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
     span_kind: str,
     start_ns: Optional[int] = None,
     metadata: Optional[dict[str, Any]] = None,
     input_val: Optional[Any] = None,
     output_val: Optional[Any] = None,
-) -> _BedrockAgentSpanProtocol:
+) -> _LLMObsSpan:
     # activate=False so the post-stream reconstructed spans don't pollute the active context.
     span = tracer.start_span(span_name, child_of=cast(Any, parent), span_type=SpanTypes.LLM, activate=False)
     span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1)
@@ -112,7 +80,7 @@ def _build_step_span(
     return span
 
 
-def _max_finish_ns(span: _BedrockAgentSpanProtocol) -> int:
+def _max_finish_ns(span: _LLMObsSpan) -> int:
     """Return span end time in nanoseconds for sizing step spans over their back-dated children."""
     return span.start_ns + (span.duration_ns or 0)
 
@@ -168,9 +136,9 @@ def _extract_start_and_duration_from_metadata(bedrock_metadata, root_span):
 def _get_or_create_bedrock_trace_step_span(
     trace: dict[str, Any],
     trace_step_id: str,
-    root_span: _BedrockAgentSpanProtocol,
-    step_spans_by_step_id: dict[str, _BedrockAgentSpanProtocol],
-) -> _BedrockAgentSpanProtocol:
+    root_span: _LLMObsSpan,
+    step_spans_by_step_id: dict[str, _LLMObsSpan],
+) -> _LLMObsSpan:
     """Return the existing step parent span for ``trace_step_id`` or create a new one."""
     step_span = step_spans_by_step_id.get(trace_step_id)
     if step_span is not None:
@@ -188,9 +156,7 @@ def _get_or_create_bedrock_trace_step_span(
     return step_span
 
 
-def _propagate_inner_io_to_step_span(
-    step_span: _BedrockAgentSpanProtocol, inner_span: _BedrockAgentSpanProtocol
-) -> None:
+def _propagate_inner_io_to_step_span(step_span: _LLMObsSpan, inner_span: _LLMObsSpan) -> None:
     """Copy first non-empty input and last output from inner_span onto step_span.
 
     MUST be called before inner_span.finish(): LLMObs._on_span_finish enqueues the event
@@ -210,11 +176,11 @@ def _propagate_inner_io_to_step_span(
 
 def _translate_custom_orchestration_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     custom_orchestration_trace = trace.get("trace", {}).get("customOrchestrationTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     custom_orchestration_event = custom_orchestration_trace.get("event", {})
@@ -233,11 +199,11 @@ def _translate_custom_orchestration_trace(
 
 def _translate_orchestration_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     orchestration_trace = trace.get("trace", {}).get("orchestrationTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = orchestration_trace.get("modelInvocationInput", {})
@@ -260,11 +226,11 @@ def _translate_orchestration_trace(
 
 def _translate_failure_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     failure_trace = trace.get("trace", {}).get("failureTrace", {})
     failure_metadata = failure_trace.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(failure_metadata, root_span)
@@ -292,11 +258,11 @@ def _translate_failure_trace(
 
 def _translate_guardrail_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     guardrail_trace = trace.get("trace", {}).get("guardrailTrace", {})
     guardrail_metadata = guardrail_trace.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(guardrail_metadata, root_span)
@@ -329,11 +295,11 @@ def _translate_guardrail_trace(
 
 def _translate_post_processing_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     postprocessing_trace = trace.get("trace", {}).get("postProcessingTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = postprocessing_trace.get("modelInvocationInput", {})
@@ -347,11 +313,11 @@ def _translate_post_processing_trace(
 
 def _translate_pre_processing_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     preprocessing_trace = trace.get("trace", {}).get("preProcessingTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = preprocessing_trace.get("modelInvocationInput", {})
@@ -365,11 +331,11 @@ def _translate_pre_processing_trace(
 
 def _translate_routing_classifier_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     routing_trace = trace.get("trace", {}).get("routingClassifierTrace", {})
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = routing_trace.get("modelInvocationInput", {})
@@ -388,8 +354,8 @@ def _translate_routing_classifier_trace(
 
 
 def _model_invocation_input_span(
-    model_input: dict[str, Any], parent: _BedrockAgentSpanProtocol, start_ns: int, root_span: _BedrockAgentSpanProtocol
-) -> Optional[_BedrockAgentSpanProtocol]:
+    model_input: dict[str, Any], parent: _LLMObsSpan, start_ns: int, root_span: _LLMObsSpan
+) -> Optional[_LLMObsSpan]:
     model_id = model_input.get("foundationModel", "")
     model_provider, model_name = parse_model_id(model_id)
     try:
@@ -415,9 +381,9 @@ def _model_invocation_input_span(
 
 def _model_invocation_output_span(
     model_output: dict[str, Any],
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
-    root_span: _BedrockAgentSpanProtocol,
-) -> Optional[_BedrockAgentSpanProtocol]:
+    current_active_span: Optional[_LLMObsSpan],
+    root_span: _LLMObsSpan,
+) -> Optional[_LLMObsSpan]:
     """Finalize the pending model-invocation span with output, metrics, and back-dated finish."""
     if not current_active_span:
         log.warning("Error in processing modelInvocationOutput.")
@@ -449,8 +415,8 @@ def _model_invocation_output_span(
 
 
 def _rationale_span(
-    rationale: dict[str, Any], parent: _BedrockAgentSpanProtocol, start_ns: int, root_span: _BedrockAgentSpanProtocol
-) -> Optional[_BedrockAgentSpanProtocol]:
+    rationale: dict[str, Any], parent: _LLMObsSpan, start_ns: int, root_span: _LLMObsSpan
+) -> Optional[_LLMObsSpan]:
     span = _build_step_span(
         "reasoning", root_span, parent, "task", start_ns=start_ns, output_val=rationale.get("text", "")
     )
@@ -461,10 +427,10 @@ def _rationale_span(
 
 def _invocation_input_span(
     invocation_input: dict[str, Any],
-    parent: _BedrockAgentSpanProtocol,
+    parent: _LLMObsSpan,
     start_ns: int,
-    root_span: _BedrockAgentSpanProtocol,
-) -> Optional[_BedrockAgentSpanProtocol]:
+    root_span: _LLMObsSpan,
+) -> Optional[_LLMObsSpan]:
     span_name = ""
     tool_metadata = {}
     tool_args = {}
@@ -499,9 +465,9 @@ def _invocation_input_span(
 
 def _observation_span(
     observation: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
-) -> Optional[_BedrockAgentSpanProtocol]:
+    root_span: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
+) -> Optional[_LLMObsSpan]:
     """Finalize the pending tool span with output and back-dated finish."""
     observation_type = observation.get("type", "")
     if observation_type in ("FINISH", "REPROMPT"):
@@ -552,14 +518,14 @@ BEDROCK_AGENTS_TRACE_CONVERSION_METHODS = {
 
 def translate_bedrock_trace(
     trace: dict[str, Any],
-    root_span: _BedrockAgentSpanProtocol,
-    parent: _BedrockAgentSpanProtocol,
-    current_active_span: Optional[_BedrockAgentSpanProtocol],
+    root_span: _LLMObsSpan,
+    parent: _LLMObsSpan,
+    current_active_span: Optional[_LLMObsSpan],
     trace_step_id: str,
-) -> tuple[Optional[_BedrockAgentSpanProtocol], bool]:
+) -> tuple[Optional[_LLMObsSpan], bool]:
     """Route a single bedrock trace event to the appropriate translation method.
 
-    Returns the inner _BedrockAgentSpanProtocol (created or finalized) plus a ``finished`` flag. ``finished=True`` means
+    Returns the inner _LLMObsSpan (created or finalized) plus a ``finished`` flag. ``finished=True`` means
     the span has already been finished; ``finished=False`` means it is pending and the caller must
     keep it as the active span for ``trace_step_id`` until the matching output/observation arrives.
     """
