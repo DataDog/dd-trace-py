@@ -9,7 +9,7 @@ from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 

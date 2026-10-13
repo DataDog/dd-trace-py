@@ -15,7 +15,7 @@ from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
 from ddtrace.internal.base.compat import ensure_binary
 from ddtrace.internal.base.compat import ensure_text
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 

@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
-from ddtrace.internal import forksafe
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.base.settings.env import dd_environ

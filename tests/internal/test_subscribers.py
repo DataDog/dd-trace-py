@@ -8,9 +8,9 @@ from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.core.events import Event
+from ddtrace.internal.base.core.events import event_field
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.span_bus import span_from_context

@@ -27,7 +27,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import git
 from ddtrace.internal import atexit
 from ddtrace.internal import core
-from ddtrace.internal import forksafe
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.base.utils.deprecations import deprecate

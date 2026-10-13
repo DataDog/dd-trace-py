@@ -181,7 +181,7 @@ def test_should_iast_patch_allow_by_default_if_third_party():
 
 
 def test_should_not_iast_patch_if_not_in_static_allowlist():
-    assert iastpatch.should_iast_patch("ddtrace.internal.module") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("ddtrace.internal.base.module") == iastpatch.DENIED_NOT_FOUND
     assert iastpatch.should_iast_patch("ddtrace.appsec._iast") == iastpatch.DENIED_NOT_FOUND
     assert iastpatch.should_iast_patch("pip.foo.bar") == iastpatch.DENIED_NOT_FOUND
 

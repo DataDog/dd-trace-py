@@ -12,7 +12,7 @@ from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_config
 
 from .conftest import BOOTSTRAP_SERVERS

@@ -11,13 +11,13 @@ from ddtrace.internal import core
 from ddtrace.internal import process_tags
 from ddtrace.internal.base.constants import PROPAGATED_HASH
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import get_argument_value
+from ddtrace.internal.base.utils import set_argument_value
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal.base import compat
 from ..internal.settings._database_monitoring import dbm_config
-from ..internal.utils import get_argument_value
-from ..internal.utils import set_argument_value
 
 
 if TYPE_CHECKING:

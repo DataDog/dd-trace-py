@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.internal.glob_matching import GlobMatcher
+from ddtrace.internal.base.glob_matching import GlobMatcher
 
 
 @pytest.mark.parametrize(

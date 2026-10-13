@@ -42,7 +42,7 @@ def stop(join: bool = False) -> None:
 def post_preload() -> None:
     """Track LLM integrations detected in the environment."""
     from ddtrace import config
-    from ddtrace.internal.module import is_module_installed
+    from ddtrace.internal.base.module import is_module_installed
     from ddtrace.internal.telemetry import telemetry_writer
     from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 

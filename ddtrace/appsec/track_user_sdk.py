@@ -16,7 +16,7 @@ from ddtrace.appsec._asm_request_context import get_blocked as _get_blocked
 from ddtrace.appsec._constants import WAF_ACTIONS as _WAF_ACTIONS
 import ddtrace.appsec.trace_utils  # noqa: F401
 from ddtrace.contrib.internal.trace_utils_base import set_user
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 
 
 def track_login_success(

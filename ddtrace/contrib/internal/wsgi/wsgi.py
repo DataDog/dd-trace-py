@@ -7,7 +7,7 @@ from typing import Callable
 from typing import Iterable
 from typing import Optional
 
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 
 
@@ -27,15 +27,15 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal._exceptions import find_exception
+from ddtrace.internal.base._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import find_exception
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import get_blocked
+from ddtrace.internal.base.utils import set_blocked
 from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.utils import get_blocked
-from ddtrace.internal.utils import set_blocked
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 

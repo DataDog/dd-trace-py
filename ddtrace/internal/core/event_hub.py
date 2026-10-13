@@ -1,4 +1,4 @@
-from ddtrace.internal.core.events import Event
+from ddtrace.internal.base.core.events import Event
 from ddtrace.internal.native._native import EventResult
 from ddtrace.internal.native._native import EventResultDict
 from ddtrace.internal.native._native import ResultType

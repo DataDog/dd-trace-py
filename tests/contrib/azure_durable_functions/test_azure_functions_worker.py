@@ -9,7 +9,7 @@ import azure.functions as azure_functions
 from ddtrace.contrib.internal.azure_functions._worker import get_current_invocation_carrier
 from ddtrace.contrib.internal.azure_functions._worker import patch_worker_context
 from ddtrace.contrib.internal.azure_functions._worker import unpatch_worker_context
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.base.module import ModuleWatchdog
 
 
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"

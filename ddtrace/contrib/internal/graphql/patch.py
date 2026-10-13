@@ -24,13 +24,13 @@ from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.base.utils import ArgumentError
+from ddtrace.internal.base.utils import get_argument_value
+from ddtrace.internal.base.utils import set_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap

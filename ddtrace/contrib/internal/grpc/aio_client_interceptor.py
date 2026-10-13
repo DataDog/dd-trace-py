@@ -23,8 +23,8 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Span
 from ddtrace.trace import tracer

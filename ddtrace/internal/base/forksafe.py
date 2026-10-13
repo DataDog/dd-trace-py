@@ -10,7 +10,7 @@ import weakref
 
 import wrapt
 
-from ddtrace.internal import _unpatched
+from ddtrace.internal.base import _unpatched
 from ddtrace.internal.base.pyo3 import is_panic_exception
 
 

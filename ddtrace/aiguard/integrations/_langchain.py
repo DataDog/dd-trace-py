@@ -18,7 +18,7 @@ from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.base.logger as ddlogger
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 
 
 logger = ddlogger.get_logger(__name__)

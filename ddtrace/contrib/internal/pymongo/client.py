@@ -22,9 +22,9 @@ from ddtrace.ext import db
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.trace import tracer

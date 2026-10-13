@@ -3,8 +3,8 @@ from dataclasses import dataclass
 import pytest
 
 from ddtrace.internal import core
+from ddtrace.internal.base.core.events import Event
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import Event
 
 
 @pytest.fixture(autouse=True)

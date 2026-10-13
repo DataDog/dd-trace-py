@@ -28,10 +28,10 @@ from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 from ddtrace.internal.base.constants import Constant_Class
+from ddtrace.internal.base.core.events import Event
 import ddtrace.internal.base.logger as ddlogger
-from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE

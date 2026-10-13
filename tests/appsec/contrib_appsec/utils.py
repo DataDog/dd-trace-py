@@ -343,7 +343,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
         Also ensure the resource name is set correctly.
         """
-        from ddtrace.internal.endpoints import endpoint_collection
+        from ddtrace.internal.base.endpoints import endpoint_collection
 
         expected = self.ENDPOINT_DISCOVERY_EXPECTED_PATHS
         assert expected, "ENDPOINT_DISCOVERY_EXPECTED_PATHS must be set on the test class"

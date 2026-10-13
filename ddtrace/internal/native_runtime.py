@@ -6,7 +6,7 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.native import SharedRuntime
 
 

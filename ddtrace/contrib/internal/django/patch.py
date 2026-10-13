@@ -26,16 +26,16 @@ from ddtrace.internal import core
 from ddtrace.internal.base.compat import is_wrapted
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.telemetry import get_config as _get_config
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.vendor.packaging.version import parse as parse_version

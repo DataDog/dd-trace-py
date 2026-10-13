@@ -35,7 +35,7 @@ from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_I
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
 
-# from ddtrace.internal.utils import _copy_trace_level_tags
+# from ddtrace.internal.base.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_PARENT_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
@@ -74,9 +74,9 @@ from ddtrace.internal.base.constants import MESSAGING_OPERATION
 from ddtrace.internal.base.constants import MESSAGING_SYSTEM
 from ddtrace.internal.base.constants import SPAN_LINK_KIND
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.sampling import _inherit_sampling_tags
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.propagation.http import HTTPPropagator

@@ -7,7 +7,7 @@ import typing as t
 
 from ddtrace import config  # noqa:F401
 from ddtrace.internal.base.logger import get_logger  # noqa:F401
-from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.base.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.packages import prefetch_distributions
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401

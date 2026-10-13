@@ -4,7 +4,7 @@ import json
 from flask.testing import FlaskClient
 import pytest
 
-from ddtrace.internal.endpoints import endpoint_collection
+from ddtrace.internal.base.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase

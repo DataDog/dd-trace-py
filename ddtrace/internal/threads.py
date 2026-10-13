@@ -1,10 +1,10 @@
 from time import monotonic_ns
 import typing as t
 
-from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.logger import get_logger
 
 

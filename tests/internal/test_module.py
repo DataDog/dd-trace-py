@@ -9,8 +9,8 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.module import origin
+from ddtrace.internal.base.module import ModuleWatchdog
+from ddtrace.internal.base.module import origin
 import tests.test_module
 from tests.utils import _build_env
 
@@ -55,8 +55,8 @@ def module_watchdog():
 def test_watchdog_install_uninstall():
     import sys
 
-    from ddtrace.internal.module import ModuleWatchdog
-    from ddtrace.internal.module import _UniversalModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
+    from ddtrace.internal.base.module import _UniversalModuleWatchdog
 
     if ModuleWatchdog.is_installed():
         ModuleWatchdog.uninstall()
@@ -99,7 +99,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
     import sys
     from unittest import mock
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     name = "tests.test_module"
     path = Path(os.getenv("MODULE_ORIGIN"))
@@ -132,7 +132,7 @@ def test_import_module_hook_for_module_not_yet_imported():
     import sys
     from unittest import mock
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     name = "tests.test_module"
     hook = mock.Mock()
@@ -165,7 +165,7 @@ def test_module_deleted():
     from pathlib import Path
     import sys
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     if "json" in sys.modules:
         del sys.modules["json"]
@@ -274,7 +274,7 @@ def test_module_watchdog_subclasses():
 
 @pytest.mark.subprocess
 def test_module_import_hierarchy():
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     class ImportCatcher(ModuleWatchdog):
         imports = set()
@@ -316,7 +316,7 @@ def test_get_by_origin(module_watchdog):
 def test_module_watchdog_propagation():
     # Test that the module watchdog propagates the module hooks to each
     # installed subclass.
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     class BaseCollector(ModuleWatchdog):
         def __init__(self):
@@ -355,7 +355,7 @@ def test_module_watchdog_after_import_hook_isolation():
     # A failing after_import hook on one watchdog subclass must not prevent
     # another watchdog subclass's after_import hook from running for the
     # same import.
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     class Failing(ModuleWatchdog):
         def after_import(self, module):
@@ -426,7 +426,7 @@ def test_module_watchdog_weakref():
 
     sys.modules["bogus"] = str.__init__  # Cannot create weak ref to method_descriptor
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     instance = ModuleWatchdog._instance
     instance._om = None
@@ -528,7 +528,7 @@ def test_module_watchdog_does_not_rewrap_get_code():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     ModuleWatchdog.install()
 
@@ -614,7 +614,7 @@ def test_module_watchdog_no_interal_frames_in_import_exceptions(module_watchdog)
     try:
         import tests.submod.import_test  # noqa:F401
     except ImportError as e:
-        import ddtrace.internal.module as m
+        import ddtrace.internal.base.module as m
 
         sources = set()
 
@@ -641,8 +641,8 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
     import sys
     import threading
 
-    from ddtrace.internal.module import ModuleWatchdog
-    from ddtrace.internal.module import _UniversalModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
+    from ddtrace.internal.base.module import _UniversalModuleWatchdog
 
     bootstrap = sys.modules.get("importlib._bootstrap")
     if bootstrap is None or not hasattr(bootstrap, "_get_module_lock"):
@@ -679,7 +679,7 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
 
 
 def test_universal_module_watchdog_single_finder_invariant():
-    from ddtrace.internal.module import _UniversalModuleWatchdog
+    from ddtrace.internal.base.module import _UniversalModuleWatchdog
 
     classes = [type(f"Watchdog{i}", (ModuleWatchdog,), {}) for i in range(5)]
     for cls in classes:
@@ -694,7 +694,7 @@ def test_universal_module_watchdog_single_finder_invariant():
 
 
 def test_universal_module_watchdog_constant_find_spec_calls():
-    from ddtrace.internal.module import _UniversalModuleWatchdog
+    from ddtrace.internal.base.module import _UniversalModuleWatchdog
 
     # Ensure the parent package is already imported so that importing the
     # child module below triggers exactly one find_spec call, rather than one
@@ -737,7 +737,7 @@ def test_universal_module_watchdog_first_registered_wins():
     # test, can make this test flaky.
     import sys
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
 
     calls = []
 
@@ -771,8 +771,8 @@ def test_universal_module_watchdog_first_registered_wins():
 def test_universal_module_watchdog_teardown():
     import sys
 
-    from ddtrace.internal.module import ModuleWatchdog
-    from ddtrace.internal.module import _UniversalModuleWatchdog
+    from ddtrace.internal.base.module import ModuleWatchdog
+    from ddtrace.internal.base.module import _UniversalModuleWatchdog
 
     # ddtrace startup can install product watchdogs before this isolated test runs.
     # Remove those participants so this test can exercise last-participant teardown.

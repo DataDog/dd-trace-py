@@ -12,7 +12,7 @@ from ddtrace.internal.base.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.base.constants import LOG_ATTR_VALUE_EMPTY
 from ddtrace.internal.base.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.base.constants import LOG_ATTR_VERSION
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 
 
 config._add(

@@ -5,8 +5,8 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
-from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.internal.remoteconfig import RCCallback

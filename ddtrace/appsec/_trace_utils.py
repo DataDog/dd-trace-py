@@ -18,7 +18,7 @@ from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config

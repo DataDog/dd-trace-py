@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.internal.safety import SafeObjectProxy
+from ddtrace.internal.base.safety import SafeObjectProxy
 
 
 class BadError(Exception):

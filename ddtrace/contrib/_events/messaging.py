@@ -9,9 +9,9 @@ from typing import Optional
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.core.events import event_field
+from ddtrace.internal.base.core.events import event_field
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.schema import schematize_messaging_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:

@@ -12,7 +12,7 @@ import typing as t
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 
 
 if t.TYPE_CHECKING:

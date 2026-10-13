@@ -14,7 +14,7 @@ from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.base.constants import DEFAULT_SAMPLING_RATE_LIMIT
-from ddtrace.internal.glob_matching import GlobMatcher
+from ddtrace.internal.base.glob_matching import GlobMatcher
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism

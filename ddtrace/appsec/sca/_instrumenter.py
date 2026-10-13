@@ -17,9 +17,9 @@ from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.appsec.sca._resolver import SymbolResolver
 from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.module import ModuleHookType
+from ddtrace.internal.base.module import ModuleWatchdog
 from ddtrace.internal.bytecode_injection import inject_hook
-from ddtrace.internal.module import ModuleHookType
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.inspection import linenos

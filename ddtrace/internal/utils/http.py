@@ -16,7 +16,7 @@ from typing import Union  # noqa:F401
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
-from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
+from ddtrace.internal.base._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.base.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.base.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
@@ -28,10 +28,10 @@ from ddtrace.internal.base.constants import W3C_DD_LIST_MEMBER_MAX_CHARS
 from ddtrace.internal.base.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.base.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.base.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.base.utils import _get_metas_to_propagate
 from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.settings import env
-from ddtrace.internal.utils import _get_metas_to_propagate
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")

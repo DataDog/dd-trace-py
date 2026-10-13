@@ -38,7 +38,7 @@ import typing
 from zoneinfo import ZoneInfo
 
 from ddtrace import config as ddconfig
-from ddtrace.internal import forksafe
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH

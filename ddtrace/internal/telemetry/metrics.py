@@ -5,7 +5,7 @@ from typing import Optional
 from typing import Union
 import weakref
 
-from ddtrace.internal import forksafe
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.logger import get_logger
 
 from .constants import TELEMETRY_NAMESPACE

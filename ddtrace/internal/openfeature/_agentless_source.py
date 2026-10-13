@@ -25,12 +25,12 @@ from urllib.parse import urlunsplit
 
 from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.retry import RetryError
+from ddtrace.internal.base.utils.retry import retry
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.internal.utils.retry import RetryError
-from ddtrace.internal.utils.retry import retry
 from ddtrace.internal.utils.version import _pep440_to_semver
 
 

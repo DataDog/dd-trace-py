@@ -14,8 +14,8 @@ import pytest
 import ddtrace
 from ddtrace.internal import service
 from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.base.module import ModuleWatchdog
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler

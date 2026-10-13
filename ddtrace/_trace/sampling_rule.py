@@ -4,9 +4,9 @@ from typing import Optional
 from ddtrace.internal.base.constants import MAX_UINT_64BITS
 from ddtrace.internal.base.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.base.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace.internal.base.glob_matching import GlobMatcher
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.base.utils.cache import cachedmethod
-from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.native._native import SpanData
 
 

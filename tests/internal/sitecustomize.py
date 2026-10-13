@@ -1,4 +1,4 @@
-from ddtrace.internal.module import register_post_run_module_hook
+from ddtrace.internal.base.module import register_post_run_module_hook
 
 
 def post_run_module_hook(module):

@@ -26,10 +26,10 @@ from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
+from ddtrace.internal.base.core.events import Event
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.core import ExecutionContext
-from ddtrace.internal.core.events import Event
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer

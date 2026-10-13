@@ -2,8 +2,8 @@ from collections.abc import Iterable
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import ArgumentError
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY

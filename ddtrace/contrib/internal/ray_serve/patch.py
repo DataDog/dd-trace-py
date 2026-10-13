@@ -22,9 +22,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 from ddtrace.trace import tracer

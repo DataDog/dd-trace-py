@@ -13,7 +13,7 @@ from typing import Union
 
 import wrapt
 
-from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.base._exceptions import DDBlockException
 from ddtrace.internal.base.logger import get_logger
 
 

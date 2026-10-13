@@ -84,7 +84,7 @@ Notes:
 
 """
 
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.base.module import ModuleWatchdog
 
 
 @ModuleWatchdog.after_module_imported("ddtrace.vendor.dogstatsd.base")

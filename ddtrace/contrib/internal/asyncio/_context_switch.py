@@ -27,8 +27,8 @@ from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal._context_watcher import context_switches_require_fallback
 from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.base.utils import get_argument_value
+from ddtrace.internal.base.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 

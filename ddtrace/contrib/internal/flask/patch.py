@@ -10,14 +10,14 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.endpoints import endpoint_collection
+from ddtrace.internal.base.endpoints import endpoint_collection
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.base.utils import get_blocked
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_blocked
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -41,8 +41,8 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import ArgumentError
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
 

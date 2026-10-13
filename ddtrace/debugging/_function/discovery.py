@@ -15,8 +15,8 @@ from wrapt import FunctionWrapper
 
 from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.module import origin
-from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.base.module import origin
+from ddtrace.internal.base.safety import _isinstance
 from ddtrace.internal.utils.inspection import ModuleCodeCollector
 from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos

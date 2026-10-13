@@ -295,7 +295,6 @@ def test_refresh_identity_changes_runtime_id(run_python_code_in_subprocess):
     """refresh_identity() is the non-fork trigger for a new logical process instance."""
     code = """
 from ddtrace.internal import runtime
-
 runtime_id = runtime.get_runtime_id()
 runtime.refresh_identity()
 new_runtime_id = runtime.get_runtime_id()
@@ -326,7 +325,6 @@ def test_refresh_identity_does_not_record_fork_lineage(run_python_code_in_subpro
     )
     code = """
 from ddtrace.internal import runtime
-
 assert runtime.get_process_role() is None
 assert runtime.get_parent_runtime_id() is None
 assert runtime.get_ancestor_runtime_id() is None
@@ -354,7 +352,6 @@ def test_refresh_identity_preserves_spawned_lineage(run_python_code_in_subproces
     )
     code = """
 from ddtrace.internal import runtime
-
 assert runtime.get_ancestor_runtime_id() == "ancestor-session-id"
 assert runtime.get_parent_runtime_id() == "parent-session-id"
 assert runtime.get_process_role() == "worker"
@@ -384,7 +381,6 @@ def test_refresh_identity_preserves_fork_lineage(run_python_code_in_subprocess):
 import os
 
 from ddtrace.internal import runtime
-
 root_id = runtime.get_runtime_id()
 child = os.fork()
 
@@ -413,7 +409,6 @@ assert os.WEXITSTATUS(status) == 42
 def test_refresh_identity_notifies_subscribers(run_python_code_in_subprocess):
     code = """
 from ddtrace.internal import runtime
-
 seen = []
 
 
@@ -436,7 +431,6 @@ assert seen == [runtime.get_runtime_id()]
 def test_refresh_identity_notifies_refresh_subscribers(run_python_code_in_subprocess):
     code = """
 from ddtrace.internal import runtime
-
 seen = []
 
 
@@ -461,7 +455,6 @@ def test_refresh_identity_callback_failure_does_not_block_other_refresh_callback
 ):
     code = """
 from ddtrace.internal import runtime
-
 seen = []
 
 
@@ -489,7 +482,6 @@ assert ("refresh", runtime_id) in seen
 def test_refresh_identity_raise_on_error_notifies_successful_callback(run_python_code_in_subprocess):
     code = """
 from ddtrace.internal import runtime
-
 seen = []
 
 
@@ -509,7 +501,6 @@ assert seen == [runtime.get_runtime_id()]
 def test_refresh_identity_propagates_refresh_callback_failure(run_python_code_in_subprocess):
     code = """
 from ddtrace.internal import runtime
-
 old_runtime_id = runtime.get_runtime_id()
 ordinary_callbacks = []
 

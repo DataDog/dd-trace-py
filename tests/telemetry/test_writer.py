@@ -258,7 +258,7 @@ def test_endpoint_discovery_message_limit(test_agent_session, ddtrace_run_python
     env["DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"] = "3"
 
     code = """
-from ddtrace.internal.endpoints import endpoint_collection
+from ddtrace.internal.base.endpoints import endpoint_collection
 from ddtrace.internal.telemetry import telemetry_writer
 
 for i in range(7):
@@ -1049,7 +1049,7 @@ def test_redact_filename(filename, result):
 
 def test_endpoint_subscription_lifecycle(telemetry_writer):
     """``enable`` subscribes the writer to the endpoint collection, ``disable`` unsubscribes it."""
-    from ddtrace.internal.endpoints import endpoint_collection
+    from ddtrace.internal.base.endpoints import endpoint_collection
 
     assert endpoint_collection.on_endpoint_registered == telemetry_writer._record_endpoint
 
@@ -1059,7 +1059,7 @@ def test_endpoint_subscription_lifecycle(telemetry_writer):
 
 def test_disable_leaves_a_foreign_endpoint_subscriber_alone(telemetry_writer):
     """Only the writer's own subscription is cleared, so a disable cannot unhook someone else."""
-    from ddtrace.internal.endpoints import endpoint_collection
+    from ddtrace.internal.base.endpoints import endpoint_collection
 
     def other(endpoint):
         pass

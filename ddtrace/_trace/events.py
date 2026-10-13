@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from typing import ClassVar
 from typing import Optional
 
-from ddtrace.internal.core.events import Event
+from ddtrace.internal.base.core.events import Event
 from ddtrace.internal.settings.integration import IntegrationConfig
 
 

@@ -8,13 +8,13 @@ from ddtrace import config
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal._exceptions import find_exception
+from ddtrace.internal.base._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import find_exception
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.base.utils import ArgumentError
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 
 from .constants import CONFIG_KEY

@@ -14,8 +14,8 @@ from typing import Callable
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace.internal import forksafe
-from ddtrace.internal._unpatched import threading_Lock
+from ddtrace.internal.base import forksafe
+from ddtrace.internal.base._unpatched import threading_Lock
 
 
 GEN_COUNT: int = 3

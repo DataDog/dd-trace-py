@@ -21,7 +21,7 @@ from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal.base.compat import NO_EXCEPTION
 from ddtrace.internal.base.compat import ExcInfoType
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.base.safety import _isinstance
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 

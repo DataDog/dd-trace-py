@@ -23,8 +23,7 @@ from typing import Generic
 from typing import Optional
 
 from ddtrace.internal import core
-
-from .events import EventType
+from ddtrace.internal.base.core.events import EventType
 
 
 log = logging.getLogger(__name__)

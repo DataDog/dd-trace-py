@@ -12,6 +12,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
@@ -28,7 +29,6 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 logger = get_logger(__name__)

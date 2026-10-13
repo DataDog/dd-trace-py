@@ -36,10 +36,10 @@ from ddtrace.debugging._safety import safe_get_type_attr
 from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._safety import safe_qualname
 from ddtrace.internal.base.compat import ExcInfoType
+from ddtrace.internal.base.module import ModuleWatchdog
+from ddtrace.internal.base.safety import _isinstance
 from ddtrace.internal.base.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.base.utils.cache import miss
-from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.safety import _isinstance
 
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])

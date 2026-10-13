@@ -12,19 +12,16 @@ if typing.TYPE_CHECKING:
     import asyncio as aio
 
     from ddtrace.internal import monitoring as _monitoring
-
-from ddtrace.internal._unpatched import _threading as ddtrace_threading
+from ddtrace.internal.base._unpatched import _threading as ddtrace_threading
+from ddtrace.internal.base.module import ModuleWatchdog
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.datadog.profiling import stack
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
 
 
 if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
-
-
 ASYNCIO_IMPORTED: bool = False
 
 

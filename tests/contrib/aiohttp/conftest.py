@@ -4,7 +4,7 @@ import pytest_asyncio
 
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
-from ddtrace.internal.utils import version  # noqa:F401
+from ddtrace.internal.base.utils import version  # noqa:F401
 from ddtrace.internal.utils.version import parse_version
 
 from .app.web import setup_app

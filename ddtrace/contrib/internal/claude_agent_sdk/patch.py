@@ -12,7 +12,7 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import force_include_partia
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
 
 

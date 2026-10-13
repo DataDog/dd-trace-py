@@ -6,7 +6,7 @@ import sys
 import typing as t
 
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "ddtrace" / "internal"))
+sys.path.insert(0, str(Path(__file__).parents[1] / "ddtrace" / "internal" / "base"))
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 import tests.suitespec as spec  # noqa

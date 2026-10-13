@@ -6,7 +6,7 @@ import pytest
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.discovery import undecorated
 from ddtrace.debugging._function.store import FunctionStore
-from ddtrace.internal.module import origin
+from ddtrace.internal.base.module import origin
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext

@@ -233,9 +233,9 @@ pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rand64bits, m)?)?;
     m.add_function(wrap_pyfunction!(generate_128bit_trace_id, m)?)?;
 
-    // Register seed() with ddtrace.internal.forksafe for fork safety
+    // Register seed() with ddtrace.internal.base.forksafe for fork safety
     let py = m.py();
-    let forksafe = py.import("ddtrace.internal.forksafe")?;
+    let forksafe = py.import("ddtrace.internal.base.forksafe")?;
     let register = forksafe.getattr("register")?;
     let seed_fn = m.getattr("seed")?;
     register.call1((seed_fn,))?;

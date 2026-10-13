@@ -1,4 +1,4 @@
-from .base.utils.cache import cachedmethod
+from ddtrace.internal.base.utils.cache import cachedmethod
 
 
 class GlobMatcher:

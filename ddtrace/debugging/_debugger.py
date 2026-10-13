@@ -45,11 +45,11 @@ from ddtrace.internal import core
 from ddtrace.internal.base.compat import NO_EXCEPTION
 from ddtrace.internal.base.compat import ExcInfoType
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.module import origin
+from ddtrace.internal.base.module import register_post_run_module_hook
+from ddtrace.internal.base.module import unregister_post_run_module_hook
 from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.module import origin
-from ddtrace.internal.module import register_post_run_module_hook
-from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller

@@ -16,11 +16,11 @@ from ddtrace.contrib.internal.ray.core.remote_function import traced_submit_task
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.base.module import ModuleWatchdog
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 
 from .constants import DEFAULT_JOB_NAME

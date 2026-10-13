@@ -32,8 +32,8 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import debug
-from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.constants import _SERVICE_SOURCE
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.constants import LOG_ATTR_ENV
@@ -47,6 +47,7 @@ from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.base.constants import SPAN_API_DATADOG
 from ddtrace.internal.base.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import _get_metas_to_propagate
 from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.hostname import get_hostname
@@ -60,7 +61,6 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface

@@ -8,7 +8,7 @@ import json
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.utils.fnv import fnv1_64
+from ddtrace.internal.base.utils.fnv import fnv1_64
 
 from .schema import Schema
 

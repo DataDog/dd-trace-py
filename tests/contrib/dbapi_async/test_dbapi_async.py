@@ -6,7 +6,7 @@ from ddtrace.contrib.dbapi_async import FetchTracedAsyncCursor
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncCursor
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator

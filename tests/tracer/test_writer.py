@@ -17,7 +17,8 @@ import pytest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
-from ddtrace.internal import forksafe
+from ddtrace.internal.base import forksafe
+from ddtrace.internal.base.utils import _human_size
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.http import HTTPConnection
@@ -29,7 +30,6 @@ from ddtrace.internal.settings import _opentelemetry
 from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.utils import _human_size
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH

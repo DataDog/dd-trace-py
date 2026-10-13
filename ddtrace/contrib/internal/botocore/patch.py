@@ -29,6 +29,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
@@ -36,7 +37,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration

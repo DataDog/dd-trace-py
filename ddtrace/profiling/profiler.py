@@ -14,9 +14,9 @@ from ddtrace.internal import atexit
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
+from ddtrace.internal.base.forksafe import Lock
+from ddtrace.internal.base.module import ModuleWatchdog
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.forksafe import Lock
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str

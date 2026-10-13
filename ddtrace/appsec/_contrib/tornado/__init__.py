@@ -12,7 +12,7 @@ from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._utils import Block_config
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import MediaType

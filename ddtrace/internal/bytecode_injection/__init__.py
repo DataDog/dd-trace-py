@@ -7,7 +7,7 @@ from typing import Callable
 from bytecode import Bytecode
 from bytecode import Instr
 
-from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.base.assembly import Assembly
 from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.base.compat import is_at_most_py
 from ddtrace.internal.base.logger import get_logger

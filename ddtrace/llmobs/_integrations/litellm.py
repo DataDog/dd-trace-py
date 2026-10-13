@@ -1,8 +1,8 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.settings import env
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY

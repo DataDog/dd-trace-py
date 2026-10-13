@@ -6,7 +6,7 @@ from typing import cast
 from weakref import WeakKeyDictionary
 
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID

@@ -7,7 +7,7 @@ from types import MappingProxyType
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.safety import get_slots
+from ddtrace.internal.base.safety import get_slots
 
 
 GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]  # noqa: F821

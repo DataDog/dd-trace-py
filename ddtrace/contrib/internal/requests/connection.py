@@ -12,13 +12,13 @@ from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import USER_AGENT_HEADER
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.standalone import standalone_config
-from ddtrace.internal.utils import get_argument_value
 
 
 log = get_logger(__name__)

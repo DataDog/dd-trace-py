@@ -10,9 +10,9 @@ from ddtrace.contrib._events.ray import RayExecutionEvent
 from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.internal import core
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX

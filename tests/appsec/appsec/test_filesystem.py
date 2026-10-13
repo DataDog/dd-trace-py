@@ -14,7 +14,7 @@ from ddtrace.appsec._contrib.filesystem.patch import wrapped_builtin_open
 from ddtrace.appsec._contrib.filesystem.patch import wrapped_path_open
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 
 
 class _OriginalOpen:

@@ -12,7 +12,7 @@ from ddtrace.contrib.internal.aiopg.connection import AIOTracedCursor
 from ddtrace.contrib.internal.aiopg.patch import patch
 from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio

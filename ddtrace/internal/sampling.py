@@ -26,8 +26,8 @@ from ddtrace.internal.base.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.base.constants import SAMPLING_MECHANISM_TO_PRIORITIES
 from ddtrace.internal.base.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.base.constants import SamplingMechanism
+from ddtrace.internal.base.glob_matching import GlobMatcher
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config

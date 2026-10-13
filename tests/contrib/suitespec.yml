@@ -1005,7 +1005,7 @@ suites:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module.
-            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.base.module
           command: >-
             pytest {cmdargs} --ignore=tests/contrib/django/test_django_snapshots.py                         --ignore=tests/contrib/django/test_django_wsgi.py
             tests/contrib/django
@@ -1015,7 +1015,7 @@ suites:
           env:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
-            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.base.module
           command: >-
             pytest {cmdargs} --ignore=tests/contrib/django/test_django_snapshots.py                         --ignore=tests/contrib/django/test_django_wsgi.py
             tests/contrib/django
@@ -1025,7 +1025,7 @@ suites:
           env:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
-            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.base.module
           command: >-
             pytest {cmdargs} --ignore=tests/contrib/django/test_django_snapshots.py                         --ignore=tests/contrib/django/test_django_wsgi.py
             tests/contrib/django
@@ -1035,7 +1035,7 @@ suites:
           env:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
-            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.base.module
           command: pytest {cmdargs} tests/contrib/django
         - name: django
           python: ['3.10', '3.11', '3.12', '3.13']
@@ -1043,7 +1043,7 @@ suites:
           env:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
-            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.base.module
           command: >-
             pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
             -k 'not test_user_name_included and not test_user_name_excluded and not
@@ -1054,7 +1054,7 @@ suites:
           env:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
-            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.base.module
           command: >-
             pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
             -k 'not test_user_name_included and not test_user_name_excluded and not

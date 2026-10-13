@@ -6,7 +6,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
 from ddtrace.trace import tracer
 

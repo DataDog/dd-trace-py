@@ -383,7 +383,7 @@ def test_weak_hash_symbol_db_not_reported(iast_context_defaults):
     """
     from pathlib import Path
 
-    from ddtrace.internal.module import origin
+    from ddtrace.internal.base.module import origin
     from ddtrace.internal.symbol_db.symbols import Scope
     from ddtrace.internal.symbol_db.symbols import ScopeData
     import tests.appsec.iast.fixtures.taint_sinks.weak_algorithms as module_to_hash
@@ -408,7 +408,7 @@ def test_weak_hash_symbol_db_resolves_sha1_at_call_time(iast_context_defaults):
     import hashlib
     from pathlib import Path
 
-    from ddtrace.internal.module import origin
+    from ddtrace.internal.base.module import origin
     from ddtrace.internal.symbol_db.symbols import Scope
     from ddtrace.internal.symbol_db.symbols import ScopeData
     import tests.appsec.iast.fixtures.taint_sinks.weak_algorithms as module_to_hash

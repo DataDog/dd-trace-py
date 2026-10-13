@@ -14,10 +14,10 @@ from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.base.compat import maybe_stringify
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.module import _resolve
+from ddtrace.internal.base.safety import _isinstance
 from ddtrace.internal.base.utils.cache import cached
-from ddtrace.internal.module import _resolve
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
-from ddtrace.internal.safety import _isinstance
 
 
 log = get_logger(__name__)

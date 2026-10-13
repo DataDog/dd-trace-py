@@ -4,7 +4,7 @@ from typing import Optional
 
 from ddtrace.internal import core
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER

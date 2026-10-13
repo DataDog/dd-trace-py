@@ -22,7 +22,7 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
-from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.base._exceptions import DDBlockException
 import ddtrace.internal.base.logger as ddlogger
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError

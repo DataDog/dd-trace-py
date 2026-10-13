@@ -170,8 +170,8 @@ def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_wrapping_modules_import() -> None:
+    import ddtrace.internal.base.module  # noqa: F401
     import ddtrace.internal.bytecode_injection  # noqa: F401
-    import ddtrace.internal.module  # noqa: F401
     import ddtrace.internal.wrapping.asyncs  # noqa: F401
     import ddtrace.internal.wrapping.generators  # noqa: F401
 

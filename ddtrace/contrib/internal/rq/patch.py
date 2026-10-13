@@ -5,12 +5,12 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 
 

@@ -2,8 +2,8 @@ from pathlib import Path
 import sys
 from types import ModuleType
 
-from ddtrace.internal.module import ModuleHookType
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.base.module import ModuleHookType
+from ddtrace.internal.base.module import ModuleWatchdog
 
 
 class DebuggerModuleWatchdog(ModuleWatchdog):

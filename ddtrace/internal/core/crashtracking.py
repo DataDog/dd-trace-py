@@ -10,9 +10,9 @@ from typing import Optional
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import excepthook
-from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.compat import ensure_text
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env

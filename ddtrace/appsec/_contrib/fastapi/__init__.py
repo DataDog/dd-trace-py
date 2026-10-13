@@ -17,9 +17,9 @@ from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import RESPONSE_HEADERS
+from ddtrace.internal.base.core.events import Event
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.core import ExecutionContext
-from ddtrace.internal.core.events import Event
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import MediaType

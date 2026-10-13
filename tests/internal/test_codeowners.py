@@ -1,4 +1,4 @@
-from ddtrace.internal.codeowners import Codeowners
+from ddtrace.internal.base.codeowners import Codeowners
 
 
 def test_invalid_codeowners(testdir):

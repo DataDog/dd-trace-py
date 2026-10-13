@@ -98,11 +98,11 @@ ddtrace/auto.py                     @DataDog/python-guild  @DataDog/apm-core-pyt
 ddtrace/bootstrap/                  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/commands/                   @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/_file_queue.py     @DataDog/python-guild
-ddtrace/internal/_unpatched.py      @DataDog/python-guild
+ddtrace/internal/base/_unpatched.py      @DataDog/python-guild
 ddtrace/__init__.py                 @DataDog/python-guild
 ddtrace/py.typed                    @DataDog/python-guild
 ddtrace/internal/base/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
-ddtrace/internal/endpoints.py       @DataDog/python-guild  @DataDog/asm-python
+ddtrace/internal/base/endpoints.py       @DataDog/python-guild  @DataDog/asm-python
 ddtrace/internal/settings/_config.py          @DataDog/python-guild  @DataDog/apm-sdk-capabilities
 ddtrace/vendor/                     @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/version.py                  @DataDog/python-guild  @DataDog/apm-core-python
@@ -144,7 +144,7 @@ ddtrace/ext/git.py                                    @DataDog/ci-app-libraries 
 ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
 ddtrace/ext/test_visibility                           @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py                        @DataDog/ci-app-libraries
+ddtrace/internal/base/codeowners.py                        @DataDog/ci-app-libraries
 ddtrace/internal/coverage                             @DataDog/ci-app-libraries
 ddtrace/internal/selenium                             @DataDog/ci-app-libraries
 ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
@@ -176,7 +176,7 @@ ddtrace/debugging/                  @DataDog/debugger-python
 ddtrace/internal/settings/dynamic_instrumentation.py     @DataDog/debugger-python
 ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
 ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
-ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/base/module.py          @DataDog/debugger-python @DataDog/apm-core-python
 ddtrace/internal/symbol_db/         @DataDog/debugger-python
 tests/debugging/                    @DataDog/debugger-python
 tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-python
@@ -204,7 +204,7 @@ ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
 ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
-ddtrace/internal/_exceptions.py     @DataDog/asm-python
+ddtrace/internal/base/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
 ddtrace/internal/sca/               @DataDog/asm-python

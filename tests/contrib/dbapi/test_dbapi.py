@@ -5,7 +5,7 @@ from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.base._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator

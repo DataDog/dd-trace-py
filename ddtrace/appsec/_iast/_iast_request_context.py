@@ -14,9 +14,9 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import span_bus
+from ddtrace.internal.base.core.events import Event
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.core import ExecutionContext
-from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 

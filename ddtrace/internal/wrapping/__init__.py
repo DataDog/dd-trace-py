@@ -11,7 +11,7 @@ import weakref
 import bytecode as bc
 from bytecode import Instr
 
-from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.base.assembly import Assembly
 from ddtrace.internal.base.compat import NEXT_PY_UNSUPPORTED_MSG
 from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.base.compat import is_supported_python_version

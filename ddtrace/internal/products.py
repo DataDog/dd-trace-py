@@ -6,7 +6,7 @@ from itertools import chain
 import typing as t
 from typing import Protocol
 
-from ddtrace.internal import forksafe
+from ddtrace.internal.base import forksafe
 from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig

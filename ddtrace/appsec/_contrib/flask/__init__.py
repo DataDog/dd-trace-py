@@ -25,9 +25,9 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.base.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.base.constants import RESPONSE_HEADERS
+from ddtrace.internal.base.core.events import Event
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.core import ExecutionContext
-from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -161,7 +161,7 @@ def _make_block_response() -> tuple[str, int, Mapping[str, str]]:
     handle_http_exception) which would create extra spans without
     fingerprint tags.
     """
-    from ddtrace.internal.utils import get_blocked as _get_blocked
+    from ddtrace.internal.base.utils import get_blocked as _get_blocked
 
     block_config = _get_blocked()
     ctype = block_config.content_type if block_config else "application/json"
@@ -189,8 +189,8 @@ def _flask_block_request_callable(span: SpanData) -> None:
     import flask
     from werkzeug.exceptions import abort
 
-    from ddtrace.internal.utils import get_blocked as _get_blocked
-    from ddtrace.internal.utils import set_blocked as _set_blocked
+    from ddtrace.internal.base.utils import get_blocked as _get_blocked
+    from ddtrace.internal.base.utils import set_blocked as _set_blocked
 
     if not _get_blocked():
         _set_blocked()

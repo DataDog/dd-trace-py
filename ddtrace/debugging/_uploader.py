@@ -14,11 +14,11 @@ from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
 from ddtrace.internal.base import logger
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.native import DebuggerSender
 from ddtrace.internal.native import DebuggerTrackType
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.utils.formats import get_test_session_token
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 log = get_logger(__name__)

@@ -21,7 +21,7 @@ from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal import core
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.base.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.span_bus import span_from_context
 

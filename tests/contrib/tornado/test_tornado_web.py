@@ -132,7 +132,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert request_span.get_tag("http.route") == "/mixed/(?:items|things)/%s/"
 
     def test_endpoint_collection_uses_route_resolution(self):
-        from ddtrace.internal.endpoints import endpoint_collection
+        from ddtrace.internal.base.endpoints import endpoint_collection
 
         endpoints = {(ep.method, ep.path, ep.resource_name) for ep in endpoint_collection.endpoints}
 

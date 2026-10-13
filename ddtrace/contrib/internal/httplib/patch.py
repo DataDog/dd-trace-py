@@ -15,8 +15,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool

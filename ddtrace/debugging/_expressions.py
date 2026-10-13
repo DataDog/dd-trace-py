@@ -48,7 +48,7 @@ from ddtrace.debugging._safety import safe_getitem
 from ddtrace.debugging._safety import safe_qualname
 from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.base.safety import _isinstance
 
 
 DDASTType = Union[dict[str, Any], dict[str, list[Any]], Any]

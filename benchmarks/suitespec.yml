@@ -62,20 +62,20 @@ components:
     - ddtrace/internal/settings/asm.py
   core:
     - ddtrace/internal/__init__.py
-    - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/base/_exceptions.py
     - ddtrace/internal/_threads.*
-    - ddtrace/internal/_unpatched.py
+    - ddtrace/internal/base/_unpatched.py
     - ddtrace/internal/agent.py
-    - ddtrace/internal/assembly.py
+    - ddtrace/internal/base/assembly.py
     - ddtrace/internal/atexit.py
     - ddtrace/internal/base/compat.py
     - ddtrace/internal/core/*
     - ddtrace/internal/datadog/__init__.py
     - ddtrace/internal/debug.py
     - ddtrace/internal/dogstatsd.py
-    - ddtrace/internal/forksafe.py
+    - ddtrace/internal/base/forksafe.py
     - ddtrace/internal/gitmetadata.py
-    - ddtrace/internal/glob_matching.py
+    - ddtrace/internal/base/glob_matching.py
     - ddtrace/internal/ipc.py
     - ddtrace/internal/base/logger.py
     - ddtrace/_logger.py
@@ -84,7 +84,7 @@ components:
     - ddtrace/internal/bytecode_injection/*
     - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
-    - ddtrace/internal/module.py
+    - ddtrace/internal/base/module.py
     - ddtrace/internal/monitoring.py
     - ddtrace/internal/native/*
     - ddtrace/internal/packages.py
@@ -92,7 +92,7 @@ components:
     - ddtrace/internal/periodic.py
     - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
-    - ddtrace/internal/safety.py
+    - ddtrace/internal/base/safety.py
     - ddtrace/internal/service.py
     - ddtrace/internal/utils/*
     - ddtrace/internal/uwsgi.py

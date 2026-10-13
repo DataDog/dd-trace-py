@@ -17,14 +17,14 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.base import compat
 from ddtrace.internal.base.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.base.utils import _human_size
+from ddtrace.internal.base.utils.fnv import fnv1_64
+from ddtrace.internal.base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils import _human_size
-from ddtrace.internal.utils.fnv import fnv1_64
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
 from .._encoding import packb
