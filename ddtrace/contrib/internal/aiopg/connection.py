@@ -1,5 +1,10 @@
+from contextlib import suppress
+from typing import Optional
+from typing import Union
+
 from aiopg import __version__
 from aiopg.utils import _ContextManager
+from psycopg2 import extensions
 import wrapt
 
 from ddtrace import config
@@ -32,6 +37,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
+    def _decode_dbapi_query(self, query: Union[str, bytes]) -> Union[str, bytes]:
+        if isinstance(query, bytes) and core.has_listeners(DbQueryEvent.event_name):
+            connection = self.__wrapped__._impl.connection
+            encoding = extensions.encodings[connection.encoding]
+            if encoding not in ("utf-8", "utf8", "utf_8"):
+                return query.decode(encoding)
+        return query
+
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
@@ -63,16 +76,24 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if isinstance(query, (str, bytes)):
+            inspected_query: Optional[Union[str, bytes]] = None
+            with suppress(Exception):
+                inspected_query = self._decode_dbapi_query(query)
+            if inspected_query is not None:
+                core.dispatch_event(DbQueryEvent(query=inspected_query, span_name_prefix="postgres"))
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if isinstance(query, (str, bytes)):
+            inspected_query: Optional[Union[str, bytes]] = None
+            with suppress(Exception):
+                inspected_query = self._decode_dbapi_query(query)
+            if inspected_query is not None:
+                core.dispatch_event(DbQueryEvent(query=inspected_query, span_name_prefix="postgres"))
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 

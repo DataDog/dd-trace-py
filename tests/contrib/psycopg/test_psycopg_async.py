@@ -5,8 +5,10 @@ import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal import core
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import assert_is_measured
@@ -30,6 +32,25 @@ class PsycopgCore(AsyncioTestCase):
         print(POSTGRES_CONFIG)
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
         return conn
+
+    async def test_byte_query_uses_connection_encoding(self):
+        query = "SELECT 'é'"
+        for encoding, codec in (("UTF8", "utf-8"), ("LATIN1", "iso8859-1")):
+            original_query = query.encode(codec)
+            events = []
+            listener = events.append
+            async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG, client_encoding=encoding) as connection:
+                async with connection.cursor() as cursor:
+                    core.on(DbQueryEvent.event_name, listener)
+                    try:
+                        await cursor.execute(original_query)
+                        assert await cursor.fetchone() == ("é",)
+                    finally:
+                        core.reset_listeners(DbQueryEvent.event_name, listener)
+            expected = original_query if encoding == "UTF8" else query
+            assert events == [DbQueryEvent(query=expected, span_name_prefix="postgres")]
+            if encoding == "UTF8":
+                assert events[0].query is original_query
 
     async def test_patch_unpatch(self):
         # Test patch idempotence

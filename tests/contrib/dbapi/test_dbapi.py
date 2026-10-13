@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -616,3 +617,28 @@ class TestTracedConnection(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 0
+
+
+@pytest.mark.parametrize("method", ["execute", "executemany"])
+@pytest.mark.parametrize("decoding_error", [False, True])
+def test_byte_query_preserves_driver_arguments(method, decoding_error, tracer):
+    query, parameters = b"SELECT %s", [1]
+    driver = mock.Mock(rowcount=0)
+    cursor = TracedCursor(driver, cfg={})
+    events = []
+    listener = events.append
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        with mock.patch.object(
+            TracedCursor,
+            "_decode_dbapi_query",
+            side_effect=ValueError() if decoding_error else None,
+            return_value=query,
+        ):
+            assert getattr(cursor, method)(query, parameters) is getattr(driver, method).return_value
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+    getattr(driver, method).assert_called_once_with(query, parameters)
+    assert getattr(driver, method).call_args.args[0] is query
+    assert getattr(driver, method).call_args.args[1] is parameters
+    assert events == ([] if decoding_error else [DbQueryEvent(query=query, span_name_prefix="sql")])

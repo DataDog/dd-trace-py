@@ -1,0 +1,4 @@
+fixes:
+  - |
+    AAP: Fixes missing SQL injection protection for byte queries. Queries in
+    psycopg, psycopg2, and aiopg are inspected using the connection's encoding.

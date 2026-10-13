@@ -23,6 +23,16 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
+## DBAPI Byte Queries
+
+DBAPI cursors pass UTF-8 query bytes directly to DbQueryEvent subscribers. The
+_decode_dbapi_query() hook in psycopg and aiopg decodes non-UTF-8 bytes using the
+connection's encoding, only when a subscriber is present. Psycopg2 encoding names
+are mapped through psycopg2.extensions.encodings. The inspection copy is separate
+from the original query and parameters passed to tracing and driver execution.
+Suppress decoding failures only; dispatch stays outside that boundary so blocking
+exceptions propagate.
+
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable

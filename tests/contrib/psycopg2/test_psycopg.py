@@ -7,8 +7,10 @@ import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
@@ -43,6 +45,26 @@ class PsycopgCore(TracerTestCase):
     def _get_conn(self):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         return conn
+
+    def test_byte_query_uses_connection_encoding(self):
+        query = "SELECT 'é'"
+        for encoding, codec in (("UTF8", "utf-8"), ("LATIN1", "iso8859-1")):
+            original_query = query.encode(codec)
+            events = []
+            listener = events.append
+            with self._get_conn() as connection:
+                connection.set_client_encoding(encoding)
+                with connection.cursor() as cursor:
+                    core.on(DbQueryEvent.event_name, listener)
+                    try:
+                        cursor.execute(original_query)
+                        assert cursor.fetchone() == ("é",)
+                    finally:
+                        core.reset_listeners(DbQueryEvent.event_name, listener)
+            expected = original_query if encoding == "UTF8" else query
+            assert events == [DbQueryEvent(query=expected, span_name_prefix="postgres")]
+            if encoding == "UTF8":
+                assert events[0].query is original_query
 
     def test_patch_unpatch(self):
         # Test patch idempotence
