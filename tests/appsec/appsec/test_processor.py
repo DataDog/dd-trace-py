@@ -1,8 +1,8 @@
 import json
 import logging
 import os.path
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -317,7 +317,7 @@ def test_ip_update_rules_and_block(tracer):
                 ],
             ),
         )
-        # AIDEV-NOTE: WAF updates apply to request contexts created after the update.
+        # WAF updates apply to request contexts created after the update.
         # A nested same-service WEB span is part of the current service entry, not a new request.
         with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED) as span:
             set_http_meta(
@@ -463,8 +463,7 @@ def test_appsec_abort_on_waf_failure():
     completely if an error is found in the bindings layer.
     """
     import ctypes
-
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
@@ -644,8 +643,8 @@ def test_ddwaf_run_timeout():
         rules_json = rule_set.read()
         _ddwaf = DDWaf(rules_json, b"", b"")
         data = {
-            "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
-            "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
+            "server.request.path_params": {f"param_{i}": f"value_{i}" for i in range(100)},
+            "server.request.cookies": {f"attack{i}": f"1' or '1' = '{i}'" for i in range(100)},
         }
         ctx = _ddwaf._at_request_start()
         res = _ddwaf.run(ctx, data, timeout_ms=0.001)  # res is a serialized json

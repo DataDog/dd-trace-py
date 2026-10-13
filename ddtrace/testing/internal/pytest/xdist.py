@@ -28,7 +28,7 @@ XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
 
-# AIDEV-NOTE: The controller-generated manifest cache lives in a private temp directory (XDIST_MANIFEST_DIR_PREFIX)
+# The controller-generated manifest cache lives in a private temp directory (XDIST_MANIFEST_DIR_PREFIX)
 # instead of the workspace: the workspace path is derived differently by different components (git root vs. CI provider
 # env vars), and two concurrent pytest runs of the same repo would otherwise clobber each other's cache.  The controller
 # pid is embedded in the directory name so descendant processes can tell whether an inherited manifest was meant for
@@ -118,7 +118,7 @@ def resolve_inherited_manifest_env() -> None:
     ordering makes it unreachable, but it defeats the point of generating the manifest -- so say so out loud rather
     than degrade silently.
 
-    AIDEV-NOTE: Known limitation. A nested pytest session started *in-process* from inside a worker
+    Known limitation. A nested pytest session started *in-process* from inside a worker
     (``pytest.main()``, ``pytester.inline_run()``) shares the worker's pid, so it looks like the manifest's rightful
     owner and reads the outer session's cache. Dropping the env var would not help either: ``OfflineMode`` is a
     process-wide singleton that the worker already resolved. Fixing it properly means scoping offline mode to a

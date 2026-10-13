@@ -1,8 +1,9 @@
+from collections.abc import AsyncGenerator
+from collections.abc import Generator
 import os
-from typing import Generator  # noqa:F401
+from unittest import mock
 
 import asyncpg
-import mock
 import pytest
 
 from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS
@@ -18,16 +19,14 @@ from tests.contrib.config import POSTGRES_CONFIG
 
 
 @pytest.fixture(autouse=True)
-def patch_asyncpg():
-    # type: () -> Generator[None, None, None]
+def patch_asyncpg() -> Generator[None, None, None]:
     patch()
     yield
     unpatch()
 
 
 @pytest.fixture
-async def patched_conn():
-    # type: () -> Generator[asyncpg.Connection, None, None]
+async def patched_conn() -> AsyncGenerator[asyncpg.Connection, None]:
     conn = await asyncpg.connect(
         host=POSTGRES_CONFIG["host"],
         port=POSTGRES_CONFIG["port"],

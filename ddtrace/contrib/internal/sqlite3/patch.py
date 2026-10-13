@@ -8,10 +8,10 @@ from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -43,11 +43,7 @@ def patch():
     _w(sqlite3, "connect", traced_connect)
     _w(sqlite3.dbapi2, "connect", traced_connect)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-
-        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
+    core.dispatch("sql.patch")
 
 
 def unpatch():
@@ -66,12 +62,12 @@ def traced_connect(func, _, args, kwargs):
 class TracedSQLiteCursor(TracedCursor):
     def executemany(self, *args, **kwargs):
         # DEV: SQLite3 Cursor.execute always returns back the cursor instance
-        super(TracedSQLiteCursor, self).executemany(*args, **kwargs)
+        super().executemany(*args, **kwargs)
         return self
 
     def execute(self, *args, **kwargs):
         # DEV: SQLite3 Cursor.execute always returns back the cursor instance
-        super(TracedSQLiteCursor, self).execute(*args, **kwargs)
+        super().execute(*args, **kwargs)
         return self
 
 
@@ -84,9 +80,7 @@ class TracedSQLite(TracedConnection):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedSQLiteFetchCursor if config.sqlite.trace_fetch_methods else TracedSQLiteCursor
-            super(TracedSQLite, self).__init__(
-                conn, cfg=config.sqlite, cursor_cls=cursor_cls, db_tags={db.SYSTEM: "sqlite"}
-            )
+            super().__init__(conn, cfg=config.sqlite, cursor_cls=cursor_cls, db_tags={db.SYSTEM: "sqlite"})
 
     def execute(self, *args, **kwargs):
         # sqlite has a few extra sugar functions

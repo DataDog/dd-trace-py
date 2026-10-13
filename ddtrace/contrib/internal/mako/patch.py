@@ -1,11 +1,10 @@
 import mako
 from mako.template import DefTemplate
-from mako.template import Template
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.trace_utils import wrap as _w
 from ddtrace.ext import SpanTypes
@@ -31,8 +30,6 @@ def patch():
         return
     mako.__datadog_patch = True
 
-    Pin().onto(Template)
-
     _w(mako, "template.Template.render", _wrap_render)
     _w(mako, "template.Template.render_unicode", _wrap_render)
     _w(mako, "template.Template.render_context", _wrap_render)
@@ -49,8 +46,7 @@ def unpatch():
 
 
 def _wrap_render(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     # Determine the resource and `mako.template_name` tag value
@@ -63,7 +59,9 @@ def _wrap_render(wrapped, instance, args, kwargs):
     template_name = template_name or DEFAULT_TEMPLATE_NAME
 
     with tracer.trace(
-        func_name(wrapped), int_service(pin, config.mako, schematize_service_name("mako")), span_type=SpanTypes.TEMPLATE
+        func_name(wrapped),
+        int_service(None, config.mako, schematize_service_name("mako")),
+        span_type=SpanTypes.TEMPLATE,
     ) as span:
         span._set_attribute(COMPONENT, "mako")
 

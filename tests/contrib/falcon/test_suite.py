@@ -9,7 +9,7 @@ from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
 
 
-class FalconTestMixin(object):
+class FalconTestMixin:
     def make_test_call(self, url, method="get", expected_status_code=None, **kwargs):
         func = getattr(self.client, "simulate_%s" % (method,))
         out = func(url, **kwargs)

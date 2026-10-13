@@ -1,5 +1,6 @@
-#include <gtest/gtest.h>
 #include <pybind11/embed.h>
+
+#include <gtest/gtest.h>
 
 #include <aspects/helpers.h>
 #include <tests/test_common.hpp>

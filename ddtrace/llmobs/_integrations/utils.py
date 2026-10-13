@@ -1,10 +1,10 @@
 import base64
+from collections.abc import Iterable
 from dataclasses import dataclass
 import inspect
 import json
 import re
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 
@@ -182,7 +182,9 @@ LITELLM_METADATA_COMPLETION_KEYS = (
     "custom_llm_provider",
 )
 
-REACT_AGENT_TOOL_CALL_REGEX = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+# ReAct "Action: <tool>" and "Action Input: <input>" markers.
+REACT_ACTION_REGEX = re.compile(r"Action\s*(?:\d+\s*)?:")
+REACT_ACTION_INPUT_REGEX = re.compile(r"Action\s*(?:\d+\s*)?Input\s*(?:\d+\s*)?:")
 
 
 def get_llmobs_metrics_tags(integration_name, span):
@@ -464,7 +466,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
-                Message(content="[Unsupported content type: {}]".format(content_type), role=role)
+                Message(content=f"[Unsupported content type: {content_type}]", role=role)
             )
     message: Message = Message()
     if tool_calls_info:
@@ -481,6 +483,19 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
     return messages
 
 
+def _openai_finish_reason_metadata(finish_reasons: list[Any]) -> dict[str, Any]:
+    """Build metadata for the response-side finish reasons (e.g. "stop", "length", "content_filter").
+
+    Always a single finish_reason string so the key keeps one type and stays a clean facet. A
+    request asking for multiple choices comma-joins its reasons in choice order, so an n=2
+    request that hit the token limit on its second choice reads as "stop,length".
+    """
+    reasons = [str(reason) for reason in finish_reasons if reason]
+    if not reasons:
+        return {}
+    return {"finish_reason": ",".join(reasons)}
+
+
 def openai_set_meta_tags_from_completion(
     span: Span, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
 ) -> None:
@@ -493,6 +508,9 @@ def openai_set_meta_tags_from_completion(
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
         output_messages = [Message(content=str(_get_attr(choice, "text", ""))) for choice in choices]
+        parameters.update(
+            _openai_finish_reason_metadata([_get_attr(choice, "finish_reason", None) for choice in choices])
+        )
     _annotate_llmobs_span_data(
         span,
         input_messages=[Message(content=p) for p in prompt],
@@ -507,7 +525,7 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
-# AIDEV-NOTE: Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
+# Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
 # it, _truncate_span_event blanks the span's whole input AND output. Two gaps shared with the audio
 # guard, for the writer-side fix (MLOB-6408): bounds one image not their sum, and ignores
 # DD_LLMOBS_EVENT_SIZE_BYTES.
@@ -550,7 +568,7 @@ def format_image_part_with_guard(
     return format_image_part(data, mime_type)
 
 
-# AIDEV-NOTE: per-image, not cumulative. N images that each fit can still bust the event limit
+# per-image, not cumulative. N images that each fit can still bust the event limit
 # together; a shared per-request budget is tracked under MLOB-6408.
 # Distinct from LLMOBS_IMAGE_INLINE_MAX_BYTES above on purpose: this OpenAI data-URL path tracks the
 # configured limit, while the Anthropic guard keeps its fixed default. Unifying them would change
@@ -710,12 +728,14 @@ def openai_set_meta_tags_from_chat(
         return
 
     output_messages: list[Message] = []
+    finish_reasons: list[Any] = []
     if isinstance(messages, list):  # streamed response
         role = ""
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
             content = streamed_message.get("content", "")
+            finish_reasons.append(streamed_message.get("finish_reason", None))
 
             reasoning_content = streamed_message.get("reasoning_content", None)
             if reasoning_content:
@@ -738,6 +758,7 @@ def openai_set_meta_tags_from_chat(
             choice_message = _get_attr(choice, "message", {})
             role = _get_attr(choice_message, "role", "")
             content = _get_attr(choice_message, "content", "") or ""
+            finish_reasons.append(_get_attr(choice, "finish_reason", None))
 
             reasoning_content = _get_attr(choice_message, "reasoning_content", None)
             if reasoning_content:
@@ -769,7 +790,9 @@ def openai_set_meta_tags_from_chat(
                 message["tool_results"] = extracted_tool_results
                 message["content"] = ""  # set content empty to avoid duplication
             output_messages.append(message)
-    _annotate_llmobs_span_data(span, output_messages=output_messages)
+    _annotate_llmobs_span_data(
+        span, output_messages=output_messages, metadata=_openai_finish_reason_metadata(finish_reasons)
+    )
 
 
 def _openai_extract_tool_calls_and_results_chat(
@@ -855,10 +878,11 @@ def capture_plain_text_tool_usage(
         return
 
     try:
-        action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
-        if action_match and isinstance(tool_calls_info, list):
-            tool_name = action_match.group(1).strip().strip("*").strip()
-            tool_input_with_observation = action_match.group(2).split("\nObservation:")
+        action_match = REACT_ACTION_REGEX.search(content)
+        action_input_match = REACT_ACTION_INPUT_REGEX.search(content, action_match.end()) if action_match else None
+        if action_match and action_input_match and isinstance(tool_calls_info, list):
+            tool_name = content[action_match.end() : action_input_match.start()].strip().strip("*").strip()
+            tool_input_with_observation = content[action_input_match.end() :].lstrip().split("\nObservation:")
             tool_input = tool_input_with_observation[0].strip("`").strip().strip(' "')
             observation = ""
             if len(tool_input_with_observation) > 1:
@@ -1200,6 +1224,12 @@ def openai_get_metadata_from_response(
         value = getattr(response, field, None)
         if value is not None:
             metadata[field] = load_data_value(value)
+
+    # The responses API reports why generation stopped early ("content_filter", "max_output_tokens") under
+    # incomplete_details. Surface it under the same key the chat/completions paths use so both are queryable.
+    incomplete_reason = _get_attr(getattr(response, "incomplete_details", None) or {}, "reason", None)
+    if incomplete_reason:
+        metadata["finish_reason"] = str(incomplete_reason)
 
     return metadata
 
@@ -1558,7 +1588,7 @@ class OaiSpanAdapter:
         """Get the span name."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
             return self._raw_oai_span.span_data.name
-        return "openai_agents.{}".format(self.span_type.lower())
+        return f"openai_agents.{self.span_type.lower()}"
 
     @property
     def span_type(self) -> str:

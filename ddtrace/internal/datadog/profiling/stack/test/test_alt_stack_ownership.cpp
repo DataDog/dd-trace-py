@@ -12,9 +12,14 @@ constexpr size_t kSentinelSize = 1 << 20; // 1 MiB
 void
 disable_alt_stack()
 {
-    stack_t disable{};
-    disable.ss_flags = SS_DISABLE;
-    sigaltstack(&disable, nullptr);
+    stack_t cur{};
+    ASSERT_EQ(sigaltstack(nullptr, &cur), 0);
+    if (cur.ss_flags & SS_DISABLE) {
+        return;
+    }
+    // Keep the current ss_sp/ss_size: macOS rejects a zeroed stack_t even with SS_DISABLE.
+    cur.ss_flags = SS_DISABLE;
+    ASSERT_EQ(sigaltstack(&cur, nullptr), 0);
 }
 
 } // namespace

@@ -1,0 +1,14 @@
+stages:
+  - python-flask-realworld-parallel
+  - python-flask-realworld-parallel-slo
+
+include:
+  - project: 'DataDog/apm-reliability/apm-sdks-benchmarks'
+    file: '.gitlab/ci-python-flask-realworld-parallel.yml'
+    ref: 'main'
+
+linux-python-flask-realworld-parallel:
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
+
+python-flask-realworld-parallel-check-slo-breaches:
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7

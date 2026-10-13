@@ -1,6 +1,6 @@
+from collections.abc import Iterator
 import os
 from typing import Any
-from typing import Iterator
 from unittest import mock
 from unittest.mock import Mock
 from unittest.mock import patch as mock_patch

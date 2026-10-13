@@ -1,0 +1,31 @@
+[
+  {
+    "description": "The first allocation uses an unknown operator and the second is a catch-all trap. SDKs must return a parse error without falling through to the catch-all allocation.",
+    "attributes": {
+      "country": "US"
+    },
+    "defaultValue": "default",
+    "flag": "operator-grease-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A valid flag in the same config must still evaluate after the unknown-operator flag is skipped.",
+    "attributes": {
+      "country": "US"
+    },
+    "defaultValue": "default",
+    "flag": "valid-flag-after-invalid-config",
+    "result": {
+      "reason": "STATIC",
+      "value": "expected"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  }
+]

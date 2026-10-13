@@ -223,7 +223,7 @@ def format_stack(stack_info, limit) -> str:
     return f"{stack[0]}\n{stack_str}"
 
 
-class LogInjectionState(object):
+class LogInjectionState:
     # Log injection is disabled
     DISABLED = "false"
     # Log injection is enabled, but not yet configured

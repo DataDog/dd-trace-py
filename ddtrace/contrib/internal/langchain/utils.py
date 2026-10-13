@@ -1,11 +1,11 @@
 import inspect
 import sys
 
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 class BaseLangchainStreamHandler:
@@ -16,13 +16,14 @@ class BaseLangchainStreamHandler:
             chunk_callback(chunk)
 
     def start_stream(self):
-        # AIDEV-NOTE: dispatched lazily from ``TracedStream.__iter__`` /
+        # dispatched lazily from ``TracedStream.__iter__`` /
         # ``TracedAsyncStream.__aiter__`` (via ``BaseStreamHandler.start_stream``),
         # so it only runs when the caller actually starts iterating. Bumping
         # the AI Guard depth counter here — instead of in the ``.before``
         # listener — means a stream that is created but never consumed cannot
         # leak the counter into the next call in the same task. Paired with
         # the ``.stream.finally`` event below.
+        self._stream_started = True
         started_event = self.options.get("aiguard_started_event")
         if started_event:
             core.dispatch(started_event, ())
@@ -31,14 +32,16 @@ class BaseLangchainStreamHandler:
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
-        # AIDEV-NOTE: dispatch the AI Guard ``.finally`` event before finishing
-        # the span so the active-context counter set by ``start_stream`` is
-        # released on every iteration-exit path — success, exception, early
-        # ``break``, or ``aclose()`` — since ``finalize_stream`` is called
-        # from ``TracedStream.__iter__`` / ``__aiter__``'s ``finally`` block.
-        # Use ``core.dispatch`` (non-raising) because cleanup must not throw.
+        # Dispatch the AI Guard finally event before finishing the span so
+        # the active-context counter set by start_stream is released on every
+        # exit path: success, exception, early break, aclose, or
+        # context-manager exit. close_stream calls finalize_stream at most
+        # once from TracedStream iteration cleanup, context-manager exit, and
+        # GC. Only pair finally with a start that actually ran: otherwise a
+        # never-iterated stream would decrement an enclosing AI Guard context.
+        # Use core.dispatch (non-raising) because cleanup must not throw.
         finally_event = self.options.get("aiguard_finally_event")
-        if finally_event:
+        if finally_event and getattr(self, "_stream_started", False):
             core.dispatch(finally_event, ())
         self.primary_span.finish()
 
@@ -103,7 +106,7 @@ def shared_stream(
             LangchainStreamHandler(integration, span, args, kwargs, **handler_kwargs),
         )
     except (DDBlockException, Exception):
-        # AIDEV-NOTE: catch ``DDBlockException`` explicitly (parent of
+        # catch ``DDBlockException`` explicitly (parent of
         # ``AIGuardAbortError``) since it inherits from ``BaseException`` —
         # otherwise the AI Guard abort would slip past ``except Exception:``
         # and the LLM span would never get ``set_exc_info`` / ``finish``,

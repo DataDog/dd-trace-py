@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    openfeature: Limits the amount and nesting depth of evaluation context data reported with flag
+    evaluations; data outside these limits is omitted without affecting flag resolution.
+upgrade:
+  - |
+    openfeature: Reports strings, numbers, booleans, datetimes, and null values from evaluation
+    context; unsupported values are no longer converted to strings and are omitted without affecting
+    flag resolution.

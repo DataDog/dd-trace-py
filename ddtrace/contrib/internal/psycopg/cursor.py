@@ -5,15 +5,13 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg instances"""
 
     def __init__(self, cursor, cfg, *args, **kwargs):
-        super(Psycopg3TracedCursor, self).__init__(cursor, cfg=cfg, *args, **kwargs)
+        super().__init__(cursor, cfg=cfg, *args, **kwargs)
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         # treat Composable resource objects as strings
         if resource.__class__.__name__ == "SQL" or resource.__class__.__name__ == "Composed":
             resource = resource.as_string(self.__wrapped__)
-        return super(Psycopg3TracedCursor, self)._trace_method(
-            method, name, resource, extra_tags, dbm_propagator, *args, **kwargs
-        )
+        return super()._trace_method(method, name, resource, extra_tags, dbm_propagator, *args, **kwargs)
 
 
 class Psycopg3FetchTracedCursor(Psycopg3TracedCursor, dbapi.FetchTracedCursor):

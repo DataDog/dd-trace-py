@@ -18,12 +18,12 @@ class TraceBottleDistributedTest(TracerTestCase):
     """
 
     def setUp(self):
-        super(TraceBottleDistributedTest, self).setUp()
+        super().setUp()
         # provide a Bottle app
         self.app = bottle.Bottle()
 
     def tearDown(self):
-        super(TraceBottleDistributedTest, self).tearDown()
+        super().tearDown()
 
     def _trace_app(self, tracer=None):
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))

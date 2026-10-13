@@ -61,7 +61,7 @@ def disable_greenlet_context_switch() -> None:
         _state.trace = None
 
 
-class TracingMixin(object):
+class TracingMixin:
     def __init__(self, *args, **kwargs):
         ensure_greenlet_context_switch()
         # Store the current Datadog context.
@@ -69,12 +69,12 @@ class TracingMixin(object):
         # Avoids setting Greenlet.gr_context, setting field could introduce
         # unintended side-effects in third party libraries.
         self.trace_context = tracer.context_provider.active()
-        super(TracingMixin, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def run(self):
         # Propagates Datadog context to spawned greenlets
         tracer.context_provider.activate(self.trace_context)
-        super(TracingMixin, self).run()
+        super().run()
 
 
 class TracedGreenlet(TracingMixin, gevent.Greenlet):
@@ -89,14 +89,14 @@ class TracedGreenlet(TracingMixin, gevent.Greenlet):
     """
 
     def __init__(self, *args, **kwargs):
-        super(TracedGreenlet, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class TracedIMapUnordered(TracingMixin, gevent.pool.IMapUnordered):
     def __init__(self, *args, **kwargs):
-        super(TracedIMapUnordered, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class TracedIMap(TracedIMapUnordered, gevent.pool.IMap):
     def __init__(self, *args, **kwargs):
-        super(TracedIMap, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)

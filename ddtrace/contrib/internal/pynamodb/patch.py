@@ -6,10 +6,10 @@ import pynamodb.connection.base
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import SpanKind
@@ -49,7 +49,6 @@ def patch():
     pynamodb.connection.base._datadog_patch = True
 
     wrapt.wrap_function_wrapper("pynamodb.connection.base", "Connection._make_api_call", patched_api_call)
-    Pin(service=None).onto(pynamodb.connection.base.Connection)
 
 
 def unpatch():
@@ -59,15 +58,14 @@ def unpatch():
 
 
 def patched_api_call(original_func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return original_func(*args, **kwargs)
 
     with tracer.trace(
         schematize_cloud_api_operation("pynamodb.command", cloud_provider="aws", cloud_service="dynamodb"),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, trace_utils.ext_service(pin, config.pynamodb, "pynamodb"), config.pynamodb)
+        set_service_and_source(span, trace_utils.ext_service(None, config.pynamodb, "pynamodb"), config.pynamodb)
         span._set_attribute(COMPONENT, config.pynamodb.integration_name)
         span._set_attribute(db.SYSTEM, "dynamodb")
 

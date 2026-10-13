@@ -104,7 +104,7 @@ def deep_build_schema(n, mini=0):
                 {"len": 20, "truncated": True},
             ],
         ),
-        ({str(i): "toast" for i in range((512))}, [{str(i): [8] for i in range(255)}, {"truncated": True}]),
+        ({str(i): "toast" for i in range(512)}, [{str(i): [8] for i in range(255)}, {"truncated": True}]),
         (deep_build(40), deep_build_schema(40, 23)),
     ],
 )

@@ -13,7 +13,7 @@ from ddtrace.internal.threads import RLock
 logger = get_logger(__name__)
 
 
-class ProbeRegistryEntry(object):
+class ProbeRegistryEntry:
     __slots__ = (
         "probe",
         "installed",
@@ -47,7 +47,7 @@ def _get_probe_location(probe: Probe) -> Optional[str]:
     if isinstance(probe, ProbeLocationMixin):
         return probe.location()[0]
     else:
-        raise ValueError("Unsupported probe type: {}".format(type(probe)))
+        raise ValueError(f"Unsupported probe type: {type(probe)}")
 
 
 class ProbeRegistry(dict):  # type: ignore[type-arg]
@@ -83,7 +83,7 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
                     self.set_error(
                         probe,
                         "UnresolvedLocation",
-                        "Unable to resolve location information for probe {}".format(probe.probe_id),
+                        f"Unable to resolve location information for probe {probe.probe_id}",
                     )
                     continue
 

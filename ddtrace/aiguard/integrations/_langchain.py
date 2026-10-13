@@ -1,8 +1,8 @@
+from collections.abc import Sequence
 import json
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Sequence
 import uuid
 
 from ddtrace.aiguard import AIGuardAbortError
@@ -194,6 +194,228 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
     return result
 
 
+# Records which tool calls the response listener already evaluated, so the agent
+# execution hooks below do not scan the same call again a moment later.
+#
+# The record is the evaluated payload, not a boolean: a graph step or a
+# human-in-the-loop update can rewrite a tool's name or arguments after the
+# response was evaluated, and a bare "already checked" flag would wave the
+# rewritten call straight through. Only a call that still matches what was
+# evaluated is skipped.
+#
+# It lives in the message's own response_metadata, which travels with the message
+# into langgraph state and the legacy agent's message_log, survives the copies
+# langchain makes, and -- unlike additional_kwargs -- is not serialized back into
+# provider requests, so it cannot leak into the customer's LLM payload. A weakref
+# registry keyed by object identity was the alternative, but langchain-core 0.1.x
+# messages are pydantic v1 and cannot be weak-referenced, which would silently
+# disable the dedup on the oldest supported version.
+_EVALUATED_KEY = "_dd.ai_guard.evaluated_tool_calls"
+
+
+def _canonical_arguments(value: Any) -> str:
+    """Stable text for a call's arguments, given either as a mapping or a JSON string.
+
+    The two sides of the comparison disagree on shape: a message carries legacy
+    function_call arguments as a JSON string while the agent hook holds the parsed
+    mapping, so both are normalised through the same sorted dump.
+    """
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return value
+    else:
+        parsed = value
+    try:
+        return str(json.dumps(parsed, sort_keys=True, default=str))
+    except Exception:
+        return str(parsed)
+
+
+def _tool_call_fingerprint(name: Any, arguments: Any) -> str:
+    """Identify a tool call by what it would actually do, not by its id.
+
+    Ids are absent on the legacy function_call path and are preserved across an
+    edit on the langgraph path, so neither side can key on them.
+    """
+    return "{}\x00{}".format(name or "", _canonical_arguments(arguments))
+
+
+def _message_tool_call_fingerprints(message: Any) -> list[str]:
+    """Fingerprint every tool call an assistant message asks for."""
+    fingerprints = []
+    for call in getattr(message, "tool_calls", None) or ():
+        if isinstance(call, dict):
+            fingerprints.append(_tool_call_fingerprint(call.get("name"), call.get("args", {})))
+    function_call = (getattr(message, "additional_kwargs", None) or {}).get("function_call")
+    if isinstance(function_call, dict):
+        fingerprints.append(_tool_call_fingerprint(function_call.get("name"), function_call.get("arguments")))
+    return fingerprints
+
+
+def _mark_tool_calls_evaluated(message: Any) -> None:
+    """Record the tool calls this message asked for as evaluated."""
+    fingerprints = _message_tool_call_fingerprints(message)
+    if not fingerprints:
+        return
+    metadata = getattr(message, "response_metadata", None)
+    if isinstance(metadata, dict):
+        metadata[_EVALUATED_KEY] = fingerprints
+
+
+def _tool_call_already_evaluated(message: Any, name: Any, arguments: Any) -> bool:
+    """Whether this exact call -- same tool, same arguments -- was already evaluated."""
+    if message is None:
+        return False
+    metadata = getattr(message, "response_metadata", None)
+    if not isinstance(metadata, dict):
+        return False
+    evaluated = metadata.get(_EVALUATED_KEY)
+    if not isinstance(evaluated, list):
+        return False
+    return _tool_call_fingerprint(name, arguments) in evaluated
+
+
+def _message_has_tool_calls(message: Any) -> bool:
+    return bool(_message_tool_call_fingerprints(message))
+
+
+def _convert_response_message(message: Any) -> list[Message]:
+    """Convert a model's own reply, keeping its text and tool calls in one turn.
+
+    AIGuardClient.evaluate reads the span's target and tool_name off the trailing
+    message, so splitting a mixed reply into a tool_calls turn followed by a text
+    turn would classify the tool call as a prompt and lose its name. The
+    request-side converter keeps them separate for history, where the trailing
+    message is not the one being classified.
+    """
+    from langchain_core.messages.ai import AIMessage
+
+    if not isinstance(message, AIMessage):
+        return _convert_messages([message])
+
+    tool_calls: list[ToolCall] = [
+        ToolCall(
+            id=call.get("id", ""),
+            function=Function(name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))),
+        )
+        for call in message.tool_calls or ()
+        if isinstance(call, dict)
+    ]
+    function_call = message.additional_kwargs.get("function_call")
+    if isinstance(function_call, dict):
+        tool_calls.append(
+            ToolCall(
+                id="",
+                function=Function(
+                    name=function_call.get("name") or "",
+                    arguments=function_call.get("arguments") or "{}",
+                ),
+            )
+        )
+
+    text = _get_message_text(message) if message.content else ""
+    if not text and not tool_calls:
+        return []
+    ai_msg = Message(role="assistant")
+    if text:
+        ai_msg["content"] = text
+    if tool_calls:
+        ai_msg["tool_calls"] = tool_calls
+    return [ai_msg]
+
+
+def _convert_generations(generations: Sequence[Any]) -> list[Message]:
+    """Convert one prompt's generations into AI Guard assistant messages.
+
+    Handles both ChatGeneration (carries a message) and the plain Generation a
+    non-chat LLM returns (carries only text).
+
+    Tool calls are included. An application that calls bind_tools(...).invoke(...)
+    and runs the returned calls itself has no agent hook in the path, so this is
+    the only place that sees them; dropping them let a tool-call-only response
+    reach user code unevaluated. Double-scanning for instrumented agents is
+    avoided by _mark_tool_calls_evaluated rather than by omitting the calls.
+    """
+    result: list[Message] = []
+    for generation in generations:
+        try:
+            message = getattr(generation, "message", None)
+            if message is not None:
+                result.extend(_convert_response_message(message))
+            else:
+                text = getattr(generation, "text", "") or ""
+                if isinstance(text, str) and text:
+                    result.append(Message(role="assistant", content=text))
+        except Exception:
+            logger.debug("Failed to convert langchain generation", exc_info=True)
+    return result
+
+
+def _evaluate_langchain_response(
+    client: AIGuardClient, request_messages: list[Message], response_messages: list[Message]
+) -> bool:
+    """Evaluate a completed model call, re-raising AIGuardAbortError on a block.
+
+    The abort propagates out of the contrib's after dispatch and replaces the
+    model's return value, so blocked output never reaches the caller.
+
+    Returns whether the evaluation actually ran. A transport failure is swallowed
+    to keep the model call working, but the caller must not then record the tool
+    calls as evaluated -- that would make the agent execution hooks skip the only
+    remaining check on a call nothing ever scanned.
+    """
+    try:
+        evaluate_auto(client, request_messages + response_messages, AI_GUARD.INTEGRATION_LANGCHAIN)
+        return True
+    except AIGuardAbortError:
+        raise
+    except Exception:
+        logger.debug("Failed to evaluate chat model response", exc_info=True)
+        return False
+
+
+def _mark_generations_evaluated(generations: Sequence[Any]) -> None:
+    """Flag the tool-call-bearing messages in a just-evaluated response.
+
+    Only called once the evaluation returned without blocking, so a blocked call
+    never leaves a message marked as cleared.
+    """
+    for generation in generations:
+        message = getattr(generation, "message", None)
+        if message is not None and _message_has_tool_calls(message):
+            _mark_tool_calls_evaluated(message)
+
+
+def _langchain_chatmodel_generate_after(client: AIGuardClient, message_lists: Any, result: Any) -> None:
+    """Listener for langchain.chatmodel.generate.after and its async twin.
+
+    Provider integrations (OpenAI, Anthropic) skip their own response evaluation
+    while the LangChain context counter is active, so without this listener the
+    model response reached the caller unevaluated.
+
+    generations[i] holds the candidates produced for message_lists[i]; zip pairs
+    them and tolerates a provider returning fewer of either.
+    """
+    generations = getattr(result, "generations", None) or []
+    for messages, prompt_generations in zip(message_lists, generations):
+        response_messages = _convert_generations(prompt_generations)
+        if response_messages and _evaluate_langchain_response(client, _convert_messages(messages), response_messages):
+            _mark_generations_evaluated(prompt_generations)
+
+
+def _langchain_llm_generate_after(client: AIGuardClient, prompts: Any, result: Any) -> None:
+    """Listener for langchain.llm.generate.after and its async twin -- see the chatmodel variant."""
+    from langchain_core.messages import HumanMessage
+
+    generations = getattr(result, "generations", None) or []
+    for prompt, prompt_generations in zip(prompts, generations):
+        response_messages = _convert_generations(prompt_generations)
+        if response_messages:
+            _evaluate_langchain_response(client, _convert_messages([HumanMessage(content=prompt)]), response_messages)
+
+
 def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, kwargs: Any) -> Any:
     try:
         from langchain_core.agents import AgentAction
@@ -204,6 +426,16 @@ def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, k
 
     for action in result if isinstance(result, Sequence) else [result]:
         if isinstance(action, AgentAction) and action.tool:
+            # An AgentActionMessageLog carries the AIMessage it was parsed from.
+            # Skip only when the call about to run is still the one that was
+            # evaluated: an action whose tool or input was rewritten after the
+            # response was scanned has to be evaluated again.
+            if any(
+                _tool_call_already_evaluated(m, action.tool, action.tool_input)
+                for m in getattr(action, "message_log", None) or ()
+            ):
+                logger.debug("AI Guard langchain: agent action already evaluated with the model response")
+                continue
             try:
                 chat_history = kwargs["chat_history"] if "chat_history" in kwargs else []
                 messages = _convert_messages(chat_history)
@@ -248,15 +480,17 @@ def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, k
     return result
 
 
-def _get_tool_runtime_messages(tool_runtime: Any) -> list[Any]:
-    """Extract the conversation history from a langgraph ``ToolRuntime``.
+def _get_tool_runtime_messages(tool_runtime: Any) -> tuple[list[Any], Optional[Any]]:
+    """Split a langgraph ToolRuntime into (history, the message that issued the calls).
 
     The agent state's last message is the ``AIMessage`` carrying the tool
-    call(s) about to execute; it is dropped here because the specific call
-    under evaluation is re-appended by the caller as a single-tool-call
-    assistant message (mirroring the legacy agent-action conversion).
+    call(s) about to execute; it is dropped from the history because the
+    specific call under evaluation is re-appended by the caller as a
+    single-tool-call assistant message (mirroring the legacy agent-action
+    conversion). It is returned separately so the caller can tell whether the
+    response listener already evaluated those calls.
 
-    AIDEV-NOTE: langchain >= 1.0 only. ``ToolRuntime`` and the langgraph
+    LangChain >= 1.0 only. ``ToolRuntime`` and the langgraph
     ``ToolNode`` execution path this serves do not exist on earlier
     langchain releases; the legacy (< 1.0) agent path uses
     :func:`_handle_agent_action_result` instead.
@@ -270,8 +504,8 @@ def _get_tool_runtime_messages(tool_runtime: Any) -> list[Any]:
         messages = getattr(state, "messages", None) or []
 
     if messages and isinstance(messages[-1], AIMessage) and getattr(messages[-1], "tool_calls", None):
-        return list(messages[:-1])
-    return list(messages)
+        return list(messages[:-1]), messages[-1]
+    return list(messages), None
 
 
 def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any) -> None:
@@ -290,7 +524,13 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
         if not tool_name:
             return
         tool_runtime = get_argument_value(args, kwargs, 2, "tool_runtime")
-        messages = _convert_messages(_get_tool_runtime_messages(tool_runtime))
+        history, source_message = _get_tool_runtime_messages(tool_runtime)
+        if _tool_call_already_evaluated(source_message, tool_name, call.get("args", {})):
+            # Same tool, same arguments as the response listener already scanned.
+            # An edited call does not match and is evaluated here as usual.
+            logger.debug("AI Guard langchain: tool call already evaluated with the model response")
+            return
+        messages = _convert_messages(history)
         messages.append(
             Message(
                 role="assistant",

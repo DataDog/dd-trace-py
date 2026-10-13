@@ -198,7 +198,7 @@ class DDTestLogsHandler(LogsHandler):
         self._writer.wait_finish(timeout=self._shutdown_timeout)
         super().close()
 
-    def __enter__(self) -> "DDTestLogsHandler":
+    def __enter__(self) -> DDTestLogsHandler:
         return self
 
     def __exit__(self, *args: object) -> None:

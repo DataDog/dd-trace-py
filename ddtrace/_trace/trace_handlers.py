@@ -1,9 +1,9 @@
+from collections.abc import Mapping
 import functools
 import sys
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Protocol
 from urllib import parse
@@ -57,12 +57,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
-from ddtrace.ext.kafka import MESSAGE_KEY
-from ddtrace.ext.kafka import MESSAGE_OFFSET
-from ddtrace.ext.kafka import PARTITION
-from ddtrace.ext.kafka import RECEIVED_MESSAGE
-from ddtrace.ext.kafka import TOMBSTONE
-from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal.compat import is_valid_ip
@@ -100,10 +94,10 @@ class _TracedIterable(wrapt.ObjectProxy):
     def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False):
         self._self_wrapped_is_iterator = wrapped_is_iterator
         if self._self_wrapped_is_iterator:
-            super(_TracedIterable, self).__init__(wrapped)
+            super().__init__(wrapped)
             self._wrapped_iterator = iter(wrapped)
         else:
-            super(_TracedIterable, self).__init__(iter(wrapped))
+            super().__init__(iter(wrapped))
         self._self_span = span
         self._self_parent_span = parent_span
         self._self_span_finished = False
@@ -142,7 +136,7 @@ class _TracedIterable(wrapt.ObjectProxy):
             # However this attribute should not be defined for iterables.
             # By definition, iterables should not support len(...).
             raise AttributeError("__len__ is not supported")
-        return super(_TracedIterable, self).__getattribute__(name)
+        return super().__getattribute__(name)
 
 
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
@@ -861,13 +855,13 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
         ctx.set_item("num_generations", str(request_params["n"]))
 
 
-def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
+def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info, response=None):
     span = span_from_context(ctx)
     span.set_exc_info(*exc_info)
     model_name = ctx.get_item("model_name")
     integration = ctx.get_item("bedrock_integration")
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=response)
     span.finish()
 
 
@@ -1084,19 +1078,6 @@ def _on_azure_message_modifier(
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
     _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count)
-
-
-def _on_router_match(route):
-    req_span = core.get_item("req_span")
-    core.set_item("set_resource", False)
-    req_span.resource = f"{route.method} {route.template}"
-
-    MOLTEN_ROUTE = "molten.route"
-
-    if not req_span.get_tag(MOLTEN_ROUTE):
-        req_span._set_attribute(MOLTEN_ROUTE, route.name)
-    if not req_span.get_tag(http.ROUTE):
-        req_span._set_attribute(http.ROUTE, route.template)
 
 
 def _set_websocket_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
@@ -1360,120 +1341,6 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
     if scope["type"] == "websocket":
         span._set_attribute(HTTP_REQUEST_UPGRADED, SpanTypes.WEBSOCKET)
         _init_websocket_message_counters(scope)
-
-
-def _on_aiokafka_send_start(
-    _topic: str,
-    send_value: Optional[bytes],
-    send_key: Optional[bytes],
-    headers: list[tuple[str, bytes]],
-    ctx: core.ExecutionContext,
-    partition: Optional[int],
-) -> None:
-    span = span_from_context(ctx)
-
-    span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
-    span._set_attribute(TOMBSTONE, str(send_value is None))
-    span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    if partition is not None:
-        span._set_attribute(PARTITION, partition)
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if config.aiokafka.distributed_tracing_enabled:
-        # inject headers with Datadog tags:
-        tracing_headers: dict[str, str] = {}
-        HTTPPropagator.inject(span.context, tracing_headers)
-        for key, value in tracing_headers.items():
-            headers.append((key, value.encode("utf-8")))
-
-
-def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext,
-    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    record_metadata: Optional[Any],
-) -> None:
-    span = span_from_context(ctx)
-    if span is not None and record_metadata is not None:
-        partition = getattr(record_metadata, "partition", None)
-        offset = getattr(record_metadata, "offset", None)
-        if isinstance(partition, int):
-            span._set_attribute(PARTITION, partition)
-        if isinstance(offset, int):
-            span._set_attribute(MESSAGE_OFFSET, offset)
-    _finish_span(ctx, exc_info)
-
-
-def _on_aiokafka_getone_message(
-    _instance: Any,
-    ctx: core.ExecutionContext,
-    start_ns: int,
-    message: Optional[Any],
-    err: Optional[BaseException],
-) -> None:
-    span = span_from_context(ctx)
-
-    span.start_ns = start_ns
-    span._set_attribute(RECEIVED_MESSAGE, str(message is not None))
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if message is not None:
-        message_key = message.key.decode("utf-8") if message.key else None
-        topic = str(message.topic)
-        span._set_attribute(TOPIC, topic)
-        span._set_attribute(TOMBSTONE, str(message.value is None))
-
-        if isinstance(message_key, str):
-            span.set_tag(MESSAGE_KEY, message_key)
-
-        if message.partition is not None:
-            span._set_attribute(PARTITION, message.partition)
-        if message.offset is not None:
-            span._set_attribute(MESSAGE_OFFSET, message.offset)
-
-    if err is not None:
-        span.set_exc_info(type(err), err, err.__traceback__)
-
-
-def _on_aiokafka_getmany_message(
-    _instance: Any,
-    ctx: core.ExecutionContext,
-    messages: Optional[dict[Any, list[Any]]],
-) -> None:
-    span = span_from_context(ctx)
-
-    span._set_attribute(RECEIVED_MESSAGE, str(messages is not None))
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if messages is not None:
-        first_topic = next(iter(messages)).topic
-        span._set_attribute(MESSAGING_DESTINATION_NAME, first_topic)
-
-        topics_partitions: dict[str, list[int]] = {}
-        for topic_partition in messages.keys():
-            topic = topic_partition.topic
-            partition = topic_partition.partition
-            if topic not in topics_partitions:
-                topics_partitions[topic] = []
-            topics_partitions[topic].append(partition)
-
-        all_topics = list(topics_partitions.keys())
-        span.set_tag(TOPIC, ",".join(all_topics))
-
-        for topic, partitions in topics_partitions.items():
-            partition_list = ",".join(map(str, sorted(partitions)))
-            span._set_attribute(f"kafka.partitions.{topic}", partition_list)
-
-        for topic_partition, records in messages.items():
-            for record in records:
-                if config.aiokafka.distributed_tracing_enabled and record.headers:
-                    dd_headers = {
-                        key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-                        for key, val in record.headers
-                        if val is not None
-                    }
-                    context = HTTPPropagator.extract(dd_headers)
-
-                    span.link_span(context)
 
 
 def _inject_context_into_ray_serve_grpc_context(span: Span, grpc_context: Any) -> None:
@@ -1961,10 +1828,6 @@ def listen():
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
-    core.on("aiokafka.send.start", _on_aiokafka_send_start)
-    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
-    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
-    core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
     core.on("context.started.google_cloud_pubsub.request", _on_pubsub_request_start)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
@@ -1985,8 +1848,6 @@ def listen():
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
-    core.on("molten.router.match", _on_router_match)
-
     core.on("mlflow.new.run", _on_mlflow_new_run)
     core.on("mlflow.end.run", _on_mlflow_end_run)
     core.on("mlflow.new.step", _on_mlflow_new_step)
@@ -2007,12 +1868,7 @@ def listen():
 
     for context_name in (
         # web frameworks
-        "cherrypy.request",
-        "falcon.request",
-        "molten.request",
-        "molten.trace_func",
         "pyramid.request",
-        "sanic.request",
         "tornado.request",
         "flask.call",
         "flask.jsonify",
@@ -2054,6 +1910,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.durable_functions.patched_orchestration",
         "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
@@ -2063,9 +1920,6 @@ def listen():
         "azure.servicebus.patched_producer_schedule",
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
-        "aiokafka.send",
-        "aiokafka.getone",
-        "aiokafka.getmany",
         "mlflow.run",
         "ray.proxy.request",
         "ray.serve.deployment",
@@ -2087,11 +1941,11 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
-        "molten.trace_func",
         "redis.execute_pipeline",
         "redis.command",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.durable_functions.patched_orchestration",
         "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
@@ -2104,8 +1958,6 @@ def listen():
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",
-        "aiokafka.getone",
-        "aiokafka.getmany",
         "google_cloud_pubsub.receive",
         "google_cloud_pubsub.request",
         "ray.assign.request",

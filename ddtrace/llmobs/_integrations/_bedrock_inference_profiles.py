@@ -15,11 +15,11 @@ without a restart. A single-flight claim prevents concurrent callers from all is
 resolution call at once.
 """
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 import random
 import threading
 import time
-from typing import Iterator
 from typing import NamedTuple
 from typing import Optional
 

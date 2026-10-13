@@ -2,6 +2,7 @@ import _io
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
+from collections.abc import Iterator
 import json
 import os
 from re import Match
@@ -10,13 +11,10 @@ from types import BuiltinFunctionType
 from types import ModuleType
 from typing import Any
 from typing import Callable
-from typing import Iterator
 from typing import Optional
-from typing import Text
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -50,6 +48,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_w
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
+from ddtrace.appsec._iast_context import is_iast_request_enabled
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
@@ -452,7 +451,7 @@ def format_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
     if not args:
         return orig_function(*args, **kwargs)
 
-    candidate_text: Text = args[0]
+    candidate_text: str = args[0]
     args = args[flag_added_args:]
 
     result = candidate_text.format(*args, **kwargs)
@@ -480,7 +479,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
 
         return orig_function(*args, **kwargs)
 
-    candidate_text: Text = args[0]
+    candidate_text: str = args[0]
     args = args[flag_added_args:]
 
     result = candidate_text.format_map(*args, **kwargs)

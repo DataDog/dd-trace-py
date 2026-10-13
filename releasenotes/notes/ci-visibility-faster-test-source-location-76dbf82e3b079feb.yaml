@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    CI Visibility: Reduces the cost of the source-location lookup the ``pytest`` plugin
+    performs once per test, which is most noticeable on large suites of fast tests.

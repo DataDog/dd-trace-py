@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import MySQLdb
 import pytest
 
@@ -16,19 +17,19 @@ from ..config import MYSQL_CONFIG
 MYSQL_CONFIG["db"] = MYSQL_CONFIG["database"]
 
 
-class MySQLCore(object):
+class MySQLCore:
     """Base test case for MySQL drivers"""
 
     conn = None
     tracer = None
 
     def setUp(self):
-        super(MySQLCore, self).setUp()
+        super().setUp()
 
         patch()
 
     def tearDown(self):
-        super(MySQLCore, self).tearDown()
+        super().tearDown()
 
         # Reuse the connection across tests
         if self.conn:
@@ -423,10 +424,10 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     """Ensures MysqlDB is properly patched"""
 
     def setUp(self):
-        super(TestMysqlPatch, self).setUp()
+        super().setUp()
 
     def tearDown(self):
-        super(TestMysqlPatch, self).tearDown()
+        super().tearDown()
 
     def _connect_with_kwargs(self):
         return MySQLdb.Connect(

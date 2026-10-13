@@ -31,6 +31,8 @@ def wrapped_function(wrapped, instance, args, kwargs):
 import sys
 import types
 
+from ddtrace.appsec._iast_context import IAST_CONTEXT
+from ddtrace.appsec._iast_context import is_iast_request_enabled
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -87,10 +89,6 @@ def _disable_iast_after_fork():
         return
 
     try:
-        # Import locally to avoid issues if the module hasn't been loaded yet
-        from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
-        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
-
         # Note: The C++ pthread_atfork handler (in native.cpp) automatically resets
         # native state in actual fork scenarios. It clears the inherited state and
         # creates fresh instances without touching the invalid PyObject pointers.

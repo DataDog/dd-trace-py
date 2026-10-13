@@ -14,7 +14,7 @@ from .test_httplib import HTTPLibBaseMixin
 
 class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
     def setUp(self):
-        super(TestHTTPLibDistributed, self).setUp()
+        super().setUp()
         self.httplib_request = b""
 
     def send(self, func, instance, args, kwargs):

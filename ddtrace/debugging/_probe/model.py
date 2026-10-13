@@ -1,4 +1,5 @@
 import abc
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import fields
@@ -6,7 +7,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Union
 
@@ -125,7 +125,7 @@ class RateLimitMixin(AbstractProbeMixIn):
         self.limiter = RateLimiter(
             limit_rate=self.rate,
             tau=1.0 / self.rate if self.rate else 1.0,
-            on_exceed=lambda: log.warning("Rate limit exceeded for %r", self),
+            on_exceed=lambda: log.debug("Rate limit exceeded for %r", self),
             call_once=True,
             raise_on_exceed=False,
         )

@@ -33,7 +33,7 @@ _deepspeed_hook_registered: bool = False
 
 # Tracks the active ExecutionContext for the current distributed training session.
 # Presence (non-None) doubles as the "bootstrapped" flag.
-# AIDEV-NOTE: ContextVar is per-thread — safe because init/destroy_process_group always run on the same thread in DDP.
+# ContextVar is per-thread — safe because init/destroy_process_group always run on the same thread in DDP.
 _rank_ctx: contextvars.ContextVar[Optional[core.ExecutionContext[Any]]] = contextvars.ContextVar(
     "pytorch_rank_ctx", default=None
 )
@@ -44,7 +44,7 @@ def _step_profiling_enabled() -> bool:
 
 
 # Wire-format env var names set by the Ray contrib on worker processes.
-# AIDEV-NOTE: duplicated from ddtrace.contrib.internal.ray intentionally —
+# duplicated from ddtrace.contrib.internal.ray intentionally —
 # contrib-to-contrib imports break isolation (ray contrib may not be installed).
 # If these names ever change, update both sides.
 _RAY_SUBMISSION_ID_ENV = "_RAY_SUBMISSION_ID"
@@ -57,7 +57,7 @@ def _reset_child_state() -> None:
     ctx = _rank_ctx.get()
     if ctx is not None:
         _rank_ctx.set(None)
-        # AIDEV-NOTE: Deferred imports + manual reset — import system may be unsafe post-fork.
+        # Deferred imports + manual reset — import system may be unsafe post-fork.
         try:
             from ddtrace.internal.core import _CURRENT_CONTEXT  # noqa: PLC0415
             from ddtrace.internal.core import ROOT_CONTEXT_ID  # noqa: PLC0415
@@ -169,7 +169,7 @@ def _wrapped_init_process_group(wrapped: Any, instance: Any, args: Any, kwargs: 
 
     if not already:
         ctx = core.context_with_data("pytorch.rank", dispatch_end_event=False)  # type: ignore[no-untyped-call]
-        # AIDEV-NOTE: __enter__() updates _CURRENT_CONTEXT so child spans are parented here; dispatch_end_event=False
+        # __enter__() updates _CURRENT_CONTEXT so child spans are parented here; dispatch_end_event=False
         # defers the ended event — dispatch_ended_event() + __exit__() are called in _wrapped_destroy_process_group.
         ctx.__enter__()
         _rank_ctx.set(ctx)
@@ -279,7 +279,7 @@ def _wrapped_fsdp_init(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> A
 
 
 def _install_fsdp() -> None:
-    # AIDEV-NOTE: defer the import of torch.distributed.fsdp until the user
+    # defer the import of torch.distributed.fsdp until the user
     # actually imports it. Eagerly importing it pulls _dynamo + sympy (~1.3s
     # startup cost) for every DDP workload that never uses FSDP.
     global _fsdp_hook_registered

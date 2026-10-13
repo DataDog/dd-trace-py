@@ -21,7 +21,7 @@ class TestSubprocessPatch(PatchTestCase.Base):
         asm_config._asm_enabled = True
         asm_config._ep_enabled = True
         asm_config._load_modules = True
-        super(TestSubprocessPatch, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def assert_module_patched(self, subprocess):
         self.assert_wrapped(subprocess.Popen.__init__)

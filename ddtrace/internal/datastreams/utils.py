@@ -1,4 +1,9 @@
-def _calculate_byte_size(data):
+from __future__ import annotations
+
+from typing import Any
+
+
+def _calculate_byte_size(data: Any) -> int:
     if isinstance(data, str):
         # We encode here to handle non-ascii characters
         # If there are non-unicode characters, we replace

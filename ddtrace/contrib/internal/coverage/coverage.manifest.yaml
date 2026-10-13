@@ -1,0 +1,11 @@
+_v: 1
+name: coverage
+display_name: Coverage.py
+description: Instruments Coverage.py collection and report generation to capture test code-coverage percentages and produce
+  LCOV reports for upload.
+packages:
+- name: coverage
+category:
+- other
+systems: []
+creation_date: '2023-12-19'

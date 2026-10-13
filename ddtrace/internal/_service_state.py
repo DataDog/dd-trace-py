@@ -18,7 +18,7 @@ that loop: _config.py sets the value once during Config construction, and
 process_tags reads it directly.
 """
 
-from typing import Mapping
+from collections.abc import Mapping
 from typing import Optional
 
 from ddtrace.internal.settings import env

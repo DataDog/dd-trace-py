@@ -1,13 +1,13 @@
-import sys
 import typing as t
 
-from ddtrace._trace.span import Span
+from ddtrace.errortracking._handled_exceptions.events import HandledExceptionSpanProtocol
 from ddtrace.errortracking._handled_exceptions.events import SpanEventData
 from ddtrace.errortracking._handled_exceptions.events import capture_exception_event
 from ddtrace.errortracking._handled_exceptions.events import clear_exception_events
 from ddtrace.errortracking._handled_exceptions.events import get_exception_events
 from ddtrace.errortracking._handled_exceptions.events import on_span_exception
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.errortracking import config
@@ -20,7 +20,7 @@ class HandledExceptionCollector(Service):
     _instance: t.Optional["HandledExceptionCollector"] = None
 
     def __init__(self) -> None:
-        super(HandledExceptionCollector, self).__init__()
+        super().__init__()
         log.debug("%s initialized", self.__class__.__name__)
 
     @classmethod
@@ -51,7 +51,7 @@ class HandledExceptionCollector(Service):
         try:
             if config.enabled is False:
                 return
-            if sys.version_info >= (3, 12):
+            if is_at_least_py(3, 12):
                 from ddtrace.errortracking._handled_exceptions.monitoring_reporting import (
                     _install_sys_monitoring_reporting,
                 )
@@ -63,7 +63,7 @@ class HandledExceptionCollector(Service):
                 we need to add a filtering step which can be time efficient.
                 """
                 _install_sys_monitoring_reporting()
-            elif sys.version_info >= (3, 10):
+            elif is_at_least_py(3, 10):
                 from ddtrace.errortracking._handled_exceptions.bytecode_reporting import (
                     _install_bytecode_injection_reporting,
                 )
@@ -81,13 +81,15 @@ class HandledExceptionCollector(Service):
             log.error("Failed to enable HandledExceptionCollector", exc_info=True)
 
     def _stop_service(self) -> None:
-        if sys.version_info >= (3, 12):
-            from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _disable_monitoring
+        if is_at_least_py(3, 12):
+            from ddtrace.errortracking._handled_exceptions.monitoring_reporting import (
+                _uninstall_sys_monitoring_reporting,
+            )
 
-            _disable_monitoring()
+            _uninstall_sys_monitoring_reporting()
 
     @classmethod
-    def capture_exception_event(cls, span: Span, exc: Exception, event: SpanEventData):
+    def capture_exception_event(cls, span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData):
         capture_exception_event(span, exc, event)
 
     @classmethod

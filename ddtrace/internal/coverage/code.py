@@ -11,6 +11,8 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -22,7 +24,6 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -36,9 +37,9 @@ _original_exec = exec
 # Compiled at import time so it matches the running Python version.
 _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
-_PY_GE_312 = sys.version_info >= (3, 12)
-_PY_GE_313 = sys.version_info >= (3, 13)
-_PY_GE_314 = sys.version_info >= (3, 14)
+_PY_GE_312 = is_at_least_py(3, 12)
+_PY_GE_313 = is_at_least_py(3, 13)
+_PY_GE_314 = is_at_least_py(3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
 _SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
 
@@ -47,42 +48,89 @@ def _is_site_packages_path(path: Path) -> bool:
     return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
 
 
-ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
-ctx_covered_files: ContextVar[list[set[str]]] = ContextVar("ctx_covered_files", default=[])
+# NOTE: A mutable ContextVar default would be shared across threads until set() is called.
+# Use an immutable tuple so contexts can share collectors without sharing stack mutations.
+ctx_collectors: ContextVar[tuple["ModuleCodeCollector.CollectInContext", ...]] = ContextVar(
+    "ctx_collectors", default=()
+)
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
-# Python 3.14+ sys.monitoring callbacks run in a snapshot context and don't see ContextVar changes
-# made within the current thread. Use threading.local() as a fallback for context-level coverage.
+# Coverage hooks can execute where the coverage ContextVars are not visible, for example when code runs in
+# a fresh context. CollectInContext mirrors the context stack into a threading.local() for those cases. The TLS
+# stack is only consulted when the executing context carries no coverage state of its own, so a context that
+# carries its own still-open collector, for instance one copied while that collector was active, always takes
+# precedence over the thread's latest state. A copied context whose collectors have all completed is expired
+# and never borrows the thread's collector, which keeps late work from a finished scope out of the next one.
+# The mirror is best effort: it reflects the stack of whichever context last entered or exited a collector on
+# this thread, and Context.run does not restore thread-local state, so interleaved scopes across copied contexts
+# can leave it approximate until the next enter or exit.
+# TODO: resynchronize the mirror when execution returns from a copied context, see the xfail test
+# test_returning_from_a_copied_context_restores_the_tls_fallback.
 _tls_coverage = _threading.local()
 
 
-def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
-    if ctx_coverage_enabled.get():
-        if context_stack := ctx_covered.get():
-            return context_stack[-1]
-        log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+def _get_active_collector(
+    stack: tuple["ModuleCodeCollector.CollectInContext", ...],
+) -> t.Optional["ModuleCodeCollector.CollectInContext"]:
+    # Contexts copied during an import may still contain its completed collector.
+    for collector in reversed(stack):
+        if not collector.closed:
+            return collector
+    return None
 
-    # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars
+
+def _get_ctx_collector(coverage_enabled: bool) -> t.Optional["ModuleCodeCollector.CollectInContext"]:
+    # Hooks pass their already-checked state to avoid reading the ContextVar twice.
+    if coverage_enabled:
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector
+            if active_collector := _get_active_collector(stack):
+                return active_collector
+        # A context whose own collectors have all completed is expired, and borrowing the thread's
+        # active collector would attribute late work to an unrelated scope.
+        return None
+
+    # The same lifetime rules apply when a context without any coverage state needs the TLS fallback.
     if _PY_GE_314:
-        tls_covered = getattr(_tls_coverage, "covered", None)
-        if tls_covered is not None:
-            return tls_covered
+        return _get_active_collector(getattr(_tls_coverage, "stack", ()))
+    return None
 
+
+def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
+    # Keep direct data lookups inline to avoid extra resolver calls.
+    if ctx_coverage_enabled.get():
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector._covered_lines
+            for collector in reversed(stack):
+                if not collector.closed:
+                    return collector._covered_lines
+        # An expired copied context drops late lines rather than borrowing the thread's collector.
+        return defaultdict(CoverageLines)
+    if _PY_GE_314:
+        if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
+            return active_collector._covered_lines
     return defaultdict(CoverageLines)
 
 
 def _get_ctx_covered_files() -> set[str]:
     if ctx_coverage_enabled.get():
-        if context_stack := ctx_covered_files.get():
-            return context_stack[-1]
-        log.debug("_get_ctx_covered_files() called but ctx_covered_files stack is empty")
-
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector._covered_files
+            for collector in reversed(stack):
+                if not collector.closed:
+                    return collector._covered_files
+        # An expired copied context drops late files rather than borrowing the thread's collector.
+        return set()
     if _PY_GE_314:
-        tls_covered_files = getattr(_tls_coverage, "covered_files", None)
-        if tls_covered_files is not None:
-            return tls_covered_files
-
+        if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
+            return active_collector._covered_files
     return set()
 
 
@@ -112,10 +160,10 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         # Import-time coverage data
         self._import_time_covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
-        self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
+        self._import_time_contexts: dict[str, ModuleCodeCollector.CollectInContext] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
-        # AIDEV-NOTE: Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
+        # Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
         # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
         self._direct_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
         self._import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
@@ -171,21 +219,33 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._covered_files.add(path)
             self.covered[path].add(0)
 
-        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
-            ctx_covered_file_paths = _get_ctx_covered_files()
+        if ctx_coverage_enabled.get():
+            collector = _get_ctx_collector(True)
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            collector = _get_ctx_collector(False)
+        else:
+            return
+        if collector is not None:
+            ctx_covered_file_paths = collector._covered_files
             if path not in ctx_covered_file_paths:
                 ctx_covered_file_paths.add(path)
-                _get_ctx_covered_lines()[path].add(0)
+                collector._covered_lines[path].add(0)
 
     def hook_line(self, path: str, line: int) -> None:
         if self._coverage_enabled:
             lines = self.covered[path]
             lines.add(line)
 
-        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
+        if ctx_coverage_enabled.get():
+            collector = _get_ctx_collector(True)
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            collector = _get_ctx_collector(False)
+        else:
+            return
+        if collector is not None:
             # Import-time contexts store their lines in a non-context variable to be aggregated on request when
             # reporting coverage
-            ctx_lines = _get_ctx_covered_lines()[path]
+            ctx_lines = collector._covered_lines[path]
             ctx_lines.add(line)
 
     def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
@@ -368,16 +428,25 @@ class ModuleCodeCollector(ModuleWatchdog):
         return paths
 
     class CollectInContext:
+        """Own coverage data for one collection scope.
+
+        Context copies share collector objects but have independent immutable stacks.
+        Object identity distinguishes scopes during value-based context restoration;
+        the shared closed flag prevents inherited contexts from writing to finished scopes.
+        """
+
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
-            if ctx_covered.get() is None:
-                ctx_covered.set([])
-            if ctx_covered_files.get() is None:
-                ctx_covered_files.set([])
 
         def __enter__(self):
-            ctx_covered.get().append(defaultdict(CoverageLines))
-            ctx_covered_files.get().append(set())
+            # Collector objects compare by identity, so value-based context restores
+            # distinguish different collectors even when their coverage data is empty.
+            self._covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+            self._covered_files: set[str] = set()
+            # TODO: reopening a reused collector also reactivates contexts copied during its previous
+            # scope, see the xfail test test_reused_collector_does_not_reactivate_contexts_from_its_previous_scope.
+            self.closed = False
+            ctx_collectors.set(ctx_collectors.get() + (self,))
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -386,8 +455,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes,
             # so also store in thread-local as a fallback for the hook.
             if _PY_GE_314:
-                _tls_coverage.covered = ctx_covered.get()[-1]
-                _tls_coverage.covered_files = ctx_covered_files.get()[-1]
+                _tls_coverage.stack = ctx_collectors.get()
 
             # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
             # active and update the DISABLE optimisation flag accordingly.  Then re-enable
@@ -409,23 +477,20 @@ class ModuleCodeCollector(ModuleWatchdog):
             return self
 
         def __exit__(self, *args, **kwargs):
-            covered_lines_stack = ctx_covered.get()
-            covered_files_stack = ctx_covered_files.get()
-            covered_lines_stack.pop()
-            covered_files_stack.pop()
-
-            # Stop coverage if we're exiting the last context
-            if len(covered_lines_stack) == 0:
-                ctx_coverage_enabled.set(False)
-                if _PY_GE_314:
-                    _tls_coverage.covered = None
-                    _tls_coverage.covered_files = None
-            elif _PY_GE_314:
-                _tls_coverage.covered = covered_lines_stack[-1]
-                _tls_coverage.covered_files = covered_files_stack[-1]
+            # Closing the shared collector expires it in every inherited stack.
+            self.closed = True
+            stack = ctx_collectors.get()
+            if stack and stack[-1] is self:
+                stack = stack[:-1]
+                ctx_collectors.set(stack)
+            # An exit in a different context must preserve that context's collectors.
+            coverage_enabled = bool(stack) and (not stack[-1].closed or _get_active_collector(stack) is not None)
+            ctx_coverage_enabled.set(coverage_enabled)
+            if _PY_GE_314:
+                _tls_coverage.stack = stack
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
-            covered_lines = _get_ctx_covered_lines()
+            covered_lines = self._covered_lines
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._add_import_time_lines(covered_lines)
             return covered_lines
@@ -434,8 +499,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Python < 3.12 and injected child-process coverage may only update the line-oriented
             # context data. Merge those keys into the file set so file-level uploads still include
             # every file that would have been emitted by get_covered_lines().
-            covered_file_paths = set(_get_ctx_covered_files())
-            covered_file_paths.update(_get_ctx_covered_lines())
+            covered_file_paths = set(self._covered_files)
+            covered_file_paths.update(self._covered_lines)
             if global_instance := ModuleCodeCollector._instance:
                 return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
             return covered_file_paths

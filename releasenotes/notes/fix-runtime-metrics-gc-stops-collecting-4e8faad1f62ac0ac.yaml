@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the Python garbage collector stops and memory grows without
+    limit when ``DD_RUNTIME_METRICS_ENABLED`` is true.

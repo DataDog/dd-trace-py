@@ -18,9 +18,11 @@ from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
+from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
+from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
@@ -76,7 +78,17 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
-    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from
+    # LangChain marks the AI Guard context active for the whole model call, which
+    # makes the OpenAI / Anthropic listeners skip their own response evaluation.
+    # These listeners are what replaces it -- without them a LangChain model
+    # response reaches the caller unevaluated (APPSEC-70274). Streaming has no
+    # matching after event and is still uncovered; see the follow-up ticket.
+    core.on("langchain.chatmodel.generate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
+    core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
+
+    # ``.stream.started`` is dispatched lazily from
     # ``BaseLangchainStreamHandler.start_stream`` (called by
     # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
     # stream created but never consumed cannot leak the counter into the
@@ -85,7 +97,7 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 
-    # AIDEV-NOTE: ``.finally`` listeners release the AI Guard active-context
+    # ``.finally`` listeners release the AI Guard active-context
     # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
     # by the matching ``.before`` listener (``func(...)`` runs synchronously
     # so set + reset wrap the SDK call). For streaming the counter is bumped
@@ -169,7 +181,7 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
         client, reconstruct_openai_responses, _openai_response_create_after
     )
 
-    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/openai/patch.py::patch() (the
     # ``_RESOURCES`` loop). ``parse`` is intentionally skipped: it is non-streaming
     # in the inspected SDKs. If the contrib adds/renames a streaming target, that
@@ -383,7 +395,7 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
 
         return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
 
-    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/anthropic/patch.py::patch(). If the
     # contrib adds/renames a streaming target or changes the >= (0, 37) beta gate,
     # that surface silently goes unbuffered here -- a security gap with no failing
@@ -459,7 +471,7 @@ def _on_set_http_meta_for_ai_guard(
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
-    # Stash the candidate client IP so it can be applied to the service-entry span
+    # Stash the client and peer IPs so they can be applied to the service-entry span
     # only if an ai_guard span is actually created during the request. Restricted to
     # inbound server (WEB/SERVERLESS) spans so outbound HTTP client spans can't overwrite
     # the key with forwarded-IP headers from downstream calls.
@@ -468,6 +480,9 @@ def _on_set_http_meta_for_ai_guard(
         return
     if span.span_type not in (SpanTypes.WEB, SpanTypes.SERVERLESS):
         return
+    # Later metadata calls (e.g. mounted ASGI apps) can omit the peer captured earlier.
+    if not peer_ip and core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY):
+        return
     candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
     if candidate_ip:
-        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, candidate_ip)
+        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, (candidate_ip, peer_ip))

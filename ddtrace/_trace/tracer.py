@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from contextlib import contextmanager
 import functools
 import inspect
@@ -8,7 +9,6 @@ import logging
 import os
 from os import getpid
 from typing import Any
-from typing import AsyncGenerator
 from typing import Callable
 from typing import Optional
 from typing import TypeVar
@@ -128,7 +128,7 @@ def _default_span_processors_factory(
     return span_processors
 
 
-class Tracer(object):
+class Tracer:
     """
     Tracer is used to create, sample and submit spans that measure the
     execution time of sections of code.
@@ -382,6 +382,7 @@ class Tracer(object):
                 compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
+                apm_tracing_disabled,
             ]
         ):
             self._recreate(
@@ -594,10 +595,7 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
-                span._parent = parent
-                span._local_root = parent._local_root
-                if span._parent.service == service:
-                    span._service_entry_span = parent._service_entry_span
+                span._inherit_from_parent(parent)
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers

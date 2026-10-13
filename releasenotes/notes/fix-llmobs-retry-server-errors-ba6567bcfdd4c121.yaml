@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where span and evaluation metric events can be lost
+    when intake temporarily returns a server error.

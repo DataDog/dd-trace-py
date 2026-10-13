@@ -5,8 +5,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
-from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
+from ..._patch_utils import try_unwrap
 from .._iast_request_context_base import get_hash_object_tracking
 from .._iast_request_context_base import is_iast_request_enabled
 from .._iast_request_context_base import set_hash_object_tracking

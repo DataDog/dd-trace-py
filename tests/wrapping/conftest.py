@@ -14,13 +14,13 @@ cannot run Python logic), not an edit here.
 
 import os
 import re
-import sys
 from typing import Any
 
 import _pytest.config
 import _pytest.nodes
 import pytest
 
+from ddtrace.internal.compat import is_at_least_py
 from tests.wrapping.mechanisms import ALL_MECHANISMS
 
 
@@ -30,7 +30,7 @@ _VERSION_SUFFIX = re.compile(r"_py(\d)(\d+)\.py$")
 collect_ignore = []
 for _name in os.listdir(_HERE):
     _match = _VERSION_SUFFIX.search(_name)
-    if _match and sys.version_info < (int(_match.group(1)), int(_match.group(2))):
+    if _match and not is_at_least_py(int(_match.group(1)), int(_match.group(2))):
         collect_ignore.append(_name)
 
 
@@ -61,7 +61,7 @@ def pytest_collection_modifyitems(items: list[_pytest.nodes.Item]) -> None:
     # markers live in test_tstrings_py314.py, which cannot be edited with a
     # version-gated xfail condition (ruff rejects t-string syntax when the file
     # is passed directly to the pre-commit hook).
-    if sys.version_info >= (3, 15):
+    if is_at_least_py(3, 15):
         for item in items:
             if not str(getattr(item, "path", "")).startswith(_HERE + os.sep):
                 continue

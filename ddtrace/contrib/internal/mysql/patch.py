@@ -7,10 +7,10 @@ from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -89,15 +89,14 @@ def patch():
 
     mysql._datadog_patch = True
     _w("mysql.connector", "connect", _connect)
+    # Connect is a separate module binding for the same function, so it must be wrapped independently.
+    if hasattr(mysql.connector, "Connect"):
+        _w("mysql.connector", "Connect", _connect)
 
     if getattr(mysql.connector, "aio", None):
         _w("mysql.connector.aio", "connect", _connect_async)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-
-        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
+    core.dispatch("sql.patch")
 
 
 def unpatch():
@@ -106,6 +105,8 @@ def unpatch():
 
     mysql._datadog_patch = False
     _u(mysql.connector, "connect")
+    if hasattr(mysql.connector, "Connect"):
+        _u(mysql.connector, "Connect")
 
     if getattr(mysql.connector, "aio", None):
         _u(mysql.connector.aio, "connect")

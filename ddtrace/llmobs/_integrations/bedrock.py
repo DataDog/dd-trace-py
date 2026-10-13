@@ -1,5 +1,5 @@
+from collections.abc import Generator
 from typing import Any
-from typing import Generator
 from typing import Optional
 
 from ddtrace.internal import core
@@ -108,7 +108,7 @@ class BedrockIntegration(BaseLLMIntegration):
         )
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
+        if response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
@@ -304,8 +304,8 @@ class BedrockIntegration(BaseLLMIntegration):
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
                 for token_type in ("input", "output", "total"):
-                    if "{}Tokens".format(token_type) in usage:
-                        usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
+                    if f"{token_type}Tokens" in usage:
+                        usage_metrics[f"{token_type}_tokens"] = usage[f"{token_type}Tokens"]
 
                 cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
                     "cacheReadInputTokens", None

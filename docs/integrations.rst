@@ -67,6 +67,13 @@ anthropic
 .. automodule:: ddtrace.contrib.internal.anthropic
 
 
+.. _anyio:
+
+AnyIO
+^^^^^
+.. automodule:: ddtrace.contrib.internal.anyio
+
+
 .. _asyncio:
 
 asyncio
@@ -620,6 +627,13 @@ Subprocess
 Tornado
 ^^^^^^^
 .. automodule:: ddtrace.contrib.internal.tornado
+
+
+.. _trio:
+
+Trio
+^^^^
+.. automodule:: ddtrace.contrib.internal.trio
 
 
 .. _unittest:

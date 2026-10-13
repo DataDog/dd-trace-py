@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: APM spans for LLM and agent operations now carry ``gen_ai.*`` attributes, so
+    model, provider, application, conversation, and token usage can be searched, faceted, and
+    monitored directly in APM.

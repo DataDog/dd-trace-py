@@ -7,7 +7,7 @@ FALCON_VERSION = parse_version(falcon.__version__)
 TEXT_ATTR = "text" if FALCON_VERSION >= (3, 0, 0) else "body"
 
 
-class Resource200(object):
+class Resource200:
     """Throw a handled exception here to ensure our use of
     set_traceback() doesn't affect 200s
     """
@@ -23,30 +23,30 @@ class Resource200(object):
         resp.append_header("my-response-header", "my_response_value")
 
 
-class DynamicURIResource(object):
+class DynamicURIResource:
     def on_get(self, req, resp, name):
         resp.status = falcon.HTTP_200
         setattr(resp, TEXT_ATTR, name)
 
 
-class Resource201(object):
+class Resource201:
     def on_post(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_201
         setattr(resp, TEXT_ATTR, "Success")
 
 
-class Resource500(object):
+class Resource500:
     def on_get(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_500
         setattr(resp, TEXT_ATTR, "Failure")
 
 
-class ResourceException(object):
+class ResourceException:
     def on_get(self, req, resp, **kwargs):
         raise Exception("Ouch!")
 
 
-class ResourceNotFound(object):
+class ResourceNotFound:
     def on_get(self, req, resp, **kwargs):
         # simulate that the endpoint is hit but raise a 404 because
         # the object isn't found in the database

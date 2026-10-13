@@ -1,0 +1,13 @@
+_v: 1
+name: aws_durable_execution_sdk_python
+display_name: AWS Durable Execution SDK
+description: Instruments AWS durable workflow executions, Lambda invocations, replayable context operations, and trace propagation
+  across suspend and resume cycles.
+packages:
+- name: aws-durable-execution-sdk-python
+category:
+- faas
+- workflow.durable_execution
+systems:
+- aws.lambda
+creation_date: '2026-05-12'

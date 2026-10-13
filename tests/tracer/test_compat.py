@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Define source file encoding to support raw unicode characters in Python 2
 
 from hypothesis import given
@@ -10,11 +9,11 @@ from ddtrace.internal.compat import is_integer
 from ddtrace.internal.compat import maybe_stringify
 
 
-class TestCompat(object):
+class TestCompat:
     def test_get_connection_response(self):
         """Ensure that buffering is in kwargs."""
 
-        class MockConn(object):
+        class MockConn:
             def getresponse(self, *args, **kwargs):
                 assert "buffering" not in kwargs
 
@@ -22,7 +21,7 @@ class TestCompat(object):
         mock.getresponse()
 
 
-class TestPy3Compat(object):
+class TestPy3Compat:
     """Common tests to ensure functions are Python 3 compatible."""
 
 

@@ -97,7 +97,7 @@ fn materialize_otel_sampling_decision_fn(py: Python<'_>) -> PyResult<Bound<'_, P
 }
 
 fn dd_trace_tracestate_max_bytes(py: Python<'_>) -> PyResult<usize> {
-    // AIDEV-NOTE: Python owns the propagation limits. Resolve this lazily to avoid
+    // Python owns the propagation limits. Resolve this lazily to avoid
     // making ddtrace.internal.constants import the native extension during startup.
     cached_const::<usize>(
         py,
@@ -148,7 +148,7 @@ pub struct Context {
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
     pub reactivate: bool,
-    // AIDEV-NOTE: Child contexts point otel_sampling_state_owner at the trace's
+    // Child contexts point the otel_sampling_state_owner at the trace's
     // owning Context. This keeps pending propagation state visible across copies
     // without allocating a holder or storing control data in meta/metrics.
     #[pyo3(get, set, name = "_otel_sampling_state_data")]
@@ -303,6 +303,63 @@ impl Context {
             .call1((raw_tracestate, dd_list_member))?
             .extract()
     }
+
+    /// Native-typed sibling of the `copy` pymethod, used by `SpanData::get_context` to
+    /// build a child context without a Python round-trip for `trace_id`/`span_id`.
+    pub(crate) fn copy_native<'py>(
+        slf: &Bound<'py, Self>,
+        trace_id: Option<u128>,
+        span_id: Option<u128>,
+    ) -> PyResult<Py<Self>> {
+        let py = slf.py();
+
+        let mut this = slf.borrow_mut();
+        let meta = this.get_meta(py).unbind();
+        let metrics = this.get_metrics(py).unbind();
+        let baggage = Some(this.get_baggage(py).unbind());
+        let otel_sampling_state_owner = Some(match &this.otel_sampling_state_owner {
+            Some(owner) => owner.clone_ref(py),
+            None => slf.clone().unbind(),
+        });
+        drop(this);
+        let span_links = Some(PyList::empty(py).unbind());
+
+        Py::new(
+            py,
+            Self {
+                trace_id,
+                span_id,
+                meta,
+                metrics,
+                baggage,
+                span_links,
+                is_remote: false,
+                reactivate: false,
+                otel_sampling_state_data: None,
+                otel_sampling_state_owner,
+            },
+        )
+    }
+
+    /// Fresh trace-level state for a root span's `Context`, built natively (no Python
+    /// round-trip) so `SpanData::get_context` can construct it directly.
+    pub(crate) fn new_root(py: Python<'_>, trace_id: u128, span_id: u128) -> PyResult<Py<Self>> {
+        Py::new(
+            py,
+            Self {
+                trace_id: Some(trace_id),
+                span_id: Some(span_id),
+                meta: PyDict::new(py).unbind(),
+                metrics: PyDict::new(py).unbind(),
+                baggage: Some(PyDict::new(py).unbind()),
+                span_links: Some(PyList::empty(py).unbind()),
+                is_remote: false,
+                reactivate: false,
+                otel_sampling_state_data: None,
+                otel_sampling_state_owner: None,
+            },
+        )
+    }
 }
 
 #[pyo3::pymethods]
@@ -415,7 +472,7 @@ impl Context {
 
     #[getter(_meta)]
     #[inline(always)]
-    fn get_meta<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
+    pub(crate) fn get_meta<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
         self.meta.bind(py).clone()
     }
 
@@ -594,7 +651,24 @@ impl Context {
             .collect())
     }
 
-    fn _publish_sampling_decision(
+    /// Eagerly resolve every Python helper that build_tracestate uses.
+    ///
+    /// Should be called once after ddtrace is fully initialised so that
+    /// the OnceLock caches are warm before any restricted environment
+    /// (Temporal sandbox, etc.) invokes _tracestate.
+    /// Without this, the first _tracestate call triggers py.import()
+    /// which may be blocked by the environment.
+    #[staticmethod]
+    fn _init_tracestate_helpers(py: Python<'_>) -> PyResult<()> {
+        w3c_get_dd_list_member_fn(py)?;
+        w3c_build_tracestate_members_fn(py)?;
+        normalize_otel_tracestate_fn(py)?;
+        materialize_otel_sampling_decision_fn(py)?;
+        dd_trace_tracestate_max_bytes(py)?;
+        Ok(())
+    }
+
+    pub(crate) fn _publish_sampling_decision(
         slf: &Bound<'_, Self>,
         sampling_priority: Option<&Bound<'_, PyAny>>,
         sample_rate: f64,
@@ -658,32 +732,12 @@ impl Context {
         trace_id: &Bound<'py, PyAny>,
         span_id: &Bound<'py, PyAny>,
     ) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let (meta, metrics, baggage, otel_sampling_state_owner);
-        {
-            let mut this = slf.borrow_mut();
-            meta = this.get_meta(py);
-            metrics = this.get_metrics(py);
-            baggage = this.get_baggage(py);
-            otel_sampling_state_owner = this
-                .otel_sampling_state_owner
-                .as_ref()
-                .map(|owner| owner.clone_ref(py))
-                .or_else(|| Some(slf.clone().unbind()));
-        }
-        let new_ctx = Self {
-            trace_id: extract_trace_id(Some(trace_id)),
-            span_id: extract_span_id(Some(span_id)),
-            meta: meta.unbind(),
-            metrics: metrics.unbind(),
-            baggage: Some(baggage.unbind()),
-            span_links: Some(PyList::empty(py).unbind()),
-            is_remote: false,
-            reactivate: false,
-            otel_sampling_state_data: None,
-            otel_sampling_state_owner,
-        };
-        Ok(Py::new(py, new_ctx)?.into_any())
+        Ok(Self::copy_native(
+            slf,
+            extract_trace_id(Some(trace_id)),
+            extract_span_id(Some(span_id)),
+        )?
+        .into_any())
     }
 
     fn _with_baggage_item<'py>(
