@@ -122,6 +122,9 @@ static path_root_t PURELIB_ROOT = { NULL, 0, NULL, 0 };
 // ddtrace module path
 static path_root_t DDTRACE_ROOT = { NULL, 0, NULL, 0 };
 
+// The separate ddtrace-internal distribution uses the _ddtrace_internal package.
+static path_root_t DDTRACE_INTERNAL_ROOT = { NULL, 0, NULL, 0 };
+
 /* True when `filename` is `root` itself or sits directly under it. The separator
  * check keeps /srv/ddtrace-tools/x.py out of /srv/ddtrace. */
 static inline bool
@@ -165,7 +168,7 @@ path_root_set(path_root_t* root, char* path)
 #endif
 }
 
-/* PyFrame_GetLocals returns a dict up to 3.13 and a PyFrameLocalsProxy from 3.14,
+/* PyFrame_GetLocals returns a dict up to 3.12 and a PyFrameLocalsProxy from 3.13,
  * so look the name up through the mapping protocol rather than
  * PyDict_GetItemString. Returns a new reference, or NULL when the frame has no
  * `self`. */
@@ -187,6 +190,23 @@ GET_SELF(PyObject* locals)
 }
 
 static inline PyObject*
+GET_TYPE_NAME(PyTypeObject* type)
+{
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
+    return PyType_GetName(type);
+#else
+    // Match PyType_GetName without invoking a metaclass's attribute hooks.
+    if (type->tp_flags & Py_TPFLAGS_HEAPTYPE) {
+        PyObject* name = ((PyHeapTypeObject*)type)->ht_name;
+        Py_INCREF(name);
+        return name;
+    }
+    const char* name = strrchr(type->tp_name, '.');
+    return PyUnicode_FromString(name ? name + 1 : type->tp_name);
+#endif
+}
+
+static inline PyObject*
 GET_CLASS(PyFrameObject* frame)
 {
     if (frame) {
@@ -194,20 +214,18 @@ GET_CLASS(PyFrameObject* frame)
         if (locals) {
             PyObject* self_obj = GET_SELF(locals);
             if (self_obj) {
-                PyObject* self_class = PyObject_GetAttrString(self_obj, "__class__");
+                PyObject* class_name = GET_TYPE_NAME(Py_TYPE(self_obj));
                 Py_DecRef(self_obj);
-                if (self_class) {
-                    PyObject* class_name = PyObject_GetAttrString(self_class, "__name__");
-                    Py_DecRef(self_class);
-                    if (class_name) {
-                        Py_DecRef(locals);
-                        return class_name;
-                    }
+                if (class_name) {
+                    Py_DecRef(locals);
+                    return class_name;
                 }
             }
             Py_DecRef(locals);
         }
     }
+    // Class metadata is best effort; its failure must not discard the location.
+    PyErr_Clear();
     return PyUnicode_FromString("");
 }
 
@@ -224,7 +242,7 @@ _is_special_frame(const char* filename)
 static inline bool
 _is_ddtrace_filename(const char* filename)
 {
-    return _is_under(filename, &DDTRACE_ROOT);
+    return _is_under(filename, &DDTRACE_ROOT) || _is_under(filename, &DDTRACE_INTERNAL_ROOT);
 }
 
 static inline bool
@@ -270,42 +288,39 @@ get_sysconfig_path(const char* name)
 }
 
 static char*
-get_ddtrace_path()
+get_package_path(const char* package_name)
 {
     char* res = NULL;
-    PyObject* ddtrace_mod = NULL;
+    PyObject* package = NULL;
     PyObject* path = NULL;
 
-    ddtrace_mod = PyImport_ImportModule("ddtrace");
-    if (!ddtrace_mod) {
+    package = PyImport_ImportModule(package_name);
+    if (!package) {
         goto exit;
     }
 
-    path = PyObject_GetAttrString(ddtrace_mod, "__file__");
+    path = PyObject_GetAttrString(package, "__file__");
     if (!path) {
         goto exit;
     }
 
     const char* path_str = PyUnicode_AsUTF8(path);
     if (path_str) {
-        // Remove /__init__.py from the end. Suffix is removed by length,
-        // so no need to check for Windows vs Unix path separator.
-        const int ddtrace_len = sizeof("ddtrace") - 1;
-        const int suffix_len = sizeof("/__init__.py") - 1;
-        const int path_len = strlen(path_str);
-        if (path_len < ddtrace_len + suffix_len) {
-            goto exit;
+        const char* separator = strrchr(path_str, '/');
+        const char* windows_separator = strrchr(path_str, '\\');
+        if (windows_separator && (!separator || windows_separator > separator)) {
+            separator = windows_separator;
         }
-        const char* ddtrace_part = path_str + path_len - ddtrace_len - suffix_len;
-        if (strncmp(ddtrace_part, "ddtrace", ddtrace_len) != 0) {
-            goto exit;
+        if (separator) {
+            res = strndup(path_str, separator - path_str);
         }
-        res = strndup(path_str, path_len - suffix_len);
     }
 
 exit:
     Py_XDECREF(path);
-    Py_XDECREF(ddtrace_mod);
+    Py_XDECREF(package);
+    // A missing package root should not prevent the collector from loading.
+    PyErr_Clear();
     return res;
 }
 
@@ -462,6 +477,7 @@ PyInit__stacktrace(void)
         return NULL;
     path_root_set(&STDLIB_ROOT, get_sysconfig_path("stdlib"));
     path_root_set(&PURELIB_ROOT, get_sysconfig_path("purelib"));
-    path_root_set(&DDTRACE_ROOT, get_ddtrace_path());
+    path_root_set(&DDTRACE_ROOT, get_package_path("ddtrace"));
+    path_root_set(&DDTRACE_INTERNAL_ROOT, get_package_path("_ddtrace_internal"));
     return m;
 }
