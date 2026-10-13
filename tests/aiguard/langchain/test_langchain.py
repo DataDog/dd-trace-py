@@ -1842,13 +1842,16 @@ def test_unpatch_leaves_a_wrapper_installed_after_ai_guard(langchain):
     from ddtrace.contrib.internal.langchain.patch import unpatch
 
     ai_guard_layer = CallbackManagerForLLMRun.__dict__["on_llm_end"]
+    original = ai_guard_layer.__wrapped__
     external = wrapt.FunctionWrapper(ai_guard_layer, lambda func, instance, args, kwargs: func(*args, **kwargs))
     CallbackManagerForLLMRun.on_llm_end = external
     try:
         unpatch()
         assert CallbackManagerForLLMRun.__dict__["on_llm_end"] is external
+        # AI Guard's layer is taken out from under the later wrapper, so a repatch does not stack a second one.
+        assert external.__wrapped__ is original
     finally:
-        CallbackManagerForLLMRun.on_llm_end = ai_guard_layer.__wrapped__
+        CallbackManagerForLLMRun.on_llm_end = original
 
 
 class _FailingStream:
@@ -1905,3 +1908,119 @@ async def test_buffered_astream_closes_the_stream_when_a_read_fails():
         [chunk async for chunk in _aread_then_replay(_CallScope(Mock(), []), stream)]
 
     assert stream.closed
+
+
+class _BadCloseStream(_FailingStream):
+    """A stream whose close raises; it yields one chunk, then fails or ends."""
+
+    def __init__(self, fail):
+        super().__init__()
+        self._fail = fail
+
+    def __next__(self):
+        if self._sent and not self._fail:
+            raise StopIteration
+        return super().__next__()
+
+    def close(self):
+        raise ValueError("close failed")
+
+
+@pytest.mark.parametrize("fail", [True, False], ids=["read-failed", "exhausted"])
+def test_a_failing_close_does_not_replace_the_outcome_of_the_drain(fail):
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations._langchain import _CallScope
+    from ddtrace.aiguard.integrations._langchain import _read_then_replay
+
+    replay = _read_then_replay(_CallScope(Mock(), []), _BadCloseStream(fail))
+    if fail:
+        with pytest.raises(RuntimeError, match="provider read failed"):
+            list(replay)
+    else:
+        assert list(replay) == ["chunk"]
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_tool_call_is_marked_evaluated_on_the_returned_chunks(mock_execute_request, langchain):
+    """An agent that assembles the returned chunks must see the streamed tool call as already evaluated."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessageChunk
+    from langchain_core.outputs import ChatGenerationChunk
+
+    from ddtrace.aiguard.integrations._langchain import _tool_call_already_evaluated
+
+    class _ToolCallStreamingModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-tool-call-stream"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            raise NotImplementedError
+
+        def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content="", tool_call_chunks=[{"name": "add", "args": '{"a": 1', "id": "call_1", "index": 0}]
+                )
+            )
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content="", tool_call_chunks=[{"name": None, "args": ', "b": 1}', "id": None, "index": 0}]
+                )
+            )
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with _stream_evaluation_on():
+        chunks = list(_ToolCallStreamingModel().stream(input="What is 1 + 1?"))
+
+    aggregate = chunks[0]
+    for chunk in chunks[1:]:
+        aggregate = aggregate + chunk
+    assert _tool_call_already_evaluated(aggregate, "add", {"a": 1, "b": 1})
+
+
+class _RaisingErrorHandler(BaseCallbackHandler):
+    raise_error = True
+
+    def on_llm_error(self, error, **kwargs):
+        raise ValueError("callback failed")
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_a_raising_error_callback_does_not_replace_the_block(mock_execute_request, langchain):
+    """The block is a BaseException; a callback error must not turn it into a catchable Exception."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    with _stream_evaluation_on(), pytest.raises(AIGuardAbortError):
+        list(
+            FakeListChatModel(responses=["blocked"]).stream(input="hi", config={"callbacks": [_RaisingErrorHandler()]})
+        )
+
+
+def test_generate_finally_after_a_failed_before_pops_its_own_scope():
+    """If .before fails while reading its prompts, .finally must not pop the enclosing call's scope."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard._context import is_aiguard_context_active
+    from ddtrace.aiguard._context import reset_aiguard_context_active
+    from ddtrace.aiguard.integrations import _langchain as aiguard_langchain
+
+    def failing_prompts():
+        raise RuntimeError("bad prompts")
+        yield
+
+    outer = aiguard_langchain._push_generate_scope(Mock())
+    try:
+        with pytest.raises(RuntimeError, match="bad prompts"):
+            aiguard_langchain._langchain_chatmodel_generate_before(Mock(), failing_prompts())
+        aiguard_langchain._langchain_generate_finally()
+
+        assert aiguard_langchain._SCOPES.get()[-1] is outer
+        assert is_aiguard_context_active() is True
+    finally:
+        aiguard_langchain._SCOPES.set(aiguard_langchain._SCOPES.get()[:-1])
+        reset_aiguard_context_active(outer.claim)

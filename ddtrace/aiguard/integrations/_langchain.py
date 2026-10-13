@@ -103,11 +103,24 @@ def _langchain_unpatch() -> None:
 
     while _installed_wrappers:
         owner, method_name, installed = _installed_wrappers.pop()
-        # Remove only AI Guard's own layer: a wrapper installed after it is left in place.
-        if owner.__dict__.get(method_name) is installed:
-            setattr(owner, method_name, installed.__wrapped__)
-        else:
-            logger.debug("AI Guard langchain: %s.%s was wrapped again; leaving it", owner, method_name)
+        try:
+            _remove_layer(owner, method_name, installed)
+        except Exception:
+            logger.debug("Failed to unpatch %s.%s", owner, method_name, exc_info=True)
+
+
+def _remove_layer(owner: type, method_name: str, installed: Any) -> None:
+    """Take AI Guard's wrapper out of owner.method_name, keeping any wrapper another library put over it."""
+    current = owner.__dict__.get(method_name)
+    if current is installed:
+        setattr(owner, method_name, installed.__wrapped__)
+        return
+    while current is not None:
+        inner = getattr(current, "__wrapped__", None)
+        if inner is installed:
+            current.__wrapped__ = installed.__wrapped__
+            return
+        current = inner
 
 
 def _langchain_agent_plan(
@@ -576,8 +589,9 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: Any) -> Optional[Any]:
-    message_lists = list(message_lists)
-    _SCOPES.set(_SCOPES.get() + (_CallScope(client, message_lists, set_aiguard_context_active()),))
+    # Pushed first: if reading the prompts fails, .finally still pops this call's scope, not its caller's.
+    scope = _push_generate_scope(client)
+    scope.requests = message_lists = list(message_lists)
     for messages in message_lists:
         result = _evaluate_langchain_messages(client, messages)
         if result is not None:
@@ -589,8 +603,8 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optio
     """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
-    requests = [[HumanMessage(content=prompt)] for prompt in prompts]
-    _SCOPES.set(_SCOPES.get() + (_CallScope(client, requests, set_aiguard_context_active()),))
+    scope = _push_generate_scope(client)
+    scope.requests = requests = [[HumanMessage(content=prompt)] for prompt in prompts]
     for messages in requests:
         result = _evaluate_langchain_messages(client, messages)
         if result is not None:
@@ -682,7 +696,7 @@ class _CallScope:
     A generate scope also holds the call's claim.
     """
 
-    __slots__ = ("client", "requests", "claim", "holds", "held", "evaluated", "ends")
+    __slots__ = ("client", "requests", "claim", "holds", "held", "evaluated", "ends", "fingerprints")
 
     def __init__(self, client: AIGuardClient, requests: list[list[Any]], claim: Any = None) -> None:
         self.client = client
@@ -695,6 +709,8 @@ class _CallScope:
         # A buffered stream keeps the run's on_llm_end until its chunks are returned: astream_events() drops
         # the stream events of a run that already ended. None for a generate call, which ends at once.
         self.ends: Optional[list[Callable[[], Any]]] = None
+        # Tool calls evaluated at on_llm_end; a buffered stream records them on the chunks it returns.
+        self.fingerprints: list[str] = []
 
     def evaluate_run_end(self, response: Any) -> None:
         """Evaluate a single-prompt call's response; AIGuardAbortError on a block.
@@ -711,6 +727,16 @@ class _CallScope:
             self.client, _convert_messages(self.requests[0]), response_messages
         ):
             _mark_generations_evaluated(generations)
+            for generation in generations:
+                message = getattr(generation, "message", None)
+                if message is not None:
+                    self.fingerprints.extend(_message_tool_call_fingerprints(message))
+
+
+def _push_generate_scope(client: AIGuardClient) -> _CallScope:
+    scope = _CallScope(client, [], set_aiguard_context_active())
+    _SCOPES.set(_SCOPES.get() + (scope,))
+    return scope
 
 
 # The LangChain model calls in progress in this context, innermost last.
@@ -764,10 +790,14 @@ def _read_then_replay(scope: _CallScope, stream: Any) -> Any:
         chunks = list(stream)
     finally:
         _pop_scope(scope)
-        # A read that raised must still release the provider stream; closing an exhausted one is a no-op.
-        close = getattr(stream, "close", None)
-        if close is not None:
-            close()
+        # A read that raised must still release the provider stream; a failing close must not replace it.
+        try:
+            close = getattr(stream, "close", None)
+            if close is not None:
+                close()
+        except Exception:
+            logger.debug("AI Guard langchain: failed to close the stream", exc_info=True)
+    _record_fingerprints(scope, chunks)
     try:
         yield from chunks
     finally:
@@ -791,16 +821,27 @@ async def _aread_then_replay(scope: _CallScope, stream: Any) -> Any:
         chunks = [chunk async for chunk in stream]
     finally:
         _pop_scope(scope)
-        # A cancelled or failed read must still release the provider stream.
-        aclose = getattr(stream, "aclose", None)
-        if aclose is not None:
-            await aclose()
+        # A cancelled or failed read must still release the provider stream; a failing close must not replace it.
+        try:
+            aclose = getattr(stream, "aclose", None)
+            if aclose is not None:
+                await aclose()
+        except Exception:
+            logger.debug("AI Guard langchain: failed to close the stream", exc_info=True)
+    _record_fingerprints(scope, chunks)
     try:
         for chunk in chunks:
             yield chunk
     finally:
         for end in scope.ends or ():
             await _call(end)
+
+
+def _record_fingerprints(scope: _CallScope, chunks: list[Any]) -> None:
+    # Chunk addition carries response_metadata into the message the caller (or an agent) assembles.
+    metadata = getattr(chunks[-1], "response_metadata", None) if chunks else None
+    if scope.fingerprints and isinstance(metadata, dict):
+        metadata[_EVALUATED_KEY] = scope.fingerprints
 
 
 def _pop_scope(scope: _CallScope) -> None:
@@ -837,8 +878,12 @@ def _langchain_run_end(func: Callable[..., Any], instance: Any, args: Any, kwarg
         try:
             scope.evaluate_run_end(get_argument_value(args, kwargs, 0, "response"))
         except AIGuardAbortError as error:
-            # LangChain does not report an error raised here; close the run so callbacks see it end.
-            instance.on_llm_error(error)
+            # LangChain does not report an error raised here; close the run so callbacks see it end,
+            # without letting a failing callback replace the block.
+            try:
+                instance.on_llm_error(error)
+            except Exception:
+                logger.debug("AI Guard langchain: on_llm_error callback failed", exc_info=True)
             raise
         for call in held:
             call()
@@ -855,7 +900,10 @@ async def _langchain_arun_end(func: Callable[..., Any], instance: Any, args: Any
         try:
             scope.evaluate_run_end(get_argument_value(args, kwargs, 0, "response"))
         except AIGuardAbortError as error:
-            await instance.on_llm_error(error)
+            try:
+                await instance.on_llm_error(error)
+            except Exception:
+                logger.debug("AI Guard langchain: on_llm_error callback failed", exc_info=True)
             raise
         for call in held:
             await _call(call)
