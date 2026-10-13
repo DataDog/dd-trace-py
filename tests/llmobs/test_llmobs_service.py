@@ -563,6 +563,37 @@ def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
     mock_llmobs_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
 
 
+@pytest.mark.parametrize("kind", ["llm", "embedding", "tool", "task", "workflow", "agent", "retrieval"])
+def test_manual_span_sets_apm_shadow_tags(llmobs, kind):
+    with getattr(llmobs, kind)() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == kind
+    assert span.get_metric("_dd.llmobs.enabled") == 1
+
+
+def test_manual_llm_span_sets_apm_shadow_model_tags(llmobs):
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_tag("_dd.llmobs.model_provider") == "test_provider"
+
+
+def test_manual_llm_span_skips_unknown_apm_shadow_model_tags(llmobs):
+    with llmobs.llm() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") is None
+    assert span.get_tag("_dd.llmobs.model_provider") is None
+
+
+def test_manual_span_sets_apm_shadow_tags_while_disabled(llmobs):
+    llmobs.disable()
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+
+
 def test_start_span_uses_kind_as_default_name(llmobs):
     with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
         assert span.name == "llm"
@@ -2584,25 +2615,33 @@ def test_service_enable_starts_evaluator_runner_when_evaluators_exist(tracer):
     pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
-            llmobs_service.enable(_tracer=tracer)
-            llmobs_instance = llmobs_service._instance
-            assert llmobs_instance is not None
-            assert llmobs_service.enabled
-            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-            assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            # Guard against leaked enabled=True from a prior failed test
             llmobs_service.disable()
+            llmobs_service.enable(_tracer=tracer)
+            try:
+                llmobs_instance = llmobs_service._instance
+                assert llmobs_instance is not None
+                assert llmobs_service.enabled
+                assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+                assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            finally:
+                llmobs_service.disable()
 
 
 def test_service_enable_does_not_start_evaluator_runner(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        # Guard against leaked enabled=True from a prior failed test
         llmobs_service.disable()
+        llmobs_service.enable(_tracer=tracer)
+        try:
+            llmobs_instance = llmobs_service._instance
+            assert llmobs_instance is not None
+            assert llmobs_service.enabled
+            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+            assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
+            assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        finally:
+            llmobs_service.disable()
 
 
 def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):
