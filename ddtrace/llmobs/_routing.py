@@ -1,10 +1,10 @@
 """Routing context for LLM Observability — multi-tenant routing and dual shipping.
 
 A routing context redirects the LLMObs data created inside it to one or more destination
-organizations, identified by API key. Two shapes fall out of the same mechanism:
+organizations, identified by API key. APM spans are not routed. Two shapes fall out of the same
+mechanism:
 
-* one target — the data goes to that org *instead of* the default one. This is what keeps a
-  tenant's data out of the default org entirely, which query-time access controls cannot do.
+* one target — the LLMObs data goes to that org instead of the default one.
 * several targets — the same data is copied to each, i.e. dual shipping.
 
 This lives in its own leaf module so that _writer.py can resolve a destination without
