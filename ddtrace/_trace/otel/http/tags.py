@@ -46,6 +46,11 @@ def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
     return OTHER_HTTP_METHOD, method
 
 
+def set_otel_resource_for_method(span: Span, method: str, route: Optional[str] = None) -> None:
+    normalized_method, original_method = normalize_http_method(method)
+    set_otel_http_resource(span, normalized_method, original_method, route)
+
+
 def _credentials_redacted_url(url: str) -> str:
     """Redact URL credentials without dropping the userinfo required by url.full."""
     if "@" not in url:

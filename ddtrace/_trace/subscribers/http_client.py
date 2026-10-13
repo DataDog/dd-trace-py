@@ -5,9 +5,8 @@ from typing import cast
 
 from ddtrace import config
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
-from ddtrace._trace.otel.http.resource import set_otel_http_resource
-from ddtrace._trace.otel.http.tags import normalize_http_method
 from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
@@ -45,8 +44,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
             set_method_tag(span, event.request_method)
             # Preserve resources replaced by span-start callbacks.
             record_initial_instrumentation_resource(span, event.resource)
-            normalized_method, original_method = normalize_http_method(event.request_method)
-            set_otel_http_resource(span, normalized_method, original_method)
+            set_otel_resource_for_method(span, event.request_method)
 
         if _http_propagation_suppressed.get():
             return
