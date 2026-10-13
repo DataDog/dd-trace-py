@@ -27,7 +27,6 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
-from ddtrace.contrib.internal.django.patch import _dispatch_resolved_request
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.response import traced_resolve_request
@@ -67,18 +66,7 @@ def test_resolver_match_is_stored_before_appsec_dispatch():
             traced_resolve_request(lambda *_args, **_kwargs: resolver_match, (mock.Mock(), request), {})
 
 
-@pytest.mark.skipif(django.VERSION >= (3, 1), reason="the view middleware hook only exists before Django 3.1")
-@pytest.mark.parametrize("enabled", [False, True])
-def test_pre_31_view_middleware_hook_is_installed_only_with_otel_semantics(enabled):
-    from django.core.handlers.base import BaseHandler
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", enabled):
-        handler = BaseHandler()
-        handler.load_middleware()
-
-    assert (_dispatch_resolved_request in handler._view_middleware) is enabled
-
-
+@pytest.mark.skipif(django.VERSION < (3, 1), reason="older Django versions resolve path params again for AppSec")
 def test_request_path_params_does_not_resolve_route_with_otel_semantics_enabled():
     request = mock.Mock(spec=["urlconf", "path_info"], urlconf=None, path_info="/")
 
@@ -140,6 +128,7 @@ def test_otel_semantics_normalizes_resource_when_response_creation_aborts():
         assert root.resource == "HTTP ^error-500/$"
 
 
+@pytest.mark.skipif(django.VERSION < (3, 1), reason="older Django versions resolve path params again for AppSec")
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
 def test_otel_semantics_does_not_resolve_custom_converter_twice():
     from tests.contrib.django.utils import setup_django

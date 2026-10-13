@@ -11,8 +11,6 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
-from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
-from ddtrace._trace.otel.http.resource import RESOURCE_SET_BY_USER
 from ddtrace._trace.otel.http.resource import otel_http_resource
 from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace._trace.otel.http.tags import normalize_http_method
@@ -244,18 +242,12 @@ def _set_resolver_tags(pin, span, request):
             exc_info=True,
         )
     finally:
-        otel_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
         if config._otel_trace_semantics_enabled:
             set_otel_resource_for_method(span, request.method, route)
         # Only update the resource name if it was not explicitly set
         # by anyone during the request lifetime
-        elif span.resource == REQUEST_DEFAULT_RESOURCE or (
-            otel_resource is not None and span.resource == otel_resource
-        ):
+        elif span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = resource
-        else:
-            # Prevent final HTTP tagging from replacing a user-owned resource.
-            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
 
 
 def _initial_otel_resource(request: Any) -> Optional[str]:
@@ -452,14 +444,17 @@ def _after_request_tags(pin, span: Span, request, response):
 def _request_path_params(request):
     """Polymorphic Django path-params extraction.
 
-    Returns resolver_match.kwargs (named captures), else resolver_match.args (unnamed captures),
-    else None. Pre-view hooks must not resolve the route themselves because converters are
-    application code and Django will invoke them during its own resolution.
+    Returns ``resolver_match.kwargs`` (named captures), else ``resolver_match.args`` (unnamed captures), else ``None``.
+    Pre-view hooks may run before Django sets ``request.resolver_match``; we fall back to a fresh resolve in that
+    case. The broad try/except shields request tagging from raising third-party ``ResolverMatch`` subclasses.
+    With OTel semantics enabled on Django 3.1+ it returns None instead of resolving again, so application
+    converters are not invoked twice.
     """
     try:
         resolver_match = getattr(request, "resolver_match", None)
         if resolver_match is None:
-            if config._otel_trace_semantics_enabled:
+            # Django 3.1+ hands AppSec the resolved match through resolve_request instead.
+            if config._otel_trace_semantics_enabled and django.VERSION >= (3, 1):
                 return None
             resolver = get_resolver(getattr(request, "urlconf", None))
             if resolver is None:

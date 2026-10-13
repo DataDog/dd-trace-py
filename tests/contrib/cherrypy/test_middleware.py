@@ -59,7 +59,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         from ddtrace.contrib.internal.cherrypy.patch import get_version
 
         version = get_version()
-        assert isinstance(version, str)
+        assert type(version) == str
         assert version != ""
 
         emit_integration_and_version_to_test_agent("cherrypy", version)

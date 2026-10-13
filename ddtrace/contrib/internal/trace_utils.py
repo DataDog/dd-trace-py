@@ -375,20 +375,6 @@ def distributed_tracing_enabled(int_config: IntegrationConfig, default: bool = F
     return default
 
 
-def _should_collect_client_ip() -> bool:
-    return asm_config._asm_enabled or config._retrieve_client_ip
-
-
-def _resolve_client_ip(
-    request_headers: Optional[Mapping[str, str]], peer_ip: Optional[str], headers_are_case_sensitive: bool
-) -> Optional[str]:
-    # Both semantics modes reuse AppSec resolution; only the emitted attribute names differ.
-    request_ip = core.find_item("http.request.remote_ip")
-    if not request_ip:
-        request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-    return request_ip
-
-
 def set_http_meta(
     span: Span,
     integration_config: IntegrationConfig,
@@ -425,10 +411,10 @@ def set_http_meta(
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)
     :param request_cookies: the HTTP request cookies as a dict
-    request_path_params accepts a mapping of named parameters (for example,
-    Django resolver_match.kwargs or Flask view_args) or a positional sequence
-    for regex routes with unnamed captures.
-
+    :param request_path_params: the parameters of the HTTP URL as set by the framework. Polymorphic: a mapping of
+        ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
+        ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
+        ``resolver_match.args``, Tornado ``path_args``).
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
 
@@ -450,6 +436,7 @@ def set_http_meta(
         if url is not None:
             url = _sanitized_url(url)
             _set_url_tag(integration_config, span, url, query)
+
         if target_host is not None:
             span._set_attribute(net.TARGET_HOST, target_host)
 
@@ -496,8 +483,16 @@ def set_http_meta(
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
 
-    if _should_collect_client_ip():
-        request_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    if asm_config._asm_enabled or config._retrieve_client_ip:
+        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+        request_ip = core.find_item("http.request.remote_ip")
+
+        if not request_ip:
+            # Not calculated: framework does not support IP blocking or testing env
+            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+
         if otel_http is None:
             if request_ip:
                 span._set_attribute(http.CLIENT_IP, request_ip)
