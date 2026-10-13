@@ -1,8 +1,8 @@
 """OTLP snapshots of HTTP client spans with Datadog and OpenTelemetry semantics.
 
-Each test builds client spans in a ddtrace-run subprocess and fills them through set_http_meta, the
-helper HTTP client integrations use, so each case writes one snapshot per semantics without
-depending on an HTTP library or a server.
+Client spans are built in ddtrace-run subprocesses and filled through set_http_meta, the helper HTTP
+client integrations use, so every case lands in one snapshot per semantics without depending on an
+HTTP library or a server.
 """
 
 import os
@@ -60,38 +60,21 @@ def _run(ddtrace_run_python_code_in_subprocess, otel_semantics, body, env=None):
 
 
 @pytest.mark.snapshot(ignores=["meta.tracestate"])
-def test_client_request(ddtrace_run_python_code_in_subprocess, otel_semantics):
-    # Credentials are dropped from http.url and redacted in url.full, and the sensitive query value is obfuscated.
+def test_client_spans(ddtrace_run_python_code_in_subprocess, otel_semantics):
     _run(
         ddtrace_run_python_code_in_subprocess,
         otel_semantics,
-        'client("GET", "https://user:pass@example.com/users/42?token=secret&page=2", status=200)',
+        """
+# Credentials are dropped from http.url and redacted in url.full, and the sensitive query value is obfuscated.
+client("GET", "https://user:pass@example.com/users/42?token=secret&page=2", status=200)
+# With OTel semantics an unlisted method becomes _OTHER, keeps the original method and names the span HTTP.
+client("PROPFIND", "http://example.com/items/1", status=200)
+# With OTel semantics client spans are errors from 400 and error.type is the status code.
+client("GET", "http://example.com/redirect", status=302)
+client("GET", "http://example.com/missing", status=404)
+client("GET", "http://example.com/broken", status=500)
+""",
     )
-
-
-@pytest.mark.snapshot(ignores=["meta.tracestate"])
-def test_client_unknown_method(ddtrace_run_python_code_in_subprocess, otel_semantics):
-    # With OTel semantics an unlisted method becomes _OTHER, keeps the original method and names the span HTTP.
-    _run(
-        ddtrace_run_python_code_in_subprocess,
-        otel_semantics,
-        'client("PROPFIND", "http://example.com/items/1", status=200)',
-    )
-
-
-@pytest.mark.parametrize("status_code", [302, 404, 500])
-@pytest.mark.snapshot(ignores=["meta.tracestate"])
-def test_client_status(ddtrace_run_python_code_in_subprocess, otel_semantics, status_code):
-    # With OTel semantics client spans are errors from 400 and error.type is the status code.
-    _run(
-        ddtrace_run_python_code_in_subprocess,
-        otel_semantics,
-        f'client("GET", "http://example.com/", status={status_code})',
-    )
-
-
-@pytest.mark.snapshot(ignores=["meta.tracestate"])
-def test_custom_client_error_statuses(ddtrace_run_python_code_in_subprocess, otel_semantics):
     # A configured range replaces the default: 200 becomes an error and 404 does not.
     _run(
         ddtrace_run_python_code_in_subprocess,
