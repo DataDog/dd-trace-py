@@ -19,6 +19,7 @@ OTEL_SERVER_ERROR_STATUSES_ENV = {**OTEL_SERVER_ENV, "DD_TRACE_HTTP_SERVER_ERROR
 TEST_USER_AGENT = "otel-server-test/1.0"
 TEST_CLIENT_ADDRESS = "203.0.113.7"
 TEST_HEADERS = {"User-Agent": TEST_USER_AGENT, "X-Forwarded-For": TEST_CLIENT_ADDRESS}
+TEST_PEER_ADDRESS = ("198.51.100.9", 4321)
 
 DD_ONLY_ATTRIBUTES = (
     "http.method",
@@ -88,3 +89,12 @@ def assert_otel_client_attributes(span, peer_address: bool = True) -> None:
     assert span.get_tag("client.address") == TEST_CLIENT_ADDRESS
     if peer_address:
         assert span.get_tag("network.peer.address")
+
+
+def with_peer_address(app):
+    """Give an ASGI app a fixed peer address; only newer Starlette test clients accept one."""
+
+    async def asgi_app(scope, receive, send):
+        await app({**scope, "client": TEST_PEER_ADDRESS}, receive, send)
+
+    return asgi_app

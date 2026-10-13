@@ -862,6 +862,7 @@ def test_otel_semantics_server_span_attributes():
 
     from tests.contrib.otel_http_server import TEST_HEADERS
     from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.contrib.otel_http_server import with_peer_address
     from tests.utils import TracerSpanContainer
     from tests.utils import scoped_tracer
 
@@ -885,7 +886,7 @@ def test_otel_semantics_server_span_attributes():
 
     with scoped_tracer() as tracer:
         spans = TracerSpanContainer(tracer)
-        with TestClient(app, client=("198.51.100.9", 4321)) as client:
+        with TestClient(with_peer_address(app)) as client:
 
             def request_span(method, path, **kwargs):
                 spans.reset()
@@ -943,6 +944,7 @@ def test_otel_semantics_server_error_statuses_override():
 
     from tests.contrib.otel_http_server import TEST_HEADERS
     from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.contrib.otel_http_server import with_peer_address
     from tests.utils import TracerSpanContainer
     from tests.utils import scoped_tracer
 
@@ -953,7 +955,7 @@ def test_otel_semantics_server_error_statuses_override():
 
     with scoped_tracer() as tracer:
         spans = TracerSpanContainer(tracer)
-        with TestClient(app, client=("198.51.100.9", 4321)) as client:
+        with TestClient(with_peer_address(app)) as client:
             assert client.get("/missing", headers=TEST_HEADERS).status_code == 404
             span = next(span for span in spans.get_spans() if span.name == "starlette.request")
             assert_otel_server_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
