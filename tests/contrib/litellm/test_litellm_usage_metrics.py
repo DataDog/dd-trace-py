@@ -1010,6 +1010,7 @@ def test_a_fork_does_not_inherit_the_logger_lock_or_requests():
     import os
     import signal
     import threading
+    import warnings
 
     from ddtrace.contrib.internal.litellm._usage_metrics import UsageMetricsLogger
     from ddtrace.internal import forksafe
@@ -1027,7 +1028,14 @@ def test_a_fork_does_not_inherit_the_logger_lock_or_requests():
     thread = threading.Thread(target=hold)
     thread.start()
     assert held.wait(10)
-    pid = os.fork()
+    with warnings.catch_warnings():
+        # Forking while another thread runs is what this test is about.
+        warnings.filterwarnings(
+            "ignore",
+            message=r"This process .* is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.",
+            category=DeprecationWarning,
+        )
+        pid = os.fork()
     if pid == 0:
         signal.alarm(5)
         ok = logger._request("child-call") is not None and list(logger._requests) == ["child-call"]
