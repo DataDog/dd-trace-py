@@ -1,4 +1,5 @@
 import fnmatch
+import importlib.machinery
 import importlib.util
 import os
 import pathlib
@@ -229,8 +230,26 @@ def _is_executable(file_path: str) -> bool:
 
 
 def _module_exists(module_name: str) -> bool:
-    """Check if a module can be imported."""
+    """Check if a module can be imported, without importing it or any of its parent packages.
+
+    ``importlib.util.find_spec`` imports the parent packages of a dotted name, which runs
+    application code (e.g. ``airflow/__init__.py``) while ddtrace is bootstrapping. Walk the
+    package search locations instead, so this check has no side effects.
+    """
+    parts = module_name.split(".")
+    if not all(part.isidentifier() for part in parts):
+        return False
     try:
-        return importlib.util.find_spec(module_name) is not None
-    except ModuleNotFoundError:
+        # Without a parent package to import (top-level name, or parent already imported),
+        # find_spec has no side effects.
+        parent = module_name.rpartition(".")[0]
+        if not parent or parent in sys.modules:
+            return importlib.util.find_spec(module_name) is not None
+        spec = importlib.util.find_spec(parts[0])
+        for i in range(1, len(parts)):
+            if spec is None or spec.submodule_search_locations is None:
+                return False
+            spec = importlib.machinery.PathFinder.find_spec(".".join(parts[: i + 1]), spec.submodule_search_locations)
+        return spec is not None
+    except (ImportError, ValueError):
         return False
