@@ -1,4 +1,5 @@
 from concurrent import futures
+from contextlib import contextmanager
 import os
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -18,17 +19,21 @@ except ImportError:
     EXPORTER_VERSION = (0, 0, 0)
 
 
+@contextmanager
 def mock_otlp_http_request():
-    if EXPORTER_VERSION >= (1, 45, 0):
-        response = Mock(status=200, data=b"", headers={}, reason="OK")
-        return patch("urllib3.poolmanager.PoolManager.request", return_value=response)
-    return patch("requests.sessions.Session.request", return_value=Mock(status_code=200))
+    response = Mock(status=200, status_code=200, data=b"", content=b"", headers={}, reason="OK")
+    mock_request = Mock(return_value=response)
+    with (
+        patch("requests.sessions.Session.request", new=mock_request),
+        patch("urllib3.poolmanager.PoolManager.request", new=mock_request),
+    ):
+        yield mock_request
 
 
 def get_otlp_http_request(call):
-    if EXPORTER_VERSION >= (1, 45, 0):
-        return call.kwargs["method"], call.kwargs["url"], call.kwargs.get("body")
-    return call.args[0], call.args[1], call.kwargs.get("data")
+    method = call.kwargs.get("method", call.args[0] if call.args else None)
+    url = call.kwargs.get("url", call.args[1] if len(call.args) > 1 else None)
+    return method, url, call.kwargs.get("body", call.kwargs.get("data"))
 
 
 def create_mock_grpc_server():
