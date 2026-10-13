@@ -1,4 +1,3 @@
-import sys
 from types import TracebackType
 from typing import Optional
 
@@ -17,7 +16,6 @@ from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._handlers import _on_pre_tracedrequest_iast
 from ddtrace.appsec._iast._handlers import _on_request_init
 from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
-from ddtrace.appsec._iast._handlers import _on_sql_integration_patch
 from ddtrace.appsec._iast._handlers import _on_werkzeug_render_debugger_html
 from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
@@ -33,6 +31,7 @@ def iast_instrumentation_listen() -> None:
     core.on("sql.patch", _on_sql_patch)
     core.on("django.patch", _on_django_patch)
     core.on("flask.patch", _on_flask_patch)
+    core.on("fastapi.patch", _on_iast_fastapi_patch)
     core.on("langchain.patch", _on_langchain_patch)
     core.on("langchain.unpatch", _on_langchain_unpatch)
 
@@ -72,7 +71,6 @@ def iast_listen() -> None:
     core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
     core.on("werkzeug.render_debugger_html", _on_werkzeug_render_debugger_html)
 
-    core.on("fastapi.patch", _on_iast_fastapi_patch)
     core.on("starlette.route.handle", _iast_instrument_starlette_scope)
 
     core.on("context.ended.wsgi.__call__", _iast_context_end)
@@ -80,30 +78,8 @@ def iast_listen() -> None:
 
     # Sink points
     core.on("db_query_check", _on_report_sqli)
-    for integration in ("mysql", "mysqldb", "sqlalchemy", "sqlite3"):
-        core.on(f"{integration}.patch", _on_sql_integration_patch)
 
     langchain_listen()
-
-    _replay_missed_patch_events()
-
-
-def _replay_missed_patch_events():
-    # Integrations dispatch their "<name>.patch" event once, guarded by their patch flag. When IAST is
-    # enabled after they were patched (e.g. Tracer.configure(iast_enabled=True)), nobody was listening,
-    # so run the handlers here to avoid silently missing sources and sinks.
-    fastapi = sys.modules.get("fastapi")
-    if fastapi is not None and getattr(fastapi, "_datadog_patch", False):
-        _on_iast_fastapi_patch()
-
-    sql_modules = (
-        (sys.modules.get("mysql"), "_datadog_patch"),
-        (sys.modules.get("MySQLdb"), "_datadog_patch"),
-        (sys.modules.get("sqlalchemy.engine"), "__datadog_patch"),
-        (sys.modules.get("sqlite3"), "_datadog_patch"),
-    )
-    if any(module is not None and getattr(module, flag, False) for module, flag in sql_modules):
-        _on_sql_integration_patch()
 
 
 def _on_grpc_server_response(message):
