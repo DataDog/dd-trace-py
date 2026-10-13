@@ -40,6 +40,7 @@ from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.settings._database_monitoring import dbm_config
@@ -369,6 +370,16 @@ def scoped_tracer(use_dummy_writer=True):
     """Provides a test-scoped global tracer with no configuration leaks."""
     try:
         if use_dummy_writer:
+            # Retire the old stats worker so it cannot flush into a later snapshot session.
+            writer = ddtrace.tracer._span_aggregator.writer
+            try:
+                writer.flush_queue()
+                writer.stop()
+            except ServiceStatusError:
+                # Native exporters exist even when the writer's periodic thread never started.
+                shutdown_exporter = getattr(writer, "shutdown_exporter", None)
+                if shutdown_exporter is not None:
+                    shutdown_exporter()
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
         yield ddtrace.tracer
     finally:
