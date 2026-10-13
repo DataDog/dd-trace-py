@@ -30,7 +30,7 @@ def _get_formatted_traceback(tb_hash):
 
 def _generate_span_event(
     span: HandledExceptionSpanProtocol, exc=None
-) -> tuple[Exception, HandledExceptionSpanProtocol, SpanEventData] | None:
+) -> tuple[BaseException, HandledExceptionSpanProtocol, SpanEventData] | None:
     """Generate the exception span event"""
     global _error_tuple_info
 

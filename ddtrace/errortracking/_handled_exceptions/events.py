@@ -5,7 +5,7 @@ from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 
 
-class _SpanProtocol(t.Protocol):
+class HandledExceptionSpanProtocol(t.Protocol):
     """Structural interface for the span members this module relies on.
 
     Lets error-tracking storage helpers type-annotate spans without importing the
@@ -24,7 +24,9 @@ class _SpanProtocol(t.Protocol):
         time_unix_nano: t.Optional[int] = None,
     ) -> None: ...
 
-    def _add_on_finish_exception_callback(self, callback: t.Callable[["_SpanProtocol"], None]) -> None: ...
+    def _add_on_finish_exception_callback(
+        self, callback: t.Callable[["HandledExceptionSpanProtocol"], None]
+    ) -> None: ...
 
 
 class SpanEventData(NamedTuple):
@@ -36,7 +38,7 @@ class SpanEventData(NamedTuple):
 _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEventData]]] = {}
 
 
-def add_span_events(span: _SpanProtocol) -> None:
+def add_span_events(span: HandledExceptionSpanProtocol) -> None:
     """
     If the same error is handled/rethrown multiple times, report only one span event.
     Store handled exceptions until the span finishes so they can be deduplicated.
@@ -50,14 +52,16 @@ def add_span_events(span: _SpanProtocol) -> None:
     clear_exception_events(span.span_id)
 
 
-def on_span_exception(span: _SpanProtocol, _exc_msg: object, exc_val: BaseException, _exc_tb: object) -> None:
+def on_span_exception(
+    span: HandledExceptionSpanProtocol, _exc_msg: object, exc_val: BaseException, _exc_tb: object
+) -> None:
     exception_events = get_exception_events(span.span_id)
     exc_id = id(exc_val)
     if exception_events and exc_id in exception_events:
         del exception_events[exc_id]
 
 
-def capture_exception_event(span: _SpanProtocol, exc: Exception, event: SpanEventData) -> None:
+def capture_exception_event(span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData) -> None:
     span_id = span.span_id
     events_dict = _span_exception_events.setdefault(span_id, {})
     if not events_dict:
