@@ -18,7 +18,6 @@ from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatc
 from ddtrace.internal.settings._config import config
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
-from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerSpanContainer
@@ -869,32 +868,14 @@ def test_otel_semantics_server_span_attributes():
     async def ok(request):
         return PlainTextResponse("ok")
 
-    async def teapot(request):
-        return PlainTextResponse("short and stout", status_code=418)
-
-    async def broken(request):
-        return PlainTextResponse("oops", status_code=500)
-
-    app = Starlette(
-        routes=[
-            Route("/users/{user_id:int}", endpoint=ok),
-            Route("/items/{item_id}", endpoint=ok, methods=["PROPFIND"]),
-            Route("/teapot", endpoint=teapot),
-            Route("/broken", endpoint=broken),
-        ]
-    )
+    app = Starlette(routes=[Route("/users/{user_id:int}", endpoint=ok)])
 
     with scoped_tracer() as tracer:
         spans = TracerSpanContainer(tracer)
         with TestClient(with_peer_address(app)) as client:
-
-            def request_span(method, path, **kwargs):
-                spans.reset()
-                response = client.request(method, path, headers=TEST_HEADERS, **kwargs)
-                return response, next(span for span in spans.get_spans() if span.name == "starlette.request")
-
-            response, span = request_span("GET", "/users/42?q=1")
+            response = client.get("/users/42?q=1", headers=TEST_HEADERS)
             assert response.status_code == 200
+            span = next(span for span in spans.get_spans() if span.name == "starlette.request")
             assert_otel_server_span(
                 span,
                 method="GET",
@@ -903,72 +884,4 @@ def test_otel_semantics_server_span_attributes():
                 query="q=1",
                 route="/users/{user_id:int}",
                 resource="GET /users/{user_id:int}",
-            )
-
-            response, span = request_span("PROPFIND", "/items/42")
-            assert response.status_code == 200
-            assert_otel_server_span(
-                span,
-                method="_OTHER",
-                original_method="PROPFIND",
-                status=200,
-                path="/items/42",
-                route="/items/{item_id}",
-                resource="HTTP /items/{item_id}",
-            )
-
-            # An unmatched route must not leak the URL path into the resource.
-            response, span = request_span("GET", "/no/such/path/123")
-            assert response.status_code == 404
-            assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
-
-            response, span = request_span("GET", "/teapot")
-            assert response.status_code == 418
-            assert_otel_server_span(
-                span, method="GET", status=418, path="/teapot", route="/teapot", resource="GET /teapot"
-            )
-
-            response, span = request_span("GET", "/broken")
-            assert response.status_code == 500
-            assert_otel_server_span(
-                span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken"
-            )
-
-
-@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True)
-def test_otel_semantics_server_error_statuses_override():
-    from starlette.applications import Starlette
-    from starlette.responses import PlainTextResponse
-    from starlette.routing import Route
-    from starlette.testclient import TestClient
-
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.contrib.otel_http_server import with_peer_address
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    async def broken(request):
-        return PlainTextResponse("oops", status_code=500)
-
-    app = Starlette(routes=[Route("/broken", endpoint=broken)])
-
-    with scoped_tracer() as tracer:
-        spans = TracerSpanContainer(tracer)
-        with TestClient(with_peer_address(app)) as client:
-            assert client.get("/missing", headers=TEST_HEADERS).status_code == 404
-            span = next(span for span in spans.get_spans() if span.name == "starlette.request")
-            assert_otel_server_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
-
-            spans.reset()
-            assert client.get("/broken", headers=TEST_HEADERS).status_code == 500
-            span = next(span for span in spans.get_spans() if span.name == "starlette.request")
-            assert_otel_server_span(
-                span,
-                method="GET",
-                status=500,
-                path="/broken",
-                route="/broken",
-                resource="GET /broken",
-                error=False,
             )

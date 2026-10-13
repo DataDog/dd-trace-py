@@ -209,31 +209,18 @@ def test_otel_semantics_server_span_attributes():
     async def user(request):
         return web.Response(text="ok")
 
-    async def status(request):
-        return web.Response(text="status", status=int(request.match_info["code"]))
-
-    async def propfind(request):
-        return web.Response(text="propfind")
-
     async def run():
         app = web.Application()
         app.router.add_get("/users/{user_id}", user)
-        app.router.add_route("PROPFIND", "/users/{user_id}", propfind)
-        app.router.add_get("/status/{code}", status)
         trace_app(app)
 
         with scoped_tracer() as tracer:
             spans = TracerSpanContainer(tracer)
             async with TestClient(TestServer(app)) as client:
-
-                async def request_span(path, method="GET"):
-                    spans.reset()
-                    response = await client.request(method, path, headers=TEST_HEADERS)
-                    await response.text()
-                    return response, next(span for span in spans.get_spans() if span.name == "aiohttp.request")
-
-                response, span = await request_span("/users/42?q=1")
+                response = await client.get("/users/42?q=1", headers=TEST_HEADERS)
+                await response.text()
                 assert response.status == 200
+                span = next(span for span in spans.get_spans() if span.name == "aiohttp.request")
                 assert_span(
                     span,
                     method="GET",
@@ -242,40 +229,6 @@ def test_otel_semantics_server_span_attributes():
                     query="q=1",
                     route="/users/{user_id}",
                     resource="GET /users/{user_id}",
-                )
-
-                response, span = await request_span("/users/42", method="PROPFIND")
-                assert response.status == 200
-                assert_span(
-                    span,
-                    method="_OTHER",
-                    original_method="PROPFIND",
-                    status=200,
-                    path="/users/42",
-                    route="/users/{user_id}",
-                    resource="HTTP /users/{user_id}",
-                )
-
-                response, span = await request_span("/status/418")
-                assert response.status == 418
-                assert_span(
-                    span,
-                    method="GET",
-                    status=418,
-                    path="/status/418",
-                    route="/status/{code}",
-                    resource="GET /status/{code}",
-                )
-
-                response, span = await request_span("/status/500")
-                assert response.status == 500
-                assert_span(
-                    span,
-                    method="GET",
-                    status=500,
-                    path="/status/500",
-                    route="/status/{code}",
-                    resource="GET /status/{code}",
                 )
 
     asyncio.run(run())

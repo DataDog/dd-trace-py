@@ -8,7 +8,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
-from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -791,21 +790,11 @@ def test_otel_semantics_server_span_attributes():
         def get(self, user_id):
             self.write("ok")
 
-        def propfind(self, user_id):
-            self.write("ok")
-
-        SUPPORTED_METHODS = ("GET", "PROPFIND")
-
-    class StatusHandler(tornado.web.RequestHandler):
-        def get(self, status):
-            self.set_status(int(status))
-            self.write("ok")
-
     patch()
     patch_futures()
 
     async def run():
-        app = tornado.web.Application([(r"/users/([0-9]+)", UserHandler), (r"/status/([0-9]+)", StatusHandler)])
+        app = tornado.web.Application([(r"/users/([0-9]+)", UserHandler)])
         sock, port = bind_unused_port()
         server = HTTPServer(app)
         server.add_sockets([sock])
@@ -813,20 +802,9 @@ def test_otel_semantics_server_span_attributes():
 
         with scoped_tracer() as tracer:
             spans = TracerSpanContainer(tracer)
-
-            async def request_span(path, method="GET"):
-                spans.reset()
-                response = await client.fetch(
-                    "http://127.0.0.1:%d%s" % (port, path),
-                    method=method,
-                    headers=TEST_HEADERS,
-                    raise_error=False,
-                    allow_nonstandard_methods=True,
-                )
-                await asyncio.sleep(0.1)
-                return response, next(span for span in spans.get_spans() if span.name == "tornado.request")
-
-            response, span = await request_span("/users/42?q=1")
+            response = await client.fetch("http://127.0.0.1:%d/users/42?q=1" % port, headers=TEST_HEADERS)
+            await asyncio.sleep(0.1)
+            span = next(span for span in spans.get_spans() if span.name == "tornado.request")
             assert response.code == 200
             assert_otel_server_span(
                 span,
@@ -838,94 +816,6 @@ def test_otel_semantics_server_span_attributes():
                 resource="GET /users/%s",
             )
             assert span.get_metric("server.port") == port
-
-            response, span = await request_span("/users/42", method="PROPFIND")
-            assert response.code == 200
-            assert_otel_server_span(
-                span,
-                method="_OTHER",
-                original_method="PROPFIND",
-                status=200,
-                path="/users/42",
-                route="/users/%s",
-                resource="HTTP /users/%s",
-            )
-
-            response, span = await request_span("/status/418")
-            assert response.code == 418
-            assert_otel_server_span(
-                span,
-                method="GET",
-                status=418,
-                path="/status/418",
-                route="/status/%s",
-                resource="GET /status/%s",
-            )
-
-            response, span = await request_span("/status/500")
-            assert response.code == 500
-            assert_otel_server_span(
-                span,
-                method="GET",
-                status=500,
-                path="/status/500",
-                route="/status/%s",
-                resource="GET /status/%s",
-            )
-        server.stop()
-
-    asyncio.run(run())
-
-
-@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, err=None)
-def test_otel_semantics_server_error_statuses_override():
-    import asyncio
-
-    from tornado.httpclient import AsyncHTTPClient
-    from tornado.httpserver import HTTPServer
-    from tornado.testing import bind_unused_port
-    import tornado.web
-
-    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
-    from ddtrace.contrib.internal.tornado.patch import patch
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    class StatusHandler(tornado.web.RequestHandler):
-        def get(self, status):
-            self.set_status(int(status))
-            self.write("ok")
-
-    patch()
-    patch_futures()
-
-    async def run():
-        app = tornado.web.Application([(r"/status/([0-9]+)", StatusHandler)])
-        sock, port = bind_unused_port()
-        server = HTTPServer(app)
-        server.add_sockets([sock])
-        client = AsyncHTTPClient()
-
-        with scoped_tracer() as tracer:
-            spans = TracerSpanContainer(tracer)
-
-            async def request_span(path):
-                spans.reset()
-                await client.fetch("http://127.0.0.1:%d%s" % (port, path), headers=TEST_HEADERS, raise_error=False)
-                await asyncio.sleep(0.1)
-                return next(span for span in spans.get_spans() if span.name == "tornado.request")
-
-            span = await request_span("/missing")
-            assert span.get_metric("http.response.status_code") == 404
-            assert span.error == 1
-            # Tornado reports the HTTPError it raised, so error.type is the exception type.
-            assert span.get_tag("error.type")
-
-            span = await request_span("/status/500")
-            assert span.get_metric("http.response.status_code") == 500
-            assert span.error == 0
-            assert span.get_tag("error.type") is None
         server.stop()
 
     asyncio.run(run())

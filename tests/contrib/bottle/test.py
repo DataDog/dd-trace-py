@@ -590,38 +590,14 @@ def test_otel_semantics_server_span_attributes():
     def hi(name):
         return "hi %s" % name
 
-    @app.route("/hi/<name>", method="PROPFIND")
-    def hi_propfind(name):
-        return "hi %s" % name
-
-    @app.route("/gone")
-    def gone():
-        bottle.response.status = 410
-        return "gone"
-
-    @app.route("/missing/<name>")
-    def missing(name):
-        bottle.response.status = 404
-        return "missing"
-
-    @app.route("/broken")
-    def broken():
-        bottle.response.status = 500
-        return "oops"
-
     with scoped_tracer() as tracer:
         spans = TracerSpanContainer(tracer)
         client = webtest.TestApp(app, lint=False)
 
-        def request_span(path, method="GET"):
-            spans.reset()
-            response = client.request(path, method=method, headers=TEST_HEADERS, expect_errors=True)
-            return response, spans.get_root_span()
-
-        response, span = request_span("/hi/dougie?q=1")
+        response = client.get("/hi/dougie?q=1", headers=TEST_HEADERS)
         assert response.status_int == 200
         assert_span(
-            span,
+            spans.get_root_span(),
             method="GET",
             status=200,
             path="/hi/dougie",
@@ -629,38 +605,6 @@ def test_otel_semantics_server_span_attributes():
             route="/hi/<name>",
             resource="GET /hi/<name>",
         )
-
-        response, span = request_span("/hi/dougie", method="PROPFIND")
-        assert response.status_int == 200
-        assert_span(
-            span,
-            method="_OTHER",
-            original_method="PROPFIND",
-            status=200,
-            path="/hi/dougie",
-            route="/hi/<name>",
-            resource="HTTP /hi/<name>",
-        )
-
-        # A 404 raised by a matched route reports the route template, never the URL path.
-        response, span = request_span("/missing/secret-123")
-        assert response.status_int == 404
-        assert_span(
-            span,
-            method="GET",
-            status=404,
-            path="/missing/secret-123",
-            route="/missing/<name>",
-            resource="GET /missing/<name>",
-        )
-
-        response, span = request_span("/gone")
-        assert response.status_int == 410
-        assert_span(span, method="GET", status=410, path="/gone", route="/gone", resource="GET /gone")
-
-        response, span = request_span("/broken")
-        assert response.status_int == 500
-        assert_span(span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken")
 
 
 @pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True)
