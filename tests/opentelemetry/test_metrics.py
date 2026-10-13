@@ -1,4 +1,5 @@
 import os
+from unittest.mock import Mock
 
 from opentelemetry import version
 import pytest
@@ -144,35 +145,38 @@ def test_otel_metrics_disabled_and_unset():
     )
 
 
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env={
-        "DD_LOGS_OTEL_ENABLED": "true",
-        "OTEL_TRACES_EXPORTER": "otlp",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.example:4318",
-        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
-        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "https://collector.example:443/v1/logs",
-    },
-)
-def test_otlp_export_requests_are_not_traced():
-    """OTLP exporter requests must not be traced.
+def test_http_metrics_exporter_adds_marker_and_preserves_headers():
+    from ddtrace.internal.opentelemetry.metrics import _dd_metrics_exporter
 
-    The OTLP HTTP metrics exporter omits the OTLP user-agent header that the trace and log
-    exporters set, so detection falls back to matching the enabled export URLs by full path.
-    """
+    class Exporter:
+        def __init__(
+            self,
+            endpoint=None,
+            certificate_file=None,
+            client_key_file=None,
+            client_certificate_file=None,
+            headers=None,
+        ):
+            self._headers = headers or {"x-env": "configured"}
+            self._session = Mock(headers=dict(self._headers))
+
+    exporter_class = _dd_metrics_exporter(Exporter, "http", "protobuf")
+    exporter = exporter_class()
+
+    assert exporter._headers == {
+        "x-env": "configured",
+        "dd-otlp-export": "true",
+    }
+    assert exporter._session.headers == exporter._headers
+
+
+def test_otlp_export_request_marker():
     import requests
 
     from ddtrace.contrib.internal.requests.connection import is_otlp_export
 
-    def prepared(url, method="POST"):
-        return requests.Request(method, url, headers={"User-Agent": "python-requests/2.34.2"}).prepare()
+    marked = requests.Request("POST", "http://collector.example/v1/metrics", headers={"dd-otlp-export": "true"})
+    unmarked = requests.Request("POST", "http://collector.example/v1/metrics")
 
-    # Exports for enabled signals are matched by their full URL.
-    assert is_otlp_export(prepared("https://collector.example/v1/logs")) is True
-    assert is_otlp_export(prepared("http://collector.example:4318/v1/traces")) is True
-    # A non-POST request, disabled signal, different path or scheme, and other hosts are user traffic.
-    assert is_otlp_export(prepared("https://collector.example/v1/logs", method="GET")) is False
-    assert is_otlp_export(prepared("http://collector.example:4318/v1/metrics")) is False
-    assert is_otlp_export(prepared("http://collector.example:4318/api/data")) is False
-    assert is_otlp_export(prepared("http://collector.example:443/v1/logs")) is False
-    assert is_otlp_export(prepared("http://api.example:8080/v1/logs")) is False
+    assert is_otlp_export(marked.prepare())
+    assert not is_otlp_export(unmarked.prepare())
