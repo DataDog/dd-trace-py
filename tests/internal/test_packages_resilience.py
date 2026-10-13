@@ -676,6 +676,7 @@ def test_records_follow_sys_path_changes(
     """Entries added to sys.path after the boot-time prefetch must still be seen
     when the maps are first built, without rescanning the entries already known.
     """
+    from ddtrace.internal import native as _n
     from ddtrace.internal import packages as _p
 
     def site(name: str, dist: str, module: str) -> Path:
@@ -691,13 +692,13 @@ def test_records_follow_sys_path_changes(
     monkeypatch.setattr(sys, "path", [str(boot)])
 
     scanned = []
-    real_scan = _p.scan_distributions
+    real_scan = _n.scan_distributions
 
     def counting_scan(entry, *args):
         scanned.append(entry)
         return real_scan(entry, *args)
 
-    monkeypatch.setattr(_p, "scan_distributions", counting_scan)
+    monkeypatch.setattr(_n, "scan_distributions", counting_scan)
 
     _prefetch_and_wait(_p)
     assert scanned == [str(boot)]
@@ -990,13 +991,14 @@ def test_scan_does_not_reimport_importlib_metadata(
 
 def test_failed_entry_scan_is_retried(tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
     """A scan that raised must not be cached as an empty entry."""
+    from ddtrace.internal import native as _n
     from ddtrace.internal import packages as _p
 
     site = _site_with_dist(tmp_path / "site", "flaky", "flaky")
     other = _site_with_dist(tmp_path / "other", "other", "other")
     monkeypatch.setattr(sys, "path", [str(site)])
 
-    real_scan = _p.scan_distributions
+    real_scan = _n.scan_distributions
     failures = [RuntimeError("transient")]
 
     def flaky_scan(entry, *args):
@@ -1004,7 +1006,7 @@ def test_failed_entry_scan_is_retried(tmp_path: Path, reset_packages_caches, mon
             raise failures.pop()
         return real_scan(entry, *args)
 
-    monkeypatch.setattr(_p, "scan_distributions", flaky_scan)
+    monkeypatch.setattr(_n, "scan_distributions", flaky_scan)
 
     assert _p._installed_distributions() == []
     sys.path.append(str(other))
@@ -1238,13 +1240,14 @@ def test_readers_wait_for_the_background_prefetch(
     import threading
     import time
 
+    from ddtrace.internal import native as _n
     from ddtrace.internal import packages as _p
 
     site = _site_with_dist(tmp_path / "site", "slow", "slow")
     monkeypatch.setattr(sys, "path", [str(site)])
     started = threading.Event()
     scans = []
-    real_scan = _p.scan_distributions
+    real_scan = _n.scan_distributions
 
     def slow_scan(entry, *args):
         scans.append(entry)
@@ -1252,7 +1255,7 @@ def test_readers_wait_for_the_background_prefetch(
         time.sleep(0.3)
         return real_scan(entry, *args)
 
-    monkeypatch.setattr(_p, "scan_distributions", slow_scan)
+    monkeypatch.setattr(_n, "scan_distributions", slow_scan)
 
     _p.prefetch_distributions()
     assert started.wait(10)
@@ -1272,19 +1275,20 @@ def test_fork_during_background_prefetch(
     import time
     import warnings
 
+    from ddtrace.internal import native as _n
     from ddtrace.internal import packages as _p
 
     site = _site_with_dist(tmp_path / "site", "forked", "forked")
     monkeypatch.setattr(sys, "path", [str(site)])
     started = threading.Event()
-    real_scan = _p.scan_distributions
+    real_scan = _n.scan_distributions
 
     def slow_scan(entry, *args):
         started.set()
         time.sleep(0.3)
         return real_scan(entry, *args)
 
-    monkeypatch.setattr(_p, "scan_distributions", slow_scan)
+    monkeypatch.setattr(_n, "scan_distributions", slow_scan)
 
     _p.prefetch_distributions()
     assert started.wait(10)
@@ -1293,7 +1297,7 @@ def test_fork_during_background_prefetch(
         pid = os.fork()
     if pid == 0:
         ok = _p._PREFETCH_THREAD is None and _p._INSTALLED is not None
-        _p.scan_distributions = None  # any scan in the child would fail
+        _n.scan_distributions = None  # any scan in the child would fail
         ok = ok and _p._package_for_root_module_mapping() == {"forked.py": ("forked", "1.0")}
         os._exit(0 if ok else 1)
     deadline = time.monotonic() + 30

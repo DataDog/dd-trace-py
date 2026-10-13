@@ -7,7 +7,6 @@ from typing import Optional
 from urllib.parse import urlsplit
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.runtime import container
 
 
@@ -129,12 +128,15 @@ class NativeHTTPConnection:
             kwargs["body"] = self._pending_body
         try:
             return HTTPResponse(req_fn(self._path, **kwargs))
-        except ConnectionFailedError:
-            log.debug(
-                "native HTTP client connection to %s failed: %s",
-                self._base_url,
-                _diagnose_connection_failure(self._base_url),
-            )
+        except Exception as e:
+            from ddtrace.internal.native import ConnectionFailedError
+
+            if isinstance(e, ConnectionFailedError):
+                log.debug(
+                    "native HTTP client connection to %s failed: %s",
+                    self._base_url,
+                    _diagnose_connection_failure(self._base_url),
+                )
             raise
 
     def close(self) -> None:

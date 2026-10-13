@@ -17,7 +17,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.base.pyo3 import is_panic_exception
 from ddtrace.internal.base.utils.cache import callonce
 from ddtrace.internal.module import origin
-from ddtrace.internal.native import scan_distributions
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.threads import Thread
 
@@ -641,6 +640,8 @@ def _entry_records(entry: str, module_suffixes: list[str], warn: _WarnBadDist) -
     try:
         # Only the prefetch thread, which is joined before interpreter shutdown,
         # may release the GIL: see scan_distributions.
+        from ddtrace.internal.native import scan_distributions
+
         dists, errors = scan_distributions(entry, module_suffixes, getattr(_IN_PREFETCH, "active", False))
     except Exception as exc:
         warn(entry, exc)

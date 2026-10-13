@@ -8,7 +8,6 @@ import signal
 import threading
 import typing
 
-from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.utils import signals
 
 
@@ -29,6 +28,8 @@ def _make_safe_wrapper(func: typing.Callable) -> typing.Callable:
         try:
             func(*args, **kwargs)
         except Exception:
+            from ddtrace.internal.native import config as _native_config
+
             if _native_config.get_raise():
                 raise
 
@@ -75,6 +76,8 @@ def register_on_exit_signal(f: typing.Callable) -> typing.Optional[tuple[typing.
         try:
             f()
         except Exception:
+            from ddtrace.internal.native import config as _native_config
+
             if _native_config.get_raise():
                 raise
 
