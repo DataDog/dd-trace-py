@@ -346,7 +346,7 @@ def test_foreign_handler_notice_reissued_in_fork_child() -> None:
             time.sleep(0.05)
         raise AssertionError("sampler never recorded the foreign SIGSEGV notice")
 
-    _stack._set_fast_copy_warmup_seconds(0.1)
+    _stack._set_fast_copy_warmup_seconds(1.0)
     stack.set_adaptive_sampling(False)
     assert stack.start()
     try:

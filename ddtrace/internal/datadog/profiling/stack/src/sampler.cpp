@@ -447,10 +447,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
     // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    // Use configured intent, not the live fast_copy_active bit: fallback clears the
-    // latter, and a child restarted after the parent fell back must still probe and
-    // emit its own takeover notice.
-    const bool fast_copy_desired = !fast_copy_user_disabled && safe_memcpy_initialized;
+    // Prefer configured intent so a child restarted after the parent fell back still
+    // probes (fallback clears fast_copy_active). Also honor the live active bit so a
+    // false→true set_fast_copy toggle cannot leave monitoring off while safe_memcpy runs.
+    const bool fast_copy_desired = (!fast_copy_user_disabled || fast_copy_active) && safe_memcpy_initialized;
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else

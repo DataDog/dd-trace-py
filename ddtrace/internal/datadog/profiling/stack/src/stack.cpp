@@ -1019,9 +1019,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     const bool want = static_cast<bool>(enabled);
-    if (!want) {
-        fast_copy_user_disabled = true;
-    }
+    fast_copy_user_disabled = !want;
     set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
@@ -1126,10 +1124,9 @@ stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(
 static PyObject*
 stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    std::optional<ForeignSegvHandler> handler;
-    Py_BEGIN_ALLOW_THREADS;
-    handler = Sampler::get().take_foreign_segv_handler();
-    Py_END_ALLOW_THREADS;
+    // Keep the GIL: this is a short optional swap, and releasing it lets
+    // finalization start before we reacquire.
+    std::optional<ForeignSegvHandler> handler = Sampler::get().take_foreign_segv_handler();
     if (!handler.has_value()) {
         Py_RETURN_NONE;
     }
