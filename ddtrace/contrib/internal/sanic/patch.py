@@ -146,7 +146,7 @@ async def patch_run_request_middleware(wrapped: Callable, instance: sanic.Sanic,
     # Set resource from the framework request
     request = args[0]
     ctx = _get_request_context(request)
-    if ctx is not None and not config._otel_trace_semantics_enabled:
+    if ctx is not None:
         ctx.event.resource = f"{request.method} {_get_path(request)}"
     return await wrapped(*args, **kwargs)
 
@@ -236,10 +236,9 @@ def _create_sanic_request_context(request: Request) -> core.ExecutionContext[Web
 
     url = f"{request.scheme}://{request.host}{request.path}"
     resource = None
-    if SANIC_VERSION < (21, 0, 0) and not config._otel_trace_semantics_enabled:
+    if SANIC_VERSION < (21, 0, 0):
         # The path is not available anymore in 21.x. It is set from
-        # patch_run_request_middleware instead. With OTel semantics the span is named
-        # from the matched route only, never from the raw URL path.
+        # patch_run_request_middleware instead.
         resource = f"{request.method} {_get_path(request)}"
 
     event = WebFrameworkRequestEvent(
@@ -281,8 +280,6 @@ async def sanic_http_routing_after(request: Request, route: Route, kwargs: dict,
         pattern = route.pattern
 
     ctx.event.resource = f"{request.method} {pattern}"
-    if config._otel_trace_semantics_enabled:
-        ctx.event.request_route = pattern
     ctx.event.additional_tags["sanic.route.name"] = route.name
 
 

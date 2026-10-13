@@ -9,7 +9,6 @@ from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
-from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.webclient import Client
@@ -371,46 +370,3 @@ class TestAPIGatewayTracing(PyramidBase):
                     else:
                         web_span = spans[0]
                         assert web_span._parent is None
-
-
-def _otel_pyramid_app():
-    from pyramid.config import Configurator
-    from pyramid.response import Response
-    import webtest
-
-    def user(request):
-        return Response("user")
-
-    with Configurator() as configurator:
-        configurator.add_route("user", "/users/{user_id}")
-        configurator.add_view(user, route_name="user")
-        return webtest.TestApp(configurator.make_wsgi_app(), lint=False)
-
-
-@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
-def test_otel_semantics_server_span_attributes():
-    from functools import partial
-
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.contrib.pyramid.test_pyramid import _otel_pyramid_app
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    assert_span = partial(assert_otel_server_span, peer_address=False)
-
-    with scoped_tracer() as tracer:
-        spans = TracerSpanContainer(tracer)
-        client = _otel_pyramid_app()
-
-        response = client.get("/users/42?q=1", headers=TEST_HEADERS)
-        assert response.status_int == 200
-        assert_span(
-            next(span for span in spans.get_spans() if span.name == "pyramid.request"),
-            method="GET",
-            status=200,
-            path="/users/42",
-            query="q=1",
-            route="/users/{user_id}",
-            resource="GET /users/{user_id}",
-        )

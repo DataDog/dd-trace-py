@@ -1,5 +1,3 @@
-import pytest
-
 from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -7,7 +5,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
-from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -768,96 +765,3 @@ class TestAPIGatewayTracing(TornadoTestCase):
                     else:
                         web_span = traces[0][0]
                         assert web_span._parent is None
-
-
-@pytest.mark.subprocess(env=OTEL_SERVER_ENV, err=None)
-def test_otel_semantics_server_span_attributes():
-    import asyncio
-
-    from tornado.httpclient import AsyncHTTPClient
-    from tornado.httpserver import HTTPServer
-    from tornado.testing import bind_unused_port
-    import tornado.web
-
-    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
-    from ddtrace.contrib.internal.tornado.patch import patch
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    class UserHandler(tornado.web.RequestHandler):
-        def get(self, user_id):
-            self.write("ok")
-
-    patch()
-    patch_futures()
-
-    async def run():
-        app = tornado.web.Application([(r"/users/([0-9]+)", UserHandler)])
-        sock, port = bind_unused_port()
-        server = HTTPServer(app)
-        server.add_sockets([sock])
-        client = AsyncHTTPClient()
-
-        with scoped_tracer() as tracer:
-            spans = TracerSpanContainer(tracer)
-            response = await client.fetch("http://127.0.0.1:%d/users/42?q=1" % port, headers=TEST_HEADERS)
-            await asyncio.sleep(0.1)
-            span = next(span for span in spans.get_spans() if span.name == "tornado.request")
-            assert response.code == 200
-            assert_otel_server_span(
-                span,
-                method="GET",
-                status=200,
-                path="/users/42",
-                query="q=1",
-                route="/users/%s",
-                resource="GET /users/%s",
-            )
-            assert span.get_metric("server.port") == port
-        server.stop()
-
-    asyncio.run(run())
-
-
-# Product bug: _find_route falls back to the route "^$" when no rule matches
-# (ddtrace/contrib/internal/tornado/handlers.py:239), so an unmatched request reports
-# http.route="^$" and the resource "GET ^$" instead of no route and the resource "GET".
-@pytest.mark.subprocess(env=OTEL_SERVER_ENV, err=None)
-def test_otel_semantics_server_unmatched_route():
-    import asyncio
-
-    from tornado.httpclient import AsyncHTTPClient
-    from tornado.httpserver import HTTPServer
-    from tornado.testing import bind_unused_port
-    import tornado.web
-
-    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
-    from ddtrace.contrib.internal.tornado.patch import patch
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    patch()
-    patch_futures()
-
-    async def run():
-        app = tornado.web.Application([])
-        sock, port = bind_unused_port()
-        server = HTTPServer(app)
-        server.add_sockets([sock])
-
-        with scoped_tracer() as tracer:
-            spans = TracerSpanContainer(tracer)
-            response = await AsyncHTTPClient().fetch(
-                "http://127.0.0.1:%d/no/such/path/123" % port, headers=TEST_HEADERS, raise_error=False
-            )
-            await asyncio.sleep(0.1)
-            span = next(span for span in spans.get_spans() if span.name == "tornado.request")
-            assert response.code == 404
-            assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
-        server.stop()
-
-    asyncio.run(run())

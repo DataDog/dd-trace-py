@@ -2,7 +2,6 @@ import io
 import json
 from typing import Any
 from typing import Mapping
-from typing import Optional
 from typing import Union
 import uuid
 
@@ -11,10 +10,6 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
-from ddtrace._trace.otel.http.resource import otel_http_resource
-from ddtrace._trace.otel.http.resource import set_instrumentation_resource
-from ddtrace._trace.otel.http.tags import normalize_http_method
-from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -179,7 +174,6 @@ def get_request_uri(request):
 def _set_resolver_tags(pin, span, request):
     # Default to just the HTTP method when we cannot determine a reasonable resource
     resource = request.method
-    route = None
 
     try:
         # Get resolver match result and build resource name pieces
@@ -188,9 +182,6 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
-            if config._otel_trace_semantics_enabled:
-                # Early AppSec blocking bypasses Django's resolver assignment.
-                request.resolver_match = resolver_match
 
         if hasattr(resolver_match[0], "view_class"):
             # In django==4.0, view.__name__ defaults to <module>.views.view
@@ -199,6 +190,7 @@ def _set_resolver_tags(pin, span, request):
         else:
             handler = func_name(resolver_match[0])
 
+        route = None
         # In Django >= 2.2.0 we can access the original route or regex pattern
         # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
         if DJANGO22:
@@ -242,20 +234,10 @@ def _set_resolver_tags(pin, span, request):
             exc_info=True,
         )
     finally:
-        if config._otel_trace_semantics_enabled:
-            set_otel_resource_for_method(span, request.method, route)
         # Only update the resource name if it was not explicitly set
         # by anyone during the request lifetime
-        elif span.resource == REQUEST_DEFAULT_RESOURCE:
+        if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = resource
-
-
-def _initial_otel_resource(request: Any) -> Optional[str]:
-    if not config._otel_trace_semantics_enabled:
-        return None
-
-    normalized_method, _ = normalize_http_method(request.method)
-    return otel_http_resource(normalized_method, None)
 
 
 def _before_request_tags(pin, span, request):
@@ -438,7 +420,7 @@ def _after_request_tags(pin, span: Span, request, response):
             core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
-            set_instrumentation_resource(span, request.method)
+            span.resource = request.method
 
 
 def _request_path_params(request):
@@ -447,15 +429,10 @@ def _request_path_params(request):
     Returns ``resolver_match.kwargs`` (named captures), else ``resolver_match.args`` (unnamed captures), else ``None``.
     Pre-view hooks may run before Django sets ``request.resolver_match``; we fall back to a fresh resolve in that
     case. The broad try/except shields request tagging from raising third-party ``ResolverMatch`` subclasses.
-    With OTel semantics enabled on Django 3.1+ it returns None instead of resolving again, so application
-    converters are not invoked twice.
     """
     try:
         resolver_match = getattr(request, "resolver_match", None)
         if resolver_match is None:
-            # Django 3.1+ hands AppSec the resolved match through resolve_request instead.
-            if config._otel_trace_semantics_enabled and django.VERSION >= (3, 1):
-                return None
             resolver = get_resolver(getattr(request, "urlconf", None))
             if resolver is None:
                 return None

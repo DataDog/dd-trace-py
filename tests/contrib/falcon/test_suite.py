@@ -1,14 +1,8 @@
-from unittest import mock
-
-import pytest
-
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
-from ddtrace.internal.otel_semantics import http as otel_http
-from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -138,15 +132,6 @@ class FalconTestCase(FalconTestMixin):
 
     def test_route_reporting_200(self):
         return self.make_route_reporting_test("/200", 200, "/200")
-
-    def test_otel_semantics_refines_resource_from_route(self):
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-            self.make_test_call("/200", expected_status_code=200)
-
-        span = self.pop_traces()[0][0]
-        assert span.get_tag(otel_http.REQUEST_METHOD) == "GET"
-        assert span.get_tag(httpx.ROUTE) == "/200"
-        assert span.resource == "GET /200"
 
     def test_route_reporting_dynamic_match(self):
         return self.make_route_reporting_test("/hello/foo", 200, "/hello/{name}")
@@ -327,41 +312,3 @@ class FalconTestCase(FalconTestMixin):
                         else:
                             web_span = traces[0][0]
                             assert web_span._parent is None
-
-
-@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
-def test_otel_semantics_server_span_attributes():
-    from functools import partial
-
-    import falcon
-    from falcon import testing
-
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    assert_span = partial(assert_otel_server_span, client_attributes=False)
-
-    class Hello:
-        def on_get(self, req, resp, name):
-            resp.text = "hello %s" % name
-
-    app = falcon.App() if hasattr(falcon, "App") else falcon.API()
-    app.add_route("/hello/{name}", Hello())
-
-    with scoped_tracer() as tracer:
-        spans = TracerSpanContainer(tracer)
-        client = testing.TestClient(app)
-
-        response = client.simulate_get("/hello/world", query_string="q=1", headers=TEST_HEADERS)
-        assert response.status_code == 200
-        assert_span(
-            spans.get_root_span(),
-            method="GET",
-            status=200,
-            path="/hello/world",
-            query="q=1",
-            route="/hello/{name}",
-            resource="GET /hello/{name}",
-        )

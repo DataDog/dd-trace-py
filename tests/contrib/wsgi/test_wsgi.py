@@ -20,8 +20,6 @@ from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from ddtrace.internal import core
 from ddtrace.trace import Span
-from ddtrace.trace import tracer as global_tracer
-from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -257,27 +255,6 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
-
-
-def test_otel_semantics_keeps_method_resource_before_response_on_exception(tracer, test_spans):
-    observed_resources = []
-
-    def failing_application(environ, start_response):
-        root_span = global_tracer.current_root_span()
-        assert root_span is not None
-        observed_resources.append(root_span.resource)
-        global_tracer.sample(root_span)
-        raise RuntimeError("before start_response")
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        app = TestApp(DDWSGIMiddleware(failing_application, tracer=tracer))
-        with pytest.raises(RuntimeError, match="before start_response"):
-            app.get("/users/12345")
-
-    spans = test_spans.pop()
-    request_span = next(span for span in spans if span.name == "wsgi.request")
-    assert observed_resources == ["GET"]
-    assert request_span.resource == "GET"
 
 
 def test_distributed_tracing(tracer, test_spans):
@@ -904,30 +881,3 @@ def test_construct_url_query_string_backfilled_when_raw_uri_lacks_it():
         "QUERY_STRING": "a=1&b=2",
     }
     assert construct_url(environ) == "http://localhost:8000/users?a=1&b=2"
-
-
-@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
-def test_otel_semantics_server_span_attributes():
-    from webtest import TestApp
-
-    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    def application(environ, start_response):
-        start_response("200 OK", [("Content-Type", "text/plain")])
-        return [b"*"]
-
-    with scoped_tracer() as tracer:
-        spans = TracerSpanContainer(tracer)
-        client = TestApp(DDWSGIMiddleware(application))
-
-        client.get("/ok?q=1", headers=TEST_HEADERS)
-        span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
-        # A generic WSGI app has no route, so the resource is the method alone. WSGI does not report client
-        # attributes: its header names are title-cased, which set_http_meta does not look up.
-        assert_otel_server_span(
-            span, method="GET", status=200, path="/ok", query="q=1", resource="GET", client_attributes=False
-        )

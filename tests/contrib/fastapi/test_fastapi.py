@@ -20,7 +20,6 @@ from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlett
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -1096,37 +1095,3 @@ def test_fastapi_app_is_picklable(tracer):
     pickled = cloudpickle.dumps(app)
     assert pickled is not None
     assert len(pickled) > 0
-
-
-@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
-def test_otel_semantics_server_span_attributes():
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.contrib.otel_http_server import with_peer_address
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    app = FastAPI()
-
-    @app.get("/items/{item_id}")
-    async def item(item_id: int):
-        return {"item_id": item_id}
-
-    with scoped_tracer() as tracer:
-        spans = TracerSpanContainer(tracer)
-        with TestClient(with_peer_address(app)) as client:
-            response = client.get("/items/42?q=1", headers=TEST_HEADERS)
-            assert response.status_code == 200
-            span = next(span for span in spans.get_spans() if span.name == "fastapi.request")
-            assert_otel_server_span(
-                span,
-                method="GET",
-                status=200,
-                path="/items/42",
-                query="q=1",
-                route="/items/{item_id}",
-                resource="GET /items/{item_id}",
-            )
