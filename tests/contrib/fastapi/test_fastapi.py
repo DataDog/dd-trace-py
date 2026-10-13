@@ -1105,6 +1105,7 @@ def test_otel_semantics_server_span_attributes():
 
     from tests.contrib.otel_http_server import TEST_HEADERS
     from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.contrib.otel_http_server import with_peer_address
     from tests.utils import TracerSpanContainer
     from tests.utils import scoped_tracer
 
@@ -1116,7 +1117,7 @@ def test_otel_semantics_server_span_attributes():
 
     with scoped_tracer() as tracer:
         spans = TracerSpanContainer(tracer)
-        with TestClient(app, client=("198.51.100.9", 4321)) as client:
+        with TestClient(with_peer_address(app)) as client:
             response = client.get("/items/42?q=1", headers=TEST_HEADERS)
             assert response.status_code == 200
             span = next(span for span in spans.get_spans() if span.name == "fastapi.request")

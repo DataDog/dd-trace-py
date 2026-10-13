@@ -926,5 +926,8 @@ def test_otel_semantics_server_span_attributes():
 
         client.get("/ok?q=1", headers=TEST_HEADERS)
         span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
-        # A generic WSGI app has no route, so the resource is the method alone.
-        assert_otel_server_span(span, method="GET", status=200, path="/ok", query="q=1", resource="GET")
+        # A generic WSGI app has no route, so the resource is the method alone. WSGI does not report client
+        # attributes: its header names are title-cased, which set_http_meta does not look up.
+        assert_otel_server_span(
+            span, method="GET", status=200, path="/ok", query="q=1", resource="GET", client_attributes=False
+        )
