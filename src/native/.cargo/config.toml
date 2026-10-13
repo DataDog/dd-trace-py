@@ -1,6 +1,10 @@
 [build]
 rustflags = ["-C", "relocation-model=pic"]
 
+[env]
+# Required for the private CPython finalization API used on Python 3.12 and earlier.
+PYO3_USE_RAW_DYLIB = "0"
+
 [target.'cfg(target_os = "windows")']
 rustflags = [
     "-C", "target-feature=+crt-static"
