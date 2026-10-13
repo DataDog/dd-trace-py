@@ -22,7 +22,7 @@ from typing import Union
 from typing import cast
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace_base.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.trace import Tracer
