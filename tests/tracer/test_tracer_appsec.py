@@ -12,6 +12,7 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.writer import NativeWriter
@@ -225,14 +226,11 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
 
 
-@pytest.mark.subprocess(
-    parametrize={
-        "sca_enabled": ["true", "false"],
-        "appsec_enabled": [True, False],
-        "iast_enabled": [True, False],
-    }
-)
+@pytest.mark.parametrize("sca_enabled", ["true", "false"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer):
+    saved_trace_compute_stats = config._trace_compute_stats
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
@@ -249,3 +247,5 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
     # reset tracer values
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
         tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+    # restore stats computation value
+    config._trace_compute_stats = saved_trace_compute_stats
