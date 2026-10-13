@@ -1,7 +1,6 @@
 import mock
 import pytest
 
-from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -617,22 +616,3 @@ class TestTracedConnection(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 0
-
-
-@pytest.mark.parametrize(
-    "query,query_encoding,expected",
-    [
-        ("SELECT 'é'", lambda: "latin-1", "SELECT 'é'"),
-        (b"SELECT '\xc3\xa9'", lambda: "UTF8", b"SELECT '\xc3\xa9'"),
-        (memoryview(b"SELECT 1"), None, b"SELECT 1"),
-        (b"SELECT '\xe9'", lambda: "latin-1", "SELECT 'é'"),
-        # Decoding is best effort so that the query is always inspected
-        (b"SELECT '\xe9'", lambda: "ascii", "SELECT '\ufffd'"),
-        (b"SELECT '\xe9'", lambda: "unknown", b"SELECT '\xe9'"),
-        (b"SELECT '\xe9'", mock.Mock(side_effect=AttributeError), b"SELECT '\xe9'"),
-    ],
-)
-def test_decode_db_query(query, query_encoding, expected):
-    with mock.patch.object(core, "has_listeners", return_value=True):
-        decoded = decode_db_query(query, query_encoding)
-    assert decoded == expected and type(decoded) is type(expected)

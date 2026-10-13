@@ -2,7 +2,6 @@ import inspect
 
 from ddtrace import config
 from ddtrace.contrib._events.dbapi import DbQueryEvent
-from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -101,8 +100,9 @@ class TracedAsyncCursor(TracedCursor):
         if isinstance(query, (str, bytes, bytearray, memoryview)):
             core.dispatch_event(
                 DbQueryEvent(
-                    query=decode_db_query(query, self._dbapi_query_encoding),
+                    query=query,
                     span_name_prefix=self._self_dbapi_span_name_prefix,
+                    get_encoding=self._dbapi_query_encoding,
                 )
             )
         # Always return the result as-is
@@ -127,8 +127,9 @@ class TracedAsyncCursor(TracedCursor):
         if isinstance(query, (str, bytes, bytearray, memoryview)):
             core.dispatch_event(
                 DbQueryEvent(
-                    query=decode_db_query(query, self._dbapi_query_encoding),
+                    query=query,
                     span_name_prefix=self._self_dbapi_span_name_prefix,
+                    get_encoding=self._dbapi_query_encoding,
                 )
             )
 

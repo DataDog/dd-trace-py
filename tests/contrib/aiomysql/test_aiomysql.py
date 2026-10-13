@@ -72,7 +72,9 @@ async def test_query_is_blocked_before_execution() -> None:
             with pytest.raises(BlockingException):
                 await getattr(traced_cursor, method)("SELECT 1")
 
-        dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="mysql"))
+        dispatch_event.assert_called_once_with(
+            DbQueryEvent(query="SELECT 1", span_name_prefix="mysql", get_encoding=traced_cursor._dbapi_query_encoding)
+        )
         getattr(cursor, method).assert_not_awaited()
 
 

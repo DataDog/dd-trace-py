@@ -37,13 +37,14 @@ class TestTracedAsyncCursor(AsyncioTestCase):
     async def test_query_is_blocked_before_execution(self):
         for query in ("SELECT 1", b"SELECT 1"):
             for method in ("execute", "executemany"):
+                cursor = TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"})
                 with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
                     with pytest.raises(BlockingException):
-                        await getattr(
-                            TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"}), method
-                        )(query)
+                        await getattr(cursor, method)(query)
 
-                dispatch_event.assert_called_once_with(DbQueryEvent(query=query, span_name_prefix="postgres"))
+                dispatch_event.assert_called_once_with(
+                    DbQueryEvent(query=query, span_name_prefix="postgres", get_encoding=cursor._dbapi_query_encoding)
+                )
                 getattr(self.cursor, method).assert_not_awaited()
 
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))

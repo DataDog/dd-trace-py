@@ -8,7 +8,6 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
-from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -38,8 +37,8 @@ def _dispatch_query_event(patch_routine, args, kwargs):
         return
 
     if isinstance(query, (str, bytes, bytearray, memoryview)):
-        # Vertica only uses UTF-8, so byte queries need no connection encoding
-        core.dispatch_event(DbQueryEvent(query=decode_db_query(query), span_name_prefix="vertica"))
+        # Vertica only uses UTF-8, the default encoding of byte queries
+        core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="vertica"))
 
 
 _PATCHED = False

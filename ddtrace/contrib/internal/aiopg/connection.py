@@ -9,7 +9,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
-from ddtrace.contrib._events.dbapi import decode_db_query
 from ddtrace.contrib.internal.psycopg.cursor import psycopg2_python_encoding
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
@@ -70,7 +69,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # with different libs.
         if isinstance(query, (str, bytes, bytearray, memoryview)):
             core.dispatch_event(
-                DbQueryEvent(query=decode_db_query(query, self._dbapi_query_encoding), span_name_prefix="postgres")
+                DbQueryEvent(query=query, span_name_prefix="postgres", get_encoding=self._dbapi_query_encoding)
             )
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
@@ -80,7 +79,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def execute(self, query, *args, **kwargs):
         if isinstance(query, (str, bytes, bytearray, memoryview)):
             core.dispatch_event(
-                DbQueryEvent(query=decode_db_query(query, self._dbapi_query_encoding), span_name_prefix="postgres")
+                DbQueryEvent(query=query, span_name_prefix="postgres", get_encoding=self._dbapi_query_encoding)
             )
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
