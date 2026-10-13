@@ -102,8 +102,8 @@ def _remap_otel_tags(otel_value: str) -> Optional[str]:
     if len(dd_tags) > 10:
         dd_tags, remaining_tags = dd_tags[:10], dd_tags[10:]
         log.warning(
-            "To preserve metrics cardinality, only the following first 10 tags have been processed %s. "
-            "The following tags were not ingested: %s",
+            "To reduce cardinality, only the first 10 tags derived from OpenTelemetry resource attributes were "
+            "kept: %s. Reduce the number of resource attributes to avoid dropping tags. Dropped tags: %s",
             dd_tags,
             remaining_tags,
         )
