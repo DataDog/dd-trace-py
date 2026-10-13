@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Code Security (IAST): Fixes an issue where SQL values escaped by PyMySQL 1.2 are not recognized as sanitized.
+    Code Security (IAST): Fixes an issue where SQL values escaped by PyMySQL 1.2.1 and later are not recognized as sanitized.

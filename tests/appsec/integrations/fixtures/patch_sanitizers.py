@@ -50,7 +50,7 @@ def pymysql_escape_string(tainted_value):
 
 
 def pymysql_underscore_escape_string_without_public_alias(tainted_value: str) -> str:
-    """Call ``Connection._escape_string`` as PyMySQL 1.2 does (no public ``escape_string``).
+    """Call ``Connection._escape_string`` as PyMySQL 1.2.1+ does (no public ``escape_string``).
 
     Uses ``NO_BACKSLASH_ESCAPES`` so the implementation does not fall through to
     ``converters.escape_string`` (already wrapped on older IAST). No live MySQL.
