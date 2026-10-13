@@ -673,7 +673,7 @@ def test_otel_semantics_replaces_starlette_route_resource(tracer, test_spans):
 
 
 def test_otel_semantics_copies_complete_url_for_old_starlette_nested_span():
-    from ddtrace.contrib.internal.starlette.patch import _copy_server_url_attributes
+    from ddtrace._trace.otel.http.tags import copy_server_url_tags
     from ddtrace.trace import Span
 
     outer = Span("starlette.request")
@@ -685,7 +685,7 @@ def test_otel_semantics_copies_complete_url_for_old_starlette_nested_span():
     outer._set_attribute("server.port", 8443)
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        _copy_server_url_attributes(outer, inner)
+        copy_server_url_tags(outer, inner)
 
     assert inner.get_tag("url.scheme") == "https"
     assert inner.get_tag("url.path") == "/items/42"

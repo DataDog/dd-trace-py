@@ -4,9 +4,8 @@ from typing import Optional
 from ddtrace import config
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.otel.http.resource import set_instrumentation_resource
-from ddtrace._trace.otel.http.resource import set_otel_http_resource
-from ddtrace._trace.otel.http.tags import normalize_http_method
 from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.otel.http.tags import set_query_string_tag
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
@@ -39,10 +38,9 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             set_method_tag(span, event.request_method)
             # Set the currently known resource before sampling; preserve span-start callback replacements.
             record_initial_instrumentation_resource(span, event.resource)
-            normalized_method, original_method = normalize_http_method(event.request_method)
             if event.request_route:
                 span._set_attribute(otel_http.ROUTE, event.request_route)
-            set_otel_http_resource(span, normalized_method, original_method, event.request_route)
+            set_otel_resource_for_method(span, event.request_method, event.request_route)
 
     @classmethod
     def on_ended(

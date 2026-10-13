@@ -195,6 +195,10 @@ def is_otel_server_error_status(status_code: int) -> bool:
     return bool(config._http_server.is_error_code(status_code))
 
 
+def is_otel_non_error_status(status_code: int) -> bool:
+    return config._otel_trace_semantics_enabled and not is_otel_server_error_status(status_code)
+
+
 # This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
@@ -328,8 +332,21 @@ def set_method_tag(span: Span, method: str) -> None:
         span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)
 
 
-def server_url_tag() -> str:
-    return otel_http.URL_PATH if config._otel_trace_semantics_enabled else http.URL
+def copy_server_url_tags(source: Span, destination: Span) -> None:
+    if not config._otel_trace_semantics_enabled:
+        destination.set_tag(http.URL, source.get_tag(http.URL))
+        return
+
+    for key in (
+        otel_http.URL_SCHEME,
+        otel_http.URL_PATH,
+        otel_http.URL_QUERY,
+        net.SERVER_ADDRESS,
+        otel_http.SERVER_PORT,
+    ):
+        value = source._get_attribute(key)
+        if value is not None:
+            destination._set_attribute(key, value)
 
 
 def http_block_metadata(

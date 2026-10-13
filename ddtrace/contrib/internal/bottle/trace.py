@@ -7,7 +7,7 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace._trace.otel.http.tags import is_otel_server_error_status
+from ddtrace._trace.otel.http.tags import is_otel_non_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -79,7 +79,7 @@ class TracePlugin:
                     # we also need to handle when response is raised as is the
                     # case with a 4xx status
                     code = e.status_code
-                    if config._otel_trace_semantics_enabled and not is_otel_server_error_status(code):
+                    if is_otel_non_error_status(code):
                         # An exception leaving the span context would mark it as failed, but with OTel
                         # semantics this response is only an error when its status is. It is raised
                         # again once the span has ended.

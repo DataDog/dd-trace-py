@@ -16,6 +16,7 @@ from ddtrace._trace.otel.http.resource import RESOURCE_SET_BY_USER
 from ddtrace._trace.otel.http.resource import otel_http_resource
 from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -243,17 +244,15 @@ def _set_resolver_tags(pin, span, request):
             exc_info=True,
         )
     finally:
+        otel_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
         if config._otel_trace_semantics_enabled:
-            normalized_method, _ = normalize_http_method(request.method)
-            resource = otel_http_resource(normalized_method, route)
-
+            set_otel_resource_for_method(span, request.method, route)
         # Only update the resource name if it was not explicitly set
         # by anyone during the request lifetime
-        otel_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
-        if span.resource == REQUEST_DEFAULT_RESOURCE or (otel_resource is not None and span.resource == otel_resource):
+        elif span.resource == REQUEST_DEFAULT_RESOURCE or (
+            otel_resource is not None and span.resource == otel_resource
+        ):
             span.resource = resource
-            if config._otel_trace_semantics_enabled:
-                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
         else:
             # Prevent final HTTP tagging from replacing a user-owned resource.
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
