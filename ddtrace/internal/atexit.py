@@ -5,10 +5,10 @@ An API to provide atexit functionalities
 import atexit
 import logging
 import signal
+import sys
 import threading
 import typing
 
-from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.utils import signals
 
 
@@ -17,6 +17,21 @@ log = logging.getLogger(__name__)
 # Maps originally registered callables to their exception-safe wrappers,
 # so that unregister can find the right function to remove.
 _atexit_wrapped: dict[typing.Callable, typing.Callable] = {}
+
+
+def _native_raise() -> bool:
+    """Whether registered handlers should re-raise exceptions (DD_TESTING_RAISE).
+
+    The flag lives in the compiled extension (an atomic set at startup from
+    the process config). It is consulted only when the extension is already
+    loaded: importing it here would defeat the lazy native imports -- this
+    module sits in the ``ddtrace`` import chain (telemetry imports it), and
+    handlers run at exit/signal time where importing is fragile. Every process
+    with a registered ddtrace exit handler (tracer, telemetry writer,
+    profiler, runtime metrics, ...) has already loaded the extension.
+    """
+    _native = sys.modules.get("ddtrace.internal.native._native")
+    return _native is not None and _native.config.get_raise()
 
 
 def _make_safe_wrapper(func: typing.Callable) -> typing.Callable:
@@ -29,7 +44,7 @@ def _make_safe_wrapper(func: typing.Callable) -> typing.Callable:
         try:
             func(*args, **kwargs)
         except Exception:
-            if _native_config.get_raise():
+            if _native_raise():
                 raise
 
     return _wrapped
@@ -75,7 +90,7 @@ def register_on_exit_signal(f: typing.Callable) -> typing.Optional[tuple[typing.
         try:
             f()
         except Exception:
-            if _native_config.get_raise():
+            if _native_raise():
                 raise
 
     if threading.current_thread() is not threading.main_thread():

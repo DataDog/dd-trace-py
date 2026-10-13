@@ -15,11 +15,25 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.module import origin
-from ddtrace.internal.native import scan_distributions
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.threads import Thread
 from ddtrace.internal.utils.cache import callonce
+
+
+def __getattr__(name: str) -> t.Any:
+    if name == "scan_distributions":
+        # Lazy: this module is imported from the ``ddtrace`` package import
+        # chain (telemetry imports it), and resolving the native scan at
+        # module level would load the shared library on every
+        # ``import ddtrace``. Resolve on first use and cache in the module
+        # globals so the test seam (monkeypatching
+        # ``ddtrace.internal.packages.scan_distributions``) keeps working.
+        from ddtrace.internal.native import scan_distributions
+
+        globals()["scan_distributions"] = scan_distributions
+        return scan_distributions
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 LOG = logging.getLogger(__name__)
@@ -638,6 +652,13 @@ def _reset_prefetch_after_fork() -> None:
 
 def _entry_records(entry: str, module_suffixes: list[str], warn: _WarnBadDist) -> t.Optional[list[_DistributionRecord]]:
     """Records for the distributions under one sys.path entry; None if the scan failed."""
+    # Deferred native scan (see module ``__getattr__``). A bare global lookup
+    # here would not go through ``__getattr__``, so resolve-and-cache first,
+    # then use whatever the module globals hold (tests monkeypatch it).
+    if "scan_distributions" not in globals():
+        __getattr__("scan_distributions")
+    scan_distributions = globals()["scan_distributions"]
+
     try:
         # Only the prefetch thread, which is joined before interpreter shutdown,
         # may release the GIL: see scan_distributions.

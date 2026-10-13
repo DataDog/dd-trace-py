@@ -1,15 +1,25 @@
 import logging
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.constants import MAX_UINT_64BITS
-from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
-from ddtrace.internal.native._native import is_sequence  # noqa: F401
 from ddtrace.internal.settings import env
 
 from ..compat import ensure_text
+
+
+if TYPE_CHECKING:
+    # Re-exported lazily via ``__getattr__`` below: these helpers live in the
+    # compiled extension, and this module is imported from the ``ddtrace``
+    # package ``__init__`` chain (telemetry imports it at import time), so an
+    # eager import here would load the shared library on every
+    # ``import ddtrace``. They resolve on first attribute access instead,
+    # which only happens when an OTel span actually flattens attributes.
+    from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
+    from ddtrace.internal.native._native import is_sequence  # noqa: F401
 
 
 VALUE_PLACEHOLDER = "?"
@@ -22,6 +32,15 @@ T = TypeVar("T")
 
 
 log = logging.getLogger(__name__)
+
+
+def __getattr__(name: str) -> Any:
+    """PEP 562 lazy re-export of the native attribute-flattening helpers."""
+    if name in ("flatten_key_value", "is_sequence"):
+        import ddtrace.internal.native._native as _native
+
+        return getattr(_native, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def deep_getattr(obj: Any, attr_string: str, default: Optional[Any] = None) -> Optional[Any]:

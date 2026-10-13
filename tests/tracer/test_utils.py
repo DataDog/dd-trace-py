@@ -114,6 +114,57 @@ def test_is_sequence(value, expected):
     assert is_sequence(value) == expected
 
 
+@pytest.mark.subprocess
+def test_formats_does_not_load_native_eagerly():
+    """The shared import-chain plumbing must not load the compiled extension.
+
+    ``ddtrace.internal.utils.formats``, ``ddtrace.internal.packages`` and
+    ``ddtrace.internal.atexit`` are all imported from the ``ddtrace`` package
+    ``__init__`` chain, but only the tracer/telemetry components actually need
+    the extension. Importing the native helpers at module level in this
+    plumbing would attribute the shared-library load to code that must stay
+    pure (and would load it even in tracer-free processes). This test imports
+    the plumbing and asserts that any load of the extension that happens is
+    not caused by it.
+    """
+    import inspect
+    import sys
+
+    native_import_stacks = []
+
+    def _record_native_import(event, args):
+        # Record the stack of every import of the compiled extension so the
+        # test can attribute the load to its importer.
+        if event == "import" and args[0] == "ddtrace.internal.native._native":
+            filenames = []
+            frame = inspect.currentframe().f_back
+            while frame is not None:
+                filenames.append(frame.f_code.co_filename)
+                frame = frame.f_back
+            native_import_stacks.append(filenames)
+
+    sys.addaudithook(_record_native_import)
+
+    import ddtrace.internal.utils.formats as formats
+
+    # The helpers resolve lazily: importing the module must not touch them.
+    # (The extension may still load during this import for its own reasons --
+    # the package __init__ instantiates a tracer -- which is exactly what the
+    # attribution check below is about.)
+    for stack in native_import_stacks:
+        assert not any(
+            f.replace("\\", "/").endswith(("internal/utils/formats.py", "internal/packages.py", "internal/atexit.py"))
+            for f in stack
+        ), "the shared import-chain plumbing must not load the native extension: %s" % [
+            f for stack in native_import_stacks for f in stack
+        ]
+
+    # First attribute access resolves the helpers lazily and works.
+    assert formats.flatten_key_value("k", ["a", 1]) == {"k.0": "a", "k.1": 1}
+    assert formats.is_sequence([1, 2]) is True
+    assert "ddtrace.internal.native._native" in sys.modules
+
+
 def test_no_states():
     watch = time.StopWatch()
     with pytest.raises(RuntimeError):
