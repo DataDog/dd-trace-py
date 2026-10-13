@@ -65,7 +65,6 @@ from tests.suitespec import get_test_environments  # noqa: E402
 
 # Constants
 TESTAGENT_PORT_DEFAULT = 9126
-TESTAGENT_OTLP_PORT_DEFAULT = 4318
 PODMAN_COMPAT_ENV_VAR = "DD_TEST_PODMAN_COMPAT"
 BASE_COMPOSE_FILE = ROOT / "docker-compose.base.yml"
 DOCKER_COMPOSE_FILE = ROOT / "docker-compose.yml"
@@ -220,10 +219,11 @@ class TestRunner:
     def start_services(self, services: set[str]) -> bool:
         """Start required Docker services.
 
-        For testagent, first tries the default port (9126). If that fails
-        (e.g., another worktree already claimed it), retries with a random
-        port by setting TESTAGENT_HOST_PORT=0. When DD_TEST_PODMAN_COMPAT=1,
-        all requested services use the Podman host-network Compose override.
+        For testagent, first tries the default ports (9126 and 4318). If that
+        fails (e.g., another worktree already claimed one), retries with random
+        ports by setting TESTAGENT_HOST_PORT=0 and TESTAGENT_OTLP_HOST_PORT=0.
+        When DD_TEST_PODMAN_COMPAT=1, all requested services use the Podman
+        host-network Compose override.
         """
         if not services:
             return True
@@ -237,9 +237,9 @@ class TestRunner:
             if "testagent" in services and not self.podman_compat:
                 # NOTE: When falling back to a random port, snapshot tests that
                 # hardcode localhost:9126 in their URLs (e.g., in test code or
-                # snapshot files) may fail. This only happens for the second+
-                # concurrent worktree; the first always gets port 9126.
-                print("⚠️  Port conflict detected, retrying testagent with a random port...")
+                # snapshot files) may fail, as do OTLP snapshot tests, which
+                # export to port 4318. This happens when 9126 or 4318 is taken.
+                print("⚠️  Port conflict detected, retrying testagent with random ports...")
                 os.environ["TESTAGENT_HOST_PORT"] = "0"
                 os.environ["TESTAGENT_OTLP_HOST_PORT"] = "0"
                 try:
@@ -280,27 +280,6 @@ class TestRunner:
         url = f"http://localhost:{TESTAGENT_PORT_DEFAULT}"
         print(f"⚠️  Falling back to {url}")
         return url
-
-    def get_testagent_otlp_url(self) -> str:
-        """Discover the testagent OTLP HTTP URL by querying its dynamically assigned host port."""
-        default_url = f"http://localhost:{TESTAGENT_OTLP_PORT_DEFAULT}"
-        if self.podman_compat:
-            return default_url
-
-        try:
-            result = subprocess.run(
-                self._compose_command("port", "testagent", str(TESTAGENT_OTLP_PORT_DEFAULT)),
-                capture_output=True,
-                text=True,
-                cwd=self.root,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                host_port = result.stdout.strip().rsplit(":", 1)[-1]
-                return f"http://localhost:{host_port}"
-        except Exception as e:
-            print(f"⚠️  Failed to discover testagent OTLP port: {e}")
-
-        return default_url
 
     def stop_services(self, services: set[str]) -> bool:
         """Stop and remove Docker services."""
@@ -737,16 +716,10 @@ class TestRunner:
                     return False
                 env["DD_TRACE_AGENT_URL"] = testagent_url
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
-                if not self.in_ci:
-                    # In CI, tests derive the OTLP URL from the testagent host instead.
-                    env["DD_TEST_OTLP_URL"] = self.get_testagent_otlp_url()
-                    print(f"🔧 Setting DD_TEST_OTLP_URL={env['DD_TEST_OTLP_URL']} for OTLP snapshot tests")
 
             forwarded_env = {key: env[key] for key in suite_env}
             if needs_testagent:
                 forwarded_env["DD_TRACE_AGENT_URL"] = env["DD_TRACE_AGENT_URL"]
-                if "DD_TEST_OTLP_URL" in env:
-                    forwarded_env["DD_TEST_OTLP_URL"] = env["DD_TEST_OTLP_URL"]
             suite_success = self._run_environments(
                 environments,
                 forwarded_env,

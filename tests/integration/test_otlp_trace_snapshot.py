@@ -1,8 +1,13 @@
 import pytest
 
+from tests.integration.utils import AGENT_VERSION
+
+
+pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+
 
 # The test agent snapshots the exported OTLP traces to <token>_otlp_traces.json as they are sent to a collector.
-@pytest.mark.snapshot(ignores=["meta.tracestate"])
+@pytest.mark.snapshot(ignores=["meta.tracestate", "meta.telemetry.sdk.version"])
 @pytest.mark.subprocess(
     env={
         "DD_SERVICE": "otlp-trace-snapshot",
