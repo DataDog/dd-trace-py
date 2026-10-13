@@ -1609,6 +1609,21 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
+    # Compatibility: the legacy plugin accepted --ddtrace-include-class-name (and the
+    # ddtrace-include-class-name ini) to prepend class names to test names. The new plugin
+    # always includes the class name in test names, so the option is a no-op, but it stays
+    # accepted so existing commands do not fail with "unrecognized arguments".
+    group.addoption(
+        "--ddtrace-include-class-name",
+        action="store_true",
+        dest="ddtrace-include-class-name",
+        default=False,
+        help="Deprecated no-op: class names are always included in test names",
+    )
+    parser.addini(
+        "ddtrace-include-class-name", "Deprecated no-op: class names are always included in test names", type="bool"
+    )
+
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_addoption(parser)
 
 
@@ -1732,6 +1747,20 @@ def pytest_configure(config: pytest.Config) -> None:
                     message=(
                         "the legacy pytest plugin has been removed. The environment variable no longer has any "
                         "effect and can be removed from your configuration."
+                    ),
+                    removal_version="5.0.0",
+                )
+            ),
+            stacklevel=2,
+        )
+    if config.getoption("ddtrace-include-class-name", False) or config.getini("ddtrace-include-class-name"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "--ddtrace-include-class-name / ddtrace-include-class-name are deprecated",
+                    message=(
+                        "the legacy pytest plugin that supported them has been removed. Class names are always "
+                        "included in test names; remove the option from your command line or configuration."
                     ),
                     removal_version="5.0.0",
                 )

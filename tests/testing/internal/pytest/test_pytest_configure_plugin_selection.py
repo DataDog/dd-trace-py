@@ -36,6 +36,11 @@ def disable_kill_switch():
 def _make_mock_config(plugin_names=(), atr_enabled=False, efd_enabled=False, atf_enabled=False):
     """Return a mock pytest.Config whose pluginmanager.hasplugin reflects plugin_names."""
     config = mock.MagicMock()
+    # The legacy --ddtrace-include-class-name option and ini are deprecated no-ops that
+    # pytest_configure checks; default the lookups to False so MagicMock truthiness does
+    # not spuriously trip the deprecation warning in every test.
+    config.getoption.return_value = False
+    config.getini.return_value = False
     config.stash = {}
     config.pluginmanager.hasplugin.side_effect = lambda name: name in plugin_names
     session_manager = mock.MagicMock()
@@ -335,6 +340,39 @@ class TestLegacyPluginSelectionEnvVarDeprecation:
     def test_env_vars_unset_emit_no_warning(self, monkeypatch):
         monkeypatch.delenv("DD_PYTEST_USE_NEW_PLUGIN", raising=False)
         monkeypatch.delenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", raising=False)
+        config, _ = _make_mock_config()
+
+        pytest_configure(config)
+
+        config.issue_config_time_warning.assert_not_called()
+
+
+class TestLegacyIncludeClassNameDeprecation:
+    """--ddtrace-include-class-name / ddtrace-include-class-name are deprecated no-ops."""
+
+    def test_option_set_emits_deprecation_warning(self):
+        config, _ = _make_mock_config()
+        config.getoption.return_value = True
+        config.getini.return_value = False
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+        warning = config.issue_config_time_warning.call_args.args[0]
+        assert isinstance(warning, DDTraceDeprecationWarning)
+        assert "--ddtrace-include-class-name / ddtrace-include-class-name are deprecated" in str(warning)
+        assert "always included in test names" in str(warning)
+
+    def test_ini_set_emits_deprecation_warning(self):
+        config, _ = _make_mock_config()
+        config.getoption.return_value = False
+        config.getini.return_value = True
+
+        pytest_configure(config)
+
+        assert config.issue_config_time_warning.call_count == 1
+
+    def test_option_and_ini_unset_emit_no_warning(self):
         config, _ = _make_mock_config()
 
         pytest_configure(config)
