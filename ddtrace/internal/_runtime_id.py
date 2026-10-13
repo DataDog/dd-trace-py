@@ -2,6 +2,9 @@ import logging
 import typing as t
 import uuid
 
+from ddtrace.internal.serverless import MICROVM_RUN_HOOK_METHOD
+from ddtrace.internal.serverless import MICROVM_RUN_HOOK_PATH
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.settings import env
 
 from . import forksafe
@@ -16,6 +19,7 @@ __all__ = [
     "get_runtime_id",
     "get_parent_runtime_id",
     "get_runtime_propagation_envs",
+    "maybe_refresh_identity",
     "refresh_identity",
 ]
 
@@ -68,8 +72,7 @@ def _notify_runtime_id_callbacks(callbacks: t.Set[t.Callable[[str], None]]) -> N
 
 def _notify_runtime_identity_refresh_callbacks(*, raise_on_error: bool = False) -> None:  # noqa: UP006
     # Direct refresh callers keep subscriber failures isolated so every component gets
-    # a chance to rebuild. The MicroVM coordinator opts into propagation so a failed
-    # rebuild leaves its completion guard unset and the same identity can be retried.
+    # a chance to rebuild.
     for cb in list(_ON_RUNTIME_IDENTITY_REFRESH):
         if raise_on_error:
             cb(_RUNTIME_ID)
@@ -115,6 +118,31 @@ def refresh_identity(raise_on_error: bool = False) -> None:
     # state, which is different from the fork handling in _set_runtime_id().
     _refresh_runtime_id()
     _notify_runtime_identity_refresh_callbacks(raise_on_error=raise_on_error)
+
+
+# Multiple request layers can observe the same /run hook. Refresh identity once per
+# process so a single logical MicroVM instance gets one runtime-id rotation.
+_IDENTITY_REFRESH_HOOK_REFRESHED = forksafe.Event()
+_IDENTITY_REFRESH_HOOK_REFRESH_LOCK = forksafe.Lock()
+
+
+def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
+    """Call refresh_identity() if this request is the AWS Lambda MicroVM /run hook."""
+    # The listener stays installed for the process lifetime, so check completion first.
+    if _IDENTITY_REFRESH_HOOK_REFRESHED.is_set():
+        return
+    if not in_aws_lambda_microvm():
+        return
+    if method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
+        return
+
+    with _IDENTITY_REFRESH_HOOK_REFRESH_LOCK:
+        if _IDENTITY_REFRESH_HOOK_REFRESHED.is_set():
+            return
+        # /run reaches a process once, so there is no retry: callback failures are logged and
+        # each consumer compares its state with get_runtime_id() to rebuild itself.
+        refresh_identity()
+        _IDENTITY_REFRESH_HOOK_REFRESHED.set()
 
 
 def get_runtime_id() -> str:
