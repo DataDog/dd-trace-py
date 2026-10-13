@@ -66,30 +66,23 @@ _tool_lock = Lock()
 _registry_lock = RLock()
 
 
-# CodeType.__eq__ treats structurally-identical code objects (e.g. two
-# CodeType.replace() clones, or two exec()'d copies of identical source) as
-# equal, which a plain weakref.WeakKeyDictionary would conflate. Keying on
-# id(code) via IdentityWeakKeyDictionary keeps distinct code objects separate.
-# NOTE: CodeType equality is structural. Keep identity semantics here and in
-# every code-object registry built on this class, or separately compiled/reloaded
-# copies of the same code will overwrite each other.
-_IdentityWeakKeyDictionary = IdentityWeakKeyDictionary[CodeType, Any]
-
-
 def _on_code_registration_collected() -> None:
     """Release tool ownership when weak cleanup removes the final local registration."""
     with _registry_lock:
         _release_tool_if_unused()
 
 
-_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_registration_collected)
+# NOTE: CodeType equality is structural. Keep identity semantics here and in
+# every code-object registry built on this class, or separately compiled/reloaded
+# copies of the same code will overwrite each other.
+_registry: IdentityWeakKeyDictionary[CodeType, Any] = IdentityWeakKeyDictionary(_on_code_registration_collected)
 
 
 def _disarm_registry_cleanup() -> None:
     global _registry
 
     with _registry_lock:
-        registry, _registry = _registry, _IdentityWeakKeyDictionary()
+        registry, _registry = _registry, IdentityWeakKeyDictionary()
         registry.clear()
 
 
