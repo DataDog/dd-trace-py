@@ -111,12 +111,16 @@ def _capture_request_states(
         if not req_state:
             continue
 
-        spans_data[req_id] = {
-            "trace_headers": engine_core_output.trace_headers,
-            "arrival_time": req_state.stats.arrival_time if req_state.stats else None,
-            "data": extract_request_data(req_state, engine_core_output),
-            "stats": req_state.stats,
-        }
+        # Catch errors per request, so that one failure does not drop the data of the other requests in the batch.
+        try:
+            spans_data[req_id] = {
+                "trace_headers": engine_core_output.trace_headers,
+                "arrival_time": req_state.stats.arrival_time if req_state.stats else None,
+                "data": extract_request_data(req_state, engine_core_output),
+                "stats": req_state.stats,
+            }
+        except Exception:
+            logger.warning("Failed to capture vLLM request state for request %s", req_id, exc_info=True)
 
     return spans_data
 
