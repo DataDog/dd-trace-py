@@ -13,8 +13,8 @@
 # without searching. Expanding to all of dd-trace-py is a later flip.
 #
 # Prints candidates. Does not score them and does not push. Exit 0 on a
-# completed search or a scope skip. Exit 1 only when git/gh is missing
-# or the repo cannot be resolved.
+# completed search or a scope skip. Exit 1 when git/gh is missing, the
+# repo cannot be resolved, or the default branch / merge-base cannot.
 
 set -euo pipefail
 
@@ -49,13 +49,13 @@ if git rev-parse --verify "origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
 elif git rev-parse --verify "${DEFAULT_BRANCH}" >/dev/null 2>&1; then
   BASE_REF="${DEFAULT_BRANCH}"
 else
-  BASE_REF="HEAD"
+  echo "error: cannot resolve default branch '${DEFAULT_BRANCH}' (tried origin/${DEFAULT_BRANCH} and ${DEFAULT_BRANCH})" >&2
+  exit 1
 fi
 
-if MERGE_BASE="$(git merge-base "${BASE_REF}" HEAD 2>/dev/null)"; then
-  :
-else
-  MERGE_BASE="$(git rev-parse HEAD)"
+if ! MERGE_BASE="$(git merge-base "${BASE_REF}" HEAD 2>/dev/null)"; then
+  echo "error: cannot resolve merge-base of ${BASE_REF} and HEAD" >&2
+  exit 1
 fi
 
 # Python profiling paths only (suitespec @profiling + CODEOWNERS Profiling

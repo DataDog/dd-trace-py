@@ -155,6 +155,44 @@ check_contains "${out}" "ddtrace/profiling/foo.py" "lists the profiling file"
 check_contains "${out}" "## extra-terms: heap live" "passes extra keywords"
 check_contains "${out}" "## open (includes drafts)" "lists open PRs when in scope"
 
+# 6. Missing default-branch ref: fail, do not treat HEAD as the base
+# (that makes merge-base == HEAD and the diff empty).
+NOBASE="${TMPROOT}/nobase"
+init_repo "${NOBASE}" "git@github.com:DataDog/dd-trace-py.git"
+git -C "${NOBASE}" checkout -b feature >/dev/null
+mkdir -p "${NOBASE}/ddtrace/profiling"
+printf 'x\n' > "${NOBASE}/ddtrace/profiling/foo.py"
+git -C "${NOBASE}" add ddtrace/profiling/foo.py
+git -C "${NOBASE}" -c commit.gpgsign=false commit -m 'profiling' >/dev/null
+git -C "${NOBASE}" update-ref -d refs/remotes/origin/main
+git -C "${NOBASE}" branch -D main >/dev/null
+set +e
+out="$(cd "${NOBASE}" && PATH="${BIN}:${PATH}" "${TARGET}" 2>&1)"
+rc=$?
+set -e
+check_rc "${rc}" 1 "missing default-branch ref exits 1"
+check_contains "${out}" "cannot resolve default branch" "missing default-branch ref error text"
+check_not_contains "${out}" "## scope: skip" "missing default-branch ref is not a silent skip"
+
+# 7. Unrelated origin/main: fail, do not fall back to HEAD.
+UNREL="${TMPROOT}/unrel"
+init_repo "${UNREL}" "git@github.com:DataDog/dd-trace-py.git"
+git -C "${UNREL}" checkout -b feature >/dev/null
+mkdir -p "${UNREL}/ddtrace/profiling"
+printf 'x\n' > "${UNREL}/ddtrace/profiling/foo.py"
+git -C "${UNREL}" add ddtrace/profiling/foo.py
+git -C "${UNREL}" -c commit.gpgsign=false commit -m 'profiling' >/dev/null
+empty_tree="$(git -C "${UNREL}" mktree < /dev/null)"
+orphan="$(git -C "${UNREL}" commit-tree "${empty_tree}" -m 'unrelated')"
+git -C "${UNREL}" update-ref refs/remotes/origin/main "${orphan}"
+set +e
+out="$(cd "${UNREL}" && PATH="${BIN}:${PATH}" "${TARGET}" 2>&1)"
+rc=$?
+set -e
+check_rc "${rc}" 1 "unrelated merge-base exits 1"
+check_contains "${out}" "cannot resolve merge-base" "unrelated merge-base error text"
+check_not_contains "${out}" "## scope: skip" "unrelated merge-base is not a silent skip"
+
 if [[ "${fail}" -gt 0 ]]; then
   printf '\n%d failed, %d passed\n' "${fail}" "${pass}"
   exit 1
