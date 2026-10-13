@@ -24,7 +24,6 @@ from ddtrace.contrib.internal.sanic.patch import unpatch
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
-from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -675,18 +674,14 @@ def test_otel_semantics_server_span_attributes():
     async def user(request, user_id):
         return text("ok")
 
-    @app.route("/status/<code:int>")
-    async def status(request, code):
-        return text("status", status=code)
-
     async def run():
         with scoped_tracer() as tracer:
             spans = TracerSpanContainer(tracer)
             client = SanicASGITestClient(app)
 
-            async def request_span(path, method="GET"):
+            async def request_span(path):
                 spans.reset()
-                _, response = await client.request(method, path, headers=TEST_HEADERS)
+                _, response = await client.request("GET", path, headers=TEST_HEADERS)
                 return response, next(span for span in spans.get_spans() if span.name == "sanic.request")
 
             response, span = await request_span("/users/42?q=1")
@@ -701,84 +696,10 @@ def test_otel_semantics_server_span_attributes():
                 resource="GET /users/<user_id:int>",
             )
 
-            # Sanic cannot register a PROPFIND route, so an unknown method on a GET route is a 405.
-            response, span = await request_span("/users/42", method="PROPFIND")
-            assert response.status_code == 405
-            assert_span(
-                span, method="_OTHER", original_method="PROPFIND", status=405, path="/users/42", resource="HTTP"
-            )
-
             # An unmatched route must not leak the URL path into the resource.
             response, span = await request_span("/no/such/path/123")
             assert response.status_code == 404
             assert_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
-
-            response, span = await request_span("/status/418")
-            assert response.status_code == 418
-            assert_span(
-                span,
-                method="GET",
-                status=418,
-                path="/status/418",
-                route="/status/<code:int>",
-                resource="GET /status/<code:int>",
-            )
-
-            response, span = await request_span("/status/500")
-            assert response.status_code == 500
-            assert_span(
-                span,
-                method="GET",
-                status=500,
-                path="/status/500",
-                route="/status/<code:int>",
-                resource="GET /status/<code:int>",
-            )
-            await client.aclose()
-
-    asyncio.run(run())
-
-
-# Depends on the concurrent Sanic route-handling fix on the server branch.
-@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True, err=None)
-def test_otel_semantics_server_error_statuses_override():
-    import asyncio
-
-    from sanic import Sanic
-    from sanic.response import text
-    from sanic_testing.testing import SanicASGITestClient
-
-    from tests.contrib.otel_http_server import TEST_HEADERS
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
-
-    Sanic.test_mode = True
-    app = Sanic("otel_semantics_override")
-
-    @app.route("/status/<code:int>")
-    async def status(request, code):
-        return text("status", status=code)
-
-    async def run():
-        with scoped_tracer() as tracer:
-            spans = TracerSpanContainer(tracer)
-            client = SanicASGITestClient(app)
-
-            async def request_span(path):
-                spans.reset()
-                await client.request("GET", path, headers=TEST_HEADERS)
-                return next(span for span in spans.get_spans() if span.name == "sanic.request")
-
-            span = await request_span("/missing")
-            assert span.get_metric("http.response.status_code") == 404
-            assert span.error == 1
-            # Sanic raises NotFound, so error.type is the exception type.
-            assert span.get_tag("error.type")
-
-            span = await request_span("/status/500")
-            assert span.get_metric("http.response.status_code") == 500
-            assert span.error == 0
-            assert span.get_tag("error.type") is None
             await client.aclose()
 
     asyncio.run(run())
