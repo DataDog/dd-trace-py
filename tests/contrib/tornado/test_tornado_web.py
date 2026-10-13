@@ -789,17 +789,17 @@ def test_otel_semantics_server_span_attributes():
 
     class UserHandler(tornado.web.RequestHandler):
         def get(self, user_id):
-            self.write(user_id)
+            self.write("ok")
 
         def propfind(self, user_id):
-            self.write(user_id)
+            self.write("ok")
 
         SUPPORTED_METHODS = ("GET", "PROPFIND")
 
     class StatusHandler(tornado.web.RequestHandler):
         def get(self, status):
             self.set_status(int(status))
-            self.write(status)
+            self.write("ok")
 
     patch()
     patch_futures()
@@ -895,7 +895,7 @@ def test_otel_semantics_server_error_statuses_override():
     class StatusHandler(tornado.web.RequestHandler):
         def get(self, status):
             self.set_status(int(status))
-            self.write(status)
+            self.write("ok")
 
     patch()
     patch_futures()

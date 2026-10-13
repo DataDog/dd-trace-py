@@ -116,7 +116,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
     def test_otel_semantics_replaces_flask_route_resource(self):
         @self.app.route("/users/<int:user_id>")
         def user(user_id):
-            return str(user_id)
+            return "ok"
 
         with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
             response = self.client.get("/users/42")
@@ -145,7 +145,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         @self.app.route("/items/<int:item_id>", methods=["PROPFIND"])
         def item(item_id):
             captured["resource"] = tracer.current_root_span().resource
-            return str(item_id)
+            return "ok"
 
         with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
             response = self.client.open("/items/42", method="PROPFIND")
@@ -157,7 +157,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
     def test_otel_semantics_does_not_expose_raw_path_resource_during_request(self):
         @self.app.route("/users/<int:user_id>")
         def user(user_id):
-            return str(user_id)
+            return "ok"
 
         captured = []
 
@@ -1371,7 +1371,7 @@ def test_otel_semantics_server_span_attributes():
 
     @app.route("/users/<int:user_id>")
     def user(user_id):
-        return str(user_id)
+        return "ok"
 
     @app.route("/teapot")
     def teapot():

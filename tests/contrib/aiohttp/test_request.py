@@ -207,7 +207,7 @@ def test_otel_semantics_server_span_attributes():
     assert_span = partial(assert_otel_server_span, peer_address=False)
 
     async def user(request):
-        return web.Response(text=request.match_info["user_id"])
+        return web.Response(text="ok")
 
     async def status(request):
         return web.Response(text="status", status=int(request.match_info["code"]))

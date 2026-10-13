@@ -673,7 +673,7 @@ def test_otel_semantics_server_span_attributes():
 
     @app.route("/users/<user_id:int>")
     async def user(request, user_id):
-        return text(str(user_id))
+        return text("ok")
 
     @app.route("/status/<code:int>")
     async def status(request, code):
