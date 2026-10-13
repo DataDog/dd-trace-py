@@ -1,5 +1,6 @@
-// Reading locals can trigger side effects; this protects about recursive reading of the locals potentially
-// caused by them
+// Reading a frame's locals can run user code, which may land back in
+// get_info_frame. This marks the native stack walk so a nested call gives up
+// instead of recursing.
 #if defined(_MSC_VER)
 __declspec(thread) static int in_stacktrace = 0;
 #else
@@ -10,6 +11,8 @@ static __thread int in_stacktrace = 0;
 #include <frameobject.h>
 #include <patchlevel.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
 #include <internal/pycore_frame.h>
@@ -65,7 +68,20 @@ GET_FUNCTION(PyFrameObject* frame)
 #define FRAME_XDECREF(frame)
 #define FILENAME_DECREF(filename)
 #define FILENAME_XDECREF(filename)
-#define GET_LOCALS(frame) ((PyObject*)(frame->f_locals))
+/* FastToLocals populates frame->f_locals before we read it, and we take our own
+ * reference so the caller releases locals the same way on every version. */
+static inline PyObject*
+GET_LOCALS(PyFrameObject* frame)
+{
+    if (PyFrame_FastToLocalsWithError(frame) < 0) {
+        // Best effort: a frame whose locals cannot be materialised simply has no
+        // class name, and leaving the error pending would surface it later.
+        PyErr_Clear();
+        return NULL;
+    }
+    Py_XINCREF(frame->f_locals);
+    return frame->f_locals;
+}
 static inline PyObject*
 GET_FUNCTION(PyFrameObject* frame)
 {
@@ -81,45 +97,115 @@ GET_FUNCTION(PyFrameObject* frame)
 #endif
 #endif
 
+/* A directory prefix in both the form the interpreter reports and its resolved
+ * form.
+ *
+ * sysconfig reports the symlinked layout on some distributions -- homebrew gives
+ * /opt/homebrew/opt/... while co_filename carries /opt/homebrew/Cellar/... -- so a
+ * single string misses every frame under it. Resolving here, once, keeps the
+ * per-frame check free of syscalls.
+ */
+typedef struct
+{
+    char* path;
+    ssize_t path_len;
+    char* resolved;
+    ssize_t resolved_len;
+} path_root_t;
+
 // Python standard library path
-static char* STDLIB_PATH = NULL;
-static ssize_t STDLIB_PATH_LEN = 0;
+static path_root_t STDLIB_ROOT = { NULL, 0, NULL, 0 };
 
 // Python site-packages path
-static char* PURELIB_PATH = NULL;
-static ssize_t PURELIB_PATH_LEN = 0;
+static path_root_t PURELIB_ROOT = { NULL, 0, NULL, 0 };
 
 // ddtrace module path
-static char* DDTRACE_PATH = NULL;
-static ssize_t DDTRACE_PATH_LEN = 0;
+static path_root_t DDTRACE_ROOT = { NULL, 0, NULL, 0 };
 
-static inline PyObject*
-SAFE_GET_LOCALS(PyFrameObject* frame)
+/* True when `filename` is `root` itself or sits directly under it. The separator
+ * check keeps /srv/ddtrace-tools/x.py out of /srv/ddtrace. */
+static inline bool
+_is_prefixed_by(const char* filename, const char* root, ssize_t root_len)
 {
-    if (in_stacktrace) {
-        // Return a nullptr to avoid triggering reentrant native calls.
+    if (strncmp(filename, root, root_len) != 0) {
+        return false;
+    }
+    const char next = filename[root_len];
+    return next == '\0' || next == '/' || next == '\\';
+}
+
+static inline bool
+_is_under(const char* filename, const path_root_t* root)
+{
+    if (!filename || !root->path) {
+        return false;
+    }
+    return _is_prefixed_by(filename, root->path, root->path_len) ||
+           (root->resolved != NULL && _is_prefixed_by(filename, root->resolved, root->resolved_len));
+}
+
+/* Takes ownership of `path`. */
+static void
+path_root_set(path_root_t* root, char* path)
+{
+    if (!path) {
+        return;
+    }
+    root->path = path;
+    root->path_len = strlen(path);
+
+#if !defined(_WIN32)
+    char* resolved = realpath(path, NULL);
+    if (resolved != NULL && strcmp(resolved, path) != 0) {
+        root->resolved = resolved;
+        root->resolved_len = strlen(resolved);
+    } else {
+        free(resolved);
+    }
+#endif
+}
+
+/* PyFrame_GetLocals returns a dict up to 3.13 and a PyFrameLocalsProxy from 3.14,
+ * so look the name up through the mapping protocol rather than
+ * PyDict_GetItemString. Returns a new reference, or NULL when the frame has no
+ * `self`. */
+static inline PyObject*
+GET_SELF(PyObject* locals)
+{
+    PyObject* key = PyUnicode_InternFromString("self");
+    if (!key) {
+        PyErr_Clear();
         return NULL;
     }
-    return GET_LOCALS(frame);
+    PyObject* self_obj = PyObject_GetItem(locals, key);
+    Py_DecRef(key);
+    if (!self_obj) {
+        // A plain function has no `self`; the KeyError is not an error here.
+        PyErr_Clear();
+    }
+    return self_obj;
 }
 
 static inline PyObject*
 GET_CLASS(PyFrameObject* frame)
 {
     if (frame) {
-        PyObject* locals = SAFE_GET_LOCALS(frame);
+        PyObject* locals = GET_LOCALS(frame);
         if (locals) {
-            PyObject* self_obj = PyDict_GetItemString(locals, "self");
+            PyObject* self_obj = GET_SELF(locals);
             if (self_obj) {
                 PyObject* self_class = PyObject_GetAttrString(self_obj, "__class__");
+                Py_DecRef(self_obj);
                 if (self_class) {
                     PyObject* class_name = PyObject_GetAttrString(self_class, "__name__");
                     Py_DecRef(self_class);
                     if (class_name) {
+                        Py_DecRef(locals);
                         return class_name;
                     }
                 }
             }
+            Py_DecRef(locals);
         }
     }
     return PyUnicode_FromString("");
@@ -138,15 +224,16 @@ _is_special_frame(const char* filename)
 static inline bool
 _is_ddtrace_filename(const char* filename)
 {
-    return filename && DDTRACE_PATH && strncmp(filename, DDTRACE_PATH, DDTRACE_PATH_LEN) == 0;
+    return _is_under(filename, &DDTRACE_ROOT);
 }
 
 static inline bool
 _is_site_packages_filename(const char* filename)
 {
-    const bool res = filename && PURELIB_PATH &&
-                     (strstr(filename, "site-packages/") || strncmp(filename, PURELIB_PATH, PURELIB_PATH_LEN) == 0);
-    return res;
+    // Any `site-packages` path component also covers user site directories and
+    // venvs whose purelib differs from the running interpreter.
+    return filename && (strstr(filename, "/site-packages/") || strstr(filename, "\\site-packages\\") ||
+                        _is_under(filename, &PURELIB_ROOT));
 }
 
 static inline bool
@@ -155,9 +242,7 @@ _is_stdlib_filename(const char* filename)
     // site-packages is often a subdirectory of stdlib directory, so stdlib
     // path is defined as prefixed by stdlib and not prefixed by purelib.
     // TODO: As of Python 3.10, we could use sys.stdlib_module_names.
-    const bool res = filename && STDLIB_PATH && !_is_site_packages_filename(filename) &&
-                     strncmp(filename, STDLIB_PATH, STDLIB_PATH_LEN) == 0;
-    return res;
+    return !_is_site_packages_filename(filename) && _is_under(filename, &STDLIB_ROOT);
 }
 
 static char*
@@ -307,8 +392,13 @@ error:
 static PyObject*
 get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
-    // Mark that we are now capturing a stack trace to avoid reentrant calls on GET_LOCALS
+    // Reading a frame's locals can run user code, which may land back here. The
+    // nested call gives up rather than recursing.
+    if (in_stacktrace) {
+        return PyTuple_Pack(4, Py_None, Py_None, Py_None, Py_None);
+    }
     in_stacktrace = 1;
+
     PyFrameObject* frame = NULL;
     PyFrameObject* backup_frame = NULL;
     PyObject* result = NULL;
@@ -370,17 +460,8 @@ PyInit__stacktrace(void)
     PyObject* m = PyModule_Create(&stacktrace);
     if (m == NULL)
         return NULL;
-    STDLIB_PATH = get_sysconfig_path("stdlib");
-    if (STDLIB_PATH) {
-        STDLIB_PATH_LEN = strlen(STDLIB_PATH);
-    }
-    PURELIB_PATH = get_sysconfig_path("purelib");
-    if (PURELIB_PATH) {
-        PURELIB_PATH_LEN = strlen(PURELIB_PATH);
-    }
-    DDTRACE_PATH = get_ddtrace_path();
-    if (DDTRACE_PATH) {
-        DDTRACE_PATH_LEN = strlen(DDTRACE_PATH);
-    }
+    path_root_set(&STDLIB_ROOT, get_sysconfig_path("stdlib"));
+    path_root_set(&PURELIB_ROOT, get_sysconfig_path("purelib"));
+    path_root_set(&DDTRACE_ROOT, get_ddtrace_path());
     return m;
 }
