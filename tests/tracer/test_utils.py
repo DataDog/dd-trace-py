@@ -9,12 +9,12 @@ from ddtrace.internal.base.utils import time
 from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.base.utils.cache import cachedmethod
 from ddtrace.internal.base.utils.cache import callonce
+from ddtrace.internal.native._native import flatten_key_value
+from ddtrace.internal.native._native import is_sequence
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.formats import flatten_key_value
-from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name

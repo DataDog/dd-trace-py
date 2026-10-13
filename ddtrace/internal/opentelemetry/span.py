@@ -24,8 +24,8 @@ from ddtrace.internal import core
 from ddtrace.internal.base.compat import ensure_text
 from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native._native import Context
-from ddtrace.internal.utils.formats import flatten_key_value
-from ddtrace.internal.utils.formats import is_sequence
+from ddtrace.internal.native._native import flatten_key_value
+from ddtrace.internal.native._native import is_sequence
 
 
 if TYPE_CHECKING:

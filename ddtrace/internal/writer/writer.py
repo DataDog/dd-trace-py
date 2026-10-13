@@ -16,13 +16,13 @@ from typing import cast
 from urllib.parse import urlparse as _urlparse
 
 from ddtrace.internal._runtime_id import get_runtime_id
+from ddtrace.internal.base.pyo3 import is_panic_exception
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
-from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
