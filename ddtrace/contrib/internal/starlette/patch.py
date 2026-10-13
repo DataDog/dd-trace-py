@@ -11,21 +11,18 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.otel.http.resource import set_instrumentation_resource
-from ddtrace._trace.otel.http.resource import set_otel_http_resource
-from ddtrace._trace.otel.http.tags import normalize_http_method
-from ddtrace._trace.otel.http.tags import server_url_tag
+from ddtrace._trace.otel.http.tags import copy_server_url_tags
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import http
-from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -268,28 +265,7 @@ def _set_route_resource(span: Span, method: Optional[str], route: str) -> None:
     resource = f"{method} {route}" if method else route
     set_instrumentation_resource(span, resource)
     if config._otel_trace_semantics_enabled and method:
-        normalized_method, original_method = normalize_http_method(method)
-        set_otel_http_resource(span, normalized_method, original_method, route)
-
-
-def _copy_server_url_attributes(source: Span, destination: Span) -> None:
-    if not config._otel_trace_semantics_enabled:
-        url_tag = server_url_tag()
-        destination.set_tag(url_tag, source.get_tag(url_tag))
-        return
-
-    for key in (
-        otel_http.URL_SCHEME,
-        otel_http.URL_PATH,
-        otel_http.URL_QUERY,
-        net.SERVER_ADDRESS,
-        otel_http.SERVER_PORT,
-    ):
-        value = source.get_tag(key)
-        if value is None:
-            value = source.get_metric(key)
-        if value is not None:
-            destination._set_attribute(key, value)
+        set_otel_resource_for_method(span, method, route)
 
 
 def traced_handler(wrapped, instance, args, kwargs):
@@ -383,7 +359,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
-        _copy_server_url_attributes(request_spans[0], request_spans[-1])
+        copy_server_url_tags(request_spans[0], request_spans[-1])
 
     return wrapped(*args, **kwargs)
 
