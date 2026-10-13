@@ -148,8 +148,11 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
             locations=[_coverage.Location("tests/suitespec.yml", 331)],
         )
         tested: dict[str, object] = {"wrapt": info}
-        result: tuple[list[str], list[str], list[object]] = _coverage.check_coverage(pyproject, tested)
+        get_latest: Mock
+        with patch.object(_coverage, "get_pypi_latest_version", return_value=None) as get_latest:
+            result: tuple[list[str], list[str], list[object]] = _coverage.check_coverage(pyproject, tested)
         joined: str = "\n".join(result[0])
+        self.assertEqual(get_latest.call_count, 1)
         self.assertNotIn("could not resolve latest version from PyPI", joined)
         self.assertNotIn("Missing coverage for major(s)", joined)
 
