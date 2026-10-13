@@ -459,7 +459,6 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "windows-sys 0.52.0",
  "zip",
 ]
 
