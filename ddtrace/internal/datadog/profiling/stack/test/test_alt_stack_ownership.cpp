@@ -217,7 +217,9 @@ TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
 
     const std::string one = describe_segv_handler_ownership().owners;
     EXPECT_NE(one.find("test_alt_stack_ownership"), std::string::npos);
-    EXPECT_NE(one.find("+missing_sa_siginfo"), std::string::npos);
+    // missing SA_SIGINFO is only tagged for our own handler; foreign one-arg
+    // handlers are named by module+offset alone.
+    EXPECT_EQ(one.find("missing_sa_siginfo"), std::string::npos);
     EXPECT_EQ(one.find("SIGSEGV=ddtrace"), std::string::npos);
 }
 

@@ -33,8 +33,8 @@ using namespace Datadog;
 static std::string
 lost_ownership_clause(const char* verb, const std::string& foreign_signals) noexcept
 {
-    // Outside the sampling try/catch — if string allocation fails, degrade the
-    // warning text rather than let the exception kill the sampling thread.
+    // Outside the sampling try/catch: if string allocation fails, degrade the
+    // warning text rather than let the exception crash the process.
     try {
         if (foreign_signals.empty()) {
             return "cannot confirm it owns SIGSEGV and SIGBUS";

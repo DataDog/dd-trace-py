@@ -309,10 +309,10 @@ describe_signal_owner(const struct sigaction& current)
 
     void* addr =
       has_siginfo ? reinterpret_cast<void*>(current.sa_sigaction) : reinterpret_cast<void*>(current.sa_handler);
-    if (addr == nullptr) {
-        return "none";
-    }
 
+    // SIG_DFL is a null handler pointer on our platforms, so a null addr was already
+    // returned above. Only tag missing SA_SIGINFO on our own handler — for a foreign
+    // owner the module+offset is what we need to find who took over.
     std::string out;
     Dl_info info{};
     if (dladdr(addr, &info) == 0 || info.dli_fname == nullptr) {
@@ -336,9 +336,6 @@ describe_signal_owner(const struct sigaction& current)
             out += info.dli_sname;
             out += ")";
         }
-    }
-    if (!has_siginfo) {
-        out += "+missing_sa_siginfo";
     }
     return out;
 }
