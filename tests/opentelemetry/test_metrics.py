@@ -150,6 +150,8 @@ def test_otel_metrics_disabled_and_unset():
         "DD_LOGS_OTEL_ENABLED": "true",
         "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.example:4318",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "https://collector.example:443/v1/logs",
     },
 )
 def test_otlp_export_requests_are_not_traced():
@@ -162,14 +164,15 @@ def test_otlp_export_requests_are_not_traced():
 
     from ddtrace.contrib.internal.requests.connection import is_otlp_export
 
-    def prepared(url):
-        return requests.Request("POST", url, headers={"User-Agent": "python-requests/2.34.2"}).prepare()
+    def prepared(url, method="POST"):
+        return requests.Request(method, url, headers={"User-Agent": "python-requests/2.34.2"}).prepare()
 
     # Exports for enabled signals are matched by their full URL.
-    assert is_otlp_export(prepared("http://collector.example:4318/v1/logs")) is True
+    assert is_otlp_export(prepared("https://collector.example/v1/logs")) is True
     assert is_otlp_export(prepared("http://collector.example:4318/v1/traces")) is True
-    # A disabled signal's endpoint, a different path or scheme, and other hosts are user traffic.
+    # A non-POST request, disabled signal, different path or scheme, and other hosts are user traffic.
+    assert is_otlp_export(prepared("https://collector.example/v1/logs", method="GET")) is False
     assert is_otlp_export(prepared("http://collector.example:4318/v1/metrics")) is False
     assert is_otlp_export(prepared("http://collector.example:4318/api/data")) is False
-    assert is_otlp_export(prepared("https://collector.example:4318/v1/logs")) is False
+    assert is_otlp_export(prepared("http://collector.example:443/v1/logs")) is False
     assert is_otlp_export(prepared("http://api.example:8080/v1/logs")) is False

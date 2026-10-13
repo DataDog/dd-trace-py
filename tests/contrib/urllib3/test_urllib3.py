@@ -65,6 +65,7 @@ def test_otel_export_detection_accepts_byte_user_agent():
     env={
         "DD_METRICS_OTEL_ENABLED": "true",
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.example:4318",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     }
 )
 def test_otel_export_without_user_agent_not_traced():
@@ -90,6 +91,91 @@ def test_otel_export_without_user_agent_not_traced():
         )
     assert out.status == 200
     assert tracer._span_aggregator.writer.pop() == []
+
+    with mock.patch.object(pool, "_make_request", return_value=response):
+        out = pool.urlopen(
+            "GET",
+            "/v1/metrics",
+            headers={"User-Agent": "python-urllib3/2.5.0"},
+            preload_content=False,
+        )
+    assert out.status == 200
+    assert len(tracer._span_aggregator.writer.pop()) == 1
+
+
+def test_otel_export_url_normalization_ignores_default_ports():
+    from ddtrace.contrib.internal.urllib3.patch import _normalize_otlp_url
+
+    assert _normalize_otlp_url("http://collector.example:80/v1/metrics") == _normalize_otlp_url(
+        "http://collector.example/v1/metrics"
+    )
+    assert _normalize_otlp_url("https://collector.example:443/v1/metrics") == _normalize_otlp_url(
+        "https://collector.example/v1/metrics"
+    )
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://[::1]:4318",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    }
+)
+def test_otel_export_ipv6_without_user_agent_not_traced():
+    from unittest import mock
+
+    import urllib3
+
+    from ddtrace.contrib.internal.urllib3.patch import patch
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    patch()
+    tracer._span_aggregator.writer = DummyWriter()
+    pool = urllib3.connectionpool.HTTPConnectionPool("::1", 4318)
+    response = urllib3.response.HTTPResponse(status=200)
+    response.msg = {}
+    with mock.patch.object(pool, "_make_request", return_value=response):
+        out = pool.urlopen(
+            "POST",
+            "/v1/metrics",
+            headers={"User-Agent": "python-urllib3/2.5.0"},
+            preload_content=False,
+        )
+    assert out.status == 200
+    assert tracer._span_aggregator.writer.pop() == []
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.example:4317",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+    }
+)
+def test_grpc_otlp_endpoint_request_is_traced():
+    from unittest import mock
+
+    import urllib3
+
+    from ddtrace.contrib.internal.urllib3.patch import patch
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    patch()
+    tracer._span_aggregator.writer = DummyWriter()
+    pool = urllib3.connectionpool.HTTPConnectionPool("collector.example", 4317)
+    response = urllib3.response.HTTPResponse(status=200)
+    response.msg = {}
+    with mock.patch.object(pool, "_make_request", return_value=response):
+        out = pool.urlopen(
+            "POST",
+            "/v1/metrics",
+            headers={"User-Agent": "python-urllib3/2.5.0"},
+            preload_content=False,
+        )
+    assert out.status == 200
+    assert len(tracer._span_aggregator.writer.pop()) == 1
 
 
 class BaseUrllib3TestCase(TracerTestCase):

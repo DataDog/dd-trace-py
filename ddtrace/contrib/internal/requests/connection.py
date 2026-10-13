@@ -34,41 +34,51 @@ def is_otlp_export(request: requests.models.Request) -> bool:
         return True
     # The OTLP HTTP metrics exporter omits the OTLP user-agent header that the trace and
     # log exporters set, so fall back to matching the enabled OTLP export URLs.
-    return _normalize_otlp_url(request.url) in _OTLP_EXPORT_URLS
+    return (
+        request.method is not None
+        and request.method.upper() == "POST"
+        and _normalize_otlp_url(request.url) in _OTLP_EXPORT_URLS
+    )
 
 
 def _normalize_otlp_url(url: str) -> Optional[tuple]:
     parsed = parse.urlparse(url)
     if not parsed.hostname:
         return None
-    return (parsed.scheme, parsed.hostname, parsed.port, parsed.path.rstrip("/"))
+    port = parsed.port
+    if port == {"http": 80, "https": 443}.get(parsed.scheme.lower()):
+        port = None
+    return (parsed.scheme, parsed.hostname, port, parsed.path.rstrip("/"))
 
 
 def _otlp_export_urls() -> frozenset:
     """Full export URLs for the enabled OTLP signals, resolved as the OpenTelemetry SDK does."""
     base = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     urls = set()
-    for enabled, signal_endpoint_var, endpoint, path in (
+    for enabled, protocol, signal_endpoint_var, endpoint, path in (
         (
             config._otel_metrics_enabled,
+            otel_config.exporter.METRICS_PROTOCOL,
             "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
             otel_config.exporter.METRICS_ENDPOINT,
             ExporterConfig.METRICS_PATH,
         ),
         (
             config._otel_logs_enabled,
+            otel_config.exporter.LOGS_PROTOCOL,
             "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
             otel_config.exporter.LOGS_ENDPOINT,
             ExporterConfig.LOGS_PATH,
         ),
         (
             _is_otlp_traces_exporter_enabled(otel_config.exporter),
+            otel_config.exporter.TRACES_PROTOCOL,
             "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
             otel_config.exporter.TRACES_ENDPOINT,
             ExporterConfig.TRACES_PATH,
         ),
     ):
-        if not enabled:
+        if not enabled or protocol is None or protocol.lower() != "http/protobuf":
             continue
         url = base.rstrip("/") + path if base and not env.get(signal_endpoint_var) else endpoint
         normalized = _normalize_otlp_url(url)
