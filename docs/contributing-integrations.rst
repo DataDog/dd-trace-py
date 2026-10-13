@@ -267,8 +267,9 @@ Keep the fields in this order:
     The manifest schema version. Always ``1``.
 
 ``name``
-    The integration name. It must match the directory name, the ``integration_name`` in
-    ``scripts/integration_registry/registry.yaml``, and the name passed to ``config._add()``.
+    The integration name. It must match the directory name and the ``integration_name`` in
+    ``scripts/integration_registry/registry.yaml``. If the integration registers settings with
+    ``config._add()``, it must match that name too.
 
 ``display_name``
     The library's established spelling and capitalization, for example ``Flask``, ``HTTPX``, or ``LangGraph``.
@@ -311,9 +312,9 @@ Most changes to an existing integration do not touch its manifest. Bug fixes, re
 configuration options, and supported-version changes leave it as is. Update the manifest only when:
 
 - The packages that activate the integration change. Update ``packages`` together with ``registry.yaml``.
-- The integration starts instrumenting a new kind of operation, for example a client-only integration that adds
-  server spans. Update ``category``, and ``description`` if it no longer covers the change.
-- The integration adds dedicated support for a new backend or provider. Update ``systems``.
+- The integration starts or stops instrumenting a kind of operation, for example a client-only integration that
+  adds server spans. Add or remove the ``category``, and update ``description`` if it no longer matches.
+- The integration adds or drops dedicated support for a backend or provider. Add or remove the ``systems`` entry.
 - The integration is renamed. Update ``name`` and ``display_name``.
 
 Never change ``creation_date`` on an existing manifest. When an integration is removed, delete its manifest

@@ -17,8 +17,8 @@ agent at runtime. The two are unrelated.
 | New integration | Add `{name}.manifest.yaml` in the same PR |
 | Integration removed | Delete the manifest with the directory |
 | Activating PyPI distribution added/removed (`dependency_names` in `registry.yaml` changes) | Update `packages` |
-| Integration starts instrumenting a new kind of operation (e.g. a client-only integration gains server spans, a cloud SDK gains LLM calls) | Update `category`, and `description` if it no longer covers the operation |
-| Integration gains dedicated handling for a new statically known backend (e.g. botocore adds an AWS service) | Update `systems` |
+| Integration starts or stops instrumenting a kind of operation (e.g. a client-only integration gains server spans, a cloud SDK gains or drops LLM calls) | Add or remove the `category`, and update `description` if it no longer matches |
+| Integration gains or loses dedicated handling for a statically known backend (e.g. botocore adds or drops an AWS service) | Add or remove the `systems` entry |
 | Integration renamed | Update `name` / `display_name` |
 | Bug fix, refactor, new tags, config options, supported-version bump, migration to a new patching API | **No change** — this is the common case |
 
@@ -61,8 +61,10 @@ checking that the source supports them.
 
 `name` is the registry `integration_name` in
 `scripts/integration_registry/registry.yaml`, which also equals the directory
-name and the `config._add()` key. It matches `^[a-z0-9_]+$`. Do not substitute
-a distribution name, import name, or helper module.
+name. If the integration registers settings with `config._add()`, the key must
+match too; integrations without integration-specific settings have no such
+call. It matches `^[a-z0-9_]+$`. Do not substitute a distribution name, import
+name, or helper module.
 
 ### 2. Inventory the patch surface
 
