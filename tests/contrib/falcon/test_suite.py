@@ -7,6 +7,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
+from ddtrace.internal.otel_semantics import http as otel_http
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -144,7 +145,7 @@ class FalconTestCase(FalconTestMixin):
             self.make_test_call("/200", expected_status_code=200)
 
         span = self.pop_traces()[0][0]
-        assert span.get_tag(httpx.OTEL_REQUEST_METHOD) == "GET"
+        assert span.get_tag(otel_http.REQUEST_METHOD) == "GET"
         assert span.get_tag(httpx.ROUTE) == "/200"
         assert span.resource == "GET /200"
 

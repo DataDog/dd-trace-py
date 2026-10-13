@@ -654,6 +654,7 @@ async def test_inferred_spans_api_gateway_default(
 @pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
 def test_otel_semantics_server_span_attributes():
     import asyncio
+    from functools import partial
 
     from sanic import Sanic
     from sanic.response import text
@@ -663,6 +664,9 @@ def test_otel_semantics_server_span_attributes():
     from tests.contrib.otel_http_server import assert_otel_server_span
     from tests.utils import TracerSpanContainer
     from tests.utils import scoped_tracer
+
+    # Sanic does not report the peer address.
+    assert_span = partial(assert_otel_server_span, peer_address=False)
 
     Sanic.test_mode = True
     app = Sanic("otel_semantics")
@@ -687,7 +691,7 @@ def test_otel_semantics_server_span_attributes():
 
             response, span = await request_span("/users/42?q=1")
             assert response.status_code == 200
-            assert_otel_server_span(
+            assert_span(
                 span,
                 method="GET",
                 status=200,
@@ -700,18 +704,18 @@ def test_otel_semantics_server_span_attributes():
             # Sanic cannot register a PROPFIND route, so an unknown method on a GET route is a 405.
             response, span = await request_span("/users/42", method="PROPFIND")
             assert response.status_code == 405
-            assert_otel_server_span(
+            assert_span(
                 span, method="_OTHER", original_method="PROPFIND", status=405, path="/users/42", resource="HTTP"
             )
 
             # An unmatched route must not leak the URL path into the resource.
             response, span = await request_span("/no/such/path/123")
             assert response.status_code == 404
-            assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+            assert_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
 
             response, span = await request_span("/status/418")
             assert response.status_code == 418
-            assert_otel_server_span(
+            assert_span(
                 span,
                 method="GET",
                 status=418,
@@ -722,7 +726,7 @@ def test_otel_semantics_server_span_attributes():
 
             response, span = await request_span("/status/500")
             assert response.status_code == 500
-            assert_otel_server_span(
+            assert_span(
                 span,
                 method="GET",
                 status=500,
