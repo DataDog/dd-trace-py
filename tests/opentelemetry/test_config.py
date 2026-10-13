@@ -397,6 +397,10 @@ def test_otel_resource_attributes_version_tag():
         ("  k1 = v1 ,  k2 = v2 ", [("k1", "v1"), ("k2", "v2")]),
         ("invalid,key=value", [("key", "value")]),
         ("key=val=extra", [("key", "val=extra")]),
+        ("missing-equals", []),
+        ("=value", []),
+        ("  = value ,key=value", [("key", "value")]),
+        ("key=", [("key", "")]),
     ],
 )
 def test_parse_otlp_headers(raw, expected):
