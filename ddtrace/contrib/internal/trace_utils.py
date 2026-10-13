@@ -398,6 +398,7 @@ def set_http_meta(
     headers_are_case_sensitive: bool = False,
     route: Optional[str] = None,
     response_cookies: Optional[dict[str, str]] = None,
+    query_tagged_separately: bool = False,
 ) -> None:
     """
     Set HTTP metas on the span
@@ -407,6 +408,7 @@ def set_http_meta(
     :param status_code: the HTTP status code
     :param status_msg: the HTTP status message
     :param query: the HTTP query part of the URI as a string
+    :param query_tagged_separately: the caller tags the query string itself, so it must not be read from the URL
     :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
     :param request_headers: the HTTP request headers
     :param response_headers: the HTTP response headers
@@ -428,6 +430,7 @@ def set_http_meta(
             server_address=server_address,
             status_code=status_code,
             query=query,
+            query_tagged_separately=query_tagged_separately,
             request_headers=request_headers,
             headers_are_case_sensitive=headers_are_case_sensitive,
             route=route,
@@ -563,6 +566,7 @@ def _set_http_meta_otel(
     server_address: Optional[str],
     status_code: Optional[Union[int, str]],
     query: Optional[str],
+    query_tagged_separately: bool,
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
     route: Optional[str],
@@ -570,7 +574,12 @@ def _set_http_meta_otel(
     """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
     otel_http.set_method(method)
     otel_http.set_url(
-        url, query=query, raw_uri=raw_uri, server_address=server_address, fallback_server_address=target_host
+        url,
+        query=query,
+        raw_uri=raw_uri,
+        server_address=server_address,
+        fallback_server_address=target_host,
+        query_tagged_separately=query_tagged_separately,
     )
     otel_http.set_status_code(status_code)
     if request_headers:

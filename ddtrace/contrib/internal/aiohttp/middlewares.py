@@ -2,6 +2,7 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import is_otel_non_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
@@ -78,8 +79,11 @@ async def trace_middleware(app, handler):
                     if isinstance(response, web.StreamResponse):
                         request.task.add_done_callback(lambda _: finish_request_span(request, response))
                 return response
-            except Exception:
-                req_span.set_traceback()
+            except Exception as e:
+                # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
+                # when its status is an error status.
+                if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
+                    req_span.set_traceback()
                 raise
 
     return attach_context

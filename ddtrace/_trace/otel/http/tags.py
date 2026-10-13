@@ -116,6 +116,7 @@ def set_url_tags_otel_server(
     url: str,
     query: Optional[str],
     raw_uri: Optional[str] = None,
+    query_tagged_separately: bool = False,
 ) -> None:
     parsed = parse.urlsplit(url)
     if parsed.scheme:
@@ -144,7 +145,13 @@ def set_url_tags_otel_server(
     # Either existing query-string option enables url.query capture.
     if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
         return
-    _set_otel_query(span, query if query is not None else parsed.query)
+    if query is None:
+        # Without an explicit query the URL's own query string is used, unless the caller tags it
+        # itself (aiohttp's per-app trace_query_string override does, via set_query_string_tag).
+        if query_tagged_separately:
+            return
+        query = parsed.query
+    _set_otel_query(span, query)
 
 
 def _sanitized_url(url: str, query: Optional[str], tag_query_string: bool) -> Union[str, bytes]:
@@ -222,6 +229,10 @@ def is_otel_server_error_status(status_code: int) -> bool:
     return bool(config._http_server.is_error_code(status_code))
 
 
+def is_otel_non_error_status(status_code: int) -> bool:
+    return config._otel_trace_semantics_enabled and not is_otel_server_error_status(status_code)
+
+
 # This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
@@ -251,13 +262,16 @@ class OTelHTTPSpanAttributes:
         raw_uri: Optional[str] = None,
         server_address: Optional[str] = None,
         fallback_server_address: Optional[str] = None,
+        query_tagged_separately: bool = False,
     ) -> None:
         if url is not None:
             try:
                 if self.is_client:
                     set_url_tags_otel_client(self._integration_config, self._span, url, query)
                 else:
-                    set_url_tags_otel_server(self._integration_config, self._span, url, query, raw_uri)
+                    set_url_tags_otel_server(
+                        self._integration_config, self._span, url, query, raw_uri, query_tagged_separately
+                    )
             except ValueError as e:
                 # A malformed optional URL must not suppress metadata supplied separately.
                 # The URL is not logged because it may carry credentials or a sensitive query.
