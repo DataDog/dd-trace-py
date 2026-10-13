@@ -538,6 +538,24 @@ def test_last_collected_code_releases_tool_and_callbacks() -> None:
     assert sys_monitoring.get_events(tool_id) == 0
 
 
+@pytest.mark.subprocess()
+def test_code_collected_during_shutdown_is_silent() -> None:
+    """asyncio code objects are freed after shutdown clears the monitoring module globals."""
+    import asyncio
+    import asyncio.taskgroups
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_return(self, code: CodeType, instruction_offset: int, retval: object) -> None:
+            pass
+
+    handler = Handler()
+    monitoring.register(asyncio.tasks.create_task.__code__, handler)
+    monitoring.register(asyncio.taskgroups.TaskGroup.create_task.__code__, handler)
+
+
 @pytest.mark.subprocess(out=None, err=None)
 def test_last_unregister_releases_tool_and_callbacks() -> None:
     import sys

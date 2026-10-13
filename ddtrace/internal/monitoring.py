@@ -14,18 +14,18 @@ object to the corresponding unregister function to remove it.
 """
 
 from abc import ABC
+import atexit
 import sys
 from types import CodeType
 from typing import Any
-from typing import Callable
 from typing import NamedTuple
 from typing import Optional
-import weakref
 
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 
 
 if not is_at_least_py(3, 12):
@@ -66,84 +66,14 @@ _tool_lock = Lock()
 _registry_lock = RLock()
 
 
-class _IdentityWeakKeyDictionary:
-    """Weak mapping keyed by object identity (not equality).
-
-    Unlike ``weakref.WeakKeyDictionary``, lookups use ``is`` rather than
-    ``CodeType.__eq__``, so distinct code objects for the same source remain
-    separate entries.
-    """
-
-    # NOTE: CodeType equality is structural. Keep identity semantics here and in
-    # every code-object registry built on this class, or separately compiled/reloaded
-    # copies of the same code will overwrite each other.
-
-    __slots__ = ("_data", "_on_remove")
-
-    def __init__(self, on_remove: Optional[Callable[[], None]] = None) -> None:
-        self._data: dict[int, tuple[weakref.ref[Any], Any]] = {}
-        self._on_remove = on_remove
-
-    def _make_remove(self, key_id: int) -> Any:
-        def remove(ref: weakref.ref[Any]) -> None:
-            item = self._data.get(key_id)
-            if item is not None and item[0] is ref:
-                self._data.pop(key_id, None)
-                if self._on_remove is not None:
-                    self._on_remove()
-
-        return remove
-
-    def get(self, key: CodeType, default: Any = None) -> Any:
-        item = self._data.get(id(key))
-        if item is None:
-            return default
-        ref, value = item
-        if ref() is key:
-            return value
-        return default
-
-    def __contains__(self, key: CodeType) -> bool:
-        item = self._data.get(id(key))
-        return item is not None and item[0]() is key
-
-    def __iter__(self) -> Any:
-        for ref, _value in tuple(self._data.values()):
-            key = ref()
-            if key is not None:
-                yield key
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __getitem__(self, key: CodeType) -> Any:
-        item = self._data.get(id(key))
-        if item is None or item[0]() is not key:
-            raise KeyError(key)
-        return item[1]
-
-    def __setitem__(self, key: CodeType, value: Any) -> None:
-        key_id = id(key)
-        self._data[key_id] = (weakref.ref(key, self._make_remove(key_id)), value)
-
-    def __delitem__(self, key: CodeType) -> None:
-        key_id = id(key)
-        if key_id not in self._data:
-            raise KeyError(key)
-        del self._data[key_id]
-
-    def pop(self, key: CodeType, *default: Any) -> Any:
-        try:
-            value = self[key]
-        except KeyError:
-            if default:
-                return default[0]
-            raise
-        del self[key]
-        return value
-
-    def clear(self) -> None:
-        self._data.clear()
+# CodeType.__eq__ treats structurally-identical code objects (e.g. two
+# CodeType.replace() clones, or two exec()'d copies of identical source) as
+# equal, which a plain weakref.WeakKeyDictionary would conflate. Keying on
+# id(code) via IdentityWeakKeyDictionary keeps distinct code objects separate.
+# NOTE: CodeType equality is structural. Keep identity semantics here and in
+# every code-object registry built on this class, or separately compiled/reloaded
+# copies of the same code will overwrite each other.
+_IdentityWeakKeyDictionary = IdentityWeakKeyDictionary[CodeType, Any]
 
 
 def _on_code_registration_collected() -> None:
@@ -153,6 +83,17 @@ def _on_code_registration_collected() -> None:
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_registration_collected)
+
+
+def _disarm_registry_cleanup() -> None:
+    global _registry
+
+    with _registry_lock:
+        registry, _registry = _registry, _IdentityWeakKeyDictionary()
+        registry.clear()
+
+
+atexit.register(_disarm_registry_cleanup)
 
 
 class MonitoringEventHandler(ABC):
