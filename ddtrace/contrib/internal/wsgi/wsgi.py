@@ -29,13 +29,13 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 

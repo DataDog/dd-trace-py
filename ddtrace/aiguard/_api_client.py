@@ -23,8 +23,8 @@ from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
+import ddtrace.internal.base.logger as ddlogger
 from ddtrace.internal.http import HTTPConnection
-import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError

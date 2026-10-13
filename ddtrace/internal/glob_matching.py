@@ -1,4 +1,4 @@
-from .utils.cache import cachedmethod
+from .base.utils.cache import cachedmethod
 
 
 class GlobMatcher:

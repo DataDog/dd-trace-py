@@ -11,11 +11,11 @@ import warnings
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.openfeature._source_selection import AGENTLESS
 from ddtrace.internal.openfeature._source_selection import DISABLED
 from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._integrations import BaseLLMIntegration

@@ -13,8 +13,8 @@ from typing import cast
 
 from wrapt import FunctionWrapper
 
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import ModuleCodeCollector

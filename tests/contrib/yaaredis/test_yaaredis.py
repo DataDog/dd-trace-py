@@ -6,7 +6,7 @@ import yaaredis
 
 from ddtrace.contrib.internal.yaaredis.patch import patch
 from ddtrace.contrib.internal.yaaredis.patch import unpatch
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.base.compat import is_wrapted
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG

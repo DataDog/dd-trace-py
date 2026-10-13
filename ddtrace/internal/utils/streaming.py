@@ -14,7 +14,7 @@ from typing import Union
 import wrapt
 
 from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 log = get_logger(__name__)

@@ -13,10 +13,10 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal import atexit as ddtrace_atexit
-from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.base import compat
+from ddtrace.internal.base.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -29,8 +29,8 @@ from ddtrace.version import __version__
 
 from .._encoding import packb
 from ..agent import get_connection
+from ..base.logger import get_logger
 from ..hostname import get_hostname
-from ..logger import get_logger
 from ..periodic import PeriodicService
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64

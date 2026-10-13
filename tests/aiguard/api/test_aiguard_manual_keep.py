@@ -8,9 +8,9 @@ from ddtrace.aiguard import Options
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
-from ddtrace.internal.constants import SamplingMechanism
+from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.base.constants import TRACE_SOURCE_PROPAGATION_KEY
+from ddtrace.internal.base.constants import SamplingMechanism
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 
 

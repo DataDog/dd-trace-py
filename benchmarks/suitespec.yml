@@ -17,7 +17,7 @@ components:
     - ddtrace/internal/_encoding.py*
     - ddtrace/internal/_tagset.py*
     - ddtrace/internal/_utils.*
-    - ddtrace/internal/constants.py
+    - ddtrace/internal/base/constants.py
     - ddtrace/internal/encoding.py
     - ddtrace/internal/flare/*
     - ddtrace/internal/pack.h
@@ -68,7 +68,7 @@ components:
     - ddtrace/internal/agent.py
     - ddtrace/internal/assembly.py
     - ddtrace/internal/atexit.py
-    - ddtrace/internal/compat.py
+    - ddtrace/internal/base/compat.py
     - ddtrace/internal/core/*
     - ddtrace/internal/datadog/__init__.py
     - ddtrace/internal/debug.py
@@ -77,7 +77,7 @@ components:
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
     - ddtrace/internal/ipc.py
-    - ddtrace/internal/logger.py
+    - ddtrace/internal/base/logger.py
     - ddtrace/_logger.py
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py

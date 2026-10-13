@@ -4,7 +4,7 @@ import socket
 
 import pytest
 
-from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource

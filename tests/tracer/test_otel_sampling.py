@@ -8,9 +8,9 @@ from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.constants import SamplingMechanism
+from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.base.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
 from ddtrace.trace import Context
 from ddtrace.trace import Span

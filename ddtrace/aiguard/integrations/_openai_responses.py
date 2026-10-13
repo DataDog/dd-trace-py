@@ -34,7 +34,7 @@ from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
-import ddtrace.internal.logger as ddlogger
+import ddtrace.internal.base.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 

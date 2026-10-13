@@ -19,6 +19,9 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility.status import TestSourceFileInfo
 from ddtrace.ext.test_visibility.status import TestStatus
+from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.time import Time
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
@@ -32,12 +35,9 @@ from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
-from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 

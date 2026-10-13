@@ -8,7 +8,7 @@ import pytest
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import FINGERPRINTING
-import ddtrace.internal.constants as constants
+import ddtrace.internal.base.constants as constants
 import tests.appsec.rules as rules
 from tests.utils import snapshot
 from tests.webclient import Client

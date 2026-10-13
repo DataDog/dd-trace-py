@@ -8,7 +8,7 @@ from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
 from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 log = get_logger(__name__)

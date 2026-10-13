@@ -6,7 +6,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value

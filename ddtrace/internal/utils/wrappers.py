@@ -3,7 +3,7 @@ from typing import Callable
 from typing import Optional
 from typing import TypeVar
 
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.base.compat import is_wrapted
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
 

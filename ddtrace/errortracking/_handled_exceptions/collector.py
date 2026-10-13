@@ -4,10 +4,10 @@ from typing import NamedTuple
 from typing import Protocol
 
 from ddtrace.internal import core
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
-from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.constants import COLLECTOR_MAX_SIZE_PER_SPAN
+from ddtrace.internal.base.constants import SPAN_EVENTS_HAS_EXCEPTION
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.errortracking import config
 

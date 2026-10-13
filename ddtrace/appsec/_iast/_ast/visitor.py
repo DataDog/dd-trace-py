@@ -6,7 +6,7 @@ import copy
 import os
 from typing import Any
 
-from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_least_py
 
 from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation

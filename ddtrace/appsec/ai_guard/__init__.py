@@ -7,8 +7,8 @@ re-exports the public symbols from their new home and emits a
 
 import typing
 
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 
 
 # lazy re-export shim. Accessing any public symbol here warns once

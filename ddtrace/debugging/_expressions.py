@@ -46,8 +46,8 @@ from bytecode import Label
 
 from ddtrace.debugging._safety import safe_getitem
 from ddtrace.debugging._safety import safe_qualname
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.safety import _isinstance
 
 

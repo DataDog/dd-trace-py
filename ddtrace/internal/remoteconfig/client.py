@@ -10,8 +10,9 @@ import ddtrace
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
@@ -23,7 +24,6 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import get_test_session_token
-from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
 

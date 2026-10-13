@@ -23,7 +23,7 @@ import sys
 
 import pytest
 
-from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_least_py
 
 
 @pytest.mark.subprocess(

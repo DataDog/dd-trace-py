@@ -1,7 +1,7 @@
 from types import ModuleType
 
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
 

@@ -107,7 +107,7 @@ def get_blocked() -> Optional[Block_config]:
 def set_blocked(block_settings: Optional[dict[str, Any]] = None) -> None:
     # local imports to avoid circular dependency
     from ddtrace.internal import core
-    from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+    from ddtrace.internal.base.constants import STATUS_403_TYPE_AUTO
 
     core.dispatch("asm.set_blocked", (block_settings or STATUS_403_TYPE_AUTO,))
 

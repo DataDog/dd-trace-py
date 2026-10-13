@@ -19,8 +19,8 @@ from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import INVALID_SPAN
 
 from ddtrace.internal import core
-from ddtrace.internal.constants import SPAN_API_OTEL
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.constants import SPAN_API_OTEL
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
 
 from .span import Span

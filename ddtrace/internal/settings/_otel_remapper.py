@@ -3,7 +3,7 @@ from typing import Optional
 
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 
 

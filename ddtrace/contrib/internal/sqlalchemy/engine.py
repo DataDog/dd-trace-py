@@ -13,11 +13,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net as netx
 from ddtrace.ext import sql as sqlx
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
 
 

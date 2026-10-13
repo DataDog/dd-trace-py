@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_least_py
 
 
 pytestmark = pytest.mark.skipif(not is_at_least_py(3, 12), reason="Test specific to Python 3.12+ bytecode")

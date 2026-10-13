@@ -15,8 +15,8 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.ext import http
-from ddtrace.internal import constants
 from ddtrace.internal import core
+from ddtrace.internal.base import constants
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules

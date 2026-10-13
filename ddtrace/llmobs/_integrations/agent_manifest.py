@@ -10,7 +10,7 @@ from typing import cast
 from typing import get_args
 from typing import get_origin
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.llmobs.types import AgentManifest
 
 

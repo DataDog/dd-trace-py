@@ -26,7 +26,7 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext

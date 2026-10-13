@@ -17,8 +17,8 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
-from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.base.compat import ensure_text
+from ddtrace.internal.base.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig

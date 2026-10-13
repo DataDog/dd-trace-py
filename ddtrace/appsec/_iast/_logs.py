@@ -1,7 +1,7 @@
 from typing import Union
 
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 

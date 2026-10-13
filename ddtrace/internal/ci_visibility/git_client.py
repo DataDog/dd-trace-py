@@ -21,7 +21,7 @@ from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import extract_workspace_path
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
@@ -29,13 +29,13 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import Tracer
 
 from .. import telemetry
+from ..base.utils.time import StopWatch
 from ..evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ..utils.http import Response
 from ..utils.http import get_connection
 from ..utils.http import verify_url
-from ..utils.time import StopWatch
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import GIT_API_BASE_PATH

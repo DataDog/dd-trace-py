@@ -98,11 +98,11 @@ fn materialize_otel_sampling_decision_fn(py: Python<'_>) -> PyResult<Bound<'_, P
 
 fn dd_trace_tracestate_max_bytes(py: Python<'_>) -> PyResult<usize> {
     // Python owns the propagation limits. Resolve this lazily to avoid
-    // making ddtrace.internal.constants import the native extension during startup.
+    // making ddtrace.internal.base.constants import the native extension during startup.
     cached_const::<usize>(
         py,
         &TRACESTATE_MAX_BYTES_CACHE,
-        "ddtrace.internal.constants",
+        "ddtrace.internal.base.constants",
         "DD_TRACE_TRACESTATE_MAX_BYTES",
     )
 }

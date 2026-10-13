@@ -7,7 +7,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.avro.patch import patch
 from ddtrace.contrib.internal.avro.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.base.compat import is_wrapted
 
 
 OPENAPI_USER_SCHEMA_DEF = (

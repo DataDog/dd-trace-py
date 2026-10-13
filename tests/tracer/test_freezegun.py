@@ -1,7 +1,7 @@
 import datetime
 import time
 
-from ddtrace.internal.utils.time import StopWatch
+from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.trace import tracer as dd_tracer
 
 

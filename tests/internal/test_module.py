@@ -8,7 +8,7 @@ from warnings import warn
 import pytest
 
 import ddtrace
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module

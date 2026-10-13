@@ -1,4 +1,4 @@
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.threads import RLock

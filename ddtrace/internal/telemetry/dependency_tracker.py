@@ -15,7 +15,7 @@ import re
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config

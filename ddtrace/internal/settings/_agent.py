@@ -5,7 +5,7 @@ from typing import TypeVar
 from typing import Union
 from urllib.parse import urlparse
 
-from ddtrace.internal.constants import DEFAULT_TIMEOUT
+from ddtrace.internal.base.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 

@@ -22,7 +22,7 @@ except ImportError:
     try:
         import sniffio
     except ImportError:
-        from ddtrace.internal.logger import get_logger
+        from ddtrace.internal.base.logger import get_logger
 
         # Module import runs once, so this reports the degraded detection at startup only.
         get_logger(__name__).debug(

@@ -3,7 +3,7 @@
 import platform
 import sys
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 import ddtrace.profiling as profiling
 from ddtrace.profiling import bootstrap
 

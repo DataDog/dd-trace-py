@@ -1,13 +1,14 @@
 {
   "//": [
     "Module-prefix to architectural zone mapping used by layers.py.",
-    "Zone ids: 'internal-core', 'contrib', or 'product:<name>'.",
+    "Zone ids: 'internal-base', 'internal-core', 'contrib', or 'product:<name>'.",
     "Longest matching prefix wins, so a product's ddtrace.internal.<x>",
     "subpackage can be carved out of the ddtrace.internal catch-all below.",
     "Modules with no matching prefix are unclassified ('foundation') and",
     "are exempt from every rule, both as importer and as imported module."
   ],
   "zones": {
+    "ddtrace.internal.base": "internal-base",
     "ddtrace.internal": "internal-core",
     "ddtrace.contrib": "contrib",
 
@@ -76,7 +77,7 @@
       "product may import a security product directly, add {\"from_zone\": \"product:x\", \"to_zone\":",
       "\"product:appsec\"} here rather than changing the detection logic."
     ],
-    "forbid_from_zones_into_products": ["internal-core", "contrib"],
+    "forbid_from_zones_into_products": ["internal-base", "internal-core", "contrib"],
     "exceptions": [
       {"from_zone": "contrib", "to_zone": "product:tracing", "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"}
     ]

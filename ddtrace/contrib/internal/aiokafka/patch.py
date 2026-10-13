@@ -11,7 +11,7 @@ from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.internal import core
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env

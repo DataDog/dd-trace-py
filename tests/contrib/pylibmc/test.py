@@ -12,7 +12,7 @@ from ddtrace.contrib.internal.pylibmc.patch import unpatch
 from ddtrace.ext import memcached
 
 # project
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

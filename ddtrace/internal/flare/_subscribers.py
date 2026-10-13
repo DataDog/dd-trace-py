@@ -2,8 +2,8 @@ from datetime import datetime
 import typing as t
 from typing import Optional
 
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.flare.flare import Flare
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 

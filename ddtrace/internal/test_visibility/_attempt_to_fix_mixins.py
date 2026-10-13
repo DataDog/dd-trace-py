@@ -4,8 +4,8 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestStatus
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
-from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)

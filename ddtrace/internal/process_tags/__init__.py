@@ -8,7 +8,7 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal._service_state import is_user_provided_service
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.utils.fnv import fnv1_64
 

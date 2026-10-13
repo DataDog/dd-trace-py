@@ -42,9 +42,9 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
-from ddtrace.internal.compat import NO_EXCEPTION
-from ddtrace.internal.compat import ExcInfoType
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import NO_EXCEPTION
+from ddtrace.internal.base.compat import ExcInfoType
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import origin

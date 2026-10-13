@@ -1,9 +1,9 @@
 from typing import Optional
 
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.attrdict import AttrDict
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 
 from .http import HttpConfig
 

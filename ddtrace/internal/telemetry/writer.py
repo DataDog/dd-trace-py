@@ -8,9 +8,9 @@ from typing import Optional
 from typing import Union
 import weakref
 
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import config as agentless_config

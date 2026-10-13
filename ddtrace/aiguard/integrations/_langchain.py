@@ -17,7 +17,7 @@ from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-import ddtrace.internal.logger as ddlogger
+import ddtrace.internal.base.logger as ddlogger
 from ddtrace.internal.utils import get_argument_value
 
 

@@ -39,11 +39,11 @@ from zoneinfo import ZoneInfo
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import forksafe
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._evp_transport import EVPRoute
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection

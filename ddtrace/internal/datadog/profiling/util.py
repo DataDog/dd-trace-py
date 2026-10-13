@@ -1,7 +1,7 @@
 from sys import version_info
 from typing import Any
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 LOG = get_logger(__name__)

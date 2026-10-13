@@ -6,7 +6,9 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 
 import typing as t
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.settings._supported_configurations import CONFIGURATION_ALIASES
+from ddtrace.internal.base.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import FLEET_CONFIG
@@ -16,8 +18,6 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
-from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
-from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE

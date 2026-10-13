@@ -3,7 +3,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration

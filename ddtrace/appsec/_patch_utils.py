@@ -9,7 +9,7 @@ from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
 from ddtrace.internal._unpatched import _gc as gc
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
 

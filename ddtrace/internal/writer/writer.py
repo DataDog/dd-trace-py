@@ -41,7 +41,6 @@ from ddtrace.version import __version__
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from ...constants import _SAMPLING_PRIORITY_KEY
-from .. import compat
 from .. import forksafe
 from .. import periodic
 from .. import process_tags
@@ -49,12 +48,14 @@ from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
-from ..constants import _HTTPLIB_NO_TRACE_REQUEST
-from ..constants import W3C_TRACESTATE_KEY
+from ..base import compat
+from ..base.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ..base.constants import W3C_TRACESTATE_KEY
+from ..base.logger import get_logger
+from ..base.utils.time import StopWatch
 from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags
-from ..logger import get_logger
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
 from ..serverless import in_azure_function
@@ -65,7 +66,6 @@ from ..threads import RLock
 from ..utils.formats import get_test_session_token
 from ..utils.http import Response
 from ..utils.http import verify_url
-from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase

@@ -6,7 +6,7 @@ from ddtrace.appsec._iast.constants import DBAPI_MYSQLDB
 from ddtrace.appsec._iast.constants import DBAPI_PSYCOPG
 from ddtrace.appsec._iast.constants import DBAPI_PYMYSQL
 from ddtrace.appsec._iast.constants import DBAPI_SQLITE
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 log = get_logger(__name__)

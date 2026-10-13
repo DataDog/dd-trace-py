@@ -4,7 +4,7 @@ from io import StringIO
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._utils import _is_iast_propagation_debug_enabled
 from ddtrace.internal._unpatched import _threading as threading
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 log = get_logger(__name__)

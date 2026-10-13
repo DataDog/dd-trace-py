@@ -18,18 +18,18 @@ from urllib.parse import urlsplit
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
-from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.settings.env import dd_environ
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.openfeature._agentless import normalize_agentless_site
 from ddtrace.internal.settings._agent import config as agent_config
-from ddtrace.internal.settings.env import dd_environ
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.settings.openfeature import config as ffe_config

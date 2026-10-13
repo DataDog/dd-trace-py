@@ -9,7 +9,7 @@ from ddtrace.contrib.internal.aiopg.connection import AIOTracedConnection
 from ddtrace.contrib.internal.psycopg.connection import patch_conn as psycopg_patch_conn
 from ddtrace.contrib.internal.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import _unpatch_extensions
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.base.compat import is_wrapted
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 

@@ -19,7 +19,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _unwrap
 from ddtrace.contrib.internal.trace_utils import wrap as _wrap
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 
 

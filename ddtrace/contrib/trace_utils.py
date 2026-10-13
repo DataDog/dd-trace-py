@@ -20,8 +20,8 @@ from ddtrace.contrib.internal.trace_utils import unwrap  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import with_traced_module  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import wrap  # noqa: F401
 from ddtrace.contrib.internal.trace_utils_async import with_traced_module as with_traced_module_async  # noqa: F401
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 
 
 # TODO: Add trace utils that should not be public to the list below

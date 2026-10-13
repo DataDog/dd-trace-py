@@ -2,10 +2,10 @@ import os
 import typing as t
 
 from ddtrace.internal._runtime_id import get_ancestor_runtime_id
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.forksafe import get_generation
 from ddtrace.internal.forksafe import has_forked
 from ddtrace.internal.ipc import SharedStringFile
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback

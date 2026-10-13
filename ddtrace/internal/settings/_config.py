@@ -11,23 +11,26 @@ from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
-from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
-from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
-from ddtrace.internal.constants import DEFAULT_BUFFER_SIZE
-from ddtrace.internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
-from ddtrace.internal.constants import DEFAULT_PROCESSING_INTERVAL
-from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
-from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.constants import DEFAULT_TIMEOUT
-from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_DEFAULT
+from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace.internal.base.constants import _PROPAGATION_STYLE_DEFAULT
+from ddtrace.internal.base.constants import _PROPAGATION_STYLE_NONE
+from ddtrace.internal.base.constants import DEFAULT_BUFFER_SIZE
+from ddtrace.internal.base.constants import DEFAULT_MAX_PAYLOAD_SIZE
+from ddtrace.internal.base.constants import DEFAULT_PROCESSING_INTERVAL
+from ddtrace.internal.base.constants import DEFAULT_REUSE_CONNECTIONS
+from ddtrace.internal.base.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ddtrace.internal.base.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.base.constants import DEFAULT_TIMEOUT
+from ddtrace.internal.base.constants import PROPAGATION_STYLE_ALL
+from ddtrace.internal.base.logger import get_log_injection_state
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.cache import cachedmethod
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
-from ddtrace.internal.logger import get_log_injection_state
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
@@ -40,9 +43,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 

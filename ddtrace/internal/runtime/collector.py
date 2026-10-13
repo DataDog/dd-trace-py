@@ -3,7 +3,7 @@ from typing import Generic
 from typing import Optional
 from typing import TypeVar
 
-from ..logger import get_logger
+from ..base.logger import get_logger
 
 
 log = get_logger(__name__)

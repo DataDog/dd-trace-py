@@ -7,13 +7,13 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.bytecode_injection import InvalidLine
 from ddtrace.internal.bytecode_injection import eject_hook
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.bytecode_injection import inject_hooks
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.utils.inspection import linenos
 
 

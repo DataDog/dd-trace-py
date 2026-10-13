@@ -27,7 +27,7 @@ from ddtrace.appsec._iast.secure_marks.validators import create_validator
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._patch_utils import wrap_object
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 

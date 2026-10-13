@@ -2,7 +2,7 @@ import sys
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.base.constants import COMPONENT
 
 from .constants import FUTURE_SPAN_KEY
 

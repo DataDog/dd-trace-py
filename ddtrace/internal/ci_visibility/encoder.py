@@ -12,6 +12,8 @@ from uuid import uuid4
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -25,12 +27,10 @@ from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings import env
 from ddtrace.internal.threads import RLock
-from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 

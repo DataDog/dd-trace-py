@@ -19,7 +19,7 @@ from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTest
 
 

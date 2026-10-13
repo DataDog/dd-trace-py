@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.flask.patch import _u
 from ddtrace.contrib.internal.flask.patch import _w
 from ddtrace.contrib.internal.flask.patch import patch
 from ddtrace.contrib.internal.flask.patch import unpatch
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.base.compat import is_wrapted
 
 
 class FlaskIdempotencyTestCase(unittest.TestCase):

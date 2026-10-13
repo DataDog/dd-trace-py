@@ -6,7 +6,7 @@ from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
 from ddtrace.internal import _service_state
-from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.base.constants import _SERVICE_SOURCE
 from ddtrace.internal.settings._config import config
 
 

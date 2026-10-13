@@ -17,10 +17,10 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.compat import is_at_most_py
-from ddtrace.internal.compat import is_supported_python_version
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_most_py
+from ddtrace.internal.base.compat import is_supported_python_version
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError

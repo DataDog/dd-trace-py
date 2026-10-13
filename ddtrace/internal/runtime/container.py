@@ -7,11 +7,11 @@ from typing import Literal
 from typing import Optional
 from typing import Union
 
-from ddtrace.internal.constants import CONTAINER_ID_HEADER_NAME
-from ddtrace.internal.constants import ENTITY_ID_HEADER_NAME
-from ddtrace.internal.constants import EXTERNAL_ENV_ENVIRONMENT_VARIABLE
-from ddtrace.internal.constants import EXTERNAL_ENV_HEADER_NAME
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.constants import CONTAINER_ID_HEADER_NAME
+from ddtrace.internal.base.constants import ENTITY_ID_HEADER_NAME
+from ddtrace.internal.base.constants import EXTERNAL_ENV_ENVIRONMENT_VARIABLE
+from ddtrace.internal.base.constants import EXTERNAL_ENV_HEADER_NAME
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 
 

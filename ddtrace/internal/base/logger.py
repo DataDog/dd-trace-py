@@ -1,7 +1,7 @@
 """
 Logging utilities for internal use.
 Usage:
-    import ddtrace.internal.logger as logger
+    import ddtrace.internal.base.logger as logger
     ddlog = logger.get_logger(__name__)
 
     # Otherwise default is set to 1 minute or DD_TRACE_LOGGING_RATE
@@ -41,7 +41,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-from ddtrace.internal.settings import env
+from ddtrace.internal.base.settings import env
 
 
 SECOND = 1
