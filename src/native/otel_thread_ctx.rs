@@ -1,6 +1,6 @@
 use crate::context::Context;
 use crate::span::SpanData;
-use libdd_otel_thread_ctx::linux::ThreadContext;
+use libdd_otel_thread_ctx::linux::OwnedThreadContext as ThreadContext;
 use pyo3::{pyfunction, PyRef, Python};
 
 const UNKNOWN_LOCAL_ROOT_SPAN_ID: u64 = 0;

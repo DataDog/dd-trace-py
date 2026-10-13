@@ -733,7 +733,7 @@ mod tests {
         content: &[u8],
     ) -> Entry {
         let end = offset + path.len() + content.len();
-        contents.ensure_space(end.max(1));
+        let _ = contents.ensure_space(end.max(1));
         let buf = contents.as_slice_mut();
         buf[offset..offset + path.len()].copy_from_slice(path.as_bytes());
         buf[offset + path.len()..end].copy_from_slice(content);

@@ -1267,7 +1267,7 @@ def test_writer_telemetry_enabled_on_linux(
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
         if expected_enabled:
-            mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
+            mock_builder.enable_telemetry.assert_called_once_with(60000, config._debug_mode)
         else:
             mock_builder.enable_telemetry.assert_not_called()
         mock_builder.set_restart_after_fork.assert_called_once_with(False)
