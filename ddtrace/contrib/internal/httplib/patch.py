@@ -6,8 +6,7 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.otel.http.resource import set_otel_http_resource
-from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -128,8 +127,7 @@ def _wrap_request(func, instance, args, kwargs):
             # OTel resource.
             method = get_argument_value(args, kwargs, 0, "method")
             if isinstance(method, str):
-                normalized_method, original_method = normalize_http_method(method)
-                set_otel_http_resource(span, normalized_method, original_method)
+                set_otel_resource_for_method(span, method)
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
