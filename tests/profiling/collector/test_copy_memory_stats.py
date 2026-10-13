@@ -298,3 +298,85 @@ def test_foreign_handler_notice_not_reissued_after_restart() -> None:
             time.sleep(0.05)
     finally:
         stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        _DD_PROFILING_STACK_FAST_COPY="1",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_foreign_handler_notice_reissued_in_fork_child() -> None:
+    """After parent fallback, atfork restart must still emit a child takeover notice."""
+    import os
+    import signal
+    import time
+    import traceback
+    from typing import Optional
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    def _wait_for_upgrade() -> None:
+        saw_warmup: bool = False
+        upgrade_deadline: float = time.monotonic() + 10
+        while time.monotonic() < upgrade_deadline:
+            active: bool = _stack.fast_copy_memory_active()
+            if not saw_warmup:
+                if active is False:
+                    saw_warmup = True
+            elif active is True:
+                return
+            time.sleep(0.05)
+        raise AssertionError("sampler never upgraded to safe_memcpy after warmup")
+
+    def _wait_for_notice() -> tuple[bool, str, bool]:
+        notice_deadline: float = time.monotonic() + 10
+        while time.monotonic() < notice_deadline:
+            notice: Optional[tuple[bool, str, bool]] = stack.take_foreign_segv_handler()
+            if notice is not None:
+                return notice
+            time.sleep(0.05)
+        raise AssertionError("sampler never recorded the foreign SIGSEGV notice")
+
+    _stack._set_fast_copy_warmup_seconds(0.1)
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+    try:
+        _wait_for_upgrade()
+        signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+        assert _stack.segv_handler_installed() is False
+        parent_notice: tuple[bool, str, bool] = _wait_for_notice()
+        assert parent_notice[0] is False
+        assert "SIGSEGV=SIG_DFL" in parent_notice[1]
+        assert parent_notice[2] is False
+        assert _stack.fast_copy_memory_active() is False
+
+        child_pid: int = os.fork()
+        if child_pid == 0:
+            try:
+                # atfork restarts the sampler; configured fast-copy intent must
+                # still drive a probe even though fast_copy_active stayed false.
+                assert _stack.segv_handler_installed() is False
+                child_notice: tuple[bool, str, bool] = _wait_for_notice()
+                assert child_notice[0] is True
+                assert "SIGSEGV=SIG_DFL" in child_notice[1]
+                assert child_notice[2] is False
+            except BaseException:
+                traceback.print_exc()
+                os._exit(1)
+            os._exit(0)
+
+        _: int
+        status: int
+        _, status = os.waitpid(child_pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+    finally:
+        stack.stop()

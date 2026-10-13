@@ -447,7 +447,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
     // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    const bool fast_copy_desired = fast_copy_active;
+    // Use configured intent, not the live fast_copy_active bit: fallback clears the
+    // latter, and a child restarted after the parent fell back must still probe and
+    // emit its own takeover notice.
+    const bool fast_copy_desired = !fast_copy_user_disabled && safe_memcpy_initialized;
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
@@ -556,6 +559,36 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         break;
                     }
                     record_foreign_segv_handler(already_owned, ownership.owners, false);
+                }
+            } else {
+                // Desired but inactive when this thread started (typical: forked child
+                // after the parent already fell back, and no syscall warmup path).
+                // Probe once; enable safe_memcpy only if we still own the handlers.
+                const bool handlers_owned = segv_handler_installed();
+                if (handlers_owned) {
+                    saw_owned_handlers = true;
+                    if (!set_fast_copy_enabled(true)) {
+                        handler_fallback_done = true;
+                        mark_fast_copy_syscall_fallback();
+                        const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                        record_foreign_segv_handler(true, ownership.owners, true);
+                        std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                                     "stopping stack sampling to avoid crashing. "
+                                  << "Handler owners: " << ownership.owners << std::endl;
+                        sampler_active_.store(false);
+                        break;
+                    }
+                } else {
+                    handler_fallback_done = true;
+                    mark_fast_copy_syscall_fallback();
+                    const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                    record_foreign_segv_handler(true, ownership.owners, true);
+                    std::cerr << "ddtrace stack profiler: " << lost_ownership_clause("does not own", ownership.foreign)
+                              << "; no safe memory-copy fallback available; "
+                                 "stopping stack sampling to avoid crashing. "
+                              << "Handler owners: " << ownership.owners << std::endl;
+                    sampler_active_.store(false);
+                    break;
                 }
             }
         }
@@ -720,9 +753,12 @@ Sampler::postfork_child()
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
 
     // Drop a parent-inherited takeover notice; the child records its own if needed.
+    // Also clear the sticky fallback bit so the child's stats and probe path start
+    // clean (configured fast-copy intent still comes from fast_copy_user_disabled).
     new (&foreign_segv_handler_mutex_) std::mutex();
     new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
     foreign_segv_handler_reported_ = false;
+    fast_copy_syscall_fallback = false;
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
