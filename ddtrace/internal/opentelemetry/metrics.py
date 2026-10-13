@@ -97,9 +97,8 @@ def _build_resource() -> Optional[Any]:
         return Resource.create(resource_attributes)
     except ImportError:
         log.warning(
-            "OTLP metrics export is enabled, but the OpenTelemetry OTLP exporters are not installed. "
-            "Install a supported OpenTelemetry OTLP metrics exporter; ddtrace cannot automatically configure "
-            "OTLP metrics submission without it."
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP metrics export."
         )
         return None
 
@@ -170,13 +169,10 @@ def _import_exporter(protocol):
         protocol_name = "grpc" if protocol == "grpc" else "http"
         return _dd_metrics_exporter(OTLPMetricExporter, protocol_name, "protobuf")
 
-    except ImportError as e:
+    except ImportError:
         log.warning(
-            "OpenTelemetry Metrics exporter for %s is not available. "
-            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
-            protocol,
-            "grpc" if protocol == "grpc" else "http",
-            str(e),
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP metrics export."
         )
         return None
 
