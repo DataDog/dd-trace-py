@@ -171,12 +171,22 @@ def traced_output_processor_process_outputs(func, instance, args, kwargs):
     if not engine_core_outputs:
         return func(*args, **kwargs)
 
-    model_name = get_model_name(instance)
-    spans_data = _capture_request_states(instance, engine_core_outputs)
+    # This runs inside vLLM's output loop. An exception here stops the loop and fails all requests,
+    # so tracing errors must never propagate.
+    spans_data = None
+    try:
+        model_name = get_model_name(instance)
+        spans_data = _capture_request_states(instance, engine_core_outputs)
+    except Exception:
+        logger.warning("Failed to capture vLLM request state for tracing", exc_info=True)
 
     result = func(*args, **kwargs)
 
-    _create_finished_spans(integration, model_name, instance, spans_data)
+    if spans_data:
+        try:
+            _create_finished_spans(integration, model_name, instance, spans_data)
+        except Exception:
+            logger.warning("Failed to create vLLM spans", exc_info=True)
 
     return result
 

@@ -211,7 +211,11 @@ def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
         "The capital of France is",
     ]
 
-    llm.reward(prompts)
+    if hasattr(llm, "reward"):
+        llm.reward(prompts)
+    else:
+        # Newer vLLM versions removed LLM.reward(); it was an alias for this call.
+        llm.encode(prompts, pooling_task="token_classify")
     traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
