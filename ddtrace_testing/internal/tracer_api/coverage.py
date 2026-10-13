@@ -7,16 +7,15 @@ coverage data.
 
 import contextlib
 import functools
-import logging
-from ddtrace_testing.internal._log import get_logger
 from pathlib import Path
 import typing as t
 
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.logging import catch_and_log_exceptions
 
 
 if t.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.coverage.coverage_lines import CoverageLines
+    from ddtrace_testing.internal.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
@@ -26,6 +25,15 @@ log = get_logger(__name__)
 
 
 def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
+    # Line coverage collection is provided by the tracer's instrumentation machinery
+    # (ddtrace.internal.coverage); without ddtrace installed, ITR coverage degrades to none.
+    try:
+        _install_coverage(workspace_path, file_level_coverage)
+    except ImportError as e:
+        log.warning("Coverage collection unavailable without ddtrace installed: %s", e)
+
+
+def _install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
     # Deferred: the coverage integration (contrib patch + code collector) pulls the
     # tracer through ddtrace.contrib at import time; load it when coverage is activated.
     from ddtrace.internal.coverage.code import ModuleCodeCollector
@@ -40,6 +48,13 @@ def install_coverage(workspace_path: Path, file_level_coverage: bool = False) ->
 
 
 def uninstall_coverage() -> None:
+    try:
+        _uninstall_coverage()
+    except ImportError as e:
+        log.warning("Coverage collection was not installed (ddtrace unavailable): %s", e)
+
+
+def _uninstall_coverage() -> None:
     from ddtrace.internal.coverage.code import ModuleCodeCollector
 
     ModuleCodeCollector.uninstall()
@@ -57,7 +72,7 @@ def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[
 def _file_level_bitmap() -> bytes:
     # Deferred: CoverageLines is pure, but its module sits under the coverage
     # integration surface; keep this module importable without it.
-    from ddtrace.internal.coverage.coverage_lines import CoverageLines
+    from ddtrace_testing.internal.coverage_lines import CoverageLines
 
     return bytes(CoverageLines.from_list([0]).to_bytes())
 

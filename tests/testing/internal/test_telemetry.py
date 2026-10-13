@@ -4,7 +4,7 @@ from unittest.mock import call
 
 import pytest
 
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace_testing.internal.constants import ITRSkippingLevel
 from ddtrace_testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace_testing.internal.settings_data import EarlyFlakeDetectionSettings

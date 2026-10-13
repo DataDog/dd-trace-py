@@ -13,12 +13,12 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net as netx
 from ddtrace.ext import sql as sqlx
-from ddtrace_base.constants import COMPONENT
-from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 def trace_engine(engine, tracer=None, service=None):

@@ -12,12 +12,12 @@ from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._redaction import DDRedactedExpression
+from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace_base.compat import maybe_stringify
 from ddtrace_base.logger import get_logger
 from ddtrace_base.module import _resolve
 from ddtrace_base.safety import _isinstance
 from ddtrace_base.utils.cache import cached
-from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 
 
 log = get_logger(__name__)

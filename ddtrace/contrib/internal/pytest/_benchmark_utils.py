@@ -5,9 +5,9 @@ import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest_benchmark.constants import PLUGIN_METRICS_V2
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility.api import InternalTest
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

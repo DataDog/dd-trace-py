@@ -23,8 +23,8 @@ from types import ModuleType
 import typing
 from typing import Callable
 
-from ddtrace_base.module import ModuleWatchdog
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace_base.module import ModuleWatchdog
 
 
 @ModuleWatchdog.after_module_imported("faulthandler")

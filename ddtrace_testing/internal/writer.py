@@ -1,13 +1,12 @@
 from abc import ABC
 from abc import abstractmethod
 import base64
-import logging
-from ddtrace_testing.internal._log import get_logger
 import threading
 import typing as t
 import uuid
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.constants import ITRSkippingLevel
 from ddtrace_testing.internal.http import BackendConnectorSetup
 from ddtrace_testing.internal.http import FileAttachment
@@ -21,8 +20,6 @@ from ddtrace_testing.internal.test_data import TestSession
 from ddtrace_testing.internal.test_data import TestStatus
 from ddtrace_testing.internal.test_data import TestSuite
 from ddtrace_testing.internal.tracer_api import StopWatch
-from ddtrace_testing.internal.tracer_api import msgpack_packb
-from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
@@ -46,6 +43,21 @@ def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
             truncated[key] = value[:_MAX_META_TAG_VALUE_LENGTH]
 
     return meta if truncated is None else truncated
+
+
+def _library_version() -> str:
+    """The tracer version reported in payloads.
+
+    Resolved without importing ddtrace: metadata lookup first (the normal case), then a
+    static fallback for standalone installs where the distribution is absent.
+    """
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version
+
+    try:
+        return version("ddtrace")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
@@ -352,7 +364,7 @@ class TestOptWriter(BaseWriter):
             "*": {
                 "language": "python",
                 "runtime-id": uuid.uuid4().hex,
-                "library_version": f"{__version__}",
+                "library_version": _library_version(),
                 "_dd.origin": "ciapp-test",
                 "_dd.p.dm": "-0",  # what is this?
             },
@@ -393,7 +405,9 @@ class TestOptWriter(BaseWriter):
         }
 
     def _encode_events(self, events: list[Event]) -> bytes:
-        return msgpack_packb(self._test_cycle_payload(events))
+        from ddtrace_testing.internal.tracer_api import msgpack_packb
+
+        return t.cast(bytes, msgpack_packb(self._test_cycle_payload(events)))
 
     def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:
@@ -493,7 +507,9 @@ class TestCoverageWriter(BaseWriter):
         self.put_event(event)
 
     def _encode_events(self, events: list[Event]) -> bytes:
-        return msgpack_packb({"version": 2, "coverages": events})
+        from ddtrace_testing.internal.tracer_api import msgpack_packb
+
+        return t.cast(bytes, msgpack_packb({"version": 2, "coverages": events}))
 
     def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:

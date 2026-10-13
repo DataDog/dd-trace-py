@@ -15,11 +15,11 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
-from ddtrace_base.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
 
 
 TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)

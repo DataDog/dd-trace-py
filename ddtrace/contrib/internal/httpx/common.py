@@ -13,10 +13,10 @@ from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
+from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace_base.compat import ensure_binary
 from ddtrace_base.compat import ensure_text
 from ddtrace_base.utils import get_argument_value
-from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
 if TYPE_CHECKING:

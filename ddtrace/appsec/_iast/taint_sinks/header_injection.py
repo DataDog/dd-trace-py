@@ -70,8 +70,8 @@ from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import _iast_report_unvalidated_redirect
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

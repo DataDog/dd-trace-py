@@ -33,6 +33,22 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import hostname
+from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.native import PyTracerMetadata
+from ddtrace.internal.native import store_metadata
+from ddtrace.internal.peer_service.processor import PeerServiceProcessor
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.schema.processor import BaseServiceProcessor
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.peer_service import _ps_config
+from ddtrace.internal.settings.standalone import standalone_config
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
+from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import HTTPWriter
+from ddtrace.version import __version__
 from ddtrace_base import forksafe
 from ddtrace_base.constants import _SERVICE_SOURCE
 from ddtrace_base.constants import COMPONENT
@@ -50,22 +66,6 @@ from ddtrace_base.logger import get_logger
 from ddtrace_base.utils import _get_metas_to_propagate
 from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace_base.utils.deprecations import deprecate
-from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.native import PyTracerMetadata
-from ddtrace.internal.native import store_metadata
-from ddtrace.internal.peer_service.processor import PeerServiceProcessor
-from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.settings.peer_service import _ps_config
-from ddtrace.internal.settings.standalone import standalone_config
-from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
-from ddtrace.internal.writer import AgentWriterInterface
-from ddtrace.internal.writer import HTTPWriter
-from ddtrace.version import __version__
 
 
 log = get_logger(__name__)

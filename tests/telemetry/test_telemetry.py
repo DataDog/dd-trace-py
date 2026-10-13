@@ -135,7 +135,7 @@ import time
 import ddtrace  # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 print(get_runtime_id(), flush=True)
@@ -816,7 +816,7 @@ import os
 import sys
 
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 def emit_child_telemetry():

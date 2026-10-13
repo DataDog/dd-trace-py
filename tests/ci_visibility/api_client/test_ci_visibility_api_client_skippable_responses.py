@@ -7,8 +7,8 @@ import pytest
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import ITRData
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.utils.http import Response
+from ddtrace_testing.internal.coverage_lines import CoverageLines
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids

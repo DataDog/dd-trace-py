@@ -19,7 +19,7 @@ def _gen_item_id() -> int:
     try:
         from ddtrace_testing.internal.tracer_api import rand64bits
 
-        return rand64bits()
+        return t.cast(int, rand64bits())
     except ImportError:
         return int.from_bytes(os.urandom(8), "big")
 

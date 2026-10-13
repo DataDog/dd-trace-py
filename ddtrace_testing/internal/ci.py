@@ -1,11 +1,10 @@
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 import re
 import typing as t
 
-from ddtrace.ext.ci import github_actions
+from ddtrace_base.ext.ci import github_actions
 from ddtrace_testing.internal import git
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.git import GitTag
 
 

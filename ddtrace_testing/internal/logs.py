@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import json
 import logging
-from ddtrace_testing.internal._log import get_logger
 import socket
 
 from ddtrace_base.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.http import BackendConnectorSetup
 from ddtrace_testing.internal.http import Subdomain
 from ddtrace_testing.internal.writer import BaseWriter

@@ -14,8 +14,6 @@ import pytest
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
-from ddtrace.ext.git import _build_git_packfiles_with_details
-from ddtrace.ext.git import _GitSubprocessDetails
 import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import ITRData
@@ -35,6 +33,8 @@ from ddtrace.internal.settings._config import Config
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
 from ddtrace.trace import Span
+from ddtrace_base.ext.git import _build_git_packfiles_with_details
+from ddtrace_base.ext.git import _GitSubprocessDetails
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
@@ -552,7 +552,7 @@ def test_git_client_get_repository_url_env_var_precedence_empty_tags(git_repo):
 
 def test_git_client_get_latest_commits(git_repo):
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details",
+        "ddtrace_base.ext.git._git_subprocess_cmd_with_details",
         return_value=_GitSubprocessDetails(
             "b3672ea5cbc584124728c48a443825d2940e0ddd\nb3672ea5cbc584124728c48a443825d2940e0eee", "", 10, 0
         ),
@@ -1101,7 +1101,9 @@ def test_unshallow_repository_local_head():
         return_value=_GitSubprocessDetails("origin", "", 100, 0),
     ):
         with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_commit_sha", return_value="myfakesha"):
-            with mock.patch("ddtrace.ext.git._git_subprocess_cmd_with_details") as mock_git_subprocess_cmd_with_details:
+            with mock.patch(
+                "ddtrace_base.ext.git._git_subprocess_cmd_with_details"
+            ) as mock_git_subprocess_cmd_with_details:
                 CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
                 mock_git_subprocess_cmd_with_details.assert_called_once_with(
                     "fetch",
@@ -1129,7 +1131,7 @@ def test_unshallow_repository_upstream():
                 "ddtrace.internal.ci_visibility.git_client._extract_upstream_sha", return_value="myupstreamsha"
             ):
                 with mock.patch(
-                    "ddtrace.ext.git._git_subprocess_cmd_with_details"
+                    "ddtrace_base.ext.git._git_subprocess_cmd_with_details"
                 ) as mock_git_subprocess_cmd_with_details:
                     CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
                     mock_git_subprocess_cmd_with_details.assert_called_once_with(
@@ -1159,7 +1161,8 @@ def test_unshallow_repository_full():
                 side_effect=ValueError,
             ):
                 with mock.patch(
-                    "ddtrace.ext.git._git_subprocess_cmd_with_details", return_value=_GitSubprocessDetails("", "", 0, 0)
+                    "ddtrace_base.ext.git._git_subprocess_cmd_with_details",
+                    return_value=_GitSubprocessDetails("", "", 0, 0),
                 ) as mock_git_subprocess_cmd_with_details:
                     CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
                     mock_git_subprocess_cmd_with_details.assert_called_once_with(
@@ -1179,7 +1182,7 @@ def test_unshallow_respository_cant_get_remote():
         "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename_with_details",
         return_value=_GitSubprocessDetails("", "", 10, 125),
     ):
-        with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+        with mock.patch("ddtrace_base.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
             CIVisibilityGitClient._unshallow_repository()
             mock_git_subprocess_command.assert_not_called()
 

@@ -8,7 +8,6 @@ and processes them through the native FFE processor.
 import os
 import typing as t
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -16,6 +15,7 @@ from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

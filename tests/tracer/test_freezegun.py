@@ -1,8 +1,8 @@
 import datetime
 import time
 
-from ddtrace_base.utils.time import StopWatch
 from ddtrace.trace import tracer as dd_tracer
+from ddtrace_base.utils.time import StopWatch
 
 
 class TestFreezegunTestCase:

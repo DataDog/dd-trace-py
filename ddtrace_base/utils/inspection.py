@@ -4,6 +4,7 @@ from dis import findlinestarts
 from functools import partial
 from functools import singledispatch
 from pathlib import Path
+import sys
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
@@ -16,8 +17,21 @@ from ddtrace_base.safety import _isinstance
 from ddtrace_base.utils.cache import IdentityWeakKeyDictionary
 from ddtrace_base.utils.cache import cached
 from ddtrace_base.utils.cache import miss
-from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
-from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
+
+
+# Bytecode-wrapping state lives in ddtrace.internal.wrapping. If that module was never imported,
+# nothing has been wrapped and its code->function mapping is empty, so a sys.modules lookup gives
+# the exact answer without an import edge (keeps this module pure: it is used by the testing plugin).
+_WRAPPING_MODULE = "ddtrace.internal.wrapping"
+
+
+def _wrapping() -> Optional[ModuleType]:
+    return sys.modules.get(_WRAPPING_MODULE)
+
+
+def _dd_is_wrapped(f: FunctionType) -> bool:
+    w = _wrapping()
+    return w is not None and hasattr(w, "is_wrapped") and w.is_wrapped(f)
 
 
 @singledispatch
@@ -191,13 +205,16 @@ def _functions_for_code_gc(code: CodeType) -> list[FunctionType]:
 
 
 def functions_for_code(code: CodeType) -> list[FunctionType]:
-    try:
-        # Try to get the function from the original code-to-function mapping
-        return [_CODE_TO_ORIGINAL_FUNCTION_MAPPING[code]]
-    except KeyError:
-        # If the code is not in the mapping, we fall back to the garbage
-        # collector
-        return _functions_for_code_gc(code)
+    w = _wrapping()
+    code_to_fn = getattr(w, "_code_to_fn", None) if w is not None else None
+    if code_to_fn is not None:
+        try:
+            # Try to get the function from the original code-to-function mapping
+            return [code_to_fn[code]]
+        except KeyError:
+            pass
+    # If the code is not in the mapping, we fall back to the garbage collector
+    return _functions_for_code_gc(code)
 
 
 def clear():
@@ -211,7 +228,9 @@ def clear():
     global _functions_for_code_gc_cache
 
     _functions_for_code_gc_cache = IdentityWeakKeyDictionary()
-    _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()
+    w = _wrapping()
+    if w is not None and hasattr(w, "_code_to_fn"):
+        w._code_to_fn.clear()
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):

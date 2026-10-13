@@ -5,10 +5,10 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)

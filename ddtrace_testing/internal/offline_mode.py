@@ -17,12 +17,11 @@ from __future__ import annotations
 
 import itertools
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 import os
 import typing as t
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace_testing.internal.constants import SUPPORTED_MANIFEST_VERSION

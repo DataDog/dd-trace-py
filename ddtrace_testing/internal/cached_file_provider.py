@@ -9,13 +9,12 @@ HTTP and file-based data fetching without branching inside each method.
 from __future__ import annotations
 
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 import os
 from pathlib import Path
 import typing as t
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace_testing.internal.constants import EMPTY_NAME
 from ddtrace_testing.internal.constants import TEST_OPTIMIZATION_HTTP_CACHE_DIR

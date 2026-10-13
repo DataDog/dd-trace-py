@@ -4,10 +4,9 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace_base.constants import MAX_UINT_64BITS
 from ddtrace.internal.settings import env
-
 from ddtrace_base.compat import ensure_text
+from ddtrace_base.constants import MAX_UINT_64BITS
 
 
 VALUE_PLACEHOLDER = "?"

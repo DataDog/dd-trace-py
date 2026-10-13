@@ -31,7 +31,7 @@ from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unval
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
@@ -248,7 +248,7 @@ def test_iast_listener_registered_before_sql_patch():
     from unittest import mock
 
     from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
     with mock.patch.object(telemetry.telemetry_writer, "add_count_metric") as metric:
         import ddtrace.auto  # noqa: F401
@@ -265,8 +265,8 @@ def test_sql_instrumentation_metric_in_uwsgi_master():
 
     from ddtrace.internal import products
     from ddtrace.internal import telemetry
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
     from ddtrace.internal.uwsgi import uWSGIMasterProcess
+    from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
     with (
         mock.patch.object(products, "check_uwsgi", side_effect=uWSGIMasterProcess),

@@ -6,8 +6,8 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal import atexit
-from ddtrace_base import forksafe
 from ddtrace.internal.native import SharedRuntime
+from ddtrace_base import forksafe
 
 
 log = logging.getLogger(__name__)

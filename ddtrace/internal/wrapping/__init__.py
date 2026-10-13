@@ -11,15 +11,15 @@ import weakref
 import bytecode as bc
 from bytecode import Instr
 
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+from ddtrace.internal.wrapping.asyncs import wrap_async
+from ddtrace.internal.wrapping.generators import wrap_generator
 from ddtrace_base.assembly import Assembly
 from ddtrace_base.compat import NEXT_PY_UNSUPPORTED_MSG
 from ddtrace_base.compat import is_at_least_py
 from ddtrace_base.compat import is_supported_python_version
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils.obfuscation import is_obfuscated_code
-from ddtrace.internal.wrapping.asyncs import wrap_async
-from ddtrace.internal.wrapping.generators import wrap_generator
 
 
 log = get_logger(__name__)

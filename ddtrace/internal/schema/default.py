@@ -2,11 +2,11 @@ import logging
 import sys
 import typing as t
 
-from ddtrace_base.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._inferred_base_service import detect_service
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.constants import DEFAULT_SERVICE_NAME
 
 
 VALID_VERSIONS = ["v0", "v1"]

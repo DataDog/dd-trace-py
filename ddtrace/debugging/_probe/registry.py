@@ -6,8 +6,8 @@ from typing import cast
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeLocationMixin
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.threads import RLock
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

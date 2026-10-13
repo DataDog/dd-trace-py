@@ -3,9 +3,9 @@ import os
 import struct
 from time import sleep
 
-from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_EVENT_TYPE
+from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.utils import override_global_config
 
 

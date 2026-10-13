@@ -11,12 +11,12 @@ from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
-from ddtrace_base._exceptions import DDBlockException
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
 from ddtrace.trace import tracer
+from ddtrace_base._exceptions import DDBlockException
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

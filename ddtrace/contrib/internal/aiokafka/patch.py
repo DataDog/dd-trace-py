@@ -11,16 +11,16 @@ from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.internal import core
-from ddtrace_base.logger import get_logger
-from ddtrace_base.schema.span_attribute_schema import SpanDirection
-from ddtrace_base.utils import get_argument_value
-from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 
 
 if parse_version(aiokafka.__version__) < (0, 13, 0):

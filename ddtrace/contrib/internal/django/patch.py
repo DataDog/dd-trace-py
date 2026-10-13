@@ -23,11 +23,6 @@ from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.routing import extract_request_method_list
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
-from ddtrace_base.compat import is_wrapted
-from ddtrace_base.constants import COMPONENT
-from ddtrace_base.logger import get_logger
-from ddtrace_base.schema.span_attribute_schema import SpanDirection
-from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -39,6 +34,11 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.vendor.packaging.version import parse as parse_version
+from ddtrace_base.compat import is_wrapted
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)

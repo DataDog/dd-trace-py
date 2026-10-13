@@ -11,7 +11,6 @@ from typing import Union
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -62,6 +61,7 @@ from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import ToolResult
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

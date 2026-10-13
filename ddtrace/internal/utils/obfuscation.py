@@ -25,8 +25,8 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
-from ddtrace_base.module import BaseModuleWatchdog
 from ddtrace.internal.threads import Lock
+from ddtrace_base.module import BaseModuleWatchdog
 
 
 # Legacy PyArmor (<= 8.x, "RFT"/restrict mode) calls into module-level

@@ -19,10 +19,10 @@ from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal import core
+from ddtrace.internal.metrics import Metrics
 from ddtrace_base.compat import ExcInfoType
 from ddtrace_base.logger import get_logger
 from ddtrace_base.safety import _isinstance
-from ddtrace.internal.metrics import Metrics
 
 
 log = get_logger(__name__)

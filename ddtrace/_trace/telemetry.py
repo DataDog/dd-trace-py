@@ -1,7 +1,7 @@
 from typing import Optional
 
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 def record_span_pointer_calculation(context: str, span_pointer_count: int) -> None:

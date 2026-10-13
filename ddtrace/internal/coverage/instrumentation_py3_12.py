@@ -15,10 +15,7 @@ import typing as t
 
 from bytecode import Bytecode
 
-from ddtrace_base.compat import is_at_least_py
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.bytecode_injection import HookType
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
@@ -27,6 +24,9 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.logger import get_logger
+from ddtrace_testing.internal.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)

@@ -1,10 +1,10 @@
 import typing as t
 
+from ddtrace.trace import Span
+from ddtrace.trace import TraceFilter
 from ddtrace_testing.internal.utils import DDTESTOPT_ROOT_SPAN_RESOURCE
 from ddtrace_testing.internal.writer import Event
 from ddtrace_testing.internal.writer import TestOptWriter
-from ddtrace.trace import Span
-from ddtrace.trace import TraceFilter
 
 
 class TestOptSpanProcessor(TraceFilter):

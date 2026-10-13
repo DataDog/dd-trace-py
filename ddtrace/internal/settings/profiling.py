@@ -10,19 +10,19 @@ import typing as t
 from envier import Env
 from envier import validators
 
-from ddtrace.ext.git import COMMIT_SHA
-from ddtrace.ext.git import MAIN_PACKAGE
-from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import gitmetadata
-from ddtrace_base import compat
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._core import DDConfig
-from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace_base import compat
+from ddtrace_base.ext.git import COMMIT_SHA
+from ddtrace_base.ext.git import MAIN_PACKAGE
+from ddtrace_base.ext.git import REPOSITORY_URL
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings._core import DDConfig
+from ddtrace_base.settings._core import ValueSource
+from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
 logger = get_logger(__name__)

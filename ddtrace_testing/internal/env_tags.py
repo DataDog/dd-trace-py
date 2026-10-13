@@ -1,12 +1,11 @@
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 import os
 import typing as t
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
 from ddtrace_testing.internal import ci
 from ddtrace_testing.internal import git
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.ci import CITag
 from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
 from ddtrace_testing.internal.git import GitTag

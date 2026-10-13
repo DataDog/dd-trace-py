@@ -2,13 +2,13 @@ import atexit
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 import os
 from pathlib import Path
 import re
 import time
 import typing as t
+
+from ddtrace_testing.internal._log import get_logger
 
 
 try:
@@ -18,7 +18,7 @@ try:
 except ImportError:  # pragma: no cover — Windows / restricted environments
     _FCNTL_AVAILABLE = False
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
 from ddtrace_testing.internal.api_client import APIClient
 from ddtrace_testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace_testing.internal.cached_file_provider import TestOptDataProvider

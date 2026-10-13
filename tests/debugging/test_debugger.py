@@ -30,7 +30,7 @@ from ddtrace.debugging._signal.utils import redacted_value
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.utils.inspection import linenos
+from ddtrace_base.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_capture_expressions
 from tests.debugging.utils import compile_template

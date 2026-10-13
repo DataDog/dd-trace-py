@@ -2,12 +2,12 @@ import math
 import re
 from typing import Optional
 
+from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
+from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
 from ddtrace_base.constants import MAX_UINT_64BITS
 from ddtrace_base.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace_base.constants import W3C_DD_LIST_MEMBER_MAX_CHARS
 from ddtrace_base.constants import W3C_TRACESTATE_KEY
-from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
-from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
 
 
 _MAX_THRESHOLD = 1 << 56

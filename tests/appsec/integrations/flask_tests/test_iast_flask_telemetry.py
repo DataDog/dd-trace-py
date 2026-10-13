@@ -1,7 +1,7 @@
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_global_config
 

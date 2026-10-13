@@ -1,7 +1,7 @@
 import re
 from urllib.parse import quote
 
-from ddtrace.internal.settings import env as _env
+from ddtrace_base.settings.env import dd_environ as _env
 from ddtrace_testing.internal.ci import CITag
 from ddtrace_testing.internal.git import GitTag
 

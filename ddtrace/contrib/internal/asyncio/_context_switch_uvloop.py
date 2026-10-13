@@ -32,10 +32,10 @@ import wrapt
 
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace_base.module import ModuleWatchdog
 from ddtrace_base.utils import get_argument_value
 from ddtrace_base.utils import set_argument_value
-from ddtrace.internal.utils.wrappers import unwrap
 
 
 _installed = False

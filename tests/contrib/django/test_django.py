@@ -35,11 +35,11 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import wrapping
-from ddtrace_base.compat import ensure_text
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace_base.compat import ensure_text
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config

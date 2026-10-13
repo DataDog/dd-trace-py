@@ -9,10 +9,10 @@ from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-from ddtrace_base.constants import COMPONENT
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
 
 
 log = logging.getLogger(__name__)

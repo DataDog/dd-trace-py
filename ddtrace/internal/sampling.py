@@ -13,6 +13,9 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.internal.native._native import Context
+from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.settings._config import config
 from ddtrace_base.compat import NumericType
 from ddtrace_base.constants import _KEEP_PRIORITY_INDEX
 from ddtrace_base.constants import _REJECT_PRIORITY_INDEX
@@ -28,9 +31,6 @@ from ddtrace_base.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace_base.constants import SamplingMechanism
 from ddtrace_base.glob_matching import GlobMatcher
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.native._native import Context
-from ddtrace.internal.native._native import SpanData
-from ddtrace.internal.settings._config import config
 
 from .rate_limiter import RateLimiter
 

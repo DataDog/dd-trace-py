@@ -4,8 +4,8 @@ import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled
-from ddtrace_base._exceptions import BlockingException
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base._exceptions import BlockingException
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 

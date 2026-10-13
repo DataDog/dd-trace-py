@@ -17,8 +17,6 @@ import pytest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
-from ddtrace_base import forksafe
-from ddtrace_base.utils import _human_size
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.http import HTTPConnection
@@ -36,6 +34,8 @@ from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
 from ddtrace.internal.writer.writer import compute_agentless_intake_url
 from ddtrace.trace import Span
+from ddtrace_base import forksafe
+from ddtrace_base.utils import _human_size
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env

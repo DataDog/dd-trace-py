@@ -5,7 +5,6 @@ from typing import Union
 import weakref
 
 from ddtrace.internal import core
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -26,6 +25,7 @@ from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

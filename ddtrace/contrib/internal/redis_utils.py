@@ -10,11 +10,11 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
-from ddtrace_base.constants import COMPONENT
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

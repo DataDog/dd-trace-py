@@ -14,7 +14,6 @@ from urllib.parse import urlparse
 import warnings
 
 from ddtrace import config
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import Thread
 from ddtrace.llmobs import _telemetry as telemetry
@@ -39,6 +38,7 @@ from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptServerError
 from ddtrace.llmobs.types import PromptValidationError
 from ddtrace.llmobs.types import PromptVersionResponse
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

@@ -139,10 +139,10 @@ def test_dbm_full_mode_child_of_remote_context_carries_remote_trace_id():
     # copy of the remote parent-context that shares _meta (which holds the extracted W3C
     # traceparent) by reference, so the remote 128-bit trace id is preserved even though the
     # child's own context is local (not remote).
-    from ddtrace_base.constants import W3C_TRACEPARENT_KEY
     from ddtrace.propagation import _database_monitoring
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer
+    from ddtrace_base.constants import W3C_TRACEPARENT_KEY
 
     remote_trace_id_hex = "deadbeefdeadbeef1234567890abcdef"  # 128-bit remote trace id
     remote_ctx = HTTPPropagator.extract(
@@ -199,9 +199,9 @@ def test_dbm_full_mode_child_of_remote_context_carries_remote_trace_id():
 )
 def test_dbm_not_propagating_base_hash_when_deactivated():
     from ddtrace.internal import process_tags
-    from ddtrace_base.constants import PROPAGATED_HASH
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
+    from ddtrace_base.constants import PROPAGATED_HASH
 
     process_tags.compute_base_hash("abc123")
 
@@ -232,9 +232,9 @@ def test_dbm_propagating_base_hash_when_activated():
     import re
 
     from ddtrace.internal import process_tags
-    from ddtrace_base.constants import PROPAGATED_HASH
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
+    from ddtrace_base.constants import PROPAGATED_HASH
 
     process_tags.compute_base_hash("abc123")
 
@@ -271,9 +271,9 @@ def test_dbm_propagating_base_hash_when_activated():
 )
 def test_dbm_not_propagating_base_hash_in_full_mode():
     from ddtrace.internal import process_tags
-    from ddtrace_base.constants import PROPAGATED_HASH
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
+    from ddtrace_base.constants import PROPAGATED_HASH
 
     process_tags.compute_base_hash("abc123")
 
@@ -302,9 +302,9 @@ def test_dbm_propagation_dynamic_service_mode():
     import re
 
     from ddtrace.internal import process_tags
-    from ddtrace_base.constants import PROPAGATED_HASH
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
+    from ddtrace_base.constants import PROPAGATED_HASH
 
     process_tags.compute_base_hash("abc123")
 
@@ -342,9 +342,9 @@ def test_dbm_propagation_dynamic_service_mode():
 )
 def test_dbm_not_propagating_when_process_tags_disabled():
     from ddtrace.internal import process_tags
-    from ddtrace_base.constants import PROPAGATED_HASH
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
+    from ddtrace_base.constants import PROPAGATED_HASH
 
     process_tags.compute_base_hash("abc123")
     assert process_tags.base_hash is None

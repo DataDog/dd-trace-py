@@ -13,19 +13,8 @@ from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.standalone import standalone_config
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
-
-from ..constants import AUTO_KEEP
-from ..constants import AUTO_REJECT
-from ..constants import USER_KEEP
-from ..internal._tagset import TagsetDecodeError
-from ..internal._tagset import TagsetEncodeError
-from ..internal._tagset import TagsetMaxSizeDecodeError
-from ..internal._tagset import TagsetMaxSizeEncodeError
-from ..internal._tagset import decode_tagset_string
-from ..internal._tagset import encode_tagset_values
 from ddtrace_base.compat import ensure_text
 from ddtrace_base.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace_base.constants import _PROPAGATION_STYLE_BAGGAGE
@@ -43,6 +32,17 @@ from ddtrace_base.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace_base.constants import W3C_TRACEPARENT_KEY
 from ddtrace_base.constants import W3C_TRACESTATE_KEY
 from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+
+from ..constants import AUTO_KEEP
+from ..constants import AUTO_REJECT
+from ..constants import USER_KEEP
+from ..internal._tagset import TagsetDecodeError
+from ..internal._tagset import TagsetEncodeError
+from ..internal._tagset import TagsetMaxSizeDecodeError
+from ..internal._tagset import TagsetMaxSizeEncodeError
+from ..internal._tagset import decode_tagset_string
+from ..internal._tagset import encode_tagset_values
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
 from ..internal.utils.http import w3c_tracestate_members_after_limits

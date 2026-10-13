@@ -23,10 +23,6 @@ from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_a
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace_base.constants import REQUEST_PATH_PARAMS
-from ddtrace_base.constants import RESPONSE_HEADERS
-from ddtrace_base.core.events import Event
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
@@ -36,6 +32,10 @@ from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
 import ddtrace.vendor.xmltodict as xmltodict
+from ddtrace_base.constants import REQUEST_PATH_PARAMS
+from ddtrace_base.constants import RESPONSE_HEADERS
+from ddtrace_base.core.events import Event
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

@@ -1,7 +1,7 @@
 from flask import Flask
 
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 app = Flask(__name__)

@@ -207,7 +207,7 @@ def test_stable_config_not_loaded_when_no_files_present():
     The fast path in ``ddtrace.internal.native`` must produce the same (empty)
     configuration the native reader would, without reading any file.
     """
-    from ddtrace.internal.settings import _core
+    from ddtrace_base.settings import _core
 
     assert _core.FLEET_CONFIG == {}
     assert _core.LOCAL_CONFIG == {}
@@ -249,7 +249,7 @@ def test_settings_import_does_not_import_native_extension():
 
     sys.addaudithook(record_native_import)
 
-    import ddtrace.internal.settings._core as _core
+    import ddtrace_base.settings._core as _core
 
     assert _core.FLEET_CONFIG == {}
     assert _core.LOCAL_CONFIG == {}
@@ -263,7 +263,7 @@ def test_settings_import_does_not_import_native_extension():
         filename
         for stack in native_import_stacks
         for filename in stack
-        if filename.replace("\\", "/").endswith("internal/settings/_core.py")
+        if filename.replace("\\", "/").endswith("settings/_core.py")
     ]
     assert not offenders, "the settings machinery must not load the native extension: %s" % offenders
 
@@ -275,9 +275,11 @@ def test_get_configuration_from_disk_no_files(monkeypatch, tmp_path):
     import ddtrace.internal.native as native_module
     import ddtrace.internal.native._native as _native
     from ddtrace.internal.native._native import PyConfigurator
+    import ddtrace_base.settings._stable_config as stable_config
 
-    monkeypatch.setattr(native_module, "_FLEET_STABLE_CONFIGURATION_PATH", str(tmp_path / "fleet.yaml"))
-    monkeypatch.setattr(native_module, "_LOCAL_STABLE_CONFIGURATION_PATH", str(tmp_path / "local.yaml"))
+    # Patch the source module: the reader lives in the base layer and is re-exported by native.
+    monkeypatch.setattr(stable_config, "_FLEET_STABLE_CONFIGURATION_PATH", str(tmp_path / "fleet.yaml"))
+    monkeypatch.setattr(stable_config, "_LOCAL_STABLE_CONFIGURATION_PATH", str(tmp_path / "local.yaml"))
 
     def _unexpected_configurator(*args, **kwargs):
         raise AssertionError("PyConfigurator must not be constructed when no stable-configuration file exists")

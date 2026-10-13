@@ -20,7 +20,6 @@ from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.sqlite3.patch import unpatch as unpatch_sqlite
 from ddtrace.ext import ci
-from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility import CIVisibility
@@ -30,6 +29,7 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from ddtrace_base.ext import git
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
@@ -4749,7 +4749,7 @@ class PytestTestCase(PytestTestCaseBase):
 
         self.testdir.chdir()
         with (
-            mock.patch("ddtrace.ext.git._get_executable_path", return_value=None),
+            mock.patch("ddtrace_base.ext.git._get_executable_path", return_value=None),
             mock.patch(
                 "ddtrace.internal.ci_visibility.recorder.ddconfig",
                 _get_default_civisibility_ddconfig(),

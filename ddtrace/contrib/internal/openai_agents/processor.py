@@ -5,10 +5,10 @@ from agents.tracing.processor_interface import TracingProcessor
 from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

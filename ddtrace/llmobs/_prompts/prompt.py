@@ -7,8 +7,6 @@ from typing import Literal
 from typing import Optional
 from typing import Union
 
-from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
@@ -16,6 +14,8 @@ from ddtrace.llmobs._utils import attach_prompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 @dataclass(frozen=True)

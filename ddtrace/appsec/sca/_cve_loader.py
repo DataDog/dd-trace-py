@@ -14,9 +14,9 @@ from typing import cast
 
 from ddtrace.appsec.sca._types import CveDataEntry
 from ddtrace.appsec.sca._types import CveTarget
-from ddtrace_base.logger import get_logger
 from ddtrace.vendor.packaging.version import InvalidVersion
 from ddtrace.vendor.packaging.version import Version
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

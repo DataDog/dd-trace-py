@@ -2,7 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 from collections import defaultdict
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
 from ddtrace_testing.internal.constants import TAG_FALSE
 from ddtrace_testing.internal.constants import TAG_TRUE
 from ddtrace_testing.internal.settings_data import Settings

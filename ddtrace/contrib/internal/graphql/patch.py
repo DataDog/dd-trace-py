@@ -23,11 +23,6 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace_base.constants import COMPONENT
-from ddtrace_base.schema.span_attribute_schema import SpanDirection
-from ddtrace_base.utils import ArgumentError
-from ddtrace_base.utils import get_argument_value
-from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.settings import env
@@ -37,6 +32,11 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 
 
 _graphql_version_str = graphql.__version__

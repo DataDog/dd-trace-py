@@ -7,14 +7,14 @@ from typing import TypeVar
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace_base.compat import maybe_stringify
-from ddtrace_base.constants import COMPONENT
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace_base.compat import maybe_stringify
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
 
 
 T = TypeVar("T")

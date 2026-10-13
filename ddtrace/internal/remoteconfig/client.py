@@ -10,8 +10,6 @@ import ddtrace
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils.time import StopWatch
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
@@ -19,12 +17,14 @@ from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.settings._agent import config as agent_config
-from ddtrace.internal.settings._agentless import config as agentless_config
-from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.version import _pep440_to_semver
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings._agentless import config as agentless_config
+from ddtrace_base.settings._core import DDConfig
+from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace_base.utils.time import StopWatch
 
 
 if TYPE_CHECKING:

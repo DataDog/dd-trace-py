@@ -9,9 +9,9 @@ import weakref
 import pytest
 
 from ddtrace.internal import core
+from ddtrace.internal.core import event_hub
 from ddtrace_base.core.events import Event
 from ddtrace_base.core.events import event_field
-from ddtrace.internal.core import event_hub
 
 
 @pytest.fixture(autouse=True)

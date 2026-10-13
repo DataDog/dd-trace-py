@@ -1,5 +1,5 @@
-from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_EVENT_TYPE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.telemetry.test_telemetry_metrics import _decode_sketch_count
 
 

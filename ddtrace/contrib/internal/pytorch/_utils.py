@@ -7,8 +7,8 @@ import uuid
 
 import torch
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

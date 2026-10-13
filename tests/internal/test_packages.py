@@ -1,8 +1,8 @@
 import pytest
 
-from ddtrace_base.utils.cache import cached
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.packages import get_distributions
+from ddtrace_base.utils.cache import cached
 
 
 @cached()

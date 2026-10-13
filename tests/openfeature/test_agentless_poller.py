@@ -4,10 +4,10 @@ import socket
 
 import pytest
 
-from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
 
 
 ENDPOINT = "https://ufc-server.ff-cdn.datadoghq.com/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"

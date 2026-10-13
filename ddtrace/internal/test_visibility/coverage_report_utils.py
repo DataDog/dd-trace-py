@@ -4,8 +4,8 @@ import logging
 import time
 import typing as t
 
-from ddtrace_base.utils.cache import cached
 from ddtrace.internal.settings import env
+from ddtrace_base.utils.cache import cached
 
 
 # Use stdlib logging here. Importing ddtrace_base.logger creates circular imports

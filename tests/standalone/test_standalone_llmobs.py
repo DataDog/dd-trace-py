@@ -16,8 +16,6 @@ import ddtrace
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
-from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace_base.constants import SamplingMechanism
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
@@ -25,6 +23,8 @@ from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace_base.constants import SamplingMechanism
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 from tests.utils import DummyWriter

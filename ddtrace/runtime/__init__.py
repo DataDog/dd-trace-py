@@ -1,10 +1,10 @@
 from typing import Any
 from typing import Optional  # noqa:F401
 
-from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.internal.runtime import runtime_metrics
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"

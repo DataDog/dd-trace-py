@@ -3,11 +3,11 @@ import inspect
 from ddtrace import config
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
+from ddtrace.trace import tracer
 from ddtrace_base.constants import COMPONENT
 from ddtrace_base.logger import get_logger
 from ddtrace_base.utils import ArgumentError
 from ddtrace_base.utils import get_argument_value
-from ddtrace.trace import tracer
 
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND

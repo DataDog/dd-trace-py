@@ -5,8 +5,6 @@ from typing import Optional
 from weakref import WeakKeyDictionary
 
 from ddtrace.internal import core
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
@@ -19,6 +17,8 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)

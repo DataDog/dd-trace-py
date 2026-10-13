@@ -1,5 +1,5 @@
 from ddtrace.internal.settings.symbol_db import config
-from ddtrace.internal.utils.inspection import ModuleCodeCollector
+from ddtrace_base.utils.inspection import ModuleCodeCollector
 
 
 # We need to register with the shared code collector unconditionally so that

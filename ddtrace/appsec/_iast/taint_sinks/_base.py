@@ -9,8 +9,8 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process
 from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import span_bus
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base.logger import get_logger
 
 from ..._constants import IAST
 from ..._constants import IAST_SPAN_TAGS

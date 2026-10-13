@@ -39,9 +39,9 @@ from ddtrace.debugging._probe.model import TriggerLineProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._redaction import DDRedactedExpression
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

@@ -17,8 +17,6 @@ from ddtrace.contrib.internal.django.compat import user_is_authenticated
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
 from ddtrace.internal import core
-from ddtrace_base import compat
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
@@ -28,6 +26,8 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
+from ddtrace_base import compat
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

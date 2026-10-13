@@ -3,10 +3,10 @@ import typing as t
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agent import get_agent_hostname
-from ddtrace.internal.settings._agentless import config as agentless_config
-from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
+from ddtrace_base.settings._agentless import config as agentless_config
+from ddtrace_base.settings._core import DDConfig
 
 
 def _agentless_endpoint(signal_path: str = "") -> str:

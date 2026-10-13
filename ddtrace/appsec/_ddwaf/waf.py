@@ -34,10 +34,10 @@ from ddtrace.appsec._metrics import report_error
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
+from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace_base import forksafe
 from ddtrace_base._unpatched import threading_Lock
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.remoteconfig import PayloadType
 
 
 LOGGER = get_logger(__name__)

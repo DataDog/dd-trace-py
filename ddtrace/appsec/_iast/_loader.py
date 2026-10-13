@@ -1,6 +1,6 @@
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base.logger import get_logger
 
 from ._ast.ast_patching import astpatch_module
 

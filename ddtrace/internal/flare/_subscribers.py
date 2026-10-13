@@ -2,10 +2,10 @@ from datetime import datetime
 import typing as t
 from typing import Optional
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

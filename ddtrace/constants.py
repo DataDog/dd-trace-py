@@ -49,7 +49,7 @@ PID = "process_id"
 
 # Sampling priorities. Values are defined in the base layer (shared by split-out packages) and
 # re-exported here as the public API.
-from ddtrace_base.constants import AUTO_KEEP  # noqa: E402,F401
-from ddtrace_base.constants import AUTO_REJECT  # noqa: E402,F401
-from ddtrace_base.constants import USER_KEEP  # noqa: E402,F401
-from ddtrace_base.constants import USER_REJECT  # noqa: E402,F401
+from ddtrace_base.constants import AUTO_KEEP as AUTO_KEEP  # noqa: E402,F401
+from ddtrace_base.constants import AUTO_REJECT as AUTO_REJECT  # noqa: E402,F401
+from ddtrace_base.constants import USER_KEEP as USER_KEEP  # noqa: E402,F401
+from ddtrace_base.constants import USER_REJECT as USER_REJECT  # noqa: E402,F401

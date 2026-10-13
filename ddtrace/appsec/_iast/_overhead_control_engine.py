@@ -8,10 +8,10 @@ from typing import Optional
 
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
-from ddtrace_base._unpatched import _threading as threading
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base._unpatched import _threading as threading
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

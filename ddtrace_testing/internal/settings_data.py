@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
-import logging
-from ddtrace_testing.internal._log import get_logger
 import typing as t
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 
 
 log = get_logger(__name__)

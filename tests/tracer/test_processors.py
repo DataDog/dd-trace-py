@@ -20,7 +20,6 @@ from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
-from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.service import ServiceStatus
@@ -29,6 +28,7 @@ from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
+from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
 

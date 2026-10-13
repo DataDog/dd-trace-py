@@ -9,7 +9,7 @@ from ddtrace.debugging._products.code_origin.span import enabled
 from ddtrace.debugging._products.code_origin.span import post_preload
 from ddtrace.debugging._products.code_origin.span import restart
 from ddtrace.internal.native import RemoteConfigCapabilities
-from ddtrace.internal.settings._core import ValueSource
+from ddtrace_base.settings._core import ValueSource
 
 
 def test_post_preload_is_noop():

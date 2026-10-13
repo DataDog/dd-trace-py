@@ -2,7 +2,7 @@ import time
 
 from bm import Scenario
 
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 # --- API detection --------------------------------------------------------

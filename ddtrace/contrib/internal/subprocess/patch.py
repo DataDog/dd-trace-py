@@ -15,9 +15,6 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils import get_argument_value
-from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.runtime import get_runtime_propagation_envs
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
@@ -25,6 +22,9 @@ from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
 from ddtrace.trace import tracer
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 
 
 log = get_logger(__name__)

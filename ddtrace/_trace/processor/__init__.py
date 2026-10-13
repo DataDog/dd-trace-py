@@ -11,6 +11,18 @@ from ddtrace.constants import _APM_ENABLED_METRIC_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
+from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.standalone import standalone_config
+from ddtrace.internal.telemetry.metrics import MetricRecorder
+from ddtrace.internal.telemetry.metrics import get_metric_recorder
+from ddtrace.internal.threads import RLock
+from ddtrace.internal.writer import AgentResponse
+from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import create_trace_writer
 from ddtrace_base.constants import COMPONENT
 from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace_base.constants import LAST_DD_PARENT_ID_KEY
@@ -19,19 +31,7 @@ from ddtrace_base.constants import PROCESS_TAGS
 from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace_base.constants import SamplingMechanism
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.rate_limiter import RateLimiter
-from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.standalone import standalone_config
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.metrics import MetricRecorder
-from ddtrace.internal.telemetry.metrics import get_metric_recorder
-from ddtrace.internal.threads import RLock
-from ddtrace.internal.writer import AgentResponse
-from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import create_trace_writer
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)

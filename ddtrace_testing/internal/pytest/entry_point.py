@@ -1,4 +1,4 @@
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
 
 
 # NOTE: Changed default value to true

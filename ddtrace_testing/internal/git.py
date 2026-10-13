@@ -1,7 +1,5 @@
 import contextlib
 from dataclasses import dataclass
-import logging
-from ddtrace_testing.internal._log import get_logger
 import os
 from pathlib import Path
 import random
@@ -11,6 +9,8 @@ import subprocess  # nosec: B404
 import tempfile
 import time
 import typing as t
+
+from ddtrace_testing.internal._log import get_logger
 
 
 try:

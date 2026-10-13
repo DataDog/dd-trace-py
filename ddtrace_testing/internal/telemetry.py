@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import dataclasses
 from enum import Enum
-import logging
-from ddtrace_testing.internal._log import get_logger
 import typing as t
 
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+# ddtrace's telemetry infrastructure is an optional dependency: a standalone testing session
+# (ddtrace not installed) degrades to a no-op writer instead of losing test results.
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal._protocols import BackendConnectorSetupProtocol
 from ddtrace_testing.internal._protocols import TestRunProtocol
 from ddtrace_testing.internal.constants import ITRSkippingLevel
@@ -50,6 +50,44 @@ class GitTelemetry(str, Enum):
     CHECK_GIT = "check_git"
 
 
+class _NoOpTelemetryWriter:
+    """Drop-in for ``ddtrace.internal.telemetry.telemetry_writer`` when ddtrace is absent."""
+
+    def periodic(self, force_flush: bool = False) -> None:
+        pass
+
+    def add_count_metric(self, *args: t.Any, **kwargs: t.Any) -> None:
+        pass
+
+    def add_distribution_metric(self, *args: t.Any, **kwargs: t.Any) -> None:
+        pass
+
+    def add_integration(self, *args: t.Any, **kwargs: t.Any) -> None:
+        pass
+
+    def app_shutdown(self) -> None:
+        pass
+
+    def set_payload_file_dir(self, output_dir: str) -> None:
+        pass
+
+
+def __getattr__(name: str) -> t.Any:
+    """Lazily resolve the module-level ``telemetry_writer`` binding.
+
+    Reading (and patching — see the tests) ``ddtrace_testing.internal.telemetry.telemetry_writer``
+    must behave exactly as before the extraction: it forwards to ddtrace's writer, resolved
+    without importing ddtrace unless the attribute is actually requested.
+    """
+    if name == "telemetry_writer":
+        try:
+            from ddtrace.internal.telemetry import telemetry_writer
+        except ImportError:
+            return None  # standalone: no ddtrace telemetry backend available
+        return telemetry_writer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 class TelemetryAPI:
     _instance: t.Optional[TelemetryAPI] = None
 
@@ -61,7 +99,9 @@ class TelemetryAPI:
         # NoOpTelemetryWriter if the `DD_INSTRUMENTATION_TELEMETRY_ENABLED` environment variable is set to false.
         # If we ever start having our own telemetry writer, we will have to handle this env var ourselves.
 
-        self.writer = telemetry_writer
+        import ddtrace_testing.internal.telemetry as _telemetry_module
+
+        self.writer = _telemetry_module.telemetry_writer or _NoOpTelemetryWriter()
         self.namespace = TELEMETRY_NAMESPACE.CIVISIBILITY
         TelemetryAPI._instance = self
 

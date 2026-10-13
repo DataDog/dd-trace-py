@@ -21,8 +21,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.otel_semantics import http as otel_http
-from ddtrace.internal.settings import _core as settings_core
 from ddtrace.internal.settings._config import config
+from ddtrace_base.settings import _core as settings_core
 
 
 @pytest.mark.parametrize(

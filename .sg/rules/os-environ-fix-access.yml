@@ -4,6 +4,7 @@ severity: error
 language: python
 files:
   - "ddtrace/**"
+  - "ddtrace_base/**"
 ignores:
   - "ddtrace_base/settings/env.py"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"

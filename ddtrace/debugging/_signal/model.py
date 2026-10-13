@@ -24,12 +24,12 @@ from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._session import Session
-from ddtrace_base.compat import ExcInfoType
-from ddtrace_base.utils.time import Time
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
+from ddtrace_base.compat import ExcInfoType
+from ddtrace_base.utils.time import Time
 
 
 class TraceContextProtocol(Protocol):

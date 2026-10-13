@@ -6,12 +6,12 @@ from types import ModuleType
 
 from ddtrace.errortracking._handled_exceptions.bytecode_injector import _inject_handled_exception_reporting
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_bytecode_exc_callback
-from ddtrace_base.module import BaseModuleWatchdog
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings.errortracking import config
+from ddtrace_base.module import BaseModuleWatchdog
 
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)

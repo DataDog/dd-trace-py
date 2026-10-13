@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 import re
 import typing as t
 
 import pytest
 
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.test_data import ModuleRef
 from ddtrace_testing.internal.test_data import SuiteRef
 from ddtrace_testing.internal.test_data import TestRef

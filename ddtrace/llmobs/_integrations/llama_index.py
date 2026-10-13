@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace_base.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -11,6 +10,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

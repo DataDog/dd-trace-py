@@ -2,9 +2,8 @@ from typing import Any
 from typing import Optional
 
 import ddtrace
-from ddtrace_base.compat import is_wrapted
 from ddtrace.internal.settings.standalone import standalone_config
-
+from ddtrace_base.compat import is_wrapted
 from ddtrace_base.logger import get_logger
 
 

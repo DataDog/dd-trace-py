@@ -59,6 +59,13 @@ from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.sampling import _inherit_sampling_tags
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.span_bus import store_span_on_context
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _extract_header_value
+from ddtrace.trace import tracer
 from ddtrace_base.compat import is_valid_ip
 from ddtrace_base.compat import maybe_stringify
 from ddtrace_base.constants import COMPONENT
@@ -75,13 +82,6 @@ from ddtrace_base.constants import MESSAGING_SYSTEM
 from ddtrace_base.constants import SPAN_LINK_KIND
 from ddtrace_base.logger import get_logger
 from ddtrace_base.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.sampling import _inherit_sampling_tags
-from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.span_bus import store_span_on_context
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.propagation.http import _extract_header_value
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)

@@ -3,12 +3,12 @@ import typing as t
 
 from envier import En
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

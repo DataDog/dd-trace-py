@@ -13,10 +13,10 @@ from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace_base.constants import COMPONENT
-from ddtrace_base.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
 
 
 def create_server_interceptor():

@@ -10,8 +10,8 @@ from typing import cast
 from typing import get_args
 from typing import get_origin
 
-from ddtrace_base.logger import get_logger
 from ddtrace.llmobs.types import AgentManifest
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

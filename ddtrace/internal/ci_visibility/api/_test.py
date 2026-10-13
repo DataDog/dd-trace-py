@@ -13,7 +13,6 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestSourceFileInfo
 from ddtrace.ext.test_visibility.status import TestStatus
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
@@ -36,13 +35,14 @@ from ddtrace.internal.ci_visibility.constants import TEST_RETRY_REASON
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.logger import get_logger
+from ddtrace_testing.internal.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)

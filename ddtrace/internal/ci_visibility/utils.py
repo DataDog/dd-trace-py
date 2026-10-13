@@ -14,9 +14,9 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace.contrib.internal.coverage.patch import PCT_COVERED_KEY
 from ddtrace.ext import test
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

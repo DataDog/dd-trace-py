@@ -2,13 +2,13 @@ from collections import ChainMap
 import typing as t
 
 from ddtrace import config
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.core.event_hub import on
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace_base.logger import get_logger
 
 
 requires = ["remote-configuration"]

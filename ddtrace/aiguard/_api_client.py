@@ -22,8 +22,6 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
-from ddtrace_base._exceptions import DDBlockException
-import ddtrace_base.logger as ddlogger
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpClientError
@@ -32,9 +30,11 @@ from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
+from ddtrace_base._exceptions import DDBlockException
+import ddtrace_base.logger as ddlogger
+from ddtrace_base.telemetry.constants import MetricTagType
 
 
 __all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL"]

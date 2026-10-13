@@ -7,8 +7,8 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+from ddtrace_testing.internal.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check

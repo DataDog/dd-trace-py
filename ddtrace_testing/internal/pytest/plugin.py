@@ -7,7 +7,6 @@ from functools import lru_cache
 import inspect
 from io import StringIO
 import logging
-from ddtrace_testing.internal._log import get_logger
 from pathlib import Path
 import random
 import traceback
@@ -19,9 +18,10 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
-from ddtrace.internal.settings import env
-from ddtrace.internal.settings._agentless import config as agentless_config
-from ddtrace.internal.utils.inspection import undecorated
+from ddtrace_base.settings._agentless import config as agentless_config
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_base.utils.inspection import undecorated
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.ci import CITag
 from ddtrace_testing.internal.constants import TAG_TRUE
 from ddtrace_testing.internal.constants import ITRSkippingLevel
@@ -1738,12 +1738,26 @@ def setup_coverage_collection() -> None:
     install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
 
 
+def _maybe_initialize_ddtrace_logging() -> None:
+    # The plugin used to import ddtrace eagerly at load time, which as a side effect applied
+    # ddtrace's logging configuration (DD_TRACE_LOG_FILE et al.) to the ddtrace loggers in every
+    # pytest run. Keep that user-facing contract, but make the import opt-in: it only happens when
+    # the user explicitly configured ddtrace logging, so a plain pytest run stays ddtrace-free.
+    if any(env.get(name) for name in ("DD_TRACE_LOG_FILE", "DD_TRACE_LOG_LEVEL", "DD_TRACE_DEBUG")):
+        try:
+            import ddtrace  # noqa: F401  (importing ddtrace applies its logging configuration)
+        except ImportError:
+            pass  # standalone: nothing to configure
+
+
 def pytest_configure(config: pytest.Config) -> None:
     # We register the marker even if the kill switch is on, to avoid "Unknown pytest.mark.dd_tags" warnings in tests
     # when the plugin is disabled. This is similar to command line arguments, which are also registered in
     # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
     # options.
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+
+    _maybe_initialize_ddtrace_logging()
 
     if _is_test_optimization_disabled_by_kill_switch():
         return

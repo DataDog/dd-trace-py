@@ -7,9 +7,8 @@ import weakref
 
 from ddtrace_base import forksafe
 from ddtrace_base.logger import get_logger
-
-from .constants import TELEMETRY_NAMESPACE
-from .constants import MetricTagType
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import MetricTagType
 
 
 if TYPE_CHECKING:

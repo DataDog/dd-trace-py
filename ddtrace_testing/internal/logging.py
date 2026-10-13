@@ -4,7 +4,7 @@ import sys
 import typing as t
 import weakref
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
 from ddtrace_testing.internal.utils import asbool
 
 

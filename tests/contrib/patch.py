@@ -9,9 +9,9 @@ from textwrap import dedent
 import unittest
 
 from ddtrace import __version__
-from ddtrace_base.compat import is_wrapted
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
+from ddtrace_base.compat import is_wrapted
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program

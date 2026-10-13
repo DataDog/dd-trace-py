@@ -6,8 +6,8 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.settings._core import DDConfig
-from ddtrace.internal.settings._core import ValueSource
+from ddtrace_base.settings._core import DDConfig
+from ddtrace_base.settings._core import ValueSource
 
 
 log = get_logger(__name__)

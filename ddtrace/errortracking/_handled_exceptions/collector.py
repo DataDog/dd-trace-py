@@ -4,12 +4,12 @@ from typing import NamedTuple
 from typing import Protocol
 
 from ddtrace.internal import core
+from ddtrace.internal.service import Service
+from ddtrace.internal.settings.errortracking import config
 from ddtrace_base.compat import is_at_least_py
 from ddtrace_base.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace_base.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.service import Service
-from ddtrace.internal.settings.errortracking import config
 
 
 class SpanEventData(NamedTuple):

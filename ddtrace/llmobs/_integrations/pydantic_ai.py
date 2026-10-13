@@ -5,8 +5,6 @@ from typing import Optional
 from typing import get_origin
 
 from ddtrace.internal import core
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
@@ -24,6 +22,8 @@ from ddtrace.llmobs.types import AgentCapability
 from ddtrace.llmobs.types import AgentInstructionResolver
 from ddtrace.llmobs.types import AgentManifest
 from ddtrace.trace import Span
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)

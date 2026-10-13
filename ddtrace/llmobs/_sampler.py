@@ -5,15 +5,15 @@ from typing import Callable
 from typing import Optional
 from typing import Protocol
 
+from ddtrace.internal.sampling import format_rate
+from ddtrace.llmobs._constants import LLMOBS_SAMPLING
+from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace_base import forksafe
 from ddtrace_base.constants import MAX_UINT_64BITS
 from ddtrace_base.constants import SAMPLING_HASH_MODULO
 from ddtrace_base.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace_base.glob_matching import GlobMatcher
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.sampling import format_rate
-from ddtrace.llmobs._constants import LLMOBS_SAMPLING
-from ddtrace.llmobs._constants import LLMObsSamplingDecision
 
 
 log = get_logger(__name__)

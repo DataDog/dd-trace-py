@@ -1,5 +1,5 @@
-from ddtrace_base.logger import log_filter
 from ddtrace.vendor.dogstatsd.base import log
+from ddtrace_base.logger import log_filter
 
 
 def test_dogstatsd_logger():

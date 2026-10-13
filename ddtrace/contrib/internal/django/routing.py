@@ -8,9 +8,9 @@ from typing import Optional
 from typing import Union
 import weakref
 
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace_base.endpoints import endpoint_collection
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
 if TYPE_CHECKING:

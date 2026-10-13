@@ -1,7 +1,7 @@
 """Automatically starts a collector when imported."""
 
-from ddtrace_base.logger import get_logger
 from ddtrace.profiling.bootstrap import sitecustomize  # noqa:F401
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

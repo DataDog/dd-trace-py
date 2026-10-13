@@ -106,7 +106,7 @@ def test_discovery_after_external_wrapping():
 
     from ddtrace.debugging._debugger import DebuggerModuleWatchdog
     from ddtrace.debugging._function.discovery import FunctionDiscovery
-    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    from ddtrace_base.utils.inspection import ModuleCodeCollector
 
     ModuleCodeCollector.register("di")
     DebuggerModuleWatchdog.install()
@@ -134,7 +134,7 @@ def test_property_non_function_getter(stuff_discovery):
 @pytest.mark.subprocess
 def test_custom_decorated_stuff():
     from ddtrace.debugging._function.discovery import FunctionDiscovery
-    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    from ddtrace_base.utils.inspection import ModuleCodeCollector
 
     ModuleCodeCollector.register("di")
 
@@ -150,9 +150,9 @@ def test_custom_decorated_stuff():
 def test_discovery_after_external_wrapping_context():
     from ddtrace.debugging._debugger import DebuggerModuleWatchdog
     from ddtrace.debugging._function.discovery import FunctionDiscovery
-    from ddtrace_base.module import origin
-    from ddtrace.internal.utils.inspection import ModuleCodeCollector
     from ddtrace.internal.wrapping.context import WrappingContext
+    from ddtrace_base.module import origin
+    from ddtrace_base.utils.inspection import ModuleCodeCollector
 
     ModuleCodeCollector.register("di")
     DebuggerModuleWatchdog.install()

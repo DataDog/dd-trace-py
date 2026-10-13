@@ -7,12 +7,12 @@ from typing import Callable
 from typing import Optional
 from typing import TypedDict
 
-from ddtrace_base.compat import ensure_text
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType
 from ddtrace.version import __version__
+from ddtrace_base.compat import ensure_text
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):

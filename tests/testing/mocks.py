@@ -217,7 +217,7 @@ class SessionManagerMockBuilder:
                 "1" if self._itr_skipping_level == ITRSkippingLevel.SUITE else "0"
             )
 
-        from ddtrace.internal.settings._agentless import config as agentless_config
+        from ddtrace_base.settings._agentless import config as agentless_config
 
         # NOTE: Preserve the exact singleton state: callers may have applied runtime or stable-config
         # overrides that cannot be reconstructed from the ambient environment.

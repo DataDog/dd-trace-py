@@ -16,13 +16,6 @@ from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace_base._exceptions import BlockingException
-from ddtrace_base.compat import is_wrapted
-from ddtrace_base.endpoints import endpoint_collection
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils import get_argument_value
-from ddtrace_base.utils import get_blocked
-from ddtrace_base.utils import set_argument_value
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -32,6 +25,13 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
+from ddtrace_base._exceptions import BlockingException
+from ddtrace_base.compat import is_wrapted
+from ddtrace_base.endpoints import endpoint_collection
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import get_blocked
+from ddtrace_base.utils import set_argument_value
 
 
 log = get_logger(__name__)

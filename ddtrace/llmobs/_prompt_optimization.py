@@ -12,7 +12,6 @@ from typing import Protocol
 from typing import TypedDict
 from typing import Union
 
-from ddtrace_base.logger import get_logger
 from ddtrace.llmobs._evaluators import BaseEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
@@ -24,6 +23,7 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
 from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
+from ddtrace_base.logger import get_logger
 
 
 class _PromptOptimizationService(Protocol):

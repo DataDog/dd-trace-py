@@ -5,9 +5,9 @@ import os
 import shutil
 import typing as t
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

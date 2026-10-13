@@ -8,7 +8,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.openfeature import _evp_transport
 from ddtrace.internal.openfeature._evp_transport import DIRECT_RETRY_STATUSES
 from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
@@ -21,6 +20,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWr
 from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
+from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
 
 
 class _Response:

@@ -531,7 +531,7 @@ class TestTestOptWriter:
         assert writer.metadata["test"]["_dd.library_capabilities.coverage_report_upload"] == "1"
 
     @patch("ddtrace_testing.internal.http.BackendConnector")
-    @patch("ddtrace_testing.internal.writer.msgpack_packb")
+    @patch("ddtrace_testing.internal.tracer_api.msgpack_packb")
     def test_send_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending events to backend."""
         mock_connector = Mock()
@@ -564,7 +564,7 @@ class TestTestOptWriter:
         )
 
     @patch("ddtrace_testing.internal.http.BackendConnector")
-    @patch("ddtrace_testing.internal.writer.msgpack_packb")
+    @patch("ddtrace_testing.internal.tracer_api.msgpack_packb")
     def test_send_events_truncates_payload_metadata_and_event_meta(
         self, mock_packb: Mock, mock_backend_connector: Mock
     ) -> None:
@@ -738,7 +738,7 @@ class TestTestCoverageWriter:
         assert len(event["files"]) == 2
 
     @patch("ddtrace_testing.internal.http.BackendConnector")
-    @patch("ddtrace_testing.internal.writer.msgpack_packb")
+    @patch("ddtrace_testing.internal.tracer_api.msgpack_packb")
     def test_send_coverage_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending coverage events."""
         mock_connector = Mock()

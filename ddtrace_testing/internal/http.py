@@ -7,8 +7,6 @@ import gzip
 import http.client
 import io
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 import os
 import random
 import socket
@@ -19,8 +17,9 @@ from urllib.parse import ParseResult
 from urllib.parse import urlparse
 import uuid
 
-from ddtrace.internal.settings import env
-from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace_base.settings._agentless import config as agentless_config
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal._protocols import BackendConnectorSetupProtocol
 from ddtrace_testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace_testing.internal.constants import DEFAULT_AGENT_PORT

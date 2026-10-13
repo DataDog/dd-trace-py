@@ -1,6 +1,6 @@
 import typing as t
 
-from ddtrace.internal.settings._core import DDConfig
+from ddtrace_base.settings._core import DDConfig
 
 
 class AgentlessConfig(DDConfig):

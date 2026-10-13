@@ -5,9 +5,9 @@ from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace_base.constants import COMPONENT
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.span_bus import span_from_context
 
 
 # Duplicated from ddtrace.llmobs._constants to avoid importing

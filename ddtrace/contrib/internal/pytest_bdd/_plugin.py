@@ -8,8 +8,8 @@ from ddtrace.contrib.internal.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest_bdd.constants import STEP_KIND
 from ddtrace.contrib.internal.pytest_bdd.patch import get_version
 from ddtrace.ext import test
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

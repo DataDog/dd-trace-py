@@ -1,8 +1,7 @@
 import contextlib
-import logging
-from ddtrace_testing.internal._log import get_logger
 import typing as t
 
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.utils import DDTESTOPT_ROOT_SPAN_RESOURCE
 from ddtrace_testing.internal.utils import DDTraceTestContext
 from ddtrace_testing.internal.utils import PlainTestContext

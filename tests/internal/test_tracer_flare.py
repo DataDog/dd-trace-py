@@ -12,14 +12,14 @@ from unittest import mock
 
 import pytest
 
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.flare._subscribers import DEFAULT_STALE_FLARE_DURATION_MINS
 from ddtrace.internal.flare._subscribers import TracerFlareCallback
 from ddtrace.internal.flare._subscribers import TracerFlareState
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.native._native import native_flare  # type: ignore
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 
 # Renamed to avoid pytest trying to collect it as a Test class:
 from tests.utils import remote_config_build_payload as build_payload

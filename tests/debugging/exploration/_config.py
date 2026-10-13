@@ -5,7 +5,7 @@ import typing as t
 from warnings import warn
 
 from ddtrace.debugging._probe.model import CaptureLimits
-from ddtrace.internal.settings._core import DDConfig
+from ddtrace_base.settings._core import DDConfig
 
 
 def parse_venv(value: str) -> t.Optional[Path]:

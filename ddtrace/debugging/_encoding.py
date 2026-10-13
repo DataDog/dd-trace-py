@@ -18,9 +18,9 @@ from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import process_tags
 from ddtrace.internal._encoding import BufferFull
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

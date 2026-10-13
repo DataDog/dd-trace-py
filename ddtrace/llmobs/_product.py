@@ -7,8 +7,8 @@ without restarting the service.
 
 import typing as t
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)
@@ -42,9 +42,9 @@ def stop(join: bool = False) -> None:
 def post_preload() -> None:
     """Track LLM integrations detected in the environment."""
     from ddtrace import config
-    from ddtrace_base.module import is_module_installed
     from ddtrace.internal.telemetry import telemetry_writer
     from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+    from ddtrace_base.module import is_module_installed
 
     llm_oneclick_supported: bool = False
     if config._remote_config_enabled:

@@ -2,9 +2,9 @@ import typing
 
 from ddtrace.internal import service
 from ddtrace.internal._threads import PERIODIC_STOP
-from ddtrace_base import forksafe
 from ddtrace.internal.threads import PeriodicThread
 from ddtrace.internal.threads import RLock
+from ddtrace_base import forksafe
 
 
 class PeriodicService(service.Service):

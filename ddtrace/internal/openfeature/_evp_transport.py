@@ -17,10 +17,6 @@ from urllib.parse import urlsplit
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
-from ddtrace_base import forksafe
-from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
-from ddtrace_base.logger import get_logger
-from ddtrace_base.settings.env import dd_environ
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
@@ -36,6 +32,10 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.settings.openfeature import resolve_configuration_source
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.version import __version__
+from ddtrace_base import forksafe
+from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings.env import dd_environ
 
 
 log = get_logger(__name__)

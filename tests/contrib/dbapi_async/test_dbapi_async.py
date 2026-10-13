@@ -6,11 +6,11 @@ from ddtrace.contrib.dbapi_async import FetchTracedAsyncCursor
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncCursor
 from ddtrace.internal import core
-from ddtrace_base._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import Span
+from ddtrace_base._exceptions import BlockingException
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.utils import assert_is_measured

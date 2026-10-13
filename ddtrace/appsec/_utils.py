@@ -14,10 +14,10 @@ from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
-from ddtrace_base._unpatched import unpatched_json_loads
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base._unpatched import unpatched_json_loads
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

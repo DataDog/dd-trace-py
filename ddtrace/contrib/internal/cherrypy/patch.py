@@ -12,12 +12,12 @@ from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
-from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 log = logging.getLogger(__name__)

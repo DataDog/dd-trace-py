@@ -8,17 +8,17 @@ from unittest import mock
 import pytest
 
 from ddtrace import config
-import ddtrace.internal.settings._core as settings_core
-from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
+import ddtrace_base.settings._core as settings_core
+from ddtrace_base.settings._core import DDConfig
+from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
 from tests.utils import call_program
 from tests.utils import override_global_config
 
@@ -681,7 +681,7 @@ def test_telemetry_writer_stays_on_the_agent_when_only_an_api_key_is_set():
 )
 def test_any_agentless_setting_turns_telemetry_agentless(agentless_env_var):
     """Telemetry has no transport setting of its own, so any agentless config turns it agentless."""
-    from ddtrace.internal.settings._agentless import AgentlessConfig
+    from ddtrace_base.settings._agentless import AgentlessConfig
     from tests.utils import override_env
 
     with override_env({"DD_API_KEY": "foobarkey"}, replace_os_env=True):

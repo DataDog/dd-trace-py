@@ -1,4 +1,3 @@
-from ddtrace_base.core.events import Event
 from ddtrace.internal.native._native import EventResult
 from ddtrace.internal.native._native import EventResultDict
 from ddtrace.internal.native._native import ResultType
@@ -7,6 +6,7 @@ from ddtrace.internal.native._native import dispatch_with_results
 from ddtrace.internal.native._native import has_listeners
 from ddtrace.internal.native._native import on
 from ddtrace.internal.native._native import reset
+from ddtrace_base.core.events import Event
 
 
 def dispatch_event(event: Event, allow_raise: bool = False) -> None:

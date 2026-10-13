@@ -8,8 +8,8 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.structlog.patch import patch
 from ddtrace.contrib.internal.structlog.patch import unpatch
-from ddtrace_base.constants import MAX_UINT_64BITS
 from ddtrace.trace import tracer
+from ddtrace_base.constants import MAX_UINT_64BITS
 from tests.utils import override_global_config
 
 
@@ -183,8 +183,8 @@ def test_log_trace_128bit_trace_ids():
     from ddtrace import config
     from ddtrace.contrib.internal.structlog.patch import patch
     from ddtrace.contrib.internal.structlog.patch import unpatch
-    from ddtrace_base.constants import MAX_UINT_64BITS
     from ddtrace.trace import tracer
+    from ddtrace_base.constants import MAX_UINT_64BITS
 
     config.service = "logging"
     config.env = "global.env"

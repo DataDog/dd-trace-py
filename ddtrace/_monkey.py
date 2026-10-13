@@ -7,17 +7,17 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import _integration_env_var_id
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+from ddtrace_base.utils.deprecations import deprecate
 
 from .internal import telemetry
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .internal.utils import formats
 
 

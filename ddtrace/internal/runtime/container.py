@@ -7,12 +7,12 @@ from typing import Literal
 from typing import Optional
 from typing import Union
 
+from ddtrace.internal.settings import env
 from ddtrace_base.constants import CONTAINER_ID_HEADER_NAME
 from ddtrace_base.constants import ENTITY_ID_HEADER_NAME
 from ddtrace_base.constants import EXTERNAL_ENV_ENVIRONMENT_VARIABLE
 from ddtrace_base.constants import EXTERNAL_ENV_HEADER_NAME
 from ddtrace_base.logger import get_logger
-from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

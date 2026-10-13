@@ -2,7 +2,6 @@ import json
 from typing import Any
 from typing import Optional
 
-from ddtrace_base.logger import get_logger
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -16,6 +15,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

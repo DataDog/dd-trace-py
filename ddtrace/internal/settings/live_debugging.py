@@ -1,4 +1,4 @@
-from ddtrace.internal.settings._core import DDConfig
+from ddtrace_base.settings._core import DDConfig
 
 
 class LiveDebuggerConfig(DDConfig):

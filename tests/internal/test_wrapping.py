@@ -12,7 +12,6 @@ from typing import cast
 
 import pytest
 
-from ddtrace_base.compat import is_at_least_py
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
@@ -20,6 +19,7 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
+from ddtrace_base.compat import is_at_least_py
 
 
 def assert_stack(expected):

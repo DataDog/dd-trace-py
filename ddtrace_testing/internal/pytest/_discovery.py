@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 from pathlib import Path
 import typing as t
 
 import pytest
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED
 from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_DISCOVERY_FILE
 from ddtrace_testing.internal.git import get_workspace_path

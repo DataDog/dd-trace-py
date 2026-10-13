@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import gzip
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 from pathlib import Path
 import typing as t
 import uuid
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.constants import EMPTY_NAME
 from ddtrace_testing.internal.constants import ITRSkippingLevel
 from ddtrace_testing.internal.git import GitTag

@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.settings import env
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
@@ -23,6 +22,7 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.trace import Span
+from ddtrace_base.utils import get_argument_value
 
 
 TEXT_COMPLETION_OPERATIONS = (

@@ -7,10 +7,10 @@ import weakref
 import ddtrace_api
 
 import ddtrace
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 _DD_HOOK_NAME = "dd.hook"

@@ -6,8 +6,15 @@ be easily disabled by invoking pytest with `-p no:ddtrace`. As such, the functio
 `ddtrace_testing/internal/pytest/plugin.py`.
 """
 
-from ddtrace.internal.settings._telemetry import config as telemetry_config
-from ddtrace.internal.settings.asm import config as asm_config
+# These hooks integrate ddtrace tracer features (IAST, telemetry settings) into the
+# pytest plugin. ddtrace is an optional dependency of the testing package: the imports
+# are resolved lazily and the integration is skipped when ddtrace is not installed.
+
+
+def _asm_config():
+    from ddtrace.internal.settings.asm import config as asm_config
+
+    return asm_config
 
 
 def pytest_addoption(parser):
@@ -24,9 +31,14 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+    try:
+        from ddtrace.internal.settings._telemetry import config as telemetry_config
+    except ImportError:
+        return  # standalone: no tracer integration available
+
     telemetry_config.DEPENDENCY_COLLECTION = False
 
-    if asm_config._iast_enabled:
+    if _asm_config()._iast_enabled:
         # Cause ddtrace_iast fixture to be loaded by pytest.
         from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401,I001
 
@@ -40,7 +52,7 @@ def pytest_configure(config):
 
 class DDTracePytestHooks:
     def pytest_terminal_summary(self, terminalreporter):
-        if asm_config._iast_enabled:
+        if _asm_config()._iast_enabled:
             from ddtrace.appsec._iast._pytest_plugin import print_iast_report
 
             print_iast_report(terminalreporter)

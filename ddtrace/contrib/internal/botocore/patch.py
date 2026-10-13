@@ -27,9 +27,6 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace_base.constants import COMPONENT
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils import get_argument_value
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
@@ -41,6 +38,9 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 
 from .services.bedrock import _resolve_inference_profile_in_progress
 from .services.bedrock import patched_bedrock_api_call

@@ -170,10 +170,10 @@ def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_wrapping_modules_import() -> None:
-    import ddtrace_base.module  # noqa: F401
     import ddtrace.internal.bytecode_injection  # noqa: F401
     import ddtrace.internal.wrapping.asyncs  # noqa: F401
     import ddtrace.internal.wrapping.generators  # noqa: F401
+    import ddtrace_base.module  # noqa: F401
 
     # wrapping.context fail-closes at import when wrap is unsupported (3.16+).
     if is_supported_python_version():
@@ -296,7 +296,7 @@ def test_debugging_products_load_without_failure() -> None:
 @pytest.mark.skipif(not _WRAP_ON_315, reason="inject_hook on 3.15")
 def test_inject_hook_does_not_raise_on_315() -> None:
     from ddtrace.internal.bytecode_injection import inject_hook
-    from ddtrace.internal.utils.inspection import linenos
+    from ddtrace_base.utils.inspection import linenos
 
     def f() -> None:
         return None

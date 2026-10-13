@@ -3,9 +3,9 @@
 import platform
 import sys
 
-from ddtrace_base.logger import get_logger
 import ddtrace.profiling as profiling
 from ddtrace.profiling import bootstrap
+from ddtrace_base.logger import get_logger
 
 
 LOG = get_logger(__name__)

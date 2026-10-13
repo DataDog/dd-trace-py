@@ -11,7 +11,6 @@ import warnings
 import pytest
 
 from ddtrace import config
-from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.openfeature._source_selection import AGENTLESS
 from ddtrace.internal.openfeature._source_selection import DISABLED
 from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
@@ -30,6 +29,7 @@ from ddtrace.llmobs.types import PromptConflictError
 from ddtrace.llmobs.types import PromptNotFoundError
 from ddtrace.llmobs.types import PromptServerError
 from ddtrace.llmobs.types import PromptValidationError
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
 from tests.utils import override_global_config
 
 

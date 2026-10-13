@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from functools import lru_cache
-import logging
-from ddtrace_testing.internal._log import get_logger
 import typing as t
 
-from ddtrace.internal.settings import env
+from ddtrace_base.settings.env import dd_environ as env
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace_testing.internal.settings_data import Settings
 from ddtrace_testing.internal.test_data import Test

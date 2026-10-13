@@ -20,9 +20,9 @@ from ddtrace.ext import db
 from ddtrace.ext import mongo as mongox
 from ddtrace.ext import net as netx
 from ddtrace.internal import core
+from ddtrace.trace import tracer
 from ddtrace_base.constants import COMPONENT
 from ddtrace_base.logger import get_logger
-from ddtrace.trace import tracer
 
 
 BATCH_PARTIAL_KEY = "Batch"

@@ -12,9 +12,9 @@ At startup (when DD_APPSEC_SCA_ENABLED=true):
      imported, so they get instrumented lazily on first import.
 """
 
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

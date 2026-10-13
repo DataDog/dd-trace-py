@@ -1594,7 +1594,7 @@ def test_build_real_with_mocks_restores_the_agentless_config() -> None:
     Re-reading the ambient environment loses runtime overrides and makes later tests depend on
     execution order.
     """
-    from ddtrace.internal.settings._agentless import config as agentless_config
+    from ddtrace_base.settings._agentless import config as agentless_config
 
     expected_state = agentless_config.__dict__
     expected_values = dict(expected_state)

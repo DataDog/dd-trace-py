@@ -13,9 +13,6 @@ from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import agent
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils.retry import RetryError
-from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_NAME
 from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -56,6 +53,9 @@ from ddtrace.llmobs._http import HTTPConnection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ExperimentConfigType as ExperimentConfigType
 from ddtrace.version import __version__
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.retry import RetryError
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 
 
 logger = get_logger(__name__)

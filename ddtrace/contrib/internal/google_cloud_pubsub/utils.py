@@ -1,10 +1,10 @@
 """Utilities for Google Cloud Pub/Sub instrumentation."""
 
-from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace_base.utils.deprecations import deprecate
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 _DEPRECATED_SPAN_LINKS_ENV = "DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS"

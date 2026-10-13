@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import json
-import logging
-from ddtrace_testing.internal._log import get_logger
 from pathlib import Path
 import typing as t
 
 import pytest
 
-import ddtrace
+from ddtrace_testing.internal._log import get_logger
 from ddtrace_testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace_testing.internal.pytest.utils import item_to_test_ref
 from ddtrace_testing.internal.test_data import TestTag
@@ -67,6 +65,12 @@ class BddTestOptPlugin:
     def pytest_bdd_before_step(
         self, request: FixtureRequest, feature: Feature, scenario: Scenario, step: Step, step_func: t.Callable
     ) -> None:
+        # Tracing of BDD steps is an optional tracer integration: resolve the tracer
+        # lazily and degrade to no spans when ddtrace is not installed.
+        try:
+            import ddtrace
+        except ImportError:
+            return
         tracer = ddtrace.tracer
         if tracer is None:
             return

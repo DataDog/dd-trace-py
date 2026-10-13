@@ -3,8 +3,8 @@ import signal
 
 import pytest
 
-from ddtrace_base.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import tracer
+from ddtrace_base.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import override_global_config
 from tests.utils import snapshot

@@ -38,8 +38,6 @@ import typing
 from zoneinfo import ZoneInfo
 
 from ddtrace import config as ddconfig
-from ddtrace_base import forksafe
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
@@ -54,9 +52,11 @@ from ddtrace.internal.openfeature._flageval_pii import prefixed_targeting_key_di
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import PeriodicThread
 from ddtrace.internal.utils.http import get_connection
+from ddtrace_base import forksafe
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 logger = get_logger(__name__)

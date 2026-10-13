@@ -2,7 +2,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TypedDict
 
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace_testing.internal.coverage_lines import CoverageLines
 
 
 class CoverageFilePayload(TypedDict):

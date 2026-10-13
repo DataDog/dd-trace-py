@@ -631,8 +631,8 @@ def test_trace_native_span_events_not_forced_when_api_version_overrides_otlp():
 
 @pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
 def test_trace_native_span_events_not_forced_when_stable_api_version_overrides_otlp(source_name):
-    from ddtrace.internal.settings import _core as settings_core
     from ddtrace.internal.settings._agent import AgentConfig
+    from ddtrace_base.settings import _core as settings_core
 
     source = getattr(settings_core, source_name)
     with (

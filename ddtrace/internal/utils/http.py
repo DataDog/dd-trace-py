@@ -16,6 +16,8 @@ from typing import Union  # noqa:F401
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
+from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.settings import env
 from ddtrace_base._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace_base.constants import BLOCKED_RESPONSE_HTML
 from ddtrace_base.constants import BLOCKED_RESPONSE_JSON
@@ -30,8 +32,6 @@ from ddtrace_base.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace_base.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace_base.utils import _get_metas_to_propagate
 from ddtrace_base.utils.cache import cached
-from ddtrace.internal.http import HTTPConnection
-from ddtrace.internal.settings import env
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")

@@ -16,6 +16,13 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.settings import env
+from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.trace import Span
+from ddtrace.trace import tracer
 from ddtrace_base._exceptions import BlockingException
 from ddtrace_base._exceptions import find_exception
 from ddtrace_base.compat import is_valid_ip
@@ -26,13 +33,6 @@ from ddtrace_base.utils import get_blocked
 from ddtrace_base.utils import set_blocked
 from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace_base.utils.deprecations import deprecate
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.settings import env
-from ddtrace.internal.settings._config import _get_config
-from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Span
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)

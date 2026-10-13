@@ -31,13 +31,13 @@ from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace_base._unpatched import unpatched_open as open  # noqa: A004
-from ddtrace_base.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base._unpatched import unpatched_open as open  # noqa: A004
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

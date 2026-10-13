@@ -9,27 +9,27 @@ from typing import Optional
 from urllib.parse import urljoin
 
 from ddtrace.ext import ci
-from ddtrace.ext.git import _build_git_packfiles_with_details
-from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
-from ddtrace.ext.git import _extract_latest_commits_with_details
-from ddtrace.ext.git import _extract_upstream_sha
-from ddtrace.ext.git import _get_rev_list_with_details
-from ddtrace.ext.git import _is_shallow_repository_with_details
-from ddtrace.ext.git import _unshallow_repository
-from ddtrace.ext.git import _unshallow_repository_with_details
-from ddtrace.ext.git import extract_commit_sha
-from ddtrace.ext.git import extract_git_version
-from ddtrace.ext.git import extract_remote_url
-from ddtrace.ext.git import extract_workspace_path
-from ddtrace_base.logger import get_logger
-from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.trace import Tracer
+from ddtrace_base.ext.git import _build_git_packfiles_with_details
+from ddtrace_base.ext.git import _extract_clone_defaultremotename_with_details
+from ddtrace_base.ext.git import _extract_latest_commits_with_details
+from ddtrace_base.ext.git import _extract_upstream_sha
+from ddtrace_base.ext.git import _get_rev_list_with_details
+from ddtrace_base.ext.git import _is_shallow_repository_with_details
+from ddtrace_base.ext.git import _unshallow_repository
+from ddtrace_base.ext.git import _unshallow_repository_with_details
+from ddtrace_base.ext.git import extract_commit_sha
+from ddtrace_base.ext.git import extract_git_version
+from ddtrace_base.ext.git import extract_remote_url
+from ddtrace_base.ext.git import extract_workspace_path
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base.utils.time import StopWatch
 
 from .. import telemetry
-from ddtrace_base.utils.time import StopWatch
 from ..evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
