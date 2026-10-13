@@ -198,7 +198,10 @@ def _is_coverage_report_upload_enabled() -> bool:
         log.debug("Unable to check if coverage report upload is enabled from settings", exc_info=True)
 
     # Allow environment variable to override (same pattern as V3)
-    if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+    coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
+    if coverage_upload_env.lower() in ("false", "0"):
+        coverage_report_upload_enabled = False
+    elif asbool(coverage_upload_env):
         coverage_report_upload_enabled = True
 
     return coverage_report_upload_enabled

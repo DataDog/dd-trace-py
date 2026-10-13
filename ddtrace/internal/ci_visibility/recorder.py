@@ -358,9 +358,10 @@ class CIVisibility(Service, CIVisibilityProtocol):
 
         Environment variable takes precedence over API settings.
         """
-        return asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")) or (
-            coverage_report_upload_enabled_by_api or False
-        )
+        coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
+        if coverage_upload_env.lower() in ("false", "0"):
+            return False
+        return asbool(coverage_upload_env) or (coverage_report_upload_enabled_by_api or False)
 
     def _check_enabled_features(self) -> TestVisibilityAPISettings:
         _error_return_value = TestVisibilityAPISettings()

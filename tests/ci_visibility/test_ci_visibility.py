@@ -6,6 +6,7 @@ import re
 import socket
 import textwrap
 import time
+from typing import Optional
 from unittest import mock
 
 import msgpack
@@ -81,6 +82,35 @@ def _dummy_noop_git_client():
         wait_for_metadata_upload_status=mock.Mock(return_value=METADATA_UPLOAD_STATUS.SUCCESS),
     ):
         yield
+
+
+@pytest.mark.parametrize("api_enabled", [False, True])
+@pytest.mark.parametrize(
+    "env_value, env_override",
+    [
+        (None, None),
+        ("", None),
+        ("0", False),
+        ("false", False),
+        ("FALSE", False),
+        ("1", True),
+        ("true", True),
+        ("TRUE", True),
+    ],
+)
+def test_coverage_report_upload_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+    api_enabled: bool,
+    env_value: Optional[str],
+    env_override: Optional[bool],
+) -> None:
+    if env_value is None:
+        monkeypatch.delenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", env_value)
+
+    expected = api_enabled if env_override is None else env_override
+    assert CIVisibility._should_upload_coverage_report(api_enabled) is expected
 
 
 def test_filters_test_spans():

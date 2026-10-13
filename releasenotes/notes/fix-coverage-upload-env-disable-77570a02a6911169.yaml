@@ -1,0 +1,5 @@
+fixes:
+  - |
+    CI visibility: Fixes an issue where the legacy pytest plugin uploads code coverage
+    reports despite ``DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED`` being set
+    to ``0`` or ``false`` when uploads are enabled in Test Optimization settings.

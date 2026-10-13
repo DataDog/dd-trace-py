@@ -1,6 +1,8 @@
 """Integration tests for coverage report upload functionality in pytest plugin V2."""
 
 import os
+from typing import Optional
+from typing import cast
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -45,27 +47,43 @@ class TestPytestV2CoverageUpload:
         ):
             assert _is_coverage_report_upload_enabled() is False
 
-    def test_is_coverage_report_upload_enabled_env_override(self):
-        """Test environment variable overrides API settings."""
+    @pytest.mark.parametrize("api_enabled", [False, True])
+    @pytest.mark.parametrize(
+        "env_value, env_override",
+        [
+            (None, None),
+            ("", None),
+            ("0", False),
+            ("false", False),
+            ("FALSE", False),
+            ("1", True),
+            ("true", True),
+            ("TRUE", True),
+        ],
+    )
+    def test_is_coverage_report_upload_enabled_env_override(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        api_enabled: bool,
+        env_value: Optional[str],
+        env_override: Optional[bool],
+    ) -> None:
+        """Explicit enable and disable values take precedence over API settings."""
         from ddtrace.contrib.internal.pytest._plugin_v2 import _is_coverage_report_upload_enabled
 
-        # API settings disabled
         mock_service = Mock()
         mock_api_settings = Mock()
-        mock_api_settings.coverage_report_upload_enabled = False
+        mock_api_settings.coverage_report_upload_enabled = api_enabled
         mock_service._api_settings = mock_api_settings
+        if env_value is not None:
+            monkeypatch.setenv(COVERAGE_UPLOAD_ENABLED_ENV, env_value)
 
         with patch(
             "ddtrace.contrib.internal.pytest._plugin_v2.require_ci_visibility_service",
             return_value=mock_service,
         ):
-            # Test env var enabled (should override)
-            with patch.dict(os.environ, {COVERAGE_UPLOAD_ENABLED_ENV: "1"}):
-                assert _is_coverage_report_upload_enabled() is True
-
-            # Test env var disabled (should respect API setting)
-            with patch.dict(os.environ, {COVERAGE_UPLOAD_ENABLED_ENV: "0"}):
-                assert _is_coverage_report_upload_enabled() is False
+            expected = api_enabled if env_override is None else env_override
+            assert _is_coverage_report_upload_enabled() is expected
 
     def test_is_coverage_report_upload_enabled_exception_handling(self):
         """Test graceful handling when CI visibility service is not available."""
@@ -219,7 +237,9 @@ class TestPytestV2CoverageUpload:
                 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 
                 ci_visibility_service = require_ci_visibility_service()
-                return ci_visibility_service.upload_coverage_report(coverage_report_bytes, coverage_format)
+                return cast(CIVisibility, ci_visibility_service).upload_coverage_report(
+                    coverage_report_bytes, coverage_format
+                )
             except Exception:
                 return False
 
@@ -246,7 +266,9 @@ class TestPytestV2CoverageUpload:
                 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 
                 ci_visibility_service = require_ci_visibility_service()
-                return ci_visibility_service.upload_coverage_report(coverage_report_bytes, coverage_format)
+                return cast(CIVisibility, ci_visibility_service).upload_coverage_report(
+                    coverage_report_bytes, coverage_format
+                )
             except Exception:
                 return False
 
