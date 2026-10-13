@@ -8,10 +8,10 @@ from typing import Any
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
     def __init__(
         self,
         wrapped: Any,
-        tracer: Tracer | None,
+        tracer: ProfilerTracer | None,
     ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
         self.on_trace_ready = _handle_torch_trace
@@ -46,7 +46,7 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
 
     def __init__(self) -> None:
         super().__init__()
-        self.tracer: Tracer | None = None
+        self.tracer: ProfilerTracer | None = None
         # Holds the pytorch profiler object which is wrapped by this class
         self._original: Any = None
 

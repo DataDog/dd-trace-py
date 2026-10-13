@@ -1,6 +1,7 @@
 from abc import ABC
 from contextvars import ContextVar
 from functools import lru_cache
+from inspect import CO_ASYNC_GENERATOR
 from inspect import CO_COROUTINE
 from inspect import CO_GENERATOR
 import sys
@@ -124,7 +125,7 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
 _STORAGE_OWNER = "__dd_wrapping_context_owner__"
 # Set in per-call storage when a raise originates from context machinery itself
-# (__return__, or on 3.15+ on_py_start) rather than from the wrapped function
+# (__return__) rather than from the wrapped function
 # body, so the resulting exception does not also trigger __exit__. Consumed by
 # _UniversalWrappingContext._exit (bytecode path, >=3.11) and on_py_unwind
 # (sys.monitoring path, >=3.15).
@@ -876,19 +877,14 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         # ddtrace registers for these events on a given code object.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
-        # PY_RETURN; _SKIP_EXIT_KEY suppresses the resulting __exit__ call so
-        # it only fires for a real exception from the wrapped function body.
-        # It lives in per-call storage (a ContextVar), not a plain attribute,
-        # because this same instance is shared across concurrent calls.
+        # PY_RETURN. After a failing PY_START it exits the contexts that already
+        # entered and pops this call's storage. After a failing PY_RETURN,
+        # _SKIP_EXIT_KEY suppresses the __exit__ call. It lives in per-call
+        # storage (a ContextVar), not a plain attribute, because this same
+        # instance is shared across concurrent calls.
 
         def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
-            try:
-                self.__enter__()
-            except BaseException:
-                storage = self._storage.get()
-                if storage is not None:
-                    storage[_SKIP_EXIT_KEY] = True
-                raise
+            self.__enter__()
 
         def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
             self.__return__(retval)
@@ -945,6 +941,11 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                         _monitoring.unregister(original_code, existing)
                     else:
                         raise ValueError("Function already wrapped")
+
+                if is_obfuscated_code(original_code):
+                    raise ObfuscatedCodeError(
+                        f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                    )
 
                 # sys.monitoring dispatches per code object. Clone the code so
                 # unwrapped siblings that share the same CodeType are not affected.
@@ -1239,7 +1240,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
                 # Search for the GEN_START instruction, which needs to stay on top.
                 i = 0
-                if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE)):
+                if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
                             break

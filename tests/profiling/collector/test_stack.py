@@ -124,6 +124,27 @@ def test_native_frame_limit() -> None:
     assert _stack._get_frame_limits() == (10_000, 1024)
 
 
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_ENABLED="1"), err=None)
+def test_thread_name_not_utf8_encodable() -> None:
+    import threading
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    _stack.register_thread(threading.get_ident(), threading.get_native_id(), "main-\udcff")
+
+    for name in ("job-\udcff", "job-\x00x"):
+        started = threading.Event()
+
+        def driver(name: str = name) -> None:
+            t = threading.Thread(target=lambda: None, name=name)
+            t.start()
+            t.join()
+            started.set()
+
+        threading.Thread(target=driver, daemon=True).start()
+        assert started.wait(10), "Thread.start hung for name %r" % name
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_exact_native_frame_limit",
@@ -477,6 +498,130 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
         )
 
         unregister_thread.assert_called_with(thread_id)
+
+
+@pytest.mark.subprocess
+def test_restarts_do_not_stack_thread_hooks() -> None:
+    import threading
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restarts_do_not_stack_thread_hooks", version="my_version")
+    ddup.start()
+
+    for _ in range(3):
+        with stack.StackCollector():
+            pass
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_restart_reinstalls_replaced_thread_hooks() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restart_reinstalls_replaced_thread_hooks", version="my_version")
+    ddup.start()
+
+    original_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+    with stack.StackCollector():
+        pass
+
+    # Same as the coverage threading patch: the replacement delegates to the method it captured before the profiler
+    # hook was installed.
+    def replaced_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        original_bootstrap_inner(self, *args, **kwargs)
+
+    threading.Thread._bootstrap_inner = replaced_bootstrap_inner  # type: ignore[attr-defined]
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_restart_does_not_stack_thread_hooks_beneath_wrapper() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restart_does_not_stack_thread_hooks_beneath_wrapper", version="my_version")
+    ddup.start()
+
+    with stack.StackCollector():
+        pass
+
+    # Same as the coverage threading patch when it is imported after the profiler started: the replacement delegates
+    # to the profiler hook it captured.
+    profiler_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+    def wrapped_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        profiler_bootstrap_inner(self, *args, **kwargs)
+
+    threading.Thread._bootstrap_inner = wrapped_bootstrap_inner  # type: ignore[attr-defined]
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_thread_spanning_restart_with_wrapper_is_unregistered() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_thread_spanning_restart_with_wrapper_is_unregistered", version="my_version")
+    ddup.start()
+
+    release = threading.Event()
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            # This thread only has the first profiler hook in its call chain.
+            t = threading.Thread(target=release.wait)
+            t.start()
+
+        profiler_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+        def wrapped_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+            profiler_bootstrap_inner(self, *args, **kwargs)
+
+        threading.Thread._bootstrap_inner = wrapped_bootstrap_inner  # type: ignore[attr-defined]
+
+        with stack.StackCollector():
+            release.set()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
 
 
 def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:

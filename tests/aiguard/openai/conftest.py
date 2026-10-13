@@ -1,8 +1,9 @@
 """Pytest fixtures and HTTP transport helpers for the AI Guard + OpenAI integration tests."""
 
 import json
+from typing import TYPE_CHECKING
+from typing import Any
 
-import httpx
 import pytest
 
 from ddtrace.aiguard._context import reset_aiguard_context_active
@@ -10,8 +11,15 @@ from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard._initialization import load_ai_guard
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
+from tests.aiguard.openai._http_client import _http_client_module
 from tests.aiguard.utils import override_ai_guard_config
 from tests.utils import override_env
+
+
+if TYPE_CHECKING:
+    import httpx
+else:
+    httpx = _http_client_module()
 
 
 @pytest.fixture
@@ -283,7 +291,7 @@ def openai_client_stream_tool_calls_buffered(openai_sdk_buffered):
 # ---------------------------------------------------------------------------
 
 
-def _fake_response_snapshot() -> dict:
+def _fake_response_snapshot() -> dict[str, Any]:
     return {
         "id": "resp-test",
         "object": "response",
@@ -315,7 +323,7 @@ def _fake_response_snapshot() -> dict:
     }
 
 
-def _sse(event: str, data: dict) -> bytes:
+def _sse(event: str, data: dict[str, Any]) -> bytes:
     return ("event: " + event + "\ndata: " + json.dumps(data) + "\n\n").encode()
 
 
