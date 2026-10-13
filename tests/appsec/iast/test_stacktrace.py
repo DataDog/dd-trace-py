@@ -39,3 +39,31 @@ async def test_stacktrace_async_no_relevant_frame():
     assert line is None
     assert function is None
     assert class_ is None
+
+
+class _Holder:
+    def caller(self):
+        return get_info_frame()
+
+    class _Nested:
+        def caller(self):
+            return get_info_frame()
+
+
+def test_stacktrace_class_name():
+    """A method frame reports the class that owns it."""
+    file, line, function, class_ = _Holder().caller()
+    assert file is not None
+    assert file.endswith("test_stacktrace.py")
+    assert line is not None
+    assert function == "caller"
+    assert class_ == "_Holder"
+    assert _Holder()._Nested().caller()[3] == "_Nested"
+
+
+def test_stacktrace_class_name_empty_for_function():
+    """A plain function has no owning class, but still reports a string."""
+    file, line, function, class_ = get_info_frame()
+    assert file is not None
+    assert function == "test_stacktrace_class_name_empty_for_function"
+    assert class_ == ""
