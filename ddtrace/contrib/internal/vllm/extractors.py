@@ -113,20 +113,20 @@ def extract_request_data(req_state: RequestState, engine_core_output: EngineCore
 def get_num_cached_tokens(req_state: RequestState, engine_core_output: EngineCoreOutput) -> int:
     """Extract the number of prefix-cached prompt tokens.
 
-    vLLM < 0.20 sets ``num_cached_tokens`` on every EngineCoreOutput. vLLM >= 0.20 sets it in
-    ``prefill_stats`` on the prefill step output only, and then copies it to ``req_state``.
+    vLLM < 0.20 sets num_cached_tokens on every EngineCoreOutput. vLLM >= 0.20 sets it in
+    prefill_stats on the prefill step output only, and then copies it to req_state.
     The prefill step can also be the final step (pooling, single-token generation), so read
-    ``prefill_stats`` first, because ``req_state`` is not updated yet at capture time.
+    prefill_stats first, because req_state is not updated yet at capture time.
     """
     num_cached_tokens = getattr(engine_core_output, "num_cached_tokens", None)
     if num_cached_tokens is not None:
-        return num_cached_tokens
+        return int(num_cached_tokens)
 
     prefill_stats = getattr(engine_core_output, "prefill_stats", None)
     if prefill_stats is not None:
-        return prefill_stats.num_cached_tokens
+        return int(prefill_stats.num_cached_tokens)
 
-    return getattr(req_state, "num_cached_tokens", 0) or 0
+    return int(getattr(req_state, "num_cached_tokens", 0) or 0)
 
 
 def get_model_name(instance) -> Optional[str]:

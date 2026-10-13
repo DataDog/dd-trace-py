@@ -139,27 +139,31 @@ def _create_finished_spans(
             arrival_time=span_info["arrival_time"],
         )
 
-        data = span_info["data"]
-        operation = "embedding" if data.embedding_dim is not None else "completion"
+        # The span is active once created. Always finish it, so that an error here cannot leave it
+        # active as the parent of later spans.
+        try:
+            data = span_info["data"]
+            operation = "embedding" if data.embedding_dim is not None else "completion"
 
-        if operation == "completion" and span_info["stats"]:
-            data.output_tokens = span_info["stats"].num_generation_tokens
+            if operation == "completion" and span_info["stats"]:
+                data.output_tokens = span_info["stats"].num_generation_tokens
 
-        latency_metrics = extract_latency_metrics(span_info["stats"])
+            latency_metrics = extract_latency_metrics(span_info["stats"])
 
-        integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs={
-                "request_data": data,
-                "latency_metrics": latency_metrics,
-            },
-            response=None,
-            operation=operation,
-        )
+            integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs={
+                    "request_data": data,
+                    "latency_metrics": latency_metrics,
+                },
+                response=None,
+                operation=operation,
+            )
 
-        set_latency_metrics(span, latency_metrics)
-        span.finish()
+            set_latency_metrics(span, latency_metrics)
+        finally:
+            span.finish()
 
 
 def traced_output_processor_process_outputs(func, instance, args, kwargs):
