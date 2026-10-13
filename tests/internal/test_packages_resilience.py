@@ -1427,20 +1427,32 @@ def test_shipped_distributions_lists_each_directory_once(
 def test_effective_root_reuses_the_package_probe_across_files(
     tmp_path: Path,
     reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The __init__.py probe is keyed on the package, not the source file."""
     from ddtrace.internal import packages as _p
 
     site = tmp_path / "site-packages"
-    (site / "pkg").mkdir(parents=True)
-    (site / "pkg" / "__init__.py").write_text("")
+    pkg = site / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+
+    # Count probes of this test's own directory rather than reading the cache
+    # stats, which other callers in the process can bump concurrently.
+    probed: list[Path] = []
+    real_is_dir = Path.is_dir
+
+    def counting_is_dir(self, *args, **kwargs):
+        probed.append(self)
+        return real_is_dir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "is_dir", counting_is_dir)
 
     assert _p._effective_root(("pkg", "a.py"), site) == "pkg"
     assert _p._effective_root(("pkg", "sub", "b.py"), site) == "pkg"
     assert _p._effective_root(("pkg", "sub", "c.py"), site) == "pkg"
 
-    info = _p._is_regular_package.cache_info()
-    assert (info.misses, info.hits) == (1, 2)
+    assert probed.count(pkg) == 1
 
 
 def test_directory_probes_follow_snapshot_replacement(
