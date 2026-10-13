@@ -1,8 +1,7 @@
 import contextlib
 from dataclasses import dataclass
-from http.client import HTTPConnection
-from http.client import HTTPResponse
 import json
+from typing import TYPE_CHECKING
 from typing import Any
 from urllib.parse import urlsplit
 import weakref
@@ -28,6 +27,12 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
+
+
+if TYPE_CHECKING:
+    # Listening must not import http.client; the hooks attach when the application imports it.
+    from http.client import HTTPConnection
+    from http.client import HTTPResponse
 
 
 log = get_logger(__name__)
@@ -101,7 +106,7 @@ class AppSecHttpClientResponseSubscriber(Subscriber):
     event_names = (HttpClientEvents.HTTPLIB_RESPONSE.value,)
 
     @classmethod
-    def on_event(cls, event: HttpClientResponseEvent[HTTPResponse]) -> None:
+    def on_event(cls, event: HttpClientResponseEvent["HTTPResponse"]) -> None:
         if not get_rasp_capability("ssrf"):
             return
         env = get_active_asm_context()
@@ -130,7 +135,7 @@ class AppSecHttpClientResponseSubscriber(Subscriber):
             log.debug("Error analyzing http.client response", exc_info=True)
 
 
-def _analyze_standalone_response(response: HTTPResponse, pending: _PendingResponse) -> None:
+def _analyze_standalone_response(response: "HTTPResponse", pending: _PendingResponse) -> None:
     addresses: dict[str, Any] = {
         "DOWN_RES_STATUS": str(response.status),
         "DOWN_RES_HEADERS": build_headers(response.getheaders()),

@@ -1,6 +1,6 @@
 from functools import lru_cache
-from http.client import HTTPConnection
 from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import TypeVar
@@ -15,6 +15,11 @@ from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
 from ddtrace.internal.wrapping.hooks import try_wrap_context
 from ddtrace.trace import tracer
+
+
+if TYPE_CHECKING:
+    # Installing the hooks must not import http.client: they attach when the application imports it.
+    from http.client import HTTPConnection
 
 
 _patched = False
@@ -92,7 +97,7 @@ class HttpClientRequestContext(WrappingContext):
 
 
 class HttpClientResponseContext(WrappingContext):
-    def _connection(self) -> Optional[HTTPConnection]:
+    def _connection(self) -> Optional["HTTPConnection"]:
         """The connection getresponse was called on, or None for ddtrace's own connections.
 
         Read lazily: reading the frame costs more than everything else here, and most subscribers

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from http.client import HTTPConnection
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Generic
@@ -19,6 +19,11 @@ from ddtrace.internal.core.events import event_field
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+
+
+if TYPE_CHECKING:
+    # http.client imports socket, which ddtrace must not load eagerly (serverless and ddtrace.auto).
+    from http.client import HTTPConnection
 
 
 log = get_logger(__name__)
@@ -70,7 +75,7 @@ class HttpClientSendEvent(HttpBaseEvent):
     event_name = HttpClientEvents.HTTP_SEND_REQUEST.value
     # Keep native bodies lazy: clients can provide bytes, text, streams, or no body.
     request_body: Callable[[], Any] = event_field()
-    connection: Optional[HTTPConnection] = event_field(default=None)
+    connection: Optional["HTTPConnection"] = event_field(default=None)
 
 
 @dataclass
@@ -102,4 +107,4 @@ class HttpClientResponseEvent(Event, Generic[ResponseType]):
     response: ResponseType = event_field()
     # Valid only while the event is dispatched. Returns None for ddtrace's own connections, whose
     # responses are not the application's.
-    get_connection: Callable[[], Optional[HTTPConnection]] = event_field(default=lambda: None)
+    get_connection: Callable[[], Optional["HTTPConnection"]] = event_field(default=lambda: None)
