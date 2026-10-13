@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from tests.contrib import shared_tests_async
 from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import assert_is_measured
 
@@ -32,6 +33,7 @@ class PsycopgCore(AsyncioTestCase):
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
         return conn
 
+    @mark_asyncio
     async def test_byte_query_uses_connection_encoding(self):
         for encoding, codec in (("UTF8", "utf-8"), ("WIN1252", "cp1252")):
             async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG, client_encoding=encoding) as connection:

@@ -5,18 +5,20 @@ from tests.utils import TracerSpanContainer
 
 async def _test_byte_query_event(cursor, codec, span_name_prefix):
     """Byte queries are sent with the connection encoding that decodes them."""
-    query = "SELECT 'é'".encode(codec)
+    value = "€" if codec == "cp1252" else "é"
+    query = f"SELECT '{value}'".encode(codec)
     events = []
-    listener = events.append
+
+    def listener(event):
+        events.append((event.query, event.span_name_prefix, str(event.query, event.get_encoding())))
+
     core.on(DbQueryEvent.event_name, listener)
     try:
         await cursor.execute(query)
     finally:
         core.reset_listeners(DbQueryEvent.event_name, listener)
-    assert (await cursor.fetchall())[0][0] == "é"
-    (event,) = events
-    assert (event.query, event.span_name_prefix) == (query, span_name_prefix)
-    assert str(query, event.get_encoding()) == "SELECT 'é'"
+    assert (await cursor.fetchall())[0][0] == value
+    assert events == [(query, span_name_prefix, f"SELECT '{value}'")]
 
 
 # DBM Shared Tests
