@@ -16,6 +16,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.settings._config import _deepmerge
 from tests.contrib.config import VERTICA_CONFIG
+from tests.contrib.shared_tests import capture_db_query_events
 from tests.utils import TracerSpanContainer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -71,9 +72,15 @@ class TestVerticaPatching(TracerTestCase):
 
             dispatch_event.assert_called_once_with(DbQueryEvent(query=args[0], span_name_prefix="vertica"))
 
+    def test_byte_query_dispatches_event(self):
+        with capture_db_query_events() as events:
+            _dispatch_query_event("execute", (b"SELECT '\xc3\xa9'",), {})
+
+        assert events == [DbQueryEvent(query=b"SELECT '\xc3\xa9'", span_name_prefix="vertica")]
+
     def test_non_string_query_does_not_dispatch_event(self):
         with mock.patch.object(core, "dispatch_event") as dispatch_event:
-            _dispatch_query_event("execute", (b"SELECT 1",), {})
+            _dispatch_query_event("execute", (None,), {})
 
         dispatch_event.assert_not_called()
 

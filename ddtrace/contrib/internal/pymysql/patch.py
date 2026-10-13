@@ -1,3 +1,5 @@
+from operator import attrgetter
+
 import pymysql
 import wrapt
 
@@ -22,6 +24,7 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("pymysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(env.get("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
+        _dbapi_query_encoding=attrgetter("connection.encoding"),
     ),
 )
 

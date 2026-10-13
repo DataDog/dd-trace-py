@@ -16,6 +16,8 @@ from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import MYSQL_CONFIG
+from tests.contrib.shared_tests import assert_byte_query_event
+from tests.contrib.shared_tests import capture_db_query_events
 
 
 AIOMYSQL_CONFIG = dict(MYSQL_CONFIG)
@@ -74,6 +76,21 @@ async def test_query_is_blocked_before_execution() -> None:
 
         dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="mysql"))
         getattr(cursor, method).assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_byte_query_uses_connection_encoding():
+    for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "cp1252")):
+        query = "SELECT 'é'".encode(codec)
+        conn = await aiomysql.connect(**AIOMYSQL_CONFIG, charset=charset)
+        try:
+            cursor = await conn.cursor()
+            with capture_db_query_events() as events:
+                await cursor.execute(query)
+            assert await cursor.fetchall() == (("é",),)
+        finally:
+            conn.close()
+        assert_byte_query_event(events, query, codec, "mysql")
 
 
 @pytest.mark.asyncio

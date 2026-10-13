@@ -6,6 +6,8 @@ from ddtrace.contrib.internal.pymysql.patch import patch
 from ddtrace.contrib.internal.pymysql.patch import unpatch
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests
+from tests.contrib.shared_tests import assert_byte_query_event
+from tests.contrib.shared_tests import capture_db_query_events
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -276,6 +278,19 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             self.conn = pymysql.connect(**MYSQL_CONFIG)
             assert not self.conn._closed
         return self.conn
+
+    def test_byte_query_uses_connection_encoding(self):
+        for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "cp1252")):
+            query = "SELECT 'é'".encode(codec)
+            conn = pymysql.connect(**MYSQL_CONFIG, charset=charset)
+            try:
+                cursor = conn.cursor()
+                with capture_db_query_events() as events:
+                    cursor.execute(query)
+                assert cursor.fetchall() == (("é",),)
+            finally:
+                conn.close()
+            assert_byte_query_event(events, query, codec, "pymysql")
 
     def test_patch_unpatch(self):
         unpatch()

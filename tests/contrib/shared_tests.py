@@ -1,4 +1,29 @@
+from contextlib import contextmanager
+
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.internal import core
 from tests.utils import TracerSpanContainer
+
+
+@contextmanager
+def capture_db_query_events():
+    """Collect the DbQueryEvent instances dispatched while the context is active."""
+    events = []
+    listener = events.append
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        yield events
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+
+
+def assert_byte_query_event(events, query, codec, span_name_prefix):
+    """UTF-8 byte queries are sent as they are, other encodings are decoded."""
+    if codec == "utf-8":
+        assert events == [DbQueryEvent(query=query, span_name_prefix=span_name_prefix)]
+        assert events[0].query is query
+    else:
+        assert events == [DbQueryEvent(query=query.decode(codec), span_name_prefix=span_name_prefix)]
 
 
 # DBM Shared Tests

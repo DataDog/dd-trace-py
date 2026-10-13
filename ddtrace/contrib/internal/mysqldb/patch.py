@@ -1,3 +1,5 @@
+from operator import attrgetter
+
 import MySQLdb
 from wrapt import wrap_function_wrapper as _w
 
@@ -33,6 +35,7 @@ config._add(
         trace_fetch_methods=asbool(env.get("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(env.get("DD_MYSQLDB_TRACE_CONNECT", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
+        _dbapi_query_encoding=attrgetter("connection.encoding"),
     ),
 )
 

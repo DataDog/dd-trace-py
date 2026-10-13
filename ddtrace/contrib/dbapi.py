@@ -2,8 +2,9 @@
 Generic dbapi tracing code.
 """
 
+import codecs
+from collections.abc import Callable
 from collections.abc import Mapping
-from contextlib import suppress
 from typing import Optional
 from typing import Union
 
@@ -47,6 +48,37 @@ config._add(
 
 def get_version() -> str:
     return ""
+
+
+def _dispatch_db_query_event(
+    query: object, span_name_prefix: str, query_encoding: Optional[Callable[[], Optional[str]]] = None
+) -> None:
+    """Send a query to DbQueryEvent subscribers before execution. Subscribers may raise to block it.
+
+    Byte queries are decoded with the connection encoding returned by query_encoding, so subscribers see
+    the text the database parses.
+    """
+    if isinstance(query, str):
+        core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=span_name_prefix))
+    elif isinstance(query, (bytes, bytearray, memoryview)) and core.has_listeners(DbQueryEvent.event_name):
+        core.dispatch_event(
+            DbQueryEvent(query=_decode_db_query(query, query_encoding), span_name_prefix=span_name_prefix)
+        )
+
+
+def _decode_db_query(
+    query: Union[bytes, bytearray, memoryview], query_encoding: Optional[Callable[[], Optional[str]]]
+) -> Union[str, bytes]:
+    # Decoding is best effort: an inspection that fails would let the query run unchecked, so undecodable
+    # bytes are replaced and the query falls back to UTF-8 when the encoding cannot be resolved.
+    try:
+        encoding = query_encoding() if query_encoding else None
+        if encoding and codecs.lookup(encoding).name != "utf-8":
+            return str(query, encoding, "replace")
+    except Exception:
+        log.debug("Failed to decode the query with the connection encoding, assuming UTF-8", exc_info=True)
+    # Subscribers read bytes as UTF-8. The WAF only reads the exact bytes type as text, not bytearray.
+    return bytes(query)
 
 
 class TracedCursor(wrapt.ObjectProxy):
@@ -141,20 +173,15 @@ class TracedCursor(wrapt.ObjectProxy):
                 # Try to fetch custom properties that were passed by the specific Database implementation
                 self._set_post_execute_tags(s)
 
-    def _decode_dbapi_query(self, query: Union[str, bytes]) -> Union[str, bytes]:
-        return query
+    def _dbapi_query_encoding(self) -> Optional[str]:
+        """Return the Python codec of the connection encoding, used to decode byte queries for inspection."""
+        get_encoding = getattr(self._self_config, "_dbapi_query_encoding", None)
+        return get_encoding(self.__wrapped__) if get_encoding else None
 
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
-        if isinstance(query, (str, bytes)):
-            inspected_query: Optional[Union[str, bytes]] = None
-            with suppress(Exception):
-                inspected_query = self._decode_dbapi_query(query)
-            if inspected_query is not None:
-                core.dispatch_event(
-                    DbQueryEvent(query=inspected_query, span_name_prefix=self._self_dbapi_span_name_prefix)
-                )
+        _dispatch_db_query_event(query, self._self_dbapi_span_name_prefix, self._dbapi_query_encoding)
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -174,14 +201,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        if isinstance(query, (str, bytes)):
-            inspected_query: Optional[Union[str, bytes]] = None
-            with suppress(Exception):
-                inspected_query = self._decode_dbapi_query(query)
-            if inspected_query is not None:
-                core.dispatch_event(
-                    DbQueryEvent(query=inspected_query, span_name_prefix=self._self_dbapi_span_name_prefix)
-                )
+        _dispatch_db_query_event(query, self._self_dbapi_span_name_prefix, self._dbapi_query_encoding)
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects

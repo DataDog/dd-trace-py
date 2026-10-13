@@ -16,6 +16,12 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
 
+def _query_encoding(cursor) -> str:
+    # Cursors only reference their connection privately, as _cnx in older C extension cursors.
+    connection = cursor._cnx if hasattr(cursor, "_cnx") else cursor._connection
+    return connection.python_charset
+
+
 config._add(
     "mysql",
     dict(
@@ -24,6 +30,7 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(env.get("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
+        _dbapi_query_encoding=_query_encoding,
     ),
 )
 

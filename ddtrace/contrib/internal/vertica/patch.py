@@ -7,13 +7,12 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.dbapi import _dispatch_db_query_event
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db as dbx
 from ddtrace.ext import net
-from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
@@ -36,8 +35,8 @@ def _dispatch_query_event(patch_routine, args, kwargs):
     else:
         return
 
-    if isinstance(query, str):
-        core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="vertica"))
+    # Vertica only uses UTF-8, so byte queries need no connection encoding
+    _dispatch_db_query_event(query, "vertica")
 
 
 _PATCHED = False

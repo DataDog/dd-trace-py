@@ -8,13 +8,13 @@ from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
 
-from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
-from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
+from tests.contrib.shared_tests import assert_byte_query_event
+from tests.contrib.shared_tests import capture_db_query_events
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import snapshot
@@ -40,23 +40,13 @@ class PsycopgCore(TracerTestCase):
         return conn
 
     def test_byte_query_uses_connection_encoding(self):
-        query = "SELECT 'é'"
-        for encoding, codec in (("UTF8", "utf-8"), ("LATIN1", "iso8859-1")):
-            original_query = query.encode(codec)
-            events = []
-            listener = events.append
+        for encoding, codec in (("UTF8", "utf-8"), ("LATIN1", "latin-1"), ("WIN1252", "cp1252")):
+            query = "SELECT 'é'".encode(codec)
             with psycopg.connect(**POSTGRES_CONFIG, client_encoding=encoding) as connection:
-                with connection.cursor() as cursor:
-                    core.on(DbQueryEvent.event_name, listener)
-                    try:
-                        cursor.execute(original_query)
-                        assert cursor.fetchone() == ("é",)
-                    finally:
-                        core.reset_listeners(DbQueryEvent.event_name, listener)
-            expected = original_query if encoding == "UTF8" else query
-            assert events == [DbQueryEvent(query=expected, span_name_prefix="postgres")]
-            if encoding == "UTF8":
-                assert events[0].query is original_query
+                with connection.cursor() as cursor, capture_db_query_events() as events:
+                    cursor.execute(query)
+                    assert cursor.fetchone() == ("é",)
+            assert_byte_query_event(events, query, codec, "postgres")
 
     def test_patch_unpatch(self):
         # Test patch idempotence
