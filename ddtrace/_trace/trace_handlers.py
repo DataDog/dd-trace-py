@@ -22,6 +22,8 @@ from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_client_address_tags
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
+from ddtrace._trace.otel.http.tags import set_url_tags_server
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
@@ -49,7 +51,6 @@ from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
-from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
@@ -89,6 +90,7 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
+_DJANGO_OTEL_ROUTE_APPLIED = "_dd.django_otel_route_applied"
 _WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
@@ -740,16 +742,40 @@ def _on_django_cache(
         _finish_span(ctx, exc_info)
 
 
-def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
+def _on_django_func_wrapped(args, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
             span_from_context(ctx)._ignore_exception(exc)
+
+    if not config._otel_trace_semantics_enabled or not args:
+        return
+
+    request = args[0]
+    resolver_match = getattr(request, "resolver_match", None)
+    route = getattr(resolver_match, "route", None)
+    if not route:
+        return
+
+    request_spans = getattr(request, "scope", {}).get("datadog", {}).get("request_spans", ())
+    request_span = request_spans[0] if request_spans else span_from_context(ctx)._parent
+    while request_span is not None:
+        if (
+            request_span.span_type == SpanTypes.WEB
+            and request_span.get_tag(COMPONENT) == config.django.integration_name
+        ):
+            if request_span._get_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED) == route:
+                return
+            set_otel_resource_for_method(request_span, request.method, route)
+            request_span._set_attribute(http.ROUTE, route)
+            request_span._set_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED, route)
+            return
+        request_span = request_span._parent
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         span_from_context(ctx)._set_attribute(tk, tv)
-    _set_url_tag(django_config, span_from_context(ctx), url, query)
+    set_url_tags_server(django_config, span_from_context(ctx), url, query)
 
 
 def _on_http_set_client_address(span: Span, client_address: str, network_peer_address: Optional[str] = None) -> None:
