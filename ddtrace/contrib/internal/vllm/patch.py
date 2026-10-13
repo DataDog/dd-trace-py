@@ -140,7 +140,8 @@ def _create_finished_spans(
         )
 
         # The span is active once created. Always finish it, so that an error here cannot leave it
-        # active as the parent of later spans.
+        # active as the parent of later spans. Catch errors per request, so that one failure does not
+        # drop the spans of the other finished requests in the batch.
         try:
             data = span_info["data"]
             operation = "embedding" if data.embedding_dim is not None else "completion"
@@ -162,6 +163,8 @@ def _create_finished_spans(
             )
 
             set_latency_metrics(span, latency_metrics)
+        except Exception:
+            logger.warning("Failed to tag vLLM span for request %s", req_id, exc_info=True)
         finally:
             span.finish()
 
