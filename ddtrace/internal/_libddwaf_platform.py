@@ -8,14 +8,16 @@ is used.  That is what distribution packages need: they build from source
 with no network access and package libddwaf separately.
 
 setup.py only writes the bundled layout, so this module is where the loader's
-expectations about it live.  Only Linux has names to fall back to, which is why
-setup.py rejects a build that bundles nothing on any other platform.
+expectations about it live.  Only Linux and FreeBSD have names to fall back to,
+which is why setup.py rejects a build that bundles nothing on any other
+platform.  FreeBSD has no prebuilt libddwaf to bundle, so a package built there
+always uses the system library.
 """
 
 import os
 
 
-FILE_EXTENSIONS = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}
+FILE_EXTENSIONS = {"Linux": "so", "FreeBSD": "so", "Darwin": "dylib", "Windows": "dll"}
 
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
 
@@ -28,7 +30,8 @@ ABI_MAJOR = 2
 # libddwaf.so.<major> in its runtime package and keeps libddwaf.so for -devel.
 # The versioned name therefore comes first, and ddwaf_get_version() is checked
 # after the load, because an unversioned SONAME guarantees no ABI.
-SYSTEM_LIBRARY_NAMES = {"Linux": ("libddwaf.so.%d" % ABI_MAJOR, "libddwaf.so")}
+_SONAMES = ("libddwaf.so.%d" % ABI_MAJOR, "libddwaf.so")
+SYSTEM_LIBRARY_NAMES = {"Linux": _SONAMES, "FreeBSD": _SONAMES}
 
 
 def target_arch(system: str, machine: str, is_64bit: bool = True) -> str:
