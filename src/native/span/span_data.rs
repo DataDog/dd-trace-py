@@ -27,6 +27,10 @@ use super::utils::{
 };
 use super::{SpanEvent, SpanLink};
 
+const SAMPLING_DECISION_TRACE_TAG_KEY: &str = "_dd.p.dm";
+const MANUAL_SAMPLING_MECHANISM: i64 = 4;
+const SAMPLING_RATE_KEYS: [&str; 3] = ["_dd.rule_psr", "_dd.agent_psr", "_dd.limit_psr"];
+
 #[pyo3::pyclass(
     name = "SpanData",
     module = "ddtrace.internal.native._native",
@@ -742,6 +746,40 @@ impl SpanData {
         let old = slf.borrow_mut()._context.replace(new_ctx.clone().unbind());
         drop(old);
         Ok(new_ctx)
+    }
+
+    /// Set the decision-maker tag; callers decide whether an existing value can be replaced.
+    fn _set_sampling_decision_maker(
+        slf: &Bound<'_, Self>,
+        sampling_mechanism: i64,
+    ) -> PyResult<String> {
+        let context = Self::get_context(slf)?;
+        let value = format!("-{}", sampling_mechanism);
+        let meta = context.borrow_mut().get_meta(slf.py());
+        meta.set_item(SAMPLING_DECISION_TRACE_TAG_KEY, &value)?;
+        Ok(value)
+    }
+
+    #[pyo3(signature = (decision))]
+    fn _override_sampling_decision(
+        slf: &Bound<'_, Self>,
+        decision: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        Self::_set_sampling_decision_maker(slf, MANUAL_SAMPLING_MECHANISM)?;
+        // Metadata callbacks can replace the context, so resolve it again before publishing.
+        let context = Self::get_context(slf)?;
+        if context.is_exact_instance_of::<Context>() {
+            Context::_publish_sampling_decision(&context, decision, 0.0, false)?;
+        } else {
+            context.call_method1("_publish_sampling_decision", (decision, 0.0, false))?;
+        }
+        for key in SAMPLING_RATE_KEYS {
+            let root = Self::get_local_root(slf);
+            let removed = root.borrow_mut().attributes.remove_entry(key);
+            // Attribute keys and values can own Python objects with reentrant finalizers.
+            drop(removed);
+        }
+        Ok(())
     }
 
     /// Takes `slf` rather than `&mut self` so the native borrow is released before the old

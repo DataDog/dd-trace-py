@@ -85,14 +85,49 @@ def test_otel_metrics_enabled():
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_ENV": "test_env"})
-def test_otel_metrics_resource_uses_stable_environment_attribute():
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_SERVICE": "test_service",
+        "DD_VERSION": "test_version",
+        "DD_ENV": "test_env",
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env",
+    },
+)
+def test_otel_metrics_resource_uses_canonical_semantic_attributes():
     from ddtrace.internal.opentelemetry.metrics import _build_resource
 
     resource = _build_resource()
     assert resource is not None
+    assert resource.attributes["service.name"] == "test_service"
+    assert resource.attributes["service.version"] == "test_version"
     assert resource.attributes["deployment.environment.name"] == "test_env"
-    assert "deployment.environment" not in resource.attributes
+    assert not {"service", "version", "env", "deployment.environment"} & resource.attributes.keys()
+
+
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env"
+    },
+)
+def test_otel_metrics_resource_remaps_semantic_tags():
+    from ddtrace import config
+    from ddtrace.internal.opentelemetry.metrics import _build_resource
+
+    assert config.service == "tag_service"
+    assert config.version == "tag_version"
+    assert config.env == "tag_env"
+    assert config.tags == {"env": "tag_env"}
+    resource = _build_resource()
+    assert resource is not None
+    assert resource.attributes["service.name"] == "tag_service"
+    assert resource.attributes["service.version"] == "tag_version"
+    assert resource.attributes["deployment.environment.name"] == "tag_env"
+    assert not {"service", "version", "env", "deployment.environment"} & resource.attributes.keys()
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
