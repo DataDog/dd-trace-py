@@ -3,6 +3,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_utils import DBAPI_PREFIXES
@@ -15,6 +16,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 class SqlInjection(VulnerabilityBase):
     vulnerability_type = VULN_SQL_INJECTION
     secure_mark = VulnerabilityType.SQL_INJECTION
+
+
+def _on_sql_patch() -> None:
+    if asm_config._iast_enabled:
+        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
 def _on_report_sqli(*args, **kwargs) -> bool:
