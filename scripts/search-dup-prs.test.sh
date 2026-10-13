@@ -193,6 +193,25 @@ check_rc "${rc}" 1 "unrelated merge-base exits 1"
 check_contains "${out}" "cannot resolve merge-base" "unrelated merge-base error text"
 check_not_contains "${out}" "## scope: skip" "unrelated merge-base is not a silent skip"
 
+# 8. Other repo on trunk (no main): skip before resolving the default branch.
+OTHER_TRUNK="${TMPROOT}/other-trunk"
+mkdir -p "${OTHER_TRUNK}"
+git -C "${OTHER_TRUNK}" init -b trunk >/dev/null
+git -C "${OTHER_TRUNK}" remote add origin "git@github.com:example/other.git"
+git -C "${OTHER_TRUNK}" config user.name Test
+git -C "${OTHER_TRUNK}" config user.email test@example.com
+printf 'base\n' > "${OTHER_TRUNK}/README"
+git -C "${OTHER_TRUNK}" add README
+git -C "${OTHER_TRUNK}" -c commit.gpgsign=false commit -m 'base' >/dev/null
+git -C "${OTHER_TRUNK}" update-ref refs/remotes/origin/trunk HEAD
+set +e
+out="$(cd "${OTHER_TRUNK}" && PATH="${BIN}:${PATH}" "${TARGET}" 2>&1)"
+rc=$?
+set -e
+check_rc "${rc}" 0 "other repo on trunk exits 0"
+check_contains "${out}" "## scope: skip (not DataDog/dd-trace-py" "other repo on trunk skips"
+check_not_contains "${out}" "cannot resolve default branch" "other repo on trunk does not require main"
+
 if [[ "${fail}" -gt 0 ]]; then
   printf '\n%d failed, %d passed\n' "${fail}" "${pass}"
   exit 1

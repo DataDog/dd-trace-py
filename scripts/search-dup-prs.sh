@@ -43,6 +43,14 @@ if git rev-parse -q --verify '@{u}' >/dev/null 2>&1; then
   FIRST_PUSH="no"
 fi
 
+if [[ "${REPO}" != "DataDog/dd-trace-py" ]]; then
+  echo "## repo: ${REPO}"
+  echo "## branch: ${BRANCH:-unknown}"
+  echo "## first-push: ${FIRST_PUSH}"
+  echo "## scope: skip (not DataDog/dd-trace-py; Python profiling only)"
+  exit 0
+fi
+
 DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo main)"
 if git rev-parse --verify "origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
   BASE_REF="origin/${DEFAULT_BRANCH}"
@@ -91,10 +99,6 @@ echo "## repo: ${REPO}"
 echo "## branch: ${BRANCH:-unknown}"
 echo "## first-push: ${FIRST_PUSH}"
 echo "## merge-base: ${MERGE_BASE}"
-if [[ "${REPO}" != "DataDog/dd-trace-py" ]]; then
-  echo "## scope: skip (not DataDog/dd-trace-py; Python profiling only)"
-  exit 0
-fi
 if [[ "${SCOPE}" != "profiling" ]]; then
   echo "## scope: skip (not Python profiling; expand-later, not now)"
   exit 0
