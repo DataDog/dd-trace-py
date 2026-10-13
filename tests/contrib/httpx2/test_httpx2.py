@@ -61,7 +61,9 @@ def test_alias_httpx():
 
     import httpx
 
-    response = httpx.get("http://localhost:8001/status/200")
+    from tests.contrib.httpx2.test_httpx2 import DEFAULT_HEADERS
+
+    response = httpx.get("http://localhost:8001/status/200", headers=DEFAULT_HEADERS)
     assert response.status_code == 200
 
 
