@@ -817,10 +817,10 @@ def _on_django_after_request_headers_post(
         peer_ip=core.find_item("remote_addr"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
-        # Forward http.route so the AppSec normalized-route listener can fire from this hook. _set_resolver_tags
-        # ran earlier inside _after_request_tags and put the route on the span already. The async path
-        # (traced_get_response_async) only reaches this hook — there's no equivalent of the sync
-        # django.finalize_response.pre dispatch — so without this forward Django/ASGI deployments would miss the
+        # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
+        # ran earlier inside ``_after_request_tags`` and put the route on the span already. The async path
+        # (``traced_get_response_async``) only reaches this hook — there's no equivalent of the sync
+        # ``django.finalize_response.pre`` dispatch — so without this forward Django/ASGI deployments would miss the
         # tag. Sync requests fire the listener twice (here + finalize_response.pre) with the same value — idempotent.
         route=span.get_tag("http.route"),
     )
@@ -1404,7 +1404,8 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
-    record_initial_instrumentation_resource(span, ctx.get_item("resource"))
+    if config._otel_trace_semantics_enabled:
+        record_initial_instrumentation_resource(span, ctx.get_item("resource"))
 
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}

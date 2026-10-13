@@ -168,7 +168,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 if uri is not None and query:
                     uri += "?" + query
 
-                # The listener pulls request_path_params itself via utils._request_path_params(request).
+                # The listener pulls ``request_path_params`` itself via ``utils._request_path_params(request)``.
                 core.dispatch(
                     "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri)
                 )
@@ -226,6 +226,7 @@ async def traced_get_response_async(
 
     # Preserve the method-only OTel resource while application code can trigger sampling.
     if not config._otel_trace_semantics_enabled:
+        # Reset the span resource so we can know if it was modified during the request or not
         span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)
     response = None
@@ -248,7 +249,10 @@ def instrument_module(django: ModuleType, django_core_handlers_base: ModuleType)
         )
 
     if django.VERSION >= (3, 1):
-        if not is_wrapped_with(django_core_handlers_base.BaseHandler.resolve_request, traced_resolve_request):
+        # Only AppSec listens here, to get path params under OTel semantics; see _request_path_params.
+        if config._otel_trace_semantics_enabled and not is_wrapped_with(
+            django_core_handlers_base.BaseHandler.resolve_request, traced_resolve_request
+        ):
             wrap(
                 django_core_handlers_base.BaseHandler.resolve_request,
                 traced_resolve_request,
