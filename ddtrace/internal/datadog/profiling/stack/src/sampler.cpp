@@ -753,12 +753,15 @@ Sampler::postfork_child()
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
 
     // Drop a parent-inherited takeover notice; the child records its own if needed.
-    // Also clear the sticky fallback bit so the child's stats and probe path start
-    // clean (configured fast-copy intent still comes from fast_copy_user_disabled).
+    // Clear a runtime takeover fallback so the child can re-probe. Keep an
+    // init-time fallback (safe_memcpy never installed): the child will not
+    // re-mark it because fast_copy_desired requires safe_memcpy_initialized.
     new (&foreign_segv_handler_mutex_) std::mutex();
     new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
     foreign_segv_handler_reported_ = false;
-    fast_copy_syscall_fallback = false;
+    if (safe_memcpy_initialized) {
+        fast_copy_syscall_fallback = false;
+    }
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {

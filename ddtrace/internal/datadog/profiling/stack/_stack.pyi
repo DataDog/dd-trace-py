@@ -20,7 +20,7 @@ def take_sampling_thread_error() -> Optional[tuple[str, str]]:
     ...
 
 def take_foreign_segv_handler() -> Optional[tuple[bool, str, bool]]:
-    """Return and clear (already_owned, owner, sampling_stopped), or None if already reported."""
+    """Return and clear (already_owned, owner, sampling_stopped), or None if no pending notice."""
     ...
 
 # Sampling configuration
