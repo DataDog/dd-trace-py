@@ -642,8 +642,6 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
-            # Capture routing at start: the span may finish in a different execution context,
-            # where the contextvar set by routing_context() is no longer visible.
             routing = get_routing_context()
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
@@ -660,10 +658,15 @@ class LLMObs(Service):
         # Before _prepare_llmobs_span_data, which rewrites dotted tag keys in APM_AGENTLESS mode.
         self._sampling_resolver.resolve_if_root(span)
 
+        targets = routing_targets(span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY))
+        # Routed spans go straight to the LLMObs intake whatever the process export mode is, so
+        # they must be built for it: APM_AGENTLESS would drop the error fields and rewrite tag keys.
+        export_mode = LLMObsExportMode.LLMOBS_AGENTLESS if targets else self._export_mode
+
         span_event = None
         try:
-            if self._prepare_llmobs_span_data(span, span_kind):
-                span_event = self._llmobs_span_event(span)
+            if self._prepare_llmobs_span_data(span, span_kind, export_mode):
+                span_event = self._llmobs_span_event(span, export_mode)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -679,12 +682,11 @@ class LLMObs(Service):
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
-        targets = routing_targets(span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY))
         if targets:
-            # Ship routed spans here rather than leaving them for LLMObsProcessor. A routed span
+            # Ship routed spans here rather than leaving them for LLMObsProcessor. A routed event
             # never rides the APM trace anyway, and deferring means the event is lost if LLMObs is
             # disabled before the enclosing trace is flushed -- while its payload would still be
-            # on the trace, headed for the default org.
+            # on the trace, headed for the default org. The APM span itself is not routed.
             if self._sampling_resolver.resolves_late:
                 # LLMObsProcessor never sees this span, so resolve here. Like a partial flush,
                 # the span leaving the process freezes the decision for the whole trace.
@@ -693,10 +695,11 @@ class LLMObs(Service):
                 if event_dd is not None and sample_rate is not None and sampling_decision is not None:
                     event_dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
                     event_dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
+            # Before removing the struct tag, which the telemetry tags are read from.
+            telemetry.record_span_created(span, export_mode)
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event, targets)
-            telemetry.record_span_created(span, LLMObsExportMode.LLMOBS_AGENTLESS)
             return
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
@@ -727,7 +730,9 @@ class LLMObs(Service):
         finally:
             telemetry.record_llmobs_user_processor_called(error)
 
-    def _prepare_llmobs_span_data(self, span: Span, span_kind: Optional[str]) -> bool:
+    def _prepare_llmobs_span_data(
+        self, span: Span, span_kind: Optional[str], export_mode: Optional[LLMObsExportMode] = None
+    ) -> bool:
         """Commit final I/O and meta values to meta_struct before event assembly.
 
         Runs the user span processor and folds its mutations — plus parent-prompt
@@ -738,6 +743,7 @@ class LLMObs(Service):
         the span has no LLMObs data, the user processor dropped it, or finalization
         failed.
         """
+        export_mode = export_mode or self._export_mode
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data:
             log.error(
@@ -785,13 +791,13 @@ class LLMObs(Service):
             span_kind,
             input_type,
             output_type,
-            export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
+            export_to_llmobs=export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
         config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if config is not None:
             llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)
-        if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
+        if export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
             # replace them with underscores before encoding.
             tags = {k.replace(".", "_"): v for k, v in llmobs_data.get(LLMOBS_STRUCT.TAGS, {}).items()}
@@ -799,7 +805,9 @@ class LLMObs(Service):
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
 
-    def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
+    def _llmobs_span_event(
+        self, span: Span, export_mode: Optional[LLMObsExportMode] = None
+    ) -> Optional[LLMObsSpanEvent]:
         """Assemble the LLMObs span event from the finalized meta_struct contents.
 
         This function is a pure reader: all I/O mutations, user-processor hooks, and
@@ -826,7 +834,7 @@ class LLMObs(Service):
                 "pagent_span_id": agent_span_id,
             }
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
-        tags = self._llmobs_tags(span)
+        tags = self._llmobs_tags(span, export_mode or self._export_mode)
         _dd_attrs = {
             **(llmobs_data.get("_dd") or {}),
             "span_id": str(span.span_id),
@@ -860,10 +868,10 @@ class LLMObs(Service):
 
         return llmobs_span_event
 
-    def _llmobs_tags(self, span: Span) -> list[str]:
+    def _llmobs_tags(self, span: Span, export_mode: LLMObsExportMode) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
 
-        if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
+        if export_mode != LLMObsExportMode.APM_AGENTLESS:
             tags["error"] = str(span.error)
             err_type = span.get_tag(ERROR_TYPE)
             if err_type:
@@ -1957,9 +1965,10 @@ class LLMObs(Service):
 
         Pass ``dd_api_key`` to route to a single organization: spans and evaluation metrics
         created while the context is active go to that organization *instead of* the one this
-        process is otherwise configured for. That exclusivity is the point -- it keeps a
-        tenant's data out of the default organization, which query-time access controls cannot
-        do, since they filter what is displayed rather than where data is stored.
+        process is otherwise configured for.
+
+        Only LLM Observability data is routed. APM spans, including the APM side of LLM
+        Observability spans, are still sent to the organization this process is configured for.
 
         Pass ``targets`` to send the same data to several organizations (dual shipping), each
         entry being a dict with ``dd_api_key`` and an optional ``dd_site``.
