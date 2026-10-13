@@ -9,7 +9,7 @@ import json
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config

@@ -27,7 +27,7 @@ import sys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INPUT_FILE = REPO_ROOT / "supported-configurations.json"
-OUTPUT_FILE = REPO_ROOT / "ddtrace" / "internal" / "settings" / "_supported_configurations.py"
+OUTPUT_FILE = REPO_ROOT / "ddtrace" / "internal" / "base" / "settings" / "_supported_configurations.py"
 CONFIG_REGISTRY_URL = "https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations"
 
 # Do not add new values to this list; ignoring a value prevents it from working with the configuration system.
@@ -43,7 +43,7 @@ HEADER = """\
 # Run: python scripts/supported_configurations.py
 #
 # This module provides fast O(1) lookups for environment variable validation
-# in ddtrace/internal/settings/env.py.
+# in ddtrace/internal/base/settings/env.py.
 """
 
 

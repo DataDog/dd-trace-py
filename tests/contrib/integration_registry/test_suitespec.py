@@ -2,8 +2,8 @@ import fnmatch
 
 from mappings import EXCLUDED_FROM_TESTING
 
-from ddtrace.internal.compat import MAX_PY
-from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.base.compat import MAX_PY
+from ddtrace.internal.base.compat import NEXT_MAX_PY
 from tests.suitespec import DEFAULT_PYTHON_VERSIONS
 from tests.suitespec import get_patterns
 from tests.suitespec import get_test_environments

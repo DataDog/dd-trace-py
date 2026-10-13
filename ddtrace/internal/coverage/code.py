@@ -11,13 +11,13 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
-from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path

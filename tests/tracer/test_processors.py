@@ -20,7 +20,7 @@ from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.service import ServiceStatus

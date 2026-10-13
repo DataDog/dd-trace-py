@@ -17,12 +17,12 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
 
 

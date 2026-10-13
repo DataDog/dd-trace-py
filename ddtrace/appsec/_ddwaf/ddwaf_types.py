@@ -13,7 +13,7 @@ from typing import Union
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal import _libddwaf_platform
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 

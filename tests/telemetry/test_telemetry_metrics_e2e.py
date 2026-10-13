@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
 from tests.utils import _build_env
 from tests.webclient import Client

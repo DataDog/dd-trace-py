@@ -13,6 +13,8 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.internal.ci_visibility._api_responses_cache import _get_normalized_cache_key
 from ddtrace.internal.ci_visibility._api_responses_cache import _read_from_cache
 from ddtrace.internal.ci_visibility._api_responses_cache import _write_to_cache
@@ -48,7 +50,6 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.http import HTTPConnection
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError
@@ -57,7 +58,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.utils.time import StopWatch
 
 
 log = get_logger(__name__)

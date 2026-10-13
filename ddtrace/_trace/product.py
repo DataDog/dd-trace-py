@@ -3,7 +3,7 @@ import typing as t
 
 from envier import En
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig

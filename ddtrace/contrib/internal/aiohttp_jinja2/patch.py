@@ -5,7 +5,7 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 

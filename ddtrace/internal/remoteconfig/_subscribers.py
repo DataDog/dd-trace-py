@@ -4,7 +4,7 @@ from typing import Any
 from typing import Callable
 
 from ddtrace import config
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 
 

@@ -4,8 +4,8 @@ from typing import Optional
 import opentelemetry.version
 
 from ddtrace import config
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config

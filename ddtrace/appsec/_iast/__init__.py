@@ -34,7 +34,7 @@ import types
 from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.appsec._iast_context import is_iast_request_enabled
 from ddtrace.internal import forksafe
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config

@@ -1,6 +1,6 @@
 import re
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings._config import config
 
 

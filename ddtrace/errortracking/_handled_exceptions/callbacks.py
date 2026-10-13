@@ -9,7 +9,7 @@ from ddtrace import tracer
 from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
 from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionSpanProtocol
 from ddtrace.errortracking._handled_exceptions.collector import SpanEventData
-from ddtrace.internal.utils.time import Time
+from ddtrace.internal.base.utils.time import Time
 
 
 _error_tuple_info = (None, None, None)

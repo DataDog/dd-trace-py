@@ -5,7 +5,7 @@ from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.ext import http
-from ddtrace.internal import constants
+from ddtrace.internal.base import constants
 from ddtrace.internal.utils.http import _format_template
 from tests.appsec.appsec_utils import flask_server
 import tests.appsec.rules as rules

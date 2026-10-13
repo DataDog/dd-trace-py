@@ -21,11 +21,11 @@ from typing import Any
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
-from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 
 
 if not is_at_least_py(3, 12):

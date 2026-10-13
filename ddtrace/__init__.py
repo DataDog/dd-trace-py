@@ -16,12 +16,12 @@ import ddtrace.internal.telemetry  # noqa: E402, F401
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
-from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
-from .internal.compat import is_at_least_py  # noqa: E402
+from .internal.base.compat import PYTHON_VERSION_INFO  # noqa: E402
+from .internal.base.compat import is_at_least_py  # noqa: E402
 from .internal.settings import env  # noqa: E402
 from .internal.settings._config import config  # noqa: E402
-from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .internal.utils.deprecations import deprecate  # noqa: E402
+from .internal.base.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+from .internal.base.utils.deprecations import deprecate  # noqa: E402
 from .version import __version__  # noqa: E402
 
 

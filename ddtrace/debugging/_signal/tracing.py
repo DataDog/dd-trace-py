@@ -19,8 +19,8 @@ from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal import core
-from ddtrace.internal.compat import ExcInfoType
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import ExcInfoType
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.safety import _isinstance
 

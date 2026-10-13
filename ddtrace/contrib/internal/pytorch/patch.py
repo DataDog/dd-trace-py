@@ -1,6 +1,6 @@
 import torch
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 
 

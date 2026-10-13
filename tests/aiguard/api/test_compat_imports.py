@@ -12,7 +12,7 @@ import warnings
 import pytest
 
 import ddtrace.aiguard as new_pkg
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 
 
 _PUBLIC_SYMBOLS = [

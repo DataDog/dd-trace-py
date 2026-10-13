@@ -13,7 +13,7 @@ from ddtrace._trace.utils_botocore.span_pointers.s3 import _aws_s3_object_span_p
 from ddtrace._trace.utils_botocore.span_pointers.s3 import _extract_span_pointers_for_s3_response
 from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation
 from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 log = get_logger(__name__)

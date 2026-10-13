@@ -6,7 +6,7 @@ from typing import Union
 import weakref
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 from .constants import TELEMETRY_NAMESPACE
 from .constants import MetricTagType

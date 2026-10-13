@@ -36,7 +36,7 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
 
 

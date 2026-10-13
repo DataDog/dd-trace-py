@@ -13,7 +13,7 @@ from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.internal.constants import SamplingMechanism
+from ddtrace.internal.base.constants import SamplingMechanism
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _set_sampling_tags

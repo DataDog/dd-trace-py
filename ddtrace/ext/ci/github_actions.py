@@ -9,7 +9,7 @@ import re
 from typing import Optional
 
 from ddtrace.ext import git
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 
 

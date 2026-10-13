@@ -8,7 +8,7 @@ and processes them through the native FFE processor.
 import os
 import typing as t
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.openfeature._config import _set_ffe_config

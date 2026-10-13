@@ -3,12 +3,12 @@ import json
 import typing as t
 from urllib.parse import urlparse as _urlparse
 
-from ddtrace.internal.constants import CONTAINER_TAGS_HASH
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.constants import CONTAINER_TAGS_HASH
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.time import HourGlass
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.process_tags import compute_base_hash
 from ddtrace.internal.settings._agent import config
-from ddtrace.internal.utils.time import HourGlass
 
 from .utils.http import get_connection
 

@@ -38,6 +38,7 @@ _CONFIG_PATH = Path(__file__).with_name("layers.json")
 # up into a product is architecturally worse than two products leaking into
 # each other, so it starts with a higher weight.
 _RULE_WEIGHTS = {
+    "internal-base": 3,
     "internal-core": 3,
     "contrib": 2,
 }

@@ -11,12 +11,12 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
 
 from ..constants import _SPAN_MEASURED_KEY

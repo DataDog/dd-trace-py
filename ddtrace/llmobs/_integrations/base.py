@@ -5,7 +5,7 @@ from typing import Optional  # noqa:F401
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.service import int_service
 from ddtrace.internal.utils.service import set_service_and_source

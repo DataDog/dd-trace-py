@@ -11,7 +11,7 @@ Example: INPUT_VALIDATOR:COMMAND_INJECTION,XSS:shlex:quote
 from typing import Optional
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 

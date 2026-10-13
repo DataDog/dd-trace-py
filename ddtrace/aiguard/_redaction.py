@@ -15,7 +15,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.aiguard._types import Message
-import ddtrace.internal.logger as ddlogger
+import ddtrace.internal.base.logger as ddlogger
 
 
 logger = ddlogger.get_logger(__name__)

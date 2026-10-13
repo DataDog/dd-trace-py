@@ -13,11 +13,11 @@ from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import agent
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_NAME
 from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config

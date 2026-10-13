@@ -9,7 +9,7 @@ from textwrap import dedent
 import unittest
 
 from ddtrace import __version__
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.base.compat import is_wrapted
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 from tests.subprocesstest import SubprocessTestCase

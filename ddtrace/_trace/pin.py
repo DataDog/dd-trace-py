@@ -2,10 +2,10 @@ from typing import Any
 from typing import Optional
 
 import ddtrace
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.base.compat import is_wrapted
 from ddtrace.internal.settings.standalone import standalone_config
 
-from ..internal.logger import get_logger
+from ..internal.base.logger import get_logger
 
 
 log = get_logger(__name__)

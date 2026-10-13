@@ -7,9 +7,9 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import is_wrapted
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import is_wrapted
+from ddtrace.internal.base.constants import COMPONENT
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
 

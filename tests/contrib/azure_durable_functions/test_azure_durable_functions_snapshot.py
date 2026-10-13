@@ -27,7 +27,7 @@ from ddtrace.contrib.internal.azure_functions.shared import wrap_orchestration_t
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config

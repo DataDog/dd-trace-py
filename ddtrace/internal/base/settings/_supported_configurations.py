@@ -2,7 +2,7 @@
 # Run: python scripts/supported_configurations.py
 #
 # This module provides fast O(1) lookups for environment variable validation
-# in ddtrace/internal/settings/env.py.
+# in ddtrace/internal/base/settings/env.py.
 
 SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
     {

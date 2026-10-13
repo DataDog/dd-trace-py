@@ -3,8 +3,8 @@ import threading
 import pytest
 
 from ddtrace.contrib.internal.google_cloud_pubsub import utils as pubsub_utils
+from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.settings._config import config as dd_config
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.trace import tracer
 from tests.utils import override_config
 

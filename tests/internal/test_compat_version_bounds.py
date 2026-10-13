@@ -20,13 +20,13 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.compat import MAX_PY
-from ddtrace.internal.compat import NEXT_MAX_PY
-from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.compat import is_at_most_py
-from ddtrace.internal.compat import is_supported_python_version
+from ddtrace.internal.base.compat import MAX_PY
+from ddtrace.internal.base.compat import NEXT_MAX_PY
+from ddtrace.internal.base.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_most_py
+from ddtrace.internal.base.compat import is_supported_python_version
 
 
 _RUNNING_VERSION: str = f"{PYTHON_VERSION_INFO[0]}.{PYTHON_VERSION_INFO[1]}"
@@ -159,7 +159,7 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
 
 def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
     """is_at_least_py(*NEXT_MAX_PY) and is_supported_python_version read NEXT_MAX_PY."""
-    compat: ModuleType = importlib.import_module("ddtrace.internal.compat")
+    compat: ModuleType = importlib.import_module("ddtrace.internal.base.compat")
 
     monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 16))
     assert not compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 15))

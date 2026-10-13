@@ -3,8 +3,8 @@ from types import FunctionType
 from types import MethodType
 import typing as t
 
+from ddtrace.internal.base.logger import get_logger
 import ddtrace.internal.core as core
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.products import manager as product_manager
 from ddtrace.internal.settings._core import ValueSource

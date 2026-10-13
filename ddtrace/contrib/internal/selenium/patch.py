@@ -6,7 +6,7 @@ import typing as t
 from wrapt.importer import when_imported
 
 from ddtrace import config
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer

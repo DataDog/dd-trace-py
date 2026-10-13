@@ -10,8 +10,8 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.internal.compat import is_wrapted
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import is_wrapted
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LangChainIntegration

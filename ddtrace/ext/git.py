@@ -16,11 +16,11 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal import compat
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base import compat
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.cache import cached
+from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.internal.settings import env
-from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.time import StopWatch
 
 
 GitNotFoundError = FileNotFoundError

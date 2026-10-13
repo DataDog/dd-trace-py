@@ -10,7 +10,7 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_least_py
 
 
 if not is_at_least_py(3, 12):

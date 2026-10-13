@@ -20,7 +20,7 @@ import _pytest.config
 import _pytest.nodes
 import pytest
 
-from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.base.compat import is_at_least_py
 from tests.wrapping.mechanisms import ALL_MECHANISMS
 
 

@@ -21,7 +21,7 @@ from ddtrace.contrib.internal.llama_index._utils import build_text_embedding_bat
 from ddtrace.contrib.internal.llama_index._utils import get_model_provider
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.llmobs._integrations import LlamaIndexIntegration
 
 

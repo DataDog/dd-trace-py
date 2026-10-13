@@ -30,9 +30,10 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import packages
 from ddtrace.internal._runtime_id import get_ancestor_runtime_id
 from ddtrace.internal._runtime_id import get_runtime_id
-from ddtrace.internal.compat import singledispatchmethod
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.compat import singledispatchmethod
+from ddtrace.internal.base.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.native import SymDBSender
@@ -43,7 +44,6 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.threads import RLock
-from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import multipart

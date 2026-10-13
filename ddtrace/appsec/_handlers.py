@@ -12,8 +12,8 @@ from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
-from ddtrace.internal.constants import FLASK_RESOURCE_FULL
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.constants import FLASK_RESOURCE_FULL
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 

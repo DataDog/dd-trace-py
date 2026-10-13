@@ -7,11 +7,11 @@ from re import Match
 import sys
 from typing import Literal  # noqa:F401
 
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
-from ddtrace.internal.constants import REQUEST_PATH_PARAMS
-from ddtrace.internal.constants import RESPONSE_HEADERS
-from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
-from ddtrace.internal.constants import Constant_Class  # noqa:F401
+from ddtrace.internal.base.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.base.constants import REQUEST_PATH_PARAMS
+from ddtrace.internal.base.constants import RESPONSE_HEADERS
+from ddtrace.internal.base.constants import STATUS_403_TYPE_AUTO
+from ddtrace.internal.base.constants import Constant_Class  # noqa:F401
 
 
 TEXT_TYPES = (str, bytes, bytearray)

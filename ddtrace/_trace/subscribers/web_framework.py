@@ -8,7 +8,7 @@ from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
 
 

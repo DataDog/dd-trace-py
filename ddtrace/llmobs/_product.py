@@ -7,7 +7,7 @@ without restarting the service.
 
 import typing as t
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 
 

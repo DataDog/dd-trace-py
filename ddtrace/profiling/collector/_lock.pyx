@@ -33,7 +33,7 @@ from ddtrace.profiling.collector._task cimport (
     get_task as _c_get_task,
     initialize_gevent_support as _c_initialize_gevent_support,
 )
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 log = get_logger(__name__)

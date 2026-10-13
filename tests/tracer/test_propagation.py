@@ -13,20 +13,20 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
-from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
-from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
-from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
-from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
-from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
-from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
-from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
-from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
-from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace.internal.base.constants import _PROPAGATION_STYLE_BAGGAGE
+from ddtrace.internal.base.constants import _PROPAGATION_STYLE_NONE
+from ddtrace.internal.base.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
+from ddtrace.internal.base.constants import LAST_DD_PARENT_ID_KEY
+from ddtrace.internal.base.constants import PROPAGATION_STYLE_B3_MULTI
+from ddtrace.internal.base.constants import PROPAGATION_STYLE_B3_SINGLE
+from ddtrace.internal.base.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.base.constants import W3C_TRACEPARENT_KEY
+from ddtrace.internal.base.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
@@ -145,8 +145,8 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
     from ddtrace.trace import tracer  # noqa:F811  # noqa:F811
@@ -758,7 +758,7 @@ def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
 )
 def test_extract_128bit_trace_ids_datadog():
     from ddtrace import config
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
+    from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer  # noqa:F811
 
@@ -792,7 +792,7 @@ def test_extract_128bit_trace_ids_datadog():
     check_logs=False,
 )
 def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer  # noqa:F811
 
@@ -3638,7 +3638,7 @@ def test_baggageheader_inject(span_context, expected_headers):
 def test_baggageheader_maxitems_inject():
     import urllib.parse
 
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
     headers = {}
     baggage_items = {}
@@ -3659,7 +3659,7 @@ def test_baggageheader_maxitems_inject():
 
 
 def test_baggageheader_maxbytes_inject():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 
     headers = {}
     # baggage item that exceeds the maximum byte size
@@ -3688,7 +3688,7 @@ def test_baggageheader_maxbytes_inject():
 
 
 def test_baggageheader_maxitems_extract():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
     pairs = [f"k{i}=v{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3)]
     header_value = ",".join(pairs)
@@ -3700,8 +3700,8 @@ def test_baggageheader_maxitems_extract():
 
 
 def test_baggageheader_maxitems_maxbytes_extract():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
     pairs = []
     for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3):
@@ -3721,7 +3721,7 @@ def test_baggageheader_maxitems_maxbytes_extract():
 
 
 def test_baggageheader_maxbytes_extract():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 
     # Single pair whose raw segment exceeds the byte limit — nothing parsed into baggage.
     huge = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)
@@ -3941,7 +3941,7 @@ def test_inject_span_without_sampling_priority():
 
 def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     """Test that _dd.p.dm tag is not set when sampling priority is propagated via headers."""
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
 
     # Test case 1: Headers with sampling priority should NOT have _dd.p.dm tag

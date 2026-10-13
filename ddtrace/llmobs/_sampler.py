@@ -6,11 +6,11 @@ from typing import Optional
 from typing import Protocol
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.constants import MAX_UINT_64BITS
-from ddtrace.internal.constants import SAMPLING_HASH_MODULO
-from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace.internal.base.constants import MAX_UINT_64BITS
+from ddtrace.internal.base.constants import SAMPLING_HASH_MODULO
+from ddtrace.internal.base.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.glob_matching import GlobMatcher
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import format_rate
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMObsSamplingDecision

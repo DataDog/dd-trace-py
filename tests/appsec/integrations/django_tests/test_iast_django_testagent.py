@@ -8,7 +8,7 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from tests.appsec.appsec_utils import django_server
 from tests.appsec.appsec_utils import gunicorn_django_server
 from tests.appsec.iast.iast_utils import load_iast_report

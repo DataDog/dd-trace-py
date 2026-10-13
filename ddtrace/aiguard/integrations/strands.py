@@ -78,7 +78,7 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 
 
 logger = get_logger(__name__)

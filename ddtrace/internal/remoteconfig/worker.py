@@ -7,13 +7,13 @@ from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
+from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.utils.time import StopWatch
 
 
 if TYPE_CHECKING:

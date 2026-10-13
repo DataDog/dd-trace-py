@@ -9,7 +9,7 @@ from typing import Callable
 
 from wrapt import resolve_path
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.wrapping.context import WrappingContext
 

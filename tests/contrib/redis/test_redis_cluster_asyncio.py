@@ -4,7 +4,7 @@ import redis
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.ext import net
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import assert_is_measured
 
