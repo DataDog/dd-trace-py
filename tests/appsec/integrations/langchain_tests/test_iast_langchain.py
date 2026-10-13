@@ -166,7 +166,7 @@ async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
     assert location["path"].endswith("langchain_experimental/llm_bash/bash.py")
     assert location["line"]
     assert location["method"] == "_run"
-    assert "class" not in location
+    assert location["class"] == "BashProcess"
 
 
 def test_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
@@ -305,7 +305,7 @@ async def test_cmdi_with_openai_functions_agent_ainvoke(iast_span_defaults, llm_
     assert location["path"].endswith("langchain_experimental/llm_bash/bash.py")
     assert location["line"]
     assert location["method"] == "_run"
-    assert "class" not in location
+    assert location["class"] == "BashProcess"
 
 
 def prepare_cmdi_agent() -> AgentExecutor:
