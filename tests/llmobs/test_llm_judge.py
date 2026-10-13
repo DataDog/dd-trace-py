@@ -9,6 +9,7 @@ from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import _create_anthropic_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_azure_openai_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
@@ -898,6 +899,39 @@ class TestClientOptionsPassthrough:
             mock_anthropic_mod.Anthropic.assert_called_once_with(
                 api_key="test-key", base_url="https://custom.endpoint", max_retries=5
             )
+
+    @pytest.mark.parametrize(
+        "blocks,expected",
+        [
+            ([("text", '{"score": 1}')], '{"score": 1}'),
+            ([("thinking", None), ("text", '{"score": 1}')], '{"score": 1}'),
+            ([("redacted_thinking", None), ("thinking", None), ("text", '{"score": 1}')], '{"score": 1}'),
+            ([("thinking", None)], ""),
+            ([], ""),
+        ],
+    )
+    def test_anthropic_skips_thinking_blocks(self, blocks, expected):
+        mock_anthropic_mod = mock.MagicMock()
+        content = []
+        for block_type, text in blocks:
+            # MagicMock auto-creates attributes (like pydantic's .json() method on real blocks),
+            # so thinking blocks must not be mistaken for output.
+            block = mock.MagicMock()
+            block.type = block_type
+            if text is not None:
+                block.text = text
+            content.append(block)
+        mock_anthropic_mod.Anthropic.return_value.messages.create.return_value = mock.MagicMock(content=content)
+        with mock.patch.dict("sys.modules", {"anthropic": mock_anthropic_mod}):
+            call = _create_anthropic_client(client_options={"api_key": "test-key"})
+            result = call(
+                provider="anthropic",
+                messages=[{"role": "user", "content": "Rate this"}],
+                json_schema={"type": "object", "properties": {"score": {"type": "number"}}},
+                model="claude-opus-4-8",
+                model_params=None,
+            )
+            assert result == expected
 
     def test_azure_openai_extra_options(self):
         mock_openai_mod = mock.MagicMock()

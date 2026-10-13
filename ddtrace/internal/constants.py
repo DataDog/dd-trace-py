@@ -8,6 +8,9 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 
 
+_WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
+
+
 class Constant_Class(type):
     """
     metaclass for Constant Classes
@@ -149,6 +152,8 @@ DD_TRACE_TRACESTATE_MAX_ITEMS = 32
 DD_TRACE_TRACESTATE_MAX_BYTES = 512
 # Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
 DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
+# W3C limits each list-member value to 256 characters.
+W3C_DD_LIST_MEMBER_MAX_CHARS = 256
 
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
@@ -225,3 +230,8 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
+
+
+# server.port is required whenever server.address is set, so a URL that omits the port falls
+# back to the port its scheme implies.
+DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}

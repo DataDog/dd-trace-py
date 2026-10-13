@@ -156,6 +156,16 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
     auto all_tasks = std::move(*maybe_all_tasks);
     echion.add_asyncio_task_count(all_tasks.size());
+
+    // Build the set of live task origins outside the lock. all_tasks is a local
+    // that no other thread touches, so this is safe
+    std::unordered_set<PyObject*> all_task_origins;
+    all_task_origins.reserve(all_tasks.size());
+    std::transform(all_tasks.cbegin(),
+                   all_tasks.cend(),
+                   std::inserter(all_task_origins, all_task_origins.begin()),
+                   [](const TaskInfo::Ptr& task) { return task->origin; });
+
     {
         auto& previous_task_objects = echion.previous_task_objects();
         std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
@@ -165,12 +175,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
-        std::unordered_set<PyObject*> all_task_origins;
-        std::transform(all_tasks.cbegin(),
-                       all_tasks.cend(),
-                       std::inserter(all_task_origins, all_task_origins.begin()),
-                       [](const TaskInfo::Ptr& task) { return task->origin; });
-
         std::vector<PyObject*> to_remove;
         for (auto kv : task_link_map) {
             if (all_task_origins.find(kv.first) == all_task_origins.end())
