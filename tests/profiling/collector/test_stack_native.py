@@ -1662,6 +1662,10 @@ def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: py
         # Comma is legal in a Linux basename; strip it so add_log tag joining stays intact.
         ("/opt/libfoo,bar.so+0x7c4 (foo_handler)", "libfoo_bar.so"),
         ("/opt/libfoo,bar.so+0x7c4 (foo_handler)+missing_sa_siginfo", "libfoo_bar.so+missing_sa_siginfo"),
+        # Basename matching a reserved token is still a foreign module.
+        ("/tmp/ddtrace+0x1234", "mod:ddtrace"),
+        ("/tmp/ddtrace+0x1234+missing_sa_siginfo", "mod:ddtrace+missing_sa_siginfo"),
+        ("/opt/unknown", "mod:unknown"),
     ],
 )
 def test_normalize_foreign_handler_owner_component(component: str, expected: str) -> None:
@@ -1689,6 +1693,10 @@ def test_normalize_foreign_handler_owner_component(component: str, expected: str
             "libfoo.so+missing_sa_siginfo",
         ),
         ("SIGSEGV=SIG_DFL, SIGBUS=ddtrace+missing_sa_siginfo", "SIG_DFL"),
+        # Foreign module named ddtrace must not collapse to our reserved owner token.
+        ("SIGSEGV=/tmp/ddtrace+0x1234, SIGBUS=ddtrace", "mod:ddtrace"),
+        ("SIGSEGV=ddtrace, SIGBUS=/tmp/ddtrace+0x1234", "mod:ddtrace"),
+        ("SIGSEGV=/tmp/ddtrace+0x1234, SIGBUS=/tmp/ddtrace+0x5678", "mod:ddtrace"),
     ],
 )
 def test_normalize_foreign_handler_owner(owner: str, expected: str) -> None:

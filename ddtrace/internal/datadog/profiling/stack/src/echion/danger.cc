@@ -337,6 +337,13 @@ describe_signal_owner(const struct sigaction& current)
             out += ")";
         }
     }
+    // ownership.owners joins as "SIGSEGV=<owner>, SIGBUS=<owner>". A comma in a
+    // path or symbol would look like that field separator to the Python parser.
+    for (char& c : out) {
+        if (c == ',') {
+            c = '_';
+        }
+    }
     return out;
 }
 

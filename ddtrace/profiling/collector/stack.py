@@ -62,6 +62,10 @@ def _normalize_foreign_handler_owner_component(component: str) -> str:
     # add_log joins tags on commas; a basename that contains one would become an
     # extra tag and scramble the rest of the payload.
     owner_tag: str = (basename or path).replace(",", "_")
+    # Exact reserved tokens already returned above. A real module basename that
+    # matches one (e.g. /tmp/ddtrace) must stay distinguishable from our handler.
+    if owner_tag in _FOREIGN_HANDLER_OWNER_SYMBOLS:
+        owner_tag = "mod:" + owner_tag
     return owner_tag + why
 
 
@@ -69,6 +73,8 @@ def _normalize_foreign_handler_owner(owner: str) -> str:
     sigsegv_owner: typing.Optional[str] = None
     sigbus_owner: typing.Optional[str] = None
     # rpartition so a comma inside the SIGSEGV path is not a field delimiter.
+    # Native describe_signal_owner also turns commas into underscores so a path
+    # cannot contain the literal ", SIGBUS=" separator.
     sigsegv_part: str
     sep: str
     sigbus_part: str
@@ -102,7 +108,7 @@ def _foreign_signal_names(owner: str) -> str:
     sigsegv_part: str
     sep: str
     sigbus_part: str
-    # rpartition so a comma inside the SIGSEGV path is not a field delimiter.
+    # Same split as _normalize_foreign_handler_owner; see comment there.
     sigsegv_part, sep, sigbus_part = owner.rpartition(", SIGBUS=")
     if not sep or not sigsegv_part.startswith("SIGSEGV="):
         return ""
