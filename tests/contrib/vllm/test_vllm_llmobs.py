@@ -1,7 +1,9 @@
+from importlib.metadata import version
 from unittest import mock
 
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs.types import Message
@@ -9,6 +11,8 @@ from tests.llmobs._utils import assert_llmobs_span_data
 
 from ._utils import get_simple_chat_template
 
+
+VLLM_VERSION = parse_version(version("vllm"))
 
 IGNORE_FIELDS = [
     "metrics.vllm.latency.ttft",
@@ -202,6 +206,7 @@ def test_llmobs_embed(vllm_llmobs, test_spans, e5_small_llm):
         )
 
 
+@pytest.mark.skipif(VLLM_VERSION >= (0, 24, 0), reason="vLLM 0.24.0 removed LLM.reward()")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
     llm = bge_reranker_llm
@@ -211,11 +216,7 @@ def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
         "The capital of France is",
     ]
 
-    if hasattr(llm, "reward"):
-        llm.reward(prompts)
-    else:
-        # Newer vLLM versions removed LLM.reward(); it was an alias for this call.
-        llm.encode(prompts, pooling_task="token_classify")
+    llm.reward(prompts)
     traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
