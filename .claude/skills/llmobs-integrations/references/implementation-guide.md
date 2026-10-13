@@ -224,7 +224,11 @@ WebSocket loops. Its conversation-local socket proxies observe successful sends
 and received messages without changing the audio interface or event subscriptions.
 Provider event IDs identify turns; text equality and optional completion events do
 not. Keep a bounded window of open turns for late interrupted transcripts and flush
-it on worker exit. Audio payloads belong only to LLM messages, with a shared encoded
+it on worker exit. Unknown event IDs at or below the interruption boundary cannot
+open turns or consume pending input; known interrupted turns still accept late text.
+Capture APM and LLMObs parent contexts at startup, including explicit absence.
+Create spans under a scoped LLMObs context so both caller contexts remain unchanged;
+retain the captured LLMObs snapshot after its parent has finished. Audio payloads belong only to LLM messages, with a shared encoded
 budget for input and output. Direct sibling workflow phases retain approximate
 transport-based timing and explicitly annotate metadata.ttfa_eligible = false.
 Do not infer TTFA or token usage from these estimates. Client tool execution uses

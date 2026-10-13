@@ -34,7 +34,9 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 The ElevenLabs patch module wraps conversation worker lifecycle and uses
 conversation-local WebSocket proxies. It replaces only the SDK's imported
 asynchronous module binding; the global websockets module remains unchanged.
-The SDK's audio interfaces and application callbacks are preserved. See the LLMObs
+The SDK's audio interfaces and application callbacks are preserved. Startup failure
+or cancellation finalizes only newly created state; retry captures its own caller
+context, while redundant startup cannot close an ongoing session. See the LLMObs
 implementation guide for per-turn span layout and audio timing eligibility.
 
 Optional raw vad_score events are observed by the same connection-local proxies

@@ -1,14 +1,35 @@
 from typing import Any
 from typing import Optional
+from typing import cast
 
+from ddtrace.llmobs._context import _DD_LLMOBS_CONTEXTVAR
+from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 
 class ElevenLabsIntegration(BaseLLMIntegration):
     _integration_name = "elevenlabs"
+
+    def capture_context(self) -> Optional[Context]:
+        # Use the import-safe service registry rather than importing the service
+        # during integration initialization. Its snapshot survives parent finish.
+        instance = getattr(get_llmobs_service(), "_instance", None)
+        return cast(Optional[Context], instance._current_trace_context()) if instance is not None else None
+
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
+        if "llmobs_parent" not in kwargs:
+            return super().trace(operation_id, submit_to_llmobs=submit_to_llmobs, **kwargs)
+        # LLMObs activates every new LLM span even when APM activate=False. Scope
+        # both its parent and activation to this call, preserving caller context.
+        token = _DD_LLMOBS_CONTEXTVAR.set(kwargs.pop("llmobs_parent"))
+        try:
+            return super().trace(operation_id, submit_to_llmobs=submit_to_llmobs, **kwargs)
+        finally:
+            _DD_LLMOBS_CONTEXTVAR.reset(token)
 
     def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
         span.set_tag("elevenlabs.agent_id", kwargs.get("agent_id", ""))

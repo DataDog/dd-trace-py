@@ -150,8 +150,15 @@ def _new_state(instance: Any) -> Optional[ConversationState]:
 
 
 def traced_start(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    _new_state(instance)
-    return func(*args, **kwargs)
+    previous = _state(instance)
+    state = _new_state(instance)
+    try:
+        return func(*args, **kwargs)
+    except BaseException:
+        if state is not None and state is not previous:
+            state.error = True
+            _finish(state)
+        raise
 
 
 async def traced_async_start(
@@ -160,8 +167,17 @@ async def traced_async_start(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
-    _new_state(instance)
-    return await func(*args, **kwargs)
+    previous = _state(instance)
+    state = _new_state(instance)
+    try:
+        return await func(*args, **kwargs)
+    except BaseException:
+        # Cancellation aborts startup too, but a redundant start must not close
+        # a state already owned by an ongoing session.
+        if state is not None and state is not previous:
+            state.error = True
+            _finish(state)
+        raise
 
 
 def _state(instance: Any) -> Optional[ConversationState]:

@@ -17,9 +17,11 @@ from ddtrace.contrib.internal.elevenlabs import _state
 from ddtrace.contrib.internal.elevenlabs import patch as patch_module
 from ddtrace.contrib.internal.elevenlabs._state import ConversationState
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._integrations.elevenlabs import ElevenLabsIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
@@ -801,3 +803,249 @@ def test_vad_millisecond_quantization_coalesces_overlapping_activity():
     activity.observe(0, 100_000, BASE_NS + 100_000)
     activity.observe(1, 200_000, BASE_NS + 200_000)
     assert activity.metadata(1_000_000, BASE_NS + 1_000_000)["intervals_ms"] == [[0, 1]]
+
+
+@pytest.mark.parametrize("known_turn", [False, True])
+@pytest.mark.parametrize(
+    "late_kind",
+    ["agent_response", "agent_response_correction", "user_transcript", "agent_chat_response_part", "client_tool_call"],
+)
+def test_late_interrupted_events_preserve_next_input_and_activity(state, test_spans, known_turn, late_kind):
+    value, clock = state
+    stale_id = 37 if known_turn else 99
+    if known_turn:
+        input_audio(value)
+        receive(value, event("user_transcript", stale_id, user_transcript="Original question"))
+    receive(value, {"type": "interruption", "interruption_event": {"event_id": 100}})
+    vad(value, 0)
+    clock.advance(0.1)
+    input_audio(value)
+    vad(value, 1)
+    clock.advance(0.1)
+    input_audio(value)
+    vad(value, 0)
+    value.on_send(json.dumps({"type": "user_message", "text": "Next typed input"}))
+    pending = value.pending
+    receive(
+        value,
+        event(
+            late_kind,
+            stale_id,
+            agent_response="Late answer",
+            corrected_agent_response="Late correction",
+            user_transcript="Late question",
+            text="Late part",
+            type="start",
+            tool_call_id="late-tool",
+            tool_name="weather",
+            parameters={},
+        ),
+    )
+    assert value.pending is pending
+    assert value.pending_text == "Next typed input"
+    assert bytes(value.pending.data) == PCM * 2
+    assert (stale_id in value.turns) is known_turn
+    receive(value, event("agent_response", 101, agent_response="Next answer"))
+    assert value.turns[101].user_text == "Next typed input"
+    receive(value, event("user_transcript", 101, user_transcript="Next question"))
+    value.close()
+    captured = rows(test_spans)
+    next_llm = next(
+        row
+        for _, row in captured
+        if row["name"] == "elevenlabs response" and row["meta"]["metadata"]["event_id"] == "101"
+    )
+    assert decoded_frames(next_llm["meta"]["input"]["messages"][0]) == PCM * 2
+    assert next_llm["meta"]["input"]["messages"][0]["content"] == "Next question"
+    assert next_llm["meta"]["output"]["messages"][0]["content"] == "Next answer"
+    next_phase = next(
+        row for _, row in captured if row["name"] == "user speech" and row["meta"]["metadata"]["event_id"] == "101"
+    )
+    assert next_phase["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == [[100, 200]]
+    assert next_phase["duration"] == 200_000_000
+    if known_turn:
+        old_llm = next(
+            row
+            for _, row in captured
+            if row["name"] == "elevenlabs response" and row["meta"]["metadata"]["event_id"] == "37"
+        )
+        assert old_llm["meta"]["metadata"]["interrupted"] is True
+        assert decoded_frames(old_llm["meta"]["input"]["messages"][0]) == PCM
+        if late_kind == "agent_response_correction":
+            assert old_llm["meta"]["output"]["messages"][0]["content"] == "Late correction"
+        elif late_kind == "user_transcript":
+            assert old_llm["meta"]["input"]["messages"][0]["content"] == "Late question"
+    else:
+        assert {row["meta"]["metadata"]["event_id"] for _, row in captured} == {"101"}
+    assert all(row["meta"]["metadata"]["ttfa_eligible"] is False for _, row in captured)
+
+
+@pytest.mark.parametrize("parent_kind", ["none", "apm", "workflow", "finished_workflow"])
+def test_captured_parent_is_independent_of_event_processing_context(monkeypatch, tracer, test_spans, parent_kind):
+    clock = Clock()
+    monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
+    assert tracer.context_provider.active() is None
+    parent = None
+    if parent_kind == "apm":
+        parent = tracer.trace("captured-apm")
+    elif parent_kind != "none":
+        parent = LLMObs.workflow(name="captured-workflow")
+    value = ConversationState(ElevenLabsIntegration(config.elevenlabs), SimpleNamespace(agent_id="agent"), parent)
+    if parent_kind == "finished_workflow":
+        parent.finish()
+    tracer.context_provider.activate(None)
+    LLMObs._instance._llmobs_context_provider.activate(None)
+    with LLMObs.workflow(name="unrelated-workflow") as unrelated:
+        receive(value, metadata())
+        input_audio(value)
+        receive(value, event("agent_response", 37, agent_response="Answer"))
+        receive(value, event("audio", 37, audio_base_64=B64))
+        assert tracer.context_provider.active() is unrelated
+        assert LLMObs._instance._current_span() is unrelated
+        clock.advance(0.2)
+        value.close()
+        assert tracer.context_provider.active() is unrelated
+        assert LLMObs._instance._current_span() is unrelated
+    if parent is not None and not parent.finished:
+        parent.finish()
+    captured = rows(test_spans)
+    root, root_row = next((span, row) for span, row in captured if row["name"] == "elevenlabs audio turn")
+    assert root.parent_id == (parent.span_id if parent else None)
+    assert root.trace_id != unrelated.trace_id
+    if parent is not None:
+        assert root.trace_id == parent.trace_id
+    expected_parent = str(parent.span_id) if parent_kind in ("workflow", "finished_workflow") else "undefined"
+    assert root_row["parent_id"] == expected_parent
+    assert root_row["trace_id"] != get_llmobs_trace_id(unrelated)
+    if parent_kind in ("workflow", "finished_workflow"):
+        assert root_row["trace_id"] == get_llmobs_trace_id(parent)
+    children = [(span, row) for span, row in captured if row["parent_id"] == str(root.span_id)]
+    assert {row["name"] for _, row in children} == {"elevenlabs response", "user speech", "agent speech"}
+    assert all(span.parent_id == root.span_id and span.trace_id == root.trace_id for span, _ in children)
+
+
+def emit_startup_turn(instance):
+    value = instance._dd_elevenlabs_state
+    receive(value, metadata())
+    receive(value, event("agent_response", 37, agent_response="Retry answer"))
+    value.close()
+
+
+def test_sync_start_failure_retry_captures_new_parent(monkeypatch, tracer, test_spans):
+    instance = conversation.Conversation(
+        ElevenLabs(api_key="test-key"), "test-agent", requires_auth=True, audio_interface=ScriptAudio()
+    )
+    failure = RuntimeError("Synthetic signed URL failure")
+
+    def fail_url():
+        raise failure
+
+    monkeypatch.setattr(instance, "_get_signed_url", fail_url)
+    with LLMObs.workflow(name="failed-start") as first:
+        with pytest.raises(RuntimeError) as raised:
+            instance.start_session()
+        assert raised.value is failure
+        failed_state = instance._dd_elevenlabs_state
+        assert failed_state.closed
+        assert tracer.context_provider.active() is first
+    monkeypatch.setattr(instance, "_get_signed_url", lambda: "wss://synthetic")
+    monkeypatch.setattr(conversation.Conversation, "_run", lambda instance, url: emit_startup_turn(instance))
+    with LLMObs.workflow(name="retry-start") as second:
+        instance.start_session()
+        instance.wait_for_session_end()
+        assert instance._dd_elevenlabs_state is not failed_state
+        assert tracer.context_provider.active() is second
+    root, row = next((span, row) for span, row in rows(test_spans) if row["name"] == "elevenlabs audio turn")
+    assert root.parent_id == second.span_id
+    assert row["parent_id"] == str(second.span_id)
+    assert root.trace_id != first.trace_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancelled", [False, True])
+async def test_async_start_failure_retry_captures_new_parent(monkeypatch, tracer, test_spans, cancelled):
+    instance = conversation.AsyncConversation(
+        ElevenLabs(api_key="test-key"), "test-agent", requires_auth=True, audio_interface=AsyncScriptAudio()
+    )
+    failure = RuntimeError("Synthetic signed URL failure")
+
+    def fail_url():
+        raise failure
+
+    monkeypatch.setattr(instance, "_get_signed_url", fail_url)
+    loop = asyncio.get_running_loop()
+    run_in_executor = loop.run_in_executor
+    with LLMObs.workflow(name="failed-start") as first:
+        if cancelled:
+            waiting = asyncio.Event()
+
+            def blocked_executor(*args):
+                waiting.set()
+                return loop.create_future()
+
+            monkeypatch.setattr(loop, "run_in_executor", blocked_executor)
+            task = asyncio.create_task(instance.start_session())
+            await asyncio.wait_for(waiting.wait(), 3)
+            failed_state = instance._dd_elevenlabs_state
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            with pytest.raises(RuntimeError) as raised:
+                await instance.start_session()
+            assert raised.value is failure
+            failed_state = instance._dd_elevenlabs_state
+        assert failed_state.closed
+        assert tracer.context_provider.active() is first
+    monkeypatch.setattr(loop, "run_in_executor", run_in_executor)
+    monkeypatch.setattr(instance, "_get_signed_url", lambda: "wss://synthetic")
+
+    async def run(instance, url):
+        emit_startup_turn(instance)
+
+    monkeypatch.setattr(conversation.AsyncConversation, "_run", run)
+    with LLMObs.workflow(name="retry-start") as second:
+        await instance.start_session()
+        await instance.wait_for_session_end()
+        assert instance._dd_elevenlabs_state is not failed_state
+        assert tracer.context_provider.active() is second
+    root, row = next((span, row) for span, row in rows(test_spans) if row["name"] == "elevenlabs audio turn")
+    assert root.parent_id == second.span_id
+    assert row["parent_id"] == str(second.span_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True])
+async def test_redundant_start_failure_preserves_ongoing_state(state, asynchronous):
+    value, _ = state
+    instance = SimpleNamespace(_dd_elevenlabs_state=value)
+    failure = RuntimeError("Synthetic redundant startup failure")
+
+    def fail():
+        raise failure
+
+    async def async_fail():
+        raise failure
+
+    with pytest.raises(RuntimeError) as raised:
+        if asynchronous:
+            await patch_module.traced_async_start(async_fail, instance, (), {})
+        else:
+            patch_module.traced_start(fail, instance, (), {})
+    assert raised.value is failure
+    assert instance._dd_elevenlabs_state is value
+    assert not value.closed
+    assert not value.error
+
+
+def test_zero_event_id_is_valid_before_first_interruption(state, test_spans):
+    value, clock = state
+    input_audio(value)
+    receive(value, event("audio", 0, audio_base_64=B64))
+    receive(value, event("agent_response", 0, agent_response="First response"))
+    clock.advance()
+    value.close()
+    _, row = llm_rows(test_spans)[0]
+    assert row["meta"]["metadata"]["event_id"] == "0"
+    assert decoded_frames(row["meta"]["input"]["messages"][0]) == PCM
+    assert decoded_frames(row["meta"]["output"]["messages"][0]) == PCM

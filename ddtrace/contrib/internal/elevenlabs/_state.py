@@ -17,6 +17,7 @@ from ddtrace.llmobs._integrations.elevenlabs import ElevenLabsIntegration
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
+from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 
@@ -248,6 +249,7 @@ class ConversationState:
         self.integration = integration
         self.agent_id = str(getattr(conversation, "agent_id", ""))
         self.parent = parent
+        self.llmobs_parent = integration.capture_context()
         self.session_id = str(uuid4())
         self.input_rate = 0
         self.output_rate = 0
@@ -259,7 +261,7 @@ class ConversationState:
         self.turns: OrderedDict[int, Turn] = OrderedDict()
         self.tool_turns: OrderedDict[str, Turn] = OrderedDict()
         self.tool_spans: dict[str, Span] = {}
-        self.last_interrupt_id = 0
+        self.last_interrupt_id = -1
         self.last_finalized_id = -1
         self.closing = False
         self.closed = False
@@ -284,12 +286,14 @@ class ConversationState:
                 result["audio_omitted"] = True
         return result
 
-    def _span(self, operation: str, parent: Any) -> Span:
+    def _span(self, operation: str, parent: Any, llmobs_parent: Any) -> Span:
         return self.integration.trace(
             operation,
             submit_to_llmobs=True,
             activate=False,
-            parent_context=parent,
+            # An empty context is an explicit root; None would use the processing context.
+            parent_context=parent if parent is not None else Context(),
+            llmobs_parent=llmobs_parent,
             agent_id=self.agent_id,
         )
 
@@ -298,7 +302,9 @@ class ConversationState:
             return None
         if event_id in self.turns:
             return self.turns[event_id]
-        if event_id <= self.last_finalized_id:
+        # Known turns can still receive late text after interruption. Unknown stale
+        # events must never take the next utterance's pending audio or activity.
+        if event_id <= max(self.last_finalized_id, self.last_interrupt_id):
             return None
         while len(self.turns) >= _MAX_OPEN_TURNS:
             _, previous = self.turns.popitem(last=False)
@@ -308,10 +314,10 @@ class ConversationState:
         self.pending.activity = turn.input_audio.activity.continue_at(turn.input_audio.duration_ns(self.input_rate))
         turn.user_text = self.pending_text
         self.pending_text = ""
-        turn.root = self._span("conversation.turn", self.parent)
+        turn.root = self._span("conversation.turn", self.parent, self.llmobs_parent)
         turn.root.start_ns = turn.input_audio.start_ns or now
         self.turns[event_id] = turn
-        turn.llm = self._span("conversation.response", turn.root)
+        turn.llm = self._span("conversation.response", turn.root, turn.root)
         turn.llm.start_ns = now
         self.turns[event_id] = turn
         return turn
@@ -450,7 +456,7 @@ class ConversationState:
             turn = self.tool_turns.get(call_id)
             if self.closed or turn is None or call_id in self.tool_spans:
                 return None
-            span = self._span("client_tool." + name, turn.root)
+            span = self._span("client_tool." + name, turn.root, turn.root)
             try:
                 self.integration.annotate_voice_span(
                     span,
@@ -501,7 +507,7 @@ class ConversationState:
             activity = audio.activity.metadata(audio.duration_ns(rate), audio.last_audio_ns)
             if activity is not None:
                 metadata["user_speech_activity"] = activity
-        span = self._span("conversation." + name.replace(" ", "_"), turn.root)
+        span = self._span("conversation." + name.replace(" ", "_"), turn.root, turn.root)
         span.start_ns = start
         try:
             self.integration.annotate_voice_span(
