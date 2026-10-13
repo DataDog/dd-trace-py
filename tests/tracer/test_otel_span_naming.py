@@ -208,25 +208,23 @@ def _server_name(method=None, route=None, resource=_INTEGRATION_RESOURCE, span_h
             return span.resource
 
 
-def test_server_with_route():
-    assert _server_name(method="GET", route="/users/<int:id>") == "GET /users/<int:id>"
-
-
-def test_server_without_route_is_bare_method():
-    assert _server_name(method="GET") == "GET"
-
-
-def test_server_without_route_ignores_the_uri_path():
-    assert _server_name(method="GET", resource="GET /users/12345") == "GET"
-
-
-@pytest.mark.parametrize(("route", "expected"), [(None, "HTTP"), ("/ping", "HTTP /ping")])
-def test_server_unaccepted_method_substitutes_only_the_method_token(route, expected):
-    assert _server_name(method="FROBNICATE", route=route) == expected
-
-
-def test_server_raw_method_never_leaks_into_the_name():
-    assert _server_name(method="get") == "GET"
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        (dict(method="GET", route="/users/<int:id>"), "GET /users/<int:id>"),
+        (dict(method="GET"), "GET"),
+        # Without a route the URI path in the integration resource must not be kept.
+        (dict(method="GET", resource="GET /users/12345"), "GET"),
+        (dict(method="FROBNICATE"), "HTTP"),
+        (dict(method="FROBNICATE", route="/ping"), "HTTP /ping"),
+        (dict(method="get"), "GET"),
+        (dict(method="GET", kind=None), "GET"),
+        (dict(method="websocket"), _INTEGRATION_RESOURCE),
+        (dict(method=None), _INTEGRATION_RESOURCE),
+    ],
+)
+def test_server_name(kwargs, expected):
+    assert _server_name(**kwargs) == expected
 
 
 def test_server_user_set_resource_is_preserved():
@@ -241,18 +239,6 @@ def test_server_resource_replaced_by_user_code_is_detected_and_kept():
         span.resource = "my custom name"
 
     assert _server_name(method="GET", route="/users", resource=None, span_hook=replace) == "my custom name"
-
-
-def test_websocket_handshake_is_left_alone():
-    assert _server_name(method="websocket") == _INTEGRATION_RESOURCE
-
-
-def test_server_span_without_a_method_is_left_alone():
-    assert _server_name(method=None) == _INTEGRATION_RESOURCE
-
-
-def test_server_span_with_no_kind_gets_the_bare_method():
-    assert _server_name(method="GET", kind=None) == "GET"
 
 
 def test_server_method_and_route_attributes_are_still_written():

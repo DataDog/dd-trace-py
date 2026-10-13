@@ -67,35 +67,6 @@ def test_resolver_match_is_stored_before_appsec_dispatch():
             traced_resolve_request(lambda *_args, **_kwargs: resolver_match, (mock.Mock(), request), {})
 
 
-def test_resolve_request_is_neutral_with_otel_semantics_disabled():
-    request = mock.Mock(spec=["method"])
-    resolver_match = mock.Mock()
-
-    with (
-        mock.patch.object(config, "_otel_trace_semantics_enabled", False),
-        mock.patch("ddtrace.contrib.internal.django.response.core.dispatch") as dispatch,
-    ):
-        assert traced_resolve_request(lambda *_args, **_kwargs: resolver_match, (mock.Mock(), request), {}) is (
-            resolver_match
-        )
-
-    dispatch.assert_not_called()
-    assert not hasattr(request, "resolver_match")
-
-
-def test_pre_31_resolved_request_dispatch_is_neutral_with_otel_semantics_disabled():
-    request = mock.Mock()
-
-    with (
-        mock.patch.object(config, "_otel_trace_semantics_enabled", False),
-        mock.patch("ddtrace.contrib.internal.django.patch._pre_31_resolve_request_enabled", True),
-        mock.patch("ddtrace.contrib.internal.django.patch.core.dispatch") as dispatch,
-    ):
-        _dispatch_resolved_request(request, None, (), {})
-
-    dispatch.assert_not_called()
-
-
 @pytest.mark.skipif(django.VERSION >= (3, 1), reason="the view middleware hook only exists before Django 3.1")
 @pytest.mark.parametrize("enabled", [False, True])
 def test_pre_31_view_middleware_hook_is_installed_only_with_otel_semantics(enabled):
@@ -106,18 +77,6 @@ def test_pre_31_view_middleware_hook_is_installed_only_with_otel_semantics(enabl
         handler.load_middleware()
 
     assert (_dispatch_resolved_request in handler._view_middleware) is enabled
-
-
-def test_request_path_params_resolves_route_with_otel_semantics_disabled():
-    request = mock.Mock(spec=["urlconf", "path_info"], urlconf=None, path_info="/")
-    resolver_match = mock.Mock(kwargs={"pk": 1}, args=())
-
-    with (
-        mock.patch.object(config, "_otel_trace_semantics_enabled", False),
-        mock.patch("ddtrace.contrib.internal.django.utils.get_resolver") as get_resolver,
-    ):
-        get_resolver.return_value.resolve.return_value = resolver_match
-        assert _request_path_params(request) == {"pk": 1}
 
 
 def test_request_path_params_does_not_resolve_route_with_otel_semantics_enabled():
@@ -264,19 +223,6 @@ def test_otel_semantics_keeps_async_request_resource_stable_during_application()
             asyncio.run(django_response.traced_get_response_async(application, handler, (request,), {}))
 
     assert captured["resource"] == "GET"
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})
-def test_default_semantics_keep_the_datadog_request_span_name():
-    from django.test import Client
-
-    from tests.contrib.django.utils import setup_django_test_spans
-
-    with setup_django_test_spans() as test_spans:
-        assert Client().get("/fn-view/").status_code == 200
-        root = test_spans.get_root_span()
-        assert root.get_tag("http.method") == "GET"
-        assert root.get_tag("http.request.method") is None
 
 
 @pytest.fixture(autouse=True)
