@@ -3,6 +3,7 @@ import sysconfig as _sysconfig
 import sys
 import threading
 import time
+from typing import Optional
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
@@ -43,7 +44,7 @@ cdef class _SamplerState:
     cdef int next_sample
     cdef object sampler  # PoissonSampler
 
-    def __init__(self, int sampling_interval, bint collect_message):
+    def __init__(self, int sampling_interval, bint collect_message) -> None:
         self.sampling_interval = sampling_interval
         self.collect_message = collect_message
         self.counter = 0
@@ -151,7 +152,7 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
 class ExceptionCollector(collector.Collector):
     """Collects exception samples using sys.monitoring (Python 3.12+)."""
 
-    def __init__(self, sampling_interval: int = None, collect_message: bool = None):
+    def __init__(self, sampling_interval: Optional[int] = None, collect_message: Optional[bool] = None) -> None:
         super().__init__()
         raw_interval = sampling_interval if sampling_interval is not None else config.exception.sampling_interval
         assert raw_interval >= 1, "sampling_interval must be >= 1"

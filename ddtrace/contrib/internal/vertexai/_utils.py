@@ -1,5 +1,5 @@
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import StreamHandler
 
 
 class BaseVertexAIStreamHandler:

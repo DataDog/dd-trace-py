@@ -80,9 +80,10 @@ templates_path = ["_templates"]
 # source_suffix = ['.rst', '.md']
 source_suffix = ".rst"
 
-# Enable links to the python standard doc.
+# Enable links to the python standard doc. The checked-in inventory is a fallback for
+# when docs.python.org is unreachable; scripts/update-intersphinx-inventory.py refreshes it.
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
+    "python": ("https://docs.python.org/3", (None, "_intersphinx/python3.inv")),
 }
 
 # The encoding of source files.

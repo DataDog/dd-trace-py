@@ -1,0 +1,11 @@
+_v: 1
+name: selenium
+display_name: Selenium
+description: Instruments Selenium WebDriver navigation and shutdown to enrich test spans with browser metadata, correlate
+  RUM sessions, and flush replay data.
+packages:
+- name: selenium
+category:
+- other
+systems: []
+creation_date: '2024-12-09'
