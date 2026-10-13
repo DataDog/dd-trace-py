@@ -177,6 +177,16 @@ Traces
        v1.19.1: default reverted to ``v0.4``.
        v2.4.0: default changed to ``v0.5``.
 
+   DD_TRACE_OTEL_SEMANTICS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Select OpenTelemetry HTTP semantics mode for tracing. When enabled, traces use
+         OTLP export and span attribute schema ``v0``, and automatic peer-service names are
+         disabled. This setting takes precedence over conflicting trace API, schema, and
+         peer-service settings.
+
    DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH:
       type: Integer
       default: 10
