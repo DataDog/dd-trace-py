@@ -31,7 +31,6 @@ from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
-from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -622,9 +621,17 @@ class Config:
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        _native_config.set_128_bit_trace_id_enabled(
-            _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
-        )
+        self._raise_value = False
+        from ddtrace.internal.native import on_native_load
+
+        def _push_128_bit_trace_id_enabled() -> None:
+            from ddtrace.internal.native import config as _native_config
+
+            _native_config.set_128_bit_trace_id_enabled(
+                _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+            )
+
+        on_native_load(_push_128_bit_trace_id_enabled)
 
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
@@ -852,18 +859,31 @@ class Config:
 
     @property
     def _raise(self) -> bool:
-        return _native_config.get_raise()
+        return self._raise_value
 
     @_raise.setter
     def _raise(self, value: bool) -> None:
-        _native_config.set_raise(bool(value))
+        self._raise_value = bool(value)
+
+        def _push_raise() -> None:
+            from ddtrace.internal.native import config as _native_config
+
+            _native_config.set_raise(self._raise_value)
+
+        from ddtrace.internal.native import on_native_load
+
+        on_native_load(_push_raise)
 
     @property
     def _128_bit_trace_id_enabled(self) -> bool:
+        from ddtrace.internal.native import config as _native_config
+
         return _native_config.get_128_bit_trace_id_enabled()
 
     @_128_bit_trace_id_enabled.setter
     def _128_bit_trace_id_enabled(self, value: bool) -> None:
+        from ddtrace.internal.native import config as _native_config
+
         _native_config.set_128_bit_trace_id_enabled(bool(value))
 
     def __getattr__(self, name) -> Any:

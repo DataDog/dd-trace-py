@@ -62,11 +62,13 @@ def trace_context(ddtrace_enabled: bool) -> t.ContextManager[TestContext]:
     """
     if ddtrace_enabled:
         try:
-            import ddtrace  # noqa: F401
+            import ddtrace
 
+            ddtrace.tracer  # noqa: B018  # availability check: degrade, don't crash, when the tracer is absent
+        except (ImportError, AttributeError):
+            log.debug("ddtrace tracer is not available, falling back to non-ddtrace context")
+        else:
             return _ddtrace_context()
-        except ImportError:
-            log.debug("ddrace is not available, falling back to non-ddtrace context")
 
     return _plain_context()
 

@@ -1203,7 +1203,7 @@ class TestHelperFunctions:
 
         with (
             patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
-            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method") as mock_get_lines,
+            patch("ddtrace.internal.ci_visibility.utils.get_source_lines_for_test_method") as mock_get_lines,
         ):
             mock_undecorated.return_value = mock_item._obj
             mock_get_lines.return_value = (10, 20)
@@ -1241,7 +1241,7 @@ class TestHelperFunctions:
 
         with (
             patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
-            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method"),
+            patch("ddtrace.internal.ci_visibility.utils.get_source_lines_for_test_method"),
         ):
             # Simulate exception in undecorated
             mock_undecorated.side_effect = Exception("Test error")
@@ -1264,7 +1264,7 @@ class TestHelperFunctions:
 
         with (
             patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
-            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method"),
+            patch("ddtrace.internal.ci_visibility.utils.get_source_lines_for_test_method"),
         ):
             mock_undecorated.side_effect = Exception("undecorated failed")
 

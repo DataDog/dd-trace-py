@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import os
 import sys
 from typing import TYPE_CHECKING
@@ -119,8 +120,36 @@ def __getattr__(name: str) -> Any:
     if name in _NATIVE_EXPORTS:
         from . import _native
 
+        _run_native_load_callbacks()
         return getattr(_native, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# Deferred initialization: pure-Python code that must configure the native
+# library before first use registers callbacks here instead of importing the
+# extension eagerly. Callbacks run once, immediately after `_native` first
+# loads, and are dropped if the extension never loads.
+_native_load_callbacks: list[Callable[[], None]] = []
+_native_load_callbacks_ran = False
+
+
+def _run_native_load_callbacks() -> None:
+    global _native_load_callbacks_ran
+    if _native_load_callbacks_ran:
+        return
+    _native_load_callbacks_ran = True
+    callbacks = _native_load_callbacks[:]
+    _native_load_callbacks.clear()
+    for callback in callbacks:
+        callback()
+
+
+def on_native_load(callback: Callable[[], None]) -> None:
+    """Register a callback to run when the native extension first loads (immediately if it already has)."""
+    if _native_load_callbacks_ran:
+        callback()
+    else:
+        _native_load_callbacks.append(callback)
 
 
 # Default stable-configuration file paths, mirroring the target constants defined

@@ -11,16 +11,11 @@ import logging
 from pathlib import Path
 import typing as t
 
-from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _get_coverage_percentage
-from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.internal.coverage.patch import run_coverage_report
-from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
-from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
-import ddtrace.internal.coverage.installer
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
+
+
+if t.TYPE_CHECKING:  # pragma: no cover
+    from ddtrace.internal.coverage.coverage_lines import CoverageLines
 
 
 log = logging.getLogger(__name__)
@@ -30,6 +25,11 @@ log = logging.getLogger(__name__)
 
 
 def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
+    # Deferred: the coverage integration (contrib patch + code collector) pulls the
+    # tracer through ddtrace.contrib at import time; load it when coverage is activated.
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    import ddtrace.internal.coverage.installer
+
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
@@ -39,6 +39,8 @@ def install_coverage(workspace_path: Path, file_level_coverage: bool = False) ->
 
 
 def uninstall_coverage() -> None:
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
     ModuleCodeCollector.uninstall()
 
 
@@ -50,7 +52,13 @@ def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[
         return None  # covered file does not belong to current repo
 
 
-_FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())
+@functools.lru_cache(maxsize=1)
+def _file_level_bitmap() -> bytes:
+    # Deferred: CoverageLines is pure, but its module sits under the coverage
+    # integration surface; keep this module importable without it.
+    from ddtrace.internal.coverage.coverage_lines import CoverageLines
+
+    return bytes(CoverageLines.from_list([0]).to_bytes())
 
 
 class CoverageData:
@@ -60,12 +68,13 @@ class CoverageData:
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         relative_to_str = str(relative_to)
+        file_level_bitmap = _file_level_bitmap()
 
         if self._covered_file_paths is not None:
             for absolute_path in self._covered_file_paths:
                 path_str = _relative_coverage_path(absolute_path, relative_to_str)
                 if path_str is not None:
-                    yield path_str, _FILE_LEVEL_BITMAP
+                    yield path_str, file_level_bitmap
             return
 
         if not self._covered_lines:
@@ -79,6 +88,8 @@ class CoverageData:
 
 @contextlib.contextmanager
 def coverage_collection() -> t.Generator[CoverageData, None, None]:
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
     with ModuleCodeCollector.CollectInContext() as coverage_collector:
         coverage_data = CoverageData()
         yield coverage_data
@@ -92,6 +103,8 @@ def install_coverage_percentage():
     """
     Patch coverage.py to obtain coverage percentage from pytest-cov.
     """
+    from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
+
     patch_coverage()
 
 
@@ -99,6 +112,8 @@ def uninstall_coverage_percentage():
     """
     Undo patching of coverage.py.
     """
+    from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
+
     unpatch_coverage()
 
 
@@ -111,6 +126,12 @@ def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     or generates a report if using 'coverage run' without pytest-cov.
     """
     # Generate report if using coverage run without pytest-cov
+    # Deferred: the contrib coverage integration pulls the tracer at import time.
+    from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _get_coverage_percentage
+    from ddtrace.contrib.internal.coverage.patch import run_coverage_report
+    from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
+    from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+
     if not pytest_cov_status and _is_coverage_invoked_by_coverage_run() and _is_coverage_patched():
         run_coverage_report()
 

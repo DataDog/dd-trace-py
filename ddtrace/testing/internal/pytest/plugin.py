@@ -18,13 +18,6 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
-from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
-from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
-from ddtrace.contrib.internal.coverage.patch import stop_coverage
-from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
-from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
-from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
-from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.utils.inspection import undecorated
@@ -267,7 +260,11 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
             return 0, 0
 
     try:
-        # Get undecorated test object and extract source lines
+        # Get undecorated test object and extract source lines.
+        # Deferred: importing any ci_visibility submodule runs the package
+        # __init__, which imports the recorder (and with it the tracer).
+        from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+
         test_method_object = undecorated(item._obj, item.name, item_path)
         source_lines = get_source_lines_for_test_method(test_method_object)
         # Convert None to 0 (our plugin uses 0 as sentinel, but shared util uses None)
@@ -433,21 +430,32 @@ class TestOptPlugin(TestOptPluginProtocol):
         )
 
         if self.enable_ddtrace_trace_filter:
-            install_global_trace_filter(self.manager.writer)
+            # Optional runtime integration (diet PoC): without the tracer (native
+            # extension missing / standalone testing install) the run proceeds
+            # without reporting instead of crashing the session.
             try:
-                import ddtrace
+                install_global_trace_filter(self.manager.writer)
             except ImportError:
-                log.debug("ddtrace is not available, skipping logging patch")
+                log.warning(
+                    "ddtrace's tracer is unavailable (native extension missing or tracer not "
+                    "installed); the test session will run without DataDog reporting. Install "
+                    "dd-trace-py, or invoke pytest without --ddtrace, to restore reporting."
+                )
             else:
-                if ddtrace.config._logs_injection or self.enable_log_submission:
-                    try:
-                        from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
+                try:
+                    import ddtrace
+                except ImportError:
+                    log.debug("ddtrace is not available, skipping logging patch")
+                else:
+                    if ddtrace.config._logs_injection or self.enable_log_submission:
+                        try:
+                            from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
 
-                        _patch_logging()
-                    except ImportError:
-                        log.warning(
-                            "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
-                        )
+                            _patch_logging()
+                        except ImportError:
+                            log.warning(
+                                "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
+                            )
 
         if self.enable_log_submission:
             from ddtrace.testing.internal.logs import LogsHandler
@@ -511,7 +519,30 @@ class TestOptPlugin(TestOptPluginProtocol):
         # workers consistently across xdist handoffs is deferred to a follow-up. Processes
         # holding a coverage.py instance ddtrace neither owns nor knows how to persist
         # (an external session started by user code) keep uploading per-process.
-        if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
+        # Deferred import: contrib pulls the tracer (and its native classes) at
+        # import time; coverage machinery only matters once the session is finishing.
+        # The integration is optional: without it (e.g. standalone testing package,
+        # or a dd-trace-py install without the native extension) coverage
+        # reporting is skipped.
+        try:
+            from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
+            from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
+            from ddtrace.contrib.internal.coverage.patch import stop_coverage
+            from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+            from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        except ImportError:
+            log.debug("ddtrace coverage integration unavailable; skipping coverage reporting")
+            clear_coverage_instance = None  # type: ignore[assignment]
+            owns_coverage_instance = None  # type: ignore[assignment]
+            stop_coverage = None  # type: ignore[assignment]
+            _is_pytest_cov_enabled = None  # type: ignore[assignment]
+            handle_coverage_report = None  # type: ignore[assignment]
+
+        if (
+            _is_pytest_cov_enabled is not None
+            and self.manager.settings.coverage_report_upload_enabled
+            and not get_offline_mode().payload_files_enabled
+        ):
             can_delegate = _is_pytest_cov_enabled(session.config) or owns_coverage_instance()
             if self.is_xdist_worker and self._coverage_upload_delegated and can_delegate:
                 # The controller reports for the whole session; just make sure our
@@ -539,7 +570,11 @@ class TestOptPlugin(TestOptPluginProtocol):
                     delegated_coverage_data_paths=self.delegated_coverage_data_files,
                 )
 
-        coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
+        coverage_percentage = (
+            get_coverage_percentage(_is_pytest_cov_enabled(session.config))  # type: ignore[misc]
+            if _is_pytest_cov_enabled is not None
+            else None
+        )
         if coverage_percentage is not None:
             self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
             uninstall_coverage_percentage()
@@ -1783,7 +1818,22 @@ def pytest_configure(config: pytest.Config) -> None:
 
     # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
-    if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
+    # Deferred import: contrib pulls the tracer at import time; the coverage
+    # integration is only needed once the session is configuring. It is
+    # optional: without it, coverage features are skipped.
+    try:
+        from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
+        from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+    except ImportError:
+        log.debug("ddtrace coverage integration unavailable; skipping coverage integration")
+        _is_pytest_cov_available = None  # type: ignore[assignment]
+        _is_pytest_cov_enabled = None  # type: ignore[assignment]
+
+    if (
+        _is_pytest_cov_enabled is not None
+        and session_manager.settings.coverage_report_upload_enabled
+        and not _is_pytest_cov_enabled(config)
+    ):
         # Start coverage.py ourselves for report generation. Data files get a
         # parallel suffix exactly when this process delegates its coverage
         # report upload to the xdist controller: every worker then persists its
@@ -1810,7 +1860,7 @@ def pytest_configure(config: pytest.Config) -> None:
         log.debug("Started coverage.py collection for report upload (pytest-cov not enabled)")
 
     # Patch coverage.py to capture percentage if it's available and (enabled OR needed for report upload)
-    if _is_pytest_cov_available(config):
+    if _is_pytest_cov_available is not None and _is_pytest_cov_available(config):
         if _is_pytest_cov_enabled(config) or session_manager.settings.coverage_report_upload_enabled:
             install_coverage_percentage()
 

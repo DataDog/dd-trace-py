@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
 import typing as t
-
-from ddtrace.testing.internal.tracer_api import rand64bits
 
 
 if t.TYPE_CHECKING:
@@ -15,7 +14,14 @@ DDTESTOPT_ROOT_SPAN_RESOURCE = "testing_root_span"
 
 def _gen_item_id() -> int:
     # We use ddtrace's random number generator to avoid being affected by pytest-randomly.
-    return rand64bits()
+    # Deferred: rand64bits is native-backed; when the extension is unavailable,
+    # os.urandom provides the same guarantee (it is not reseeded by pytest-randomly).
+    try:
+        from ddtrace.testing.internal.tracer_api import rand64bits
+
+        return rand64bits()
+    except ImportError:
+        return int.from_bytes(os.urandom(8), "big")
 
 
 def asbool(value: t.Union[str, bool, None]) -> bool:
