@@ -57,6 +57,7 @@ components:
     - ddtrace/contrib/internal/coverage/*
     - ddtrace/ext/test_visibility/*
   appsec_iast:
+    - ddtrace/internal/_stacktrace.*
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/*
     - ddtrace/internal/settings/asm.py
@@ -429,7 +430,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/telemetry/dependency*.py
-      - ddtrace/appsec/sca/*
+      - ddtrace/internal/sca/*
       - benchmarks/telemetry_dependencies/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1

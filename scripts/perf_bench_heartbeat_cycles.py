@@ -24,7 +24,7 @@ import time
 import tracemalloc
 from unittest.mock import patch
 
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.settings.sca import config as sca_config
 from ddtrace.internal.telemetry.dependency import DependencyEntry
 from ddtrace.internal.telemetry.dependency import attach_reachability_metadata
 from ddtrace.internal.telemetry.dependency import register_cve_metadata
@@ -42,7 +42,7 @@ _HEADER_WIDTH = 135
 def _populate_tracker(tracker: DependencyTracker, n: int, sca_enabled: bool) -> None:
     """Pre-populate a tracker with n dependencies, as if discovered by the first heartbeat."""
     if sca_enabled:
-        appsec_telemetry_config.SCA_ENABLED = True
+        sca_config.SCA_ENABLED = True
     for i in range(n):
         name = f"package-{i}"
         meta = [] if sca_enabled else None
@@ -94,7 +94,7 @@ def _make_tracker_for_loop(n: int, sca_enabled: bool, phase: str, pct_cve: int, 
     if phase == "first":
         # All deps are new: NOT pre-populated (will be "discovered" by collect_report mock)
         if sca_enabled:
-            appsec_telemetry_config.SCA_ENABLED = True
+            sca_config.SCA_ENABLED = True
         return tracker
     # For all other phases, pre-populate as already reported
     _populate_tracker(tracker, n, sca_enabled)
@@ -237,7 +237,7 @@ def bench_loop1_first_heartbeat(n: int, sca_enabled: bool, iterations: int = 50)
         def run():
             tracker = DependencyTracker()
             if sca_enabled:
-                appsec_telemetry_config.SCA_ENABLED = True
+                sca_config.SCA_ENABLED = True
             tracker.collect_report()
 
         return bench_time(run, warmup=2, iterations=iterations)
@@ -463,7 +463,7 @@ def main():
                     dists = {f"mod-{i}": (f"package-{i}", f"{i}.0.0") for i in range(n)}
                     tracker = DependencyTracker()
                     if sca_on:
-                        appsec_telemetry_config.SCA_ENABLED = True
+                        sca_config.SCA_ENABLED = True
                     result = _collect_report_new_modules(tracker, module_names, dists)
                 else:
                     tracker = _make_tracker_for_loop(n, sca_on, phase, pct_cve, cves_per_dep)

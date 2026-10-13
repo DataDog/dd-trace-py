@@ -16,20 +16,24 @@ from ddtrace.internal.settings._telemetry import config as telemetry_config
 
 
 try:
-    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+    from ddtrace.internal.settings.sca import config as sca_config
 except ModuleNotFoundError as error:
-    if error.name != "ddtrace.internal.settings.appsec_telemetry":
+    if error.name != "ddtrace.internal.settings.sca":
         raise
+    try:
+        from ddtrace.internal.settings.appsec_telemetry import config as sca_config
+    except ModuleNotFoundError as error:
+        if error.name != "ddtrace.internal.settings.appsec_telemetry":
+            raise
+        sca_config = None
+        from ddtrace.internal.settings._config import config as tracer_config
 
-    from ddtrace.internal.settings._config import config as tracer_config
 
-    def _enable_sca():
+def _enable_sca():
+    if sca_config is None:
         tracer_config._sca_enabled = True
-
-else:
-
-    def _enable_sca():
-        appsec_telemetry_config.SCA_ENABLED = True
+    else:
+        sca_config.SCA_ENABLED = True
 
 
 # --- Backward-compatible imports ---

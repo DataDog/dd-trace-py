@@ -12,12 +12,12 @@ from ddtrace.internal.telemetry.dependency import register_cve_metadata
 
 @pytest.fixture(autouse=True)
 def _restore_sca_config():
-    """Save and restore appsec_telemetry_config.SCA_ENABLED to prevent cross-test contamination."""
-    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+    """Save and restore sca_config.SCA_ENABLED to prevent cross-test contamination."""
+    from ddtrace.internal.settings.sca import config as sca_config
 
-    saved = appsec_telemetry_config.SCA_ENABLED
+    saved = sca_config.SCA_ENABLED
     yield
-    appsec_telemetry_config.SCA_ENABLED = saved
+    sca_config.SCA_ENABLED = saved
 
 
 class TestReachabilityMetadata:
@@ -286,17 +286,17 @@ class TestRegisterCveMetadata:
 def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
     """Shared factory for writer-level tests.
 
-    Sets appsec_telemetry_config.SCA_ENABLED so DependencyTracker reads the live
+    Sets sca_config.SCA_ENABLED so DependencyTracker reads the live
     config flag.  Callers should use the _restore_sca_config fixture
     (autouse in this module) to ensure cleanup.
     """
     from unittest.mock import MagicMock
 
-    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+    from ddtrace.internal.settings.sca import config as sca_config
     from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
     from ddtrace.internal.telemetry.writer import TelemetryWriter
 
-    appsec_telemetry_config.SCA_ENABLED = sca_enabled
+    sca_config.SCA_ENABLED = sca_enabled
     writer = TelemetryWriter.__new__(TelemetryWriter)
     writer._metric_lock = MagicMock()
     writer._enabled = enabled
@@ -631,10 +631,10 @@ class TestTrackerNameNormalization:
         """_ensure_entry should not create a duplicate when the same package has different casing."""
         from unittest.mock import patch
 
-        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+        from ddtrace.internal.settings.sca import config as sca_config
         from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 
-        appsec_telemetry_config.SCA_ENABLED = True
+        sca_config.SCA_ENABLED = True
         tracker = DependencyTracker()
 
         with patch("importlib.metadata.version", return_value="6.0"):
@@ -753,7 +753,7 @@ class TestTrackerNameNormalization:
             def SCA_ENABLED(self):
                 raise RuntimeError("config module torn down")
 
-        with patch("ddtrace.internal.telemetry.dependency_tracker.appsec_telemetry_config", BrokenConfig()):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.sca_config", BrokenConfig()):
             result = update_imported_dependencies({}, ["requests"])
 
         assert result == []

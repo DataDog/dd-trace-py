@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.settings.sca import config as sca_config
 
 
 @pytest.fixture(
@@ -22,7 +22,7 @@ from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetr
 )
 def tracer_appsec_standalone(request, tracer):
     sca_enabled = request.param["DD_APPSEC_SCA_ENABLED"] == "1"
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled):
+    with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled):
         # Copy the params to a new dict, including the env var
         request_param_copy = copy.deepcopy(request.param)
 

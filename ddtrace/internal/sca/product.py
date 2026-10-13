@@ -14,7 +14,7 @@ At startup (when DD_APPSEC_SCA_ENABLED=true):
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.settings.sca import config as sca_config
 
 
 log = get_logger(__name__)
@@ -23,7 +23,7 @@ requires: list[str] = []
 
 
 def enabled() -> bool:
-    return bool(appsec_telemetry_config.SCA_ENABLED) and not in_aws_lambda()
+    return bool(sca_config.SCA_ENABLED) and not in_aws_lambda()
 
 
 def _get_installed_packages() -> dict[str, str]:
@@ -58,8 +58,8 @@ def _load_and_instrument(after_fork: bool = False) -> None:
             targets since they inherit injected hooks from the parent
             process.  Only populate the registry so existing hooks work.
     """
-    from ddtrace.appsec.sca._cve_loader import load_cve_targets
-    from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+    from ddtrace.internal.sca._cve_loader import load_cve_targets
+    from ddtrace.internal.sca._instrumenter import apply_instrumentation_updates
 
     installed = _get_installed_packages()
     if not installed:
@@ -148,8 +148,8 @@ def restart(join: bool = False) -> None:
 
     # Reset instrumenter and registry state BEFORE re-initializing.
     # This must happen here (not in register_at_fork) to ensure correct ordering.
-    from ddtrace.appsec.sca._instrumenter import _reset_after_fork as reset_instrumenter
-    from ddtrace.appsec.sca._registry import _reset_global_registry_after_fork as reset_registry
+    from ddtrace.internal.sca._instrumenter import _reset_after_fork as reset_instrumenter
+    from ddtrace.internal.sca._registry import _reset_global_registry_after_fork as reset_registry
 
     reset_instrumenter()
     reset_registry()

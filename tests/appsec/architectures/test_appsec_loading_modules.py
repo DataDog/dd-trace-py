@@ -17,15 +17,14 @@ MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf"]
 MODULE_IAST_ONLY = [
     "ddtrace.appsec._iast",
     "ddtrace.appsec._iast._taint_tracking._native",
-    "ddtrace.appsec._shared._stacktrace",
+    "ddtrace.internal._stacktrace",
 ]
 
 MODULE_SCA_ONLY = [
-    "ddtrace.appsec.sca",
-    "ddtrace.appsec.sca._cve_loader",
-    "ddtrace.appsec.sca._instrumenter",
-    "ddtrace.appsec.sca._registry",
-    "ddtrace.appsec.sca._resolver",
+    "ddtrace.internal.sca._cve_loader",
+    "ddtrace.internal.sca._instrumenter",
+    "ddtrace.internal.sca._registry",
+    "ddtrace.internal.sca._resolver",
 ]
 
 

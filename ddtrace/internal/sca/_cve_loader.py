@@ -12,9 +12,9 @@ from typing import Optional
 from typing import TypedDict
 from typing import cast
 
-from ddtrace.appsec.sca._types import CveDataEntry
-from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.sca._types import CveDataEntry
+from ddtrace.internal.sca._types import CveTarget
 from ddtrace.vendor.packaging.version import InvalidVersion
 from ddtrace.vendor.packaging.version import Version
 

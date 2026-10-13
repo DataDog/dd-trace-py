@@ -17,6 +17,7 @@
     "ddtrace.appsec": "product:appsec",
     "ddtrace.internal.appsec": "product:appsec",
     "ddtrace.internal.iast": "product:appsec",
+    "ddtrace.internal.sca": "product:sca",
 
     "ddtrace.aiguard": "product:aiguard",
     "ddtrace.internal.aiguard": "product:aiguard",

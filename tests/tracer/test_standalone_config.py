@@ -3,8 +3,8 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.settings.aiguard import aiguard_config
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.sca import config as sca_config
 from ddtrace.internal.settings.standalone import standalone_config
 
 
@@ -12,7 +12,7 @@ from ddtrace.internal.settings.standalone import standalone_config
 STANDALONE_PRODUCTS = [
     (asm_config, "_asm_enabled", True),
     (asm_config, "_iast_enabled", True),
-    (appsec_telemetry_config, "SCA_ENABLED", True),
+    (sca_config, "SCA_ENABLED", True),
     (aiguard_config, "_ai_guard_enabled", True),
 ]
 
@@ -34,7 +34,7 @@ def test_apm_opt_out_requires_a_product(apm_tracing_enabled):
     with (
         mock.patch.object(asm_config, "_asm_enabled", False),
         mock.patch.object(asm_config, "_iast_enabled", False),
-        mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", None),
+        mock.patch.object(sca_config, "SCA_ENABLED", None),
         mock.patch.object(aiguard_config, "_ai_guard_enabled", False),
         mock.patch.object(standalone_config, "apm_tracing_enabled", apm_tracing_enabled),
     ):
@@ -50,7 +50,7 @@ def test_sca_only_opts_out_when_explicitly_true():
         mock.patch.object(aiguard_config, "_ai_guard_enabled", False),
         mock.patch.object(standalone_config, "apm_tracing_enabled", False),
     ):
-        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", None):
+        with mock.patch.object(sca_config, "SCA_ENABLED", None):
             assert standalone_config.apm_opt_out is False
-        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
+        with mock.patch.object(sca_config, "SCA_ENABLED", False):
             assert standalone_config.apm_opt_out is False

@@ -8,8 +8,8 @@ aggregates the per-product flags, so no product config has to know about the oth
 from ddtrace.internal.constants import APM_TRACING_ENV
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.sca import config as sca_config
 from ddtrace.internal.telemetry import report_configuration
 
 
@@ -26,7 +26,7 @@ class StandaloneConfig(DDConfig):
         return (
             asm_config._asm_enabled
             or asm_config._iast_enabled
-            or appsec_telemetry_config.SCA_ENABLED is True
+            or sca_config.SCA_ENABLED is True
             or aiguard_config._ai_guard_enabled
         ) and not self.apm_tracing_enabled
 

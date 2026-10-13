@@ -5,11 +5,11 @@ from pathlib import Path
 
 import jsonschema
 
-from ddtrace.appsec.sca._cve_loader import _CVE_DATA_PATH
-from ddtrace.appsec.sca._cve_loader import _any_version_matches
-from ddtrace.appsec.sca._cve_loader import _compound_constraint_matches
-from ddtrace.appsec.sca._cve_loader import _version_matches
-from ddtrace.appsec.sca._cve_loader import load_cve_targets
+from ddtrace.internal.sca._cve_loader import _CVE_DATA_PATH
+from ddtrace.internal.sca._cve_loader import _any_version_matches
+from ddtrace.internal.sca._cve_loader import _compound_constraint_matches
+from ddtrace.internal.sca._cve_loader import _version_matches
+from ddtrace.internal.sca._cve_loader import load_cve_targets
 
 
 def test_bundled_cve_data_conforms_to_schema():
@@ -198,7 +198,7 @@ class TestLoadCveTargets:
         json_path = tmp_path / "test_cve_data.json"
         json_path.write_text(json.dumps(cve_json))
 
-        with patch("ddtrace.appsec.sca._cve_loader._CVE_DATA_PATH", str(json_path)):
+        with patch("ddtrace.internal.sca._cve_loader._CVE_DATA_PATH", str(json_path)):
             targets = load_cve_targets({"testpkg": "1.0.0"})
 
         assert len(targets) == 1
@@ -230,7 +230,7 @@ class TestLoadCveTargets:
         json_path = tmp_path / "test_cve_data.json"
         json_path.write_text(json.dumps(cve_json))
 
-        with patch("ddtrace.appsec.sca._cve_loader._CVE_DATA_PATH", str(json_path)):
+        with patch("ddtrace.internal.sca._cve_loader._CVE_DATA_PATH", str(json_path)):
             # Version 0.9 matches first constraint (<1.0.0)
             assert len(load_cve_targets({"testpkg": "0.9.0"})) == 1
             # Version 2.3.0 matches second constraint (>=2.0.0, <2.5.0)

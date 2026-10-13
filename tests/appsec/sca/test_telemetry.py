@@ -5,7 +5,7 @@ import json
 import pytest
 
 from ddtrace.internal.settings._telemetry import config as telemetry_config
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.settings.sca import config as sca_config
 from ddtrace.internal.telemetry.dependency import DependencyEntry
 from ddtrace.internal.telemetry.dependency import ReachabilityMetadata
 from ddtrace.internal.telemetry.dependency import attach_reachability_metadata
@@ -14,10 +14,10 @@ from ddtrace.internal.telemetry.dependency import register_cve_metadata
 
 @pytest.fixture(autouse=True)
 def _restore_sca_config():
-    """Save and restore appsec_telemetry_config.SCA_ENABLED to prevent cross-test contamination."""
-    saved = appsec_telemetry_config.SCA_ENABLED
+    """Save and restore sca_config.SCA_ENABLED to prevent cross-test contamination."""
+    saved = sca_config.SCA_ENABLED
     yield
-    appsec_telemetry_config.SCA_ENABLED = saved
+    sca_config.SCA_ENABLED = saved
 
 
 class TestReachabilityMetadata:
@@ -270,7 +270,7 @@ class TestRegisterCveMetadata:
 def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
     """Shared factory for writer-level tests.
 
-    Sets appsec_telemetry_config.SCA_ENABLED so DependencyTracker reads the live
+    Sets sca_config.SCA_ENABLED so DependencyTracker reads the live
     config flag.  Callers should use the _restore_sca_config fixture
     (autouse in this module) to ensure cleanup.
     """
@@ -279,7 +279,7 @@ def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
     from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
     from ddtrace.internal.telemetry.writer import TelemetryWriter
 
-    appsec_telemetry_config.SCA_ENABLED = sca_enabled
+    sca_config.SCA_ENABLED = sca_enabled
     writer = TelemetryWriter.__new__(TelemetryWriter)
     writer._metric_lock = MagicMock()
     writer._enabled = enabled
@@ -395,7 +395,7 @@ class TestWriterReReporting:
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
             patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
-            patch.object(appsec_telemetry_config, "SCA_ENABLED", True),
+            patch.object(sca_config, "SCA_ENABLED", True),
         ):
             mock_modules.get_newly_imported_modules.return_value = set()
 
@@ -425,7 +425,7 @@ class TestWriterReReporting:
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
             patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
-            patch.object(appsec_telemetry_config, "SCA_ENABLED", False),
+            patch.object(sca_config, "SCA_ENABLED", False),
         ):
             mock_modules.get_newly_imported_modules.return_value = set()
 
@@ -454,7 +454,7 @@ class TestWriterReReporting:
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
             patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
-            patch.object(appsec_telemetry_config, "SCA_ENABLED", True),
+            patch.object(sca_config, "SCA_ENABLED", True),
         ):
             mock_modules.get_newly_imported_modules.return_value = set()
 
@@ -482,7 +482,7 @@ class TestWriterReReporting:
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
             patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
-            patch.object(appsec_telemetry_config, "SCA_ENABLED", True),
+            patch.object(sca_config, "SCA_ENABLED", True),
         ):
             mock_modules.get_newly_imported_modules.return_value = set()
 
@@ -505,7 +505,7 @@ class TestWriterReReporting:
         with (
             patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
             patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
-            patch.object(appsec_telemetry_config, "SCA_ENABLED", False),
+            patch.object(sca_config, "SCA_ENABLED", False),
             patch(
                 "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
                 return_value=("requests", "2.28.0"),
@@ -573,7 +573,7 @@ class TestScaTrackerNameNormalization:
 
         from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 
-        appsec_telemetry_config.SCA_ENABLED = True
+        sca_config.SCA_ENABLED = True
         tracker = DependencyTracker()
 
         with patch("importlib.metadata.version", return_value="6.0"):
@@ -619,7 +619,7 @@ class TestScaTrackerNameNormalization:
         assert len(entry.metadata) == 1
         assert entry.metadata[0].value == {"id": "CVE-2024-5678", "reached": []}
 
-    def test_update_imported_dependencies_swallows_appsec_telemetry_config_failure(self):
+    def test_update_imported_dependencies_swallows_sca_config_failure(self):
         """If reading AppSec telemetry config fails during shutdown, return [] without raising."""
         from unittest.mock import patch
 
@@ -630,7 +630,7 @@ class TestScaTrackerNameNormalization:
             def SCA_ENABLED(self):
                 raise RuntimeError("config module torn down")
 
-        with patch("ddtrace.internal.telemetry.dependency_tracker.appsec_telemetry_config", BrokenConfig()):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.sca_config", BrokenConfig()):
             result = update_imported_dependencies({}, ["requests"])
 
         assert result == []
