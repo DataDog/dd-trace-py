@@ -29,8 +29,8 @@ Version resolution:
 Errors:
 - CI only uses 'latest' AND latest is outside declared range (testing wrong version)
 - CI has explicit bounds but doesn't cover all required majors
-- A 'latest' lookup failed, timed out, or returned no version AND explicit
-  bounds do not cover all required majors (not reported as missing majors)
+- 'latest' did not resolve and explicit bounds do not cover all required majors
+  (not reported as missing majors)
 
 Warnings:
 - CI only uses 'latest' but latest is within declared range (works but fragile)
@@ -99,54 +99,32 @@ class SilencedItem:
     location: Location
 
 
-_PYPI_LOOKUP_ATTEMPTS: int = 3
-_PYPI_LOOKUP_BACKOFF_S: tuple[float, ...] = (1.0, 2.0)
-
-
-def _fetch_pypi_latest(url: str) -> Version | None:
-    """One PyPI JSON lookup. None means this attempt failed, timed out, or was empty."""
-    try:
-        response: requests.Response = requests.get(url, timeout=10)
-    except Exception:
-        return None
-    if response.status_code != 200:
-        return None
-    try:
-        payload: object = response.json()
-    except Exception:
-        return None
-    if not isinstance(payload, dict):
-        return None
-    info: object = payload.get("info")
-    if not isinstance(info, dict):
-        return None
-    raw_version: object = info.get("version")
-    if not isinstance(raw_version, str) or raw_version == "":
-        return None
-    try:
-        return Version(raw_version)
-    except Exception:
-        return None
+PYPI_ATTEMPTS = 5
 
 
 @lru_cache(maxsize=100)
 def get_pypi_latest_version(package: str) -> Version | None:
-    """Query PyPI for the latest version of a package.
+    """Query PyPI for the latest version of a package
 
-    Retries a small fixed number of times, with backoff between failures.
-    Returns None when every attempt fails, times out, or returns no version.
+    Returns None if PyPI does not know the package.
+    Transient PyPI errors are retried, and a lookup that keeps failing aborts the run.
     """
-    url: str = f"https://pypi.org/pypi/{package}/json"
-    for attempt in range(_PYPI_LOOKUP_ATTEMPTS):
-        latest: Version | None = _fetch_pypi_latest(url)
-        if latest is not None:
-            return latest
-        is_last: bool = attempt + 1 >= _PYPI_LOOKUP_ATTEMPTS
-        if is_last:
-            break
-        delay_s: float = _PYPI_LOOKUP_BACKOFF_S[attempt]
-        time.sleep(delay_s)
-    return None
+    url = f"https://pypi.org/pypi/{package}/json"
+    last_error: Exception | None = None
+    for attempt in range(PYPI_ATTEMPTS):
+        if attempt:
+            time.sleep(2**attempt)
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            return Version(response.json()["info"]["version"])
+        except Exception as e:
+            last_error = e
+    raise SystemExit(
+        f"❌ Could not query PyPI for the latest {package} version after {PYPI_ATTEMPTS} attempts: {last_error}"
+    )
 
 
 def load_pyproject() -> tuple[dict[str, Any], str]:
@@ -618,17 +596,16 @@ def check_coverage(
             has_latest = ci_info.has_latest
             ci_locs = format_locations(ci_info.locations)
 
-            # An unresolved latest is a lookup failure when explicit pins do not
-            # already cover the declared majors. Do not report that as missing
-            # coverage: the majors a bare spec would cover are unknown.
+            # Unresolved latest (unknown package) is not missing coverage: the
+            # majors a bare spec would cover are unknown.
             explicit_covers_required: bool = required_majors <= explicit_majors
             if has_latest and ci_info.latest_major is None and not explicit_covers_required:
-                reason: str = f"""\
-{pkg_name}: PyPI lookup failed for '{pkg_name}' after {_PYPI_LOOKUP_ATTEMPTS} attempts \
-(request failed, timed out, or returned no version). \
-Cannot determine the latest major.
-    pyproject.toml: {pyproject_loc}
-    CI: {ci_locs}"""
+                reason: str = (
+                    f"{pkg_name}: could not resolve latest version from PyPI. "
+                    f"Cannot determine the latest major.\n"
+                    f"    pyproject.toml: {pyproject_loc}\n"
+                    f"    CI: {ci_locs}"
+                )
                 add_issue("error", pkg_name, reason, ci_info)
                 continue
 

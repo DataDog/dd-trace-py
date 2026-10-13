@@ -9,7 +9,7 @@
 #     "setuptools<82",
 # ]
 # ///
-"""Lookup failures must not be reported as missing major coverage."""
+"""Unresolved latest must not be reported as missing major coverage."""
 
 from importlib.machinery import ModuleSpec
 import importlib.util
@@ -32,11 +32,7 @@ if _spec is None or _spec.loader is None:
 _coverage: types.ModuleType = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_coverage)
 
-_LOOKUP_FAILURE: str = (
-    "wrapt: PyPI lookup failed for 'wrapt' after 3 attempts "
-    "(request failed, timed out, or returned no version). "
-    "Cannot determine the latest major."
-)
+_UNRESOLVED_LATEST: str = "wrapt: could not resolve latest version from PyPI. Cannot determine the latest major."
 
 
 def _json_response(status_code: int, version: str | None) -> Mock:
@@ -48,6 +44,10 @@ def _json_response(status_code: int, version: str | None) -> Mock:
     else:
         body = {"info": {"version": version}}
     response.json.return_value = body
+    if status_code >= 400 and status_code != 404:
+        response.raise_for_status.side_effect = requests.exceptions.HTTPError(str(status_code))
+    else:
+        response.raise_for_status.return_value = None
     return response
 
 
@@ -81,18 +81,30 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
         self.sleep: Mock = sleep_patch.start()
         self.addCleanup(sleep_patch.stop)
 
-    def test_empty_wrapt_lookup_is_not_missing_coverage(self) -> None:
+    def test_transient_pypi_failure_aborts(self) -> None:
         timeout: requests.exceptions.Timeout = requests.exceptions.Timeout("timed out")
         denied: Mock = _json_response(500, None)
-        empty: Mock = _json_response(200, None)
         get: Mock
-        with patch.object(_coverage.requests, "get", side_effect=[timeout, denied, empty]) as get:
-            latest: Version | None = _coverage.get_pypi_latest_version("wrapt")
+        with patch.object(_coverage.requests, "get", side_effect=[timeout, denied, denied, denied, denied]) as get:
+            with self.assertRaises(SystemExit) as raised:
+                _coverage.get_pypi_latest_version("wrapt")
 
-        self.assertEqual(get.call_count, _coverage._PYPI_LOOKUP_ATTEMPTS)
-        self.assertEqual(self.sleep.call_args_list, [call(1.0), call(2.0)])
+        self.assertEqual(get.call_count, _coverage.PYPI_ATTEMPTS)
+        self.assertEqual(self.sleep.call_args_list, [call(2), call(4), call(8), call(16)])
+        message: str = str(raised.exception)
+        self.assertIn("Could not query PyPI for the latest wrapt version after 5 attempts", message)
+
+    def test_unknown_package_returns_none(self) -> None:
+        missing: Mock = _json_response(404, None)
+        get: Mock
+        with patch.object(_coverage.requests, "get", return_value=missing) as get:
+            latest: Version | None = _coverage.get_pypi_latest_version("not-a-real-package")
+
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual(self.sleep.call_count, 0)
         self.assertIsNone(latest)
 
+    def test_unresolved_latest_is_not_missing_coverage(self) -> None:
         result: tuple[list[str], list[str], list[object]] = _coverage.check_coverage(
             _wrapt_pyproject(),
             _wrapt_ci(None),
@@ -100,7 +112,7 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
         errors: list[str] = result[0]
         joined: str = "\n".join(errors)
         self.assertNotIn("Missing coverage for major(s): [2]", joined)
-        self.assertIn(_LOOKUP_FAILURE, joined)
+        self.assertIn(_UNRESOLVED_LATEST, joined)
 
     def test_latest_major_the_matrix_does_not_test_still_fails_coverage(self) -> None:
         # PyPI answers: latest is 3.x, which the explicit matrix (major 1) does not test.
@@ -123,9 +135,9 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
         errors: list[str] = result[0]
         joined: str = "\n".join(errors)
         self.assertIn("Missing coverage for major(s): [2]", joined)
-        self.assertNotIn("PyPI lookup failed", joined)
+        self.assertNotIn("could not resolve latest version from PyPI", joined)
 
-    def test_failed_lookup_is_quiet_when_explicit_bounds_already_cover(self) -> None:
+    def test_unresolved_latest_is_quiet_when_explicit_bounds_already_cover(self) -> None:
         location: object = _coverage.Location("pyproject.toml", 1)
         dep: object = _coverage.PyprojectDep(majors={1}, specifier="<2,>=1", location=location)
         pyproject: dict[str, object] = {"wrapt": dep}
@@ -136,11 +148,9 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
             locations=[_coverage.Location("tests/suitespec.yml", 331)],
         )
         tested: dict[str, object] = {"wrapt": info}
-        timeout: requests.exceptions.Timeout = requests.exceptions.Timeout("timed out")
-        with patch.object(_coverage.requests, "get", side_effect=timeout):
-            result: tuple[list[str], list[str], list[object]] = _coverage.check_coverage(pyproject, tested)
+        result: tuple[list[str], list[str], list[object]] = _coverage.check_coverage(pyproject, tested)
         joined: str = "\n".join(result[0])
-        self.assertNotIn("PyPI lookup failed", joined)
+        self.assertNotIn("could not resolve latest version from PyPI", joined)
         self.assertNotIn("Missing coverage for major(s)", joined)
 
 
