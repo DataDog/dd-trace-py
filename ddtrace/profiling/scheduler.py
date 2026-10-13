@@ -6,9 +6,9 @@ from typing import Optional
 import ddtrace
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
-from ddtrace.trace import Tracer
 
 
 LOG = get_logger(__name__)
@@ -20,19 +20,20 @@ class Scheduler(periodic.PeriodicService):
     def __init__(
         self,
         before_flush: Optional[Callable[[], None]] = None,
-        tracer: Optional[Tracer] = ddtrace.tracer,
+        tracer: Optional[ProfilerTracer] = ddtrace.tracer,
         interval: float = config.upload_interval,
     ) -> None:
         super().__init__(interval=interval)
         self.before_flush: Optional[Callable[[], None]] = before_flush
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
-        self._tracer: Optional[Tracer] = tracer
+        self._tracer: Optional[ProfilerTracer] = tracer
         self._enable_code_provenance: bool = config.code_provenance
 
     def _start_service(self) -> None:
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
+        ddup.reset(self._tracer)
         super()._start_service()
         self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
@@ -46,9 +47,12 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
-        ddup.upload(self._tracer, self._enable_code_provenance)
-
-        self._last_export = time.time_ns()
+        try:
+            ddup.upload(self._tracer, self._enable_code_provenance)
+        except Exception:
+            LOG.error("Failed to upload profile", exc_info=True)
+        finally:
+            self._last_export = time.time_ns()
 
     def periodic(self) -> None:
         start_time = time.monotonic()

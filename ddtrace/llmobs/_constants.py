@@ -156,6 +156,9 @@ INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 AGENT_VERSION_TAG_KEY = "agent_version"
 # Holds the version an annotation supplied, until the span kind is known at finish.
 AGENT_ANNOTATION = "_ml_obs.agent_annotation"
+# Holds the manifest the annotations declared, for the same reason. Each annotation is validated
+# and shallow-merged into it as it runs.
+AGENT_DECLARATION_ANNOTATION = "_ml_obs.agent_declaration_annotation"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"

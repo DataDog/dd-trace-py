@@ -8,6 +8,9 @@ from ddtrace.trace import Context
 from ddtrace.trace import TraceFilter
 
 
+PING_TRACE_ID = 1
+
+
 class Client:
     """HTTP Client for making requests to a local http server."""
 
@@ -15,7 +18,7 @@ class Client:
         self._base_url = base_url
         self._session = requests.Session()
         # Propagate traces with trace_id = 1 for the ping trace so we can filter them out.
-        c, d = Context(trace_id=1, span_id=1), {}
+        c, d = Context(trace_id=PING_TRACE_ID, span_id=1), {}
         HTTPPropagator.inject(c, d)
         self._ignore_headers = d
 
@@ -57,4 +60,4 @@ class PingFilter(TraceFilter):
         # Filter out all traces with trace_id = 1
         # This is done to prevent certain traces from being included in snapshots and
         # accomplished by propagating an http trace id of 1 with the request to the webserver.
-        return None if trace and trace[0].trace_id == 1 else trace
+        return None if trace and trace[0].trace_id == PING_TRACE_ID else trace

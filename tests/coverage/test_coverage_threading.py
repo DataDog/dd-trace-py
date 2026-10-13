@@ -113,6 +113,51 @@ def test_coverage_concurrent_futures_threadpool_session():
 
 
 @pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
+def test_coverage_context_isolated_across_threads():
+    """A worker collecting coverage must not share the parent's context stacks."""
+    import os
+    from pathlib import Path
+    import threading
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import ctx_collectors
+    from ddtrace.internal.coverage.installer import install
+
+    cwd = os.getcwd()
+    install(include_paths=[Path(cwd) / "tests/coverage/included_path/"])
+    thread_entered = threading.Event()
+    thread_can_exit = threading.Event()
+
+    with ModuleCodeCollector.CollectInContext() as main_collector:
+        main_stack = ctx_collectors.get()
+
+        def worker():
+            # The patched _bootstrap_inner enters a coverage context before calling the target.
+            from tests.coverage.included_path.callee import called_in_context_main
+
+            called_in_context_main(1, 2)
+            thread_entered.set()
+            thread_can_exit.wait(timeout=10)
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        try:
+            assert thread_entered.wait(timeout=5), "Worker did not enter its coverage context"
+            # On Python 3.14 the target runs in a snapshot context, so inspect the
+            # parent's stacks while the patched bootstrap's context is still active.
+            assert hasattr(thread, "_coverage_context")
+            assert ctx_collectors.get() is main_stack
+            assert len(main_stack) == 1
+            assert main_stack[-1] is main_collector
+        finally:
+            thread_can_exit.set()
+            thread.join(timeout=5)
+
+        assert not thread.is_alive(), "Worker did not exit its coverage context"
+        assert main_stack[-1] is main_collector
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_concurrent_futures_threadpool_context():
     import concurrent.futures
     import os

@@ -44,6 +44,7 @@ The suite schema is as follows:
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
     services: # The services to start before running the suite, defined in .gitlab/services.yml
+    no_proxy: # Add the suite's external test domains to NO_PROXY and no_proxy
     matrix: # Shared configuration and named dependency variants
 ```
 
@@ -79,3 +80,7 @@ omitting it runs the suite as one job. Do not set `parallelism` directly.
 
 Suites using `ddtest: true` shard each dependency environment with `ddtest_nodes`
 instead. They must not set `venvs_per_job`.
+
+Set `no_proxy: true` only for suites whose VCR-backed or network-behavior tests need to bypass the
+CI proxy. The generated job preserves existing `NO_PROXY` and `no_proxy` values and appends the
+standard test-domain exclusions.
