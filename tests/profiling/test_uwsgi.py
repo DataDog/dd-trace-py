@@ -105,6 +105,32 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     p.stop(flush=False)  # type: ignore[unreachable]
 
 
+def test_uwsgi_postfork_start_reports_profiler_activated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The uWSGI master skips the telemetry report, so the worker must send it."""
+    from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+
+    def _raise_master(*args, **kwargs):
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
+
+    product_changes: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        profiler.telemetry_writer,
+        "product_activated",
+        lambda product, status: product_changes.append((product, status)),
+    )
+
+    p = profiler.Profiler()
+    p.start()
+    assert product_changes == []
+
+    p._start_on_fork()
+    assert product_changes == [(TELEMETRY_APM_PRODUCT.PROFILER, True)]
+
+    p.stop(flush=False)
+
+
 def test_uwsgi_worker_blocks_second_profiler_start(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

@@ -112,9 +112,23 @@ def test_copy() -> None:
     assert p.tags == c.tags
 
 
+def test_copy_keeps_collector_selection() -> None:
+    p = profiler._ProfilerInstance(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    c = p.copy()
+    for key in profiler._ProfilerInstance._COPY_PRIVATE_ATTRIBUTES:
+        assert getattr(c, key) is False, key
+    assert c._collectors == []
+
+
 def test_profiler_does_not_mutate_custom_tags() -> None:
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self) -> None:
+        def _start_exporter(self) -> None:
             self.tags["generated"] = "value"
 
     tags = {"team": "profiling"}
@@ -126,6 +140,9 @@ def test_profiler_does_not_mutate_custom_tags() -> None:
         _pytorch_collector_enabled=False,
         _exception_profiling_enabled=False,
     )
+    p._scheduler = mock.Mock()
+    p.start()
+    p.stop(flush=False)
 
     assert tags == {"team": "profiling"}
     assert p.tags == {"team": "profiling", "generated": "value"}
@@ -150,7 +167,7 @@ def test_failed_start_collector(caplog: pytest.LogCaptureFixture, monkeypatch: p
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
+        def _start_exporter(self, *args, **kargs):
             return None
 
     p = TestProfiler()
@@ -203,7 +220,7 @@ def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch:
             unregistered_hooks.append((module, hook))
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
+        def _start_exporter(self, *args, **kargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -237,7 +254,7 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
             unregistered_hooks.append((module, hook))
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
+        def _start_exporter(self, *args, **kargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -463,6 +480,10 @@ def test_profiler_serverless(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
+
+    # Tags are applied on Profiler start, so start and stop it.
+    p.start()
+    p.stop(flush=False)
     assert p.tags["functionname"] == "foobar"
 
 
@@ -903,6 +924,52 @@ def test_no_samples_pushed_after_stop() -> None:
             )
         )
     )
+
+
+def test_construction_does_not_configure_global_exporter() -> None:
+    with (
+        mock.patch.object(ddup, "config") as mock_config,
+        mock.patch.object(ddup, "start") as mock_start,
+    ):
+        p = profiler.Profiler(service="built-but-not-started")
+        mock_config.assert_not_called()
+        mock_start.assert_not_called()
+
+        p.start()
+        try:
+            mock_config.assert_called_once()
+            assert mock_config.call_args.kwargs["service"] == "built-but-not-started"
+            mock_start.assert_called_once()
+        finally:
+            p.stop(flush=False)
+
+
+def test_refused_profiler_does_not_reconfigure_running_instance() -> None:
+    p1 = profiler.Profiler(service="running-profiler")
+    p1.start()
+    try:
+        with mock.patch.object(ddup, "config") as mock_config:
+            p2 = profiler.Profiler(service="refused-profiler")
+            p2.start()
+
+            assert profiler.Profiler._active_instance is p1
+            mock_config.assert_not_called()
+    finally:
+        p1.stop(flush=False)
+
+
+def test_construction_does_not_enable_endpoint_collection() -> None:
+    endpoint_processor = ddtrace.tracer._endpoint_call_counter_span_processor
+
+    with mock.patch.object(endpoint_processor, "enable") as mock_enable:
+        p = profiler.Profiler(endpoint_collection_enabled=True)
+        mock_enable.assert_not_called()
+
+        p.start()
+        try:
+            mock_enable.assert_called_once()
+        finally:
+            p.stop(flush=False)
 
 
 @pytest.mark.subprocess(err=None)
