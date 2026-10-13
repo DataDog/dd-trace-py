@@ -89,11 +89,11 @@ POSSIBLE_PROXY_HEADER_USER = _possible_header("x-dd-proxy-user")
 
 HEADER_USERAGENT = _possible_header("user-agent")
 
-# How far a request time from a proxy that is not known to set one may differ from the current time
-# and still be used. Such a value is either a static constant from the proxy's rules engine or
-# client-supplied, so it is only honored when it is close enough to now to be plausible: that covers
-# clock skew between the proxy and the origin plus the proxy-to-application delay, which can reach
-# seconds when the origin cold starts or the proxy fails over to a second origin.
+# How far in the past a request time from a proxy that is not known to set one may be and still be
+# used. Such a value is either a static constant from the proxy's rules engine or client-supplied,
+# so it is only honored when it is close enough to now to be plausible: that covers the
+# proxy-to-application delay, which can reach seconds when the origin cold starts or the proxy fails
+# over to a second origin, plus clock skew in the direction that does not invert the span.
 _MAX_UNTRUSTED_PROXY_SKEW_MS = 30_000
 
 POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION = _possible_header("x-goog-pubsub-subscription-name")
@@ -194,7 +194,11 @@ def _plausible_request_time_ms(header_value: Optional[str]) -> int:
         log.debug("Ignoring inferred proxy request time that is not an integer: %r", header_value)
         return now_ms
 
-    if abs(now_ms - request_time_ms) > _MAX_UNTRUSTED_PROXY_SKEW_MS:
+    # A request cannot have started after now, so a future value is a clock running ahead rather
+    # than a request time. Using it would make the span finish before it started, so it is clamped
+    # to now: a negative duration is worse than losing the proxy-to-application delay.
+    skew_ms = now_ms - request_time_ms
+    if skew_ms < 0 or skew_ms > _MAX_UNTRUSTED_PROXY_SKEW_MS:
         log.debug("Ignoring implausible inferred proxy request time: %r", header_value)
         return now_ms
 

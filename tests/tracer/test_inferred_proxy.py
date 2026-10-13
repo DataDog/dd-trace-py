@@ -209,9 +209,9 @@ def _azure_fd_headers(request_time_ms=None) -> dict:
     return headers
 
 
-# Offsets from now, in ms, that are within _MAX_UNTRUSTED_PROXY_SKEW_MS (30s) and so are treated as
-# real request times. Negative means the proxy clock is ahead of ours.
-@pytest.mark.parametrize("offset_ms", [0, -5_000, 5_000, 25_000])
+# Offsets into the past, in ms, that are within _MAX_UNTRUSTED_PROXY_SKEW_MS (30s) and so are
+# treated as real request times.
+@pytest.mark.parametrize("offset_ms", [0, 5_000, 20_000])
 def test_plausible_timestamp_is_used_for_non_timestamp_provider(offset_ms, tracer) -> None:
     """A request time close enough to now to be real is honored even though azure-fd isn't known to send one."""
     ctx = ExecutionContext("test")
@@ -224,14 +224,16 @@ def test_plausible_timestamp_is_used_for_non_timestamp_provider(offset_ms, trace
     assert span.start_ns == request_time_ms * 1_000_000
 
 
-# Offsets beyond the skew allowance: a static constant from a rules engine, a spoofed value, or a
-# clock far enough off that the duration would be meaningless. Each falls back to the current time.
+# Offsets outside the allowance: a static constant from a rules engine, a spoofed value, or a clock
+# far enough off that the duration would be meaningless. A negative offset is a request time in the
+# future, which would make the span finish before it started. Each falls back to the current time.
 @pytest.mark.parametrize(
     "offset_ms",
     [
         60_000,  # a minute in the past
-        -60_000,  # a minute in the future
         86_400_000,  # a day in the past
+        -5_000,  # five seconds in the future, i.e. inside the window but still inverting
+        -60_000,  # a minute in the future
     ],
 )
 def test_implausible_timestamp_is_ignored_for_non_timestamp_provider(offset_ms, tracer) -> None:
@@ -246,6 +248,22 @@ def test_implausible_timestamp_is_ignored_for_non_timestamp_provider(offset_ms, 
     span: Span = ctx.get_item("inferred_proxy_span")
     assert span is not None
     assert before * 1_000_000 <= span.start_ns <= after * 1_000_000
+
+
+@pytest.mark.parametrize("offset_ms", [0, 5_000, 20_000, -5_000, -60_000, 86_400_000])
+def test_inferred_span_duration_is_never_negative(offset_ms, tracer) -> None:
+    """Whatever the request time header claims, the finished span must not have a negative duration."""
+    ctx = ExecutionContext("test")
+    request_time_ms = (time.time_ns() // 1_000_000) - offset_ms
+
+    create_inferred_proxy_span_if_headers_exist(ctx, _azure_fd_headers(request_time_ms))
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    ctx.get_item("inferred_proxy_finish_callback")(span)
+
+    assert span.duration_ns is not None
+    assert span.duration_ns >= 0, f"negative duration from request time offset {offset_ms}ms"
 
 
 @pytest.mark.parametrize("bad_timestamp", ["not-a-number", "1736973768000.5", "1e12", " ", "0x64"])
