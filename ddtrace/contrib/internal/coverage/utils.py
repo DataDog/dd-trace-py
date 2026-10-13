@@ -14,6 +14,7 @@ except ImportError:
     _PathAliases = None  # type: ignore[assignment,misc]
 
 from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
+from ddtrace.contrib.internal.coverage.lcov import report_lcov
 from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import is_coverage_running
 from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
@@ -159,7 +160,7 @@ def _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func):
                     log.debug("Could not load coverage data file: %s", load_error)
 
             try:
-                pct_covered = pytest_cov_instance.lcov_report(outfile=str(tmp_path), ignore_errors=True)
+                pct_covered = report_lcov(pytest_cov_instance, outfile=str(tmp_path), ignore_errors=True)
                 log.debug("Generated LCOV report directly from pytest-cov instance")
                 return pct_covered
             except Exception as direct_error:

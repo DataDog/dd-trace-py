@@ -631,7 +631,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check test locks",
         command="scripts/test-requirements check",
-        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-requirements", "tests/suitespec.py"},
+        paths={"**/suitespec.yml", "tests/requirements_locks/*", "scripts/test-requirements", "tests/suitespec.py"},
     )
     check(
         name="Check microbenchmark SLO ownership",
@@ -668,7 +668,10 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check project dependencies",
-        command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
+        command=(
+            "scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py"
+            " && scripts/test_check_dependency_ci_coverage.py"
+        ),
         paths={
             "pyproject.toml",
             "tests/suitespec.py",
@@ -679,6 +682,7 @@ def gen_pre_checks() -> None:
             ".gitlab/**/*.yml",
             ".github/workflows/*.yml",
             "scripts/check-dependency-ci-coverage.py",
+            "scripts/test_check_dependency_ci_coverage.py",
         },
     )
     check(

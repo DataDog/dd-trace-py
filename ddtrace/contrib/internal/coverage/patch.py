@@ -4,6 +4,7 @@ from typing import Union
 
 import wrapt
 
+from ddtrace.contrib.internal.coverage.lcov import report_lcov
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -95,7 +96,7 @@ def generate_coverage_report(format_type: str = "text", cov: Optional[Any] = Non
 
     try:
         if format_type == "lcov":
-            pct_covered = cov.lcov_report(**kwargs)
+            pct_covered = report_lcov(cov, **kwargs)
         else:  # Default to text report
             pct_covered = cov.report(**kwargs)
 

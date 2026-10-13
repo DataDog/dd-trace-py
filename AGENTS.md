@@ -84,12 +84,13 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
   accesses credentials or changes permissions; involve code owners or security reviewers where
   appropriate. Recheck the reviewed SHA immediately before pushing it to a repo-owned branch, and
   repeat the review if it changed; the branch name need not match the contributor's branch. Give
-  the shadow PR a Conventional Commit
-  title ending in `[DO NOT MERGE]`, and state in its description that it exists only to run CI and
-  must not be merged. Once its checks pass, verify that the original PR still has the tested SHA,
-  then `/merge` the original. After it lands, close the shadow PR without merging it and delete its
-  branch. Never mirror speculative or partially reviewed code merely to obtain CI results: an
-  identical SHA proves source-commit parity, not safety or identical execution context.
+  the shadow PR a Conventional Commit title ending in `[DO NOT MERGE]`. Its description must say it
+  exists only to run CI, must not be merged, and include `Original PR: <URL>`. Add
+  `Closes: <shadow PR URL>` to the original PR's description. Once the checks pass, verify that the
+  original PR still has the tested SHA, then `/merge` the original. After the original PR closes,
+  close the shadow without merging if it is still open, then delete its branch. Never mirror
+  speculative or partially reviewed code merely to obtain CI results: an identical SHA proves
+  source-commit parity, not safety or identical execution context.
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
