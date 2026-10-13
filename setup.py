@@ -755,9 +755,9 @@ class LibraryDownloader(BuildPyCommand):
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
         if self.no_bundle_libddwaf:
-            if CURRENT_OS != "Linux":
+            if CURRENT_OS not in ("Linux", "FreeBSD"):
                 raise RuntimeError(
-                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no system "
+                    "--no-bundle-libddwaf is only supported on Linux and FreeBSD, not on %s: the runtime has no system "
                     "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
                     "so libddwaf must be bundled" % CURRENT_OS
                 )
