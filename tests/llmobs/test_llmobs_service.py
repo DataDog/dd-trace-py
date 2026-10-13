@@ -935,6 +935,21 @@ def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
         assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
 
+def test_span_event_includes_propagated_origin(llmobs):
+    with llmobs.workflow() as span:
+        span.context.dd_origin = "rum"
+        llmobs._instance._prepare_llmobs_span_data(span, "workflow")
+        span_event = llmobs._instance._llmobs_span_event(span)
+        assert span_event["_dd"]["origin"] == "rum"
+
+
+def test_span_event_omits_origin_when_not_propagated(llmobs):
+    with llmobs.workflow() as span:
+        llmobs._instance._prepare_llmobs_span_data(span, "workflow")
+        span_event = llmobs._instance._llmobs_span_event(span)
+        assert "origin" not in span_event["_dd"]
+
+
 def test_annotate_llm_message_with_audio_parts(llmobs):
     """Audio parts annotated on input/output messages reach the emitted span event."""
     with llmobs.llm(model_name="test_model") as span:

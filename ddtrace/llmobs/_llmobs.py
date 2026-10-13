@@ -857,6 +857,8 @@ class LLMObs(Service):
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
         }
+        if span.context.dd_origin:
+            _dd_attrs["origin"] = span.context.dd_origin
 
         llmobs_span_event: LLMObsSpanEvent = {
             "trace_id": llmobs_trace_id,
