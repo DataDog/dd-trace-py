@@ -57,6 +57,7 @@ from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_TRACE_ID_CTX_KEY
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -703,6 +704,8 @@ class LLMObs(Service):
                     event_dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
             # Before removing the struct tag, which the telemetry tags are read from.
             telemetry.record_span_created(span, export_mode)
+            # Keep the LLMObs trace ID for export_span(), so evaluations join to the routed span.
+            span._set_ctx_item(CACHED_LLMOBS_TRACE_ID_CTX_KEY, span_event.get("trace_id"))
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event, targets)

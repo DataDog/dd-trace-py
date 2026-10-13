@@ -57,7 +57,7 @@ _ROUTING_CONTEXTVAR: contextvars.ContextVar[Optional[RoutingContextType]] = cont
 def get_routing_context() -> Optional[RoutingContextType]:
     """Return the active routing context, or None when data goes to the default org.
 
-    The shape is ``{"targets": [{"api_key": ..., "site": ...}, ...]}``. ``site`` is omitted
+    The shape is {"targets": [{"api_key": ..., "site": ...}, ...]}. site is omitted
     when the caller did not supply one, so the writer falls back to the configured site.
     """
     return _ROUTING_CONTEXTVAR.get()

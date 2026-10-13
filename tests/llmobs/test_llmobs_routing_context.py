@@ -175,6 +175,24 @@ def test_routed_span_in_apm_agentless_mode_is_built_for_llmobs_intake(llmobs, _l
     assert "team.name:ml" in event["tags"]
 
 
+def test_export_span_keeps_llmobs_trace_id_after_routed_span_finishes(llmobs, _llmobs_backend):
+    # A routed span drops its meta_struct when it finishes. export_span() must still return the
+    # LLMObs trace ID that the tenant received, or evaluations submitted with it cannot join.
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="routed-parent"):
+            with llmobs.task(name="routed-child") as child:
+                pass
+            exported = llmobs_service.export_span(child)
+    llmobs_service.flush()
+
+    ((_, event),) = _sent_events(reqs, initial_count, 1)["routed-child"]
+    assert exported["span_id"] == event["span_id"]
+    assert exported["trace_id"] == event["trace_id"]
+
+
 def test_routed_span_telemetry_keeps_span_attributes(llmobs):
     with mock.patch("ddtrace.llmobs._telemetry.telemetry_writer") as telemetry_writer:
         with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
