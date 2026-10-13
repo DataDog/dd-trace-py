@@ -2,9 +2,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.pytest import report_links
+from ddtrace_testing.internal.ci import CITag
+from ddtrace_testing.internal.git import GitTag
+from ddtrace_testing.internal.pytest import report_links
 
 
 # Test cases taken from <https://github.com/DataDog/datadog-ci/blob/v3.7.0/src/helpers/__tests__/app.test.ts>.

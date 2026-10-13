@@ -12,15 +12,15 @@ from unittest.mock import patch
 
 from _pytest.pytester import Pytester
 
-from ddtrace.testing.internal.dynamic_atr_retries import DYNAMIC_ATR_BUCKETS_ENV
-from ddtrace.testing.internal.dynamic_atr_retries import DYNAMIC_ATR_ENABLED_ENV
-from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
-from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace_testing.internal.dynamic_atr_retries import DYNAMIC_ATR_BUCKETS_ENV
+from ddtrace_testing.internal.dynamic_atr_retries import DYNAMIC_ATR_ENABLED_ENV
+from ddtrace_testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace_testing.internal.settings_data import EarlyFlakeDetectionSettings
+from ddtrace_testing.internal.settings_data import Settings
+from ddtrace_testing.internal.telemetry import TelemetryAPI
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
 from tests.testing.internal.pytest.utils import assert_stats
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -75,7 +75,7 @@ class TestDynamicATR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -110,7 +110,7 @@ class TestDynamicATR:
         mock_client.get_settings.return_value = _settings_with_efd_buckets(slow_5s=2)
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
@@ -141,7 +141,7 @@ class TestDynamicATR:
         mock_client.get_settings.return_value = _settings_with_efd_buckets(slow_5s=2)
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
@@ -169,7 +169,7 @@ class TestDynamicATR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -204,7 +204,7 @@ class TestDynamicATR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -242,7 +242,7 @@ class TestDynamicATR:
         with patch.object(TelemetryAPI, "record_dynamic_atr_retries") as telemetry_mock:
             with (
                 patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
+                    "ddtrace_testing.internal.session_manager.APIClient",
                     return_value=mock_api_client_settings(
                         auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                     ),
@@ -272,7 +272,7 @@ class TestDynamicATR:
         with patch.object(TelemetryAPI, "record_dynamic_atr_retries") as telemetry_mock:
             with (
                 patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
+                    "ddtrace_testing.internal.session_manager.APIClient",
                     return_value=mock_api_client_settings(
                         auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                     ),
@@ -301,7 +301,7 @@ class TestDynamicATR:
         with patch.object(TelemetryAPI, "record_dynamic_atr_retries") as telemetry_mock:
             with (
                 patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
+                    "ddtrace_testing.internal.session_manager.APIClient",
                     return_value=mock_api_client_settings(
                         auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                     ),

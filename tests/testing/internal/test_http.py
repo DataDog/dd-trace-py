@@ -1,4 +1,4 @@
-"""Tests for ddtrace.testing.internal.http module."""
+"""Tests for ddtrace_testing.internal.http module."""
 
 import http.client
 import logging
@@ -9,18 +9,18 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.errors import SetupError
-import ddtrace.testing.internal.http as _http_module
-from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
-from ddtrace.testing.internal.http import MAX_RETRY_AFTER_SECONDS
-from ddtrace.testing.internal.http import BackendConnector
-from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
-from ddtrace.testing.internal.http import BackendConnectorEVPProxySetup
-from ddtrace.testing.internal.http import BackendConnectorSetup
-from ddtrace.testing.internal.http import FileAttachment
-from ddtrace.testing.internal.http import Subdomain
-from ddtrace.testing.internal.http import UnixDomainSocketHTTPConnection
-from ddtrace.testing.internal.telemetry import ErrorType
+from ddtrace_testing.internal.errors import SetupError
+import ddtrace_testing.internal.http as _http_module
+from ddtrace_testing.internal.http import DEFAULT_TIMEOUT_SECONDS
+from ddtrace_testing.internal.http import MAX_RETRY_AFTER_SECONDS
+from ddtrace_testing.internal.http import BackendConnector
+from ddtrace_testing.internal.http import BackendConnectorAgentlessSetup
+from ddtrace_testing.internal.http import BackendConnectorEVPProxySetup
+from ddtrace_testing.internal.http import BackendConnectorSetup
+from ddtrace_testing.internal.http import FileAttachment
+from ddtrace_testing.internal.http import Subdomain
+from ddtrace_testing.internal.http import UnixDomainSocketHTTPConnection
+from ddtrace_testing.internal.telemetry import ErrorType
 from tests.testing.mocks import mock_backend_connector
 from tests.utils import reinitialize_agentless_config
 
@@ -55,7 +55,7 @@ class TestBackendConnector:
         assert connector.default_headers == {}
         assert connector.base_path == "/some-path"
 
-    @patch("ddtrace.testing.internal.http.UnixDomainSocketHTTPConnection")
+    @patch("ddtrace_testing.internal.http.UnixDomainSocketHTTPConnection")
     def test_init_unix_domain_socket(self, mock_unix_connection: Mock) -> None:
         """Test BackendConnector initialization with Unix domain socket URL."""
         connector = BackendConnector(url="unix:///some/path/name", base_path="/evp_proxy/over9000", use_gzip=False)
@@ -942,7 +942,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             # Ensure Unix domain socket WILL be detected.
             with patch("os.path.exists", return_value=True) as mock_path_exists:
                 connector_setup = BackendConnectorSetup.detect_setup()
@@ -967,7 +967,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             # Ensure Unix domain socket WILL NOT be detected.
             with patch("os.path.exists", return_value=False) as mock_path_exists:
                 connector_setup = BackendConnectorSetup.detect_setup()
@@ -992,7 +992,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v2/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             # Ensure Unix domain socket WILL NOT be detected.
             with patch("os.path.exists", return_value=False) as mock_path_exists:
                 connector_setup = BackendConnectorSetup.detect_setup()
@@ -1015,7 +1015,7 @@ class TestBackendConnectorSetup:
         _set_environ(monkeypatch, {})
 
         backend_connector_mock = mock_backend_connector().with_get_json_response("/info", {"endpoints": []}).build()
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             with pytest.raises(SetupError, match="Datadog agent .* does not support EVP proxy mode"):
                 BackendConnectorSetup.detect_setup()
 
@@ -1023,7 +1023,7 @@ class TestBackendConnectorSetup:
         _set_environ(monkeypatch, {})
 
         with patch(
-            "ddtrace.testing.internal.http.BackendConnector.get_json", side_effect=ConnectionRefusedError("no bueno")
+            "ddtrace_testing.internal.http.BackendConnector.get_json", side_effect=ConnectionRefusedError("no bueno")
         ):
             with pytest.raises(SetupError, match="Error connecting to Datadog agent.*no bueno"):
                 BackendConnectorSetup.detect_setup()
@@ -1034,7 +1034,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             connector_setup = BackendConnectorSetup.detect_setup()
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
@@ -1053,7 +1053,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             connector_setup = BackendConnectorSetup.detect_setup()
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
@@ -1072,7 +1072,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             connector_setup = BackendConnectorSetup.detect_setup()
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
@@ -1091,7 +1091,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             with patch("os.path.exists", return_value=True):
                 connector_setup = BackendConnectorSetup.detect_setup()
 
@@ -1162,7 +1162,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             connector_setup = BackendConnectorSetup.detect_setup()
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
@@ -1174,7 +1174,7 @@ class TestBackendConnectorSetup:
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
         )
-        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+        with patch("ddtrace_testing.internal.http.BackendConnector", return_value=backend_connector_mock):
             connector_setup = BackendConnectorSetup.detect_standard_setup()
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
@@ -1251,7 +1251,7 @@ class TestRequestFailureWarning:
 
         connector = BackendConnector(url="https://api.example.com")
 
-        with patch("ddtrace.testing.internal.http.log") as mock_log:
+        with patch("ddtrace_testing.internal.http.log") as mock_log:
             result = connector.request("POST", "/api/v2/citestcycle", data=b"x")
 
         assert result.error_type == ErrorType.CODE_4XX
@@ -1272,7 +1272,7 @@ class TestRequestFailureWarning:
 
         connector = BackendConnector(url="https://api.example.com")
 
-        with patch("ddtrace.testing.internal.http.log") as mock_log:
+        with patch("ddtrace_testing.internal.http.log") as mock_log:
             result = connector.request("GET", "/info", is_json_response=False)
 
         assert result.error_type is None

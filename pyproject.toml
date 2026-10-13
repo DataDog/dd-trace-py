@@ -75,7 +75,7 @@ _dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
-ddtrace = "ddtrace.testing.internal.pytest.entry_point"
+ddtrace = "ddtrace_testing.internal.pytest.entry_point"
 
 [project.entry-points.'mlflow.request_header_provider']
 datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"

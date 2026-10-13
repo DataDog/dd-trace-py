@@ -1,4 +1,4 @@
-"""Tests for ddtrace.testing.internal.logging module."""
+"""Tests for ddtrace_testing.internal.logging module."""
 
 import io
 import logging
@@ -9,12 +9,12 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.logging import _DDTraceClosedStreamFilter
-from ddtrace.testing.internal.logging import _SafeStreamHandler
-from ddtrace.testing.internal.logging import catch_and_log_exceptions
-from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
-from ddtrace.testing.internal.logging import setup_logging
-from ddtrace.testing.internal.logging import testing_logger
+from ddtrace_testing.internal.logging import _DDTraceClosedStreamFilter
+from ddtrace_testing.internal.logging import _SafeStreamHandler
+from ddtrace_testing.internal.logging import catch_and_log_exceptions
+from ddtrace_testing.internal.logging import protect_ddtrace_stream_handlers
+from ddtrace_testing.internal.logging import setup_logging
+from ddtrace_testing.internal.logging import testing_logger
 
 
 class TestSetupLogging:

@@ -32,14 +32,14 @@ from unittest import mock
 import msgpack
 import pytest
 
-from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
-from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
-from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
-from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
-from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
-import ddtrace.testing.internal.pytest.xdist as xdist_module
-from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
-from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
+from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
+from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
+from ddtrace_testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
+from ddtrace_testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
+import ddtrace_testing.internal.pytest.xdist as xdist_module
+from ddtrace_testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace_testing.internal.pytest.xdist import resolve_inherited_manifest_env
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +452,7 @@ class TestXdistManifestMode:
                     with (MARKER_DIR / (worker + "-tests")).open("a") as f:
                         f.write(name + "\\n")
                     if worker != "controller":
-                        from ddtrace.testing.internal.offline_mode import get_offline_mode
+                        from ddtrace_testing.internal.offline_mode import get_offline_mode
 
                         offline_mode = get_offline_mode()
                         (MARKER_DIR / (worker + "-manifest-mode")).write_text(
@@ -1292,7 +1292,7 @@ def test_mock_settings_payload_is_parseable() -> None:
     swallows it and returns a default ``Settings()`` (every feature disabled). That would silently make all of the
     xdist tests above run against fallback defaults instead of the settings the mock reports.
     """
-    from ddtrace.testing.internal.settings_data import Settings
+    from ddtrace_testing.internal.settings_data import Settings
 
     settings = Settings.from_attributes(_settings_attributes())
 

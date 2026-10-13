@@ -49,8 +49,8 @@ components:
     # The pytest (CI Visibility / Test Visibility) plugin and its supporting modules.
     # Named ci_visibility_benchmark (not ci_visibility) to avoid overwriting the
     # component of the same name in tests/ci_visibility/suitespec.yml.
-    - ddtrace/testing/*
-    - ddtrace/testing/internal/*
+    - ddtrace_testing/*
+    - ddtrace_testing/internal/*
     - ddtrace/internal/ci_visibility/*
     - ddtrace/internal/test_visibility/*
     - ddtrace/internal/coverage/*

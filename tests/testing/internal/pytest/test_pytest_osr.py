@@ -40,7 +40,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),
@@ -77,7 +77,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),  # ATR disabled
             ),
             setup_standard_mocks(),
@@ -104,7 +104,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),
@@ -133,7 +133,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),
@@ -154,7 +154,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),
@@ -203,7 +203,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),
@@ -275,7 +275,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),
@@ -309,7 +309,7 @@ class TestOutOfSessionRetries:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),  # OSR not opted in

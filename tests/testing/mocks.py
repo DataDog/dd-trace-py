@@ -1,7 +1,7 @@
 """Improved mock utilities for test optimization framework testing.
 
 This module provides flexible and easy-to-use mock builders and utilities
-for testing the ddtrace.testing framework. The design emphasizes:
+for testing the ddtrace_testing framework. The design emphasizes:
 - Builder pattern for flexible mock construction
 - Centralized default configurations
 - Simplified session manager creation
@@ -22,28 +22,28 @@ from unittest.mock import patch
 
 from _pytest.reports import TestReport
 
-from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.env_tags import get_env_tags
-from ddtrace.testing.internal.http import BackendConnectorSetup
-from ddtrace.testing.internal.http import BackendResult
-from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
-from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.settings_data import TestManagementSettings
-from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.telemetry import ErrorType
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import Test
-from ddtrace.testing.internal.test_data import TestModule
-from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.test_data import TestRun
-from ddtrace.testing.internal.test_data import TestSession
-from ddtrace.testing.internal.test_data import TestSuite
-from ddtrace.testing.internal.writer import Event
-from ddtrace.testing.internal.writer import TestOptWriter
+from ddtrace_testing.internal.ci import CITag
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.env_tags import get_env_tags
+from ddtrace_testing.internal.http import BackendConnectorSetup
+from ddtrace_testing.internal.http import BackendResult
+from ddtrace_testing.internal.session_manager import SessionManager
+from ddtrace_testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace_testing.internal.settings_data import EarlyFlakeDetectionSettings
+from ddtrace_testing.internal.settings_data import Settings
+from ddtrace_testing.internal.settings_data import TestManagementSettings
+from ddtrace_testing.internal.settings_data import TestProperties
+from ddtrace_testing.internal.telemetry import ErrorType
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import Test
+from ddtrace_testing.internal.test_data import TestModule
+from ddtrace_testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import TestRun
+from ddtrace_testing.internal.test_data import TestSession
+from ddtrace_testing.internal.test_data import TestSuite
+from ddtrace_testing.internal.writer import Event
+from ddtrace_testing.internal.writer import TestOptWriter
 from tests.utils import reinitialize_agentless_config
 
 
@@ -223,7 +223,7 @@ class SessionManagerMockBuilder:
         # overrides that cannot be reconstructed from the ambient environment.
         original_agentless_config_state = agentless_config.__dict__
 
-        with patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             # Configure API client mock
             mock_client = Mock()
             mock_client.get_settings.return_value = self._settings
@@ -238,11 +238,11 @@ class SessionManagerMockBuilder:
             try:
                 with (
                     patch(
-                        "ddtrace.testing.internal.session_manager.get_env_tags",
+                        "ddtrace_testing.internal.session_manager.get_env_tags",
                         return_value=effective_env_tags,
                     ),
-                    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-                    patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
+                    patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
+                    patch("ddtrace_testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
                     patch.dict(os.environ, effective_env),
                 ):
                     # The agentless settings resolve once at import, so refresh them against the
@@ -661,7 +661,7 @@ def setup_standard_mocks(workspace_path: t.Optional[str] = None) -> t.Generator[
         env_tags[CITag.WORKSPACE_PATH] = workspace_path
     with (
         patch.multiple(
-            "ddtrace.testing.internal.session_manager",
+            "ddtrace_testing.internal.session_manager",
             get_env_tags=Mock(return_value=env_tags),
             get_platform_tags=Mock(return_value={}),
             Git=Mock(return_value=get_mock_git_instance()),
@@ -681,7 +681,7 @@ def network_mocks() -> t.ContextManager[t.Any]:
         # Mock the session manager dependencies
         stack.enter_context(
             patch.multiple(
-                "ddtrace.testing.internal.session_manager",
+                "ddtrace_testing.internal.session_manager",
                 get_env_tags=Mock(return_value={}),
                 get_platform_tags=Mock(return_value={}),
                 Git=Mock(return_value=get_mock_git_instance()),
@@ -694,17 +694,17 @@ def network_mocks() -> t.ContextManager[t.Any]:
 
         # Mock the HTTP connector to prevent any real HTTP calls
         mock_connector = mock_backend_connector().build()
-        stack.enter_context(patch("ddtrace.testing.internal.http.BackendConnector", return_value=mock_connector))
+        stack.enter_context(patch("ddtrace_testing.internal.http.BackendConnector", return_value=mock_connector))
 
         # Mock the API client constructor to ensure our mock is used
-        stack.enter_context(patch("ddtrace.testing.internal.session_manager.APIClient"))
+        stack.enter_context(patch("ddtrace_testing.internal.session_manager.APIClient"))
 
         # Mock the writer to prevent any HTTP calls from the writer
         mock_writer = Mock()
         mock_writer.flush.return_value = None
         mock_writer._send_events.return_value = None
-        stack.enter_context(patch("ddtrace.testing.internal.writer.TestOptWriter", return_value=mock_writer))
-        stack.enter_context(patch("ddtrace.testing.internal.writer.TestCoverageWriter", return_value=mock_writer))
+        stack.enter_context(patch("ddtrace_testing.internal.writer.TestOptWriter", return_value=mock_writer))
+        stack.enter_context(patch("ddtrace_testing.internal.writer.TestCoverageWriter", return_value=mock_writer))
 
         return stack
 
@@ -828,7 +828,7 @@ class CoverageReportUploadCapture:
                     coverage_report_upload_enabled=True,
                     coverage_upload_capture=upload_capture
                 )
-                with patch("ddtrace.testing.internal.session_manager.APIClient",
+                with patch("ddtrace_testing.internal.session_manager.APIClient",
                           return_value=mock_client):
                     # Run test code...
                     result = pytester.inline_run("--ddtrace", "-v", "-s")

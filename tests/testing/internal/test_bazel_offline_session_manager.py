@@ -9,14 +9,14 @@ from unittest.mock import patch
 # Path is also used in test_env_tags_non_empty_in_online_mode for get_workspace_path mock
 import pytest
 
-from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
-from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
-from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
-from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-from ddtrace.testing.internal.offline_mode import get_offline_mode
-from ddtrace.testing.internal.offline_mode import reset_offline_mode
-from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.test_data import TestSession
+from ddtrace_testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace_testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
+from ddtrace_testing.internal.http import BackendConnectorAgentlessSetup
+from ddtrace_testing.internal.http import NoOpBackendConnectorSetup
+from ddtrace_testing.internal.offline_mode import get_offline_mode
+from ddtrace_testing.internal.offline_mode import reset_offline_mode
+from ddtrace_testing.internal.session_manager import SessionManager
+from ddtrace_testing.internal.test_data import TestSession
 from tests.testing.mocks import CoverageReportUploadCapture
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import get_mock_git_instance
@@ -62,9 +62,9 @@ class TestSessionManagerProviderSelection:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             mock_client = mock_api_client_settings()
@@ -84,9 +84,9 @@ class TestSessionManagerProviderSelection:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient"),
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.APIClient"),
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             sm = SessionManager(session=_make_session())
@@ -108,9 +108,9 @@ class TestSessionManagerProviderSelection:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             sm = SessionManager(session=_make_session())
@@ -128,9 +128,9 @@ class TestSessionManagerProviderSelection:
         capture = CoverageReportUploadCapture()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             mock_api_client_cls.return_value = mock_api_client_settings(coverage_upload_capture=capture)
@@ -150,8 +150,8 @@ class TestSessionManagerProviderSelection:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             # Agentless settings resolve once at import; refresh them for the patched environment
@@ -173,9 +173,9 @@ class TestSessionManagerProviderSelection:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             mock_api_client_cls.return_value = mock_api_client_settings()
@@ -192,9 +192,9 @@ class TestSessionManagerProviderSelection:
 class TestUploadGitDataSkipping:
     def _build_sm_with_mocked_api(self, monkeypatch, env: dict[str, str]) -> SessionManager:
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             mock_client = mock_api_client_settings()
@@ -209,9 +209,9 @@ class TestUploadGitDataSkipping:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.Git") as mock_git_cls,
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             assert get_offline_mode().manifest_enabled
@@ -232,7 +232,7 @@ class TestUploadGitDataSkipping:
         sm = self._build_sm_with_mocked_api(monkeypatch, env)
 
         # Explicitly call upload_git_data; Git must not be instantiated.
-        with patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls:
+        with patch("ddtrace_testing.internal.session_manager.Git") as mock_git_cls:
             sm.upload_git_data()
             mock_git_cls.assert_not_called()
 
@@ -246,7 +246,7 @@ class TestUploadGitDataSkipping:
         mock_git_instance = get_mock_git_instance()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git_instance) as mock_git_cls,
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git_instance) as mock_git_cls,
         ):
             sm.upload_git_data()
             mock_git_cls.assert_called_once()
@@ -280,7 +280,7 @@ class TestEnvTagsStripping:
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_ENV_DATA_FILE", str(env_data_file))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
 
-        from ddtrace.testing.internal.env_tags import get_env_tags
+        from ddtrace_testing.internal.env_tags import get_env_tags
 
         tags = get_env_tags()
         assert tags["ci.workspace_path"] == "/bazel/workspace"
@@ -296,7 +296,7 @@ class TestEnvTagsStripping:
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_ENV_DATA_FILE", raising=False)
 
-        from ddtrace.testing.internal.env_tags import get_env_tags
+        from ddtrace_testing.internal.env_tags import get_env_tags
 
         tags = get_env_tags()
         assert tags["ci.provider.name"] == "bazel"
@@ -315,7 +315,7 @@ class TestEnvTagsStripping:
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_ENV_DATA_FILE", str(env_data_file))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
 
-        from ddtrace.testing.internal.env_tags import get_env_tags
+        from ddtrace_testing.internal.env_tags import get_env_tags
 
         tags = get_env_tags()
         assert tags["ci.provider.name"] == "github"  # Not overwritten to "bazel"
@@ -330,7 +330,7 @@ class TestEnvTagsStripping:
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_ENV_DATA_FILE", raising=False)
 
-        from ddtrace.testing.internal.env_tags import get_env_tags
+        from ddtrace_testing.internal.env_tags import get_env_tags
 
         tags = get_env_tags()
         # Only the bazel provider fallback tag
@@ -340,29 +340,29 @@ class TestEnvTagsStripping:
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
 
-        from ddtrace.testing.internal.env_tags import get_env_tags
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.env_tags import get_env_tags
+        from ddtrace_testing.internal.git import GitTag
 
         # Patch the underlying tag collectors to return known values.
         with (
             patch(
-                "ddtrace.testing.internal.env_tags.ci.get_ci_tags",
+                "ddtrace_testing.internal.env_tags.ci.get_ci_tags",
                 return_value={},
             ),
             patch(
-                "ddtrace.testing.internal.env_tags.git.get_git_tags_from_git_command",
+                "ddtrace_testing.internal.env_tags.git.get_git_tags_from_git_command",
                 return_value={GitTag.REPOSITORY_URL: "https://github.com/example/repo"},
             ),
             patch(
-                "ddtrace.testing.internal.env_tags.git.get_git_tags_from_dd_variables",
+                "ddtrace_testing.internal.env_tags.git.get_git_tags_from_dd_variables",
                 return_value={},
             ),
             patch(
-                "ddtrace.testing.internal.env_tags.git.get_git_head_tags_from_git_command",
+                "ddtrace_testing.internal.env_tags.git.get_git_head_tags_from_git_command",
                 return_value={},
             ),
             patch(
-                "ddtrace.testing.internal.env_tags.get_workspace_path",
+                "ddtrace_testing.internal.env_tags.get_workspace_path",
                 return_value=Path("/workspace"),
             ),
         ):
@@ -383,14 +383,14 @@ class TestBazelProviderFallbackWithGeneratedManifest:
 
     @staticmethod
     def _env_tags_without_ci_provider() -> dict[str, str]:
-        from ddtrace.testing.internal.env_tags import get_env_tags
+        from ddtrace_testing.internal.env_tags import get_env_tags
 
         with (
-            patch("ddtrace.testing.internal.env_tags.ci.get_ci_tags", return_value={}),
-            patch("ddtrace.testing.internal.env_tags.git.get_git_tags_from_git_command", return_value={}),
-            patch("ddtrace.testing.internal.env_tags.git.get_git_tags_from_dd_variables", return_value={}),
-            patch("ddtrace.testing.internal.env_tags.git.get_git_head_tags_from_git_command", return_value={}),
-            patch("ddtrace.testing.internal.env_tags.get_workspace_path", return_value=Path("/workspace")),
+            patch("ddtrace_testing.internal.env_tags.ci.get_ci_tags", return_value={}),
+            patch("ddtrace_testing.internal.env_tags.git.get_git_tags_from_git_command", return_value={}),
+            patch("ddtrace_testing.internal.env_tags.git.get_git_tags_from_dd_variables", return_value={}),
+            patch("ddtrace_testing.internal.env_tags.git.get_git_head_tags_from_git_command", return_value={}),
+            patch("ddtrace_testing.internal.env_tags.get_workspace_path", return_value=Path("/workspace")),
         ):
             return get_env_tags()
 
@@ -451,8 +451,8 @@ class TestSkippingInManifestMode:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             sm = SessionManager(session=_make_session())
@@ -470,8 +470,8 @@ class TestSkippingInManifestMode:
         env = MockDefaults.test_environment()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
-            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace_testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
             sm = SessionManager(session=_make_session())

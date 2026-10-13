@@ -4,20 +4,20 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.dynamic_atr_retries import DYNAMIC_ATR_BUCKETS_ENV
-from ddtrace.testing.internal.dynamic_atr_retries import DYNAMIC_ATR_ENABLED_ENV
-from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
-from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
-from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
-from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
-from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
-from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.test_data import Test
-from ddtrace.testing.internal.test_data import TestModule
-from ddtrace.testing.internal.test_data import TestSession
-from ddtrace.testing.internal.test_data import TestStatus
-from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace_testing.internal.dynamic_atr_retries import DYNAMIC_ATR_BUCKETS_ENV
+from ddtrace_testing.internal.dynamic_atr_retries import DYNAMIC_ATR_ENABLED_ENV
+from ddtrace_testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
+from ddtrace_testing.internal.dynamic_atr_retries import get_retries_buckets
+from ddtrace_testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
+from ddtrace_testing.internal.retry_handlers import AutoTestRetriesHandler
+from ddtrace_testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace_testing.internal.settings_data import EarlyFlakeDetectionSettings
+from ddtrace_testing.internal.settings_data import Settings
+from ddtrace_testing.internal.test_data import Test
+from ddtrace_testing.internal.test_data import TestModule
+from ddtrace_testing.internal.test_data import TestSession
+from ddtrace_testing.internal.test_data import TestStatus
+from ddtrace_testing.internal.test_data import TestSuite
 
 
 @pytest.fixture

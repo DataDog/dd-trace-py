@@ -1,6 +1,6 @@
 # DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
 # Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
-# the new plugin at ddtrace/testing/internal/pytest/.
+# the new plugin at ddtrace_testing/internal/pytest/.
 """
 xdist-related functionality for pytest CI Visibility plugin.
 
@@ -18,7 +18,7 @@ from ddtrace_base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.testing.internal.pytest import xdist as _shared_xdist
+from ddtrace_testing.internal.pytest import xdist as _shared_xdist
 
 
 log = get_logger(__name__)

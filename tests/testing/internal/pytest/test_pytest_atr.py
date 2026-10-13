@@ -5,9 +5,9 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
 from tests.testing.internal.pytest.utils import assert_stats
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -36,7 +36,7 @@ class TestATR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -72,7 +72,7 @@ class TestATR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -120,7 +120,7 @@ class TestATR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),

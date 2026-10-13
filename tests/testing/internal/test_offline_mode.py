@@ -1,15 +1,15 @@
-"""Unit tests for ddtrace.testing.internal.offline_mode."""
+"""Unit tests for ddtrace_testing.internal.offline_mode."""
 
 from __future__ import annotations
 
 import pytest
 
-import ddtrace.testing.internal.offline_mode as offline_module
-from ddtrace.testing.internal.offline_mode import OfflineMode
-from ddtrace.testing.internal.offline_mode import _parse_manifest_version
-from ddtrace.testing.internal.offline_mode import _validate_manifest
-from ddtrace.testing.internal.offline_mode import get_offline_mode
-from ddtrace.testing.internal.offline_mode import resolve_rlocation
+import ddtrace_testing.internal.offline_mode as offline_module
+from ddtrace_testing.internal.offline_mode import OfflineMode
+from ddtrace_testing.internal.offline_mode import _parse_manifest_version
+from ddtrace_testing.internal.offline_mode import _validate_manifest
+from ddtrace_testing.internal.offline_mode import get_offline_mode
+from ddtrace_testing.internal.offline_mode import resolve_rlocation
 
 
 @pytest.fixture(autouse=True)

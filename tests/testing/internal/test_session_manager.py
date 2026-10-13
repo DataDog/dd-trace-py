@@ -7,18 +7,18 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
-from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.settings_data import TestManagementSettings
-from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.test_data import TestSession
+from ddtrace_testing.internal.ci import CITag
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.session_manager import SessionManager
+from ddtrace_testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace_testing.internal.settings_data import EarlyFlakeDetectionSettings
+from ddtrace_testing.internal.settings_data import Settings
+from ddtrace_testing.internal.settings_data import TestManagementSettings
+from ddtrace_testing.internal.settings_data import TestProperties
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import TestSession
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import session_manager_mock
@@ -194,7 +194,7 @@ class TestSessionManagerIsSkippableTest:
         match a local TestRef with a real module name — otherwise tests in different
         directories with the same filename would be incorrectly skipped.
         """
-        from ddtrace.testing.internal.constants import EMPTY_NAME
+        from ddtrace_testing.internal.constants import EMPTY_NAME
 
         api_suite = SuiteRef(ModuleRef(EMPTY_NAME), "test_outcomes.py")
         api_test_ref = TestRef(api_suite, "test_function")
@@ -257,7 +257,7 @@ class TestSessionManagerIsSkippableSuitePath:
         Without a module discriminator (test.bundle absent) we cannot tell which directory
         the suite belongs to, so we must not skip to avoid cross-directory false positives.
         """
-        from ddtrace.testing.internal.constants import EMPTY_NAME
+        from ddtrace_testing.internal.constants import EMPTY_NAME
 
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -279,7 +279,7 @@ class TestSessionManagerIsSkippableSuitePath:
 
     def test_suite_path_no_match_different_name(self, tmp_path: pytest.fixture) -> None:
         """is_skippable_suite_path returns False when the suite filename is different."""
-        from ddtrace.testing.internal.constants import EMPTY_NAME
+        from ddtrace_testing.internal.constants import EMPTY_NAME
 
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -301,7 +301,7 @@ class TestSessionManagerIsSkippableSuitePath:
 
     def test_suite_path_skipping_disabled(self, tmp_path: pytest.fixture) -> None:
         """is_skippable_suite_path always returns False when skipping is disabled."""
-        from ddtrace.testing.internal.constants import EMPTY_NAME
+        from ddtrace_testing.internal.constants import EMPTY_NAME
 
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -322,7 +322,7 @@ class TestSessionManagerIsSkippableSuitePath:
 
     def test_suite_path_test_level_mode_returns_false(self, tmp_path: pytest.fixture) -> None:
         """is_skippable_suite_path returns False in TEST-level mode (skippable_items has TestRefs)."""
-        from ddtrace.testing.internal.constants import EMPTY_NAME
+        from ddtrace_testing.internal.constants import EMPTY_NAME
 
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -343,7 +343,7 @@ class TestSessionManagerIsSkippableSuitePath:
 
     def test_suite_path_not_skipped_when_atf_test_in_suite(self, tmp_path: pytest.fixture) -> None:
         """is_skippable_suite_path returns False when any test in the suite has attempt_to_fix=True."""
-        from ddtrace.testing.internal.settings_data import TestProperties
+        from ddtrace_testing.internal.settings_data import TestProperties
 
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -375,7 +375,7 @@ class TestSessionManagerIsSkippableSuitePath:
 
     def test_suite_path_skippable_when_no_atf_test_in_suite(self, tmp_path: pytest.fixture) -> None:
         """is_skippable_suite_path returns True when no test in the suite has attempt_to_fix."""
-        from ddtrace.testing.internal.settings_data import TestProperties
+        from ddtrace_testing.internal.settings_data import TestProperties
 
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -465,7 +465,7 @@ class TestSessionManagerEnvVarOverrides:
     def mock_settings(self, **kwargs) -> t.Generator[None, None, None]:
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(**kwargs),
             ),
             setup_standard_mocks(),
@@ -508,7 +508,7 @@ class TestSessionManagerEnvVarOverrides:
         mock_client = mock_api_client_settings(test_management_enabled=True)
         monkeypatch.setenv("DD_TEST_MANAGEMENT_ENABLED", "0")
 
-        with patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client):
+        with patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client):
             with setup_standard_mocks():
                 SessionManager(self.session)
 
@@ -578,7 +578,7 @@ class TestSessionManagerEnvVarOverrides:
 
         monkeypatch.setenv(env_var, env_value)
 
-        with patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client):
+        with patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client):
             with setup_standard_mocks():
                 session_manager = SessionManager(self.session)
 
@@ -594,8 +594,8 @@ class TestSessionManagerGitHandling:
         # Create a session_manager avoid running __init__ bc of side-effects
         session_manager = SessionManager.__new__(SessionManager)
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
-            patch("ddtrace.testing.internal.session_manager.log.warning") as mock_warning,
+            patch("ddtrace_testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
+            patch("ddtrace_testing.internal.session_manager.log.warning") as mock_warning,
         ):
             session_manager.upload_git_data()
 
@@ -606,9 +606,9 @@ class TestSessionManagerGitHandling:
         mock_telemetry_instance = Mock()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
-            patch("ddtrace.testing.internal.session_manager.log"),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry_cls,
+            patch("ddtrace_testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
+            patch("ddtrace_testing.internal.session_manager.log"),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI") as mock_telemetry_cls,
         ):
             mock_telemetry_cls._instance = Mock()
             mock_telemetry_cls.get.return_value = mock_telemetry_instance
@@ -624,9 +624,9 @@ class TestSessionManagerGitHandling:
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
 
-        with patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git):
-            with patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
-                with patch("ddtrace.testing.internal.session_manager.log") as mock_log:
+        with patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git):
+            with patch("ddtrace_testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
+                with patch("ddtrace_testing.internal.session_manager.log") as mock_log:
                     session_manager.upload_git_data()
 
         session_manager.api_client.get_known_commits.assert_called_once_with(["commit-1", "commit-2"])
@@ -647,9 +647,9 @@ class TestSessionManagerGitHandling:
         mock_git.get_git_version.return_value = (2, 27, 0)
         mock_git.try_all_unshallow_repository_methods.return_value = True
 
-        with patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git):
-            with patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
-                with patch("ddtrace.testing.internal.session_manager.log") as mock_log:
+        with patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git):
+            with patch("ddtrace_testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
+                with patch("ddtrace_testing.internal.session_manager.log") as mock_log:
                     session_manager.upload_git_data()
 
         assert session_manager.api_client.get_known_commits.call_args_list == [
@@ -672,7 +672,7 @@ class TestUpdatePrMergeBase:
         return sm
 
     def test_skips_when_already_set(self) -> None:
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_session_manager(
             {
@@ -692,7 +692,7 @@ class TestUpdatePrMergeBase:
         mock_git.get_merge_base.assert_not_called()
 
     def test_sets_merge_base_when_both_shas_present(self) -> None:
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_session_manager(
             {
@@ -707,7 +707,7 @@ class TestUpdatePrMergeBase:
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
 
     def test_skips_update_when_merge_base_empty(self) -> None:
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_session_manager(
             {
@@ -722,7 +722,7 @@ class TestUpdatePrMergeBase:
 
     def test_upload_git_data_computes_merge_base_after_unshallow(self) -> None:
         """merge-base is computed after unshallow succeeds on a shallow repo."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         base_sha = "base-sha"
         head_sha = "head-sha"
@@ -746,8 +746,8 @@ class TestUpdatePrMergeBase:
         mock_git.pack_objects.return_value = iter([])
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -756,7 +756,7 @@ class TestUpdatePrMergeBase:
 
     def test_upload_git_data_computes_merge_base_on_non_shallow_repo(self) -> None:
         """merge-base is computed even when the repo is not shallow."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         base_sha = "base-sha"
         head_sha = "head-sha"
@@ -778,8 +778,8 @@ class TestUpdatePrMergeBase:
         mock_git.pack_objects.return_value = iter([])
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -788,7 +788,7 @@ class TestUpdatePrMergeBase:
 
     def test_upload_git_data_computes_merge_base_when_all_commits_known(self) -> None:
         """merge-base is populated even when all commits are already in the backend (no pack upload)."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         base_sha = "base-sha"
         head_sha = "head-sha"
@@ -809,8 +809,8 @@ class TestUpdatePrMergeBase:
         mock_git.get_merge_base.return_value = expected_merge_base
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -823,7 +823,7 @@ class TestUploadSentinel:
     """Tests for the upload-completion sentinel used to deduplicate work across xdist workers."""
 
     def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> t.Any:
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = SessionManager.__new__(SessionManager)
         sm.workspace_path = workspace_path
@@ -881,7 +881,7 @@ class TestUploadSentinel:
         assert sm._read_upload_sentinel() is None
 
     def test_missing_workspace_path_attribute_returns_false(self) -> None:
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         # Some tests build SessionManager via __new__ without setting workspace_path.
         sm = SessionManager.__new__(SessionManager)
@@ -908,13 +908,13 @@ class TestUploadSentinel:
         """When the sentinel matches, upload_git_data skips git entirely."""
         import time as _time
 
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
         assert sm.env_tags[GitTag.COMMIT_SHA] == "head-sha"
 
-        with patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls:
+        with patch("ddtrace_testing.internal.session_manager.Git") as mock_git_cls:
             sm.upload_git_data()
 
         mock_git_cls.assert_not_called()
@@ -933,8 +933,8 @@ class TestUploadSentinel:
         mock_git.is_shallow_repository.return_value = False
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -958,8 +958,8 @@ class TestUploadSentinel:
         mock_git.pack_objects.return_value = iter([_Path("/tmp/fake.pack")])
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -979,8 +979,8 @@ class TestUploadSentinel:
         mock_git.pack_objects.return_value = iter([])  # nothing yielded
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -1002,8 +1002,8 @@ class TestUploadSentinel:
         mock_git.pack_objects.return_value = iter([_Path("/tmp/fake.pack")])
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -1026,8 +1026,8 @@ class TestUploadSentinel:
         mock_git.pack_objects.return_value = iter([_Path("/tmp/fake1.pack"), _Path("/tmp/fake2.pack")])
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -1044,8 +1044,8 @@ class TestUploadSentinel:
         mock_git.get_latest_commits.return_value = ["commit-1"]
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -1055,7 +1055,7 @@ class TestUploadSentinel:
         """The sentinel encodes merge_base_sha so peers can recover it on skip."""
         import json as _json
 
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
@@ -1076,7 +1076,7 @@ class TestUploadSentinel:
 
     def test_apply_sentinel_populates_merge_base(self, tmp_path) -> None:
         """A peer that skips uploads recovers the merge-base SHA from the sentinel."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sm._apply_upload_sentinel({"head_sha": "head-sha", "merge_base_sha": "recovered-sha"})
@@ -1084,7 +1084,7 @@ class TestUploadSentinel:
 
     def test_apply_sentinel_does_not_overwrite_existing_merge_base(self, tmp_path) -> None:
         """User-supplied PR base SHA takes precedence over the sentinel's value."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = "existing-sha"
@@ -1093,7 +1093,7 @@ class TestUploadSentinel:
 
     def test_apply_sentinel_skips_when_merge_base_absent(self, tmp_path) -> None:
         """Sentinel without merge_base_sha leaves env_tags untouched."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sm._apply_upload_sentinel({"head_sha": "head-sha"})
@@ -1103,7 +1103,7 @@ class TestUploadSentinel:
         """End-to-end: a peer skipping upload recovers the merge-base from the sentinel."""
         import time as _time
 
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         self._write_sentinel(
@@ -1111,7 +1111,7 @@ class TestUploadSentinel:
             {"head_sha": "head-sha", "timestamp": _time.time(), "merge_base_sha": "peer-merge-base"},
         )
 
-        with patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls:
+        with patch("ddtrace_testing.internal.session_manager.Git") as mock_git_cls:
             sm.upload_git_data()
 
         mock_git_cls.assert_not_called()
@@ -1122,7 +1122,7 @@ class TestUploadLock:
     """Tests for the cross-process lock around upload_git_data."""
 
     def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> t.Any:
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         sm = SessionManager.__new__(SessionManager)
         sm.workspace_path = workspace_path
@@ -1152,7 +1152,7 @@ class TestUploadLock:
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
 
-        with patch("ddtrace.testing.internal.session_manager._FCNTL_AVAILABLE", False):
+        with patch("ddtrace_testing.internal.session_manager._FCNTL_AVAILABLE", False):
             with sm._upload_lock() as acquired:
                 assert acquired is True
 
@@ -1163,16 +1163,16 @@ class TestUploadLock:
 
         # Force flock to always say "would block" and drive time forward past the deadline.
         with (
-            patch("ddtrace.testing.internal.session_manager.fcntl.flock", side_effect=BlockingIOError()),
-            patch("ddtrace.testing.internal.session_manager.time.monotonic", side_effect=[0.0, 9999.0]),
-            patch("ddtrace.testing.internal.session_manager.time.sleep"),
+            patch("ddtrace_testing.internal.session_manager.fcntl.flock", side_effect=BlockingIOError()),
+            patch("ddtrace_testing.internal.session_manager.time.monotonic", side_effect=[0.0, 9999.0]),
+            patch("ddtrace_testing.internal.session_manager.time.sleep"),
         ):
             with sm._upload_lock() as acquired:
                 assert acquired is False
 
     def test_upload_git_data_runs_under_lock(self, tmp_path) -> None:
         """upload_git_data acquires the lock and proceeds to the upload work."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
@@ -1183,8 +1183,8 @@ class TestUploadLock:
         mock_git.is_shallow_repository.return_value = False
 
         with (
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git) as mock_git_cls,
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git) as mock_git_cls,
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -1198,7 +1198,7 @@ class TestUploadLock:
         """If a peer writes the sentinel while we wait for the lock, we skip on re-check."""
         import time as _time
 
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
@@ -1215,7 +1215,7 @@ class TestUploadLock:
 
         with (
             patch.object(sm, "_upload_lock", fake_lock_with_peer_completion),
-            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+            patch("ddtrace_testing.internal.session_manager.Git") as mock_git_cls,
         ):
             sm.upload_git_data()
 
@@ -1237,7 +1237,7 @@ class TestUploadLock:
 
         with (
             patch.object(sm, "_upload_lock", no_lock),
-            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+            patch("ddtrace_testing.internal.session_manager.Git") as mock_git_cls,
         ):
             sm.upload_git_data()
 
@@ -1246,7 +1246,7 @@ class TestUploadLock:
 
     def test_upload_git_data_computes_merge_base_on_lock_timeout(self, tmp_path) -> None:
         """On lock timeout with no sentinel, merge-base is computed directly (no upload)."""
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
         from tests.testing.mocks import get_mock_git_instance
 
         (tmp_path / ".git").mkdir()
@@ -1263,8 +1263,8 @@ class TestUploadLock:
 
         with (
             patch.object(sm, "_upload_lock", no_lock),
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace_testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace_testing.internal.session_manager.TelemetryAPI"),
         ):
             sm.upload_git_data()
 
@@ -1275,7 +1275,7 @@ class TestUploadLock:
         import json as _json
         import time as _time
 
-        from ddtrace.testing.internal.git import GitTag
+        from ddtrace_testing.internal.git import GitTag
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
@@ -1290,7 +1290,7 @@ class TestUploadLock:
 
         with (
             patch.object(sm, "_upload_lock", no_lock),
-            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+            patch("ddtrace_testing.internal.session_manager.Git") as mock_git_cls,
         ):
             sm.upload_git_data()
 
@@ -1353,7 +1353,7 @@ class TestParallelInit:
             test_management_enabled=True,
         )
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             SessionManager(self.session)
@@ -1367,7 +1367,7 @@ class TestParallelInit:
         """get_known_tests is not called when known_tests_enabled is False."""
         mock_client = self._make_mock_client(known_tests_enabled=False)
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             SessionManager(self.session)
@@ -1378,7 +1378,7 @@ class TestParallelInit:
         """get_test_management_properties is not called when test_management is disabled."""
         mock_client = self._make_mock_client(test_management_enabled=False)
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             SessionManager(self.session)
@@ -1407,7 +1407,7 @@ class TestParallelInit:
         mock_client.configuration_errors = {}
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             sm = SessionManager(self.session)
@@ -1432,7 +1432,7 @@ class TestParallelInit:
         mock_client.configuration_errors = {}
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             sm = SessionManager(self.session)
@@ -1461,7 +1461,7 @@ class TestParallelInit:
         mock_client.configuration_errors = {}
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             SessionManager(self.session)
@@ -1481,7 +1481,7 @@ class TestParallelInit:
         mock_client.get_known_tests.side_effect = RuntimeError("network failure")
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
             pytest.raises(RuntimeError, match="network failure"),
         ):
@@ -1493,7 +1493,7 @@ class TestParallelInit:
         mock_client.get_test_management_properties.side_effect = RuntimeError("server error")
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
             pytest.raises(RuntimeError, match="server error"),
         ):
@@ -1504,7 +1504,7 @@ class TestParallelInit:
         mock_client = self._make_mock_client()
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
             patch.object(SessionManager, "upload_git_data", side_effect=RuntimeError("git upload failed")),
             pytest.raises(RuntimeError, match="git upload failed"),
@@ -1528,9 +1528,9 @@ class TestParallelInit:
         monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
-            patch("ddtrace.testing.internal.session_manager.log") as mock_log,
+            patch("ddtrace_testing.internal.session_manager.log") as mock_log,
         ):
             sm = SessionManager(self.session)
 
@@ -1549,7 +1549,7 @@ class TestParallelInit:
         monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
             patch.object(SessionManager, "upload_git_data") as mock_upload,
         ):
@@ -1565,7 +1565,7 @@ class TestParallelInit:
         """Without the ATF-all-flaky env var, atf_all_flaky_tests is False."""
         mock_client = self._make_mock_client()
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             sm = SessionManager(self.session)
@@ -1578,7 +1578,7 @@ class TestParallelInit:
         monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_client),
             setup_standard_mocks(),
         ):
             SessionManager(self.session)

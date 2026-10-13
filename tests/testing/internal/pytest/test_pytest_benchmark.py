@@ -31,7 +31,7 @@ class TestPytestBenchmark:
         monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),
@@ -93,7 +93,7 @@ class TestPytestBenchmark:
         )
 
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:

@@ -149,7 +149,7 @@ ddtrace/internal/coverage                             @DataDog/ci-app-libraries
 ddtrace/internal/selenium                             @DataDog/ci-app-libraries
 ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
 ddtrace/sourcecode/                                   @DataDog/ci-app-libraries
-ddtrace/testing/                                      @DataDog/ci-app-libraries
+ddtrace_testing/                                      @DataDog/ci-app-libraries
 # tests files
 tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries

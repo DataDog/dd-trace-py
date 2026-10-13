@@ -9,7 +9,7 @@ ignores:
   - "ddtrace_base/_unpatched.py"
   - "ddtrace/vendor/**"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
-  - "ddtrace/testing/**"
+  - "ddtrace_testing/**"
   - "ddtrace/internal/openfeature/**"
   - "ddtrace/contrib/internal/pytorch/**"
   - "ddtrace/llmobs/_integrations/_bedrock_inference_profiles.py"

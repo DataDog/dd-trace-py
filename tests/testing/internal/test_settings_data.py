@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from ddtrace.testing.internal.settings_data import TestManagementSettings
+from ddtrace_testing.internal.settings_data import TestManagementSettings
 
 
 SAMPLE_ATTRIBUTES = {

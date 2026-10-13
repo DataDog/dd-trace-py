@@ -10,13 +10,13 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-import ddtrace.testing.internal.offline_mode as offline_module
-from ddtrace.testing.internal.offline_mode import write_payload_file
-from ddtrace.testing.internal.writer import Event
-from ddtrace.testing.internal.writer import PayloadFileCoverageWriter
-from ddtrace.testing.internal.writer import PayloadFileTestOptWriter
-from ddtrace.testing.internal.writer import TestOptWriter
+from ddtrace_testing.internal.http import NoOpBackendConnectorSetup
+import ddtrace_testing.internal.offline_mode as offline_module
+from ddtrace_testing.internal.offline_mode import write_payload_file
+from ddtrace_testing.internal.writer import Event
+from ddtrace_testing.internal.writer import PayloadFileCoverageWriter
+from ddtrace_testing.internal.writer import PayloadFileTestOptWriter
+from ddtrace_testing.internal.writer import TestOptWriter
 
 
 _noop = NoOpBackendConnectorSetup()
@@ -153,7 +153,7 @@ class TestOnlineTestOptWriter:
         mock_connector.request.return_value = Mock(elapsed_seconds=0.01, error_type=None)
         writer.connector = mock_connector
 
-        with patch("ddtrace.testing.internal.writer.TelemetryAPI") as mock_telemetry_cls:
+        with patch("ddtrace_testing.internal.writer.TelemetryAPI") as mock_telemetry_cls:
             mock_telemetry_cls.get.return_value = Mock()
             writer._send_events([{"type": "test", "content": {}}])
 
@@ -291,7 +291,7 @@ class TestPayloadFileTelemetryAPI:
         # binding PayloadFileTelemetryAPI reads at it) so tests don't clobber each other.
         import ddtrace.internal.telemetry as _t
         from ddtrace.internal.telemetry.writer import TelemetryWriter
-        import ddtrace.testing.internal.telemetry as _ti
+        import ddtrace_testing.internal.telemetry as _ti
 
         saved_t, saved_ti = _t.telemetry_writer, _ti.telemetry_writer
         writer = TelemetryWriter(agentless=False)
@@ -313,8 +313,8 @@ class TestPayloadFileTelemetryAPI:
         """finish() writes at least one message-batch file with real writer fields."""
         telemetry_dir = tmp_path / "telemetry"
 
-        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-        from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
+        from ddtrace_testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace_testing.internal.telemetry import PayloadFileTelemetryAPI
 
         api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
         api.finish()
@@ -342,8 +342,8 @@ class TestPayloadFileTelemetryAPI:
         """finish() produces both app-started and app-closing events."""
         telemetry_dir = tmp_path / "telemetry"
 
-        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-        from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
+        from ddtrace_testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace_testing.internal.telemetry import PayloadFileTelemetryAPI
 
         api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
         api.finish()
@@ -356,8 +356,8 @@ class TestPayloadFileTelemetryAPI:
         """CI visibility metrics added before finish() appear in the batch."""
         telemetry_dir = tmp_path / "telemetry"
 
-        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-        from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
+        from ddtrace_testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace_testing.internal.telemetry import PayloadFileTelemetryAPI
 
         api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
         api.add_count_metric("test_metric", 1, {"tag": "value"})
@@ -394,8 +394,8 @@ class TestPayloadFileTelemetryAPI:
         attribute on _PayloadFileTelemetryClient, any code path that calls it (e.g. LLMObs
         initialisation) would raise AttributeError.
         """
-        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-        from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
+        from ddtrace_testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace_testing.internal.telemetry import PayloadFileTelemetryAPI
 
         telemetry_dir = tmp_path / "telemetry"
         api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
@@ -405,8 +405,8 @@ class TestPayloadFileTelemetryAPI:
         api.writer.enable_agentless_client(False)
 
     def test_online_telemetry_api_does_not_write_files(self, tmp_path):
-        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-        from ddtrace.testing.internal.telemetry import TelemetryAPI
+        from ddtrace_testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace_testing.internal.telemetry import TelemetryAPI
 
         api = TelemetryAPI(connector_setup=NoOpBackendConnectorSetup())
         api.add_count_metric("test_metric", 1)

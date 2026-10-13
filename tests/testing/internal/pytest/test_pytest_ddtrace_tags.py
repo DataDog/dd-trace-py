@@ -23,7 +23,7 @@ class TestDDTraceTags:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),
@@ -50,7 +50,7 @@ class TestDDTraceTags:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),

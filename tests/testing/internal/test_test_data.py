@@ -1,4 +1,4 @@
-"""Tests for ddtrace.testing.internal.test_data module."""
+"""Tests for ddtrace_testing.internal.test_data module."""
 
 from typing import Any
 from unittest.mock import Mock
@@ -6,16 +6,16 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestItem
-from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.test_data import TestSession
-from ddtrace.testing.internal.test_data import TestStatus
-from ddtrace.testing.internal.test_data import TestTag
-from ddtrace.testing.internal.writer import serialize_suite
+from ddtrace_testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestItem
+from ddtrace_testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import TestSession
+from ddtrace_testing.internal.test_data import TestStatus
+from ddtrace_testing.internal.test_data import TestTag
+from ddtrace_testing.internal.writer import serialize_suite
 
 
 class TestModuleRef:
@@ -283,7 +283,7 @@ class TestITRTelemetry:
         session, test = self._make_test()
         telemetry_api = Mock()
 
-        with patch("ddtrace.testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
+        with patch("ddtrace_testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
             test.mark_skipped_by_itr()
 
         assert session.tests_skipped_by_itr == 1
@@ -293,7 +293,7 @@ class TestITRTelemetry:
         _, test = self._make_test()
         telemetry_api = Mock()
 
-        with patch("ddtrace.testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
+        with patch("ddtrace_testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
             test.mark_unskippable()
 
         telemetry_api.record_itr_unskippable.assert_called_once()
@@ -302,7 +302,7 @@ class TestITRTelemetry:
         _, test = self._make_test()
         telemetry_api = Mock()
 
-        with patch("ddtrace.testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
+        with patch("ddtrace_testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
             test.mark_forced_run()
 
         telemetry_api.record_itr_forced_run.assert_called_once()

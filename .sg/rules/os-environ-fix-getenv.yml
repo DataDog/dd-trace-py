@@ -8,7 +8,7 @@ ignores:
   - "ddtrace_base/settings/env.py"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
-  - "ddtrace/testing/**"
+  - "ddtrace_testing/**"
 rule:
   pattern: os.getenv($$$ARGS)
 fix: env.get($$$ARGS)

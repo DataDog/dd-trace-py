@@ -1,1 +1,1 @@
-"""Tests for ddtrace.testing.internal.coverage modules."""
+"""Tests for ddtrace_testing.internal.coverage modules."""

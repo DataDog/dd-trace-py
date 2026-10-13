@@ -5,10 +5,10 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace_testing.internal.settings_data import TestProperties
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
@@ -33,7 +33,7 @@ class TestAttemptToFix:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     test_management_enabled=True,
                     known_tests_enabled=True,
@@ -87,7 +87,7 @@ class TestAttemptToFix:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     test_management_enabled=True,
                     known_tests_enabled=True,
@@ -129,7 +129,7 @@ class TestAttemptToFix:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     test_management_enabled=True,
                     known_tests_enabled=True,
@@ -175,7 +175,7 @@ class TestAttemptToFix:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     test_management_enabled=True,
                     known_tests_enabled=True,
@@ -218,7 +218,7 @@ class TestAtfAllFlaky:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     test_management_properties=test_properties,
                 ),
@@ -256,7 +256,7 @@ class TestAtfAllFlaky:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     test_management_properties=test_properties,
                 ),
@@ -287,7 +287,7 @@ class TestAtfAllFlaky:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     test_management_properties={},
                 ),

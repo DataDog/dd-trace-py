@@ -10,19 +10,19 @@ import uuid
 import pytest
 
 from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_coverage_flags
-from ddtrace.testing.internal.api_client import APIClient
-from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.http import BackendResult
-from ddtrace.testing.internal.http import FileAttachment
-from ddtrace.testing.internal.logging import testing_logger
-from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.telemetry import ErrorType
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.test_data import TestTag
+from ddtrace_testing.internal.api_client import APIClient
+from ddtrace_testing.internal.ci import CITag
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.git import GitTag
+from ddtrace_testing.internal.http import BackendResult
+from ddtrace_testing.internal.http import FileAttachment
+from ddtrace_testing.internal.logging import testing_logger
+from ddtrace_testing.internal.settings_data import TestProperties
+from ddtrace_testing.internal.telemetry import ErrorType
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import TestTag
 from tests.testing.mocks import mock_backend_connector
 
 
@@ -36,7 +36,7 @@ def reset_code_coverage_flags_cache():
 @pytest.fixture(scope="module", autouse=True)
 def override_testing_logger():
     # This is needed for the caplog fixture to work correctly, if previous tests have caused
-    # `ddtrace.testing.internal.logging.setup_logging()` to be called.
+    # `ddtrace_testing.internal.logging.setup_logging()` to be called.
     testing_logger.propagate = True
 
 
