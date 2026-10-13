@@ -735,6 +735,19 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert get_entry_span_tag(http.CLIENT_IP) is None
 
+    @pytest.mark.parametrize("ip_header", ["X-Use-This", "x-use-this"])
+    def test_request_ipblock_client_ip_header_set_by_env_var(
+        self, interface: Interface, get_entry_span_tag, entry_span, ip_header
+    ):
+        with override_global_config(
+            dict(_asm_enabled=True, _client_ip_header=ip_header, _asm_static_rule_file=rules.RULES_GOOD_PATH)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={"X-Use-This": rules._IP.BLOCKED})
+            assert (st := self.status(response)) == 403, f"status mismatch {st}"
+            assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
+            self.check_single_rule_triggered("blk-001-001", entry_span)
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
         ("headers", "blocked", "body", "content_type"),

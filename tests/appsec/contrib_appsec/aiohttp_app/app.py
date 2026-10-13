@@ -119,6 +119,65 @@ async def stream(request: web.Request) -> web.StreamResponse:
     return response
 
 
+async def stream_upload(request: web.Request) -> web.Response:
+    size = 0
+    async for chunk in request.content.iter_any():
+        size += len(chunk)
+    return _html(str(size))
+
+
+async def multipart(request: web.Request) -> web.Response:
+    fields = {}
+    reader = await request.multipart()
+    while (part := await reader.next()) is not None:
+        fields[part.name] = (await part.read()).decode()
+    return web.json_response(fields)
+
+
+async def stream_rasp(request: web.Request) -> web.StreamResponse:
+    response = web.StreamResponse(headers={"Content-Type": "text/html"})
+    await response.prepare(request)
+    await response.write(b"start")
+    try:
+        with open(request.query["filename"], "rb"):
+            pass
+    except OSError:
+        pass
+    await response.write(b"end")
+    await response.write_eof()
+    return response
+
+
+async def stream_headers(request: web.Request) -> web.StreamResponse:
+    response = web.StreamResponse(headers={"Content-Type": "text/html"})
+    for header in request.query.get("headers", "").split(","):
+        vk = header.split("=")
+        if len(vk) == 2:
+            response.headers[vk[0]] = vk[1]
+    await response.prepare(request)
+    await response.write(b"0123456789")
+    await response.write_eof()
+    return response
+
+
+async def block_request(request: web.Request) -> web.Response:
+    from ddtrace.appsec.trace_utils import block_request as appsec_block_request
+
+    appsec_block_request()
+    return _html("not blocked")
+
+
+async def set_user(request: web.Request) -> web.Response:
+    from ddtrace.contrib.trace_utils import set_user as trace_set_user
+
+    trace_set_user(tracer, request.query["user_id"])
+    return _html("not blocked")
+
+
+async def error(request: web.Request) -> web.Response:
+    raise ValueError("unhandled error")
+
+
 async def _ssrf(param: str, urlname: str) -> str:
     if param.startswith("url_urlopen_request"):
         import urllib.request
@@ -424,6 +483,13 @@ def get_app() -> web.Application:
         ("/exception-group-block", exception_group_block, ("GET",)),
         ("/login/", login, ("GET",)),
         ("/login_sdk/", login_sdk, ("GET",)),
+        ("/stream_upload/", stream_upload, ("POST",)),
+        ("/multipart/", multipart, ("POST",)),
+        ("/stream_rasp/", stream_rasp, ("GET",)),
+        ("/stream_headers/", stream_headers, ("GET",)),
+        ("/block_request/", block_request, ("GET",)),
+        ("/set_user/", set_user, ("GET",)),
+        ("/error/", error, ("GET",)),
     ]:
         for method in methods:
             app.router.add_route(method, path, handler)

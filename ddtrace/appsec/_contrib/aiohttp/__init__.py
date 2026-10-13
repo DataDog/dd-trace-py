@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Coroutine
 from collections.abc import Mapping
 import json
@@ -9,6 +10,8 @@ from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
+from ddtrace.appsec._asm_request_context import set_block_request_callable
+from ddtrace.appsec._asm_request_context import set_blocked
 from ddtrace.appsec._asm_request_context import set_body_response
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -22,12 +25,15 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import _get_blocked_template
 from ddtrace.internal.utils.http import classify_media_type
+from ddtrace.internal.utils.http import parse_form_multipart
+from ddtrace.internal.utils.http import parse_form_params
 import ddtrace.vendor.xmltodict as xmltodict
 
 
 logger = get_logger(__name__)
 
 _PARSED_MEDIA_TYPES = frozenset((MediaType.JSON, MediaType.XML, MediaType.FORM_URLENCODED, MediaType.MULTIPART))
+_DEFAULT_CLIENT_MAX_SIZE = 1024**2
 
 
 def _multidict_to_dict(multidict: Any) -> dict[str, Any]:
@@ -40,10 +46,14 @@ def _multidict_to_dict(multidict: Any) -> dict[str, Any]:
     return result
 
 
-def _form_value(value: Any) -> Any:
-    if isinstance(value, (bytes, bytearray)):
-        return bytes(value).decode("utf-8", errors="replace")
-    return getattr(value, "filename", value)
+def _headers_to_dict(headers: Any, excluded: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for key, value in headers.items():
+        key = key.lower()
+        if key == excluded:
+            continue
+        result[key] = f"{result[key]}, {value}" if key in result else value
+    return result
 
 
 def _check_blocked() -> None:
@@ -51,29 +61,29 @@ def _check_blocked() -> None:
         raise BlockingException(block)
 
 
-def _request_route(request: Any) -> Optional[str]:
-    route = getattr(request.match_info, "route", None)
-    resource = getattr(route, "resource", None)
-    return getattr(resource, "canonical", None)
+def _block_request() -> None:
+    if not get_blocked():
+        set_blocked(Block_config())
+    _check_blocked()
 
 
 def _on_request_start(ctx: core.ExecutionContext[Any], request: Any) -> Optional[Coroutine[Any, Any, None]]:
     if not asm_config._asm_enabled or get_active_asm_context() is None:
         return None
     logger.debug("aiohttp::srb_on_request")
+    set_block_request_callable(_block_request)
     span = span_from_context(ctx)
-    request_headers = {k.lower(): v for k, v in request.headers.items()}
-    request_headers.pop("cookie", None)
     if span is not None:
         trace_utils.set_http_meta(
             span,
             ctx.event.integration_config,
             method=request.method,
-            request_headers=request_headers,
+            request_headers=_headers_to_dict(request.headers, "cookie"),
             raw_uri=f"{request.scheme}://{request.host}{request.raw_path}",
             parsed_query=_multidict_to_dict(request.query),
             peer_ip=request.remote,
-            route=_request_route(request),
+            route=ctx.event.request_route,
+            headers_are_case_sensitive=True,
             request_cookies=dict(request.cookies),
             request_path_params=dict(request.match_info),
         )
@@ -84,29 +94,43 @@ def _on_request_start(ctx: core.ExecutionContext[Any], request: Any) -> Optional
     media_type = classify_media_type(request.headers.get("Content-Type"))
     if media_type not in _PARSED_MEDIA_TYPES:
         return None
+    content_length = request.content_length
+    max_size = getattr(request, "_client_max_size", 0) or _DEFAULT_CLIENT_MAX_SIZE
+    if content_length is None or content_length > max_size:
+        return None
+    if request.headers.get("Content-Encoding", "identity").lower() != "identity":
+        return None
     return _analyze_body(request, media_type)
 
 
+def _restore_body(request: Any, body: bytes) -> None:
+    from aiohttp.streams import StreamReader
+
+    stream = StreamReader(request.protocol, max(len(body), 2**16), loop=asyncio.get_running_loop())
+    stream.feed_data(body)
+    stream.feed_eof()
+    request._payload = stream
+
+
 async def _analyze_body(request: Any, media_type: MediaType) -> None:
-    body: Any
-    if media_type in (MediaType.FORM_URLENCODED, MediaType.MULTIPART):
-        try:
-            form = _multidict_to_dict(await request.post())
-        except ValueError:
-            logger.debug("aiohttp::failed to parse request form", exc_info=True)
-            return
-        body = {k: [_form_value(i) for i in v] if isinstance(v, list) else _form_value(v) for k, v in form.items()}
-    else:
-        raw_body = await request.read()
-        try:
-            with iast_disabled_taint_sources():
-                if media_type is MediaType.JSON:
-                    body = json.loads(raw_body) if raw_body else None
+    raw_body = await request.content.read()
+    _restore_body(request, raw_body)
+    body: Any = None
+    try:
+        with iast_disabled_taint_sources():
+            if media_type is MediaType.JSON:
+                body = json.loads(raw_body) if raw_body else None
+            elif media_type is MediaType.XML:
+                body = xmltodict.parse(raw_body)
+            else:
+                text_body = raw_body.decode(request.charset or "utf-8", errors="replace")
+                if media_type is MediaType.FORM_URLENCODED:
+                    body = parse_form_params(text_body)
                 else:
-                    body = xmltodict.parse(raw_body)
-        except Exception:
-            logger.debug("aiohttp::failed to parse request body", exc_info=True)
-            return
+                    body = parse_form_multipart(text_body, request.headers)
+    except Exception:
+        logger.debug("aiohttp::failed to parse request body", exc_info=True)
+        return
     if body:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_BODY, body)
         call_waf_callback()
@@ -114,7 +138,7 @@ async def _analyze_body(request: Any, media_type: MediaType) -> None:
 
 
 def _set_response_addresses(status: int, headers: Mapping[str, str], body: Any) -> None:
-    response_headers = {k.lower(): v for k, v in headers.items() if k.lower() != "set-cookie"}
+    response_headers = _headers_to_dict(headers, "set-cookie")
     if isinstance(body, (bytes, bytearray)):
         response_headers.setdefault("content-length", str(len(body)))
     set_waf_address(SPAN_DATA_NAMES.RESPONSE_STATUS, str(status))
@@ -122,8 +146,9 @@ def _set_response_addresses(status: int, headers: Mapping[str, str], body: Any) 
 
 
 def _on_response(request: Any, response: Any) -> None:
-    if not asm_config._asm_enabled or get_active_asm_context() is None or get_blocked():
+    if not asm_config._asm_enabled or get_active_asm_context() is None:
         return
+    _check_blocked()
     logger.debug("aiohttp::srb_on_response")
     body = getattr(response, "body", None)
     _set_response_addresses(response.status, response.headers, body)

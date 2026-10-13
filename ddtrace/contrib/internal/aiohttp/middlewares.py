@@ -1,3 +1,5 @@
+import asyncio
+
 from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
@@ -6,15 +8,18 @@ from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.internal.utils.http import _format_template
 
 
 CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
+REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
 
 
 async def trace_middleware(app, handler):
@@ -101,18 +106,32 @@ async def _handle_request(ctx, request, handler):
     try:
         response = await handler(request)
     except web.HTTPException as exc:
-        core.dispatch("aiohttp.request.response", (request, exc))
+        if REQUEST_STARTED_RESPONSE_KEY not in request:
+            core.dispatch("aiohttp.request.response", (request, exc))
         raise
-    core.dispatch("aiohttp.request.response", (request, response))
+    except Exception as exc:
+        if REQUEST_STARTED_RESPONSE_KEY not in request and core.has_listeners("aiohttp.request.response"):
+            error = web.HTTPGatewayTimeout() if isinstance(exc, asyncio.TimeoutError) else web.HTTPInternalServerError()
+            core.dispatch("aiohttp.request.response", (request, error))
+        raise
+    if REQUEST_STARTED_RESPONSE_KEY not in request:
+        core.dispatch("aiohttp.request.response", (request, response))
     return response
 
 
 def _blocked_response(request, block_config):
+    started_response = request.get(REQUEST_STARTED_RESPONSE_KEY)
+    if started_response is not None:
+        if request.transport is not None:
+            request.transport.close()
+        return started_response
     block_response = core.dispatch_with_results("aiohttp.request.block", (request, block_config)).aiohttp_block_response
-    if not block_response or block_response.value is None:
-        raise BlockingException(block_config)
-    status, headers, body = block_response.value
-    return web.Response(status=status, headers=headers, body=body)
+    if block_response and block_response.value is not None:
+        status, headers, body = block_response.value
+        return web.Response(status=status, headers=headers, body=body)
+    return web.Response(
+        status=403, content_type="application/json", text=_format_template(BLOCKED_RESPONSE_JSON, "default")
+    )
 
 
 def finish_request_span(request, response):
@@ -150,6 +169,7 @@ async def on_prepare(request, response):
     The on_prepare signal is used to close the request span that is created during
     the trace middleware execution.
     """
+    request[REQUEST_STARTED_RESPONSE_KEY] = response
     # NB isinstance is not appropriate here because StreamResponse is a parent of the other
     # aiohttp response types. However in some cases this can also lead to missing the closing of
     # spans, leading to a memory leak, which is why we have this flag.
