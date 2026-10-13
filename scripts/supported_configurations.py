@@ -8,7 +8,7 @@ Reads the JSON registry and produces a Python module with:
 - SENSITIVE_CONFIGURATIONS: frozenset of env var names whose value is excluded
   from configuration telemetry (marked ``"sensitive": true`` in the registry)
 
-Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered.
+Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in the ddtrace packages is registered.
 
 Usage:
     python scripts/supported_configurations.py           # generate + verify registry
@@ -27,7 +27,7 @@ import sys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INPUT_FILE = REPO_ROOT / "supported-configurations.json"
-OUTPUT_FILE = REPO_ROOT / "ddtrace" / "internal" / "base" / "settings" / "_supported_configurations.py"
+OUTPUT_FILE = REPO_ROOT / "ddtrace_base" / "settings" / "_supported_configurations.py"
 CONFIG_REGISTRY_URL = "https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations"
 
 # Do not add new values to this list; ignoring a value prevents it from working with the configuration system.
@@ -372,7 +372,7 @@ def _scan_envier_module(
 
 
 def check_registry(data: dict) -> int:
-    """Verify every DD_*/_DD_*/OTEL_*/DATADOG_* var referenced in ddtrace/ is in the registry."""
+    """Verify every DD_*/_DD_*/OTEL_*/DATADOG_* var referenced in the ddtrace packages is in the registry."""
     configs = data["supportedConfigurations"]
     all_known: set[str] = set(configs.keys()) | {
         alias for entries in configs.values() for entry in entries for alias in entry.get("aliases", [])
@@ -382,12 +382,15 @@ def check_registry(data: dict) -> int:
     envier_vars: set[str] = set()
     private_registry_mismatches: dict[str, str] = {}
 
-    # Single pass over ddtrace/ Python files: (1) regex-scan the source text for any quoted
+    # Single pass over all package Python files: (1) regex-scan the source text for any quoted
     # DD_*/_DD_*/OTEL_*/DATADOG_* literal, then (2) AST-scan for envier-declared vars whose
     # full name is built from DDConfig.v/var calls. The generated registry module is skipped
     # to avoid self-referential matches.
     pattern = re.compile(r'["\']((DD_|_DD_|OTEL_|DATADOG_)[A-Z][A-Z0-9_]*)["\']')
-    for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
+    scan_paths: list[Path] = []
+    for scan_root in ("ddtrace", "ddtrace_base", "ddtrace_testing"):
+        scan_paths.extend((REPO_ROOT / scan_root).rglob("*.py"))
+    for path in sorted(scan_paths):
         if path == OUTPUT_FILE:
             continue
         try:
