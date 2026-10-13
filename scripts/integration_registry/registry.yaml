@@ -21,7 +21,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.14.3
+      max: 3.14.4
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -688,14 +688,14 @@ integrations:
   - mlflow-tracing
   tested_versions_by_dependency:
     mlflow:
-      min: 2.11.4
-      max: 3.16.0
+      min: 2.11.5
+      max: 3.17.0
     mlflow-skinny:
-      min: 3.16.0
-      max: 3.16.0
+      min: 3.17.0
+      max: 3.17.0
     mlflow-tracing:
-      min: 3.16.0
-      max: 3.16.0
+      min: 3.17.0
+      max: 3.17.0
 
 - integration_name: molten
   is_external_package: true
@@ -809,7 +809,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.17.0
+      max: 4.18.3
 
 - integration_name: pymysql
   is_external_package: true
