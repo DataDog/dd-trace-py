@@ -1,3 +1,4 @@
+import io
 import itertools
 import os
 import subprocess
@@ -6,10 +7,12 @@ from unittest import mock
 import uuid
 
 import django
+from django.core.handlers.base import BaseHandler
 from django.core.signals import request_started
 from django.core.wsgi import get_wsgi_application
 from django.db import close_old_connections
 from django.db import connections
+from django.http import HttpResponse
 from django.test import modify_settings
 from django.test import override_settings
 from django.test.client import RequestFactory
@@ -23,11 +26,14 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.utils import get_request_uri
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.ext import http
 from ddtrace.ext import user
+from ddtrace.internal import core
 from ddtrace.internal import wrapping
 from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation._utils import get_wsgi_header
@@ -2648,6 +2654,94 @@ class TestWSGI:
             error=0,
             meta=meta,
         )
+
+    def test_get_wsgi_application_dispatches_web_request_starting(self, resource):
+        application = get_wsgi_application()
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = application(environ, start_response)
+            list(response)
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert test_response["status"] == "404 Not Found"
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+    def test_get_wsgi_application_dispatches_web_request_starting_once_with_wsgi_middleware(self, resource):
+        application = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = application(environ, start_response)
+            list(response)
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert test_response["status"] == "404 Not Found"
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+    @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGIRequest requires Django 3.0+")
+    def test_traced_get_response_dispatches_web_request_starting_for_asgi_request(self):
+        # django.core.handlers.asgi does not exist before Django 3.0.
+        from django.core.handlers.asgi import ASGIRequest
+
+        # Django 3.0 ASGI requests reach the sync get_response with a META dict
+        # built from the scope; the server here includes root_path in path.
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/aws/lambda-microvms/runtime/v1/run",
+            "root_path": "/aws/lambda-microvms/runtime/v1",
+            "query_string": b"",
+            "headers": [],
+        }
+        request = ASGIRequest(scope, io.BytesIO(b""))
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = traced_get_response(lambda _handler, _request: HttpResponse("ok"), (BaseHandler(), request), {})
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert response.status_code == 200
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
 
     def test_get_wsgi_application_500_request(self, test_spans, resource):
         application = get_wsgi_application()

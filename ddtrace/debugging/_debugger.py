@@ -14,6 +14,7 @@ from types import ModuleType
 from types import TracebackType
 from typing import Any
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import cast
 
@@ -56,10 +57,18 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
-from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
+
+
+class TracerProtocol(Protocol):
+    """Structural stand-in for ddtrace.trace.Tracer, so this module does not need to import from the tracing
+    product.
+    """
+
+    def current_trace_context(self, *args: Any, **kwargs: Any) -> Any: ...
+
 
 _probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
 _probe_metrics.enable()
@@ -81,7 +90,7 @@ class DebuggerWrappingContext(WrappingContext):
         f: FunctionType,
         collector: SignalCollector,
         registry: ProbeRegistry,
-        tracer: Tracer,
+        tracer: TracerProtocol,
         probe_meter: Metrics.Meter,
     ) -> None:
         super().__init__(f)
@@ -272,7 +281,7 @@ class Debugger(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    def __init__(self, tracer: Optional[Tracer] = None) -> None:
+    def __init__(self, tracer: Optional[TracerProtocol] = None) -> None:
         super().__init__()
 
         self._tracer = tracer or ddtrace.tracer
