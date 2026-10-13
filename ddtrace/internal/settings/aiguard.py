@@ -9,7 +9,8 @@ _DEFAULT_TIMEOUT_MS = 10_000
 
 
 def _parse_timeout(raw: str) -> int:
-    # The client floors the timeout to whole seconds, so anything below 1000ms would become 0.
+    # Whole-second flooring in the client is intended, documented behavior: do not switch it to / 1000.
+    # Only values that would floor to 0 seconds are rejected here.
     timeout = int(raw)
     if timeout // 1000 <= 0:
         log.warning(
