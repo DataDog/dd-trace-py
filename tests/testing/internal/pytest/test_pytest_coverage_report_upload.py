@@ -48,21 +48,21 @@ def setup_git_mocks():
 
     # Mock the session manager's get_env_tags (this overrides setup_standard_mocks)
     mock_session_manager_env_tags = patch(
-        "ddtrace.testing.internal.session_manager.get_env_tags", return_value=mock_git_tags
+        "ddtrace_testing.internal.session_manager.get_env_tags", return_value=mock_git_tags
     )
 
     # Mock the main env_tags module function
-    mock_env_tags_get_env_tags = patch("ddtrace.testing.internal.env_tags.get_env_tags", return_value=mock_git_tags)
+    mock_env_tags_get_env_tags = patch("ddtrace_testing.internal.env_tags.get_env_tags", return_value=mock_git_tags)
 
     # Mock the git commands to prevent subprocess calls
     mock_git_tags_from_command = patch(
-        "ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value=mock_git_tags
+        "ddtrace_testing.internal.git.get_git_tags_from_git_command", return_value=mock_git_tags
     )
 
-    mock_git_head_tags = patch("ddtrace.testing.internal.git.get_git_head_tags_from_git_command", return_value={})
+    mock_git_head_tags = patch("ddtrace_testing.internal.git.get_git_head_tags_from_git_command", return_value={})
 
     # Mock workspace path
-    mock_workspace_path = patch("ddtrace.testing.internal.git.get_workspace_path", return_value="/tmp/test-workspace")
+    mock_workspace_path = patch("ddtrace_testing.internal.git.get_workspace_path", return_value="/tmp/test-workspace")
 
     return [
         mock_session_manager_env_tags,
@@ -80,7 +80,7 @@ def run_test_with_mocks(pytester, monkeypatch, mock_client, env_var_name, env_va
     with ExitStack() as stack:
         stack.enter_context(
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_client,
             )
         )
@@ -117,7 +117,7 @@ class TestPytestCoverageReportUpload:
             with ExitStack() as stack:
                 stack.enter_context(
                     patch(
-                        "ddtrace.testing.internal.session_manager.APIClient",
+                        "ddtrace_testing.internal.session_manager.APIClient",
                         return_value=mock_client,
                     )
                 )
@@ -176,7 +176,7 @@ class TestPytestCoverageReportUpload:
         with CoverageReportUploadCapture.capture() as upload_capture:
             with (
                 patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
+                    "ddtrace_testing.internal.session_manager.APIClient",
                     return_value=mock_api_client_settings(coverage_report_upload_enabled=False),
                 ),
                 setup_standard_mocks(),
@@ -216,7 +216,7 @@ class TestPytestCoverageReportUpload:
             with ExitStack() as stack:
                 stack.enter_context(
                     patch(
-                        "ddtrace.testing.internal.session_manager.APIClient",
+                        "ddtrace_testing.internal.session_manager.APIClient",
                         return_value=mock_client,
                     )
                 )
@@ -228,7 +228,7 @@ class TestPytestCoverageReportUpload:
                 # This ensures coverage.py starts with the correct source path to the test files
                 stack.enter_context(
                     patch(
-                        "ddtrace.testing.internal.git.get_workspace_path",
+                        "ddtrace_testing.internal.git.get_workspace_path",
                         return_value=str(pytester.path),
                     )
                 )
@@ -275,7 +275,7 @@ class TestPytestCoverageReportUpload:
             )
             with (
                 patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
+                    "ddtrace_testing.internal.session_manager.APIClient",
                     return_value=mock_client,
                 ),
                 setup_standard_mocks(),
@@ -324,7 +324,7 @@ class TestPytestCoverageReportUpload:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_client,
             ),
             setup_standard_mocks(),
@@ -363,7 +363,7 @@ class TestCoverageReportGeneration:
         with EventCapture.capture() as event_capture:
             with (
                 patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
+                    "ddtrace_testing.internal.session_manager.APIClient",
                     return_value=mock_api_client_settings(),
                 ),
                 setup_standard_mocks(),
@@ -401,7 +401,7 @@ class TestCoverageReportGeneration:
             with ExitStack() as stack:
                 stack.enter_context(
                     patch(
-                        "ddtrace.testing.internal.session_manager.APIClient",
+                        "ddtrace_testing.internal.session_manager.APIClient",
                         return_value=mock_client,
                     )
                 )

@@ -42,7 +42,7 @@ log = logging.getLogger(__name__)
 
 # Golden ratio: consecutive Fibonacci numbers converge to this, so
 # `initial_wait * PHI**i` is the closed-form equivalent of scaling by the
-# i-th Fibonacci number. Mirrors ddtrace.internal.utils.retry.fibonacci_backoff_with_jitter
+# i-th Fibonacci number. Mirrors ddtrace_base.utils.retry.fibonacci_backoff_with_jitter
 # (not importable here: this venv skips the ddtrace dev install), minus the jitter,
 # which isn't needed for a local test-service health check.
 PHI = 1.618

@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Union
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import ImagePart
@@ -9,6 +8,7 @@ from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import ToolResult
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

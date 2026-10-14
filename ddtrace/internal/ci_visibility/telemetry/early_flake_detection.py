@@ -1,8 +1,8 @@
 from enum import Enum
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)

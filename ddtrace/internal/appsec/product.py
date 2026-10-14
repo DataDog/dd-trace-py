@@ -48,7 +48,7 @@ def _disable_asm() -> None:
     if config._asm_enabled:
         from ddtrace.appsec._listeners import disable_appsec
         from ddtrace.internal.telemetry import telemetry_writer
-        from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+        from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
 
         disable_appsec(reconfigure_tracer=True)
         if not config._asm_enabled:
@@ -60,7 +60,7 @@ def _enable_asm() -> None:
         from ddtrace.appsec._constants import APPSEC
         from ddtrace.appsec._listeners import load_appsec
         from ddtrace.internal.telemetry import telemetry_writer
-        from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+        from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
 
         if load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC):
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)

@@ -14,11 +14,11 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
 
 
 AIOPG_VERSION = parse_version(__version__)

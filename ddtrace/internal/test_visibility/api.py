@@ -4,10 +4,8 @@ import typing as t
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
-from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.test_visibility._atr_mixins import ATRSessionMixin
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixSessionMixin
@@ -19,6 +17,8 @@ from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
+from ddtrace_base.codeowners import Codeowners as _Codeowners
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

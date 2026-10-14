@@ -8,7 +8,7 @@ from typing import Callable  # noqa:F401
 import pytest
 
 from ddtrace.contrib.internal.flask.patch import flask_version
-from ddtrace.internal.utils.retry import RetryError
+from ddtrace_base.utils.retry import RetryError
 from tests.webclient import Client
 
 

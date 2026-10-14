@@ -9,15 +9,15 @@ from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.internal.base.compat import is_wrapted
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
+from ddtrace_base._exceptions import DDBlockException
+from ddtrace_base.compat import is_wrapted
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)

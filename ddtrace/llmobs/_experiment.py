@@ -49,8 +49,6 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.ext import git
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.utils.formats import format_trace_id
@@ -67,6 +65,8 @@ from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
+from ddtrace_base.ext import git
+from ddtrace_base.logger import get_logger
 
 
 if TYPE_CHECKING:

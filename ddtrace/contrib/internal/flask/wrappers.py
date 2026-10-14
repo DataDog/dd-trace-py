@@ -5,10 +5,10 @@ from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

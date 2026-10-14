@@ -12,11 +12,11 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.internal.claude_agent_sdk.utils import extract_partial_message_usage
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import make_traced_stream
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

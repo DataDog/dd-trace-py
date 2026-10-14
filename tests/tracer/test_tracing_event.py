@@ -7,9 +7,9 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import event_field
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.core.events import event_field
 
 
 ExcInfoType = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]

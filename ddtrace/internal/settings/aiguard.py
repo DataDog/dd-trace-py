@@ -1,5 +1,5 @@
 from ddtrace.aiguard._constants import AI_GUARD
-from ddtrace.internal.settings._core import DDConfig
+from ddtrace_base.settings._core import DDConfig
 
 
 class AIGuardConfig(DDConfig):

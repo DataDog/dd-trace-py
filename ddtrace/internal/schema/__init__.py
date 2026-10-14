@@ -2,10 +2,10 @@ import logging
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.schema.span_attribute_schema import _SPAN_ATTRIBUTE_TO_FUNCTION
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
 
 from .default import _get_schema_version
-from .span_attribute_schema import _SPAN_ATTRIBUTE_TO_FUNCTION
-from .span_attribute_schema import SpanDirection
 
 
 log = logging.getLogger(__name__)

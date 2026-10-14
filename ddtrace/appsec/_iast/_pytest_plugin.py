@@ -4,8 +4,8 @@ import json
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.reporter import Vulnerability
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

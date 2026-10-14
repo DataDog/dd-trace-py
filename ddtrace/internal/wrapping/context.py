@@ -16,11 +16,6 @@ import weakref
 import bytecode
 from bytecode import Bytecode
 
-from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.compat import is_at_most_py
-from ddtrace.internal.base.compat import is_supported_python_version
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
@@ -33,6 +28,11 @@ from ddtrace.internal.wrapping import link_function_to_code
 from ddtrace.internal.wrapping import set_function_code
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace_base.assembly import Assembly
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.compat import is_at_most_py
+from ddtrace_base.compat import is_supported_python_version
+from ddtrace_base.logger import get_logger
 
 
 class _ContextRecord:

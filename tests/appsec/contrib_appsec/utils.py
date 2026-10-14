@@ -16,9 +16,9 @@ from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.base import constants
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
+from ddtrace_base import constants
 import tests.appsec.rules as rules
 from tests.utils import override_config
 from tests.utils import override_env
@@ -343,7 +343,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
         Also ensure the resource name is set correctly.
         """
-        from ddtrace.internal.endpoints import endpoint_collection
+        from ddtrace_base.endpoints import endpoint_collection
 
         expected = self.ENDPOINT_DISCOVERY_EXPECTED_PATHS
         assert expected, "ENDPOINT_DISCOVERY_EXPECTED_PATHS must be set on the test class"

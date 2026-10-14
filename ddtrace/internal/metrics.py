@@ -4,7 +4,7 @@ from typing import Protocol
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 class MetricsClient(Protocol):

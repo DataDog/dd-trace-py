@@ -8,8 +8,8 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings._config import _get_config
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.utils import get_argument_value
 
 from .utils import create_context
 from .utils import dispatch_message_modifier

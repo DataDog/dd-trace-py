@@ -12,7 +12,6 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 from ddtrace.internal.settings.openfeature import AGENTLESS
@@ -20,6 +19,7 @@ from ddtrace.internal.settings.openfeature import DISABLED as DISABLED
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG as REMOTE_CONFIG
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import resolve_configuration_source as resolve_configuration_source
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

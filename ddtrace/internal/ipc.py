@@ -7,9 +7,9 @@ import tempfile
 import types
 import typing
 
-from ddtrace.internal import forksafe
-from ddtrace.internal._unpatched import unpatched_open
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base import forksafe
+from ddtrace_base._unpatched import unpatched_open
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

@@ -26,11 +26,11 @@ from ddtrace.contrib.internal.grpc.utils import set_grpc_method_meta
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]

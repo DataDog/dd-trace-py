@@ -17,8 +17,8 @@ import pickle  # nosec: B403  -- pickle is only used to serialize coverage data 
 from queue import Queue
 import threading
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

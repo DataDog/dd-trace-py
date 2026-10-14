@@ -8,13 +8,13 @@ from typing import cast
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import cached
 
 from . import utils
 

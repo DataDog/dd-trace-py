@@ -107,7 +107,7 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
 
 def test_uwsgi_postfork_start_reports_profiler_activated(monkeypatch: pytest.MonkeyPatch) -> None:
     """The uWSGI master skips the telemetry report, so the worker must send it."""
-    from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+    from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
 
     def _raise_master(*args, **kwargs):
         raise profiler.uwsgi.uWSGIMasterProcess()

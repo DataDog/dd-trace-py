@@ -2,7 +2,7 @@ from typing import Any
 
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings.dynamic_instrumentation import config
-from ddtrace.internal.utils.inspection import ModuleCodeCollector
+from ddtrace_base.utils.inspection import ModuleCodeCollector
 
 
 # We need to register with the shared code collector unconditionally so that

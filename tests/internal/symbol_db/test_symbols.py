@@ -193,7 +193,7 @@ def test_symbols_finds_decorator_discarded_function():
     # by its decorator, so a namespace walk alone would miss it. Scope.from_module
     # recovers it from ModuleCodeCollector's code objects instead.
     from ddtrace.internal.symbol_db.symbols import Scope
-    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    from ddtrace_base.utils.inspection import ModuleCodeCollector
 
     ModuleCodeCollector.register("symdb")
 
@@ -482,13 +482,13 @@ def test_symbols_fork_uploads():
     import os
     import typing as t
 
-    from ddtrace.internal import forksafe
     from ddtrace.internal.remoteconfig import ConfigMetadata
     from ddtrace.internal.remoteconfig import Payload
     from ddtrace.internal.runtime import get_ancestor_runtime_id
     from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+    from ddtrace_base import forksafe
 
     SymbolDatabaseUploader.install()
 

@@ -13,9 +13,26 @@ from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.standalone import standalone_config
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
+from ddtrace_base.compat import ensure_text
+from ddtrace_base.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace_base.constants import _PROPAGATION_STYLE_BAGGAGE
+from ddtrace_base.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace_base.constants import BAGGAGE_TAG_PREFIX
+from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace_base.constants import LAST_DD_PARENT_ID_KEY
+from ddtrace_base.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace_base.constants import PROPAGATION_STYLE_B3_MULTI
+from ddtrace_base.constants import PROPAGATION_STYLE_B3_SINGLE
+from ddtrace_base.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace_base.constants import TRACE_SOURCE_PROPAGATION_KEY
+from ddtrace_base.constants import W3C_TRACEPARENT_KEY
+from ddtrace_base.constants import W3C_TRACESTATE_KEY
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -26,23 +43,6 @@ from ..internal._tagset import TagsetMaxSizeDecodeError
 from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
-from ..internal.base.compat import ensure_text
-from ..internal.base.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ..internal.base.constants import _PROPAGATION_STYLE_BAGGAGE
-from ..internal.base.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ..internal.base.constants import BAGGAGE_TAG_PREFIX
-from ..internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
-from ..internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
-from ..internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
-from ..internal.base.constants import LAST_DD_PARENT_ID_KEY
-from ..internal.base.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from ..internal.base.constants import PROPAGATION_STYLE_B3_MULTI
-from ..internal.base.constants import PROPAGATION_STYLE_B3_SINGLE
-from ..internal.base.constants import PROPAGATION_STYLE_DATADOG
-from ..internal.base.constants import TRACE_SOURCE_PROPAGATION_KEY
-from ..internal.base.constants import W3C_TRACEPARENT_KEY
-from ..internal.base.constants import W3C_TRACESTATE_KEY
-from ..internal.base.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
 from ..internal.utils.http import w3c_tracestate_members_after_limits

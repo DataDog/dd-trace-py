@@ -7,8 +7,8 @@ on first access. It will be removed in 5.0.0.
 
 import typing
 
-from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.base.utils.deprecations import deprecate
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 # Keep in sync with the public surface of ddtrace.aiguard.integrations.strands.

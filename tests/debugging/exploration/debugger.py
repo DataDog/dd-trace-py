@@ -24,7 +24,7 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
-from ddtrace.internal.utils.inspection import ModuleCodeCollector
+from ddtrace_base.utils.inspection import ModuleCodeCollector
 
 
 if not config.capture:

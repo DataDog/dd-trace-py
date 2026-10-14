@@ -8,10 +8,10 @@ if TYPE_CHECKING:
 
 
 def _aiguard_manual_keep(span: "SpanTraceSourceProtocol") -> None:
-    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.base.constants import TraceSource
     from ddtrace.internal.sampling import SamplingMechanism
     from ddtrace.internal.sampling import add_trace_source
+    from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace_base.constants import TraceSource
 
     span._override_sampling_decision(USER_KEEP)
     # set decision maker to AI_GUARD = -13

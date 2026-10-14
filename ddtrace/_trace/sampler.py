@@ -12,14 +12,14 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
+from ddtrace_base.constants import MAX_UINT_64BITS
+from ddtrace_base.constants import PROBABILISTIC_SAMPLING_MECHANISMS
+from ddtrace_base.constants import SAMPLING_HASH_MODULO
+from ddtrace_base.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace_base.constants import SamplingMechanism
+from ddtrace_base.logger import get_logger
 
 from ..constants import ENV_KEY
-from ..internal.base.constants import MAX_UINT_64BITS
-from ..internal.base.constants import PROBABILISTIC_SAMPLING_MECHANISMS
-from ..internal.base.constants import SAMPLING_HASH_MODULO
-from ..internal.base.constants import SAMPLING_KNUTH_FACTOR
-from ..internal.base.constants import SamplingMechanism
-from ..internal.base.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
 from ..internal.sampling import _get_highest_precedence_rule_matching
 from ..internal.sampling import _set_sampling_tags

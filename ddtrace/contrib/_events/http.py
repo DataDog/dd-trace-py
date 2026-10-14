@@ -6,8 +6,8 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
-from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import event_field
+from ddtrace_base.core.events import Event
+from ddtrace_base.core.events import event_field
 
 
 JsonType = Union[None, bool, int, float, str, Sequence["JsonType"], Mapping[str, "JsonType"]]

@@ -1,6 +1,6 @@
 # DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
 # Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
-# the new plugin at ddtrace/testing/internal/pytest/.
+# the new plugin at ddtrace_testing/internal/pytest/.
 import _pytest
 import pytest
 
@@ -18,8 +18,8 @@ from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTest
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

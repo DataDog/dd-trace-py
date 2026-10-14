@@ -8,8 +8,8 @@ from unittest import mock
 import pytest
 
 from ddtrace.ext import ci
-from ddtrace.ext import git
 from ddtrace.ext.ci import _filter_sensitive_info
+from ddtrace_base.ext import git
 from tests import utils
 
 
@@ -69,7 +69,7 @@ def test_git_extract_user_info(git_repo):
 
 def test_git_extract_user_info_with_commas():
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd",
+        "ddtrace_base.ext.git._git_subprocess_cmd",
         return_value="Do, Jo|||jo@do.com|||2021-01-19T09:24:53-0400|||Do, Ja|||ja@do.com|||2021-01-20T04:37:21-0400",
     ):
         extracted_users = git.extract_user_info()
@@ -387,10 +387,10 @@ def test_os_runtime_metadata_tagging():
 def test_get_rev_list_no_args_git_ge_223(git_repo):
     with (
         mock.patch(
-            "ddtrace.ext.git._git_subprocess_cmd_with_details",
+            "ddtrace_base.ext.git._git_subprocess_cmd_with_details",
             return_value=git._GitSubprocessDetails("commithash1\ncommithash2\n", "", 10, 0),
         ) as mock_git_subprocess_cmd_with_details,
-        mock.patch("ddtrace.ext.git.extract_git_version", return_value=(2, 23, 0)),
+        mock.patch("ddtrace_base.ext.git.extract_git_version", return_value=(2, 23, 0)),
     ):
         assert git._get_rev_list(cwd=git_repo) == "commithash1\ncommithash2\n"
         mock_git_subprocess_cmd_with_details.assert_called_once_with(
@@ -407,10 +407,10 @@ def test_get_rev_list_no_args_git_ge_223(git_repo):
 def test_get_rev_list_git_lt_223(git_repo):
     with (
         mock.patch(
-            "ddtrace.ext.git._git_subprocess_cmd_with_details",
+            "ddtrace_base.ext.git._git_subprocess_cmd_with_details",
             return_value=git._GitSubprocessDetails("commithash1\ncommithash2\n", "", 10, 0),
         ) as mock_git_subprocess_cmd_with_details,
-        mock.patch("ddtrace.ext.git.extract_git_version", return_value=(2, 22, 0)),
+        mock.patch("ddtrace_base.ext.git.extract_git_version", return_value=(2, 22, 0)),
     ):
         assert (
             git._get_rev_list(
@@ -434,22 +434,23 @@ def test_get_rev_list_git_lt_223(git_repo):
 
 
 def test_valid_git_version(git_repo):
-    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13 (Apple 256)"):
+    with mock.patch("ddtrace_base.ext.git._git_subprocess_cmd", return_value="git version 2.6.13 (Apple 256)"):
         assert git.extract_git_version(cwd=git_repo) == (2, 6, 13)
-    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13"):
+    with mock.patch("ddtrace_base.ext.git._git_subprocess_cmd", return_value="git version 2.6.13"):
         assert git.extract_git_version(cwd=git_repo) == (2, 6, 13)
 
 
 def test_invalid_git_version(git_repo):
-    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13a (invalid)"):
+    with mock.patch("ddtrace_base.ext.git._git_subprocess_cmd", return_value="git version 2.6.13a (invalid)"):
         assert git.extract_git_version(cwd=git_repo) == (0, 0, 0)
-    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version (invalid)"):
+    with mock.patch("ddtrace_base.ext.git._git_subprocess_cmd", return_value="git version (invalid)"):
         assert git.extract_git_version(cwd=git_repo) == (0, 0, 0)
 
 
 def test_is_shallow_repository_true(git_repo):
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("true", "", 10, 0)
+        "ddtrace_base.ext.git._git_subprocess_cmd_with_details",
+        return_value=git._GitSubprocessDetails("true", "", 10, 0),
     ) as mock_git_subprocess_cmd_with_details:
         is_shallow, duration, returncode = git._is_shallow_repository_with_details(cwd=git_repo)
         assert is_shallow is True
@@ -462,7 +463,8 @@ def test_is_shallow_repository_true(git_repo):
 
 def test_is_shallow_repository_false(git_repo):
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("false", "", 10, 0)
+        "ddtrace_base.ext.git._git_subprocess_cmd_with_details",
+        return_value=git._GitSubprocessDetails("false", "", 10, 0),
     ) as mock_git_subprocess_cmd_with_details:
         is_shallow, duration, returncode = git._is_shallow_repository_with_details(cwd=git_repo)
         assert is_shallow is False
@@ -475,7 +477,7 @@ def test_is_shallow_repository_false(git_repo):
 
 def test_unshallow_repository_bare(git_repo):
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("", "", 10, 0)
+        "ddtrace_base.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("", "", 10, 0)
     ) as mock_git_subprocess_cmd_with_details:
         git._unshallow_repository(cwd=git_repo)
         mock_git_subprocess_cmd_with_details.assert_called_once_with(
@@ -491,7 +493,7 @@ def test_unshallow_repository_bare(git_repo):
 
 def test_unshallow_repository_bare_repo(git_repo):
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("", "", 10, 0)
+        "ddtrace_base.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("", "", 10, 0)
     ) as mock_git_subprocess_cmd_with_details:
         git._unshallow_repository(cwd=git_repo, repo="myremote")
         mock_git_subprocess_cmd_with_details.assert_called_once_with(
@@ -508,7 +510,7 @@ def test_unshallow_repository_bare_repo(git_repo):
 
 def test_unshallow_repository_bare_repo_refspec(git_repo):
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("", "", 10, 0)
+        "ddtrace_base.ext.git._git_subprocess_cmd_with_details", return_value=git._GitSubprocessDetails("", "", 10, 0)
     ) as mock_git_subprocess_cmd_with_details:
         git._unshallow_repository(cwd=git_repo, repo="myremote", refspec="mycommitshaaaaaaaaaaaa123")
         mock_git_subprocess_cmd_with_details.assert_called_once_with(
@@ -526,7 +528,7 @@ def test_unshallow_repository_bare_repo_refspec(git_repo):
 
 def test_extract_clone_defaultremotename():
     with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd_with_details",
+        "ddtrace_base.ext.git._git_subprocess_cmd_with_details",
         return_value=git._GitSubprocessDetails("default_remote_name", "", 10, 0),
     ) as mock_git_subprocess_cmd_with_details:
         remote_name, _, duration, returncode = git._extract_clone_defaultremotename_with_details(cwd=git_repo)
@@ -560,7 +562,7 @@ def test_build_git_packfiles(git_repo):
     assert not os.path.isdir(directory)
 
 
-@mock.patch("ddtrace.ext.git._get_device_for_path", side_effect=[1, 2])
+@mock.patch("ddtrace_base.ext.git._get_device_for_path", side_effect=[1, 2])
 def test_build_git_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
     found_rand = found_idx = found_pack = False
     with git.build_git_packfiles("b3672ea5cbc584124728c48a443825d2940e0ddd\n", cwd=git_repo) as packfiles_path:
@@ -654,11 +656,13 @@ def test_extract_git_head_metadata():
 
     with (
         mock.patch(
-            "ddtrace.ext.git._is_shallow_repository_with_details", return_value=(True, 0.1, 0)
+            "ddtrace_base.ext.git._is_shallow_repository_with_details", return_value=(True, 0.1, 0)
         ) as mock_is_shallow,
-        mock.patch("ddtrace.ext.git._unshallow_repository") as mock_unshallow_repository,
-        mock.patch("ddtrace.ext.git.extract_user_info", return_value=fake_user_info),
-        mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="commit message") as mock_git_subprocess_cmd,
+        mock.patch("ddtrace_base.ext.git._unshallow_repository") as mock_unshallow_repository,
+        mock.patch("ddtrace_base.ext.git.extract_user_info", return_value=fake_user_info),
+        mock.patch(
+            "ddtrace_base.ext.git._git_subprocess_cmd", return_value="commit message"
+        ) as mock_git_subprocess_cmd,
     ):
         tags = git.extract_git_head_metadata("sha123", cwd="/repo")
 

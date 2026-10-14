@@ -3,9 +3,9 @@ import os
 import struct
 from time import sleep
 
-from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_EVENT_TYPE
+from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.utils import override_global_config
 
 
@@ -564,7 +564,7 @@ def test_baggage_max_items_telemetry(test_agent_session, ddtrace_run_python_code
     code = """
 from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
 # Test max items exceeded
 baggage_items = {}
@@ -604,7 +604,7 @@ def test_baggage_max_bytes_telemetry(test_agent_session, ddtrace_run_python_code
     code = """
 from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 
 # Test max bytes exceeded
 large_value = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES // 2)  # Large value to exceed bytes limit

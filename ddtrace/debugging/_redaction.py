@@ -2,10 +2,10 @@ import typing as t
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.settings.dynamic_instrumentation import config
 from ddtrace.internal.settings.dynamic_instrumentation import normalize_ident
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import cached
 
 
 log = get_logger(__name__)

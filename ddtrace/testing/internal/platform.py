@@ -1,29 +1,12 @@
-import platform
+"""Legacy re-export shim for a moved module.
 
+``ddtrace.testing.internal.platform`` moved to:
 
-class PlatformTag:
-    # Architecture
-    OS_ARCHITECTURE = "os.architecture"
+``ddtrace_testing.internal.platform``
 
-    # Platform
-    OS_PLATFORM = "os.platform"
+Keep the historical import path working for external consumers; import from
+the new module instead.
+"""
 
-    # Version
-    OS_VERSION = "os.version"
-
-    # Runtime Name
-    RUNTIME_NAME = "runtime.name"
-
-    # Runtime Version
-    RUNTIME_VERSION = "runtime.version"
-
-
-def get_platform_tags() -> dict[str, str]:
-    """Extract configuration facet tags for OS and Python runtime."""
-    return {
-        PlatformTag.OS_ARCHITECTURE: platform.machine(),
-        PlatformTag.OS_PLATFORM: platform.system(),
-        PlatformTag.OS_VERSION: platform.release(),
-        PlatformTag.RUNTIME_NAME: platform.python_implementation(),
-        PlatformTag.RUNTIME_VERSION: platform.python_version(),
-    }
+from ddtrace_testing.internal.platform import PlatformTag as PlatformTag  # noqa: F401
+from ddtrace_testing.internal.platform import get_platform_tags as get_platform_tags  # noqa: F401

@@ -2,8 +2,8 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
 
 
 def generate(func, renderer, args, kwargs):

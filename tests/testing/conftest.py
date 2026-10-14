@@ -7,9 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
-from ddtrace.testing.internal.offline_mode import reset_offline_mode
-from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace_testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace_testing.internal.offline_mode import reset_offline_mode
+from ddtrace_testing.internal.telemetry import TelemetryAPI
 from tests.testing._itr_env import clear_itr_rollout_env  # noqa: F401
 
 

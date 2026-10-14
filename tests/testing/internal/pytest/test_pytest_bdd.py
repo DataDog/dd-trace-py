@@ -7,8 +7,8 @@ from unittest.mock import Mock
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
-from ddtrace.testing.internal.pytest.bdd import _get_step_func_args_json
+from ddtrace_testing.internal.pytest.bdd import BddTestOptPlugin
+from ddtrace_testing.internal.pytest.bdd import _get_step_func_args_json
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
 
@@ -37,7 +37,7 @@ import pytest
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import test
-from ddtrace.testing.internal.pytest.bdd import STEP_KIND
+from ddtrace_testing.internal.pytest.bdd import STEP_KIND
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
@@ -56,7 +56,7 @@ def start_span(*args, **kwargs):
 _span_patch = patch.object(ddtrace.tracer, "start_span", side_effect=start_span)
 _span_patch.start()
 _api_client_patch = patch(
-    "ddtrace.testing.internal.session_manager.APIClient",
+    "ddtrace_testing.internal.session_manager.APIClient",
     return_value=mock_api_client_settings(),
 )
 _api_client_patch.start()
@@ -64,7 +64,7 @@ _standard_mocks = setup_standard_mocks()
 _standard_mocks.__enter__()
 _event_capture_context = EventCapture.capture()
 _event_capture = _event_capture_context.__enter__()
-_coverage_report_patch = patch("ddtrace.testing.internal.pytest.plugin.handle_coverage_report")
+_coverage_report_patch = patch("ddtrace_testing.internal.pytest.plugin.handle_coverage_report")
 _coverage_report = _coverage_report_patch.start()
 
 
@@ -323,13 +323,13 @@ class TestPytestBdd:
         assert capture["step_spans"] == []
 
     def test_get_step_func_args_json_empty(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("ddtrace.testing.internal.pytest.bdd._extract_step_func_args", lambda *args: None)
+        monkeypatch.setattr("ddtrace_testing.internal.pytest.bdd._extract_step_func_args", lambda *args: None)
 
         assert _get_step_func_args_json(None, lambda: None, None) is None
 
     def test_get_step_func_args_json_valid(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "ddtrace.testing.internal.pytest.bdd._extract_step_func_args",
+            "ddtrace_testing.internal.pytest.bdd._extract_step_func_args",
             lambda *args: {"func_arg": "test string"},
         )
 
@@ -337,7 +337,7 @@ class TestPytestBdd:
 
     def test_get_step_func_args_json_invalid(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "ddtrace.testing.internal.pytest.bdd._extract_step_func_args", lambda *args: {"func_arg": set()}
+            "ddtrace_testing.internal.pytest.bdd._extract_step_func_args", lambda *args: {"func_arg": set()}
         )
 
         expected = '{"error_serializing_args": "Object of type set is not JSON serializable"}'

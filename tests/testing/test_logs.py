@@ -1,4 +1,4 @@
-"""Tests for ddtrace.testing.logs (public DDTestLogsHandler API)."""
+"""Tests for ddtrace_testing.logs (public DDTestLogsHandler API)."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.errors import SetupError
-from ddtrace.testing.logs import CorrelationFilter
-from ddtrace.testing.logs import DDTestLogsHandler
-from ddtrace.testing.logs import ThreadLocalCorrelationFilter
+from ddtrace_testing.internal.errors import SetupError
+from ddtrace_testing.logs import CorrelationFilter
+from ddtrace_testing.logs import DDTestLogsHandler
+from ddtrace_testing.logs import ThreadLocalCorrelationFilter
 
 
 def _make_handler(service: str = "test-service", shutdown_timeout: float = 5.0) -> tuple[DDTestLogsHandler, Mock]:
@@ -22,8 +22,8 @@ def _make_handler(service: str = "test-service", shutdown_timeout: float = 5.0) 
     mock_writer.hostname = "test-host"
     mock_writer.service = service
 
-    with patch("ddtrace.testing.logs.BackendConnectorSetup.detect_standard_setup"):
-        with patch("ddtrace.testing.logs.LogsWriter", return_value=mock_writer):
+    with patch("ddtrace_testing.logs.BackendConnectorSetup.detect_standard_setup"):
+        with patch("ddtrace_testing.logs.LogsWriter", return_value=mock_writer):
             handler = DDTestLogsHandler(service=service, shutdown_timeout=shutdown_timeout)
 
     return handler, mock_writer
@@ -36,9 +36,9 @@ class TestDDTestLogsHandlerInit:
         mock_writer.hostname = "h"
         mock_writer.service = "s"
 
-        with patch("ddtrace.testing.logs.BackendConnectorSetup.detect_standard_setup") as mock_standard:
-            with patch("ddtrace.testing.logs.BackendConnectorSetup.detect_setup") as mock_internal:
-                with patch("ddtrace.testing.logs.LogsWriter", return_value=mock_writer):
+        with patch("ddtrace_testing.logs.BackendConnectorSetup.detect_standard_setup") as mock_standard:
+            with patch("ddtrace_testing.logs.BackendConnectorSetup.detect_setup") as mock_internal:
+                with patch("ddtrace_testing.logs.LogsWriter", return_value=mock_writer):
                     DDTestLogsHandler(service="svc")
 
         mock_standard.assert_called_once()
@@ -50,7 +50,7 @@ class TestDDTestLogsHandlerInit:
 
     def test_setup_error_propagates(self) -> None:
         with patch(
-            "ddtrace.testing.logs.BackendConnectorSetup.detect_standard_setup",
+            "ddtrace_testing.logs.BackendConnectorSetup.detect_standard_setup",
             side_effect=SetupError("DD_API_KEY environment variable is not set"),
         ):
             with pytest.raises(SetupError, match="DD_API_KEY"):
@@ -173,8 +173,8 @@ class TestDDTestLogsHandlerContextManager:
         mock_writer.hostname = "h"
         mock_writer.service = "s"
 
-        with patch("ddtrace.testing.logs.BackendConnectorSetup.detect_standard_setup"):
-            with patch("ddtrace.testing.logs.LogsWriter", return_value=mock_writer):
+        with patch("ddtrace_testing.logs.BackendConnectorSetup.detect_standard_setup"):
+            with patch("ddtrace_testing.logs.LogsWriter", return_value=mock_writer):
                 with DDTestLogsHandler(service="svc"):
                     pass
 
@@ -388,8 +388,8 @@ class TestCorrelationFilterWithHandler:
         mock_writer.hostname = "h"
         mock_writer.service = "svc"
 
-        with patch("ddtrace.testing.logs.BackendConnectorSetup.detect_standard_setup"):
-            with patch("ddtrace.testing.logs.LogsWriter", return_value=mock_writer):
+        with patch("ddtrace_testing.logs.BackendConnectorSetup.detect_standard_setup"):
+            with patch("ddtrace_testing.logs.LogsWriter", return_value=mock_writer):
                 handler = DDTestLogsHandler(service="svc")
 
         correlation = ThreadLocalCorrelationFilter()

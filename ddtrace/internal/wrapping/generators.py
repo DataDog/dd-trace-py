@@ -3,9 +3,9 @@ from typing import Optional
 
 import bytecode as bc
 
-from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace_base.assembly import Assembly
+from ddtrace_base.compat import PYTHON_VERSION_INFO
+from ddtrace_base.compat import is_at_least_py
 
 
 # -----------------------------------------------------------------------------

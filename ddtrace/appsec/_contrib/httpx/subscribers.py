@@ -15,8 +15,8 @@ from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace_base._exceptions import BlockingException
 
 
 APPSEC_SSRF_ANALYZE_BODY_KEY = "appsec.ssrf_analyze_body"

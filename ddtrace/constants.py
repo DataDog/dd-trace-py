@@ -47,11 +47,9 @@ ERROR_STACK = "error.stack"  # a human readable version of the stack.
 
 PID = "process_id"
 
-# Use this to explicitly inform the backend that a trace should be rejected and not stored.
-USER_REJECT = -1
-# Used by the builtin sampler to inform the backend that a trace should be rejected and not stored.
-AUTO_REJECT = 0
-# Used by the builtin sampler to inform the backend that a trace should be kept and stored.
-AUTO_KEEP = 1
-# Use this to explicitly inform the backend that a trace should be kept and stored.
-USER_KEEP = 2
+# Sampling priorities. Values are defined in the base layer (shared by split-out packages) and
+# re-exported here as the public API.
+from ddtrace_base.constants import AUTO_KEEP as AUTO_KEEP  # noqa: E402,F401
+from ddtrace_base.constants import AUTO_REJECT as AUTO_REJECT  # noqa: E402,F401
+from ddtrace_base.constants import USER_KEEP as USER_KEEP  # noqa: E402,F401
+from ddtrace_base.constants import USER_REJECT as USER_REJECT  # noqa: E402,F401

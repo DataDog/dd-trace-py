@@ -5,13 +5,13 @@ import langgraph
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.trace import tracer
+from ddtrace_base._exceptions import DDBlockException
+from ddtrace_base.utils import get_argument_value
 
 
 def get_version():

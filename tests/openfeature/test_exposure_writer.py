@@ -18,7 +18,7 @@ from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_global_config
 
 

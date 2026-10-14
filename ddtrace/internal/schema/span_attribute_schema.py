@@ -1,110 +1,30 @@
-from enum import Enum
+"""
+Legacy import path for ``ddtrace.internal.schema.span_attribute_schema``, which moved to
+``ddtrace_base.schema.span_attribute_schema``.
 
+This module is a thin re-export shim so external consumers of the historical
+``ddtrace.internal.schema.span_attribute_schema`` import path keep working..
+Import from ````ddtrace_base.schema.span_attribute_schema```` instead.
+"""
 
-class SpanDirection(Enum):
-    INBOUND = "inbound"
-    OUTBOUND = "outbound"
-    PROCESSING = "processing"
-
-
-def service_name_v0(v0_service_name):
-    return v0_service_name
-
-
-def service_name_v1(*_, **__):
-    from ddtrace.internal.settings._config import config as dd_config
-
-    return dd_config.service
-
-
-def database_operation_v0(v0_operation, database_provider=None):
-    return v0_operation
-
-
-def database_operation_v1(v0_operation, database_provider=None):
-    operation = "query"
-    return f"{database_provider}.{operation}"
-
-
-def cache_operation_v0(v0_operation, cache_provider=None):
-    return v0_operation
-
-
-def cache_operation_v1(v0_operation, cache_provider=None):
-    operation = "command"
-    return f"{cache_provider}.{operation}"
-
-
-def cloud_api_operation_v0(v0_operation, cloud_provider=None, cloud_service=None):
-    return v0_operation
-
-
-def cloud_api_operation_v1(v0_operation, cloud_provider=None, cloud_service=None):
-    return f"{cloud_provider}.{cloud_service}.request"
-
-
-def cloud_faas_operation_v0(v0_operation, cloud_provider=None, cloud_service=None):
-    return v0_operation
-
-
-def cloud_faas_operation_v1(v0_operation, cloud_provider=None, cloud_service=None):
-    return f"{cloud_provider}.{cloud_service}.invoke"
-
-
-def cloud_messaging_operation_v0(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
-    return v0_operation
-
-
-def cloud_messaging_operation_v1(v0_operation, cloud_provider=None, cloud_service=None, direction=None):
-    if direction == SpanDirection.INBOUND:
-        return f"{cloud_provider}.{cloud_service}.receive"
-    elif direction == SpanDirection.OUTBOUND:
-        return f"{cloud_provider}.{cloud_service}.send"
-    elif direction == SpanDirection.PROCESSING:
-        return f"{cloud_provider}.{cloud_service}.process"
-
-
-def messaging_operation_v0(v0_operation, provider=None, service=None, direction=None):
-    return v0_operation
-
-
-def messaging_operation_v1(v0_operation, provider=None, direction=None):
-    if direction == SpanDirection.INBOUND:
-        return f"{provider}.receive"
-    elif direction == SpanDirection.OUTBOUND:
-        return f"{provider}.send"
-    elif direction == SpanDirection.PROCESSING:
-        return f"{provider}.process"
-
-
-def url_operation_v0(v0_operation, protocol=None, direction=None):
-    return v0_operation
-
-
-def url_operation_v1(v0_operation, protocol=None, direction=None):
-    server_or_client = {SpanDirection.INBOUND: "server", SpanDirection.OUTBOUND: "client"}[direction]
-    return f"{protocol}.{server_or_client}.request"
-
-
-_SPAN_ATTRIBUTE_TO_FUNCTION = {
-    "v0": {
-        "cache_operation": cache_operation_v0,
-        "cloud_api_operation": cloud_api_operation_v0,
-        "cloud_faas_operation": cloud_faas_operation_v0,
-        "cloud_messaging_operation": cloud_messaging_operation_v0,
-        "database_operation": database_operation_v0,
-        "messaging_operation": messaging_operation_v0,
-        "service_name": service_name_v0,
-        "url_operation": url_operation_v0,
-    },
-    "v1": {
-        "cache_operation": cache_operation_v1,
-        "cloud_api_operation": cloud_api_operation_v1,
-        "cloud_faas_operation": cloud_faas_operation_v1,
-        "cloud_messaging_operation": cloud_messaging_operation_v1,
-        "database_operation": database_operation_v1,
-        "messaging_operation": messaging_operation_v1,
-        "service_name": service_name_v1,
-        "url_operation": url_operation_v1,
-    },
-}
+from ddtrace_base.schema.span_attribute_schema import SpanDirection as SpanDirection  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import cache_operation_v0 as cache_operation_v0  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import cache_operation_v1 as cache_operation_v1  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import cloud_api_operation_v0 as cloud_api_operation_v0  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import cloud_api_operation_v1 as cloud_api_operation_v1  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import cloud_faas_operation_v0 as cloud_faas_operation_v0  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import cloud_faas_operation_v1 as cloud_faas_operation_v1  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import (
+    cloud_messaging_operation_v0 as cloud_messaging_operation_v0,  # noqa: F401
+)
+from ddtrace_base.schema.span_attribute_schema import (
+    cloud_messaging_operation_v1 as cloud_messaging_operation_v1,  # noqa: F401
+)
+from ddtrace_base.schema.span_attribute_schema import database_operation_v0 as database_operation_v0  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import database_operation_v1 as database_operation_v1  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import messaging_operation_v0 as messaging_operation_v0  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import messaging_operation_v1 as messaging_operation_v1  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import service_name_v0 as service_name_v0  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import service_name_v1 as service_name_v1  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import url_operation_v0 as url_operation_v0  # noqa: F401
+from ddtrace_base.schema.span_attribute_schema import url_operation_v1 as url_operation_v1  # noqa: F401

@@ -9,8 +9,8 @@ from django.test.client import Client
 from django.urls import clear_url_caches
 import pytest
 
-from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.propagation._utils import get_wsgi_header
+from ddtrace_base.endpoints import endpoint_collection
 from tests.appsec.contrib_appsec import utils
 from tests.utils import scoped_tracer
 

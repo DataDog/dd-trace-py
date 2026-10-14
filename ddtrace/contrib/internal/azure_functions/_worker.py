@@ -8,8 +8,8 @@ from typing import Optional
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace_base.logger import get_logger
+from ddtrace_base.module import ModuleWatchdog
 
 
 log = get_logger(__name__)

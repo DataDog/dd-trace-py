@@ -11,9 +11,9 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.utils import get_argument_value
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)

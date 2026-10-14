@@ -23,7 +23,6 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItem
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
@@ -60,7 +59,6 @@ from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_n
 from ddtrace.internal.ci_visibility.writer import CIVisibilityCoverageReportClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -77,6 +75,8 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
+from ddtrace_base.codeowners import Codeowners
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

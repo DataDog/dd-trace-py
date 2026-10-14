@@ -365,11 +365,11 @@ def test_ddtrace_log_injection_otlp_enabled():
     from opentelemetry._logs import get_logger_provider
 
     from ddtrace import tracer
-    from ddtrace.internal.base.constants import LOG_ATTR_ENV
-    from ddtrace.internal.base.constants import LOG_ATTR_SERVICE
-    from ddtrace.internal.base.constants import LOG_ATTR_SPAN_ID
-    from ddtrace.internal.base.constants import LOG_ATTR_TRACE_ID
-    from ddtrace.internal.base.constants import LOG_ATTR_VERSION
+    from ddtrace_base.constants import LOG_ATTR_ENV
+    from ddtrace_base.constants import LOG_ATTR_SERVICE
+    from ddtrace_base.constants import LOG_ATTR_SPAN_ID
+    from ddtrace_base.constants import LOG_ATTR_TRACE_ID
+    from ddtrace_base.constants import LOG_ATTR_VERSION
     from tests.opentelemetry.test_logs import create_mock_grpc_server
     from tests.opentelemetry.test_logs import find_log_record_by_message
 

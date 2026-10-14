@@ -1,4 +1,4 @@
-"""Tests for ddtrace.testing.internal.git module."""
+"""Tests for ddtrace_testing.internal.git module."""
 
 import contextlib
 from unittest.mock import Mock
@@ -6,13 +6,13 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.git import Git
-from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.git import GitUserInfo
-from ddtrace.testing.internal.git import _GitSubprocessDetails
-from ddtrace.testing.internal.git import get_git_head_tags_from_git_command
-from ddtrace.testing.internal.git import get_git_tags_from_git_command
-from ddtrace.testing.internal.telemetry import GitTelemetry
+from ddtrace_testing.internal.git import Git
+from ddtrace_testing.internal.git import GitTag
+from ddtrace_testing.internal.git import GitUserInfo
+from ddtrace_testing.internal.git import _GitSubprocessDetails
+from ddtrace_testing.internal.git import get_git_head_tags_from_git_command
+from ddtrace_testing.internal.git import get_git_tags_from_git_command
+from ddtrace_testing.internal.telemetry import GitTelemetry
 
 
 _LOCK_STDERR = "fatal: Unable to create '/repo/.git/shallow.lock': File exists."
@@ -247,7 +247,7 @@ class TestGit:
 class TestGetGitTags:
     """Tests for get_git_tags_from_git_command function."""
 
-    @patch("ddtrace.testing.internal.git.Git")
+    @patch("ddtrace_testing.internal.git.Git")
     def test_get_git_tags_success(self, mock_git_class: Mock) -> None:
         """Test get_git_tags_from_git_command with successful Git operations."""
         mock_git = Mock()
@@ -281,8 +281,8 @@ class TestGetGitTags:
         }
         assert result == expected
 
-    @patch("ddtrace.testing.internal.git.Git")
-    @patch("ddtrace.testing.internal.git.log")
+    @patch("ddtrace_testing.internal.git.Git")
+    @patch("ddtrace_testing.internal.git.log")
     def test_get_git_tags_git_not_available(self, mock_log: Mock, mock_git_class: Mock) -> None:
         """Test get_git_tags_from_git_command when Git is not available."""
         mock_git_class.side_effect = RuntimeError("git command not found")
@@ -292,7 +292,7 @@ class TestGetGitTags:
         assert result == {}
         mock_log.warning.assert_called_once_with("Error getting git data: %s", mock_git_class.side_effect)
 
-    @patch("ddtrace.testing.internal.git.Git")
+    @patch("ddtrace_testing.internal.git.Git")
     def test_get_git_head_tags_success(self, mock_git_class: Mock) -> None:
         """Test get_git_head_tags_from_git_command with successful Git operations."""
         mock_parent_user = GitUserInfo(
@@ -337,7 +337,7 @@ class TestGetGitTags:
         }
         assert result == expected
 
-    @patch("ddtrace.testing.internal.git.Git")
+    @patch("ddtrace_testing.internal.git.Git")
     def test_get_git_head_tags_with_no_user_info_available(self, mock_git_class: Mock) -> None:
         """Test get_git_head_tags_from_git_command with no user info available."""
         mock_git = Mock()
@@ -356,7 +356,7 @@ class TestGetGitTags:
         }
         assert result == expected
 
-    @patch("ddtrace.testing.internal.git.Git")
+    @patch("ddtrace_testing.internal.git.Git")
     def test_get_git_head_tags_skips_unshallow_when_head_commit_is_available(self, mock_git_class: Mock) -> None:
         mock_git = Mock()
         mock_git.has_commit.return_value = True
@@ -377,12 +377,12 @@ class TestGitUnshallow:
     def test_git_unshallow_repository(self, return_code: int) -> None:
         with (
             patch(
-                "ddtrace.testing.internal.git.Git._call_git",
+                "ddtrace_testing.internal.git.Git._call_git",
                 return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().unshallow_repository("some-sha")
 
@@ -405,12 +405,12 @@ class TestGitUnshallow:
     def test_git_unshallow_repository_parent_only(self, return_code: int) -> None:
         with (
             patch(
-                "ddtrace.testing.internal.git.Git._call_git",
+                "ddtrace_testing.internal.git.Git._call_git",
                 return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().unshallow_repository(parent_only=True)
 
@@ -432,13 +432,13 @@ class TestGitUnshallow:
     def test_git_unshallow_repository_to_local_head(self, return_code: int) -> None:
         with (
             patch(
-                "ddtrace.testing.internal.git.Git._call_git",
+                "ddtrace_testing.internal.git.Git._call_git",
                 return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().unshallow_repository_to_local_head()
 
@@ -461,18 +461,18 @@ class TestGitUnshallow:
     def test_git_unshallow_repository_to_upstream(self, return_code: int) -> None:
         with (
             patch(
-                "ddtrace.testing.internal.git.Git._call_git",
+                "ddtrace_testing.internal.git.Git._call_git",
                 return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
             patch(
-                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                "ddtrace_testing.internal.git.Git.get_upstream_sha",
                 return_value=_GitSubprocessDetails(
                     stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
                 ),
             ),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().unshallow_repository_to_upstream()
 
@@ -497,17 +497,17 @@ class TestGitUnshallow:
         ]
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace_testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
             patch(
-                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                "ddtrace_testing.internal.git.Git.get_upstream_sha",
                 return_value=_GitSubprocessDetails(
                     stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
                 ),
             ),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -534,17 +534,17 @@ class TestGitUnshallow:
         ]
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace_testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
             patch(
-                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                "ddtrace_testing.internal.git.Git.get_upstream_sha",
                 return_value=_GitSubprocessDetails(
                     stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
                 ),
             ),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -582,17 +582,17 @@ class TestGitUnshallow:
         ]
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace_testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
             patch(
-                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                "ddtrace_testing.internal.git.Git.get_upstream_sha",
                 return_value=_GitSubprocessDetails(
                     stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
                 ),
             ),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -639,17 +639,17 @@ class TestGitUnshallow:
         ]
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
+            patch("ddtrace_testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="some-remote"),
+            patch("ddtrace_testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
             patch(
-                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                "ddtrace_testing.internal.git.Git.get_upstream_sha",
                 return_value=_GitSubprocessDetails(
                     stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
                 ),
             ),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock"),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -714,7 +714,7 @@ class TestGitLockRetry:
         success = _GitSubprocessDetails(stdout="abc123", stderr="", return_code=0, elapsed_seconds=0.0)
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", return_value=success) as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git", return_value=success) as mock_call,
             patch("time.sleep") as mock_sleep,
         ):
             result = Git()._call_git_with_lock_retry(["merge-base", "sha1", "sha2"])
@@ -733,7 +733,7 @@ class TestGitLockRetry:
         )
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", return_value=failure) as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git", return_value=failure) as mock_call,
             patch("time.sleep") as mock_sleep,
         ):
             result = Git()._call_git_with_lock_retry(["rev-parse", "HEAD"])
@@ -750,7 +750,7 @@ class TestGitLockRetry:
         success = _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=[lock_failure, success]) as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git", side_effect=[lock_failure, success]) as mock_call,
             patch("time.sleep") as mock_sleep,
         ):
             result = Git()._call_git_with_lock_retry(["fetch", "--update-shallow"])
@@ -765,11 +765,11 @@ class TestGitLockRetry:
         mock_which.return_value = "/usr/bin/git"
         lock_failure = _GitSubprocessDetails(stdout="", stderr=_LOCK_STDERR, return_code=128, elapsed_seconds=0.0)
 
-        import ddtrace.testing.internal.git as git_module
+        import ddtrace_testing.internal.git as git_module
 
         with (
             patch(
-                "ddtrace.testing.internal.git.Git._call_git",
+                "ddtrace_testing.internal.git.Git._call_git",
                 side_effect=[lock_failure] * (git_module._LOCK_MAX_RETRIES + 1),
             ) as mock_call,
             patch("time.sleep"),
@@ -787,10 +787,10 @@ class TestGitLockRetry:
         success = _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=[lock_failure, success]) as mock_call,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="origin"),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock") as mock_lock,
+            patch("ddtrace_testing.internal.git.Git._call_git", side_effect=[lock_failure, success]) as mock_call,
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="origin"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock") as mock_lock,
             patch("time.sleep"),
         ):
             mock_lock.return_value.__enter__ = Mock(return_value=True)
@@ -810,7 +810,7 @@ class TestGitLockRetry:
         success = _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=[ref_lock_failure, success]) as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git", side_effect=[ref_lock_failure, success]) as mock_call,
             patch("time.sleep") as mock_sleep,
         ):
             result = Git()._call_git_with_lock_retry(["fetch", "--update-shallow"])
@@ -830,7 +830,7 @@ class TestGitLockRetry:
 
         with (
             patch(
-                "ddtrace.testing.internal.git.Git._call_git", side_effect=[shallow_changed_failure, success]
+                "ddtrace_testing.internal.git.Git._call_git", side_effect=[shallow_changed_failure, success]
             ) as mock_call,
             patch("time.sleep") as mock_sleep,
         ):
@@ -846,7 +846,7 @@ class TestGitLockRetry:
         mock_which.return_value = "/usr/bin/git"
         success = _GitSubprocessDetails(stdout="deadbeef", stderr="", return_code=0, elapsed_seconds=0.0)
 
-        with patch("ddtrace.testing.internal.git.Git._call_git", return_value=success):
+        with patch("ddtrace_testing.internal.git.Git._call_git", return_value=success):
             result = Git().get_merge_base("sha1", "sha2")
 
         assert result == "deadbeef"
@@ -860,8 +860,8 @@ class TestGitLockRetry:
         )
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", return_value=failure),
-            patch("ddtrace.testing.internal.git.log") as mock_log,
+            patch("ddtrace_testing.internal.git.Git._call_git", return_value=failure),
+            patch("ddtrace_testing.internal.git.log") as mock_log,
         ):
             result = Git().get_merge_base("sha1", "sha2")
 
@@ -877,9 +877,9 @@ class TestGitLockRetry:
         mock_which.return_value = "/usr/bin/git"
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git") as mock_call,
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=False),
-            patch("ddtrace.testing.internal.git.Git.get_remote_name") as mock_remote,
+            patch("ddtrace_testing.internal.git.Git._call_git") as mock_call,
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=False),
+            patch("ddtrace_testing.internal.git.Git.get_remote_name") as mock_remote,
         ):
             result = Git().unshallow_repository("some-sha")
 
@@ -899,13 +899,13 @@ class TestGitLockRetry:
         # under the lock sees the repo as no longer shallow (sibling finished while
         # we waited for the lock).
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", return_value=lock_failure) as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git", return_value=lock_failure) as mock_call,
             patch(
-                "ddtrace.testing.internal.git.Git.is_shallow_repository",
+                "ddtrace_testing.internal.git.Git.is_shallow_repository",
                 side_effect=[True, False],
             ),
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="origin"),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock") as mock_ulock,
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="origin"),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock") as mock_ulock,
             patch("time.sleep"),
         ):
             mock_ulock.return_value.__enter__ = Mock(return_value=True)
@@ -922,7 +922,7 @@ class TestGitLockRetry:
         lock_failure = _GitSubprocessDetails(stdout="", stderr=_LOCK_STDERR, return_code=128, elapsed_seconds=0.0)
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", return_value=lock_failure) as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git", return_value=lock_failure) as mock_call,
             patch("time.sleep"),
         ):
             result = Git()._call_git_with_lock_retry(["fetch", "--update-shallow"], should_retry=lambda: False)
@@ -931,7 +931,7 @@ class TestGitLockRetry:
         assert mock_call.call_count == 1
 
     @patch("shutil.which")
-    @patch("ddtrace.testing.internal.git.subprocess.Popen")
+    @patch("ddtrace_testing.internal.git.subprocess.Popen")
     def test_call_git_forces_c_locale(self, mock_popen: Mock, mock_which: Mock) -> None:
         """_call_git overrides LC_ALL and LANG so git's error output is in English."""
         mock_which.return_value = "/usr/bin/git"
@@ -974,10 +974,10 @@ class TestGitUnshallowLock:
             yield True
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git", return_value=success) as mock_call,
-            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="origin"),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock", side_effect=fake_lock),
+            patch("ddtrace_testing.internal.git.Git._call_git", return_value=success) as mock_call,
+            patch("ddtrace_testing.internal.git.Git.get_remote_name", return_value="origin"),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock", side_effect=fake_lock),
         ):
             result = Git().unshallow_repository("some-sha")
 
@@ -995,9 +995,9 @@ class TestGitUnshallowLock:
             yield False
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git") as mock_call,
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock", side_effect=fake_lock_timeout),
+            patch("ddtrace_testing.internal.git.Git._call_git") as mock_call,
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock", side_effect=fake_lock_timeout),
         ):
             result = Git().unshallow_repository("some-sha")
 
@@ -1014,12 +1014,12 @@ class TestGitUnshallowLock:
             yield False
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git") as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git") as mock_call,
             patch(
-                "ddtrace.testing.internal.git.Git.is_shallow_repository",
+                "ddtrace_testing.internal.git.Git.is_shallow_repository",
                 side_effect=[True, False],  # initial: shallow; after lock timeout: not shallow
             ),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock", side_effect=fake_lock_timeout),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock", side_effect=fake_lock_timeout),
         ):
             result = Git().unshallow_repository("some-sha")
 
@@ -1036,13 +1036,13 @@ class TestGitUnshallowLock:
             yield True
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git") as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git") as mock_call,
             patch(
-                "ddtrace.testing.internal.git.Git.has_commit",
+                "ddtrace_testing.internal.git.Git.has_commit",
                 side_effect=[False, True],  # missing before lock; available after peer finishes
             ),
-            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock", side_effect=fake_lock),
+            patch("ddtrace_testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock", side_effect=fake_lock),
         ):
             result = Git().unshallow_repository(required_commit="head-sha")
 
@@ -1061,12 +1061,12 @@ class TestGitUnshallowLock:
             yield True
 
         with (
-            patch("ddtrace.testing.internal.git.Git._call_git") as mock_call,
+            patch("ddtrace_testing.internal.git.Git._call_git") as mock_call,
             patch(
-                "ddtrace.testing.internal.git.Git.is_shallow_repository",
+                "ddtrace_testing.internal.git.Git.is_shallow_repository",
                 side_effect=[True, False],  # initial: shallow; re-check under lock: not shallow
             ),
-            patch("ddtrace.testing.internal.git.Git._unshallow_lock", side_effect=fake_lock),
+            patch("ddtrace_testing.internal.git.Git._unshallow_lock", side_effect=fake_lock),
         ):
             result = Git().unshallow_repository("some-sha")
 

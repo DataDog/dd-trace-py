@@ -8,7 +8,7 @@ from bson.son import SON
 
 # project
 from ddtrace.ext import net as netx
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

@@ -6,9 +6,6 @@ from typing import cast
 from weakref import WeakKeyDictionary
 
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -35,6 +32,9 @@ from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)

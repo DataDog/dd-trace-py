@@ -12,8 +12,6 @@ from uuid import uuid4
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.time import StopWatch
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -32,6 +30,8 @@ from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings import env
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer.writer import NoEncodableSpansError
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.time import StopWatch
 
 
 log = get_logger(__name__)

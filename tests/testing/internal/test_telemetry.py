@@ -4,18 +4,18 @@ from unittest.mock import call
 
 import pytest
 
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
-from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.settings_data import TestManagementSettings
-from ddtrace.testing.internal.telemetry import ErrorType
-from ddtrace.testing.internal.telemetry import EventType
-from ddtrace.testing.internal.telemetry import GitTelemetry
-from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.test_data import TestSession
-from ddtrace.testing.internal.test_data import TestTag
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace_testing.internal.settings_data import EarlyFlakeDetectionSettings
+from ddtrace_testing.internal.settings_data import Settings
+from ddtrace_testing.internal.settings_data import TestManagementSettings
+from ddtrace_testing.internal.telemetry import ErrorType
+from ddtrace_testing.internal.telemetry import EventType
+from ddtrace_testing.internal.telemetry import GitTelemetry
+from ddtrace_testing.internal.telemetry import TelemetryAPI
+from ddtrace_testing.internal.test_data import TestSession
+from ddtrace_testing.internal.test_data import TestTag
 
 
 CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY

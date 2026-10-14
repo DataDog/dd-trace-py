@@ -16,12 +16,10 @@ from typing import cast
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal import gitmetadata
 from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
@@ -66,6 +64,8 @@ from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import _ToolField
 from ddtrace.trace import Span
+from ddtrace_base.ext import git as _git
+from ddtrace_base.logger import get_logger
 
 
 if TYPE_CHECKING:

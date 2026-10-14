@@ -1,4 +1,4 @@
-"""Tests for ddtrace.testing.internal.writer module."""
+"""Tests for ddtrace_testing.internal.writer module."""
 
 import http.client
 import threading
@@ -9,30 +9,30 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.http import BackendConnector
-from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
-from ddtrace.testing.internal.http import BackendResult
-from ddtrace.testing.internal.http import NoOpBackendConnector
-from ddtrace.testing.internal.test_data import TestModule
-from ddtrace.testing.internal.test_data import TestRun
-from ddtrace.testing.internal.test_data import TestSession
-from ddtrace.testing.internal.test_data import TestStatus
-from ddtrace.testing.internal.test_data import TestSuite
-from ddtrace.testing.internal.tracer_api import msgpack_packb
-from ddtrace.testing.internal.writer import BaseWriter
-from ddtrace.testing.internal.writer import Event
-from ddtrace.testing.internal.writer import TestCoverageWriter
-from ddtrace.testing.internal.writer import TestOptWriter
-from ddtrace.testing.internal.writer import _calculate_async_flush_events
-from ddtrace.testing.internal.writer import _get_async_flush_events
-from ddtrace.testing.internal.writer import _get_min_flush_events
-from ddtrace.testing.internal.writer import _truncate_events_meta
-from ddtrace.testing.internal.writer import _truncate_payload_metadata
-from ddtrace.testing.internal.writer import serialize_module
-from ddtrace.testing.internal.writer import serialize_session
-from ddtrace.testing.internal.writer import serialize_suite
-from ddtrace.testing.internal.writer import serialize_test_run
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.http import BackendConnector
+from ddtrace_testing.internal.http import BackendConnectorAgentlessSetup
+from ddtrace_testing.internal.http import BackendResult
+from ddtrace_testing.internal.http import NoOpBackendConnector
+from ddtrace_testing.internal.test_data import TestModule
+from ddtrace_testing.internal.test_data import TestRun
+from ddtrace_testing.internal.test_data import TestSession
+from ddtrace_testing.internal.test_data import TestStatus
+from ddtrace_testing.internal.test_data import TestSuite
+from ddtrace_testing.internal.tracer_api import msgpack_packb
+from ddtrace_testing.internal.writer import BaseWriter
+from ddtrace_testing.internal.writer import Event
+from ddtrace_testing.internal.writer import TestCoverageWriter
+from ddtrace_testing.internal.writer import TestOptWriter
+from ddtrace_testing.internal.writer import _calculate_async_flush_events
+from ddtrace_testing.internal.writer import _get_async_flush_events
+from ddtrace_testing.internal.writer import _get_min_flush_events
+from ddtrace_testing.internal.writer import _truncate_events_meta
+from ddtrace_testing.internal.writer import _truncate_payload_metadata
+from ddtrace_testing.internal.writer import serialize_module
+from ddtrace_testing.internal.writer import serialize_session
+from ddtrace_testing.internal.writer import serialize_suite
+from ddtrace_testing.internal.writer import serialize_test_run
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test_module
 from tests.testing.mocks import mock_test_run
@@ -494,7 +494,7 @@ class TestMetadataTruncation:
 class TestTestOptWriter:
     """Tests for TestOptWriter class."""
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
     def test_testopt_writer_initialization(self, mock_backend_connector: Mock) -> None:
         """Test TestOptWriter initialization."""
         mock_connector = Mock()
@@ -519,7 +519,7 @@ class TestTestOptWriter:
         assert TestModule in writer.serializers
         assert TestSession in writer.serializers
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
     def test_coverage_report_upload_capability_declared(self, mock_backend_connector: Mock) -> None:
         """Test that coverage report upload capability is declared in metadata."""
         mock_connector = Mock()
@@ -530,8 +530,8 @@ class TestTestOptWriter:
         # Verify the capability is declared with the correct version
         assert writer.metadata["test"]["_dd.library_capabilities.coverage_report_upload"] == "1"
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
-    @patch("ddtrace.testing.internal.writer.msgpack_packb")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.tracer_api.msgpack_packb")
     def test_send_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending events to backend."""
         mock_connector = Mock()
@@ -563,8 +563,8 @@ class TestTestOptWriter:
             send_gzip=True,
         )
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
-    @patch("ddtrace.testing.internal.writer.msgpack_packb")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.tracer_api.msgpack_packb")
     def test_send_events_truncates_payload_metadata_and_event_meta(
         self, mock_packb: Mock, mock_backend_connector: Mock
     ) -> None:
@@ -610,7 +610,7 @@ class TestTestOptWriter:
         event_meta = t.cast(dict[str, t.Any], event_content["meta"])
         assert event_meta["long_meta"] == long_event_meta_value
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
     def test_split_events(self, mock_backend_connector: Mock) -> None:
         """Test sending events to backend."""
         mock_connector = Mock()
@@ -652,7 +652,7 @@ class TestTestOptWriter:
             ),
         ]
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
     def test_connector_closed_after_writer_finishes(self, mock_bc: Mock) -> None:
         """Regression: both the background task and the caller thread must close their
         thread-local connectors.
@@ -696,7 +696,7 @@ class TestTestOptWriter:
 class TestTestCoverageWriter:
     """Tests for TestCoverageWriter class."""
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
     def test_coverage_writer_initialization(self, mock_backend_connector: Mock) -> None:
         """Test TestCoverageWriter initialization."""
         mock_connector = Mock()
@@ -711,7 +711,7 @@ class TestTestCoverageWriter:
             url="https://citestcov-intake.datadoghq.com", default_headers={"dd-api-key": "test_key"}, use_gzip=True
         )
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
     def test_put_coverage(self, mock_backend_connector: Mock) -> None:
         """Test putting coverage data."""
         writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
@@ -737,8 +737,8 @@ class TestTestCoverageWriter:
         assert event["span_id"] == 789
         assert len(event["files"]) == 2
 
-    @patch("ddtrace.testing.internal.http.BackendConnector")
-    @patch("ddtrace.testing.internal.writer.msgpack_packb")
+    @patch("ddtrace_testing.internal.http.BackendConnector")
+    @patch("ddtrace_testing.internal.tracer_api.msgpack_packb")
     def test_send_coverage_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending coverage events."""
         mock_connector = Mock()
@@ -1206,8 +1206,8 @@ class TestCircuitBreaker:
 
     def test_send_events_return_value_on_backend_error(self) -> None:
         """TestOptWriter._send_events must return False when the backend returns an error."""
-        with patch("ddtrace.testing.internal.http.BackendConnector") as mock_bc:
-            from ddtrace.testing.internal.telemetry import ErrorType
+        with patch("ddtrace_testing.internal.http.BackendConnector") as mock_bc:
+            from ddtrace_testing.internal.telemetry import ErrorType
 
             mock_connector = Mock()
             mock_bc.return_value = mock_connector
@@ -1223,7 +1223,7 @@ class TestCircuitBreaker:
 
     def test_send_events_return_value_on_success(self) -> None:
         """TestOptWriter._send_events must return True on success."""
-        with patch("ddtrace.testing.internal.http.BackendConnector") as mock_bc:
+        with patch("ddtrace_testing.internal.http.BackendConnector") as mock_bc:
             mock_connector = Mock()
             mock_bc.return_value = mock_connector
             mock_connector.request.return_value = BackendResult(
@@ -1242,7 +1242,7 @@ class TestOversizedEventWarning:
         writer = _ConcreteWriter()
         writer.max_payload_size = 0  # Force every event to be oversized
 
-        with patch("ddtrace.testing.internal.writer.log") as mock_log:
+        with patch("ddtrace_testing.internal.writer.log") as mock_log:
             packs = writer._split_pack_events([Event(big="data")])
 
         # Pack is still returned (best-effort send).
@@ -1254,7 +1254,7 @@ class TestOversizedEventWarning:
         writer = _ConcreteWriter()
         writer.max_payload_size = 1024 * 1024  # 1 MB — plenty
 
-        with patch("ddtrace.testing.internal.writer.log") as mock_log:
+        with patch("ddtrace_testing.internal.writer.log") as mock_log:
             writer._split_pack_events([Event(n=1)])
 
         mock_log.warning.assert_not_called()
@@ -1264,7 +1264,7 @@ class TestOversizedEventWarning:
         writer = _ConcreteWriter()
         writer.max_payload_size = 2  # Each event encodes to 1 byte
 
-        with patch("ddtrace.testing.internal.writer.log") as mock_log:
+        with patch("ddtrace_testing.internal.writer.log") as mock_log:
             writer._split_pack_events([Event(n=1), Event(n=2), Event(n=3)])
 
         mock_log.warning.assert_not_called()

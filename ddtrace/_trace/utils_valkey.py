@@ -16,12 +16,12 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import valkey as valkeyx
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
 
 
 format_command_args = stringify_cache_args

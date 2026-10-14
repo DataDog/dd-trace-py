@@ -7,13 +7,13 @@ from typing import Callable
 from bytecode import Bytecode
 from bytecode import Instr
 
-from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.compat import is_at_most_py
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import set_function_code
+from ddtrace_base.assembly import Assembly
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.compat import is_at_most_py
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)
@@ -33,7 +33,7 @@ class InvalidLine(Exception):
 if is_at_least_py(3, 15):
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
-    from ddtrace.internal.utils.inspection import linenos
+    from ddtrace_base.utils.inspection import linenos
 
     class _LineHookHandler(_monitoring.MonitoringEventHandler):
         """Per-code-object handler that dispatches line hooks via sys.monitoring."""

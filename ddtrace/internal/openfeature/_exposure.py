@@ -7,8 +7,8 @@ from typing import Optional
 
 from openfeature.evaluation_context import EvaluationContext
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.openfeature.writer import ExposureEvent
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

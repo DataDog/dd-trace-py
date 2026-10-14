@@ -1,18 +1,15 @@
+"""Legacy re-export shim for a moved module.
+
+``ddtrace.testing.internal.tracer_api`` (package) moved to:
+
+``ddtrace_testing.internal.tracer_api``
+
+Keep the historical import path working for external consumers; import from
+the new module instead.
 """
-dd-trace-py interaction layer.
-"""
 
-from ddtrace.internal._encoding import packb as msgpack_packb  # noqa: F401
-from ddtrace.internal.base.utils.time import StopWatch  # noqa: F401
-from ddtrace.internal.base.utils.time import Time  # noqa: F401
-from ddtrace.internal.codeowners import Codeowners  # noqa: F401
-
-
-def __getattr__(name: str):
-    # Lazy re-export: rand64bits lives in the native extension; importing it
-    # eagerly would load the extension at plugin import time.
-    if name == "rand64bits":
-        from ddtrace.internal.native import rand64bits
-
-        return rand64bits
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+from ddtrace_testing.internal.tracer_api import Codeowners as Codeowners  # noqa: F401
+from ddtrace_testing.internal.tracer_api import StopWatch as StopWatch  # noqa: F401
+from ddtrace_testing.internal.tracer_api import Time as Time  # noqa: F401
+from ddtrace_testing.internal.tracer_api import msgpack_packb as msgpack_packb  # noqa: F401
+from ddtrace_testing.internal.tracer_api import rand64bits as rand64bits  # noqa: F401

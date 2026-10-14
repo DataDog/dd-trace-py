@@ -41,8 +41,8 @@ from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unval
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

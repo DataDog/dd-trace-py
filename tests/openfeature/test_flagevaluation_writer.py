@@ -81,8 +81,8 @@ from ddtrace.internal.openfeature._flagevaluation_writer import canonical_contex
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import PeriodicThread
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 TELEMETRY_COUNT_PATCH = "ddtrace.internal.openfeature._flagevaluation_writer.telemetry_writer.add_count_metric"

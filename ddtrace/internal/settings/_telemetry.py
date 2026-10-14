@@ -1,8 +1,8 @@
 import sys
 import typing as t
 
-from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._inferred_base_service import detect_service
+from ddtrace_base.settings._core import DDConfig
 
 
 class TelemetryConfig(DDConfig):

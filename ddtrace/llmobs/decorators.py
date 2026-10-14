@@ -8,13 +8,13 @@ import sys
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

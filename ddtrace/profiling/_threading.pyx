@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import sys
 
 from ddtrace.internal._threads import periodic_threads
-from ddtrace.internal._unpatched import _threading as ddtrace_threading
+from ddtrace_base._unpatched import _threading as ddtrace_threading
 
 
 cpdef get_thread_by_id(thread_id):

@@ -126,6 +126,8 @@ from typing import Any
 from typing import Generic
 from typing import Optional
 
+from ddtrace_base.core.events import EventType
+
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
@@ -134,7 +136,6 @@ from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
-from .events import EventType
 
 
 _MISSING = object()

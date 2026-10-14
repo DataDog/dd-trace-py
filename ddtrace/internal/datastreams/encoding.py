@@ -1,6 +1,6 @@
 import struct
 
-from ddtrace.internal.utils.fnv import _get_byte
+from ddtrace_base.utils.fnv import _get_byte
 
 
 MAX_VAR_LEN_64 = 9

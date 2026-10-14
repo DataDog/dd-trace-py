@@ -4,10 +4,10 @@ from unittest import TestCase
 import pytest
 
 from ddtrace import config as global_config
-from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings._config import _integration_default_service_names_from_config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace_base.settings._agentless import AgentlessConfig
 
 from ..utils import override_env
 

@@ -22,8 +22,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.appsec.product import _disable_asm
 from ddtrace.internal.appsec.product import _enable_asm
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.trace import tracer
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import build_payload

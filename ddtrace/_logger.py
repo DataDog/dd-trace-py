@@ -3,9 +3,9 @@ from os import path
 import sys
 from typing import Optional
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

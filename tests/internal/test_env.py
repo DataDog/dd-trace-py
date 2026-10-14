@@ -7,10 +7,10 @@ import pytest
 # Acquire the env submodule via sys.modules because
 # ddtrace.internal.settings.__init__ re-exports dd_environ as `env`, which
 # shadows the submodule name for normal `import ... as ...` forms.
-from ddtrace.internal.base.settings.env import dd_environ  # noqa: I001
+from ddtrace_base.settings.env import dd_environ  # noqa: I001
 
 
-env_module = sys.modules["ddtrace.internal.base.settings.env"]
+env_module = sys.modules["ddtrace_base.settings.env"]
 ENV_LOGGER = env_module.__name__
 
 

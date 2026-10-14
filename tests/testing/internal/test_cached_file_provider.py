@@ -1,4 +1,4 @@
-"""Unit tests for ddtrace.testing.internal.cached_file_provider."""
+"""Unit tests for ddtrace_testing.internal.cached_file_provider."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ import json
 from pathlib import Path
 from unittest.mock import Mock
 
-from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
-from ddtrace.testing.internal.cached_file_provider import _read_cache_json
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace_testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace_testing.internal.cached_file_provider import _read_cache_json
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
 
 
 def make_provider(tmp_path: Path, itr_level: ITRSkippingLevel = ITRSkippingLevel.TEST) -> CachedFileDataProvider:

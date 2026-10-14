@@ -11,12 +11,12 @@ from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS

@@ -26,20 +26,12 @@ import typing as t
 import uuid
 
 from ddtrace import config
-from ddtrace.internal import forksafe
 from ddtrace.internal import packages
 from ddtrace.internal._runtime_id import get_ancestor_runtime_id
 from ddtrace.internal._runtime_id import get_runtime_id
-from ddtrace.internal.base.compat import singledispatchmethod
-from ddtrace.internal.base.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cached
-from ddtrace.internal.module import BaseModuleWatchdog
-from ddtrace.internal.module import origin
 from ddtrace.internal.native import SymDBSender
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
-from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
@@ -47,11 +39,19 @@ from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import multipart
-from ddtrace.internal.utils.inspection import ModuleCodeCollector
-from ddtrace.internal.utils.inspection import linenos
-from ddtrace.internal.utils.inspection import resolved_code_origin
-from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.internal.wrapping import get_wrapped
+from ddtrace_base import forksafe
+from ddtrace_base.compat import singledispatchmethod
+from ddtrace_base.constants import DEFAULT_SERVICE_NAME
+from ddtrace_base.logger import get_logger
+from ddtrace_base.module import BaseModuleWatchdog
+from ddtrace_base.module import origin
+from ddtrace_base.safety import _isinstance
+from ddtrace_base.utils.cache import cached
+from ddtrace_base.utils.inspection import ModuleCodeCollector
+from ddtrace_base.utils.inspection import linenos
+from ddtrace_base.utils.inspection import resolved_code_origin
+from ddtrace_base.utils.inspection import undecorated
 
 
 log = get_logger(__name__)

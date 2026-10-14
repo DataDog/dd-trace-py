@@ -15,21 +15,21 @@ from typing import Union
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.internal.base import compat
-from ddtrace.internal.base.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils import _human_size
-from ddtrace.internal.utils.fnv import fnv1_64
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
+from ddtrace_base import compat
+from ddtrace_base.constants import DEFAULT_SERVICE_NAME
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import _human_size
+from ddtrace_base.utils.fnv import fnv1_64
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
 from ..agent import get_connection
-from ..base.logger import get_logger
 from ..hostname import get_hostname
 from ..periodic import PeriodicService
 from .encoding import decode_var_int_64

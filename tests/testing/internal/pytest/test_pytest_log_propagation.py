@@ -83,7 +83,7 @@ _INFRA_PLUGIN = textwrap.dedent(
 
 
     def pytest_configure(config):
-        from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
+        from ddtrace_testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
 
         session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
         if session_manager is not None:
@@ -227,7 +227,7 @@ def _run_logging_probe(pytester: Pytester, *args: str) -> RunResult:
     # to restore ddtrace propagation, which would hide the compatibility regression.
     return pytester.runpytest_subprocess(
         "-p",
-        "ddtrace.testing.internal.pytest.entry_point",
+        "ddtrace_testing.internal.pytest.entry_point",
         "--confcutdir",
         str(pytester.path),
         "-v",
@@ -244,7 +244,7 @@ import pytest
 import ddtrace
 from ddtrace.contrib.internal.logging.patch import patch
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.testing.internal.logs import LogsHandler
+from ddtrace_testing.internal.logs import LogsHandler
 from ddtrace.trace import Span
 
 
@@ -519,14 +519,14 @@ class TestLoggingDeliveryControls:
             import logging
             import pytest
             import ddtrace
-            from ddtrace.testing.internal.logging import _DDTraceClosedStreamFilter
+            from ddtrace_testing.internal.logging import _DDTraceClosedStreamFilter
 
             root = logging.getLogger()
             root.setLevel(logging.DEBUG)
             root.addHandler(logging.FileHandler("sessions.log"))
             for _ in range(2):
                 assert pytest.main([
-                    "-p", "ddtrace.testing.internal.pytest.entry_point",
+                    "-p", "ddtrace_testing.internal.pytest.entry_point",
                     "--confcutdir=.", "-q", "test_session.py",
                 ]) == 0
                 assert ddtrace.tracer.enabled

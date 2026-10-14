@@ -1,155 +1,24 @@
+"""Legacy re-export shim for a moved module.
+
+``ddtrace.testing.internal.tracer_api.coverage`` moved to:
+
+``ddtrace_testing.internal.tracer_api.coverage``
+
+Keep the historical import path working for external consumers; import from
+the new module instead.
 """
-API for code coverage collection for use by ddtrace.testing.
 
-The rest of ddtrace.testing should only use the interface exposed in this file to set up code coverage and get
-coverage data.
-"""
-
-import contextlib
-import functools
-import logging
-from pathlib import Path
-import typing as t
-
-from ddtrace.testing.internal.logging import catch_and_log_exceptions
-
-
-if t.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.coverage.coverage_lines import CoverageLines
-
-
-log = logging.getLogger(__name__)
-
-
-log = logging.getLogger(__name__)
-
-
-def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
-    # Deferred: the coverage integration (contrib patch + code collector) pulls the
-    # tracer through ddtrace.contrib at import time; load it when coverage is activated.
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-    import ddtrace.internal.coverage.installer
-
-    ddtrace.internal.coverage.installer.install(
-        include_paths=[workspace_path],
-        collect_import_time_coverage=True,
-        file_level_coverage=file_level_coverage,
-    )
-    ModuleCodeCollector.start_coverage()
-
-
-def uninstall_coverage() -> None:
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-
-    ModuleCodeCollector.uninstall()
-
-
-@functools.lru_cache(maxsize=65536)
-def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
-    try:
-        return f"/{Path(absolute_path).relative_to(relative_to)}"
-    except ValueError:
-        return None  # covered file does not belong to current repo
-
-
-@functools.lru_cache(maxsize=1)
-def _file_level_bitmap() -> bytes:
-    # Deferred: CoverageLines is pure, but its module sits under the coverage
-    # integration surface; keep this module importable without it.
-    from ddtrace.internal.coverage.coverage_lines import CoverageLines
-
-    return bytes(CoverageLines.from_list([0]).to_bytes())
-
-
-class CoverageData:
-    def __init__(self) -> None:
-        self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
-        self._covered_file_paths: t.Optional[t.Iterable[str]] = None
-
-    def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
-        relative_to_str = str(relative_to)
-        file_level_bitmap = _file_level_bitmap()
-
-        if self._covered_file_paths is not None:
-            for absolute_path in self._covered_file_paths:
-                path_str = _relative_coverage_path(absolute_path, relative_to_str)
-                if path_str is not None:
-                    yield path_str, file_level_bitmap
-            return
-
-        if not self._covered_lines:
-            return
-
-        for absolute_path, covered_lines in self._covered_lines.items():
-            path_str = _relative_coverage_path(absolute_path, relative_to_str)
-            if path_str is not None:
-                yield path_str, covered_lines.to_bytes()
-
-
-@contextlib.contextmanager
-def coverage_collection() -> t.Generator[CoverageData, None, None]:
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-
-    with ModuleCodeCollector.CollectInContext() as coverage_collector:
-        coverage_data = CoverageData()
-        yield coverage_data
-        if ModuleCodeCollector.file_level_coverage_enabled():
-            coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()
-        else:
-            coverage_data._covered_lines = coverage_collector.get_covered_lines()
-
-
-def install_coverage_percentage():
-    """
-    Patch coverage.py to obtain coverage percentage from pytest-cov.
-    """
-    from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
-
-    patch_coverage()
-
-
-def uninstall_coverage_percentage():
-    """
-    Undo patching of coverage.py.
-    """
-    from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
-
-    unpatch_coverage()
-
-
-@catch_and_log_exceptions()
-def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
-    """
-    Retrieve coverage percentage collected during a pytest-cov test session, if available.
-
-    This retrieves the coverage percentage from coverage.py patching, coverage report upload,
-    or generates a report if using 'coverage run' without pytest-cov.
-    """
-    # Generate report if using coverage run without pytest-cov
-    # Deferred: the contrib coverage integration pulls the tracer at import time.
-    from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _get_coverage_percentage
-    from ddtrace.contrib.internal.coverage.patch import run_coverage_report
-    from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
-    from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
-
-    if not pytest_cov_status and _is_coverage_invoked_by_coverage_run() and _is_coverage_patched():
-        run_coverage_report()
-
-    # Get cached percentage (works for pytest-cov, coverage run, and coverage report upload)
-    lines_pct_value = _get_coverage_percentage()
-
-    if lines_pct_value is None:
-        log.debug("Unable to retrieve coverage data for the session span")
-        return None
-
-    if not isinstance(lines_pct_value, (float, int)):
-        log.warning(
-            "Unexpected format for total covered percentage: type=%s.%s, value=%r",
-            type(lines_pct_value).__module__,
-            type(lines_pct_value).__name__,
-            lines_pct_value,
-        )
-        return None
-
-    log.debug("Code coverage: %s%%", lines_pct_value)
-    return float(lines_pct_value)
+from ddtrace_testing.internal.tracer_api.coverage import CoverageData as CoverageData  # noqa: F401
+from ddtrace_testing.internal.tracer_api.coverage import coverage_collection as coverage_collection  # noqa: F401
+from ddtrace_testing.internal.tracer_api.coverage import (
+    get_coverage_percentage as get_coverage_percentage,  # noqa: F401
+)
+from ddtrace_testing.internal.tracer_api.coverage import install_coverage as install_coverage  # noqa: F401
+from ddtrace_testing.internal.tracer_api.coverage import (
+    install_coverage_percentage as install_coverage_percentage,  # noqa: F401
+)
+from ddtrace_testing.internal.tracer_api.coverage import log as log  # noqa: F401
+from ddtrace_testing.internal.tracer_api.coverage import uninstall_coverage as uninstall_coverage  # noqa: F401
+from ddtrace_testing.internal.tracer_api.coverage import (
+    uninstall_coverage_percentage as uninstall_coverage_percentage,  # noqa: F401
+)

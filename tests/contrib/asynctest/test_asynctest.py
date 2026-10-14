@@ -16,7 +16,7 @@ from tests.testing.mocks import setup_standard_mocks
 
 
 _api_client_patch = patch(
-    "ddtrace.testing.internal.session_manager.APIClient",
+    "ddtrace_testing.internal.session_manager.APIClient",
     return_value=mock_api_client_settings(),
 )
 _api_client_patch.start()

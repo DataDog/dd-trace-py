@@ -4,7 +4,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.protobuf.patch import patch
 from ddtrace.contrib.internal.protobuf.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
-from ddtrace.internal.base.compat import is_wrapted
+from ddtrace_base.compat import is_wrapted
 from tests.contrib.protobuf.schemas import message_pb2
 from tests.contrib.protobuf.schemas import other_message_pb2
 

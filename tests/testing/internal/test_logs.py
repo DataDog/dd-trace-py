@@ -1,12 +1,12 @@
-"""Tests for ddtrace.testing.internal.logs module."""
+"""Tests for ddtrace_testing.internal.logs module."""
 
 from __future__ import annotations
 
 import logging
 import threading
 
-from ddtrace.testing.internal.logs import LogsHandler
-from ddtrace.testing.internal.writer import Event
+from ddtrace_testing.internal.logs import LogsHandler
+from ddtrace_testing.internal.writer import Event
 
 
 class _FakeLogsWriter:

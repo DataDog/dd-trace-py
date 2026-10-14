@@ -3,13 +3,13 @@ from typing import Any
 
 import anthropic
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.streaming import AsyncStreamHandler
 from ddtrace.internal.utils.streaming import StreamHandler
 from ddtrace.internal.utils.streaming import make_traced_stream
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_load_json
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

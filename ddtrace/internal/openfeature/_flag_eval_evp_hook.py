@@ -18,7 +18,6 @@ from openfeature.hook import Hook
 from openfeature.hook import HookContext
 from openfeature.hook import HookHints
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_HOOK_ERRORS_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_ALLOCATION_KEY
@@ -27,6 +26,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWr
 from ddtrace.internal.openfeature._flagevaluation_writer import _count_metric
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

@@ -23,22 +23,22 @@ from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.routing import extract_request_method_list
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import is_wrapted
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.telemetry import get_config as _get_config
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.vendor.packaging.version import parse as parse_version
+from ddtrace_base.compat import is_wrapted
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
 
 
 log = get_logger(__name__)
@@ -369,7 +369,7 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
-    from ddtrace.internal.base.constants import COMPONENT
+    from ddtrace_base.constants import COMPONENT
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)

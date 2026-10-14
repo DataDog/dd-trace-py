@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.internal.codeowners import Codeowners
+from ddtrace_base.codeowners import Codeowners
 
 
 def test_valid_and_invalid_codeowners(testdir: pytest.Testdir) -> None:

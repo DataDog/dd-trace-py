@@ -20,13 +20,13 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.base.compat import MAX_PY
-from ddtrace.internal.base.compat import NEXT_MAX_PY
-from ddtrace.internal.base.compat import NEXT_PY_UNSUPPORTED_MSG
-from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.compat import is_at_most_py
-from ddtrace.internal.base.compat import is_supported_python_version
+from ddtrace_base.compat import MAX_PY
+from ddtrace_base.compat import NEXT_MAX_PY
+from ddtrace_base.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace_base.compat import PYTHON_VERSION_INFO
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.compat import is_at_most_py
+from ddtrace_base.compat import is_supported_python_version
 
 
 _RUNNING_VERSION: str = f"{PYTHON_VERSION_INFO[0]}.{PYTHON_VERSION_INFO[1]}"
@@ -159,7 +159,7 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
 
 def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
     """is_at_least_py(*NEXT_MAX_PY) and is_supported_python_version read NEXT_MAX_PY."""
-    compat: ModuleType = importlib.import_module("ddtrace.internal.base.compat")
+    compat: ModuleType = importlib.import_module("ddtrace_base.compat")
 
     monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 16))
     assert not compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 15))
@@ -171,9 +171,9 @@ def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) 
 
 def test_wrapping_modules_import() -> None:
     import ddtrace.internal.bytecode_injection  # noqa: F401
-    import ddtrace.internal.module  # noqa: F401
     import ddtrace.internal.wrapping.asyncs  # noqa: F401
     import ddtrace.internal.wrapping.generators  # noqa: F401
+    import ddtrace_base.module  # noqa: F401
 
     # wrapping.context fail-closes at import when wrap is unsupported (3.16+).
     if is_supported_python_version():
@@ -296,7 +296,7 @@ def test_debugging_products_load_without_failure() -> None:
 @pytest.mark.skipif(not _WRAP_ON_315, reason="inject_hook on 3.15")
 def test_inject_hook_does_not_raise_on_315() -> None:
     from ddtrace.internal.bytecode_injection import inject_hook
-    from ddtrace.internal.utils.inspection import linenos
+    from ddtrace_base.utils.inspection import linenos
 
     def f() -> None:
         return None

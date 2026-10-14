@@ -15,8 +15,8 @@ from ddtrace import config
 from ddtrace.contrib.internal.httplib.patch import patch
 from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.base.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace_base.constants import _HTTPLIB_NO_TRACE_REQUEST
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer
@@ -698,7 +698,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         It derives from BaseException so no intermediate handler swallows it, which means an
         "except Exception" guard here would leave the span unfinished and active forever.
         """
-        from ddtrace.internal._exceptions import BlockingException
+        from ddtrace_base._exceptions import BlockingException
 
         def blocking_send_request(*args, **kwargs):
             raise BlockingException({}, "exploit_prevention", "ssrf", "http://blocked/")
@@ -717,7 +717,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
     def test_span_is_finished_when_putrequest_raises_a_base_exception(self):
         """Same contract for the putrequest wrapper, which owns the span when used directly."""
-        from ddtrace.internal._exceptions import BlockingException
+        from ddtrace_base._exceptions import BlockingException
 
         def blocking_output(*args, **kwargs):
             raise BlockingException({}, "exploit_prevention", "ssrf", "http://blocked/")
@@ -740,7 +740,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         _wrap_putrequest reuses whatever _datadog_span the connection already carries, so leaving
         a finished one behind means the next request on that connection reports nothing.
         """
-        from ddtrace.internal._exceptions import BlockingException
+        from ddtrace_base._exceptions import BlockingException
 
         def blocking_send_request(*args, **kwargs):
             raise BlockingException({}, "exploit_prevention", "ssrf", "http://blocked/")

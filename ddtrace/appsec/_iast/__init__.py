@@ -33,11 +33,11 @@ import types
 
 from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.appsec._iast_context import is_iast_request_enabled
-from ddtrace.internal import forksafe
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base import forksafe
+from ddtrace_base.logger import get_logger
+from ddtrace_base.module import ModuleWatchdog
 
 from ._listener import iast_listen
 from ._overhead_control_engine import oce

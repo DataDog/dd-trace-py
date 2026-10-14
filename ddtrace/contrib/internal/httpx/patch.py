@@ -3,10 +3,10 @@ import httpx
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
+from ddtrace_base.constants import COMPONENT
 
 from .common import HttpxPatcher
 

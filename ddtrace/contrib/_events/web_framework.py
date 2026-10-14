@@ -6,9 +6,9 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace_base.core.events import event_field
 
 
 class WebFrameworkEvents(str, Enum):

@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.ext.ci import github_actions
+from ddtrace_base.ext.ci import github_actions
 
 
 class TestGitHubActionsJobID:

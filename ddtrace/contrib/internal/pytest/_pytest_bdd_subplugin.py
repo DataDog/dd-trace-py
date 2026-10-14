@@ -1,6 +1,6 @@
 # DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
 # Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
-# the new plugin at ddtrace/testing/internal/pytest/.
+# the new plugin at ddtrace_testing/internal/pytest/.
 """Provides functionality to support the pytest-bdd plugin as part of the ddtrace integration
 
 NOTE: This replaces the previous ddtrace.pytest_bdd plugin.
@@ -24,9 +24,9 @@ from ddtrace.contrib.internal.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest_bdd.constants import STEP_KIND
 from ddtrace.contrib.internal.pytest_bdd.patch import get_version
 from ddtrace.ext import test
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestSession
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

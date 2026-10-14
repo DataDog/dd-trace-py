@@ -229,7 +229,7 @@ def test_selenium_v3_plugin_tags(tmp_path, pytester, git_repo):
     pytester.makeconftest(
         f"""
 import json, atexit
-from ddtrace.testing.internal.writer import TestOptWriter
+from ddtrace_testing.internal.writer import TestOptWriter
 
 _events = []
 _orig_put = TestOptWriter.put_event

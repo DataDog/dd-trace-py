@@ -5,7 +5,6 @@ from typing import cast
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -17,6 +16,7 @@ from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace_base.logger import get_logger
 
 
 if TYPE_CHECKING:

@@ -1,6 +1,6 @@
 """Smoke test: with --py-call-uwsgi-fork-hooks, uwsgi drives CPython's
 os.register_at_fork machinery around every worker fork, so ddtrace's general
-fork-safety registry (ddtrace.internal.forksafe) should reinitialize itself in
+fork-safety registry (ddtrace_base.forksafe) should reinitialize itself in
 each worker -- not just the profiler-specific PeriodicThread restart already
 covered by tests/profiling/test_uwsgi.py.
 

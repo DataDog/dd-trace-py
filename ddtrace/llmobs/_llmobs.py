@@ -24,13 +24,8 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import git
 from ddtrace.internal import atexit
 from ddtrace.internal import core
-from ddtrace.internal import forksafe
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
@@ -42,7 +37,6 @@ from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
@@ -212,6 +206,12 @@ from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
+from ddtrace_base import forksafe
+from ddtrace_base.ext import git
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 log = get_logger(__name__)

@@ -5,9 +5,9 @@ from typing import TypeVar
 from typing import Union
 from urllib.parse import urlparse
 
-from ddtrace.internal.base.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._core import DDConfig
+from ddtrace_base.constants import DEFAULT_TIMEOUT
+from ddtrace_base.settings._core import DDConfig
 
 
 DEFAULT_HOSTNAME = "localhost"

@@ -4,7 +4,7 @@ Ensure that cached functions are invalidated between test runs.
 
 import pytest
 
-from ddtrace.internal.base.utils import cache
+from ddtrace_base.utils import cache
 
 
 _CACHED_FUNCTIONS = []

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Optional
 
 import ddtrace
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
@@ -19,6 +18,7 @@ from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_f
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)
@@ -62,7 +62,7 @@ def _start_coverage(root_dir: str):
     if USE_DD_COVERAGE:
         collector = ModuleCodeCollector.CollectInContext()
 
-        from ddtrace.ext.git import extract_workspace_path
+        from ddtrace_base.ext.git import extract_workspace_path
 
         try:
             workspace_path = Path(extract_workspace_path())

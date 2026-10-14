@@ -9,9 +9,9 @@ process_tags -> _config -> telemetry -> process_tags circular import
 and telemetry depends on process_tags for its payload data).
 
 This module lives directly under ddtrace.internal (rather than
-ddtrace.internal.settings) and depends only on ddtrace.internal.base.settings.env (a
+ddtrace.internal.settings) and depends only on ddtrace_base.settings.env (a
 foundational, dependency-free env-var shim that even ddtrace's logger builds on)
-and ddtrace.internal.settings._core (which only reaches the native extension,
+and ddtrace_base.settings._core (which only reaches the native extension,
 env, and the supported-configurations registry — none of which re-enter
 process_tags/telemetry/_config), so it can sit underneath both without closing
 that loop: _config.py sets the value once during Config construction, and
@@ -22,8 +22,8 @@ from collections.abc import Mapping
 from typing import Optional
 
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._core import FLEET_CONFIG
-from ddtrace.internal.settings._core import LOCAL_CONFIG
+from ddtrace_base.settings._core import FLEET_CONFIG
+from ddtrace_base.settings._core import LOCAL_CONFIG
 
 
 def _service_in_source(source: Mapping[str, str]) -> bool:

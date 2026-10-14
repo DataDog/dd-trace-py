@@ -11,7 +11,7 @@ from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
-from ddtrace.internal._exceptions import BlockingException
+from ddtrace_base._exceptions import BlockingException
 
 
 class _OpenCallable(Protocol):

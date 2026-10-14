@@ -1,67 +1,21 @@
-from dataclasses import dataclass
-import typing as t
+"""Legacy re-export shim for a moved module.
 
-import pytest
+``ddtrace.testing.internal.pytest.benchmark`` moved to:
 
+``ddtrace_testing.internal.pytest.benchmark``
 
-BENCHMARK_INFO_TAG = "benchmark.duration.info"
+Keep the historical import path working for external consumers; import from
+the new module instead.
+"""
 
-TAGS_TO_PYTEST_BENCHMARK_ATTRS = {
-    "benchmark.duration.statistics.outliers": "outliers",
-}
-
-METRICS_TO_PYTEST_BENCHMARK_ATTRS = {
-    "benchmark.duration.mean": "mean",
-    "benchmark.duration.runs": "rounds",
-    "benchmark.duration.statistics.hd15iqr": "hd15iqr",
-    "benchmark.duration.statistics.iqr": "iqr",
-    "benchmark.duration.statistics.iqr_outliers": "iqr_outliers",
-    "benchmark.duration.statistics.ld15iqr": "ld15iqr",
-    "benchmark.duration.statistics.max": "max",
-    "benchmark.duration.statistics.mean": "mean",
-    "benchmark.duration.statistics.median": "median",
-    "benchmark.duration.statistics.min": "min",
-    "benchmark.duration.statistics.ops": "ops",
-    "benchmark.duration.statistics.q1": "q1",
-    "benchmark.duration.statistics.q3": "q3",
-    "benchmark.duration.statistics.n": "rounds",
-    "benchmark.duration.statistics.std_dev": "stddev",
-    "benchmark.duration.statistics.std_dev_outliers": "stddev_outliers",
-    "benchmark.duration.statistics.total": "total",
-}
-
-
-@dataclass
-class BenchmarkData:
-    tags: dict[str, str]
-    metrics: dict[str, float]
-
-
-def get_benchmark_tags_and_metrics(item: pytest.Item) -> t.Optional[BenchmarkData]:
-    if not item.config.pluginmanager.hasplugin("benchmark"):
-        return None
-
-    funcargs = getattr(item, "funcargs", None)
-    if not funcargs:
-        return None
-
-    benchmark_fixture = item.funcargs.get("benchmark")
-    if not benchmark_fixture or not benchmark_fixture.stats:
-        return None
-
-    stats = item.funcargs.get("benchmark").stats.stats
-
-    data = BenchmarkData(tags={}, metrics={})
-    data.tags[BENCHMARK_INFO_TAG] = "Time"
-
-    for tag_name, stats_attr in TAGS_TO_PYTEST_BENCHMARK_ATTRS.items():
-        value = getattr(stats, stats_attr, None)
-        if value is not None:
-            data.tags[tag_name] = value
-
-    for metric_name, stats_attr in METRICS_TO_PYTEST_BENCHMARK_ATTRS.items():
-        value = getattr(stats, stats_attr, None)
-        if value is not None:
-            data.metrics[metric_name] = value
-
-    return data
+from ddtrace_testing.internal.pytest.benchmark import BENCHMARK_INFO_TAG as BENCHMARK_INFO_TAG  # noqa: F401
+from ddtrace_testing.internal.pytest.benchmark import (
+    METRICS_TO_PYTEST_BENCHMARK_ATTRS as METRICS_TO_PYTEST_BENCHMARK_ATTRS,
+)  # noqa: F401
+from ddtrace_testing.internal.pytest.benchmark import (
+    TAGS_TO_PYTEST_BENCHMARK_ATTRS as TAGS_TO_PYTEST_BENCHMARK_ATTRS,  # noqa: F401
+)
+from ddtrace_testing.internal.pytest.benchmark import BenchmarkData as BenchmarkData  # noqa: F401
+from ddtrace_testing.internal.pytest.benchmark import (
+    get_benchmark_tags_and_metrics as get_benchmark_tags_and_metrics,  # noqa: F401
+)

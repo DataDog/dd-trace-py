@@ -1,6 +1,6 @@
 # DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
 # Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
-# the new plugin at ddtrace/testing/internal/pytest/.
+# the new plugin at ddtrace_testing/internal/pytest/.
 from pathlib import Path
 import typing as t
 
@@ -61,9 +61,6 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils import deprecations as deprecation_utils
-from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
@@ -72,7 +69,6 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -82,6 +78,10 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import deprecations as deprecation_utils
+from ddtrace_base.utils.deprecations import deprecate
+from ddtrace_testing.internal.coverage_lines import CoverageLines
 
 
 if _pytest_version_supports_retries():

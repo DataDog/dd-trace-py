@@ -14,7 +14,7 @@ from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.contrib.internal.stream_handler import make_traced_stream
-from ddtrace.internal._exceptions import DDBlockException
+from ddtrace_base._exceptions import DDBlockException
 
 
 class _RecordingMixin:

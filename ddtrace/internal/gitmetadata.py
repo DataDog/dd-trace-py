@@ -2,12 +2,12 @@ import importlib.metadata as importlib_metadata
 import typing
 
 from ddtrace.ext.ci import _filter_sensitive_info
-from ddtrace.ext.git import COMMIT_SHA
-from ddtrace.ext.git import MAIN_PACKAGE
-from ddtrace.ext.git import REPOSITORY_URL
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils import formats
+from ddtrace_base.ext.git import COMMIT_SHA
+from ddtrace_base.ext.git import MAIN_PACKAGE
+from ddtrace_base.ext.git import REPOSITORY_URL
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings._core import DDConfig
 
 
 # IMPORTANT: Do not change typing.Tuple to tuple until minimum Python version is 3.11+

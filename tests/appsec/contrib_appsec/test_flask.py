@@ -4,8 +4,8 @@ import json
 from flask.testing import FlaskClient
 import pytest
 
-from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
+from ddtrace_base.endpoints import endpoint_collection
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
@@ -339,9 +339,9 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
 
         from ddtrace import config
         from ddtrace._trace.trace_handlers import _set_flask_request_tags
-        from ddtrace.internal.base.constants import FLASK_RESOURCE_FULL
-        from ddtrace.internal.base.constants import FLASK_URL_RULE
         from ddtrace.trace import tracer
+        from ddtrace_base.constants import FLASK_RESOURCE_FULL
+        from ddtrace_base.constants import FLASK_URL_RULE
 
         request = Mock()
         request.method = "GET"
@@ -363,8 +363,8 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         # between flat and subapp modes would pass silently in every other e2e test.
         from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
-        from ddtrace.internal.base.constants import FLASK_RESOURCE_FULL
-        from ddtrace.internal.base.constants import FLASK_URL_RULE
+        from ddtrace_base.constants import FLASK_RESOURCE_FULL
+        from ddtrace_base.constants import FLASK_URL_RULE
         from tests.utils import override_global_config
 
         with override_global_config(dict(_asm_enabled=True)):

@@ -6,16 +6,16 @@ from itertools import chain
 import typing as t
 from typing import Protocol
 
-from ddtrace.internal import forksafe
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.uwsgi import check_uwsgi
 from ddtrace.internal.uwsgi import uWSGIConfigDeprecationWarning
 from ddtrace.internal.uwsgi import uWSGIConfigError
 from ddtrace.internal.uwsgi import uWSGIMasterProcess
+from ddtrace_base import forksafe
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings._core import DDConfig
 
 
 log = get_logger(__name__)

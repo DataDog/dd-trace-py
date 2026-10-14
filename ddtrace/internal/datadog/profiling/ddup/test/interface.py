@@ -16,8 +16,8 @@ from ddtrace.internal.datadog.profiling._types import StringType
 sys.modules["ddtrace"] = MagicMock()
 sys.modules["ddtrace"].__version__ = "0.0.0"
 sys.modules["ddtrace.internal"] = MagicMock()
-sys.modules["ddtrace.internal.base.compat"] = MagicMock()
-sys.modules["ddtrace.internal.base.constants"] = MagicMock()
+sys.modules["ddtrace_base.compat"] = MagicMock()
+sys.modules["ddtrace_base.constants"] = MagicMock()
 sys.modules["ddtrace.internal.datadog"] = MagicMock()
 sys.modules["ddtrace.internal.datadog.profiling"] = MagicMock()
 sys.modules["ddtrace.internal.datadog.profiling.ddup"] = MagicMock()

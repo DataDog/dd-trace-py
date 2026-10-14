@@ -5,7 +5,6 @@ from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
@@ -17,6 +16,7 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

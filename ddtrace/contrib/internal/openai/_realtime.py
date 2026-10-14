@@ -64,7 +64,6 @@ import openai
 
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
@@ -86,6 +85,7 @@ from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

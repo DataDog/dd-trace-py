@@ -10,8 +10,8 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
 
 
 class SSRF(VulnerabilityBase):

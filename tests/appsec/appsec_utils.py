@@ -13,7 +13,7 @@ import psutil
 from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
+from ddtrace_base.compat import PYTHON_VERSION_INFO
 from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
 from tests.utils import override_config

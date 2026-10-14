@@ -15,13 +15,13 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
 
 
 # Pynamodb connection class

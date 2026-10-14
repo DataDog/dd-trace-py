@@ -1,11 +1,11 @@
 from typing import Optional
 
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace_base.constants import DEFAULT_SERVICE_NAME
 
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY
 from .. import process_tags
-from ..base.constants import DEFAULT_SERVICE_NAME
 from .collector import ValueCollector
 from .constants import LANG
 from .constants import LANG_INTERPRETER

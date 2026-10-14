@@ -3,10 +3,10 @@ from typing import Optional
 
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
-from ddtrace.internal.base.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
 from ddtrace.trace import TraceFilter
 from ddtrace.version import __version__
+from ddtrace_base.constants import SamplingMechanism
 
 
 if TYPE_CHECKING:

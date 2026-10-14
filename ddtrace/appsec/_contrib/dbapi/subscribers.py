@@ -5,8 +5,8 @@ from ddtrace.appsec._ddwaf import DDWafSqlTokenizer
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.contrib._events.dbapi import DbQueryEvent
-from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace_base._exceptions import BlockingException
 
 
 _SPAN_NAME_PREFIX_TO_SQL_TOKENIZER: dict[str, DDWafSqlTokenizer] = {

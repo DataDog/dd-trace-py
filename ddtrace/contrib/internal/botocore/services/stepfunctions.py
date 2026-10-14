@@ -8,11 +8,11 @@ from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_I
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

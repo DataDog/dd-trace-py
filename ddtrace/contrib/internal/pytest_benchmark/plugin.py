@@ -1,6 +1,6 @@
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace.contrib.internal.pytest.plugin import is_enabled as is_ddtrace_enabled
-from ddtrace.internal.base.utils.deprecations import deprecate
+from ddtrace_base.utils.deprecations import deprecate
 
 
 def pytest_configure(config):

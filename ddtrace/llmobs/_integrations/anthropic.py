@@ -3,7 +3,6 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
@@ -28,6 +27,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

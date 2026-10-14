@@ -7,8 +7,8 @@ import pytest
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import ITRData
-from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.utils.http import Response
+from ddtrace_testing.internal.coverage_lines import CoverageLines
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
@@ -579,7 +579,7 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
         client = self._get_test_client()
         with (
             mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5),
-            mock.patch("ddtrace.internal.utils.retry.sleep"),
+            mock.patch("ddtrace_base.utils.retry.sleep"),
         ):
             skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert skippable_items is None

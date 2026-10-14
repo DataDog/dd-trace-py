@@ -3,8 +3,7 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
-
-from . import forksafe
+from ddtrace_base import forksafe
 
 
 log = logging.getLogger(__name__)

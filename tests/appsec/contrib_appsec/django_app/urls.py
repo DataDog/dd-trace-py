@@ -417,7 +417,7 @@ def exception_group_block(request):
         return HttpResponse("ok", status=200)
 
     from ddtrace.appsec._utils import Block_config
-    from ddtrace.internal._exceptions import BlockingException
+    from ddtrace_base._exceptions import BlockingException
 
     raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
 

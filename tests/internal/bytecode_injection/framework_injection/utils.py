@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from types import ModuleType
 
-from ddtrace.internal.module import origin
+from ddtrace_base.module import origin
 
 
 try:

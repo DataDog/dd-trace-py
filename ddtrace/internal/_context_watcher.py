@@ -1,7 +1,7 @@
 import sys
 
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import is_at_least_py
+from ddtrace_base.compat import is_at_least_py
 
 
 PYTHON_CONTEXT_SWITCH_EVENT = "python.context.switch"

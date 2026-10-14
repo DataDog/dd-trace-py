@@ -2,10 +2,10 @@ import urllib.parse
 
 import requests
 
-from ddtrace.internal.utils.retry import retry
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 from ddtrace.trace import TraceFilter
+from ddtrace_base.utils.retry import retry
 
 
 PING_TRACE_ID = 1

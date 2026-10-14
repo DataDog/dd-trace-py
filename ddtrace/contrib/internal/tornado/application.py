@@ -8,9 +8,9 @@ from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
 from ddtrace.contrib.internal.tornado.handlers import _path_for_path_match
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
-from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.trace import tracer
+from ddtrace_base.endpoints import endpoint_collection
 
 
 _HTTP_METHODS = ("get", "post", "put", "delete", "patch", "head", "options")

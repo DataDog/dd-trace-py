@@ -39,34 +39,34 @@ components:
   ci:
     - ddtrace/ext/ci/*
   codeowners:
-    - ddtrace/internal/codeowners.py
+    - ddtrace_base/codeowners.py
   core:
     - ddtrace/internal/__init__.py
-    - ddtrace/internal/_exceptions.py
+    - ddtrace_base/_exceptions.py
     - ddtrace/internal/_service_state.py
     - ddtrace/internal/_threads.*
-    - ddtrace/internal/_unpatched.py
+    - ddtrace_base/_unpatched.py
     - ddtrace/internal/agent.py
-    - ddtrace/internal/assembly.py
+    - ddtrace_base/assembly.py
     - ddtrace/internal/atexit.py
-    - ddtrace/internal/base/compat.py
+    - ddtrace_base/compat.py
     - ddtrace/internal/core/*
     - ddtrace/internal/datadog/__init__.py
     - ddtrace/internal/debug.py
     - ddtrace/internal/dogstatsd.py
-    - ddtrace/internal/forksafe.py
+    - ddtrace_base/forksafe.py
     - ddtrace/internal/gitmetadata.py
-    - ddtrace/internal/glob_matching.py
+    - ddtrace_base/glob_matching.py
     - ddtrace/internal/ipc.py
-    - ddtrace/internal/base/logger.py
+    - ddtrace_base/logger.py
     - ddtrace/_logger.py
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
-    - ddtrace/internal/base/logger.py
+    - ddtrace_base/logger.py
     - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
-    - ddtrace/internal/module.py
+    - ddtrace_base/module.py
     - ddtrace/internal/native/*
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
@@ -74,7 +74,7 @@ components:
     - ddtrace/internal/process_tags/__init__.py
     - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
-    - ddtrace/internal/safety.py
+    - ddtrace_base/safety.py
     - ddtrace/internal/service.py
     - ddtrace/internal/uds.py
     - ddtrace/internal/utils/*
@@ -96,7 +96,7 @@ components:
     - ddtrace/internal/openfeature/*
     - tests/openfeature/*
   git:
-    - ddtrace/ext/git.py
+    - ddtrace_base/ext/git.py
   lib_injection:
     - lib-injection/*
     - tests/lib_injection/*
@@ -136,7 +136,7 @@ components:
     - ddtrace/internal/_encoding.py*
     - ddtrace/internal/_tagset.py*
     - ddtrace/internal/_utils.*
-    - ddtrace/internal/base/constants.py
+    - ddtrace_base/constants.py
     - ddtrace/internal/encoding.py
     - ddtrace/internal/flare/*
     - ddtrace/internal/pack.h

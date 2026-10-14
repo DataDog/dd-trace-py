@@ -8,11 +8,11 @@ from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.test_data import TestSession
+from ddtrace_testing.internal.session_manager import SessionManager
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import TestSession
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import network_mocks
 from tests.testing.mocks import setup_standard_mocks
@@ -36,7 +36,7 @@ class TestFeaturesWithMocking:
         )
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
             result = pytester.runpytest("--ddtrace", "-v")
@@ -59,7 +59,7 @@ class TestFeaturesWithMocking:
         )
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
             result = pytester.runpytest("--no-ddtrace", "-v")
@@ -82,7 +82,7 @@ class TestFeaturesWithMocking:
         )
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
             result = pytester.runpytest("-p", "no:ddtrace", "-v")
@@ -105,7 +105,7 @@ class TestFeaturesWithMocking:
         )
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
             result = pytester.runpytest("--ddtrace", "--no-ddtrace", "-v")
@@ -130,7 +130,7 @@ class TestFeaturesWithMocking:
         monkeypatch.setenv("DD_CIVISIBILITY_ENABLED", "false")
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
             result = pytester.runpytest("--ddtrace", "-v")
@@ -160,7 +160,7 @@ class TestFeaturesWithMocking:
         )
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
             result = pytester.runpytest("-v")
@@ -190,7 +190,7 @@ class TestFeaturesWithMocking:
         )
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings()
 
             result = pytester.runpytest("-v")
@@ -217,7 +217,7 @@ class TestFeaturesWithMocking:
         )
 
         # Use network mocks to prevent all real HTTP calls
-        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+        with network_mocks(), patch("ddtrace_testing.internal.session_manager.APIClient") as mock_api_client:
             mock_api_client.return_value = mock_api_client_settings(auto_retries_enabled=True)
             monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "2")
             result = pytester.runpytest("--ddtrace", "-v", "-s")
@@ -270,7 +270,7 @@ class TestFeaturesWithMocking:
         # Use unified mock setup with EFD enabled
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests={known_test_ref}
                 ),
@@ -326,7 +326,7 @@ class TestFeaturesWithMocking:
         # Use unified mock setup with ITR enabled
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=True, skippable_items={skippable_test_ref}),
             ),
             setup_standard_mocks(),
@@ -356,7 +356,7 @@ class TestPytestPluginIntegration:
     """Integration tests for the pytest plugin using pytester for better performance and reliability."""
 
     def test_basic_test_execution(self, pytester: Pytester) -> None:
-        """Test that a basic test runs with the ddtrace.testing plugin."""
+        """Test that a basic test runs with the ddtrace_testing plugin."""
         # Create test file using pytester
         pytester.makepyfile(
             """
@@ -373,7 +373,7 @@ class TestPytestPluginIntegration:
 
         # Set up mocks and environment
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
             setup_standard_mocks(),
         ):
             result = pytester.runpytest("--ddtrace", "-v")
@@ -399,7 +399,7 @@ class TestPytestPluginIntegration:
 
         # Set up mocks and environment
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
             setup_standard_mocks(),
         ):
             result = pytester.runpytest("--ddtrace", "-v")
@@ -409,7 +409,7 @@ class TestPytestPluginIntegration:
         result.assert_outcomes(passed=1, failed=1)
 
     def test_plugin_loads_correctly(self, pytester: Pytester) -> None:
-        """Test that the ddtrace.testing plugin loads without errors."""
+        """Test that the ddtrace_testing plugin loads without errors."""
         # Create test file using pytester
         pytester.makepyfile(
             """
@@ -421,7 +421,7 @@ class TestPytestPluginIntegration:
 
         # Set up mocks and environment
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
             setup_standard_mocks(),
         ):
             result = pytester.runpytest("--ddtrace", "--tb=short", "-v")
@@ -447,7 +447,7 @@ class TestPytestPluginIntegration:
 
         # Set up mocks and environment
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
             setup_standard_mocks(),
         ):
             # Run with specific arguments that should be captured
@@ -476,7 +476,7 @@ class TestPytestPluginIntegration:
 
         # Set up mocks and environment (including retry env vars)
         with (
-            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            patch("ddtrace_testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
             setup_standard_mocks(),
         ):
             # Set all environment variables via monkeypatch
@@ -538,7 +538,7 @@ class TestRetryHandler:
         # Use unified mock setup with auto retries enabled
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
             setup_standard_mocks(),
@@ -562,7 +562,7 @@ class TestRetryHandler:
             session_manager.setup_retry_handlers()
 
             # Check that AutoTestRetriesHandler was added
-            from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+            from ddtrace_testing.internal.retry_handlers import AutoTestRetriesHandler
 
             retry_handlers = session_manager.retry_handlers
             auto_retry_handler = next((h for h in retry_handlers if isinstance(h, AutoTestRetriesHandler)), None)
@@ -573,12 +573,12 @@ class TestRetryHandler:
 
     def test_retry_handler_logic(self) -> None:
         """Test the retry logic of AutoTestRetriesHandler."""
-        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
-        from ddtrace.testing.internal.test_data import Test
-        from ddtrace.testing.internal.test_data import TestRef
-        from ddtrace.testing.internal.test_data import TestStatus
+        from ddtrace_testing.internal.retry_handlers import AutoTestRetriesHandler
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import Test
+        from ddtrace_testing.internal.test_data import TestRef
+        from ddtrace_testing.internal.test_data import TestStatus
 
         # Create a mock session manager
         mock_session_manager = Mock()

@@ -42,14 +42,8 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import NO_EXCEPTION
-from ddtrace.internal.base.compat import ExcInfoType
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.module import origin
-from ddtrace.internal.module import register_post_run_module_hook
-from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -57,6 +51,12 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace_base.compat import NO_EXCEPTION
+from ddtrace_base.compat import ExcInfoType
+from ddtrace_base.logger import get_logger
+from ddtrace_base.module import origin
+from ddtrace_base.module import register_post_run_module_hook
+from ddtrace_base.module import unregister_post_run_module_hook
 
 
 log = get_logger(__name__)

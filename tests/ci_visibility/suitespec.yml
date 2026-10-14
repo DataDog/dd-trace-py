@@ -15,7 +15,7 @@ components:
   unittest:
     - ddtrace/contrib/internal/unittest/*
   testing:
-    - ddtrace/testing/*
+    - ddtrace_testing/*
 suites:
   ci_visibility:
     paths:

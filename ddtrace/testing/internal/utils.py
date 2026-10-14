@@ -1,85 +1,18 @@
-from __future__ import annotations
+"""Legacy re-export shim for a moved module.
 
-import os
-import re
-import typing as t
+``ddtrace.testing.internal.utils`` moved to:
 
+``ddtrace_testing.internal.utils``
 
-if t.TYPE_CHECKING:
-    from ddtrace.trace import Span
+Keep the historical import path working for external consumers; import from
+the new module instead.
+"""
 
-
-DDTESTOPT_ROOT_SPAN_RESOURCE = "testing_root_span"
-
-
-def _gen_item_id() -> int:
-    # We use ddtrace's random number generator to avoid being affected by pytest-randomly.
-    # Deferred: rand64bits is native-backed; when the extension is unavailable,
-    # os.urandom provides the same guarantee (it is not reseeded by pytest-randomly).
-    try:
-        from ddtrace.testing.internal.tracer_api import rand64bits
-
-        return rand64bits()
-    except ImportError:
-        return int.from_bytes(os.urandom(8), "big")
-
-
-def asbool(value: t.Union[str, bool, None]) -> bool:
-    if value is None:
-        return False
-
-    if isinstance(value, bool):
-        return value
-
-    return value.lower() in ("true", "1")
-
-
-def ensure_text(s: t.Any) -> str:
-    if isinstance(s, str):
-        return s
-    if isinstance(s, bytes):
-        return s.decode("utf-8", errors="ignore")
-    return str(s)
-
-
-_RE_URL = re.compile(r"(https?://|ssh://)[^/]*@")
-
-
-def _filter_sensitive_info(url: t.Optional[str]) -> t.Optional[str]:
-    return _RE_URL.sub("\\1", url) if url is not None else None
-
-
-class TestContext(t.Protocol):
-    span_id: int
-    trace_id: int
-
-    def get_tags(self) -> dict[str, str]: ...
-
-    def get_metrics(self) -> dict[str, float]: ...
-
-
-class PlainTestContext(TestContext):
-    def __init__(self, span_id: t.Optional[int] = None, trace_id: t.Optional[int] = None):
-        self.span_id = span_id or _gen_item_id()
-        self.trace_id = trace_id or _gen_item_id()
-
-    def get_tags(self) -> dict[str, str]:
-        return {}
-
-    def get_metrics(self) -> dict[str, float]:
-        return {}
-
-
-class DDTraceTestContext(TestContext):
-    def __init__(self, span: Span):
-        self.trace_id = span.trace_id % (1 << 64)
-        self.span_id = span.span_id % (1 << 64)
-        self._span = span
-
-    def get_tags(self) -> dict[str, str]:
-        # DEV: in ddtrace < 4.x, key names can be bytes.
-        return {ensure_text(k): v for k, v in self._span.get_tags().items()}
-
-    def get_metrics(self) -> dict[str, float]:
-        # DEV: in ddtrace < 4.x, key names can be bytes.
-        return {ensure_text(k): v for k, v in self._span.get_metrics().items()}
+from ddtrace_testing.internal.utils import DDTESTOPT_ROOT_SPAN_RESOURCE as DDTESTOPT_ROOT_SPAN_RESOURCE  # noqa: F401
+from ddtrace_testing.internal.utils import DDTraceTestContext as DDTraceTestContext  # noqa: F401
+from ddtrace_testing.internal.utils import PlainTestContext as PlainTestContext  # noqa: F401
+from ddtrace_testing.internal.utils import TestContext as TestContext  # noqa: F401
+from ddtrace_testing.internal.utils import _filter_sensitive_info as _filter_sensitive_info  # noqa: F401
+from ddtrace_testing.internal.utils import _gen_item_id as _gen_item_id  # noqa: F401
+from ddtrace_testing.internal.utils import asbool as asbool  # noqa: F401
+from ddtrace_testing.internal.utils import ensure_text as ensure_text  # noqa: F401

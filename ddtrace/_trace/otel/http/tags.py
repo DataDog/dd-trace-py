@@ -14,18 +14,18 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.internal.base.constants import DEFAULT_SCHEME_PORTS
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings._core import FLEET_CONFIG
-from ddtrace.internal.settings._core import LOCAL_CONFIG
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.http import redact_query_string
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
+from ddtrace_base.constants import DEFAULT_SCHEME_PORTS
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings._core import FLEET_CONFIG
+from ddtrace_base.settings._core import LOCAL_CONFIG
+from ddtrace_base.utils.cache import cached
 
 
 log = get_logger(__name__)

@@ -19,10 +19,10 @@ from ddtrace import tracer
 from ddtrace.contrib.internal.pytorch import _c_tracer
 from ddtrace.contrib.internal.pytorch import _device
 from ddtrace.contrib.internal.trace_utils import int_service
-from ddtrace.internal import forksafe
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.threads import Lock
+from ddtrace_base import forksafe
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

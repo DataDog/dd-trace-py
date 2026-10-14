@@ -20,7 +20,7 @@ def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Option
     return shutil.which(command)
 
 
-# Do not use `ddtrace.internal.base.logger.get_logger` here
+# Do not use `ddtrace_base.logger.get_logger` here
 # DEV: It isn't really necessary to use `DDLogger` here so we want to
 #        defer importing `ddtrace` until we actually need it.
 #      As well, no actual rate limiting would apply here since we only

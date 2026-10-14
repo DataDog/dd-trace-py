@@ -37,9 +37,9 @@ def test_supported_sampling_mechanism():
     """
     validate_sampling_decision should not give errors for supported sampling mechanisms
     """
-    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.base.constants import SamplingMechanism
     from ddtrace.internal.sampling import validate_sampling_decision
+    from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace_base.constants import SamplingMechanism
 
     # This list can grow over time so we should test all of them
     supported_mechanisms = {
@@ -62,8 +62,8 @@ def test_malformed_sampling_mechanism(dm_value):
     """
     Malformed sampling mechanisms actually return a decoding error in validate_sampling_decision
     """
-    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import validate_sampling_decision
+    from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 
     meta = {SAMPLING_DECISION_TRACE_TAG_KEY: dm_value}
     sampling_decision_validation = validate_sampling_decision(meta)

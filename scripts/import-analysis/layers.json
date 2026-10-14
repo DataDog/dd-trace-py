@@ -8,7 +8,7 @@
     "are exempt from every rule, both as importer and as imported module."
   ],
   "zones": {
-    "ddtrace.internal.base": "internal-base",
+    "ddtrace_base": "internal-base",
     "ddtrace.internal": "internal-core",
     "ddtrace.contrib": "contrib",
 

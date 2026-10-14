@@ -3,9 +3,9 @@ import http.client as httplib
 import json
 from typing import TypedDict  # noqa:F401
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.threads import RLock
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

@@ -1,4 +1,4 @@
-"""Tests for log correlation and agentless log submission in the ddtrace.testing pytest plugin.
+"""Tests for log correlation and agentless log submission in the ddtrace_testing pytest plugin.
 
 Log correlation (DD_LOGS_INJECTION): log records emitted during a test carry the test's
 dd.trace_id/dd.span_id, injected by the ddtrace logging patch.
@@ -56,7 +56,7 @@ def pytest_configure(config):
     # hook fires), but they only start background threads and make HTTP calls when
     # start() is called in pytest_sessionstart (after this hook).  Swapping them here
     # prevents any network I/O and CI Visibility data leakage.
-    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
+    from ddtrace_testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
 
     session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if session_manager is not None:
@@ -76,7 +76,7 @@ def pytest_configure(config):
     # Setting a module to None in sys.modules causes ImportError on subsequent imports.
     sys.modules["ddtrace.contrib.internal.logging.patch"] = None
 
-    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
+    from ddtrace_testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY, _stash_get
 
     session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if session_manager is not None:
@@ -172,7 +172,7 @@ _TEST_AGENTLESS_HANDLER_INSTALLED = """\
 import logging
 import ddtrace
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.testing.internal.logs import LogsHandler
+from ddtrace_testing.internal.logs import LogsHandler
 
 
 def test_agentless_handler_installed_and_forwards():
@@ -206,7 +206,7 @@ def test_agentless_handler_installed_and_forwards():
 
 _TEST_NO_HANDLER_WITHOUT_FLAG = """\
 import logging
-from ddtrace.testing.internal.logs import LogsHandler
+from ddtrace_testing.internal.logs import LogsHandler
 
 
 def test_no_handler_without_submission_flag():
@@ -218,7 +218,7 @@ def test_no_handler_without_submission_flag():
 
 _TEST_ROOT_LEVEL_FILTERING = """\
 import logging
-from ddtrace.testing.internal.logs import LogsHandler
+from ddtrace_testing.internal.logs import LogsHandler
 
 
 def test_root_level_filters_child_logger_records():

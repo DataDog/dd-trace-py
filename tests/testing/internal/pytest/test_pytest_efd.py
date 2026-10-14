@@ -5,9 +5,9 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
 from tests.testing.internal.pytest.utils import assert_stats
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -20,8 +20,8 @@ class TestEFD:
         # EFD budgets are duration-based. Keep the default baseline in the fast
         # bucket; tests for slow buckets override these mocks explicitly.
         with (
-            patch("ddtrace.testing.internal.test_data.TestRun.seconds_so_far", return_value=0),
-            patch("ddtrace.testing.internal.test_data.Test.seconds_so_far", return_value=0),
+            patch("ddtrace_testing.internal.test_data.TestRun.seconds_so_far", return_value=0),
+            patch("ddtrace_testing.internal.test_data.Test.seconds_so_far", return_value=0),
         ):
             yield
 
@@ -45,7 +45,7 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -102,13 +102,13 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
             ),
             # Simulate test that takes more than 5 minutes to run.
-            patch("ddtrace.testing.internal.test_data.Test.seconds_so_far", return_value=301),
+            patch("ddtrace_testing.internal.test_data.Test.seconds_so_far", return_value=301),
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
@@ -147,13 +147,13 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
             ),
             # slow_test_retries_10s is 5, so a test that takes 8 seconds should have 1 initial attempt + 5 retries.
-            patch("ddtrace.testing.internal.test_data.TestRun.seconds_so_far", return_value=8),
+            patch("ddtrace_testing.internal.test_data.TestRun.seconds_so_far", return_value=8),
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
@@ -185,7 +185,7 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -229,7 +229,7 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -266,7 +266,7 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -330,7 +330,7 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
@@ -399,7 +399,7 @@ class TestEFD:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),

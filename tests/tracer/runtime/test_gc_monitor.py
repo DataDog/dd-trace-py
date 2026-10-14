@@ -5,10 +5,10 @@ import sys
 import threading
 import types
 
-from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import gc_monitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
+from ddtrace_base import forksafe
 
 
 # Tests that call _on_gc manually while the monitor's gc.callbacks hook is

@@ -24,8 +24,8 @@ from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.products import ProductManager
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import build_payload

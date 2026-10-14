@@ -13,9 +13,7 @@ import pytest
 
 import ddtrace
 from ddtrace.internal import service
-from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -24,6 +22,8 @@ from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace_base.compat import PYTHON_VERSION_INFO
+from ddtrace_base.module import ModuleWatchdog
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
@@ -529,7 +529,7 @@ def test_libdd_failure_telemetry_logging() -> None:
         mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
     ):
         from ddtrace.internal.settings.profiling import config  # noqa:F401
-        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args
@@ -555,8 +555,8 @@ def test_libdd_failure_telemetry_logging_with_auto() -> None:
         ),
         mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
     ):
-        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
         import ddtrace.profiling.auto  # noqa: F401
+        from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args
@@ -586,7 +586,7 @@ def test_stack_failure_telemetry_logging() -> None:
         mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
     ):
         from ddtrace.internal.settings.profiling import config  # noqa: F401
-        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args
@@ -612,8 +612,8 @@ def test_stack_failure_telemetry_logging_with_auto() -> None:
         ),
         mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
     ):
-        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
         import ddtrace.profiling.auto  # noqa: F401
+        from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
 
         mock_add_log.assert_called_once()
         call_args = mock_add_log.call_args

@@ -1,6 +1,6 @@
 # DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
 # Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
-# the new plugin at ddtrace/testing/internal/pytest/.
+# the new plugin at ddtrace_testing/internal/pytest/.
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -20,14 +20,14 @@ from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import TestSuiteId
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.inspection import undecorated
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.cache import cached
+from ddtrace_base.utils.inspection import undecorated
 
 
 log = get_logger(__name__)

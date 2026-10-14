@@ -5,7 +5,6 @@ from typing import Optional  # noqa:F401
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.service import int_service
 from ddtrace.internal.utils.service import set_service_and_source
@@ -37,6 +36,7 @@ from ddtrace.llmobs._utils import get_tracked_prompt
 from ddtrace.llmobs._utils import set_gen_ai_apm_tags
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

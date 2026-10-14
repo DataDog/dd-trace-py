@@ -16,23 +16,23 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal.base.compat import is_valid_ip
-from ddtrace.internal.base.constants import COMPONENT
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_blocked
-from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
+from ddtrace_base._exceptions import BlockingException
+from ddtrace_base._exceptions import find_exception
+from ddtrace_base.compat import is_valid_ip
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_blocked
+from ddtrace_base.utils import set_blocked
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 log = get_logger(__name__)

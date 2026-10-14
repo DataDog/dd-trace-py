@@ -3,10 +3,10 @@ import sys
 import warnings
 
 import ddtrace
-from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
+from ddtrace_base.module import ModuleWatchdog
+from ddtrace_base.module import is_module_installed
 
 
 MODULES_REQUIRING_CLEANUP = ("gevent",)
@@ -62,6 +62,7 @@ def cleanup_loaded_modules() -> None:
             "atexit",
             "copyreg",  # pickling issues for tracebacks with gevent
             "ddtrace",
+            "ddtrace_base",  # the split-out base package; keeps the module watchdog singleton from being orphaned
             "concurrent",
             "importlib._bootstrap",  # special import that must not be unloaded
             "typing",

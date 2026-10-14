@@ -1,10 +1,10 @@
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
+from ddtrace_base.logger import get_logger
 
 
 logger = get_logger(__name__)

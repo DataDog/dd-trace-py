@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
-from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import event_field
+from ddtrace_base.core.events import Event
+from ddtrace_base.core.events import event_field
 
 
 @dataclass

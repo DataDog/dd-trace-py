@@ -10,11 +10,11 @@ from typing import Optional
 from typing import Union
 from urllib.parse import quote
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAXSIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

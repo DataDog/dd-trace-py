@@ -4,11 +4,11 @@ import logging
 import time
 import typing as t
 
-from ddtrace.internal.base.utils.cache import cached
 from ddtrace.internal.settings import env
+from ddtrace_base.utils.cache import cached
 
 
-# Use stdlib logging here. Importing ddtrace.internal.base.logger creates circular imports
+# Use stdlib logging here. Importing ddtrace_base.logger creates circular imports
 # because this utility is shared by both the legacy CI Visibility and Testing plugin dependency trees.
 log = logging.getLogger(__name__)
 

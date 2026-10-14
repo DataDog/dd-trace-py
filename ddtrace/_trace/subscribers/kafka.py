@@ -10,11 +10,11 @@ from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.base.constants import MESSAGING_SYSTEM
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
+from ddtrace_base.constants import MESSAGING_DESTINATION_NAME
+from ddtrace_base.constants import MESSAGING_SYSTEM
 
 
 def set_kafka_meta(

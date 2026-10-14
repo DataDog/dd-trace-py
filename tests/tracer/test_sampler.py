@@ -13,12 +13,12 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.internal.base.constants import DEFAULT_SAMPLING_RATE_LIMIT
-from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.trace import Span
+from ddtrace_base.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ddtrace_base.glob_matching import GlobMatcher
 from tests.utils import scoped_tracer
 
 from ..utils import override_global_config

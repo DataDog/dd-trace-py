@@ -15,13 +15,10 @@ from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.forksafe import Lock
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -30,6 +27,9 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace_base.forksafe import Lock
+from ddtrace_base.module import ModuleWatchdog
+from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
 
 
 LOG = logging.getLogger(__name__)

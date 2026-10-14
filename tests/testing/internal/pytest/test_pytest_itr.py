@@ -7,10 +7,10 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.writer import TestCoverageWriter
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
+from ddtrace_testing.internal.writer import TestCoverageWriter
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
@@ -47,7 +47,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
             ),
             setup_standard_mocks(),
@@ -109,7 +109,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=False, skippable_items=skippable_items),
             ),
             setup_standard_mocks(),
@@ -168,7 +168,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=False, skippable_items=skippable_items),
             ),
             setup_standard_mocks(),
@@ -207,7 +207,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
             ),
             setup_standard_mocks(),
@@ -254,7 +254,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
             ),
             setup_standard_mocks(),
@@ -313,7 +313,7 @@ class TestITR:
         )
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(coverage_enabled=True),
             ),
             setup_standard_mocks(),
@@ -346,7 +346,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
             ),
             setup_standard_mocks(workspace_path=str(pytester.path)),
@@ -408,7 +408,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
             ),
             setup_standard_mocks(workspace_path=str(pytester.path)),
@@ -458,7 +458,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(coverage_enabled=True),
             ),
             setup_standard_mocks(workspace_path=str(pytester.path)),
@@ -490,7 +490,7 @@ class TestITR:
         )
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(coverage_enabled=False),
             ),
             setup_standard_mocks(),
@@ -515,7 +515,7 @@ class TestITR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     coverage_enabled=True,
                     coverage_report_upload_enabled=True,
@@ -523,7 +523,7 @@ class TestITR:
             ),
             setup_standard_mocks(),
             patch(
-                "ddtrace.testing.internal.pytest.plugin.setup_coverage_collection",
+                "ddtrace_testing.internal.pytest.plugin.setup_coverage_collection",
                 side_effect=lambda **kwargs: setup_coverage_calls.append(True),
             ),
         ):

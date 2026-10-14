@@ -7,17 +7,17 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.env_tags import _PROVIDER_CI
-from ddtrace.testing.internal.env_tags import _PROVIDER_GIT_CLIENT
-from ddtrace.testing.internal.env_tags import _PROVIDER_USER_SUPPLIED
-from ddtrace.testing.internal.env_tags import _check_commit_sha_consistency
-from ddtrace.testing.internal.env_tags import get_env_tags
-from ddtrace.testing.internal.git import Git
-from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.git import get_git_tags_from_git_command
-from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.utils import _filter_sensitive_info
+from ddtrace_testing.internal.ci import CITag
+from ddtrace_testing.internal.env_tags import _PROVIDER_CI
+from ddtrace_testing.internal.env_tags import _PROVIDER_GIT_CLIENT
+from ddtrace_testing.internal.env_tags import _PROVIDER_USER_SUPPLIED
+from ddtrace_testing.internal.env_tags import _check_commit_sha_consistency
+from ddtrace_testing.internal.env_tags import get_env_tags
+from ddtrace_testing.internal.git import Git
+from ddtrace_testing.internal.git import GitTag
+from ddtrace_testing.internal.git import get_git_tags_from_git_command
+from ddtrace_testing.internal.telemetry import TelemetryAPI
+from ddtrace_testing.internal.utils import _filter_sensitive_info
 
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "tracer" / "fixtures" / "ci"
@@ -37,7 +37,7 @@ def test_ci_providers(
     """Make sure all provided environment variables from each CI provider are tagged correctly."""
     monkeypatch.setattr(os, "environ", environment)
 
-    with mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value={}):
+    with mock.patch("ddtrace_testing.internal.git.get_git_tags_from_git_command", return_value={}):
         extracted_tags = get_env_tags()
 
     for key, value in tags.items():
@@ -263,7 +263,7 @@ def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_rep
     monkeypatch.setattr(os, "environ", {})
     monkeypatch.chdir(git_repo)
 
-    with mock.patch("ddtrace.testing.internal.git.log") as log:
+    with mock.patch("ddtrace_testing.internal.git.log") as log:
         with mock.patch("shutil.which", return_value=None):
             tags = get_git_tags_from_git_command()
 
@@ -351,7 +351,7 @@ def test_pull_request_base_branch_normalized_when_branch_is_tag(monkeypatch: pyt
     monkeypatch.setattr(os, "environ", env)
     monkeypatch.chdir(git_repo)
 
-    with mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value={}):
+    with mock.patch("ddtrace_testing.internal.git.get_git_tags_from_git_command", return_value={}):
         tags = get_env_tags()
 
     assert tags[GitTag.TAG] == "v1.2.3"

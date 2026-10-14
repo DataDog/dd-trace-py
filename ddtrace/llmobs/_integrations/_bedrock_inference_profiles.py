@@ -36,7 +36,7 @@ _RESOLVE_IN_FLIGHT: set[str] = set()
 _CACHE_LOCK = threading.Lock()
 
 # Exponential backoff schedule for failed resolutions (mirrors the 1.618 factor used by
-# ddtrace.internal.utils.retry.fibonacci_backoff_with_jitter): ~1s, ~1.6s, ~2.6s, ... capped.
+# ddtrace_base.utils.retry.fibonacci_backoff_with_jitter): ~1s, ~1.6s, ~2.6s, ... capped.
 _BACKOFF_BASE_SECONDS = 1.0
 _BACKOFF_FACTOR = 1.618
 _BACKOFF_MAX_SECONDS = 600.0

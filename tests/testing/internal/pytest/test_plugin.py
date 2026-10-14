@@ -15,26 +15,26 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.constants import ITRSkippingLevel
-from ddtrace.testing.internal.pytest._xdist import CrashRetryBudget
-from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
-from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
-from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
-from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
-from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
-from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
-from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
-from ddtrace.testing.internal.pytest.plugin import _get_source_lines
-from ddtrace.testing.internal.pytest.plugin import _get_test_command
-from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
-from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
-from ddtrace.testing.internal.pytest.plugin import _get_user_property
-from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
-from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
-from ddtrace.testing.internal.pytest.utils import item_to_test_ref
-from ddtrace.testing.internal.pytest.utils import nodeid_to_names
-from ddtrace.testing.internal.test_data import TestStatus
-from ddtrace.testing.internal.test_data import TestTag
+from ddtrace_testing.internal.constants import ITRSkippingLevel
+from ddtrace_testing.internal.pytest._xdist import CrashRetryBudget
+from ddtrace_testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace_testing.internal.pytest._xdist import read_atr_crash_retry_state
+from ddtrace_testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
+from ddtrace_testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
+from ddtrace_testing.internal.pytest.plugin import TestOptPlugin
+from ddtrace_testing.internal.pytest.plugin import _get_exception_tags
+from ddtrace_testing.internal.pytest.plugin import _get_module_path_from_item
+from ddtrace_testing.internal.pytest.plugin import _get_source_lines
+from ddtrace_testing.internal.pytest.plugin import _get_test_command
+from ddtrace_testing.internal.pytest.plugin import _get_test_location_info
+from ddtrace_testing.internal.pytest.plugin import _get_test_original_name
+from ddtrace_testing.internal.pytest.plugin import _get_user_property
+from ddtrace_testing.internal.pytest.utils import _encode_test_parameter
+from ddtrace_testing.internal.pytest.utils import _get_test_parameters_json
+from ddtrace_testing.internal.pytest.utils import item_to_test_ref
+from ddtrace_testing.internal.pytest.utils import nodeid_to_names
+from ddtrace_testing.internal.test_data import TestStatus
+from ddtrace_testing.internal.test_data import TestTag
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
@@ -73,8 +73,8 @@ class TestSkippingAndITRFeatures:
 
         # Mock the trace_context and coverage_collection context managers
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection"),
         ):
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
@@ -107,8 +107,8 @@ class TestSkippingAndITRFeatures:
 
         # Mock the trace_context and coverage_collection context managers
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection"),
         ):
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
@@ -151,8 +151,8 @@ class TestSkippingAndITRFeatures:
 
         # Mock the trace_context and coverage_collection context managers
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection"),
         ):
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
@@ -185,8 +185,8 @@ class TestSkippingAndITRFeatures:
 
         # Mock the trace_context and coverage_collection context managers
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection"),
         ):
             # Call the method that applies skipping logic
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
@@ -210,8 +210,8 @@ class TestSkippingAndITRFeatures:
         test_file = workspace / "test_foo.py"
         test_file.write_text("def test_dummy(): pass")
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -238,8 +238,8 @@ class TestSkippingAndITRFeatures:
         test_file = workspace / "test_foo.py"
         test_file.write_text("@pytest.mark.skipif(False, reason='datadog_itr_unskippable')\ndef test_x(): pass")
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -273,8 +273,8 @@ class TestSkippingAndITRFeatures:
             "def test_x(value): pass"
         )
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -307,8 +307,8 @@ class TestSkippingAndITRFeatures:
             "def test_x(): pass"
         )
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -341,8 +341,8 @@ class TestSkippingAndITRFeatures:
             "REASON = 'other'\n"
         )
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -374,8 +374,8 @@ class TestSkippingAndITRFeatures:
             "def test_x(): pass"
         )
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -404,8 +404,8 @@ class TestSkippingAndITRFeatures:
             'import pytest\n@pytest.mark.skipif(False, reason=f"datadog_itr_unskippable")\ndef test_x(): pass'
         )
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -432,8 +432,8 @@ class TestSkippingAndITRFeatures:
         test_file = workspace / "test_foo.py"
         test_file.write_text("# datadog_itr_unskippable\ndef test_x(): pass")
 
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace_testing.internal.test_data import ModuleRef
+        from ddtrace_testing.internal.test_data import SuiteRef
 
         suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
 
@@ -479,15 +479,15 @@ class TestSkippingAndITRFeatures:
         mock_pytest_session.items = []
         mock_pytest_session.config.rootpath = workspace
 
-        with patch("ddtrace.testing.internal.pytest.plugin.TelemetryAPI"):
+        with patch("ddtrace_testing.internal.pytest.plugin.TelemetryAPI"):
             plugin._emit_itr_ignored_suite_events(mock_pytest_session)
 
         # Suite and module were written out.
         put_item_calls = [call[0][0] for call in mock_manager.writer.put_item.call_args_list]
         assert len(put_item_calls) == 2  # suite + module
 
-        from ddtrace.testing.internal.test_data import TestModule
-        from ddtrace.testing.internal.test_data import TestSuite
+        from ddtrace_testing.internal.test_data import TestModule
+        from ddtrace_testing.internal.test_data import TestSuite
 
         suite_calls = [c for c in put_item_calls if isinstance(c, TestSuite)]
         module_calls = [c for c in put_item_calls if isinstance(c, TestModule)]
@@ -516,7 +516,7 @@ class TestSkippingAndITRFeatures:
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
 
-        with patch("ddtrace.testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
+        with patch("ddtrace_testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
             plugin.pytest_sessionfinish(mock_session)
 
         assert mock_session.exitstatus == pytest.ExitCode.OK
@@ -538,7 +538,7 @@ class TestSkippingAndITRFeatures:
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
 
-        with patch("ddtrace.testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
+        with patch("ddtrace_testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
             plugin.pytest_sessionfinish(mock_session)
 
         assert mock_session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED
@@ -581,8 +581,8 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("/test_suite.py::test_function").build()
 
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection"),
         ):
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
@@ -608,8 +608,8 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("/test_suite.py::test_function").build()
 
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection"),
         ):
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
@@ -637,8 +637,8 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("/test_suite.py::test_function").build()
 
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection") as mock_coverage_collection,
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection") as mock_coverage_collection,
         ):
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
@@ -667,8 +667,8 @@ class TestSkippingAndITRFeatures:
         mock_item = pytest_item_mock("/test_suite.py::test_function").build()
 
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
-            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+            patch("ddtrace_testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace_testing.internal.pytest.plugin.coverage_collection"),
         ):
             list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
 
@@ -710,7 +710,7 @@ class TestFinalStatusFeatures:
         # Mock _get_test_outcome to return a passing test
         with patch.object(plugin, "_get_test_outcome", return_value=(TestStatus.PASS, {})):
             # Mock trace_context
-            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+            with patch("ddtrace_testing.internal.tracer_api.context.trace_context") as mock_trace_context:
                 mock_context = Mock()
                 mock_trace_context.return_value.__enter__.return_value = mock_context
 
@@ -725,7 +725,7 @@ class TestFinalStatusFeatures:
 
     def test_final_status_set_for_retry_scenario(self) -> None:
         """Test that final status is set only on the last retry, not on any intermediate retries."""
-        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+        from ddtrace_testing.internal.retry_handlers import AutoTestRetriesHandler
 
         # Create test references using TestDataFactory
         test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
@@ -773,7 +773,7 @@ class TestFinalStatusFeatures:
             ],
         ):
             # Mock trace_context
-            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+            with patch("ddtrace_testing.internal.tracer_api.context.trace_context") as mock_trace_context:
                 mock_context = Mock()
                 mock_trace_context.return_value.__enter__.return_value = mock_context
 
@@ -781,7 +781,7 @@ class TestFinalStatusFeatures:
                 with (
                     patch.object(plugin, "_log_test_reports"),
                     patch.object(plugin, "_mark_test_reports_as_retry"),
-                    patch("ddtrace.testing.internal.pytest.plugin.RetryReports.make_final_report"),
+                    patch("ddtrace_testing.internal.pytest.plugin.RetryReports.make_final_report"),
                 ):
                     # Call _do_test_runs (simulating a test with retries)
                     plugin._do_test_runs(mock_item, None)
@@ -841,7 +841,7 @@ class TestSessionManagement:
         mock_session.config = mock_config
 
         # Mock the session manager and other dependencies
-        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+        with patch("ddtrace_testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
             plugin.pytest_sessionstart(mock_session)
 
         assert plugin.is_xdist_worker is True
@@ -1063,7 +1063,7 @@ class TestHelperFunctions:
         """Test _get_relative_module_path_from_item when path is within workspace."""
         from pathlib import Path
 
-        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+        from ddtrace_testing.internal.pytest.plugin import _get_relative_module_path_from_item
 
         mock_item = Mock()
         mock_path = Mock()
@@ -1079,7 +1079,7 @@ class TestHelperFunctions:
         """Test _get_relative_module_path_from_item when path is outside workspace."""
         from pathlib import Path
 
-        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+        from ddtrace_testing.internal.pytest.plugin import _get_relative_module_path_from_item
 
         mock_item = Mock()
         mock_path = Mock()
@@ -1202,7 +1202,7 @@ class TestHelperFunctions:
         item_path = Path("/workspace/tests/test_file.py")
 
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace_testing.internal.pytest.plugin.undecorated") as mock_undecorated,
             patch("ddtrace.internal.ci_visibility.utils.get_source_lines_for_test_method") as mock_get_lines,
         ):
             mock_undecorated.return_value = mock_item._obj
@@ -1240,7 +1240,7 @@ class TestHelperFunctions:
         item_path = Path("/workspace/tests/test_file.py")
 
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace_testing.internal.pytest.plugin.undecorated") as mock_undecorated,
             patch("ddtrace.internal.ci_visibility.utils.get_source_lines_for_test_method"),
         ):
             # Simulate exception in undecorated
@@ -1263,7 +1263,7 @@ class TestHelperFunctions:
         item_path = Path("/workspace/tests/test_file.py")
 
         with (
-            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace_testing.internal.pytest.plugin.undecorated") as mock_undecorated,
             patch("ddtrace.internal.ci_visibility.utils.get_source_lines_for_test_method"),
         ):
             mock_undecorated.side_effect = Exception("undecorated failed")
@@ -1283,7 +1283,7 @@ class TestHelperFunctions:
 
         workspace_path = Path("/workspace")
 
-        with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
+        with patch("ddtrace_testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
             mock_get_lines.return_value = (10, 20)
 
             relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
@@ -1302,7 +1302,7 @@ class TestHelperFunctions:
 
         workspace_path = Path("/workspace")
 
-        with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
+        with patch("ddtrace_testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
             mock_get_lines.return_value = (15, 0)
 
             relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
@@ -1485,7 +1485,7 @@ class TestResetPytestTimeout:
         plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item()
 
-        with patch("ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings", None):
+        with patch("ddtrace_testing.internal.pytest.plugin._pytest_timeout_get_item_settings", None):
             plugin._reset_pytest_timeout(item)
 
         item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
@@ -1497,7 +1497,7 @@ class TestResetPytestTimeout:
         item = self._make_item(hasplugin=False)
 
         with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            "ddtrace_testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
             return_value=self._make_settings(),
         ):
             plugin._reset_pytest_timeout(item)
@@ -1511,7 +1511,7 @@ class TestResetPytestTimeout:
         item = self._make_item()
 
         with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            "ddtrace_testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
             return_value=self._make_settings(func_only=True),
         ):
             plugin._reset_pytest_timeout(item)
@@ -1525,7 +1525,7 @@ class TestResetPytestTimeout:
         item = self._make_item()
 
         with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            "ddtrace_testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
             return_value=self._make_settings(timeout=None),
         ):
             plugin._reset_pytest_timeout(item)
@@ -1539,7 +1539,7 @@ class TestResetPytestTimeout:
         item = self._make_item()
 
         with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            "ddtrace_testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
             return_value=self._make_settings(timeout=0),
         ):
             plugin._reset_pytest_timeout(item)
@@ -1554,7 +1554,7 @@ class TestResetPytestTimeout:
         settings = self._make_settings(timeout=30.0)
 
         with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            "ddtrace_testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
             return_value=settings,
         ):
             plugin._reset_pytest_timeout(item)
@@ -1568,7 +1568,7 @@ class TestResetPytestTimeout:
         item = self._make_item()
 
         with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
+            "ddtrace_testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
             side_effect=RuntimeError("unexpected error from pytest-timeout"),
         ):
             plugin._reset_pytest_timeout(item)  # must not raise
@@ -1836,10 +1836,10 @@ class TestXdistCrashRequeue:
     def _build_plugin(
         *, atr: bool = False, efd: bool = False, test_management: bool = False, dynamic: bool = False
     ) -> XdistTestOptPlugin:
-        from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
-        from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
-        from ddtrace.testing.internal.settings_data import Settings
-        from ddtrace.testing.internal.settings_data import TestManagementSettings
+        from ddtrace_testing.internal.settings_data import AutoTestRetriesSettings
+        from ddtrace_testing.internal.settings_data import EarlyFlakeDetectionSettings
+        from ddtrace_testing.internal.settings_data import Settings
+        from ddtrace_testing.internal.settings_data import TestManagementSettings
 
         builder = session_manager_mock()
         builder._settings = Settings(
@@ -1848,7 +1848,7 @@ class TestXdistCrashRequeue:
             test_management=TestManagementSettings(enabled=test_management),
         )
         manager = builder.build_mock()
-        with patch("ddtrace.testing.internal.pytest._xdist.is_xdist_worker_process", return_value=False):
+        with patch("ddtrace_testing.internal.pytest._xdist.is_xdist_worker_process", return_value=False):
             plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=manager))
         plugin._dynamic_retries = dynamic
         return plugin
@@ -1930,7 +1930,7 @@ class TestXdistCrashRequeue:
         plugin = self._build_plugin(atr=True, dynamic=True)
         nodeid = "test_foo.py::test_a"
 
-        with patch("ddtrace.testing.internal.pytest._xdist.time.monotonic", side_effect=[100.0, 106.0]):
+        with patch("ddtrace_testing.internal.pytest._xdist.time.monotonic", side_effect=[100.0, 106.0]):
             plugin.pytest_runtest_logstart(nodeid, None)
             plugin.pytest_handlecrashitem(nodeid, self._make_report(nodeid), Mock())
 
@@ -2312,7 +2312,7 @@ class TestRetryReportsTeardownTracking:
 
     def test_track_report_records_outcome(self) -> None:
         """track_report should record a report's outcome in reports_by_outcome."""
-        from ddtrace.testing.internal.pytest.plugin import RetryReports
+        from ddtrace_testing.internal.pytest.plugin import RetryReports
 
         retry_reports = RetryReports()
         teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
@@ -2328,7 +2328,7 @@ class TestRetryReportsTeardownTracking:
         When teardown fails, _get_test_outcome returns FAIL, the retry handler returns FAIL, and
         make_final_report needs "failed" in reports_by_outcome. With teardown tracking, it finds it.
         """
-        from ddtrace.testing.internal.pytest.plugin import RetryReports
+        from ddtrace_testing.internal.pytest.plugin import RetryReports
 
         retry_reports = RetryReports()
 
@@ -2358,7 +2358,7 @@ class TestRetryReportsTeardownTracking:
         The retry handler returns FAIL (from teardown), but "failed" is missing from
         reports_by_outcome, so make_final_report produces a degraded report with longrepr=None.
         """
-        from ddtrace.testing.internal.pytest.plugin import RetryReports
+        from ddtrace_testing.internal.pytest.plugin import RetryReports
 
         retry_reports = RetryReports()
 

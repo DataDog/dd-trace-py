@@ -1,5 +1,5 @@
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace_base.logger import get_logger
 
 from .._patch_modules import WrapFunctonsForIAST
 

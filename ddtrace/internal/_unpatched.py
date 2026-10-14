@@ -1,26 +1,21 @@
-# Acquire a reference to the open function from the builtins module. This is
-# necessary to ensure that the open function can be used unpatched when required.
-from builtins import open as unpatched_open  # noqa
-from json import loads as unpatched_json_loads  # noqa
+"""Legacy re-export shim for a moved module.
 
-# Acquire a reference to the threading module. Some parts of the library (e.g.
-# the profiler) might be enabled programmatically and therefore might end up
-# getting a reference to the tracee's threading module. By storing a reference
-# to the threading module used by ddtrace here, we make it easy for those parts
-# to get a reference to the right threading module.
-import threading as _threading  # noqa
-import gc as _gc  # noqa
-import sys
+``ddtrace.internal._unpatched`` moved to:
 
-threading_Lock = _threading.Lock
-threading_RLock = _threading.RLock
-threading_Event = _threading.Event
+``ddtrace_base._unpatched``
 
+Keep the historical import path working for external consumers; import from
+the new module instead.
+"""
 
-previous_loaded_modules = frozenset(sys.modules.keys())
-from subprocess import Popen as unpatched_Popen  # noqa # nosec B404
-from os import close as unpatched_close  # noqa: F401, E402
-
-loaded_modules = frozenset(sys.modules.keys())
-for module in previous_loaded_modules - loaded_modules:
-    del sys.modules[module]
+from ddtrace_base._unpatched import _gc as _gc  # noqa: F401
+from ddtrace_base._unpatched import _threading as _threading  # noqa: F401
+from ddtrace_base._unpatched import loaded_modules as loaded_modules  # noqa: F401
+from ddtrace_base._unpatched import previous_loaded_modules as previous_loaded_modules  # noqa: F401
+from ddtrace_base._unpatched import threading_Event as threading_Event  # noqa: F401
+from ddtrace_base._unpatched import threading_Lock as threading_Lock  # noqa: F401
+from ddtrace_base._unpatched import threading_RLock as threading_RLock  # noqa: F401
+from ddtrace_base._unpatched import unpatched_close as unpatched_close  # noqa: F401
+from ddtrace_base._unpatched import unpatched_json_loads as unpatched_json_loads  # noqa: F401
+from ddtrace_base._unpatched import unpatched_open as unpatched_open  # noqa: F401
+from ddtrace_base._unpatched import unpatched_Popen as unpatched_Popen  # noqa: F401

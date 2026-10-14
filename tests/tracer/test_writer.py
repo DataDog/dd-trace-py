@@ -17,7 +17,6 @@ import pytest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
-from ddtrace.internal import forksafe
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.http import HTTPConnection
@@ -29,13 +28,14 @@ from ddtrace.internal.settings import _opentelemetry
 from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.utils import _human_size
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
 from ddtrace.internal.writer.writer import compute_agentless_intake_url
 from ddtrace.trace import Span
+from ddtrace_base import forksafe
+from ddtrace_base.utils import _human_size
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
@@ -1206,7 +1206,7 @@ def test_writer_reuse_connections_false():
 @pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
 def test_trace_with_128bit_trace_ids():
     """Ensure 128bit trace ids are correctly encoded"""
-    from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS
     from tests.utils import TracerSpanContainer
     from tests.utils import scoped_tracer
 

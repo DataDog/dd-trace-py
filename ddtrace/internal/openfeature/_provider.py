@@ -25,7 +25,6 @@ from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _register_provider
@@ -51,6 +50,7 @@ from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace_base.logger import get_logger
 
 
 # Handle different import paths between openfeature-sdk versions.

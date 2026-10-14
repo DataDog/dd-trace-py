@@ -1,47 +1,60 @@
-from enum import Enum
+"""Legacy re-export shim for a moved module.
 
+``ddtrace.testing.internal.constants`` moved to:
 
-class ITRSkippingLevel(Enum):
-    SUITE = "suite"
-    TEST = "test"
+``ddtrace_testing.internal.constants``
 
+Keep the historical import path working for external consumers; import from
+the new module instead.
+"""
 
-DEFAULT_SERVICE_NAME = "test"
-DEFAULT_ENV_NAME = "none"
-DEFAULT_SITE = "datadoghq.com"
-
-DEFAULT_AGENT_HOSTNAME = "localhost"
-DEFAULT_AGENT_PORT = 8126
-DEFAULT_AGENT_SOCKET_FILE = "/var/run/datadog/apm.socket"
-
-TAG_TRUE = "true"
-TAG_FALSE = "false"
-
-EMPTY_NAME = "."
-
-# Git metadata environment variables
-DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA = "DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"
-
-# Bazel / offline mode environment variables
-DD_TEST_OPTIMIZATION_MANIFEST_FILE = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
-DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"
-DD_TEST_OPTIMIZATION_ENV_DATA_FILE = "DD_TEST_OPTIMIZATION_ENV_DATA_FILE"
-TEST_UNDECLARED_OUTPUTS_DIR = "TEST_UNDECLARED_OUTPUTS_DIR"
-
-# Test discovery environment variables
-DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED = "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED"
-DD_TEST_OPTIMIZATION_DISCOVERY_FILE = "DD_TEST_OPTIMIZATION_DISCOVERY_FILE"
-
-# The only supported .testoptimization manifest version
-SUPPORTED_MANIFEST_VERSION = 1
-TEST_OPTIMIZATION_MANIFEST_FILENAME = "manifest.txt"
-TEST_OPTIMIZATION_CACHE_DIR = "cache"
-TEST_OPTIMIZATION_HTTP_CACHE_DIR = TEST_OPTIMIZATION_CACHE_DIR + "/http"
-TEST_OPTIMIZATION_SETTINGS_FILE = "settings.json"
-TEST_OPTIMIZATION_KNOWN_TESTS_FILE = "known_tests.json"
-TEST_OPTIMIZATION_TEST_MANAGEMENT_FILE = "test_management.json"
-TEST_OPTIMIZATION_SKIPPABLE_TESTS_FILE = "skippable_tests.json"
-
-# Prefix of the temp directory holding a manifest cache we generated ourselves for pytest-xdist workers, as opposed to
-# one provided by an external tool such as the Bazel rule. The controller pid follows the prefix.
-XDIST_MANIFEST_DIR_PREFIX = "dd_xdist_manifest_"
+from ddtrace_testing.internal.constants import (
+    DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA as DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA,
+)  # noqa: F401
+from ddtrace_testing.internal.constants import (
+    DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED as DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED,
+)  # noqa: F401
+from ddtrace_testing.internal.constants import (
+    DD_TEST_OPTIMIZATION_DISCOVERY_FILE as DD_TEST_OPTIMIZATION_DISCOVERY_FILE,
+)  # noqa: F401
+from ddtrace_testing.internal.constants import (
+    DD_TEST_OPTIMIZATION_ENV_DATA_FILE as DD_TEST_OPTIMIZATION_ENV_DATA_FILE,  # noqa: F401
+)
+from ddtrace_testing.internal.constants import (
+    DD_TEST_OPTIMIZATION_MANIFEST_FILE as DD_TEST_OPTIMIZATION_MANIFEST_FILE,  # noqa: F401
+)
+from ddtrace_testing.internal.constants import (
+    DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES as DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES,
+)  # noqa: F401
+from ddtrace_testing.internal.constants import DEFAULT_AGENT_HOSTNAME as DEFAULT_AGENT_HOSTNAME  # noqa: F401
+from ddtrace_testing.internal.constants import DEFAULT_AGENT_PORT as DEFAULT_AGENT_PORT  # noqa: F401
+from ddtrace_testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE as DEFAULT_AGENT_SOCKET_FILE  # noqa: F401
+from ddtrace_testing.internal.constants import DEFAULT_ENV_NAME as DEFAULT_ENV_NAME  # noqa: F401
+from ddtrace_testing.internal.constants import DEFAULT_SERVICE_NAME as DEFAULT_SERVICE_NAME  # noqa: F401
+from ddtrace_testing.internal.constants import DEFAULT_SITE as DEFAULT_SITE  # noqa: F401
+from ddtrace_testing.internal.constants import EMPTY_NAME as EMPTY_NAME  # noqa: F401
+from ddtrace_testing.internal.constants import SUPPORTED_MANIFEST_VERSION as SUPPORTED_MANIFEST_VERSION  # noqa: F401
+from ddtrace_testing.internal.constants import TAG_FALSE as TAG_FALSE  # noqa: F401
+from ddtrace_testing.internal.constants import TAG_TRUE as TAG_TRUE  # noqa: F401
+from ddtrace_testing.internal.constants import TEST_OPTIMIZATION_CACHE_DIR as TEST_OPTIMIZATION_CACHE_DIR  # noqa: F401
+from ddtrace_testing.internal.constants import (
+    TEST_OPTIMIZATION_HTTP_CACHE_DIR as TEST_OPTIMIZATION_HTTP_CACHE_DIR,  # noqa: F401
+)
+from ddtrace_testing.internal.constants import (
+    TEST_OPTIMIZATION_KNOWN_TESTS_FILE as TEST_OPTIMIZATION_KNOWN_TESTS_FILE,  # noqa: F401
+)
+from ddtrace_testing.internal.constants import (
+    TEST_OPTIMIZATION_MANIFEST_FILENAME as TEST_OPTIMIZATION_MANIFEST_FILENAME,
+)  # noqa: F401
+from ddtrace_testing.internal.constants import (
+    TEST_OPTIMIZATION_SETTINGS_FILE as TEST_OPTIMIZATION_SETTINGS_FILE,  # noqa: F401
+)
+from ddtrace_testing.internal.constants import (
+    TEST_OPTIMIZATION_SKIPPABLE_TESTS_FILE as TEST_OPTIMIZATION_SKIPPABLE_TESTS_FILE,
+)  # noqa: F401
+from ddtrace_testing.internal.constants import (
+    TEST_OPTIMIZATION_TEST_MANAGEMENT_FILE as TEST_OPTIMIZATION_TEST_MANAGEMENT_FILE,
+)  # noqa: F401
+from ddtrace_testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR as TEST_UNDECLARED_OUTPUTS_DIR  # noqa: F401
+from ddtrace_testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX as XDIST_MANIFEST_DIR_PREFIX  # noqa: F401
+from ddtrace_testing.internal.constants import ITRSkippingLevel as ITRSkippingLevel  # noqa: F401

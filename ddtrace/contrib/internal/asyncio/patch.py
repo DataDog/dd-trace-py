@@ -4,11 +4,11 @@ from typing import Any
 from ddtrace.contrib.internal.asyncio import _context_switch
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 
 
 def get_version() -> str:

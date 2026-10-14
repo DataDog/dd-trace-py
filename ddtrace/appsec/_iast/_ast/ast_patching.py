@@ -9,12 +9,12 @@ from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._logs import iast_ast_debug_log
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.module import origin
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.logger import get_logger
+from ddtrace_base.module import origin
 
 from .visitor import AstVisitor
 

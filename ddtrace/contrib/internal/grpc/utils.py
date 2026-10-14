@@ -6,8 +6,8 @@ from urllib import parse
 from ddtrace import config
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.ext import net
-from ddtrace.internal.base.constants import USER_AGENT_HEADER
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
+from ddtrace_base.constants import USER_AGENT_HEADER
 
 
 log = logging.getLogger(__name__)

@@ -1,9 +1,9 @@
 import sys
 
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.trace import tracer
+from ddtrace_base.logger import get_logger
 
 
 _APPSEC_TO_BE_LOADED = True
@@ -40,7 +40,7 @@ def _abort_appsec(failure_msg: str) -> None:
 
     if asm_config._asm_enabled:
         from ddtrace.internal.telemetry import telemetry_writer
-        from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+        from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
 
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
 

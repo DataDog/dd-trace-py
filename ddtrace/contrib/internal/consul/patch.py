@@ -11,13 +11,13 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import consul as consulx
 from ddtrace.ext import net
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import get_argument_value
 
 
 _KV_FUNCS = ["put", "get", "delete"]

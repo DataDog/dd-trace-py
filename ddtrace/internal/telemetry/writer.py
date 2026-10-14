@@ -8,27 +8,27 @@ from typing import Optional
 from typing import Union
 import weakref
 
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.endpoints import HttpEndPoint
-from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
-from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace_base import forksafe
+from ddtrace_base.endpoints import HttpEndPoint
+from ddtrace_base.endpoints import endpoint_collection
+from ddtrace_base.logger import get_logger
+from ddtrace_base.settings._agentless import config as agentless_config
+from ddtrace_base.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import MetricTagType  # noqa: F401
 
 from ...internal import atexit
 from ...internal import excepthook
-from ...internal import forksafe
 from .._runtime_id import get_ancestor_runtime_id
 from .._runtime_id import get_parent_runtime_id
 from .._runtime_id import get_runtime_id
 from ..periodic import PeriodicService
 from ..utils.formats import get_test_session_token
 from ..utils.version import version as tracer_version
-from .constants import TELEMETRY_APM_PRODUCT
-from .constants import TELEMETRY_LOG_LEVEL
-from .constants import TELEMETRY_NAMESPACE
-from .constants import MetricTagType  # noqa: F401
 from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars

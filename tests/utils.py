@@ -30,7 +30,6 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import packages as _packages_module
 from ddtrace.internal import process_tags
-from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
@@ -54,6 +53,7 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
+from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS
 from tests._ddtest_env_helpers import strip_ddtest_leaked_env
 from tests.subprocesstest import SubprocessTestCase
 
@@ -127,12 +127,12 @@ def assert_span_http_status_code(span, code):
 def reinitialize_agentless_config():
     """Re-resolve the agentless settings from the environment as it stands now.
 
-    ``ddtrace.internal.settings._agentless.config`` is resolved once, at import, and its consumers
+    ``ddtrace_base.settings._agentless.config`` is resolved once, at import, and its consumers
     hold a reference to that instance -- so a test that changes the environment in-process has to
     refresh it in place rather than rebind the module attribute.
     """
-    from ddtrace.internal.settings._agentless import AgentlessConfig
-    from ddtrace.internal.settings._agentless import config as agentless_config
+    from ddtrace_base.settings._agentless import AgentlessConfig
+    from ddtrace_base.settings._agentless import config as agentless_config
 
     agentless_config.__dict__ = AgentlessConfig().__dict__
 

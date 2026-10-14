@@ -5,12 +5,12 @@ from typing import Optional
 
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
+from ddtrace_base.compat import ensure_text
+from ddtrace_base.logger import get_logger
 
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
-from .base.compat import ensure_text
-from .base.logger import get_logger
 
 
 __all__ = [

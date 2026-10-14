@@ -1,4 +1,4 @@
-from ddtrace.internal.base.constants import Constant_Class
+from ddtrace_base.constants import Constant_Class
 
 
 class COMMANDS(metaclass=Constant_Class):

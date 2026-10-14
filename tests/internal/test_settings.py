@@ -7,7 +7,7 @@ import pytest
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.settings._config import Config
-from ddtrace.internal.settings._core import DDConfig
+from ddtrace_base.settings._core import DDConfig
 from tests.utils import remote_config_build_payload as build_payload
 from tests.utils import scoped_tracer
 

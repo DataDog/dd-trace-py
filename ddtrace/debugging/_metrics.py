@@ -1,7 +1,7 @@
 from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import InstrumentationTelemetryMetricsClient
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 # Debugger metrics (reported via instrumentation telemetry)

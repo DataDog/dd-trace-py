@@ -5,13 +5,13 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.aws_lambda._cold_start import is_cold_start
 from ddtrace.contrib.internal.aws_lambda._cold_start import set_cold_start
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings._config import _get_config
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils import get_argument_value
 
 
 def get_version() -> str:

@@ -22,7 +22,7 @@ from typing import Union
 from typing import cast
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace_base.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.trace import Tracer
@@ -33,7 +33,7 @@ from ddtrace.profiling.collector._task cimport (
     get_task as _c_get_task,
     initialize_gevent_support as _c_initialize_gevent_support,
 )
-from ddtrace.internal.base.logger import get_logger
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

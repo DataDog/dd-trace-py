@@ -6,7 +6,6 @@ import typing
 
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import is_at_least_py
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
@@ -14,10 +13,11 @@ from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
 LOG = logging.getLogger(__name__)

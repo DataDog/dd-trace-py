@@ -10,7 +10,6 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
@@ -51,6 +50,7 @@ from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_feedback_event
 from tests.llmobs._utils import assert_llmobs_span_data

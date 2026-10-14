@@ -10,16 +10,16 @@ from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import ArgumentError
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
+from ddtrace_base.logger import get_logger
+from ddtrace_base.schema.span_attribute_schema import SpanDirection
+from ddtrace_base.utils import ArgumentError
+from ddtrace_base.utils import get_argument_value
+from ddtrace_base.utils import set_argument_value
 
 
 _Producer = confluent_kafka.Producer

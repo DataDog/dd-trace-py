@@ -7,14 +7,14 @@ from types import ModuleType
 import cloudpickle
 import pytest
 
-from ddtrace.internal import forksafe
+from ddtrace_base import forksafe
 
 
 @pytest.mark.subprocess
 def test_forksafe():
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     state = []
 
@@ -50,7 +50,7 @@ def test_registry():
     """
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     state = ["initial"]
 
@@ -91,7 +91,7 @@ def test_registry():
 def test_method_usage():
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     class A:
         def __init__(self):
@@ -122,7 +122,7 @@ def test_method_usage():
 def test_hook_exception():
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     state = []
 
@@ -171,7 +171,7 @@ def test_hook_panic_exception():
     """
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     state = []
 
@@ -208,7 +208,7 @@ def test_hook_base_exception_not_a_panic_still_propagates():
     """
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     state = []
 
@@ -254,7 +254,7 @@ def test_event_fork():
     """
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     event = forksafe.Event()
     event.set()
@@ -277,7 +277,7 @@ def test_event_fork():
 def test_double_fork():
     import os
 
-    from ddtrace.internal import forksafe
+    from ddtrace_base import forksafe
 
     state = []
 

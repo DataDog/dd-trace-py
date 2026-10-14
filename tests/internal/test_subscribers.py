@@ -7,14 +7,14 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
-from ddtrace.internal.base.constants import COMPONENT
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
+from ddtrace_base.constants import COMPONENT
+from ddtrace_base.core.events import Event
+from ddtrace_base.core.events import event_field
 
 
 called: list[str] = []

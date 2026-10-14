@@ -16,12 +16,12 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _libddwaf_platform
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.base.compat import is_at_most_py
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
-from ddtrace.internal.settings._core import DDConfig
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.compat import is_at_most_py
+from ddtrace_base.settings._core import DDConfig
 
 
 def _validate_non_negative_int(r: int) -> None:

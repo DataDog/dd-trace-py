@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ddtrace.internal.base.compat import PYTHON_VERSION_INFO
+from ddtrace_base.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program

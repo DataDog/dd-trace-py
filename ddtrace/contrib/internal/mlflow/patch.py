@@ -16,10 +16,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.telemetry import get_config as _get_config
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_tags
+from ddtrace_base.utils import get_argument_value
 
 
 MLFLOW_ACTIVE_RUN_SPANS = {}

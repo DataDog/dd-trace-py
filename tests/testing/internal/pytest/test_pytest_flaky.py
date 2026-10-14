@@ -5,9 +5,9 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
 from tests.testing.internal.pytest.utils import assert_stats
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -38,7 +38,7 @@ def _known_tests(*test_names: str) -> set[TestRef]:
 
 
 class TestPytestFlakyPlugin:
-    """Compatibility coverage for the external pytest-flaky plugin with ddtrace.testing."""
+    """Compatibility coverage for the external pytest-flaky plugin with ddtrace_testing."""
 
     def test_external_flaky_plugin_drives_retries_when_datadog_retries_disabled(self, pytester: Pytester) -> None:
         pytest.importorskip("flaky")
@@ -69,7 +69,7 @@ class TestPytestFlakyPlugin:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True,
                     known_tests_enabled=True,
@@ -100,7 +100,7 @@ class TestPytestFlakyPlugin:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True,
                     known_tests_enabled=True,

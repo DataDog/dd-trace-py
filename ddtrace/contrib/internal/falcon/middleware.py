@@ -3,10 +3,10 @@ import sys
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
-from ddtrace.internal.base.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.base.utils.deprecations import deprecate
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace_base.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace_base.utils.deprecations import deprecate
 
 
 class TraceMiddleware:

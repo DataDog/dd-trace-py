@@ -1,60 +1,11 @@
-from .base.utils.cache import cachedmethod
+"""Legacy re-export shim for a moved module.
 
+``ddtrace.internal.glob_matching`` moved to:
 
-class GlobMatcher:
-    """This is a backtracking implementation of the glob matching algorithm.
-    The glob pattern language supports `*` as a multiple character wildcard which includes matches on `""`
-    and `?` as a single character wildcard, but no escape sequences.
-    The match is case insensitive.
-    The match method will be cached for quicker matching and is in a class to keep it from being global.
-    """
+``ddtrace_base.glob_matching``
 
-    def __init__(self, pattern: str) -> None:
-        self.pattern = pattern.lower()
-        self.wildcards_only = not (set(self.pattern) - {"?", "*"})
+Keep the historical import path working for external consumers; import from
+the new module instead.
+"""
 
-    @cachedmethod()
-    def match(self, subject: str) -> bool:
-        pattern = self.pattern
-        subject = subject.lower()
-        px = 0  # [p]attern inde[x]
-        sx = 0  # [s]ubject inde[x]
-        nextPx = 0
-        nextSx = 0
-
-        while px < len(pattern) or sx < len(subject):
-            if px < len(pattern):
-                char = pattern[px]
-
-                if char == "?":  # single character wildcard
-                    if sx < len(subject):
-                        px += 1
-                        sx += 1
-                        continue
-
-                elif char == "*":  # zero-or-more-character wildcard
-                    nextPx = px
-                    nextSx = sx + 1
-                    px += 1
-                    continue
-
-                elif sx < len(subject) and subject[sx] == char:  # default normal character match
-                    px += 1
-                    sx += 1
-                    continue
-
-            if 0 < nextSx <= len(subject):
-                px = nextPx
-                sx = nextSx
-                continue
-
-            return False
-        return True
-
-    def __repr__(self) -> str:
-        return f"GlobMatcher(pattern={self.pattern})"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, GlobMatcher):
-            return self.pattern == other.pattern
-        return False
+from ddtrace_base.glob_matching import GlobMatcher as GlobMatcher  # noqa: F401

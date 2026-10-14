@@ -3,7 +3,6 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsExportMode
@@ -16,6 +15,7 @@ from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.trace import Span
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 class LLMObsTelemetryMetrics:

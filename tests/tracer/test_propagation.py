@@ -13,20 +13,6 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_IGNORE
-from ddtrace.internal.base.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ddtrace.internal.base.constants import _PROPAGATION_STYLE_BAGGAGE
-from ddtrace.internal.base.constants import _PROPAGATION_STYLE_NONE
-from ddtrace.internal.base.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
-from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_MAX_BYTES
-from ddtrace.internal.base.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
-from ddtrace.internal.base.constants import LAST_DD_PARENT_ID_KEY
-from ddtrace.internal.base.constants import PROPAGATION_STYLE_B3_MULTI
-from ddtrace.internal.base.constants import PROPAGATION_STYLE_B3_SINGLE
-from ddtrace.internal.base.constants import PROPAGATION_STYLE_DATADOG
-from ddtrace.internal.base.constants import W3C_TRACEPARENT_KEY
-from ddtrace.internal.base.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
@@ -48,6 +34,20 @@ from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as ddtracer
+from ddtrace_base.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace_base.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace_base.constants import _PROPAGATION_STYLE_BAGGAGE
+from ddtrace_base.constants import _PROPAGATION_STYLE_NONE
+from ddtrace_base.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace_base.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ddtrace_base.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace_base.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
+from ddtrace_base.constants import LAST_DD_PARENT_ID_KEY
+from ddtrace_base.constants import PROPAGATION_STYLE_B3_MULTI
+from ddtrace_base.constants import PROPAGATION_STYLE_B3_SINGLE
+from ddtrace_base.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace_base.constants import W3C_TRACEPARENT_KEY
+from ddtrace_base.constants import W3C_TRACESTATE_KEY
 from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_tracer as fastapi_tracer  # noqa:F401
@@ -145,11 +145,11 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
-    from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS
-    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
     from ddtrace.trace import tracer  # noqa:F811  # noqa:F811
+    from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         # Get the hex representation of the 64 most signicant bits
@@ -758,9 +758,9 @@ def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
 )
 def test_extract_128bit_trace_ids_datadog():
     from ddtrace import config
-    from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer  # noqa:F811
+    from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = f"{trace_id:032x}"
@@ -792,9 +792,9 @@ def test_extract_128bit_trace_ids_datadog():
     check_logs=False,
 )
 def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
-    from ddtrace.internal.base.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer  # noqa:F811
+    from ddtrace_base.constants import HIGHER_ORDER_TRACE_ID_BITS
 
     low_64_bits = 13088165645273925489
     uppercase_tid = "AABBCCDD00112233"
@@ -3638,7 +3638,7 @@ def test_baggageheader_inject(span_context, expected_headers):
 def test_baggageheader_maxitems_inject():
     import urllib.parse
 
-    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
     headers = {}
     baggage_items = {}
@@ -3659,7 +3659,7 @@ def test_baggageheader_maxitems_inject():
 
 
 def test_baggageheader_maxbytes_inject():
-    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 
     headers = {}
     # baggage item that exceeds the maximum byte size
@@ -3688,7 +3688,7 @@ def test_baggageheader_maxbytes_inject():
 
 
 def test_baggageheader_maxitems_extract():
-    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
     pairs = [f"k{i}=v{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3)]
     header_value = ",".join(pairs)
@@ -3700,8 +3700,8 @@ def test_baggageheader_maxitems_extract():
 
 
 def test_baggageheader_maxitems_maxbytes_extract():
-    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
-    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 
     pairs = []
     for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3):
@@ -3721,7 +3721,7 @@ def test_baggageheader_maxitems_maxbytes_extract():
 
 
 def test_baggageheader_maxbytes_extract():
-    from ddtrace.internal.base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace_base.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 
     # Single pair whose raw segment exceeds the byte limit — nothing parsed into baggage.
     huge = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)
@@ -3941,8 +3941,8 @@ def test_inject_span_without_sampling_priority():
 
 def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     """Test that _dd.p.dm tag is not set when sampling priority is propagated via headers."""
-    from ddtrace.internal.base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace_base.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 
     # Test case 1: Headers with sampling priority should NOT have _dd.p.dm tag
     headers_with_priority = {

@@ -1,12 +1,12 @@
 from enum import Enum
 from typing import Optional
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)

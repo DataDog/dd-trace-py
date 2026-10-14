@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.internal import core
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import Event
+from ddtrace_base.core.events import Event
 
 
 @pytest.fixture(autouse=True)

@@ -25,15 +25,15 @@ from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.base.compat import is_at_least_py
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
 from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
 from ddtrace.internal.wrapping.hooks import try_wrap_context
+from ddtrace_base._exceptions import BlockingException
+from ddtrace_base.compat import is_at_least_py
+from ddtrace_base.module import ModuleWatchdog
 
 
 def test_patch_read():

@@ -24,7 +24,7 @@ class TestCustomTags:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),
@@ -61,7 +61,7 @@ class TestCustomTags:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),
@@ -96,7 +96,7 @@ class TestCustomTags:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),
@@ -132,12 +132,12 @@ class TestCustomTags:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),
             patch(
-                "ddtrace.testing.internal.pytest.plugin._get_test_original_name",
+                "ddtrace_testing.internal.pytest.plugin._get_test_original_name",
                 return_value=None,
             ),
         ):
@@ -175,7 +175,7 @@ class TestCustomTags:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(),
             ),
             setup_standard_mocks(),

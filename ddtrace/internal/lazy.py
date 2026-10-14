@@ -3,8 +3,8 @@ from types import FrameType
 from types import FunctionType
 import typing as t
 
-from ddtrace.internal.base.compat import is_supported_python_version
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace_base.compat import is_supported_python_version
 
 
 class _LazyModuleLoadingContext(WrappingContext):

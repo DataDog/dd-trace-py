@@ -16,7 +16,7 @@ from utils import is_included
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
-from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace_base.module import BaseModuleWatchdog
 
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)

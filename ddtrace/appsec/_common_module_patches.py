@@ -27,11 +27,11 @@ from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
 from ddtrace.internal.wrapping.hooks import try_wrap_context
+from ddtrace_base._exceptions import BlockingException
+from ddtrace_base.logger import get_logger
 
 
 log = get_logger(__name__)

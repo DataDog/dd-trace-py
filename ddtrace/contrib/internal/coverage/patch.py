@@ -5,8 +5,8 @@ from typing import Union
 import wrapt
 
 from ddtrace.contrib.internal.coverage.lcov import report_lcov
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace_base.logger import get_logger
 
 
 try:

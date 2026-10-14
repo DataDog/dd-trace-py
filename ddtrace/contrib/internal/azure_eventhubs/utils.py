@@ -14,9 +14,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
+from ddtrace_base.utils import get_argument_value
 
 
 def create_context(

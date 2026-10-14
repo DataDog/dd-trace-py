@@ -1,19 +1,11 @@
-import pytest
+"""Legacy re-export shim for a moved module.
 
+``ddtrace.testing.internal.pytest.hookspecs`` moved to:
 
-class TestOptHooks:
-    """
-    Custom hooks that can be implemented to override the module, suite, and test names reported by Test Optimization.
-    """
+``ddtrace_testing.internal.pytest.hookspecs``
 
-    @pytest.hookspec(firstresult=True)
-    def pytest_ddtrace_get_item_module_name(item: pytest.Item) -> str:  # type: ignore[empty-body]
-        """Returns the module name to use when reporting Test Optimization results. Should be unique for each module."""
+Keep the historical import path working for external consumers; import from
+the new module instead.
+"""
 
-    @pytest.hookspec(firstresult=True)
-    def pytest_ddtrace_get_item_suite_name(item: pytest.Item) -> str:  # type: ignore[empty-body]
-        """Returns the suite name to use when reporting Test Optimization results. Should be unique for each suite."""
-
-    @pytest.hookspec(firstresult=True)
-    def pytest_ddtrace_get_item_test_name(item: pytest.Item) -> str:  # type: ignore[empty-body]
-        """Returns the test name to use when reporting Test Optimization results. Should be unique for each test."""
+from ddtrace_testing.internal.pytest.hookspecs import TestOptHooks as TestOptHooks  # noqa: F401

@@ -21,11 +21,11 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import ensure_text
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import flatten_key_value
 from ddtrace.internal.native._native import is_sequence
+from ddtrace_base.compat import ensure_text
+from ddtrace_base.logger import get_logger
 
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes  # noqa:F401
     from opentelemetry.util.types import AttributeValue  # noqa:F401
 
-    from ddtrace.internal.base.compat import NumericType  # noqa:F401
+    from ddtrace_base.compat import NumericType  # noqa:F401
 
 
 log = get_logger(__name__)

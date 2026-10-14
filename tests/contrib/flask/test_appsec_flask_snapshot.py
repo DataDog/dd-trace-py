@@ -9,7 +9,7 @@ import pytest
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.flask.patch import flask_version
-from ddtrace.internal.utils.retry import RetryError
+from ddtrace_base.utils.retry import RetryError
 import tests.appsec.rules as rules
 from tests.webclient import Client
 

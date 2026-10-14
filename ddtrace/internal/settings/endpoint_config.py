@@ -7,13 +7,13 @@ It takes precedence over environment variables and configuration files.
 from ddtrace.constants import _CONFIG_ENDPOINT_ENV
 from ddtrace.constants import _CONFIG_ENDPOINT_RETRIES_ENV
 from ddtrace.constants import _CONFIG_ENDPOINT_TIMEOUT_ENV
-from ddtrace.internal.base.constants import DEFAULT_TIMEOUT
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace_base.constants import DEFAULT_TIMEOUT
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.retry import fibonacci_backoff_with_jitter
 
 
 log = get_logger(__name__)

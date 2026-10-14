@@ -1,11 +1,11 @@
 from enum import Enum
 import functools
 
-from ddtrace.internal.base.logger import get_logger
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace_base.logger import get_logger
+from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)

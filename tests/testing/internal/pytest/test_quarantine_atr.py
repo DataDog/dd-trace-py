@@ -11,10 +11,10 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
-from ddtrace.testing.internal.test_data import TestRef
+from ddtrace_testing.internal.settings_data import TestProperties
+from ddtrace_testing.internal.test_data import ModuleRef
+from ddtrace_testing.internal.test_data import SuiteRef
+from ddtrace_testing.internal.test_data import TestRef
 from tests.testing.internal.pytest.utils import assert_stats
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -47,7 +47,7 @@ class TestQuarantineWithATR:
 
         with (
             patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
+                "ddtrace_testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
                     auto_retries_enabled=True,
                     test_management_enabled=True,

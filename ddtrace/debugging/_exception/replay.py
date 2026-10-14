@@ -17,14 +17,14 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
-from ddtrace.internal.base.compat import NumericType
-from ddtrace.internal.base.logger import get_logger
-from ddtrace.internal.base.utils.time import HourGlass
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings._config import config as global_config
 from ddtrace.internal.settings.exception_replay import config
+from ddtrace_base.compat import NumericType
+from ddtrace_base.logger import get_logger
+from ddtrace_base.utils.time import HourGlass
 
 
 log = get_logger(__name__)
