@@ -903,7 +903,10 @@ def test_flush_queue_raise(writer_class):
 
 
 def test_racing_start():
-    with managed_writer(NativeWriter, "http://dne:1234") as writer:
+    writer = NativeWriter("http://dne:1234")
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(writer, "periodic"))
+        stack.callback(writer.stop, 3.0)
 
         def do_write(i):
             writer.write([Span(str(i))])
