@@ -50,21 +50,6 @@ def traced_request(
     ...
 ```
 
-### DBAPI byte queries
-
-SQL integrations publish `DbQueryEvent` with the original query and a lazy
-`get_encoding` callback. Put connection encoding readers on the driver-specific
-cursor classes, overriding `_dbapi_query_encoding()`, rather than in tracing
-config: framework wrappers such as Django use their own config. Keep cursor
-modules independent of optional driver imports so frameworks can select them
-without patching the driver. Select the class from the underlying driver cursor,
-after any framework backend wrapper. Supply the corresponding fetch and async
-cursor classes when wrapping connections.
-
-Subscribers resolve the codec and decode an inspection copy only when needed.
-Integrations preserve the original query for the driver and report its actual
-encoding; products decide how to handle unknown encodings.
-
 ## 2. Register the integration
 
 Add to `ddtrace/_monkey.py` `PATCH_MODULES` dict in alphabetical order.
