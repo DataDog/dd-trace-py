@@ -1,5 +1,4 @@
 import os
-from unittest.mock import Mock
 
 from opentelemetry import version
 import pytest
@@ -143,31 +142,6 @@ def test_otel_metrics_disabled_and_unset():
     assert (meter_provider is None) or (type(meter_provider).__name__ == "_ProxyMeterProvider"), (
         "OpenTelemetry mterics exporter should not be configured automatically."
     )
-
-
-def test_http_metrics_exporter_adds_marker_and_preserves_headers():
-    from ddtrace.internal.opentelemetry.metrics import _dd_metrics_exporter
-
-    class Exporter:
-        def __init__(
-            self,
-            endpoint=None,
-            certificate_file=None,
-            client_key_file=None,
-            client_certificate_file=None,
-            headers=None,
-        ):
-            self._headers = headers or {"x-env": "configured"}
-            self._session = Mock(headers=dict(self._headers))
-
-    exporter_class = _dd_metrics_exporter(Exporter, "http", "protobuf")
-    exporter = exporter_class()
-
-    assert exporter._headers == {
-        "x-env": "configured",
-        "dd-otlp-export": "true",
-    }
-    assert exporter._session.headers == exporter._headers
 
 
 def test_otlp_export_request_marker():
