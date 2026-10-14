@@ -49,7 +49,7 @@ class TracePlugin:
             event = WebFrameworkRequestEvent(
                 http_operation="bottle.request",
                 service=self.service,
-                resource_route=route.rule,
+                resource=f"{request.method} {route.rule}",
                 component=config.bottle.integration_name,
                 request_headers=cast(MutableMapping[str, str], request.headers),
                 request_url=request.url,

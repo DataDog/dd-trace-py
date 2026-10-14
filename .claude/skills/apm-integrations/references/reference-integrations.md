@@ -29,13 +29,15 @@ This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
-
 ## Bottle HTTP event boundary
 
-Bottle uses WebFrameworkRequestEvent.resource_route to opt in to shared METHOD route
-resource naming. The event derives the resource before span creation and preserves
-explicit resource overrides; request_route remains separate so mounted applications
-can report the full HTTP route without changing their historical span resource.
-Bottle extracts its local response via the existing set_response API, then resolves
-framework-specific returned/raised HTTPResponse status overrides. The shared tracing
-subscriber owns HTTP tagging and span completion; Bottle retains the callback boundary.
+Bottle builds its own `METHOD rule` span resource and passes it as
+`WebFrameworkRequestEvent.resource`. `request_route` stays separate and carries the
+`script_name` prefix, so mounted applications report the full `http.route` without
+changing their historical span resource.
+
+Bottle extracts its local response via `set_response`, then applies the
+framework-specific status overrides a returned or raised `HTTPResponse` implies. The
+local response still supplies headers in every path, including when the status is
+overridden. The shared tracing subscriber owns HTTP tagging and span completion;
+Bottle owns only the callback boundary and Bottle-specific interpretation.

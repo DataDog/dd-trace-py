@@ -39,10 +39,6 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Framework-resolved route template/path used for http.route and resource enrichment.
     request_route: Optional[str] = event_field(default=None)
 
-    # Opt in to METHOD route resource naming. This can omit a mount prefix
-    # present in request_route; an explicit resource always takes precedence.
-    resource_route: Optional[str] = event_field(default=None)
-
     # Optional per-request override for query string tagging.
     # aiohttp supports app-level trace_query_string that can differ from integration_config.
     trace_query_string: Optional[bool] = event_field(default=None)
@@ -55,5 +51,3 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
         self.operation_name = schematize_url_operation(  # type: ignore[operator]
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND
         )
-        if self.resource is None and self.resource_route is not None:
-            self.resource = f"{self.request_method} {self.resource_route}"
