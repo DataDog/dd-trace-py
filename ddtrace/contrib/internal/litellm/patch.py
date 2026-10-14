@@ -321,7 +321,19 @@ def _mark_gateway_span(span, kwargs):
         span._set_attribute(_usage_metrics.RECORDED_PROFILES_TAG, _usage_metrics.GATEWAY_PROFILES)
 
 
+# A signal handler chained in cannot be removed, so the exit-signal flush is installed once and flushes whichever writer
+# is current.
+_exit_signal_flush_installed = False
+
+
+def _flush_usage_metrics_on_exit_signal():
+    writer = getattr(litellm, "_datadog_usage_metrics_writer", None)
+    if writer is not None:
+        writer.on_shutdown()
+
+
 def _enable_usage_metrics():
+    global _exit_signal_flush_installed
     if _usage_metrics_writer.ai_usage is None:
         log.warning("LiteLLM usage metrics are not available in this build of ddtrace")
         return
@@ -361,6 +373,10 @@ def _enable_usage_metrics():
         litellm.callbacks.append(logger)
     writer.start()
     atexit.register(writer.on_shutdown)
+    if not _exit_signal_flush_installed:
+        # Termination through ddtrace's signal handlers re-raises the signal, which skips atexit. A handler installed
+        # now runs before the native runtime's, which the OTLP export needs.
+        _exit_signal_flush_installed = atexit.register_on_exit_signal(_flush_usage_metrics_on_exit_signal) is not None
     forksafe.register(logger.reset)
     litellm._datadog_usage_metrics_writer = writer
     litellm._datadog_usage_metrics_logger = logger

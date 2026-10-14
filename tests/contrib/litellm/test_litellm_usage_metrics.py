@@ -1105,3 +1105,19 @@ def test_a_grpc_otlp_endpoint_is_refused(enabled, monkeypatch):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", raising=False)
     patch()
     assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_usage_metrics_are_flushed_on_an_exit_signal(enabled, monkeypatch):
+    # Termination through ddtrace's signal handlers skips atexit.
+    installed = []
+    monkeypatch.setattr(litellm_patch, "_exit_signal_flush_installed", False)
+    monkeypatch.setattr(litellm_patch.atexit, "register_on_exit_signal", lambda f: installed.append(f) or (None, None))
+    patch()
+    unpatch()
+    patch()
+    assert installed == [litellm_patch._flush_usage_metrics_on_exit_signal]
+    flushed = []
+    monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda: flushed.append(True))
+    installed[0]()
+    assert flushed == [True]
