@@ -26,6 +26,37 @@ See `scripts/package_split/README.md` for usage.
 
 ## Architecture
 
+Destination repository: **https://github.com/DataDog/datadog-apm-python/** (private to
+Datadog; a uv-workspace monorepo). Packages live as workspace members under
+`packages/<name>/` — src layout, per-package pyproject/README/riotfile/tests, with shared
+ruff/pyright/deptry pins at the root. It already hosts a very slim seed package:
+`packages/ddtrace-internal`, whose published `ddtrace-internal==0.1.0` wheel (a dd-trace-py
+runtime dependency today) provides only `_ddtrace_internal` (import-time module registry).
+The split grows this into the full destination layout. Destination-side rules that layer
+packages must integrate with: new import roots must be registered in `.importlinter`
+`root_packages` (enforced by `scripts/validate_packages.py`, which also pins the shared
+lint/type contract), and public API versioning runs through `scripts/api_semver_check.py`
+and the auto-managed `release/<package>:<level>` PR labels. The package-split harness and
+this plan should be seeded into that repository (a thin `scripts/package-split` wrapper over
+the same versioned harness) as part of the first extraction's safety-net phase.
+
+Agreed working rule of thumb for the destination layers (final naming still
+subject to the plan's review gates):
+
+- `ddtrace_internal_base` — all pure-Python code that depends on nothing but the
+  standard library.
+- `ddtrace_internal_native` — the compiled code required for `ddtrace_internal`.
+- `ddtrace_internal` — all current `ddtrace.internal` code, using the two above
+  as dependencies.
+
+This maps onto the intended layers below (`base` = Shared Python, `native` =
+Shared native, `ddtrace_internal` = the migrated `ddtrace.internal` content),
+gives the `boundaries` gate a concrete native-policy target (`base` is
+native-free and stdlib-only; `native` is native-required; `ddtrace_internal`
+keeps native behind optional adapters), and keeps the graph acyclic:
+`ddtrace_internal` depends on `base` and `native`; nothing depends on
+`ddtrace_internal`.
+
 Use distinct import namespaces outside ddtrace, as in the current POC. Separate distribution names
 from import names; finalize neither here. Intended layers:
 

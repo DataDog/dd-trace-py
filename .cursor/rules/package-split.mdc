@@ -14,6 +14,20 @@ reference is `scripts/package_split/README.md`. The `package-split` skill
 
 ## Key facts
 
+- Destination repository: https://github.com/DataDog/datadog-apm-python/
+  (private to Datadog) — a uv-workspace monorepo; packages live under
+  `packages/<name>/` (src layout, shared ruff/pyright/deptry pins at the
+  root). It already hosts the slim seed package `packages/ddtrace-internal`
+  (published 0.1.0 provides only `_ddtrace_internal`). New import roots must
+  be registered in `.importlinter` `root_packages` (enforced by
+  `scripts/validate_packages.py`); API versioning uses
+  `scripts/api_semver_check.py` + `release/<package>:<level>` labels.
+  Working layer rule of thumb: `ddtrace_internal_base` = pure-Python,
+  stdlib-only; `ddtrace_internal_native` = compiled code required for
+  `ddtrace_internal`; `ddtrace_internal` = current `ddtrace.internal` code,
+  using the above as dependencies. Acyclic: `ddtrace_internal` -> base +
+  native; nothing depends on `ddtrace_internal`. Final names pending plan
+  review.
 - `package-contract.toml` (repo root) is the machine-readable package contract,
   validated against a versioned schema. The current one is PROVISIONAL and
   records the single-distribution reality; it tightens as extraction proceeds.

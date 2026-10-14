@@ -19,6 +19,23 @@ Follow AGENTS.md, applicable domain guides and the supplied migration plan.
 - Approved scope and current phase: <scope>
 - Supported versions/platforms and optional features: <policy or undecided>
 
+Established facts (do not treat these as undecided):
+
+- Destination repository: https://github.com/DataDog/datadog-apm-python/ (private to
+  Datadog) — a uv-workspace monorepo whose packages live under `packages/<name>/`
+  (src layout, per-package pyproject/README/riotfile/tests; shared ruff/pyright/deptry
+  pins at the root). It already hosts a slim seed package, `packages/ddtrace-internal`:
+  the published `ddtrace-internal==0.1.0` wheel (a dd-trace-py runtime dependency)
+  provides only `_ddtrace_internal`, the import-time module registry. New import roots
+  must be registered in `.importlinter` `root_packages` (enforced by
+  `scripts/validate_packages.py`), and public API versioning uses
+  `scripts/api_semver_check.py` plus auto-managed `release/<package>:<level>` labels.
+- Working layer rule of thumb for the destination:
+  - `ddtrace_internal_base` — all pure-Python code that depends on nothing but the stdlib;
+  - `ddtrace_internal_native` — the compiled code required for `ddtrace_internal`;
+  - `ddtrace_internal` — all current `ddtrace.internal` code, using the above as dependencies.
+  Final import/distribution names are still subject to plan review before they are frozen.
+
 Do not invent missing decisions. You may inventory and propose changes while decisions are pending,
 but obtain approval before committing to package boundaries, native replacements, compatibility
 windows or behavior changes. Do not assume an unreviewed POC establishes the final architecture.
