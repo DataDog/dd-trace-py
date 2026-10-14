@@ -1,5 +1,5 @@
-fixes:
+features:
   - |
-    ASM: Fixes missing SQL injection protection for byte queries, including ``bytearray`` and ``memoryview``
+    AAP: Adds SQL injection protection for byte queries, including ``bytearray`` and ``memoryview``
     queries, in SQL integrations and Django MySQL backends. Queries are inspected using the connection's
     encoding, with UTF-8 inspection for PostgreSQL ``SQL_ASCII`` connections.
