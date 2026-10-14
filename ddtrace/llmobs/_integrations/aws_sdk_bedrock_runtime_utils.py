@@ -9,12 +9,16 @@ from typing import Any
 from typing import Optional
 import uuid
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
+from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES
 from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 
 
 log = get_logger(__name__)
@@ -168,10 +172,19 @@ class Turn:
 
 
 class SonicState:
-    def __init__(self, integration: Any, model: str, parent: Any) -> None:
+    def __init__(
+        self,
+        integration: Any,
+        model: str,
+        parent: Any,
+        context_provider: Optional[LLMObsContextProvider] = None,
+        llmobs_context: Optional[Context] = None,
+    ) -> None:
         self.integration = integration
         self.model = model
         self.parent = parent
+        self.context_provider = context_provider
+        self.llmobs_context = llmobs_context
         self.session_id = str(uuid.uuid4())
         self.audio = InputAudio()
         self.pending = Turn()
@@ -268,6 +281,16 @@ class SonicState:
                 mapping.pop(next(iter(mapping)))
 
     def _start_response(self, data: dict[str, Any], now: int) -> Turn:
+        if (
+            self.current is not None
+            and self.current.interrupted_ns is not None
+            and data.get("type") == "AUDIO"
+            and self.pending.windows
+            and self.pending.windows[-1].get("end_ms") is None
+        ):
+            # Audio arriving while the interrupting user is still speaking belongs to the
+            # interrupted response. Keep its guard and the pending speech window intact.
+            return self.current
         if self.current is None or self.pending.has_input:
             if self.current is not None:
                 self.current.partial = self.current.generation_end_ns is None
@@ -389,7 +412,7 @@ class SonicState:
                 reason = data.get("stopReason")
                 if reason == "INTERRUPTED":
                     turn.interrupt(now)
-                if block["data"].get("type") == "AUDIO" and reason == "END_TURN":
+                if block["data"].get("type") == "AUDIO" and reason == "END_TURN" and turn.interrupted_ns is None:
                     turn.generation_end_ns = now
                 self.blocks.pop(key)
                 self.completed_ids.append(key)
@@ -445,7 +468,7 @@ class SonicState:
             if audio_key not in target.missing_audio_metrics:
                 target.metrics[audio_key] = target.metrics.get(audio_key, 0) + audio_delta
 
-    def _messages(self, turn: Turn) -> tuple[list[Any], list[Any]]:
+    def _messages(self, turn: Turn, overhead_bytes: int = 0) -> tuple[list[Any], list[Any]]:
         # Reserve the serialized text/tool size, including JSON escaping of Unicode.
         # The shared 4 MiB limit leaves room for identity, metadata and phase data.
         text_bytes = len(
@@ -460,7 +483,9 @@ class SonicState:
                 ensure_ascii=True,
             ).encode("utf-8")
         )
-        budget = max(0, LLMOBS_AUDIO_INLINE_MAX_BYTES - text_bytes - 256)
+        # A smaller configured event limit still needs room for identity, tags and metadata.
+        audio_limit = min(LLMOBS_AUDIO_INLINE_MAX_BYTES, max(0, config._llmobs_event_size_limit - 8192))
+        budget = max(0, audio_limit - text_bytes - overhead_bytes - 256)
         messages: list[Any] = []
         for role, text, pcm, rate in (
             ("user", turn.user_text, turn.input_pcm, turn.input_rate),
@@ -488,10 +513,16 @@ class SonicState:
         if turn.emitted:
             return
         turn.emitted = True
+        previous_context = self.context_provider.active() if self.context_provider is not None else None
         try:
+            if self.context_provider is not None:
+                self.context_provider.activate(self.llmobs_context)
             self._emit_turn(turn, now, error)
         except Exception:
             log.debug("Cannot emit Nova Sonic turn", exc_info=True)
+        finally:
+            if self.context_provider is not None:
+                self.context_provider.activate(previous_context)
 
     def _emit_turn(self, turn: Turn, now: int, error: Any = None) -> None:
         self.turn_index += 1
@@ -507,6 +538,8 @@ class SonicState:
         )
         spans = [(root, end)]
         try:
+            if self.context_provider is not None:
+                self.context_provider.activate(root)
             response = self.integration.start_span(
                 "nova sonic response", "llm", self.model, self.session_id, root, llm_start
             )
@@ -524,7 +557,10 @@ class SonicState:
                 "generated_output_bytes": turn.output_bytes,
                 "session_configuration": self.configuration,
             }
-            inputs, outputs = self._messages(turn)
+            overhead_bytes = len(
+                json.dumps([metadata, _get_llmobs_data_metastruct(response)], ensure_ascii=True).encode()
+            )
+            inputs, outputs = self._messages(turn, overhead_bytes)
             if turn.output_audio_omitted_reason:
                 metadata["output_audio_omitted_reason"] = turn.output_audio_omitted_reason
             _annotate_llmobs_span_data(
@@ -544,6 +580,8 @@ class SonicState:
                     continue
                 if name == "agent speech" and not turn.output_timing_valid:
                     continue
+                if self.context_provider is not None:
+                    self.context_provider.activate(root)
                 phase = self.integration.start_span(name, "workflow", self.model, self.session_id, root, begin)
                 spans.append((phase, finish))
         finally:

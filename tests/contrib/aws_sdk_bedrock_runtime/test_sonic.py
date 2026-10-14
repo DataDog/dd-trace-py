@@ -60,7 +60,11 @@ class RecordingIntegration(AwsSdkBedrockRuntimeIntegration):
             operation_id, trace_id=getattr(parent, "trace_id", None), parent_id=getattr(parent, "span_id", None)
         )
         # Real LLMObs initializes identity on span start; this recorder bypasses it.
-        _annotate_llmobs_span_data(span, trace_id=f"{span.trace_id:032x}")
+        _annotate_llmobs_span_data(
+            span,
+            trace_id=f"{span.trace_id:032x}",
+            parent_id=str(parent.span_id) if isinstance(parent, Span) else "undefined",
+        )
         self.spans.append(span)
         return span
 

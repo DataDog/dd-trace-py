@@ -1,7 +1,10 @@
 from typing import Any
+from typing import Callable
 from typing import Optional
 
 from ddtrace.contrib._events.aws_sdk_bedrock_runtime import BedrockBidirectionalStreamEvent
+from ddtrace.internal.native._native import Context
+from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime_utils import SonicState
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -29,8 +32,6 @@ class AwsSdkBedrockRuntimeIntegration(BaseLLMIntegration):
             name, span_name=name, model=model, submit_to_llmobs=True, activate=False, parent_context=parent
         )
         span.start_ns = start_ns
-        # Duplex callbacks do not run under the turn's active context.
-        self._set_llmobs_parent(span, parent)
         _annotate_llmobs_span_data(
             span,
             name=name,
@@ -42,7 +43,15 @@ class AwsSdkBedrockRuntimeIntegration(BaseLLMIntegration):
         return span
 
 
-def on_bidirectional_stream(event: BedrockBidirectionalStreamEvent) -> None:
+def on_bidirectional_stream(
+    event: BedrockBidirectionalStreamEvent,
+    context_provider: LLMObsContextProvider,
+    capture_context: Callable[[], Optional[Context]],
+) -> None:
     integration = AwsSdkBedrockRuntimeIntegration(event.integration_config)
     if integration.llmobs_enabled and event.model == "amazon.nova-2-sonic-v1:0":
-        event.observer = SonicState(integration, event.model, event.parent)
+        context = capture_context()
+        if context is not None:
+            # Propagated contexts can be shared with the caller; never retain mutable metadata.
+            context = Context(trace_id=context.trace_id, span_id=context.span_id, meta=dict(context._meta))
+        event.observer = SonicState(integration, event.model, event.parent, context_provider, context)

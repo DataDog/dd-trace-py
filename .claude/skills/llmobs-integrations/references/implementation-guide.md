@@ -233,9 +233,13 @@ is an estimate, not a device acknowledgement. Keep total samples separate from
 bounded retained bytes; share the audio payload budget across both roles.
 
 Nova protocol state lives in llmobs/_integrations/aws_sdk_bedrock_runtime_utils.py.
-The product supplies it through the Bedrock core event only while enabled. Shared
-parent/trace identity stamping lives in BaseLLMIntegration._set_llmobs_parent;
-audio span creation and annotations live in AwsSdkBedrockRuntimeIntegration.
+The product supplies it through the Bedrock core event only while enabled. The
+LLMObs service snapshots a private propagation context at invocation, including
+application, sampling, and agent ancestry. Do not retain a mutable span as the
+source of LLMObs identity: export can scrub its metadata. Activate the snapshot
+only during turn emission, activate the turn root for each direct child, and
+restore the receiver's prior context in a finally block. Audio span creation
+and annotations live in AwsSdkBedrockRuntimeIntegration.
 
 Keep audio retention separate from timing validity. Dropping an oversized WAV
 must not remove a valid speech phase or its TTFA boundary. Never shorten gaps
@@ -247,6 +251,10 @@ never from a plain APM span's identifiers.
 Ignore post-interruption audio for playback validation and retention so late
 malformed chunks cannot erase the already-trimmed clip or its speech phase.
 Generated-byte accounting may continue independently for decodable chunks.
+Late audio blocks during unfinished interrupting user speech retain the old
+response's ownership. Late END_TURN events cannot extend its interruption time.
+Bound attachments by the configured LLMObs event limit as well as the shared
+audio cap, reserving serialized text, metadata, tags, and event overhead.
 
 Nova 2 Sonic usageEvent audio counts come from details.total.input.speechTokens
 and details.total.output.speechTokens. Difference these cumulative counters using
