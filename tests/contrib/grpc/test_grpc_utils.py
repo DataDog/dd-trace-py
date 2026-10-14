@@ -46,11 +46,20 @@ def test_parse_target_from_args(mock_log, args, kwargs, result, log_warning_call
         mock_log.warning.assert_not_called()
 
 
-@pytest.mark.parametrize("header", ["user-agent", "grpc.primary_user_agent"])
-def test_is_otlp_export_with_user_agent(monkeypatch, header):
-    monkeypatch.setattr(utils.config, "_otel_logs_enabled", True)
+@pytest.mark.parametrize(
+    "method",
+    [
+        "/opentelemetry.proto.collector.logs.v1.LogsService/Export",
+        b"/opentelemetry.proto.collector.metrics.v1.MetricsService/Export",
+        "/opentelemetry.proto.collector.trace.v1.TraceService/Export",
+    ],
+)
+def test_is_otlp_export_method(method):
+    assert utils.is_otlp_export(method)
 
-    assert utils.is_otlp_export(((header, "OTel-OTLP-Exporter-Python/1.44.0"),))
+
+def test_is_not_otlp_export_method():
+    assert not utils.is_otlp_export("/example.v1.LogsService/Export")
 
 
 @pytest.mark.parametrize(

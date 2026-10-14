@@ -105,6 +105,31 @@ def extract_log_correlation_attributes(captured_logs, log_message: str) -> dict:
     return extract_resource_attributes(log_record, resource)
 
 
+def test_http_logs_exporter_adds_marker_and_preserves_headers():
+    from ddtrace.internal.opentelemetry.logs import _dd_logs_exporter
+
+    class Exporter:
+        def __init__(self, endpoint=None, certificate_file=None, headers=None):
+            self._headers = headers or {"x-env": "configured"}
+            self._session = Mock(headers=dict(self._headers))
+
+    exporter_class = _dd_logs_exporter(Exporter, "http", "protobuf")
+    exporter = exporter_class(None, None, {"x-user": "configured"})
+
+    assert exporter._headers == {
+        "x-user": "configured",
+        "dd-otlp-export": "true",
+    }
+    assert exporter._session.headers == exporter._headers
+
+    exporter = exporter_class()
+    assert exporter._headers == {
+        "x-env": "configured",
+        "dd-otlp-export": "true",
+    }
+    assert exporter._session.headers == exporter._headers
+
+
 @pytest.mark.skipif(API_VERSION >= (1, 15, 0), reason="OpenTelemetry API >= 1.15.0 supports logs collection")
 def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
     """Test error when OpenTelemetry API version is too old."""

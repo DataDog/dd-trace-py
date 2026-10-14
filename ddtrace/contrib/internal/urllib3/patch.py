@@ -12,13 +12,10 @@ from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
-from ddtrace.internal.constants import USER_AGENT_HEADER
+from ddtrace.internal.constants import OTLP_HTTP_EXPORT_HEADER
+from ddtrace.internal.constants import OTLP_HTTP_EXPORT_HEADER_VALUE
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._opentelemetry import ExporterConfig
-from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -75,12 +72,18 @@ def _wrap_urlopen(func, instance, args, kwargs):
     :param kwargs: Keyword arguments from the target function
     :return: The ``HTTPResponse`` from the target function
     """
-    request_method = get_argument_value(args, kwargs, 0, "method")
-    request_url = get_argument_value(args, kwargs, 1, "url")
+    if not is_tracing_enabled():
+        return func(*args, **kwargs)
+
     try:
         request_headers = get_argument_value(args, kwargs, 3, "headers")
     except ArgumentError:
         request_headers = None
+    if _is_otlp_export(request_headers):
+        return func(*args, **kwargs)
+
+    request_method = get_argument_value(args, kwargs, 0, "method")
+    request_url = get_argument_value(args, kwargs, 1, "url")
     try:
         request_retries = get_argument_value(args, kwargs, 4, "retries")
     except ArgumentError:
@@ -104,9 +107,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
 
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
-
-    if not is_tracing_enabled() or _is_otlp_export(request_method, request_url, request_headers):
-        return func(*args, **kwargs)
 
     service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(None, config.urllib3)
 
@@ -141,63 +141,8 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 ctx.event.set_response(response)
 
 
-def _is_otlp_export(method: str, url: str, headers: Optional[Mapping[str, Union[str, bytes]]]) -> bool:
-    if not config._otel_enabled:
+def _is_otlp_export(headers: Optional[Mapping[str, Union[str, bytes]]]) -> bool:
+    if not headers:
         return False
-    if headers:
-        for name, value in headers.items():
-            if name.lower() == USER_AGENT_HEADER:
-                normalized_user_agent = ensure_text(value).lower().replace(" ", "-")
-                if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent:
-                    return True
-                break
-    return method.upper() == "POST" and _normalize_otlp_url(url) in _OTLP_EXPORT_URLS
-
-
-def _normalize_otlp_url(url: str) -> Optional[tuple]:
-    parsed = parse.urlparse(url)
-    if not parsed.hostname:
-        return None
-    port = parsed.port
-    if port == {"http": 80, "https": 443}.get(parsed.scheme.lower()):
-        port = None
-    return (parsed.scheme, parsed.hostname, port, parsed.path.rstrip("/"))
-
-
-def _otlp_export_urls() -> frozenset:
-    """Full export URLs for the enabled OTLP signals, resolved as the OpenTelemetry SDK does."""
-    base = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    urls = set()
-    for enabled, protocol, signal_endpoint_var, endpoint, path in (
-        (
-            config._otel_metrics_enabled,
-            otel_config.exporter.METRICS_PROTOCOL,
-            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-            otel_config.exporter.METRICS_ENDPOINT,
-            ExporterConfig.METRICS_PATH,
-        ),
-        (
-            config._otel_logs_enabled,
-            otel_config.exporter.LOGS_PROTOCOL,
-            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-            otel_config.exporter.LOGS_ENDPOINT,
-            ExporterConfig.LOGS_PATH,
-        ),
-        (
-            _is_otlp_traces_exporter_enabled(otel_config.exporter),
-            otel_config.exporter.TRACES_PROTOCOL,
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-            otel_config.exporter.TRACES_ENDPOINT,
-            ExporterConfig.TRACES_PATH,
-        ),
-    ):
-        if not enabled or protocol is None or protocol.lower() != "http/protobuf":
-            continue
-        url = base.rstrip("/") + path if base and not env.get(signal_endpoint_var) else endpoint
-        normalized = _normalize_otlp_url(url)
-        if normalized is not None:
-            urls.add(normalized)
-    return frozenset(urls)
-
-
-_OTLP_EXPORT_URLS = _otlp_export_urls()
+    value = headers.get(OTLP_HTTP_EXPORT_HEADER)
+    return value is not None and ensure_text(value).lower() == OTLP_HTTP_EXPORT_HEADER_VALUE
