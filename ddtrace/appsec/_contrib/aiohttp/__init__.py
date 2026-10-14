@@ -1,6 +1,7 @@
 from collections.abc import Coroutine
 from collections.abc import Mapping
 import json
+import re
 from typing import Any
 from typing import Optional
 
@@ -32,6 +33,7 @@ import ddtrace.vendor.xmltodict as xmltodict
 logger = get_logger(__name__)
 
 _PARSED_MEDIA_TYPES = frozenset((MediaType.JSON, MediaType.XML, MediaType.FORM_URLENCODED, MediaType.MULTIPART))
+_COOKIE_ESCAPE = re.compile(r"\\(?:([0-3][0-7][0-7])|(.))")
 
 
 def _multidict_to_dict(multidict: Any) -> dict[str, Any]:
@@ -52,6 +54,24 @@ def _headers_to_dict(headers: Any, excluded: str) -> dict[str, str]:
             continue
         result[key] = f"{result[key]}, {value}" if key in result else value
     return result
+
+
+def _unquote_cookie(value: str) -> str:
+    if len(value) < 2 or value[0] != '"' or value[-1] != '"':
+        return value
+    return _COOKIE_ESCAPE.sub(lambda m: chr(int(m[1], 8)) if m[1] else m[2], value[1:-1])
+
+
+def _parse_cookies(headers: Any) -> dict[str, str]:
+    cookies: dict[str, str] = {}
+    for chunk in "; ".join(headers.getall("Cookie", ())).split(";"):
+        key, separator, value = chunk.partition("=")
+        if not separator:
+            key, value = "", key
+        key, value = key.strip(), value.strip()
+        if key or value:
+            cookies[key] = _unquote_cookie(value)
+    return cookies
 
 
 def _check_blocked() -> None:
@@ -84,7 +104,7 @@ def _on_request_start(
             peer_ip=request.remote,
             route=ctx.event.request_route,
             headers_are_case_sensitive=True,
-            request_cookies=dict(request.cookies),
+            request_cookies=_parse_cookies(request.headers),
             request_path_params=dict(request.match_info),
         )
     call_waf_callback()

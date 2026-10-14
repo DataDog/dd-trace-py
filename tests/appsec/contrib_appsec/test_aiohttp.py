@@ -249,6 +249,22 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             assert get_entry_span_tag(http.STATUS_CODE) == "200"
             assert not entry_span().error
 
+    @pytest.mark.parametrize(
+        ("cookie_headers", "expected"),
+        [
+            (("x-attack=var_dump ()",), {"x-attack": "var_dump ()"}),
+            (('quoted="a b\\073c"; plain=1',), {"quoted": "a b;c", "plain": "1"}),
+            (("first=1", "second=2"), {"first": "1", "second": "2"}),
+        ],
+    )
+    def test_request_cookies_raw_header(self, interface, cookie_headers, expected):
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers=[("Cookie", value) for value in cookie_headers])
+            assert self.status(response) == 200
+            assert utils._addresses_store, "no waf addresses stored"
+            assert utils._addresses_store[0]["http.request.cookies"] == expected
+
     def test_unhandled_error_response_status(self, interface):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
