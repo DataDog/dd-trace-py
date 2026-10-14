@@ -1,1 +1,1 @@
-"""SCA runtime reachability detection and product lifecycle."""
+"""SCA (Software Composition Analysis) product module."""
