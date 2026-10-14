@@ -30,21 +30,21 @@ suites:
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # The suite has more environments than jobs, so some jobs build two.
+        UV_NO_CACHE: '1'
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
           python: ['3.9', '3.10']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==3.19.0']
         - name: profile
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
         - name: profile
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'gunicorn[gevent]', gevent, protobuf]
           env:
             DD_PROFILE_TEST_GEVENT: '1'
         - name: profile
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, uvloop, protobuf]
           env:
             USE_UVLOOP: '1'
@@ -114,5 +114,4 @@ suites:
             PYTHONMALLOC: pymalloc_debug
       variants:
         - name: profile-memalloc
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, protobuf]
