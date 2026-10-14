@@ -242,7 +242,15 @@ def test_routed_requests_bypass_agent_and_drop_extra_headers(monkeypatch):
 
 @pytest.mark.parametrize(
     "bad_site",
-    ["http://evil.example", "evil.example/path", "evil.example:8080", "user@evil.example", "evil example", "EVIL.com"],
+    [
+        "http://evil.example",
+        "evil.example/path",
+        "evil.example:8080",
+        "user@evil.example",
+        "evil example",
+        "EVIL.com",
+        "datadoghq.eu\n",
+    ],
 )
 def test_routing_context_rejects_non_hostname_site(bad_site):
     # dd_site is interpolated into the intake hostname.

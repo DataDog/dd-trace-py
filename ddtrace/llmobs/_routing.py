@@ -33,7 +33,7 @@ _SITE_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]
 
 
 def _validated_site(site: str) -> str:
-    if not _SITE_PATTERN.match(site):
+    if not _SITE_PATTERN.fullmatch(site):
         raise ValueError(f"dd_site must be a bare Datadog site hostname such as datadoghq.eu, got {site!r}")
     return site
 
