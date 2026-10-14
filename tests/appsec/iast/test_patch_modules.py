@@ -170,19 +170,28 @@ def test_testing_unpatch_iast():
         mock_wrap.return_value.testing_unpatch.assert_called_once()
 
 
-@pytest.mark.parametrize(
-    "installed_version,expected",
-    [
-        ("1.1.2", "Connection.escape_string"),
-        ("1.2.0", "Connection.escape_string"),
-        ("1.2.1", "Connection._escape_string"),
-        ("1.2.3", "Connection._escape_string"),
-        ("", "Connection.escape_string"),
-    ],
-)
-def test_pymysql_connection_escape_function(installed_version: str, expected: str) -> None:
-    """PyMySQL 1.2.1 renamed Connection.escape_string to _escape_string; IAST wraps the one that exists."""
-    from ddtrace.appsec._iast.main import _pymysql_connection_escape_function
+def test_patch_iast_registers_pymysql_connection_underscore_escape_string() -> None:
+    """PyMySQL 1.2.1 dropped Connection.escape_string; IAST must wrap _escape_string."""
+    recorded: list[tuple[str, str]] = []
 
-    with patch("ddtrace.appsec._iast.main.get_version_for_package", return_value=installed_version):
-        assert _pymysql_connection_escape_function() == expected
+    class RecordingWrap:
+        def wrap_function(self, name: str, function: str, hook: object) -> None:
+            recorded.append((name, function))
+
+        def add_module_forced(self, name: str, function: str, hook: object) -> None:
+            recorded.append((name, function))
+
+        def patch(self) -> None:
+            return None
+
+    with patch("ddtrace.appsec._iast.main.WrapFunctonsForIAST", return_value=RecordingWrap()):
+        with patch("ddtrace.appsec._iast.main.json_tainting_patch"):
+            with patch("ddtrace.appsec._iast.main._apply_custom_security_controls"):
+                with patch("ddtrace.appsec._iast.main.asm_config") as cfg:
+                    cfg._iast_sink_points_enabled = False
+                    cfg._iast_propagation_enabled = True
+                    from ddtrace.appsec._iast.main import patch_iast
+
+                    patch_iast()
+
+    assert ("pymysql.connections", "Connection._escape_string") in recorded
