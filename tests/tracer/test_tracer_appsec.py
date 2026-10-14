@@ -198,11 +198,13 @@ def test_set_http_meta(
             assert span.get_tag(tag) == value
 
 
-def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
+def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer, monkeypatch):
     """
     In ASM standalone mode, agent-based samplers should not interfere
     with the rate limiter.
     """
+    # Standalone configuration changes the global stats setting; restore it during teardown.
+    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", True):
         tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
 
@@ -229,8 +231,9 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer):
-    saved_trace_compute_stats = config._trace_compute_stats
+def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer, monkeypatch):
+    # Standalone configuration changes the global stats setting; restore it during teardown.
+    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
@@ -247,5 +250,3 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
     # reset tracer values
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
         tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
-    # restore stats computation value
-    config._trace_compute_stats = saved_trace_compute_stats
