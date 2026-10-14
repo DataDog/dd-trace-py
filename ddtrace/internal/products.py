@@ -175,11 +175,19 @@ class ProductManager:
                     continue
                 product.start()
                 log.debug("Started product '%s'", name)
-                telemetry_writer.product_activated(name.replace("-", "_"), True)
                 started.append((name, product))
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
+                continue
+
+            # enabled() only says the lifecycle must run; a product can start without being active
+            # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
+            try:
+                activated = getattr(product, "activated", None)
+                telemetry_writer.product_activated(name.replace("-", "_"), bool(activated()) if activated else True)
+            except Exception:
+                log.debug("Failed to report activation state for product '%s'", name, exc_info=True)
 
         # NOTE: Keep post_start hooks after the full start loop. RC uses
         # this barrier to collect dependent products before its first poll, and

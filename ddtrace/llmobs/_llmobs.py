@@ -48,8 +48,8 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENT_ANNOTATION
-from ddtrace.llmobs._constants import AGENT_DECLARATION_ANNOTATION
+from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -78,9 +78,14 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
@@ -168,6 +173,7 @@ from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
 from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_session_id
@@ -195,7 +201,6 @@ from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
-from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
@@ -646,7 +651,7 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
-        # Before _prepare_llmobs_span_data, which rewrites dotted tag keys in APM_AGENTLESS mode.
+        self._enrich_with_http_client_ip(span)
         self._sampling_resolver.resolve_if_root(span)
 
         span_event = None
@@ -670,6 +675,25 @@ class LLMObs(Service):
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
+
+    def _enrich_with_http_client_ip(self, span: Span) -> None:
+        # Only enrich the LLMObs root span; non-root spans join against the root at query time.
+        if get_llmobs_parent_id(span) != ROOT_PARENT_ID:
+            return
+        local_root = span._local_root
+        if not local_root:
+            return
+        # Read IP tags set by AppSec or DD_TRACE_CLIENT_IP_ENABLED on the APM root span.
+        client_ip = local_root.get_tag("http.client_ip")
+        network_client_ip = local_root.get_tag("network.client.ip")
+        if not client_ip and not network_client_ip:
+            return
+        ip_tags = {}
+        if client_ip:
+            ip_tags["http.client_ip"] = client_ip
+        if network_client_ip:
+            ip_tags["network.client.ip"] = network_client_ip
+        _annotate_llmobs_span_data(span, tags=ip_tags)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -722,12 +746,12 @@ class LLMObs(Service):
             return False
 
         # Agent annotations are applied here, where the span kind is known: annotation_context
-        # reaches every span in its block, but only agent spans carry the tags.
+        # reaches every span in its block, but only agent spans carry the manifest.
         if span_kind == "agent":
-            agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
-            if agent_annotation:
-                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
-            declared_manifest = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+            agent_version = span._get_ctx_item(AGENT_VERSION) or span._get_ctx_item(PARENT_AGENT_VERSION)
+            if agent_version:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_version)
+            declared_manifest = span._get_ctx_item(AGENT_MANIFEST)
             if declared_manifest:
                 # Both levels are type-checked because caller metadata is not sanitized until
                 # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
@@ -759,6 +783,10 @@ class LLMObs(Service):
                 if not merged.get("name"):
                     merged["name"] = get_llmobs_span_name(span) or span.name
                 _annotate_llmobs_span_data(span, agent_manifest=merged)
+        else:
+            parent_agent_version = span._get_ctx_item(PARENT_AGENT_VERSION)
+            if parent_agent_version:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = parent_agent_version
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         # Before the user processor and _normalize_llmobs_meta, either of which can strip values
@@ -1014,9 +1042,9 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
-        if app_key:
+        if api_key or app_key:
             # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
-            # before the app key was configured, so it rebuilds with the new key.
+            # before credentials were configured, so it rebuilds with the new keys.
             with cls._prompt_manager_lock:
                 cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
@@ -1990,9 +2018,9 @@ class LLMObs(Service):
         :param agent: A dictionary declaring the agent running in this context, accepting
                       ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
                       ``tools``; see ``ddtrace.llmobs.Agent``. ``version`` is set as an
-                      ``agent_version`` tag and the rest as the agent's manifest, on every agent
-                      span in the block. All keys are optional; unreportable values are dropped,
-                      not raised.
+                      ``agent_version`` tag on every agent span in the block and its child spans,
+                      and the rest as the agent's manifest on every agent span in the block. All
+                      keys are optional; unreportable values are dropped, not raised.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2084,6 +2112,8 @@ class LLMObs(Service):
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
+
+        Agent-delivered or cached prompts need no keys in your application. Fetching other prompts requires credentials.
 
         :param prompt_id: The unique identifier of the prompt in the registry
         :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
@@ -2377,8 +2407,6 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-        if not api_key:
-            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
@@ -2512,8 +2540,10 @@ class LLMObs(Service):
             # Carry the nearest agent onto the context so spans created in in-process task
             # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
             # Stamped last so the budget check sees the full tagset.
-            parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active)
+            parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(active)
             _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
+            if parent_agent_version:
+                context._meta[PARENT_AGENT_VERSION] = parent_agent_version
             return context
         return None
 
@@ -2538,7 +2568,7 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         # Resolve the nearest agent ancestor once, at activation: O(1) one-level lookup
         # (the parent already resolved its own attribution when it activated).
-        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(llmobs_parent)
+        parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(llmobs_parent)
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
@@ -2629,6 +2659,8 @@ class LLMObs(Service):
                 else sampling_decision
             ),
         )
+        if parent_agent_version:
+            span._set_ctx_item(PARENT_AGENT_VERSION, parent_agent_version)
         # Shared by reference across the trace; absent on spans whose decision came from upstream.
         span._set_ctx_item(LLMOBS_SAMPLING, sampling_state)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
@@ -2652,6 +2684,10 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+        try:
+            self._set_apm_shadow_tags(span, operation_kind, model_name, model_provider)
+        except Exception:
+            log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
 
         if not self.enabled:
             return span
@@ -2665,7 +2701,7 @@ class LLMObs(Service):
             ml_app=agent_service,
         )
         if agent_version:
-            span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+            span._set_ctx_item(AGENT_VERSION, agent_version)
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         # First session in the trace becomes the trace-level default (first-writer wins), so later
@@ -2680,6 +2716,25 @@ class LLMObs(Service):
             agent_service,
         )
         return span
+
+    def _set_apm_shadow_tags(
+        self,
+        span: Span,
+        span_kind: str,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+    ) -> None:
+        """Set LLMObs shadow tags on the APM span of a manually instrumented span.
+
+        Runs whether or not LLMObs is enabled, so the enabled metric reports 0 for spans that have no
+        LLMObs data.
+        """
+        span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
+        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.enabled else 0)
+        if model_name and model_name != UNKNOWN_MODEL_NAME:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
+        if model_provider and model_provider != UNKNOWN_MODEL_PROVIDER:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
 
     @classmethod
     def llm(
@@ -2800,8 +2855,8 @@ class LLMObs(Service):
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
-        :param str version: The version of this agent. Set as an ``agent_version`` tag on this span,
-                            and not on its child spans.
+        :param str version: The version of this agent. Set as an ``agent_version`` tag on this span
+                            and on its child spans within the same process.
 
         :returns: The Span object representing the traced operation.
         """
@@ -3061,10 +3116,14 @@ class LLMObs(Service):
                         such as `{prompt,completion,total}_tokens`.
         :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
                       ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
-                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag and
-                      the rest as the agent's manifest, on agent spans only. All keys are optional;
-                      unreportable values are dropped, not raised, and an unset value leaves what
-                      an earlier annotation declared in place.
+                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag on
+                      the agent span and its child spans within the same process. Each span copies
+                      the version from its direct parent when it starts, so a version set after the
+                      agent has started only reaches spans started directly under the agent after
+                      this call, and their descendants. The rest is reported as the agent's
+                      manifest, on agent spans only. All keys are optional; unreportable values are
+                      dropped, not raised, and an unset value leaves what an earlier annotation
+                      declared in place.
         """
         error = None
         try:
@@ -3110,17 +3169,17 @@ class LLMObs(Service):
                 agent_version = agent.get("version") if isinstance(agent, dict) else None
                 if agent_version:
                     # Stashed rather than tagged: the span kind is not resolved yet.
-                    span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+                    span._set_ctx_item(AGENT_VERSION, agent_version)
                 if isinstance(agent, dict):
                     # Validated here, and unreportable or unset values dropped, so repeated
                     # annotate() calls and nested annotation_context blocks shallow-update field by
                     # field rather than overwrite. A version-only agent declares nothing.
                     declared = build_manual_agent_manifest(agent)
                     if declared:
-                        stashed = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+                        stashed = span._get_ctx_item(AGENT_MANIFEST)
                         if not isinstance(stashed, dict):
                             stashed = {}
-                            span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, stashed)
+                            span._set_ctx_item(AGENT_MANIFEST, stashed)
                         stashed.update(declared)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
@@ -3593,7 +3652,7 @@ class LLMObs(Service):
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
         # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
         # rather than overflowing x-datadog-tags.
-        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
+        parent_agent_name, parent_agent_span_id, _ = _resolve_parent_agent(active_span)
         _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
 
     @classmethod

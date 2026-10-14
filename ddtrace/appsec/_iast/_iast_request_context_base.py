@@ -22,17 +22,18 @@ from ddtrace.appsec._iast_context import _get_iast_context_id
 from ddtrace.appsec._iast_context import is_iast_request_enabled as is_iast_request_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
 
 
-def _set_span_tag_iast_request_tainted(span):
+def _set_span_tag_iast_request_tainted(span: SpanData) -> None:
     total_objects_tainted = _num_objects_tainted_in_request()
 
     if total_objects_tainted > 0:
-        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
+        span._set_attribute(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
 def get_iast_stacktrace_reported() -> bool:
@@ -60,7 +61,7 @@ def set_iast_request_endpoint(method, route) -> None:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
-def _iast_start_request(span=None) -> Optional[int]:
+def _iast_start_request(span: Optional[SpanData] = None) -> Optional[int]:
     """Initialize the IAST request context for the current execution.
 
     This function acquires the IAST request budget via the Overhead Control Engine,
@@ -88,7 +89,7 @@ def _iast_start_request(span=None) -> Optional[int]:
     return context_id
 
 
-def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
+def _iast_finish_request(span: Optional[SpanData] = None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
     """Finalize the IAST request context and optionally update global limits.
 
     This function discards the per-request IAST environment, optionally updates the

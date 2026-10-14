@@ -5136,7 +5136,7 @@
     ],
     "DD_TRACE_STATS_CARDINALITY_LIMIT": [
       {
-        "implementation": "C",
+        "implementation": "D",
         "type": "int",
         "default": "7000"
       }
