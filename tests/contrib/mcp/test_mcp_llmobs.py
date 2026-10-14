@@ -314,10 +314,8 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
             """
         import asyncio
         import logging
-        import warnings
 
         logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
-        warnings.filterwarnings("ignore", message="OpenTelemetry configuration.*not supported by Datadog")
 
         from ddtrace.llmobs import LLMObs
         LLMObs.enable()
