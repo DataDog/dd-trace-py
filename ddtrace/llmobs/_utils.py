@@ -450,7 +450,7 @@ def get_tracked_prompt(args: list[Any], kwargs: dict[str, Any]) -> Optional[Prom
     return None
 
 
-def get_llmobs_span_name(span: Span) -> Optional[str]:
+def get_llmobs_span_name(span: _LLMObsSpan) -> Optional[str]:
     """Return the span name stored on a span's meta_struct."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.NAME)
 
@@ -460,17 +460,17 @@ def resolve_ml_app(ml_app: Optional[str] = None) -> str:
     return ml_app or config._llmobs_ml_app or config.service or ML_APP_DEFAULT
 
 
-def get_llmobs_ml_app(span: Span) -> Optional[str]:
+def get_llmobs_ml_app(span: _LLMObsSpan) -> Optional[str]:
     """Return the ML app name stored on a span's meta_struct."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP)
 
 
-def get_llmobs_session_id(span: Span) -> Optional[str]:
+def get_llmobs_session_id(span: _LLMObsSpan) -> Optional[str]:
     """Return the session ID stored directly on this span."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
 
 
-def get_llmobs_span_kind(span: Span) -> Optional[str]:
+def get_llmobs_span_kind(span: _LLMObsSpan) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
     kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
@@ -586,7 +586,7 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
         )
 
 
-def get_llmobs_parent_id(span: Span) -> Optional[str]:
+def get_llmobs_parent_id(span: _LLMObsSpan) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
     return parent_id
@@ -598,12 +598,12 @@ def get_llmobs_trace_id(span: _LLMObsSpan) -> Optional[str]:
     return trace_id
 
 
-def get_llmobs_sample_rate(span: Span) -> Optional[str]:
+def get_llmobs_sample_rate(span: _LLMObsSpan) -> Optional[str]:
     """Return the LLMObs sample rate stored on a span's meta_struct _dd dict."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE)
 
 
-def get_llmobs_sampling_decision(span: Span) -> Optional[str]:
+def get_llmobs_sampling_decision(span: _LLMObsSpan) -> Optional[str]:
     """Return the LLMObs sampling decision stored on a span's meta_struct _dd dict."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
 
@@ -653,11 +653,11 @@ def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
     return value
 
 
-def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
+def get_llmobs_tags(span: _LLMObsSpan) -> Optional[dict[str, str]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
 
 
-def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
+def get_llmobs_cost_tags(span: _LLMObsSpan) -> Optional[list[str]]:
     metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
     metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD, {})
     if not isinstance(metadata_dd, dict):
@@ -665,62 +665,62 @@ def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
     return metadata_dd.get(LLMOBS_STRUCT.COST_TAGS)
 
 
-def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
+def get_llmobs_metrics(span: _LLMObsSpan) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
 
-def get_llmobs_span_links(span: Span) -> Optional[list]:
+def get_llmobs_span_links(span: _LLMObsSpan) -> Optional[list]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS)
 
 
-def get_llmobs_input(span: Span) -> _MetaIO:
+def get_llmobs_input(span: _LLMObsSpan) -> _MetaIO:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {})
 
 
-def get_llmobs_input_value(span: Span) -> Optional[str]:
+def get_llmobs_input_value(span: _LLMObsSpan) -> Optional[str]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.VALUE)
 
 
-def get_llmobs_input_messages(span: Span) -> Optional[list]:
+def get_llmobs_input_messages(span: _LLMObsSpan) -> Optional[list]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.MESSAGES)
 
 
-def get_llmobs_input_documents(span: Span) -> Optional[list]:
+def get_llmobs_input_documents(span: _LLMObsSpan) -> Optional[list]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
 
 
-def get_llmobs_input_prompt(span: Span) -> Optional[Any]:
+def get_llmobs_input_prompt(span: _LLMObsSpan) -> Optional[Any]:
     return get_llmobs_input(span).get(LLMOBS_STRUCT.PROMPT)
 
 
-def get_llmobs_output(span: Span) -> _MetaIO:
+def get_llmobs_output(span: _LLMObsSpan) -> _MetaIO:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {})
 
 
-def get_llmobs_output_value(span: Span) -> Optional[str]:
+def get_llmobs_output_value(span: _LLMObsSpan) -> Optional[str]:
     output_data = get_llmobs_output(span)
     if not isinstance(output_data, dict):
         return None
     return output_data.get(LLMOBS_STRUCT.VALUE)
 
 
-def get_llmobs_output_messages(span: Span) -> Optional[list]:
+def get_llmobs_output_messages(span: _LLMObsSpan) -> Optional[list]:
     return get_llmobs_output(span).get(LLMOBS_STRUCT.MESSAGES)
 
 
-def get_llmobs_output_documents(span: Span) -> Optional[list]:
+def get_llmobs_output_documents(span: _LLMObsSpan) -> Optional[list]:
     return get_llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
 
 
-def get_llmobs_model_name(span: Span) -> Optional[str]:
+def get_llmobs_model_name(span: _LLMObsSpan) -> Optional[str]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME)
 
 
-def get_llmobs_model_provider(span: Span) -> Optional[str]:
+def get_llmobs_model_provider(span: _LLMObsSpan) -> Optional[str]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER)
 
 
-def get_llmobs_metadata(span: Span) -> Optional[dict[str, Any]]:
+def get_llmobs_metadata(span: _LLMObsSpan) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA)
 
 

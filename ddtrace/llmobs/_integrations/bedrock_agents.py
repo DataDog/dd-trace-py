@@ -65,10 +65,10 @@ def _build_step_span(
     annotate_kwargs: dict[str, Any] = {
         "kind": span_kind,
         "parent_id": str(parent.span_id),
-        "trace_id": get_llmobs_trace_id(cast(Any, root_span)) or format_trace_id(root_span.trace_id),
-        "ml_app": get_llmobs_ml_app(cast(Any, root_span)),
+        "trace_id": get_llmobs_trace_id(root_span) or format_trace_id(root_span.trace_id),
+        "ml_app": get_llmobs_ml_app(root_span),
         "tags": {LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"},
-        "session_id": get_llmobs_session_id(cast(Any, root_span)) or None,
+        "session_id": get_llmobs_session_id(root_span) or None,
         "metadata": metadata or None,
     }
     if input_val is not None:
@@ -163,15 +163,15 @@ def _propagate_inner_io_to_step_span(step_span: _LLMObsSpan, inner_span: _LLMObs
     and scrubs meta_struct[LLMOBS_STRUCT.KEY] on finish, leaving nothing to read.
     """
     kwargs: dict[str, Any] = {}
-    if not get_llmobs_input(cast(Any, step_span)):
-        input_val = get_llmobs_input_messages(cast(Any, inner_span)) or get_llmobs_input_value(cast(Any, inner_span))
+    if not get_llmobs_input(step_span):
+        input_val = get_llmobs_input_messages(inner_span) or get_llmobs_input_value(inner_span)
         if input_val is not None:
             kwargs["input_value"] = safe_json(input_val) if not isinstance(input_val, str) else input_val
-    output_val = get_llmobs_output_messages(cast(Any, inner_span)) or get_llmobs_output_value(cast(Any, inner_span))
+    output_val = get_llmobs_output_messages(inner_span) or get_llmobs_output_value(inner_span)
     if output_val is not None:
         kwargs["output_value"] = safe_json(output_val) if not isinstance(output_val, str) else output_val
     if kwargs:
-        _annotate_llmobs_span_data(cast(Any, step_span), **kwargs)
+        _annotate_llmobs_span_data(step_span, **kwargs)
 
 
 def _translate_custom_orchestration_trace(
@@ -406,7 +406,7 @@ def _model_invocation_output_span(
     }
     current_active_span.start_ns = int(start_ns)
     _annotate_llmobs_span_data(
-        cast(Any, current_active_span), output_messages=output_messages, metrics=token_metrics, metadata=metadata_update
+        current_active_span, output_messages=output_messages, metrics=token_metrics, metadata=metadata_update
     )
     if current_active_span._parent is not None:
         _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
@@ -497,7 +497,7 @@ def _observation_span(
 
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
     current_active_span.start_ns = int(start_ns)
-    _annotate_llmobs_span_data(cast(Any, current_active_span), output_value=output_value)
+    _annotate_llmobs_span_data(current_active_span, output_value=output_value)
     if current_active_span._parent is not None:
         _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
     current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
