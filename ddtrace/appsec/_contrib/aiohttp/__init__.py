@@ -4,6 +4,7 @@ import json
 import re
 from typing import Any
 from typing import Optional
+from typing import Union
 
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -62,16 +63,16 @@ def _unquote_cookie(value: str) -> str:
     return _COOKIE_ESCAPE.sub(lambda m: chr(int(m[1], 8)) if m[1] else m[2], value[1:-1])
 
 
-def _parse_cookies(headers: Any) -> dict[str, str]:
-    cookies: dict[str, str] = {}
+def _parse_cookies(headers: Any) -> dict[str, Union[str, list[str]]]:
+    cookies: dict[str, list[str]] = {}
     for chunk in "; ".join(headers.getall("Cookie", ())).split(";"):
         key, separator, value = chunk.partition("=")
         if not separator:
             key, value = "", key
         key, value = key.strip(), value.strip()
         if key or value:
-            cookies[key] = _unquote_cookie(value)
-    return cookies
+            cookies.setdefault(key, []).append(_unquote_cookie(value))
+    return {key: values[0] if len(values) == 1 else values for key, values in cookies.items()}
 
 
 def _check_blocked() -> None:

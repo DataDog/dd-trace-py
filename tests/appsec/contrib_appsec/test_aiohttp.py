@@ -255,6 +255,8 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             (("x-attack=var_dump ()",), {"x-attack": "var_dump ()"}),
             (('quoted="a b\\073c"; plain=1',), {"quoted": "a b;c", "plain": "1"}),
             (("first=1", "second=2"), {"first": "1", "second": "2"}),
+            (("session=' OR 1=1 --", "session=x"), {"session": ["' OR 1=1 --", "x"]}),
+            (("a=1; a=2",), {"a": ["1", "2"]}),
         ],
     )
     def test_request_cookies_raw_header(self, interface, cookie_headers, expected):

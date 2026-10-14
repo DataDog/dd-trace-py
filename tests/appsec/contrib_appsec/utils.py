@@ -6,7 +6,6 @@ import sys
 from typing import Any
 from typing import ClassVar
 from urllib.parse import quote
-from urllib.parse import unquote
 from urllib.parse import urlencode
 
 import pytest
@@ -1163,11 +1162,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 uri += "?headers=" + quote(",".join(f"{k}={v}" for k, v in headers.items()))
             response = interface.client.get(uri, headers={"x-rename-service": "true" if rename_service else "false"})
 
-            url = get_entry_span_tag(http.URL)
-            expected_url = f"http://localhost:{interface.SERVER_PORT}" + uri
-            if interface.name == "aiohttp":
-                url, expected_url = unquote(url), unquote(expected_url)
-            assert url == expected_url, f"url tag mismatch {url}"
+            assert get_entry_span_tag(http.URL) == f"http://localhost:{interface.SERVER_PORT}" + uri
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 self.assert_blocked(response, entry_span, get_entry_span_tag, blocked)
