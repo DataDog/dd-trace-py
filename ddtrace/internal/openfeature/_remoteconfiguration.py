@@ -64,14 +64,28 @@ class FeatureFlagCallback(RCCallback):
                     continue
                 _set_ffe_config(None)
                 self._applied_path = None
+                log.debug("Feature Flags: remote_config configuration removed")
                 continue
 
+            # Remote Config's own action names: new content for the path already
+            # applied is a modify, anything else an apply.
+            action = "modify" if payload.path == self._applied_path else "apply"
             try:
                 if process_ffe_configuration(payload.content):
                     self._applied_path = payload.path
+                    log.debug(
+                        "Feature Flags: remote_config configuration %s applied successfully (%d flag(s))",
+                        action,
+                        _flag_count(payload.content),
+                    )
                 log.debug("Processing FFE config ID: %s, size: %d bytes", payload.metadata.id, len(payload.content))
             except Exception as e:
                 log.debug("Error processing FFE config payload: %s", e, exc_info=True)
+
+
+def _flag_count(content: t.Any) -> int:
+    flags = content.get("flags") if isinstance(content, dict) else None
+    return len(flags) if isinstance(flags, dict) else 0
 
 
 # Global callback instance
@@ -80,6 +94,7 @@ _featureflag_rc_callback = FeatureFlagCallback()
 
 def enable_featureflags_rc() -> None:
     log.debug("[%s][P: %s] Register FFE Remote Config Callback", os.getpid(), os.getppid())
+    log.debug("Feature Flags: starting remote_config configuration source (Agent Remote Configuration)")
     remoteconfig_poller.register_callback(
         FFE_FLAGS_PRODUCT,
         _featureflag_rc_callback,

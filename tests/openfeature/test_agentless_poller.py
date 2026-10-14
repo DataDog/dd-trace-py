@@ -1,5 +1,6 @@
 import gzip
 import json
+import logging
 import socket
 
 import pytest
@@ -89,7 +90,7 @@ class _FakeConn:
 def harness(monkeypatch):
     """Return a factory building a poller with a scripted fake HTTP layer."""
 
-    def build(responses, api_key=None, poll_interval=30.0, sock=None):
+    def build(responses, api_key=None, poll_interval=30.0, sock=None, env=None):
         requests: list = []
         applied: list = []
         conns: list = []
@@ -106,6 +107,7 @@ def harness(monkeypatch):
             apply_configuration=applied.append,
             api_key=api_key,
             poll_interval=poll_interval,
+            env=env,
         )
         # Keep retries instant.
         monkeypatch.setattr(src, "_retry_delay", lambda attempt: 0.0)
@@ -235,6 +237,73 @@ def test_self_tracing_suppressed(harness):
     src = harness([_FakeResponse(304)])
     src.periodic()
     assert src._requests[0]["no_trace"] is True
+
+
+def _debug_messages(caplog):
+    return [r.getMessage() for r in caplog.records if r.levelno == logging.DEBUG]
+
+
+def test_debug_logs_each_attempt_and_its_outcome(harness, caplog):
+    src = harness([_FakeResponse(503), TimeoutError(), _FakeResponse(200, _ufc_body(), {"ETag": '"v1"'})], env="prod")
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert messages == [
+        "Feature Flags: agentless configuration poll attempt 1/3",
+        "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 503",
+        "Feature Flags: agentless configuration poll attempt 2/3",
+        # The exception type identifies a timeout even though its message is empty.
+        "Feature Flags: agentless configuration poll attempt 2/3 failed: TimeoutError",
+        "Feature Flags: agentless configuration poll attempt 3/3",
+        "Feature Flags: agentless configuration poll attempt 3/3 returned HTTP 200",
+        "Feature Flags: agentless configuration applied successfully (1 flag(s), env=prod)",
+    ], messages
+
+
+def test_debug_logs_network_error_detail(harness, caplog):
+    src = harness([ConnectionRefusedError(111, "Connection refused"), _FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert (
+        "Feature Flags: agentless configuration poll attempt 1/3 failed: "
+        "ConnectionRefusedError: [Errno 111] Connection refused"
+    ) in _debug_messages(caplog)
+
+
+def test_debug_logs_unchanged_304(harness, caplog):
+    src = harness([_FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 304 (unchanged)" in (
+        _debug_messages(caplog)
+    )
+
+
+def test_debug_logs_unset_env_and_attempt_count_restarts_per_poll(harness, caplog):
+    src = harness([_FakeResponse(200, _ufc_body()), _FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert "Feature Flags: agentless configuration applied successfully (1 flag(s), env=unset)" in messages
+    assert messages.count("Feature Flags: agentless configuration poll attempt 1/3") == 2, messages
+
+
+def test_debug_does_not_report_rejected_payload_as_applied(harness, caplog, monkeypatch):
+    src = harness([_FakeResponse(200, _ufc_body())])
+
+    def reject(_):
+        raise ValueError("rejected")
+
+    monkeypatch.setattr(src, "_apply_configuration", reject)
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert not any("applied successfully" in m for m in _debug_messages(caplog))
 
 
 def _spy_waits(src, monkeypatch):
