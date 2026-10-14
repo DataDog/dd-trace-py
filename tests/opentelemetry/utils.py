@@ -5,13 +5,13 @@ from http.server import HTTPServer
 from threading import Thread
 
 
-def create_grpc_server(servicer, add_servicer_to_server, instrumented=True):
+def create_grpc_server(servicer, add_servicer_to_server, instrumented=True, port=4317):
     import grpc
 
     server_factory = grpc.server if instrumented else getattr(grpc.server, "__wrapped__", grpc.server)
     server = server_factory(futures.ThreadPoolExecutor(max_workers=1))
     add_servicer_to_server(servicer, server)
-    assert server.add_insecure_port("[::]:4317") == 4317
+    assert server.add_insecure_port("[::]:%d" % port) == port
     return server
 
 
@@ -39,8 +39,15 @@ def capture_otlp_metrics(protocol):
 
 
 @contextmanager
-def capture_otlp_traces():
-    with _capture_http_requests(4318) as requests:
+def capture_otlp_traces(protocol):
+    if protocol == "grpc":
+        capture = _capture_grpc_traces
+    elif protocol == "http/protobuf":
+        capture = _capture_http_traces
+    else:
+        raise ValueError("Unsupported OTLP protocol: %s" % protocol)
+
+    with capture() as requests:
         yield requests
 
 
@@ -50,16 +57,36 @@ def _capture_grpc_metrics():
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import MetricsServiceServicer
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import add_MetricsServiceServicer_to_server
 
-    class MetricsService(MetricsServiceServicer):
+    with _capture_grpc_requests(
+        MetricsServiceServicer, add_MetricsServiceServicer_to_server, ExportMetricsServiceResponse, 4317
+    ) as requests:
+        yield requests
+
+
+@contextmanager
+def _capture_grpc_traces():
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceResponse
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2_grpc import TraceServiceServicer
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2_grpc import add_TraceServiceServicer_to_server
+
+    with _capture_grpc_requests(
+        TraceServiceServicer, add_TraceServiceServicer_to_server, ExportTraceServiceResponse, 4317
+    ) as requests:
+        yield requests
+
+
+@contextmanager
+def _capture_grpc_requests(servicer_type, add_servicer_to_server, response_type, port):
+    class Service(servicer_type):
         def __init__(self):
             self.requests = []
 
         def Export(self, request, context):
             self.requests.append(request)
-            return ExportMetricsServiceResponse()
+            return response_type()
 
-    service = MetricsService()
-    server = create_grpc_server(service, add_MetricsServiceServicer_to_server, instrumented=False)
+    service = Service()
+    server = create_grpc_server(service, add_servicer_to_server, instrumented=False, port=port)
     server.start()
     try:
         yield service.requests
@@ -72,6 +99,14 @@ def _capture_http_metrics():
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 
     with _capture_http_requests(4317, ExportMetricsServiceRequest) as requests:
+        yield requests
+
+
+@contextmanager
+def _capture_http_traces():
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+
+    with _capture_http_requests(4318, ExportTraceServiceRequest) as requests:
         yield requests
 
 

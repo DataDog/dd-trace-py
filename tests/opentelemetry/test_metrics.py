@@ -169,7 +169,7 @@ def test_otel_metrics_export_does_not_generate_client_spans():
 
     with (
         capture_otlp_metrics(os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]) as metric_requests,
-        capture_otlp_traces() as trace_requests,
+        capture_otlp_traces("http/protobuf") as trace_requests,
     ):
         get_meter("test.metrics").create_counter("test.metric").add(1)
         assert get_meter_provider().force_flush()
