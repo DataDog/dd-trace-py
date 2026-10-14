@@ -2,9 +2,6 @@
 An API to provide fork-safe functions.
 """
 
-# Grab get_ident before any monkey-patching library (e.g. gevent) gets a
-# chance to replace it with a greenlet-aware version.
-from _thread import get_ident as _get_ident
 import functools
 import logging
 import os
@@ -14,7 +11,7 @@ import weakref
 import wrapt
 
 from ddtrace.internal import _unpatched
-from ddtrace.internal.locks import Lock as _Lock
+from ddtrace.internal.locks import RLock as _RLock
 from ddtrace.internal.native.exceptions import is_panic_exception
 
 
@@ -101,42 +98,41 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
 # the parent, where they take their turn once the lock is released. Threads
 # started by ddtrace never fork and never take this lock, which is what makes
 # it safe for the before-fork hooks to join them while holding it.
-_fork_lock = _Lock()
-_fork_lock_owner: typing.Optional[int] = None
+#
+# This is an RLock because it records its owner as part of acquire() and
+# release(). Tracking the owner separately would leave windows where an
+# asynchronous exception (e.g. KeyboardInterrupt) leaves the lock held with no
+# recorded owner, which would block every subsequent fork.
+_fork_lock = _RLock()
 
 
 def ddtrace_before_fork() -> None:
-    global _fork_lock_owner
-
     _fork_lock.acquire()
-    _fork_lock_owner = _get_ident()
 
     run_hooks(_registry_before_fork)
 
 
 def ddtrace_after_in_parent() -> None:
-    global _fork_lock_owner
-
     try:
         run_hooks(_registry_after_parent)
     finally:
-        # An exception (e.g. KeyboardInterrupt) can interrupt the blocking
-        # acquire in ddtrace_before_fork. CPython then reports it and forks
-        # anyway, so only release the lock if this thread actually holds it.
-        if _fork_lock_owner == _get_ident():
-            _fork_lock_owner = None
+        try:
             _fork_lock.release()
+        except RuntimeError:
+            # This thread does not hold the lock. An exception (e.g.
+            # KeyboardInterrupt) can interrupt the blocking acquire in
+            # ddtrace_before_fork, and CPython reports it and forks anyway.
+            pass
 
 
 def run_child_hooks() -> None:
-    global _in_child_hook, _fork_lock, _fork_lock_owner
+    global _in_child_hook, _fork_lock
 
     # The child is single-threaded, so a fresh lock is equivalent to releasing
     # the inherited one. Unlike a release, it also covers callers that run the
     # child hooks without a matching before-fork call (e.g. uWSGI workers
     # forked by the master at the C level).
-    _fork_lock = _Lock()
-    _fork_lock_owner = None
+    _fork_lock = _RLock()
 
     _in_child_hook = True
     run_hooks(_registry_before_child_hooks)

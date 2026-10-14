@@ -370,6 +370,56 @@ def test_unpaired_after_fork_hooks():
     assert done.wait(timeout=5), "fork lock still held after the child hooks"
 
 
+@pytest.mark.subprocess(timeout=30)
+def test_fork_lock_released_after_exception_following_acquire():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    class InterruptedAfterAcquire:
+        # Simulates an asynchronous exception (e.g. KeyboardInterrupt from
+        # SIGINT) delivered right after the lock has been acquired.
+        def __init__(self, lock):
+            self._lock = lock
+
+        def acquire(self):
+            self._lock.acquire()
+            raise KeyboardInterrupt
+
+        def release(self):
+            self._lock.release()
+
+    lock = forksafe._fork_lock
+    forksafe._fork_lock = InterruptedAfterAcquire(lock)
+    try:
+        try:
+            forksafe.ddtrace_before_fork()
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError("expected KeyboardInterrupt")
+
+        # CPython reports the exception, forks anyway and then runs the
+        # after-parent hooks, which must release the lock.
+        forksafe.ddtrace_after_in_parent()
+    finally:
+        forksafe._fork_lock = lock
+
+    # Check from another thread, since the lock is re-entrant for its owner.
+    acquired = []
+
+    def try_acquire():
+        acquired.append(lock.acquire(blocking=False))
+        if acquired[-1]:
+            lock.release()
+
+    t = threading.Thread(target=try_acquire)
+    t.start()
+    t.join()
+
+    assert acquired == [True], "fork lock leaked after an exception following acquire"
+
+
 @pytest.mark.subprocess(timeout=120)
 def test_concurrent_forks_from_threads():
     import os
