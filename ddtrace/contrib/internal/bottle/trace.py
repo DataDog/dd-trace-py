@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from collections.abc import MutableMapping
+from typing import Any
 from typing import cast
 
 from bottle import HTTPError
@@ -7,6 +9,7 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
+from ddtrace.contrib._events.http import HttpServerBeforeHandlerEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -39,8 +42,8 @@ class TracePlugin:
     def distributed_tracing(self, distributed_tracing):
         config.bottle["distributed_tracing"] = asbool(distributed_tracing)
 
-    def apply(self, callback, route):
-        def wrapped(*args, **kwargs):
+    def apply(self, callback: Callable[..., Any], route: Any) -> Callable[..., Any]:
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
             if not is_tracing_enabled():
                 return callback(*args, **kwargs)
 
@@ -68,7 +71,28 @@ class TracePlugin:
             ) as ctx:
                 code = None
                 result = None
+                blocked_response = False
                 try:
+                    # Avoid collecting inspection data when no product needs this stage.
+                    if core.has_listeners(HttpServerBeforeHandlerEvent.event_name):
+                        before_handler = HttpServerBeforeHandlerEvent(
+                            operation_id=object(),
+                            http_operation="bottle.request",
+                            request_url=url,
+                            request_method=method,
+                            request_headers=dict(request.headers),
+                            query=request.query_string,
+                            route=full_route,
+                            path_parameters=dict(kwargs),
+                        )
+                        core.dispatch_event(before_handler, allow_raise=True)
+                        decision = before_handler.block_response
+                        if decision is not None:
+                            blocked_response = True
+                            result = HTTPResponse(
+                                body=decision.body, status=decision.status, headers=list(decision.headers)
+                            )
+                            return result
                     result = callback(*args, **kwargs)
                     return result
                 except (HTTPError, HTTPResponse) as e:
@@ -95,6 +119,8 @@ class TracePlugin:
 
                     event: WebFrameworkRequestEvent = ctx.event
                     event.response_status_code = response_code
-                    event.response_headers = response.headers
+                    event.response_headers = (
+                        result.headers if blocked_response and isinstance(result, HTTPResponse) else response.headers
+                    )
 
         return wrapped

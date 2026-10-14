@@ -5,11 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib._events.http import HttpRequestBodyAvailability as BodyAvailability
+from ddtrace.contrib._events.http import HttpServerBeforeHandlerEvent as BeforeHandlerEvent
+from ddtrace.contrib._events.http import HttpServerBlockResponse as BlockResponse
 from ddtrace.internal import core
-
-from .contracts import BeforeHandlerEvent
-from .contracts import BlockResponse
-from .contracts import BodyAvailability
 
 
 @dataclass(frozen=True)
@@ -48,7 +47,7 @@ class AsmConsumer:
     def __enter__(self) -> "AsmConsumer":
         # This scaffold supports one decision authority; registration is startup-only.
         if core.has_listeners(BeforeHandlerEvent.event_name):
-            raise RuntimeError("A scaffold decision consumer is already registered")
+            raise RuntimeError("A decision consumer is already registered")
         core.on(BeforeHandlerEvent.event_name, self._on_before_handler)
         return self
 

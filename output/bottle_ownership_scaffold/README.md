@@ -1,76 +1,92 @@
-# Bottle ownership scaffold
+# Bottle ownership POC
 
-This is an opt-in, executable design example. It does not modify or register production instrumentation.
+The POC now modifies the actual Bottle integration. Install the standard TracePlugin,
+or use the existing Bottle autopatching. The separate scaffold adapter and contracts
+have been removed.
 
-| File | Owner | Responsibility |
+| Code | Owner | Responsibility |
 | --- | --- | --- |
-| contracts.py | IDM + ASM, with LP transport review | Facts available before the handler and a synchronous blocking response |
-| adapter.py | IDM | Extract Bottle facts, dispatch, translate a block into HTTPResponse, otherwise invoke the handler |
-| asm_consumer.py | ASM | Inspect framework-independent facts and return a decision |
-| Existing core dispatcher/context and span APIs | LP | Dispatch, context activation, span mechanics |
-| Existing TracePlugin / WebFrameworkRequestEvent usage | IDM | HTTP span semantics, route naming, status, errors, existing completion boundary |
-| Existing span-to-profile bridge | LP + Profiling | Span identity/resource access and profile endpoint attribution; no Bottle-specific profiling callback |
+| ddtrace/contrib/internal/bottle/trace.py | IDM | Extract request facts, emit the pre-handler stage, enforce a response decision through Bottle |
+| ddtrace/contrib/_events/http.py | IDM + ASM, with LP transport review | Stage fields and synchronous response contract |
+| ddtrace/internal/core | LP | Existing dispatch and active context mechanisms, unchanged by this POC |
+| asm_consumer.py in this directory | Sample ASM boundary | Explicitly registered inspection policy; no real WAF integration |
+| tests/contrib/bottle/test_lifecycle.py | Integration contract tests | Exercise the actual TracePlugin with test consumers |
 
-## Try the split
+## Flow
 
-From the repository root, import the scaffold and install it on a Bottle app:
+The existing WebFrameworkRequestEvent opens the request span. If a consumer is
+registered, Bottle emits HttpServerBeforeHandlerEvent inside that context.
+A consumer may set block_response to HttpServerBlockResponse; otherwise it stays
+None and the handler runs. IDM translates a decision into Bottle's HTTPResponse,
+skips the handler, and records the blocked status and response headers.
+
+No new LP runtime code or profiling callbacks are introduced. Existing span
+semantics and completion remain in place.
+
+## Example consumer
+
+The sample policy remains outside production product registration:
 
 ```python
 from bottle import Bottle
-from output.bottle_ownership_scaffold.adapter import ScaffoldTracePlugin
+from ddtrace.contrib.internal.bottle.patch import TracePlugin
+from ddtrace.contrib._events.http import HttpServerBlockResponse
 from output.bottle_ownership_scaffold.asm_consumer import AsmConsumer
-from output.bottle_ownership_scaffold.contracts import BlockResponse
 
 app = Bottle()
-app.install(ScaffoldTracePlugin())
+app.install(TracePlugin())
 
 @app.get("/hello/<name>")
 def hello(name):
     return "Hello " + name
 
 def inspect(facts):
-    if dict(facts.headers).get("X-Demo-Block") == "yes":
-        return BlockResponse()
+    if facts.path_parameters == (("name", "blocked"),):
+        return HttpServerBlockResponse()
     return None
 
-# Keep the consumer registered for the application's lifetime.
-# The policy above is only a demonstration, not a security control.
 with AsmConsumer(inspect):
     app.run(host="127.0.0.1", port=8080)
 ```
 
-Use this plugin in place of the standard TracePlugin; do not enable Bottle autopatching alongside it.
+Install the plugin manually or use autopatching, not both.
 
-The outer existing plugin starts its WebFrameworkRequestEvent and span. The scaffold emits BeforeHandlerEvent inside that context. ASM synchronously returns None (continue) or BlockResponse through the event's result field. IDM returns a Bottle HTTPResponse on block, skipping the application callback. The existing outer wrapper records the status and finishes the span.
+## Boundaries still under discussion
 
-## Contract deliberately bounded to this stage
+This is a POC, not released Bottle WAF support. There is no production ASM
+subscriber, body inspection, or IAST wiring. The sample consumer demonstrates the
+ownership boundary without importing product code from contrib.
 
-- The hook runs after route resolution, before this plugin invokes the callback. Plugin ordering can mean other wrappers still run; this is not an earliest-request interception guarantee.
-- Method, URL, copied headers, raw query, route template and copied path parameters are available. Body is explicitly NOT_COLLECTED; no stream is read.
-- Parameter values are shallow copies and can include converter-defined objects. Deep immutability, serialization and allowed parameter types need an agreed production contract.
-- operation_id is an opaque per-invocation token. Future stage events must carry the same token from a longer-lived operation context; this example has only one stage.
-- Dispatch must complete synchronously. There is one startup-registered decision authority. No delayed decisions, multiple-consumer arbitration, transformations or cancellation protocol is implemented.
-- Consumer exceptions deliberately propagate in this prototype (Bottle turns ordinary exceptions into 500 responses). This exposes contract failures during design; production failure isolation and fail-open/fail-closed policy remain to be agreed.
-- The adapter preserves the existing tracing activation gate. Independent product activation is not demonstrated.
-- No real WAF, AppSec context setup, IAST instrumentation, body inspection, duplicate-header preservation or block-response validation is implemented.
+Inspection is synchronous, with a single decision authority. Consumer exceptions
+propagate and Bottle converts ordinary exceptions to HTTP 500. Production failure
+isolation, fail-open/fail-closed behavior, decision arbitration, and validation of
+block response specifications still require an agreed contract.
 
-## Completion and profiling
+Headers and path parameters are copied; converter-defined parameter objects are
+shallow copies. Body availability is explicitly NOT_COLLECTED and the request body
+is not read. Duplicate request headers are not preserved.
 
-This keeps the current callback-return span boundary. It does not observe response commitment, stream iteration/exhaustion, disconnects, or unmatched routes. It also retains existing response-header capture behavior, which reads Bottle's local response rather than headers on a returned HTTPResponse.
+The existing activation gate is retained. This does not demonstrate independent
+ASM activation. The event runs after routing and before the wrapped callback;
+plugin order can put other wrappers around it. Unmatched routes are not observed.
 
-A separate WSGI lifecycle adapter would be needed for those stages, sharing a single operation/span with this route hook. Completion must finalize the route/resource before the shared span completion notification. Profiling consumes that shared span contract; it should not subscribe to Bottle-specific callbacks.
+operation_id is an opaque token for this invocation. Future stage events would
+need to carry the same token through a longer-lived operation context.
 
-For production, move agreed event contracts into contrib/_events/http.py (or a sibling server module), integrate the adapter into the Bottle plugin, and register the real consumer from the AppSec product lifecycle. The current prototype imports no AppSec product code from the adapter and does not introduce a dependency from core onto contrib.
+The span still ends when the callback returns. Streaming completion, disconnects,
+response commitment and early request interception need a WSGI lifecycle adapter
+that shares this request's operation/span. Profiling continues to consume the
+shared span bridge, with no Bottle-specific consumer.
 
 ## Validation
 
-The tests exercise real Bottle requests with WebTest and the repository test tracer: allow, block, handler suppression, listener cleanup, inspector failure, one-span behavior, and HTTPError propagation.
-
-Run through the repository runner (never direct pytest):
+Run the entire Bottle suite, including the lifecycle tests, using an environment
+listed by the repository runner:
 
 ```sh
 scripts/run-tests --list tests/contrib/bottle/test.py
-scripts/run-tests --venv 14d8170 -- output/bottle_ownership_scaffold/test_scaffold.py -k OwnershipScaffold
+scripts/run-tests --venv 14d8170
 ```
 
-The venv hash is from this checkout's discovered Bottle Python 3.14 environment; rediscover if it changes.
+The listed hash selects Python 3.14 with current Bottle. The 15dee3b environment
+covers Python 3.9 and Bottle 0.12.

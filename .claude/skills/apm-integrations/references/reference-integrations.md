@@ -28,3 +28,11 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+## Bottle pre-handler contract POC
+
+Bottle retains WebFrameworkRequestEvent for tracing and dispatches
+HttpServerBeforeHandlerEvent from contrib/_events/http.py before the route callback
+when a consumer is registered. A synchronous consumer can set HttpServerBlockResponse;
+Bottle enforces it without importing security product code. This POC preserves the
+callback-return completion boundary and has no production WAF subscriber.
