@@ -1,3 +1,4 @@
+import errno
 import http.server
 import os
 import socket
@@ -516,6 +517,34 @@ def test_dogstatsd_over_unix_socket(monkeypatch):
     # Every line arrives, even where the socket takes smaller datagrams than 8 KiB (2 KiB on macOS).
     inputs = [line for line in lines if line.startswith("gen_ai.client.inference.usage.input_tokens:12|c|#")]
     assert len(inputs) == 20
+
+
+class SizeLimitedSocket:
+    """A datagram socket that takes datagrams of up to limit bytes, as a Unix socket does on macOS (2 KiB)."""
+
+    def __init__(self, limit):
+        self.limit = limit
+        self.sent = []
+        self.closed = False
+
+    def send(self, data):
+        if len(data) > self.limit:
+            raise OSError(errno.EMSGSIZE, "Message too long")
+        self.sent.append(data)
+
+    def close(self):
+        self.closed = True
+
+
+def test_dogstatsd_lines_too_long_to_send_are_dropped_alone(monkeypatch):
+    monkeypatch.setattr(agent_config, "dogstatsd_url", "unix:///nonexistent/dsd.sock")
+    sender = _usage_metrics_writer._DogStatsdSender()
+    sock = SizeLimitedSocket(2048)
+    sender._socket = sock
+    sender.send(["a" * 3000, "b" * 10, "c" * 10_000, "d" * 10])
+    # Longer than the socket takes, or than the Agent reads: dropped, while the other lines and the socket are kept.
+    assert b"\n".join(sock.sent).split(b"\n") == [b"b" * 10, b"d" * 10]
+    assert not sock.closed and sender._socket is sock
 
 
 def test_dogstatsd_without_a_listener_never_raises(monkeypatch):

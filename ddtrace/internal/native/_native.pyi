@@ -1028,7 +1028,7 @@ class ai_usage:
         """
 
         def __init__(self, metrics: Optional[list[str]] = None) -> None:
-            """``metrics`` lists the metric names to keep; by default every metric a profile defines is kept."""
+            """metrics lists the metric names to keep; by default every metric a profile defines is kept."""
             ...
         def record(
             self,
@@ -1039,7 +1039,7 @@ class ai_usage:
             """
             Project one observation under a versioned profile id and add its points.
 
-            Returns the issue codes raised beside the points. Raises ``ValueError(error_code, message)``
+            Returns the issue codes raised beside the points. Raises ValueError(error_code, message)
             when the observation is rejected; nothing is recorded then.
             """
             ...
@@ -1048,7 +1048,7 @@ class ai_usage:
             self, scope_name: str, scope_version: str, start_time_unix_nano: int, time_unix_nano: int
         ) -> Optional[bytes]:
             """
-            Take the points recorded so far as an OTLP ExportMetricsServiceRequest in protobuf, or ``None``.
+            Take the points recorded so far as an OTLP ExportMetricsServiceRequest in protobuf, or None.
             """
             ...
         def take_dogstatsd(self) -> list[str]:

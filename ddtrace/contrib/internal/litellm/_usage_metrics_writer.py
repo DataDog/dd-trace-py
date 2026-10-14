@@ -45,6 +45,8 @@ SCOPE_NAME = "ddtrace.contrib.litellm"
 # Largest datagram sent to DogStatsD over UDP and over a Unix socket.
 _UDP_MAX_PACKET = 1432
 _UDS_MAX_PACKET = 8192
+# The Agent reads a DogStatsD datagram into an 8 KiB buffer by default, so a longer line would arrive cut.
+_MAX_LINE = 8192
 _SEND_TIMEOUT_SECONDS = 0.1
 _SEND_ATTEMPTS = 20
 
@@ -209,6 +211,12 @@ class _DogStatsdSender:
         packet: list[bytes] = []
         size = 0
         for data in lines:
+            if len(data) > _MAX_LINE:
+                log.debug(
+                    "LiteLLM usage metrics: dropping a %d-byte DogStatsD line, longer than the Agent reads",
+                    len(data),
+                )
+                continue
             if packet and size + 1 + len(data) > self._max_packet:
                 self._send_packet(packet)
                 packet, size = [], 0
@@ -224,11 +232,17 @@ class _DogStatsdSender:
                 self._connect().send(data)
                 return
             except OSError as e:
-                if e.errno == errno.EMSGSIZE and len(packet) > 1:
-                    # The socket takes smaller datagrams than assumed (macOS limits Unix datagrams to 2 KiB by
-                    # default): send smaller packets from now on.
-                    self._max_packet = max(self._max_packet // 2, 512)
-                    self._send_lines(packet)
+                if e.errno == errno.EMSGSIZE:
+                    if len(packet) > 1:
+                        # The socket takes smaller datagrams than assumed (macOS limits Unix datagrams to 2 KiB by
+                        # default): send smaller packets from now on.
+                        self._max_packet = max(self._max_packet // 2, 512)
+                        self._send_lines(packet)
+                    else:
+                        log.debug(
+                            "LiteLLM usage metrics: dropping a %d-byte DogStatsD line, longer than the socket takes",
+                            len(data),
+                        )
                     return
                 if e.errno in (errno.ENOBUFS, errno.EAGAIN) and attempt + 1 < _SEND_ATTEMPTS:
                     # The receiver's buffer is full; macOS reports it at once instead of blocking.
