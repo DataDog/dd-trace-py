@@ -25,6 +25,8 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import _opentelemetry
+from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.utils import _human_size
@@ -901,7 +903,10 @@ def test_flush_queue_raise(writer_class):
 
 
 def test_racing_start():
-    with managed_writer(NativeWriter, "http://dne:1234") as writer:
+    writer = NativeWriter("http://dne:1234")
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(writer, "periodic"))
+        stack.callback(writer.stop, 3.0)
 
         def do_write(i):
             writer.write([Span(str(i))])
@@ -1252,6 +1257,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_client_computed_top_level",
         "set_input_format",
         "set_output_format",
+        "set_stats_cardinality_limit",
         "enable_telemetry",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
@@ -1329,6 +1335,7 @@ def test_otlp_metric_tags_configured():
         "set_git_commit_sha",
         "set_runtime_id",
         "set_client_computed_top_level",
+        "set_stats_cardinality_limit",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 
@@ -1337,6 +1344,55 @@ def test_otlp_metric_tags_configured():
 
     mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
     mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_STATS_CARDINALITY_LIMIT": "100",
+        "DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT": "50",
+    }
+)
+def test_stats_cardinality_limits_configured():
+    """Limits left unset fall back to the defaults libdatadog would have applied."""
+    from unittest import mock
+
+    from ddtrace.internal import native
+    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+
+    mock_builder = mock.Mock()
+    # The builder is used as a chain, so every setter has to hand back the same mock.
+    for method_name in [
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_runtime_id",
+        "set_client_computed_top_level",
+        "set_stats_cardinality_limit",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
+        _build_base_exporter_builder("http://localhost:8126", None, True, False)
+
+    mock_builder.set_stats_cardinality_limit.assert_called_once_with(
+        whole_key_limit=100,
+        resource_limit=50,
+        http_endpoint_limit=512,
+        peer_tags_limit=512,
+        additional_tags_limit=100,
+    )
+
+
+@pytest.mark.subprocess(
+    env={"DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT": "0"},
+    err=lambda err: "only positive values allowed" in err,
+)
+def test_stats_cardinality_limits_reject_non_positive_values():
+    from ddtrace.internal.settings._config import config
+
+    assert config._trace_stats_cardinality_limits["peer_tags_limit"] == 512
 
 
 class TestSafelog:
@@ -1478,22 +1534,45 @@ def test_agentless_writer_no_api_key():
 
 def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_case_insensitive():
     with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_by_default():
     with override_env({"OTEL_TRACES_EXPORTER": ""}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_when_trace_api_version_set():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_API_VERSION": "v0.4"}):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_semantics_override_agent_protocol_version():
+    with override_env(
+        {
+            "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+            "OTEL_TRACES_EXPORTER": "none",
+            "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+            "DD_TRACE_API_VERSION": "v0.4",
+        }
+    ):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_native_writer_stores_otlp_endpoint():

@@ -205,8 +205,8 @@ dependencies = [
 
 [[package]]
 name = "build_common"
-version = "43.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+version = "43.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "cbindgen",
  "serde",
@@ -547,7 +547,7 @@ checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
 [[package]]
 name = "datadog-live-debugger"
 version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -614,6 +614,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "zip",
 ]
 
 [[package]]
@@ -1577,7 +1578,7 @@ source = "git+https://github.com/DataDog/libdatadog?rev=f3e1c77617c36fe4c1026f33
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1587,7 +1588,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities"
 version = "3.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1600,7 +1601,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities-impl"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1614,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "5.2.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1653,8 +1654,8 @@ dependencies = [
 
 [[package]]
 name = "libdd-common-ffi"
-version = "43.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+version = "43.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1668,7 +1669,7 @@ dependencies = [
 [[package]]
 name = "libdd-crashtracker"
 version = "2.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "blazesym",
@@ -1704,7 +1705,7 @@ dependencies = [
 [[package]]
 name = "libdd-data-pipeline"
 version = "9.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1743,7 +1744,7 @@ dependencies = [
 [[package]]
 name = "libdd-data-pipeline-core"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "http 1.4.2",
  "libdd-capabilities",
@@ -1756,8 +1757,8 @@ dependencies = [
 
 [[package]]
 name = "libdd-data-pipeline-ffi"
-version = "43.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+version = "43.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "build_common",
  "libdd-capabilities-impl",
@@ -1776,7 +1777,7 @@ dependencies = [
 [[package]]
 name = "libdd-ddsketch"
 version = "1.1.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "prost",
 ]
@@ -1784,7 +1785,7 @@ dependencies = [
 [[package]]
 name = "libdd-dogstatsd-client"
 version = "5.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1800,7 +1801,7 @@ dependencies = [
 [[package]]
 name = "libdd-ffe"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "chrono",
  "derive_more",
@@ -1822,7 +1823,7 @@ dependencies = [
 [[package]]
 name = "libdd-gotter"
 version = "1.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "libc",
 ]
@@ -1830,7 +1831,7 @@ dependencies = [
 [[package]]
 name = "libdd-http-client"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "bytes",
  "fastrand",
@@ -1846,7 +1847,7 @@ dependencies = [
 [[package]]
 name = "libdd-ipc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1874,7 +1875,7 @@ dependencies = [
 [[package]]
 name = "libdd-ipc-macros"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1885,7 +1886,7 @@ dependencies = [
 [[package]]
 name = "libdd-library-config"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "libc",
@@ -1902,7 +1903,7 @@ dependencies = [
 [[package]]
 name = "libdd-library-config-ffi"
 version = "0.0.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1926,7 +1927,7 @@ dependencies = [
 [[package]]
 name = "libdd-log"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "chrono",
  "tracing",
@@ -1937,12 +1938,12 @@ dependencies = [
 [[package]]
 name = "libdd-otel-thread-ctx"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 
 [[package]]
 name = "libdd-otel-thread-ctx-ffi"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "build_common",
  "libdd-common-ffi",
@@ -1952,7 +1953,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1992,7 +1993,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-ffi"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -2017,7 +2018,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "prost",
 ]
@@ -2025,7 +2026,7 @@ dependencies = [
 [[package]]
 name = "libdd-remote-config"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "base64",
@@ -2063,7 +2064,7 @@ dependencies = [
 [[package]]
 name = "libdd-shared-runtime"
 version = "3.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "async-trait",
  "futures",
@@ -2079,8 +2080,8 @@ dependencies = [
 
 [[package]]
 name = "libdd-shared-runtime-ffi"
-version = "43.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+version = "43.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "build_common",
  "libdd-shared-runtime",
@@ -2090,7 +2091,7 @@ dependencies = [
 [[package]]
 name = "libdd-telemetry"
 version = "7.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2121,7 +2122,7 @@ dependencies = [
 [[package]]
 name = "libdd-tinybytes"
 version = "1.1.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "serde",
 ]
@@ -2129,7 +2130,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-normalization"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "libdd-trace-protobuf",
@@ -2138,7 +2139,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-obfuscation"
 version = "7.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "fluent-uri",
@@ -2154,7 +2155,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-protobuf"
 version = "5.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "prost",
  "serde",
@@ -2164,7 +2165,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-stats"
 version = "8.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2193,7 +2194,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-utils"
 version = "11.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "base64",
@@ -2230,7 +2231,7 @@ dependencies = [
 [[package]]
 name = "libdd-tracer-flare"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.2#8fffdf9f89be0382b52aa555eb3894d01efde30a"
 dependencies = [
  "anyhow",
  "bytes",

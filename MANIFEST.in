@@ -4,7 +4,6 @@ graft src
 
 recursive-exclude ddtrace *.manifest.yaml
 recursive-exclude * **/__pycache__/*
-prune .riot/
 prune benchmarks/
 prune releasenotes/
 prune src/native/target*

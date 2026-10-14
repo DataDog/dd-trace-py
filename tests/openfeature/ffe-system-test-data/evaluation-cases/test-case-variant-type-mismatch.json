@@ -1,0 +1,27 @@
+[
+  {
+    "description": "A flag whose variation violates its declared type returns a parse error while the rest of the configuration remains usable.",
+    "attributes": {},
+    "defaultValue": 0,
+    "flag": "variant-type-mismatch-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": 0
+    },
+    "targetingKey": "user-1",
+    "variationType": "INTEGER"
+  },
+  {
+    "description": "A valid flag in the same configuration continues to evaluate when a malformed neighboring flag returns a parse error.",
+    "attributes": {},
+    "defaultValue": "default",
+    "flag": "valid-flag-after-invalid-config",
+    "result": {
+      "reason": "STATIC",
+      "value": "expected"
+    },
+    "targetingKey": "valid-neighbor",
+    "variationType": "STRING"
+  }
+]

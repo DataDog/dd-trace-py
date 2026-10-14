@@ -1,8 +1,8 @@
 from collections import deque
 from types import CodeType
 from types import FunctionType
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
+from typing import Any
+from typing import Callable
 
 from bytecode import Bytecode
 from bytecode import Instr
@@ -11,6 +11,7 @@ from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import set_function_code
@@ -28,6 +29,13 @@ class InvalidLine(Exception):
     """
     Raised when trying to inject a hook on an invalid line, e.g. a comment or a blank line.
     """
+
+
+# Depth of the instrumented frame as seen from inside a hook. Before 3.15 the
+# hook is called directly from the injected bytecode. On 3.15+ it is dispatched
+# via sys.monitoring, so the stack is:
+#   instrumented function -> monitoring._on_py_line -> _LineHookHandler.on_py_line -> hook
+HOOK_FRAME_DEPTH: int = 3 if is_at_least_py(3, 15) else 1
 
 
 if is_at_least_py(3, 15):
@@ -71,7 +79,7 @@ if is_at_least_py(3, 15):
     # Distinct code objects can compare structurally equal (e.g. repeated identical
     # compiles, or CodeType.replace() clones), so a plain WeakKeyDictionary would let
     # a hook registered for one code object be looked up under another.
-    _line_hook_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+    _line_hook_registry: "IdentityWeakKeyDictionary[CodeType, Any]" = IdentityWeakKeyDictionary()
     _line_hook_lock = Lock()
 
     def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:
@@ -83,6 +91,13 @@ if is_at_least_py(3, 15):
         Returns the list of hooks that failed to be injected.
         """
         code: CodeType = get_function_code(f)
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return list(hooks)
+
         valid_lines: set[int] = linenos(code)
         failed: list[HookInfoType] = []
 
@@ -144,6 +159,13 @@ if is_at_least_py(3, 15):
         Returns the list of hooks that failed to be ejected.
         """
         code: CodeType = get_function_code(f)
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return list(hooks)
+
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
@@ -165,6 +187,13 @@ if is_at_least_py(3, 15):
 
     def inject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
         """Inject a hook into a function at the given line number."""
+        if is_obfuscated_code(get_function_code(f)):
+            log.warning(
+                "Cannot inject hook into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                f.__code__.co_name,
+            )
+            return f
+
         failed: list[HookInfoType] = inject_hooks(f, [(hook, line, arg)])
         if failed:
             raise InvalidLine("Line %d does not exist or is either blank or a comment" % line)
@@ -172,6 +201,13 @@ if is_at_least_py(3, 15):
 
     def eject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
         """Eject a hook from a function at the given line number."""
+        if is_obfuscated_code(get_function_code(f)):
+            log.warning(
+                "Cannot eject hook from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                f.__code__.co_name,
+            )
+            return f
+
         failed: list[HookInfoType] = eject_hooks(f, [(hook, line, arg)])
         if failed:
             raise InvalidLine("Line %d does not contain a hook" % line)

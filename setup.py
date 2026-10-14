@@ -900,6 +900,18 @@ SHARED_DEPS: list[SharedDep] = [
 ]
 
 
+def _first_up_to_date(candidates: list[Path], sources: list[str]) -> t.Optional[Path]:
+    """Return the first candidate artifact that is newer than every source, else None.
+
+    ext_cache restores a .so into the source tree for an editable build and into build/lib
+    for a wheel build, so both are candidates.
+    """
+    for candidate in candidates:
+        if not newer_group(sources, str(candidate), "newer"):
+            return candidate
+    return None
+
+
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
@@ -1311,9 +1323,6 @@ class CustomBuildExt(build_ext):
             # sources.  ext.sources contains the .c files (post-cythonize), so
             # if Cython regenerated a .c due to a .pxd or .pyx change the .c
             # will be newer and this guard will correctly let the build proceed.
-            # We use the inplace path (source-tree location) explicitly because
-            # that is where ext_cache always restores .so files (it runs
-            # ext_hashes --inplace), regardless of the current self.inplace.
             if self.INCREMENTAL:
                 # get_ext_filename gives the package-relative path, e.g.
                 # "ddtrace/profiling/collector/_lock.cpython-313-darwin.so"
@@ -1335,15 +1344,12 @@ class CustomBuildExt(build_ext):
                 sources_for_check = [_pyx_or_c(s) for s in ext.sources]
                 # Also include all .pxd files so declaration changes invalidate the cache.
                 sources_for_check.extend(str(p.resolve()) for p in (HERE / "ddtrace").glob("**/*.pxd") if p.is_file())
-                if not newer_group(
-                    sources_for_check,
-                    str(ext_inplace),
-                    "newer",
-                ):
+                cached = _first_up_to_date([ext_inplace, full_path.resolve()], sources_for_check)
+                if cached is not None:
                     print(f"skipping '{ext.name}' extension (up-to-date)")
                     full_path.parent.mkdir(parents=True, exist_ok=True)
-                    if ext_inplace != full_path.resolve():
-                        shutil.copy(ext_inplace, full_path)
+                    if cached != full_path.resolve():
+                        shutil.copy(cached, full_path)
                 else:
                     super().build_extension(ext)
             else:
@@ -1459,18 +1465,15 @@ class CustomBuildExt(build_ext):
             else:
                 dependencies = []
 
-            if not (
-                force
-                or newer_group(
-                    [str(_.resolve()) for _ in ext.get_sources()] + dependencies, str(ext_path.resolve()), "newer"
-                )
-            ):
+            sources_for_check = [str(_.resolve()) for _ in ext.get_sources()] + dependencies
+            cached = None if force else _first_up_to_date([ext_path.resolve(), full_path.resolve()], sources_for_check)
+            if cached is not None:
                 print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 
                 # We need to copy the binary where setuptools expects it
                 full_path.parent.mkdir(parents=True, exist_ok=True)
-                if ext_path.resolve() != full_path.resolve():
-                    shutil.copy(ext_path, full_path)
+                if cached != full_path.resolve():
+                    shutil.copy(cached, full_path)
 
                 return
             else:
@@ -1631,7 +1634,7 @@ def debug_build_extension(fn):
         try:
             return fn(self, ext, *args, **kwargs)
         finally:
-            DebugMetadata.build_times[ext] = time.time_ns() - start
+            DebugMetadata.build_times[ext.name] = time.time_ns() - start
 
     return wrapper
 

@@ -18,7 +18,7 @@ class TestATR:
     @pytest.fixture(autouse=True)
     def _disable_dynamic_atr(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # These tests exercise the flat-limit ATR path. Unset the dynamic feature flag so they
-        # stay on that path even when the riotfile enables dynamic ATR globally for dogfooding.
+        # stay on that path even when the test environment enables dynamic ATR for dogfooding.
         monkeypatch.delenv("DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED", raising=False)
 
     def test_atr_passing_test_not_retried(self, pytester: Pytester) -> None:

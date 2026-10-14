@@ -236,8 +236,7 @@ def test_hook_base_exception_not_a_panic_still_propagates():
     assert exit_code == 12
 
 
-def test_event_basic():
-    # type: (...) -> None
+def test_event_basic() -> None:
     """Check that a forksafe.Event implements the correct threading.Event interface"""
     event = forksafe.Event()
     assert event.is_set() is False

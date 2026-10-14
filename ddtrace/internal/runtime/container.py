@@ -3,7 +3,7 @@ from functools import lru_cache
 import os
 import re
 from typing import Any
-from typing import Literal  # noqa:F401
+from typing import Literal
 from typing import Optional
 from typing import Union
 
