@@ -17,6 +17,7 @@ from ddtrace.trace import tracer
 if TYPE_CHECKING:
     from vllm.v1.engine.output_processor import OutputProcessor
 
+from ._constants import ARG_POSITION_ADD_REQUEST_TRACE_HEADERS
 from ._constants import ARG_POSITION_LOG_STATS
 from ._constants import ARG_POSITION_TRACE_HEADERS
 from ._constants import ATTR_DATADOG_INTEGRATION
@@ -81,18 +82,30 @@ def traced_engine_init(func, instance, args, kwargs):
     return result
 
 
+def _inject_trace_headers_arg(args, kwargs, position: int):
+    """Inject the active trace context into the trace_headers argument."""
+    if len(args) > position:
+        injected_headers = inject_trace_context(tracer, args[position])
+        args = args[:position] + (injected_headers,) + args[position + 1 :]
+    else:
+        kwargs["trace_headers"] = inject_trace_context(tracer, kwargs.get("trace_headers"))
+    return args, kwargs
+
+
 def traced_processor_process_inputs(func, instance, args, kwargs):
     """Inject Datadog trace context into trace_headers for propagation."""
-
-    if len(args) > ARG_POSITION_TRACE_HEADERS:
-        trace_headers = args[ARG_POSITION_TRACE_HEADERS]
-        injected_headers = inject_trace_context(tracer, trace_headers)
-        args = args[:ARG_POSITION_TRACE_HEADERS] + (injected_headers,) + args[ARG_POSITION_TRACE_HEADERS + 1 :]
-    else:
-        trace_headers = kwargs.get("trace_headers")
-        kwargs["trace_headers"] = inject_trace_context(tracer, trace_headers)
-
+    args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_TRACE_HEADERS)
     return func(*args, **kwargs)
+
+
+async def traced_async_llm_add_request(func, instance, args, kwargs):
+    """Inject Datadog trace context into trace_headers before AsyncLLM preprocesses the request.
+
+    vLLM can run process_inputs in a thread pool (process_inputs_async). The thread does not get the
+    contextvars of the event loop, so the process_inputs wrapper does not see the active span there.
+    """
+    args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_ADD_REQUEST_TRACE_HEADERS)
+    return await func(*args, **kwargs)
 
 
 def _capture_request_states(
@@ -242,6 +255,7 @@ def patch():
 
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
+    wrap("vllm.v1.engine.async_llm", "AsyncLLM.add_request", traced_async_llm_add_request)
     if _uses_input_processor():
         wrap(
             "vllm.v1.engine.input_processor",
@@ -265,6 +279,7 @@ def unpatch():
 
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
+    unwrap(vllm.v1.engine.async_llm.AsyncLLM, "add_request")
     if _uses_input_processor():
         unwrap(vllm.v1.engine.input_processor.InputProcessor, "process_inputs")
     else:
