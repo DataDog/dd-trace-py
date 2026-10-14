@@ -19,6 +19,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
+from ddtrace.contrib._events.http import HttpServerRouteResolvedEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -599,13 +600,13 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
     )
 
 
-def _iast_instrument_starlette_scope(scope, route):
+def _on_http_server_route_resolved(event: HttpServerRouteResolvedEvent) -> None:
     try:
-        if is_iast_request_enabled():
-            set_iast_request_endpoint(scope.get("method"), route)
-            if scope.get("path_params"):
-                for k, v in scope["path_params"].items():
-                    scope["path_params"][k] = taint_pyobject(
+        if asm_config._iast_enabled and is_iast_request_enabled():
+            set_iast_request_endpoint(event.request_method, event.request_route)
+            if event.request_path_params:
+                for k, v in event.request_path_params.items():
+                    event.request_path_params[k] = taint_pyobject(
                         v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
                     )
     except Exception:

@@ -39,3 +39,19 @@ can report the full HTTP route without changing their historical span resource.
 Bottle extracts its local response via the existing set_response API, then resolves
 framework-specific returned/raised HTTPResponse status overrides. The shared tracing
 subscriber owns HTTP tagging and span completion; Bottle retains the callback boundary.
+
+
+## Starlette final-route boundary
+
+Starlette (including the handler reused by FastAPI) dispatches
+HttpServerRouteResolvedEvent from contrib/_events/http.py for the final Route,
+after resource/route resolution and before set_http_meta and asgi.start_request.
+Intermediate Mount handlers do not emit it. This dispatch-only event carries the
+method, resolved route, and live path-parameter mapping; it creates no context or
+span. Synchronous listeners may replace parameter values in place, but must
+preserve their application meaning. IAST registers its listener on product
+activation and owns endpoint attribution and parameter tainting.
+
+This is an incremental boundary: resource naming, HTTP metadata, the existing
+WAF trigger/block enforcement, and ASGI response completion still use their
+existing paths. It is not yet a generic blocking or span-completion contract.

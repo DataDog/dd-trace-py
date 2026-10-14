@@ -11,6 +11,7 @@ from ddtrace.appsec._iast._handlers import _on_django_technical_500_response
 from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._handlers import _on_grpc_response
+from ddtrace.appsec._iast._handlers import _on_http_server_route_resolved
 from ddtrace.appsec._iast._handlers import _on_pre_tracedrequest_iast
 from ddtrace.appsec._iast._handlers import _on_request_init
 from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
@@ -19,6 +20,7 @@ from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._langchain import langchain_listen
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
+from ddtrace.contrib._events.http import HttpServerRouteResolvedEvent
 from ddtrace.internal import core
 
 
@@ -53,6 +55,7 @@ def iast_listen():
     core.on("flask.set_request_tags", _on_set_request_tags_iast)
     core.on("flask.wrapped_view", _iast_on_wrapped_view, "check_kwargs")
     core.on("flask._patched_request", _on_pre_tracedrequest_iast)
+    core.on(HttpServerRouteResolvedEvent.event_name, _on_http_server_route_resolved)
     core.on("asgi.finalize_response", _on_asgi_finalize_response)
     core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
     core.on("werkzeug.render_debugger_html", _on_werkzeug_render_debugger_html)

@@ -11,6 +11,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.http import HttpServerRouteResolvedEvent
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
@@ -22,7 +23,6 @@ from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
@@ -337,10 +337,13 @@ def traced_handler(wrapped, instance, args, kwargs):
                 break
 
         if request_spans:
-            if asm_config._iast_enabled:
-                from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
-
-                _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
+            core.dispatch_event(
+                HttpServerRouteResolvedEvent(
+                    request_method=scope.get("method"),
+                    request_route=request_spans[0].get_tag(http.ROUTE),
+                    request_path_params=scope.get("path_params"),
+                )
+            )
 
             trace_utils.set_http_meta(
                 request_spans[0],

@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from collections.abc import MutableMapping
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 from typing import Optional
 from typing import Protocol
 from typing import Union
@@ -68,3 +69,20 @@ class HttpRequestBaseEvent(HttpBaseEvent):
 
     http_operation: str = event_field()
     query: Optional[str] = event_field(default=None)
+
+
+@dataclass
+class HttpServerRouteResolvedEvent(Event):
+    """Final route data, dispatched synchronously before HTTP metadata and the handler.
+
+    Producers emit only for a final matched HTTP route with a traced request, not
+    intermediate mounts. Path parameters are the live application mapping:
+    listeners may replace values in place (for example, with tainted equivalents).
+    This notification neither creates a span nor makes a blocking decision.
+    """
+
+    event_name = "http.server.route.resolved"
+
+    request_method: Optional[str] = event_field()
+    request_route: Optional[str] = event_field()
+    request_path_params: Optional[MutableMapping[str, Any]] = event_field()

@@ -6,14 +6,17 @@ import sqlalchemy
 import starlette
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
+from starlette.routing import Mount
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib._events.http import HttpServerRouteResolvedEvent
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
+from ddtrace.internal import core
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -810,3 +813,38 @@ def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
     assert request_span.get_tag("http.route") == "/resource/{item_id}", (
         f"Expected http.route tag '/resource/{{item_id}}', got: {request_span.get_tag('http.route')!r}"
     )
+
+
+@pytest.mark.parametrize("mounted", [False, True])
+def test_final_route_event_before_handler(tracer, test_spans, mounted):
+    events = []
+
+    class AnnotatedPath(str):
+        pass
+
+    def on_route(event):
+        events.append(event)
+        event.request_path_params["name"] = AnnotatedPath(event.request_path_params["name"])
+
+    async def endpoint(request):
+        assert len(events) == 1
+        assert events[0].request_path_params is request.scope["path_params"]
+        assert isinstance(request.path_params["name"], AnnotatedPath)
+        return PlainTextResponse(request.path_params["name"])
+
+    routes = [Route("/hello/{name}", endpoint)]
+    prefix = "/api" if mounted else ""
+    app = Starlette(routes=[Mount(prefix, app=Starlette(routes=routes))] if mounted else routes)
+    core.on(HttpServerRouteResolvedEvent.event_name, on_route)
+    try:
+        with TestClient(app) as client:
+            response = client.get(prefix + "/hello/world")
+            assert response.status_code == 200
+            assert response.text == "world"
+            assert len(events) == 1
+            assert events[0].request_method == "GET"
+            assert events[0].request_route == prefix + "/hello/{name}"
+            assert client.get(prefix + "/missing").status_code == 404
+            assert len(events) == 1
+    finally:
+        core.reset_listeners(HttpServerRouteResolvedEvent.event_name, on_route)
