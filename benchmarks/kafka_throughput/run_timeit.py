@@ -14,7 +14,8 @@ JSON artifact in the shape ``steps/compare-results.py`` expects:
           "process.rss_bytes.median": <bytes>,
           "process.iteration_wall_ms.median": <ms>,
           "phase.produce_ms.median": <ms>,
-          "phase.consume_ms.median": <ms>
+          "phase.consume_ms.median": <ms>,
+          "config.commit_every": <COMMIT_EVERY>
         }
       }
     ]
@@ -88,6 +89,8 @@ def main():
                 # Diagnostic breakdown (not gated) — localizes DSM cost by phase.
                 "phase.produce_ms.median": produce_median,
                 "phase.consume_ms.median": consume_median,
+                # Run configuration, not a measurement: commit every N consumed messages.
+                "config.commit_every": kafka_throughput.COMMIT_EVERY,
             },
         }
     ]
@@ -99,7 +102,8 @@ def main():
     print(
         "Duration median: %.3f ms (± %.3f) [produce+consume] | RSS median: %.2f MB | "
         "produce median: %.3f ms | consume+commit median: %.3f ms | "
-        "iteration wall median (incl. setup/teardown, not gated): %.3f ms | runs: %d (warmup %d)"
+        "iteration wall median (incl. setup/teardown, not gated): %.3f ms | runs: %d (warmup %d) | "
+        "commit every %d"
         % (
             duration_median,
             duration_std_err,
@@ -109,6 +113,7 @@ def main():
             iteration_wall_median,
             count,
             warmup,
+            kafka_throughput.COMMIT_EVERY,
         )
     )
 

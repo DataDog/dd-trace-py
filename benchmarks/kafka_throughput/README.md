@@ -10,7 +10,8 @@ repo.
 
 - `kafka_throughput.py` — the workload: `NUM_THREADS` (default 1) parallel
   workers, each producing 1000 messages (5 headers each) to its own topic,
-  flushing, then synchronously consuming and committing all 1000 back. No
+  flushing, then consuming all 1000 back with a synchronous commit after every
+  `COMMIT_EVERY` (default 100) messages and after the last one. No
   tracer-specific code — DSM is toggled purely via environment.
 - `run_timeit.py` — timing harness (5 warmup + 25 timed iterations by default),
   emits a JSON artifact compatible with `steps/compare-results.py`. Reports
@@ -18,7 +19,9 @@ repo.
   produce + consume per iteration only; topic creation, client construction,
   the consumer-group join (done before producing) and client close are not
   timed. The whole-iteration wall time is reported as
-  `process.iteration_wall_ms.median`, for context only.
+  `process.iteration_wall_ms.median`, for context only. The commit mode is
+  recorded as `config.commit_every` and at the end of the summary line
+  (`commit every N`).
 - `requirements.txt` — `confluent-kafka`, `psutil`.
 
 ## Running locally
@@ -44,6 +47,7 @@ DD_TRACE_ENABLED=true DD_DATA_STREAMS_ENABLED=true \
 | Var | Default | Purpose |
 |---|---|---|
 | `NUM_THREADS` | `1` | Produce/consume workers. Single-threaded by default so the measurement reflects instrumentation cost rather than GIL contention; raise only for a deliberate contention diagnostic. |
+| `COMMIT_EVERY` | `100` | Synchronous commit after every N consumed messages and after the last (offset of the last consumed message + 1). Integer >= 1. `1` commits every message, an on-demand diagnostic of per-message commit cost. |
 | `KAFKA_TOPIC` | `benchmark-topic` | Base topic name (per-run/per-worker suffixes appended) |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Broker address |
 | `WARMUP` | `5` | Discarded warmup iterations |

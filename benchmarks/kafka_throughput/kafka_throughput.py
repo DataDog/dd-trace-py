@@ -21,11 +21,14 @@ The workload:
     deliberate contention diagnostic. Note the .NET counterpart uses 5 threads,
     so cross-language comparisons must state the thread count.
   * Each worker produces ``MESSAGE_COUNT`` (1000) messages, each carrying 5
-    headers, to its own topic, flushes, then synchronously consumes and commits
-    all 1000 messages back.
+    headers, to its own topic, flushes, then consumes all 1000 messages back,
+    committing synchronously after every ``COMMIT_EVERY`` (default 100)
+    consumed messages and after the last one. Each commit stores the offset of
+    the last consumed message + 1 (single-partition topics). ``COMMIT_EVERY=1``
+    is the per-message synchronous commit, kept as an on-demand diagnostic.
 
 Only the two phases are timed (``produce_ms``: produce loop + flush;
-``consume_ms``: consume loop + per-message synchronous commit). Topic creation,
+``consume_ms``: consume loop + its synchronous commits). Topic creation,
 Producer/Consumer construction, the consumer-group join and partition
 assignment (``_join_group``, done before producing) and ``consumer.close()``
 are setup/teardown and stay outside both timers.
@@ -57,6 +60,20 @@ NUM_HEADERS = 5
 # exactly four time.perf_counter() calls per _run_worker, all in the timers.
 JOIN_POLL_TIMEOUT_S = 0.05
 JOIN_MAX_POLLS = 1200  # 60 s
+
+
+def _parse_commit_every(raw):
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise ValueError("COMMIT_EVERY must be an integer >= 1, got %r" % raw)
+    return value
+
+
+# Synchronous commit after every COMMIT_EVERY consumed messages and after the last.
+COMMIT_EVERY = _parse_commit_every(os.environ.get("COMMIT_EVERY", "100"))
 
 
 def _create_topics(topics):
@@ -132,7 +149,8 @@ def _run_worker(topic, group_id):
         producer.flush()
         produce_ms = (time.perf_counter() - produce_start) * 1000.0
 
-        # Phase 2: consume and commit all messages synchronously.
+        # Phase 2: consume all messages, committing synchronously every
+        # COMMIT_EVERY messages and after the last (commit(msg) stores offset + 1).
         consume_start = time.perf_counter()
         consumed = 0
         for i in range(MESSAGE_COUNT):
@@ -141,8 +159,9 @@ def _run_worker(topic, group_id):
                 raise RuntimeError("Failed to consume message %d within timeout on topic %s" % (i, topic))
             if msg.error() is not None:
                 raise RuntimeError("Consumer error on topic %s: %s" % (topic, msg.error()))
-            consumer.commit(msg, asynchronous=False)
             consumed += 1
+            if consumed % COMMIT_EVERY == 0 or consumed == MESSAGE_COUNT:
+                consumer.commit(msg, asynchronous=False)
         consume_ms = (time.perf_counter() - consume_start) * 1000.0
 
         if consumed != MESSAGE_COUNT:
@@ -190,7 +209,7 @@ def run_benchmark(run_id=0):
 
     # Mean per-worker phase durations (workers run concurrently, so this
     # approximates per-phase wall-clock and lets us localize where DSM cost lands
-    # — produce vs synchronous consume+commit).
+    # — produce vs consume + its synchronous commits).
     n = len(phase_times) or 1
     mean_produce_ms = sum(p for p, _ in phase_times) / n
     mean_consume_ms = sum(c for _, c in phase_times) / n
