@@ -1,10 +1,81 @@
+from concurrent import futures
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import os
+from threading import Thread
 
 from opentelemetry import version
 import pytest
 
 
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
+
+
+def metric_names(requests):
+    return {
+        metric.name
+        for request in requests
+        for resource_metrics in request.resource_metrics
+        for scope_metrics in resource_metrics.scope_metrics
+        for metric in scope_metrics.metrics
+    }
+
+
+@contextmanager
+def capture_grpc_metrics():
+    import grpc
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceResponse
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import MetricsServiceServicer
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import add_MetricsServiceServicer_to_server
+
+    class MetricsService(MetricsServiceServicer):
+        def __init__(self):
+            self.requests = []
+
+        def Export(self, request, context):
+            self.requests.append(request)
+            return ExportMetricsServiceResponse()
+
+    service = MetricsService()
+    server_factory = getattr(grpc.server, "__wrapped__", grpc.server)
+    server = server_factory(futures.ThreadPoolExecutor(max_workers=1))
+    add_MetricsServiceServicer_to_server(service, server)
+    assert server.add_insecure_port("127.0.0.1:4317") == 4317
+    server.start()
+    try:
+        yield service.requests
+    finally:
+        server.stop(2).wait()
+
+
+@contextmanager
+def capture_http_metrics():
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
+    requests = []
+
+    class MetricsHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            request = ExportMetricsServiceRequest()
+            request.ParseFromString(self.rfile.read(int(self.headers["Content-Length"])))
+            requests.append(request)
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, format_string, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 4317), MetricsHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield requests
+    finally:
+        server.shutdown()
+        thread.join()
+        server.server_close()
 
 
 def skipif(
@@ -144,13 +215,35 @@ def test_otel_metrics_disabled_and_unset():
     )
 
 
-def test_otlp_export_request_marker():
-    import requests
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4317",
+    },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", "http/protobuf"]},
+)
+def test_otel_metrics_export_does_not_generate_client_spans():
+    import os
 
-    from ddtrace.contrib.internal.requests.connection import is_otlp_export
+    from opentelemetry.metrics import get_meter
+    from opentelemetry.metrics import get_meter_provider
 
-    marked = requests.Request("POST", "http://collector.example/v1/metrics", headers={"dd-otlp-export": "true"})
-    unmarked = requests.Request("POST", "http://collector.example/v1/metrics")
+    from ddtrace.trace import tracer
+    from tests.opentelemetry.test_metrics import capture_grpc_metrics
+    from tests.opentelemetry.test_metrics import capture_http_metrics
+    from tests.opentelemetry.test_metrics import metric_names
+    from tests.utils import DummyWriter
 
-    assert is_otlp_export(marked.prepare())
-    assert not is_otlp_export(unmarked.prepare())
+    tracer._span_aggregator.writer = DummyWriter()
+    capture_metrics = (
+        capture_grpc_metrics if os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"] == "grpc" else capture_http_metrics
+    )
+
+    with capture_metrics() as requests:
+        get_meter("test.metrics").create_counter("test.metric").add(1)
+        assert get_meter_provider().force_flush()
+
+    assert "test.metric" in metric_names(requests)
+    assert tracer._span_aggregator.writer.pop() == []
