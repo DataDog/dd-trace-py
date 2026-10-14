@@ -155,7 +155,6 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     if reconfigure_tracer:
         if origin:
             asm_config._asm_enabled_origin = origin  # type: ignore[assignment]
-        # The tracer recreates its writer and processors to match the new AppSec state.
         core.dispatch("asm.tracer.reconfigure", (True, origin))
 
     _report_asm_enabled()
