@@ -8,6 +8,7 @@ import ray
 from ray.util.tracing import tracing_helper
 
 from ddtrace.contrib.internal.ray.constants import DD_RAY_TRACE_CTX
+from tests.utils import SnapshotTest
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 
@@ -61,6 +62,8 @@ RAY_SNAPSHOT_IGNORES = [
     "metrics.ray.job.end_time_ms",
     "metrics.ray.job.has_runtime_env",
 ]
+
+ACTOR_WITHOUT_INIT_SNAPSHOT_TOKEN = "tests.contrib.ray.test_ray.TestRayWithoutInit.test_actor_without_init"
 
 
 def test_parse_ignored_actors_returns_actor_method_mapping():
@@ -456,30 +459,107 @@ def _stop_ray_cluster():
         pass  # ignore cleanup errors
 
 
-def _submit_and_wait_for_job(dashboard_url, job_script_name, metadata={"foo": "bar"}, timeout=30):
+def _submit_and_wait_for_job(dashboard_url, job_script_name, metadata=None, timeout=30):
     """Submit a Ray job and wait for completion."""
+    if metadata is None:
+        metadata = {"foo": "bar"}
+
     job_script = os.path.join(os.path.dirname(__file__), "jobs", job_script_name)
-    result = subprocess.run(
-        [
-            "ray",
-            "job",
-            "submit",
-            f"--metadata-json={json.dumps(metadata)}",
-            "--address",
-            str(dashboard_url),
-            "--",
-            "python",
-            job_script,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    command = [
+        "ray",
+        "job",
+        "submit",
+        f"--metadata-json={json.dumps(metadata)}",
+        "--address",
+        str(dashboard_url),
+        "--",
+        "python",
+        job_script,
+    ]
+    deadline = time.monotonic() + timeout
+
+    while True:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=max(deadline - time.monotonic(), 0.1),
+        )
+        if result.returncode == 0:
+            return result.stdout, result.stderr
+
+        if "No available agent to submit job" not in result.stderr or time.monotonic() >= deadline:
+            break
+        time.sleep(0.1)
 
     assert result.returncode == 0, (
         f"Job failed with return code {result.returncode}. Stdout:\n{result.stdout}\nStderr:\n{result.stderr}"
     )
-    return result.stdout, result.stderr
+
+
+def _wait_for_completed_ray_trace(snapshot, expected_span_count, timeout=10):
+    """Wait until all spans for a successful Ray job reach the test agent."""
+    deadline = time.monotonic() + timeout
+    traces = []
+    while time.monotonic() < deadline:
+        traces = snapshot.traces()
+        for trace in traces:
+            job_spans = [span for span in trace if span["name"] == "ray.job"]
+            if (
+                len(trace) >= expected_span_count
+                and len(job_spans) == 1
+                and job_spans[0].get("meta", {}).get("ray.job.status") == "SUCCEEDED"
+            ):
+                return
+        time.sleep(0.1)
+
+    pytest.fail(f"Ray job trace did not complete before timeout: {traces}")
+
+
+def test_submit_retries_until_ray_job_agent_ready(monkeypatch):
+    results = iter(
+        [
+            subprocess.CompletedProcess([], 1, "", "No available agent to submit job, please try again later."),
+            subprocess.CompletedProcess([], 0, "Job finished successfully.", ""),
+        ]
+    )
+    calls = []
+
+    def run(*args, **kwargs):
+        calls.append((args, kwargs))
+        return next(results)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    stdout, stderr = _submit_and_wait_for_job("http://127.0.0.1:8265", "actor_without_init.py")
+
+    assert stdout == "Job finished successfully."
+    assert stderr == ""
+    assert len(calls) == 2
+
+
+def test_wait_for_completed_ray_trace(monkeypatch):
+    class Snapshot:
+        def __init__(self):
+            self.responses = iter(
+                [
+                    [[{"name": "ray.job", "meta": {"ray.job.status": "RUNNING"}}]],
+                    [
+                        [
+                            {"name": "ray.job", "meta": {"ray.job.status": "SUCCEEDED"}},
+                            {"name": "actor_method.execute"},
+                        ]
+                    ],
+                ]
+            )
+
+        def traces(self):
+            return next(self.responses)
+
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    _wait_for_completed_ray_trace(Snapshot(), expected_span_count=2)
 
 
 class TestRayWithoutInit(TracerTestCase):
@@ -513,13 +593,14 @@ class TestRayWithoutInit(TracerTestCase):
 
         _submit_and_wait_for_job(self.dashboard_url, "task_without_init.py")
 
-    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+    @pytest.mark.snapshot(token=ACTOR_WITHOUT_INIT_SNAPSHOT_TOKEN, ignores=RAY_SNAPSHOT_IGNORES)
     def test_actor_without_init(self):
         """The creation of the actor triggers ray.init() so it cannot
         be instrumented
         """
 
         _submit_and_wait_for_job(self.dashboard_url, "actor_without_init.py")
+        _wait_for_completed_ray_trace(SnapshotTest(ACTOR_WITHOUT_INIT_SNAPSHOT_TOKEN), expected_span_count=5)
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_job_name_specified(self):
