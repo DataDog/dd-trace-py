@@ -176,12 +176,16 @@ def test_partial_start_rollback_clears_failed_deferred_worker(monkeypatch):
 
     class FailedRestart:
         name = "failed restart"
+        __autorestart__ = True
 
         def start(self):
             raise OSError("thread creation failed")
 
     deferred_starts[:] = [FailedRestart().start]
-    internal_threads._after_fork_child()
+    # The child starts deferred threads from a timer, so run its callback synchronously.
+    monkeypatch.setattr(internal_threads, "_forking", False)
+    monkeypatch.setattr(internal_threads.ThreadRestartTimer, "_timestamp", 0)
+    internal_threads.ThreadRestartTimer(force_restart=False)._restart_threads()
     s._rollback_start()
     s.join()
 

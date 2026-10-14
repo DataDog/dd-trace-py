@@ -14,6 +14,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
+from ddtrace.internal import threads as internal_threads
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
@@ -100,9 +101,7 @@ class Profiler:
             # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
             # so without this the last partial profile window is silently lost.
             if register_exit_signal_handler:
-                Profiler._exit_signal_handler = atexit.register_on_exit_signal(
-                    Profiler._stop_active_instance_on_signal
-                )
+                Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
 
             # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
             # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -685,8 +684,20 @@ class _ProfilerInstance(service.Service):
         """
         LOG.debug("Stopping profiler")
 
+        # A regular stop logs each failure and carries on, so the profiler always ends up stopped.
+        # Rolling back a failed start raises the first failure instead, so the rollback can be retried.
+        handled: type[BaseException] = BaseException if _partial_start else Exception
+        errors: list[BaseException] = []
+
+        def record(error: BaseException, message: str, *args: Any) -> None:
+            if _partial_start or not isinstance(error, Exception):
+                errors.append(error)
+            else:
+                LOG.error(message, *args, exc_info=error)
+
         # Prevent doing more initialisation now that we are shutting down.
-        errors: list[BaseException] = self._unregister_collectors_on_import()
+        for unregister_error in self._unregister_collectors_on_import():
+            record(unregister_error, "Error while unwatching module imports")
 
         if self._scheduler is not None:
             scheduler_stopped: bool = (
@@ -697,33 +708,46 @@ class _ProfilerInstance(service.Service):
                     if _partial_start:
                         self._scheduler._rollback_start()
                     else:
-                        self._scheduler.stop()
-                except BaseException as error:
-                    errors.append(error)
+                        try:
+                            self._scheduler.stop()
+                        except RuntimeError as error:
+                            if str(error) != internal_threads.THREAD_NOT_STARTED_ERROR:
+                                raise
+                            # The worker never started (e.g. its deferred start failed after a fork). Roll the
+                            # scheduler back so that it does not stay running and block the next start.
+                            self._scheduler._rollback_start()
+                except service.ServiceStatusError as error:
+                    if _partial_start:
+                        errors.append(error)
+                    else:
+                        scheduler_stopped = True
+                except handled as error:
+                    record(error, "Error while stopping the profile scheduler")
                 else:
                     scheduler_stopped = True
-            if scheduler_stopped:
-                # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
-                # collectors before the possibly running flush is finished.
-                # If stop failed, the worker may never be signaled, so joining it without a timeout could hang
-                # forever.
-                if join:
-                    try:
-                        self._scheduler.join()
-                    except BaseException as error:
-                        errors.append(error)
-                        scheduler_stopped = False
-            if not scheduler_stopped:
+
+            # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
+            # collectors before the possibly running flush is finished.
+            # If stop failed, the worker may never be signaled, so joining it without a timeout could hang forever.
+            if join and scheduler_stopped:
+                try:
+                    self._scheduler.join()
+                except handled as error:
+                    record(error, "Error while joining the profile scheduler")
+                    scheduler_stopped = False
+            if _partial_start and not scheduler_stopped:
                 raise errors[0]
+
             if flush and not self._stop_flush_attempted:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
                 self._stop_flush_attempted = True
                 try:
                     self._scheduler.flush()
-                except BaseException as error:
-                    errors.append(error)
+                except handled as error:
+                    record(error, "Error while flushing the last profile")
 
-        errors.extend(self._cleanup_pending_collectors())
+        for cleanup_error in self._cleanup_pending_collectors():
+            record(cleanup_error, "Error while cleaning up a partially started collector")
 
         collectors_stopped: list[collector.Collector | memalloc.MemoryCollector] = []
         for col in reversed(self._collectors):
@@ -739,8 +763,8 @@ class _ProfilerInstance(service.Service):
             except service.ServiceStatusError:
                 # It's possible some collector failed to start, ignore failure to stop
                 collectors_stopped.append(col)
-            except BaseException as error:
-                errors.append(error)
+            except handled as error:
+                record(error, "Error while stopping collector %r", col)
             else:
                 collectors_stopped.append(col)
 
@@ -748,8 +772,8 @@ class _ProfilerInstance(service.Service):
             for col in collectors_stopped:
                 try:
                     col.join()
-                except BaseException as error:
-                    errors.append(error)
+                except handled as error:
+                    record(error, "Error while joining collector %r", col)
 
         if errors:
             raise errors[0]

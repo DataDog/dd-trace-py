@@ -866,7 +866,8 @@ def test_runtime_collector_start_failure_cleans_up_partial_resources(
         _exception_profiling_enabled=False,
     )
     internal.status = service.ServiceStatus.RUNNING
-    hook = next(hook for module, hook in registered_hooks if module == module_name)
+    assert internal._collectors_on_import is not None
+    hook = next(hook for module, hook in internal._collectors_on_import if module == module_name)
 
     if issubclass(failure_type, Exception):
         hook(None)
@@ -917,7 +918,8 @@ def test_runtime_collector_hook_does_not_duplicate_pending_cleanup(monkeypatch):
         _exception_profiling_enabled=False,
     )
     internal.status = service.ServiceStatus.RUNNING
-    hook = next(hook for module, hook in registered_hooks if module == "torch")
+    assert internal._collectors_on_import is not None
+    hook = next(hook for module, hook in internal._collectors_on_import if module == "torch")
 
     hook(None)
     hook(None)
@@ -926,7 +928,7 @@ def test_runtime_collector_hook_does_not_duplicate_pending_cleanup(monkeypatch):
     assert internal._collectors_pending_cleanup == instances
 
 
-def test_failed_start_reregisters_deferred_collector_hooks(monkeypatch):
+def test_failed_start_registers_collector_hooks_on_next_start(monkeypatch):
     registered_hooks = []
     unregistered_hooks = []
 
@@ -987,11 +989,11 @@ def test_failed_start_reregisters_deferred_collector_hooks(monkeypatch):
         with pytest.raises(RuntimeError, match="scheduler start failed"):
             wrapped.start()
 
-        assert registered_hooks == [("torch", registered_hooks[0][1])]
-        assert unregistered_hooks == registered_hooks
+        assert registered_hooks == []
+        assert unregistered_hooks == []
 
         wrapped.start()
-        assert registered_hooks == [("torch", registered_hooks[0][1]), ("torch", registered_hooks[0][1])]
+        assert [module for module, _ in registered_hooks] == ["torch"]
         registered_hooks[-1][1](None)
 
         assert any(type(col) is TorchCollector for col in internal._collectors)
@@ -1129,11 +1131,11 @@ def test_partial_start_rollback_finalizes_failed_stop():
             nonlocal stop_attempts
             stop_attempts += 1
             if stop_attempts == 1:
-                raise RuntimeError("stop failed")
+                raise KeyboardInterrupt("stop failed")
             return original_stop_service(*args, **kwargs)
 
         with mock.patch.object(internal._scheduler, "_stop_service", side_effect=fail_once):
-            with pytest.raises(RuntimeError, match="stop failed"):
+            with pytest.raises(KeyboardInterrupt, match="stop failed"):
                 wrapped.stop()
 
     assert internal.status == service.ServiceStatus.STOPPED
@@ -1169,6 +1171,7 @@ def test_stop_releases_ownership_after_failed_deferred_scheduler_start(monkeypat
 
     class FailedRestart:
         name = "failed restart"
+        __autorestart__ = True
 
         def start(self):
             raise OSError("thread creation failed")
@@ -1184,10 +1187,12 @@ def test_stop_releases_ownership_after_failed_deferred_scheduler_start(monkeypat
         assert deferred_starts
 
         deferred_starts[:] = [FailedRestart().start]
-        internal_threads._after_fork_child()
+        # The child starts deferred threads from a timer, so run its callback synchronously.
+        monkeypatch.setattr(internal_threads, "_forking", False)
+        monkeypatch.setattr(internal_threads.ThreadRestartTimer, "_timestamp", 0)
+        internal_threads.ThreadRestartTimer(force_restart=False)._restart_threads()
 
-        with pytest.raises(RuntimeError, match="Thread not started"):
-            wrapped.stop(flush=False)
+        wrapped.stop(flush=False)
 
     assert deferred_starts == []
     assert internal._scheduler._worker is None
@@ -1216,7 +1221,7 @@ def test_stop_retry_skips_scheduler_that_already_stopped():
         test_scheduler.status = service.ServiceStatus.STOPPED
 
     test_scheduler.stop.side_effect = stop_scheduler
-    test_scheduler.join.side_effect = [RuntimeError("join failed"), RuntimeError("join failed")]
+    test_scheduler.join.side_effect = [KeyboardInterrupt("join failed"), KeyboardInterrupt("join failed")]
     internal._scheduler = test_scheduler
     internal._collectors = []
     internal.status = service.ServiceStatus.RUNNING
@@ -1228,7 +1233,7 @@ def test_stop_retry_skips_scheduler_that_already_stopped():
         mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
         mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated") as product_activated,
     ):
-        with pytest.raises(RuntimeError, match="join failed"):
+        with pytest.raises(KeyboardInterrupt, match="join failed"):
             wrapped.stop()
 
         assert internal.status == service.ServiceStatus.RUNNING
@@ -1256,7 +1261,7 @@ def test_signal_stop_recovers_failed_scheduler_transition():
         _exception_profiling_enabled=False,
     )
     test_scheduler = mock.Mock(status=service.ServiceStatus.RUNNING)
-    test_scheduler.stop.side_effect = RuntimeError("stop failed")
+    test_scheduler.stop.side_effect = KeyboardInterrupt("stop failed")
     test_scheduler._rollback_start.side_effect = lambda: setattr(
         test_scheduler, "status", service.ServiceStatus.STOPPED
     )
@@ -1270,6 +1275,7 @@ def test_signal_stop_recovers_failed_scheduler_transition():
     with (
         mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
         mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated") as product_activated,
+        pytest.raises(KeyboardInterrupt, match="stop failed"),
     ):
         wrapped._stop_on_signal()
 
@@ -1294,7 +1300,7 @@ def test_signal_stop_preserves_ownership_when_cleanup_fails():
         _exception_profiling_enabled=False,
     )
     test_scheduler = mock.Mock(status=service.ServiceStatus.RUNNING)
-    test_scheduler.stop.side_effect = RuntimeError("stop failed")
+    test_scheduler.stop.side_effect = KeyboardInterrupt("stop failed")
     test_scheduler._rollback_start.side_effect = RuntimeError("cleanup failed")
     internal._scheduler = test_scheduler
     internal._collectors = []
@@ -1310,7 +1316,8 @@ def test_signal_stop_preserves_ownership_when_cleanup_fails():
         mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
         mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated") as product_activated,
     ):
-        wrapped._stop_on_signal()
+        with pytest.raises(KeyboardInterrupt, match="stop failed"):
+            wrapped._stop_on_signal()
         competing.start()
 
     assert internal._start_cleanup_pending is True
@@ -1319,7 +1326,7 @@ def test_signal_stop_preserves_ownership_when_cleanup_fails():
     product_activated.assert_not_called()
 
 
-def test_constructor_failure_rolls_back_partial_instance(monkeypatch):
+def test_constructor_failure_leaves_no_import_hooks(monkeypatch):
     registered_hooks = []
     unregistered_hooks = []
     partial_instances = []
@@ -1355,8 +1362,8 @@ def test_constructor_failure_rolls_back_partial_instance(monkeypatch):
             _exception_profiling_enabled=False,
         )
 
-    assert registered_hooks
-    assert unregistered_hooks == registered_hooks
+    assert registered_hooks == []
+    assert unregistered_hooks == []
     assert partial_instances[0]._collectors_on_import_armed == []
     upload.assert_not_called()
 
@@ -1381,17 +1388,21 @@ def test_import_hook_registration_failure_unregisters_installed_hook(monkeypatch
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
 
-    with pytest.raises(RuntimeError, match="hook callback failed"):
-        TestProfiler(
-            _memory_collector_enabled=False,
-            _stack_collector_enabled=False,
-            _lock_collector_enabled=False,
-            _pytorch_collector_enabled=True,
-            _exception_profiling_enabled=False,
-        )
-
-    assert len(registered_hooks) == 1
-    assert unregistered_hooks == registered_hooks
+    internal = TestProfiler(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=True,
+        _exception_profiling_enabled=False,
+    )
+    internal._scheduler = None
+    internal.start()
+    try:
+        assert len(registered_hooks) == 1
+        assert unregistered_hooks == registered_hooks
+        assert internal._collectors_on_import_armed == []
+    finally:
+        internal.stop(flush=False)
 
 
 def test_restart_replaces_import_hook_collector_after_pending_cleanup(monkeypatch):
@@ -1447,10 +1458,12 @@ def test_restart_replaces_import_hook_collector_after_pending_cleanup(monkeypatc
         mock.patch("ddtrace.profiling.profiler.atexit.register_on_exit_signal"),
         mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated"),
     ):
-        with pytest.raises(RuntimeError, match="cleanup failed"):
-            wrapped.start()
+        wrapped.start()
 
         assert len(instances) == 1
+        assert internal._collectors_pending_cleanup == [instances[0]]
+
+        wrapped.stop(flush=False)
         assert internal._collectors_pending_cleanup == [instances[0]]
 
         wrapped.start()
@@ -1572,13 +1585,13 @@ def test_stop_preserves_collectors_until_scheduler_stops():
         _exception_profiling_enabled=False,
     )
     test_scheduler = mock.Mock(status=service.ServiceStatus.RUNNING)
-    test_scheduler.stop.side_effect = RuntimeError("scheduler stop failed")
+    test_scheduler.stop.side_effect = KeyboardInterrupt("scheduler stop failed")
     test_collector = mock.Mock()
     internal._scheduler = test_scheduler
     internal._collectors = [test_collector]
     internal.status = service.ServiceStatus.RUNNING
 
-    with pytest.raises(RuntimeError, match="scheduler stop failed"):
+    with pytest.raises(KeyboardInterrupt, match="scheduler stop failed"):
         internal._stop_service(flush=False)
 
     test_collector.stop.assert_not_called()
@@ -1612,8 +1625,7 @@ def test_stop_does_not_join_collector_whose_stop_failed():
     internal._scheduler = None
     internal._collectors = [stopped_collector, failed_collector]
 
-    with pytest.raises(RuntimeError, match="collector stop failed"):
-        internal._stop_service(flush=False)
+    internal._stop_service(flush=False)
 
     failed_collector.join.assert_not_called()
     stopped_collector.join.assert_called_once_with()
@@ -1652,7 +1664,7 @@ def test_stop_retry_does_not_flush_twice_after_collector_failure():
         nonlocal collector_stop_attempts
         collector_stop_attempts += 1
         if collector_stop_attempts == 1:
-            raise RuntimeError("collector stop failed")
+            raise KeyboardInterrupt("collector stop failed")
         events.append("collector stop")
 
     test_collector.stop.side_effect = stop_collector
@@ -1666,7 +1678,7 @@ def test_stop_retry_does_not_flush_twice_after_collector_failure():
     with (
         mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
         mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated"),
-        pytest.raises(RuntimeError, match="collector stop failed"),
+        pytest.raises(KeyboardInterrupt, match="collector stop failed"),
     ):
         wrapped.stop()
 
@@ -1697,7 +1709,7 @@ def test_stop_does_not_retry_flush_after_upload_may_have_succeeded():
         _exception_profiling_enabled=False,
     )
     events = []
-    flush_error = RuntimeError("flush failed")
+    flush_error = KeyboardInterrupt("flush failed")
     test_scheduler = mock.Mock(status=service.ServiceStatus.RUNNING)
 
     def stop_scheduler():
@@ -1722,7 +1734,7 @@ def test_stop_does_not_retry_flush_after_upload_may_have_succeeded():
     with (
         mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
         mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated"),
-        pytest.raises(RuntimeError, match="flush failed") as raised,
+        pytest.raises(KeyboardInterrupt, match="flush failed") as raised,
     ):
         wrapped.stop()
 
@@ -1761,7 +1773,7 @@ def test_stop_retries_failed_import_hook_cleanup(monkeypatch):
             nonlocal unregister_attempts
             unregister_attempts += 1
             if unregister_attempts == 1:
-                raise RuntimeError("unregister failed")
+                raise KeyboardInterrupt("unregister failed")
             assert module == "threading"
             assert registered_hook is hook
 
@@ -1788,7 +1800,7 @@ def test_stop_retries_failed_import_hook_cleanup(monkeypatch):
     with (
         mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
         mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated") as product_activated,
-        pytest.raises(RuntimeError, match="unregister failed"),
+        pytest.raises(KeyboardInterrupt, match="unregister failed"),
     ):
         wrapped.stop(flush=False)
 
