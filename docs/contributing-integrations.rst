@@ -268,8 +268,9 @@ Keep the fields in this order:
 
 ``name``
     The integration name. It must match the directory name and the ``integration_name`` in
-    ``scripts/integration_registry/registry.yaml``. If the integration registers settings with
-    ``config._add()``, it must match that name too.
+    ``scripts/integration_registry/registry.yaml``. A new integration that registers settings with
+    ``config._add()`` should use the same name there. Some existing integrations use a different configuration
+    key, for example ``sqlite3`` registers ``sqlite``; the manifest still uses the directory name.
 
 ``display_name``
     The library's established spelling and capitalization, for example ``Flask``, ``HTTPX``, or ``LangGraph``.
@@ -323,8 +324,10 @@ configuration options, and supported-version changes leave it as is. Update the 
 
 - The packages that activate the integration change. Update ``packages`` together with ``registry.yaml``.
 - The integration starts or stops instrumenting a kind of operation, for example a client-only integration that
-  adds server spans. Add or remove the ``category``, and update ``description`` if it no longer matches.
+  adds server spans. Add or remove the ``category``.
 - The integration adds or drops dedicated support for a backend or provider. Add or remove the ``systems`` entry.
+- ``description`` no longer matches what the integration instruments, for example because a behavior it names was
+  removed. Update ``description``.
 - The integration is renamed. Update ``name`` and ``display_name``.
 
 Never change ``creation_date`` on an existing manifest. When an integration is removed, delete its manifest
