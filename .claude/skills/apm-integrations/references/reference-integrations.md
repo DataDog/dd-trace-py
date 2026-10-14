@@ -42,3 +42,12 @@ implementation guide for per-turn span layout and audio timing eligibility.
 Optional raw vad_score events are observed by the same connection-local proxies
 before SDK filtering. They do not require new callbacks, patch points, or event
 subscriptions. See the LLMObs guide for the bounded clip-relative activity schema.
+
+
+ElevenLabs protocol/audio state is product-owned in llmobs/_integrations/elevenlabs_agents.py.
+Contrib wrappers depend only on a neutral state Protocol and request state through
+core event elevenlabs.conversation.start. LLMObs registers/removes the factory with
+its service lifecycle. Client-tool handler bodies scope both APM and LLMObs contexts,
+restoring caller contexts on success, failure, and cancellation. Synthetic replay
+fixtures are stored as deterministic gzip JSON to preserve exact event/audio data
+within the added-file size limit.

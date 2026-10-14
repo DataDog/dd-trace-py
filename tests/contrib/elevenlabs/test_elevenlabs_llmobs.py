@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import gzip
 import io
 import json
 from pathlib import Path
@@ -13,13 +14,14 @@ from elevenlabs.conversational_ai import conversation
 import pytest
 
 from ddtrace import config
-from ddtrace.contrib.internal.elevenlabs import _state
 from ddtrace.contrib.internal.elevenlabs import patch as patch_module
-from ddtrace.contrib.internal.elevenlabs._state import ConversationState
+from ddtrace.contrib.internal.elevenlabs._state import _CURRENT_STATE
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._integrations import elevenlabs_agents as _state
 from ddtrace.llmobs._integrations.elevenlabs import ElevenLabsIntegration
+from ddtrace.llmobs._integrations.elevenlabs_agents import ConversationState
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -199,8 +201,8 @@ def test_parent_context_and_conversation_isolation(tracer, test_spans, parent_ki
     if parent_kind == "apm":
         parent = tracer.trace("application")
     elif parent_kind == "workflow":
-        parent = patch_module.elevenlabs._datadog_integration.trace("application", submit_to_llmobs=True, activate=True)
-        patch_module.elevenlabs._datadog_integration.annotate_voice_span(
+        parent = ElevenLabsIntegration(config.elevenlabs).trace("application", submit_to_llmobs=True, activate=True)
+        ElevenLabsIntegration(config.elevenlabs).annotate_voice_span(
             parent, "workflow", "application", "application-session", {}
         )
     values = [
@@ -243,12 +245,12 @@ def test_real_client_tool_execution_and_result_ownership(state, test_spans, fail
 
     tools.register("weather", handler)
     tools.start()
-    token = _state._CURRENT_STATE.set(value)
+    token = _CURRENT_STATE.set(value)
     try:
         tools.execute_tool("weather", {"city": "Test", "tool_call_id": "call-1"}, callback)
         assert done.wait(3)
     finally:
-        _state._CURRENT_STATE.reset(token)
+        _CURRENT_STATE.reset(token)
         tools.stop()
     clock.advance()
     value.close()
@@ -433,7 +435,8 @@ async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans,
 @pytest.mark.parametrize("normal_events_only", [False, True])
 def test_sanitized_capture_replay(state, test_spans, normal_events_only):
     value, clock = state
-    fixture = json.loads((Path(__file__).parent / "data" / "conversation.json").read_text())
+    with gzip.open(Path(__file__).parent / "data" / "conversation.json.gz", "rt") as stream:
+        fixture = json.load(stream)
     ordinary = {
         "conversation_initiation_metadata",
         "audio",
@@ -597,7 +600,7 @@ def test_concurrent_sdk_workers_keep_identical_event_ids_separate(monkeypatch, t
         "time_ns",
         lambda: getattr(worker_clock, "now", BASE_NS),
     )
-    monkeypatch.setattr(conversation, "connect", lambda *args, **kwargs: sockets[_state._CURRENT_STATE.get().agent_id])
+    monkeypatch.setattr(conversation, "connect", lambda *args, **kwargs: sockets[_CURRENT_STATE.get().agent_id])
     wrap("elevenlabs.conversational_ai.conversation", "connect", patch_module.traced_connect)
     try:
         for instance in instances:
@@ -627,12 +630,12 @@ async def test_tool_observation_failure_preserves_handler_result(state, monkeypa
     async def handler(*args):
         return "Tool result"
 
-    token = _state._CURRENT_STATE.set(value)
+    token = _CURRENT_STATE.set(value)
     try:
         result = await patch_module.traced_tool(handler, None, ("weather", {"tool_call_id": "call-1"}), {})
         assert result == "Tool result"
     finally:
-        _state._CURRENT_STATE.reset(token)
+        _CURRENT_STATE.reset(token)
 
 
 def vad(value, score):
@@ -1049,3 +1052,54 @@ def test_zero_event_id_is_valid_before_first_interruption(state, test_spans):
     assert row["meta"]["metadata"]["event_id"] == "0"
     assert decoded_frames(row["meta"]["input"]["messages"][0]) == PCM
     assert decoded_frames(row["meta"]["output"]["messages"][0]) == PCM
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["success", "error", "cancel"])
+async def test_nested_tool_spans_and_caller_context_restoration(state, tracer, test_spans, outcome):
+    value, clock = state
+    receive(value, event("client_tool_call", 37, tool_name="weather", tool_call_id="nested-tool", parameters={}))
+    failure = ValueError("Synthetic handler failure")
+
+    async def handler(*args, **kwargs):
+        with LLMObs.llm(name="nested-llm", model_name="test", model_provider="test") as nested:
+            tool = value.tool_spans["nested-tool"]
+            assert nested.parent_id == tool.span_id
+            assert _get_llmobs_data_metastruct(nested)["parent_id"] == str(tool.span_id)
+            await asyncio.sleep(0)
+        if outcome == "error":
+            raise failure
+        if outcome == "cancel":
+            raise asyncio.CancelledError()
+        return "Synthetic result"
+
+    with LLMObs.workflow(name="unrelated-caller") as caller:
+        token = _CURRENT_STATE.set(value)
+        try:
+            if outcome == "success":
+                assert (
+                    await patch_module.traced_tool(
+                        handler, None, (), {"tool_name": "weather", "parameters": {"tool_call_id": "nested-tool"}}
+                    )
+                    == "Synthetic result"
+                )
+            else:
+                with pytest.raises(ValueError if outcome == "error" else asyncio.CancelledError) as raised:
+                    await patch_module.traced_tool(
+                        handler, None, (), {"tool_name": "weather", "parameters": {"tool_call_id": "nested-tool"}}
+                    )
+                if outcome == "error":
+                    assert raised.value is failure
+            assert tracer.context_provider.active() is caller
+            assert LLMObs._instance._current_span() is caller
+            assert not value.tool_spans
+        finally:
+            _CURRENT_STATE.reset(token)
+    clock.advance()
+    value.close()
+    captured = rows(test_spans)
+    tool, tool_row = next((span, row) for span, row in captured if row["name"] == "weather")
+    nested_row = next(row for _, row in captured if row["name"] == "nested-llm")
+    assert nested_row["parent_id"] == str(tool.span_id)
+    assert nested_row["trace_id"] == tool_row["trace_id"]
+    assert tool_row["status"] == ("ok" if outcome == "success" else "error")

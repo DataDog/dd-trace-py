@@ -248,3 +248,12 @@ at 0.5 and leave at 0.35. Low scores cover at most 500 ms of input samples, with
 stale delivery gaps and unobserved portions conservatively active. State follows
 input-buffer transfers and shutdown extension; overflow omits activity metadata.
 Never turn these observations into TTFA or alter customer event subscriptions.
+
+
+ElevenLabs protocol/audio state is product-owned in llmobs/_integrations/elevenlabs_agents.py.
+Contrib wrappers depend only on a neutral state Protocol and request state through
+core event elevenlabs.conversation.start. LLMObs registers/removes the factory with
+its service lifecycle. Client-tool handler bodies scope both APM and LLMObs contexts,
+restoring caller contexts on success, failure, and cancellation. Synthetic replay
+fixtures are stored as deterministic gzip JSON to preserve exact event/audio data
+within the added-file size limit.

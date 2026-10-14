@@ -1,14 +1,18 @@
+from contextlib import contextmanager
 from typing import Any
+from typing import Iterator
 from typing import Optional
 from typing import cast
 
+from ddtrace import config
+from ddtrace.internal.native._native import Context
 from ddtrace.llmobs._context import _DD_LLMOBS_CONTEXTVAR
 from ddtrace.llmobs._integration_api import get_llmobs_service
+from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.elevenlabs_agents import ConversationState
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_trace_id
-from ddtrace.trace import Context
-from ddtrace.trace import Span
 
 
 class ElevenLabsIntegration(BaseLLMIntegration):
@@ -20,7 +24,7 @@ class ElevenLabsIntegration(BaseLLMIntegration):
         instance = getattr(get_llmobs_service(), "_instance", None)
         return cast(Optional[Context], instance._current_trace_context()) if instance is not None else None
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Any:
         if "llmobs_parent" not in kwargs:
             return super().trace(operation_id, submit_to_llmobs=submit_to_llmobs, **kwargs)
         # LLMObs activates every new LLM span even when APM activate=False. Scope
@@ -31,12 +35,25 @@ class ElevenLabsIntegration(BaseLLMIntegration):
         finally:
             _DD_LLMOBS_CONTEXTVAR.reset(token)
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    @contextmanager
+    def activate_tool(self, span: Any, context_provider: Any) -> Iterator[None]:
+        previous = context_provider.active()
+        token = _DD_LLMOBS_CONTEXTVAR.set(span)
+        try:
+            context_provider.activate(span)
+            yield
+        finally:
+            try:
+                context_provider.activate(previous)
+            finally:
+                _DD_LLMOBS_CONTEXTVAR.reset(token)
+
+    def _set_base_span_tags(self, span: Any, **kwargs: Any) -> None:
         span.set_tag("elevenlabs.agent_id", kwargs.get("agent_id", ""))
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: Any,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -46,12 +63,12 @@ class ElevenLabsIntegration(BaseLLMIntegration):
 
     def annotate_voice_span(
         self,
-        span: Span,
+        span: Any,
         kind: str,
         name: str,
         session_id: str,
         metadata: dict[str, Any],
-        parent: Optional[Span] = None,
+        parent: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
         if parent is not None:
@@ -69,3 +86,9 @@ class ElevenLabsIntegration(BaseLLMIntegration):
             metadata=metadata,
             **kwargs,
         )
+
+
+def create_conversation_state(instance: Any, parent: Any) -> Optional[ConversationState]:
+    if not is_enabled():
+        return None
+    return ConversationState(ElevenLabsIntegration(config.elevenlabs), instance, parent)

@@ -1,6 +1,8 @@
+from contextlib import ExitStack
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import cast
 
 import elevenlabs
 import elevenlabs.conversational_ai.conversation as conversation
@@ -12,8 +14,8 @@ from ddtrace.contrib.internal.elevenlabs._state import _CURRENT_STATE
 from ddtrace.contrib.internal.elevenlabs._state import ConversationState
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.elevenlabs import ElevenLabsIntegration
 from ddtrace.trace import tracer
 
 
@@ -135,13 +137,15 @@ def traced_connect(func: Callable[..., Any], instance: Any, args: tuple[Any, ...
 
 def _new_state(instance: Any) -> Optional[ConversationState]:
     try:
-        integration = elevenlabs._datadog_integration
-        if not integration.llmobs_enabled:
-            return None
         existing = _state(instance)
         if existing is not None and not existing.closed:
             return existing
-        state = ConversationState(integration, instance, parent=tracer.context_provider.active())
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+            "elevenlabs.conversation.start", (instance, tracer.context_provider.active())
+        ).state
+        state = cast(Optional[ConversationState], result.value)
+        if state is None:
+            return None
         instance._dd_elevenlabs_state = state
         return state
     except Exception:
@@ -263,9 +267,15 @@ async def traced_tool(
     except Exception:
         log.debug("Could not start ElevenLabs client tool span", exc_info=True)
         span = None
+    scope = ExitStack()
+    if span is not None:
+        try:
+            scope.enter_context(state.activate_tool(span, tracer.context_provider))
+        except Exception:
+            log.debug("Could not activate ElevenLabs client tool span", exc_info=True)
     try:
         result = await func(*args, **kwargs)
-    except Exception:
+    except BaseException:
         if span is not None:
             try:
                 state.end_tool(call_id, error=True)
@@ -279,13 +289,17 @@ async def traced_tool(
             except Exception:
                 log.debug("Could not finalize ElevenLabs client tool span", exc_info=True)
         return result
+    finally:
+        try:
+            scope.close()
+        except Exception:
+            log.debug("Could not restore ElevenLabs client tool context", exc_info=True)
 
 
 def patch() -> None:
     if getattr(elevenlabs, "_datadog_patch", False):
         return
     elevenlabs._datadog_patch = True
-    elevenlabs._datadog_integration = ElevenLabsIntegration(config.elevenlabs)
     module = "elevenlabs.conversational_ai.conversation"
     for cls, async_mode in (("Conversation", False), ("AsyncConversation", True)):
         wrap(module, cls + ".start_session", traced_async_start if async_mode else traced_start)
