@@ -205,12 +205,15 @@ ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/a
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
 ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
+ddtrace/internal/_stacktrace.c      @DataDog/asm-python
+ddtrace/internal/_stacktrace.pyi    @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
 ddtrace/internal/sca/               @DataDog/asm-python
 ddtrace/internal/settings/aiguard.py         @DataDog/asm-python
 ddtrace/internal/settings/appsec_telemetry.py    @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
+ddtrace/internal/utils/stacktrace.py         @DataDog/asm-python
 # tests files
 tests/aiguard/                      @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
