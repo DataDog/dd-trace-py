@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    openfeature: With ``DD_TRACE_DEBUG=true``, the feature flagging provider now logs how it was set up,
+    each attempt to fetch flag configuration and its result, when configuration is applied or removed, whether
+    provider initialization succeeded, and the details of every flag evaluation. These logs help troubleshoot
+    flags that do not behave as expected.
