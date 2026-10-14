@@ -3,7 +3,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 
 
-config._add(
+config._add(  # type: ignore[no-untyped-call]
     "aiohttp",
     dict(
         distributed_tracing=True,
