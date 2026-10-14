@@ -124,6 +124,27 @@ def test_native_frame_limit() -> None:
     assert _stack._get_frame_limits() == (10_000, 1024)
 
 
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_ENABLED="1"), err=None)
+def test_thread_name_not_utf8_encodable() -> None:
+    import threading
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    _stack.register_thread(threading.get_ident(), threading.get_native_id(), "main-\udcff")
+
+    for name in ("job-\udcff", "job-\x00x"):
+        started = threading.Event()
+
+        def driver(name: str = name) -> None:
+            t = threading.Thread(target=lambda: None, name=name)
+            t.start()
+            t.join()
+            started.set()
+
+        threading.Thread(target=driver, daemon=True).start()
+        assert started.wait(10), "Thread.start hung for name %r" % name
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_exact_native_frame_limit",
