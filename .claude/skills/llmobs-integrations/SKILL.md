@@ -119,7 +119,7 @@ Note two already-shipped integrations predate this key: bedrock and the claude-a
 - **Event-based patch wrappers** should not call `span.set_exc_info()`, `span.finish()`, or `integration.llmobs_set_tags()` directly; the tracing subscriber handles that when the event ends
 - **Direct integration spans** must keep `integration.llmobs_set_tags()` and span lifecycle handling aligned with the closest current reference
 - **Integration instance**: subscriber-based integrations build it lazily in the LLMObs subscriber (see `ddtrace/llmobs/_contrib/anthropic/subscribers.py`); older integrations store it on the module as `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
-- **Subscriber registration**: subscriber-based integrations hook `{name}.patch`/`{name}.unpatch` core events in `listen_integrations()` and stay registered while LLMObs is disabled, because they also set the APM shadow tags
+- **Subscriber registration**: subscriber-based integrations hook `{name}.patch`/`{name}.unpatch` core events in `listen_integrations()` and stay registered while LLMObs is disabled, because they also set the APM shadow tags. `listen_integrations()` runs only under `ddtrace-run` or `LLMObs.enable()`; manual `patch()` calls without either do not need to be supported
 
 ## Message Types
 

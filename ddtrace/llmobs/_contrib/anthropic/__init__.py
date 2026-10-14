@@ -12,5 +12,6 @@ def listen() -> None:
 def unlisten() -> None:
     LLMObsAnthropicSpanStartingSubscriber.unregister()
     LLMObsAnthropicSpanStartedSubscriber.unregister()
-    LLMObsAnthropicSpanFinishingSubscriber.unregister()
-    LLMObsAnthropicSpanStartingSubscriber.forget_integration()
+    # The finishing subscriber stays registered: requests and deferred streams that started
+    # before unpatch() still need their output, token metrics, and shadow tags when they end.
+    # It only acts on Anthropic contexts, and an unpatched client creates no new ones.
