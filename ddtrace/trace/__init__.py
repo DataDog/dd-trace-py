@@ -12,6 +12,14 @@ from ddtrace.internal import core
 tracer = Tracer()
 core.root.set_item("tracer", tracer)
 
+
+def _on_asm_tracer_reconfigure(appsec_enabled: bool, origin: str) -> None:
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=origin)
+
+
+# AppSec can't import the tracer without depending on the tracing product, so it signals state changes instead.
+core.on("asm.tracer.reconfigure", _on_asm_tracer_reconfigure)
+
 if sys.platform == "linux":
     from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
 
