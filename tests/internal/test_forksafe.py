@@ -306,6 +306,128 @@ def test_double_fork():
     assert exit_code == 42
 
 
+@pytest.mark.subprocess(timeout=30)
+def test_fork_hooks_are_serialized():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    forksafe.ddtrace_before_fork()
+
+    second_entered = threading.Event()
+
+    def second_fork():
+        forksafe.ddtrace_before_fork()
+        second_entered.set()
+        forksafe.ddtrace_after_in_parent()
+
+    t = threading.Thread(target=second_fork)
+    t.start()
+
+    # A concurrent fork must wait for the current one to complete its hooks.
+    assert not second_entered.wait(timeout=0.2)
+
+    forksafe.ddtrace_after_in_parent()
+
+    assert second_entered.wait(timeout=5)
+    t.join()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_unpaired_after_fork_hooks():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    # Without a matching before-fork call from this thread, the after-parent
+    # hooks must not release a lock they do not own.
+    forksafe.ddtrace_after_in_parent()
+
+    # Simulate a C-level fork (e.g. uWSGI master forking a worker) while
+    # another thread was in the middle of a fork: the child inherits the lock
+    # held by a thread that does not exist, and runs only the child hooks.
+    held = threading.Event()
+
+    def mid_fork():
+        forksafe.ddtrace_before_fork()
+        held.set()
+
+    t = threading.Thread(target=mid_fork)
+    t.start()
+    assert held.wait(timeout=5)
+    t.join()
+
+    forksafe.ddtrace_after_in_child()
+
+    done = threading.Event()
+
+    def next_fork():
+        forksafe.ddtrace_before_fork()
+        forksafe.ddtrace_after_in_parent()
+        done.set()
+
+    threading.Thread(target=next_fork, daemon=True).start()
+    assert done.wait(timeout=5), "fork lock still held after the child hooks"
+
+
+@pytest.mark.subprocess(timeout=120)
+def test_concurrent_forks_from_threads():
+    import os
+    import sys
+    import threading
+    import time
+    import warnings
+
+    from ddtrace.internal import threads
+
+    # Use plain threads: concurrent.futures.thread registers at-fork hooks
+    # around a lock of its own, which serializes forks and hides the issue
+    # whenever that module is imported after ddtrace.
+    assert "concurrent.futures.thread" not in sys.modules
+
+    # Python warns about forking a multi-threaded process; that is the point.
+    # catch_warnings() is not thread-safe, so set the filter process-wide.
+    warnings.simplefilter("ignore", DeprecationWarning)
+
+    # Give the fork hooks periodic threads to stop and restart around each fork.
+    periodic = [threads.PeriodicThread(0.01, lambda: None, name=f"test-periodic-{i}") for i in range(4)]
+    for t in periodic:
+        t.start()
+
+    statuses = []
+
+    def fork_and_wait():
+        for _ in range(6):
+            pid = os.fork()
+            if pid == 0:
+                os._exit(42)
+
+            deadline = time.monotonic() + 10
+            while True:
+                wpid, status = os.waitpid(pid, os.WNOHANG)
+                if wpid:
+                    statuses.append(os.WEXITSTATUS(status))
+                    break
+                if time.monotonic() > deadline:
+                    os.kill(pid, 9)
+                    os.waitpid(pid, 0)
+                    statuses.append(None)
+                    break
+                time.sleep(0.01)
+
+    forkers = [threading.Thread(target=fork_and_wait) for _ in range(16)]
+    for f in forkers:
+        f.start()
+    for f in forkers:
+        f.join()
+
+    assert statuses == [42] * len(statuses), f"{statuses.count(None)} children hung"
+
+    for t in periodic:
+        t.stop()
+        t.join()
+
+
 @pytest.mark.subprocess(
     out=lambda _: Counter(_) == {"C": 3, "T": 4},
     err=None,

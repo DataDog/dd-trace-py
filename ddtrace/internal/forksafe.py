@@ -2,6 +2,9 @@
 An API to provide fork-safe functions.
 """
 
+# Grab get_ident before any monkey-patching library (e.g. gevent) gets a
+# chance to replace it with a greenlet-aware version.
+from _thread import get_ident as _get_ident
 import functools
 import logging
 import os
@@ -11,6 +14,7 @@ import weakref
 import wrapt
 
 from ddtrace.internal import _unpatched
+from ddtrace.internal.locks import Lock as _Lock
 from ddtrace.internal.native.exceptions import is_panic_exception
 
 
@@ -88,8 +92,51 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
+# CPython runs the before-fork and after-fork-in-parent callbacks outside of
+# any lock, so several threads can be forking at the same time. Our hooks
+# assume that before-fork, fork and after-fork happen as one uninterrupted
+# sequence, so we serialize them: the thread that runs the before-fork hooks
+# holds this lock until its after-fork hooks have completed. Only the forking
+# thread survives in the child, so threads queued on the lock exist only in
+# the parent, where they take their turn once the lock is released. Threads
+# started by ddtrace never fork and never take this lock, which is what makes
+# it safe for the before-fork hooks to join them while holding it.
+_fork_lock = _Lock()
+_fork_lock_owner: typing.Optional[int] = None
+
+
+def ddtrace_before_fork() -> None:
+    global _fork_lock_owner
+
+    _fork_lock.acquire()
+    _fork_lock_owner = _get_ident()
+
+    run_hooks(_registry_before_fork)
+
+
+def ddtrace_after_in_parent() -> None:
+    global _fork_lock_owner
+
+    try:
+        run_hooks(_registry_after_parent)
+    finally:
+        # An exception (e.g. KeyboardInterrupt) can interrupt the blocking
+        # acquire in ddtrace_before_fork. CPython then reports it and forks
+        # anyway, so only release the lock if this thread actually holds it.
+        if _fork_lock_owner == _get_ident():
+            _fork_lock_owner = None
+            _fork_lock.release()
+
+
 def run_child_hooks() -> None:
-    global _in_child_hook
+    global _in_child_hook, _fork_lock, _fork_lock_owner
+
+    # The child is single-threaded, so a fresh lock is equivalent to releasing
+    # the inherited one. Unlike a release, it also covers callers that run the
+    # child hooks without a matching before-fork call (e.g. uWSGI workers
+    # forked by the master at the C level).
+    _fork_lock = _Lock()
+    _fork_lock_owner = None
 
     _in_child_hook = True
     run_hooks(_registry_before_child_hooks)
@@ -100,9 +147,7 @@ def run_child_hooks() -> None:
         _in_child_hook = False
 
 
-ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
 ddtrace_after_in_child = run_child_hooks
-ddtrace_after_in_parent = functools.partial(run_hooks, _registry_after_parent)
 
 
 def register_hook(registry, hook):
