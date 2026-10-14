@@ -2,7 +2,14 @@ import time
 
 from bm import Scenario
 
-from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+
+# Dual import: the benchmark image runs this scenario against both the candidate wheel (this
+# branch, where the constants moved to ddtrace_base) and the baseline wheel (main, where
+# they still live in ddtrace.internal.telemetry).
+try:
+    from ddtrace_base.telemetry.constants import TELEMETRY_NAMESPACE
+except ImportError:
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 # --- API detection --------------------------------------------------------
