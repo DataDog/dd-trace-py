@@ -307,7 +307,17 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
         if RECORDED_PROFILES_TAG in (span.get("meta") or {})
     )
     assert marked[("litellm.request", "acompletion", ATTEMPT_PROFILES)] >= sent["gpt-4o-mini-flaky"], marked
-    assert marked[("litellm.request", "router.acompletion", GATEWAY_PROFILES)] >= 1, marked
+    routed = sum(
+        1 for span in spans if span["name"] == "litellm.request" and span.get("resource") == "router.acompletion"
+    )
+    if LITELLM_VERSION >= (1, 70):
+        # Every client request is a gateway request, a cache hit included: the proxy assigns its call id and runs the
+        # pre-call hook before it calls the Router.
+        assert routed and marked[("litellm.request", "router.acompletion", GATEWAY_PROFILES)] == routed, marked
+    else:
+        # Proxies that assign the call id after the pre-call hook mark a Router span at its first provider call, so a
+        # cache hit's is not marked.
+        assert marked[("litellm.request", "router.acompletion", GATEWAY_PROFILES)] >= 1, marked
     assert {(name, profiles) for name, _, profiles in marked} <= {
         ("litellm.request", ATTEMPT_PROFILES),
         ("litellm.request", GATEWAY_PROFILES),

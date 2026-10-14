@@ -461,11 +461,13 @@ def test_dogstatsd_over_udp_splits_packets(monkeypatch):
 
 
 def test_dogstatsd_host_that_resolves_to_ipv6_only(monkeypatch):
-    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    sock = None
     try:
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
         sock.bind(("::1", 0))
     except OSError:
-        sock.close()
+        if sock is not None:
+            sock.close()
         pytest.skip("IPv6 loopback is not available")
     resolve = socket.getaddrinfo
     monkeypatch.setattr(

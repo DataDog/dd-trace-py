@@ -363,9 +363,10 @@ def _enable_usage_metrics():
             interval=otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL / 1000.0,
             metrics=list(_usage_metrics.DEFAULT_METRICS),
         )
+        writer.start()
     except Exception as e:
-        # An endpoint the exporter cannot use, such as an ftp:// OTLP endpoint or a tcp:// DogStatsD URL, leaves the
-        # metrics off without failing the rest of the integration.
+        # An endpoint the exporter cannot use, such as an ftp:// OTLP endpoint or a tcp:// DogStatsD URL, or a thread
+        # that cannot start, leaves the metrics off without failing the rest of the integration.
         log.warning("LiteLLM usage metrics are not enabled: %s", e)
         return
     logger = _usage_metrics.UsageMetricsLogger(
@@ -378,7 +379,6 @@ def _enable_usage_metrics():
         manager.add_litellm_callback(logger)
     if not any(callback is logger for callback in litellm.callbacks):
         litellm.callbacks.append(logger)
-    writer.start()
     atexit.register(writer.on_shutdown)
     if not _exit_signal_flush_installed:
         # Termination through ddtrace's signal handlers re-raises the signal, which skips atexit. A handler installed

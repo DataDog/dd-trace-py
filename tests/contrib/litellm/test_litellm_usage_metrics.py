@@ -1142,3 +1142,15 @@ def test_an_unusable_exporter_endpoint_leaves_the_integration_patched(enabled, m
     patch()
     assert getattr(litellm, "_datadog_patch", False)
     assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_a_writer_that_cannot_start_leaves_the_integration_patched(enabled, monkeypatch):
+    def fail():
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(litellm_patch._usage_metrics_writer.UsageMetricsWriter, "start", lambda self: fail())
+    patch()
+    assert getattr(litellm, "_datadog_patch", False)
+    assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None
+    assert not any(isinstance(callback, UsageMetricsLogger) for callback in litellm.callbacks)
