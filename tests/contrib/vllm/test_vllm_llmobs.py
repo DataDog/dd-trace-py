@@ -15,6 +15,7 @@ from ._utils import get_simple_chat_template
 VLLM_VERSION = parse_version(version("vllm"))
 
 IGNORE_FIELDS = [
+    "meta_struct",
     "metrics.vllm.latency.ttft",
     "metrics.vllm.latency.queue",
     "metrics.vllm.latency.prefill",

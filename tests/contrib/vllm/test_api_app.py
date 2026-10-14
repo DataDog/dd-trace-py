@@ -17,6 +17,7 @@ from .api_app import app
 
 
 IGNORE_FIELDS = [
+    "meta_struct",
     "meta._dd.p.llmobs_trace_id",
     "metrics.vllm.latency.ttft",
     "metrics.vllm.latency.queue",
