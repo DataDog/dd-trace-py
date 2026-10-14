@@ -3,7 +3,9 @@ Generic dbapi tracing code.
 """
 
 from collections.abc import Mapping
+from contextlib import suppress
 from typing import Optional
+from typing import Union
 
 import wrapt
 
@@ -91,6 +93,11 @@ class TracedCursor(wrapt.ObjectProxy):
     def __next__(self):
         return self.__wrapped__.__next__()
 
+    def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
+        if isinstance(query, (str, bytes)):
+            return query
+        return None
+
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
@@ -142,8 +149,13 @@ class TracedCursor(wrapt.ObjectProxy):
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+        if core.has_listeners(DbQueryEvent.event_name):
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+                if rendered_query is not None:
+                    core.dispatch_event(
+                        DbQueryEvent(query=rendered_query, span_name_prefix=self._self_dbapi_span_name_prefix)
+                    )
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -163,8 +175,13 @@ class TracedCursor(wrapt.ObjectProxy):
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+        if core.has_listeners(DbQueryEvent.event_name):
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+                if rendered_query is not None:
+                    core.dispatch_event(
+                        DbQueryEvent(query=rendered_query, span_name_prefix=self._self_dbapi_span_name_prefix)
+                    )
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects

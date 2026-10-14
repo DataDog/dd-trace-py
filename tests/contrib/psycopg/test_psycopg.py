@@ -1,6 +1,8 @@
 # stdlib
+import sys
 import time
 from unittest import mock
+from unittest import skipIf
 
 import psycopg
 from psycopg.sql import SQL
@@ -8,8 +10,13 @@ from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
 
+from ddtrace import config
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg3FetchTracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
@@ -185,6 +192,123 @@ class PsycopgCore(TracerTestCase):
         conn.rollback()
 
         self.assert_structure(dict(name="psycopg.connection.rollback"))
+
+    def test_django_composed_query_event_is_stringified(self) -> None:
+        cursor = mock.Mock(rowcount=0)
+        cursor.connection.pgconn._encoding = "utf-8"
+        cursor.connection.pgconn.parameter_status.return_value = b"UTF8"
+        django_cursor = mock.Mock(cursor=cursor, rowcount=0)
+        query = SQL("SELECT ") + SQL("1")
+        events: list[DbQueryEvent] = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            with mock.patch.object(config.psycopg, "integration_name", "django-database"):
+                Psycopg3TracedCursor(django_cursor, cfg=config.psycopg).execute(query)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        assert events == [DbQueryEvent(query=query.as_string(cursor), span_name_prefix="postgres")]
+        assert [span.resource for span in self.get_spans()] == [""]
+        django_cursor.execute.assert_called_once_with(query)
+
+    def test_query_event_rendering_is_separate_from_tracing(self) -> None:
+        cursor = mock.Mock(spec=["execute", "fetchone", "rowcount"])
+        cursor.rowcount = 0
+
+        query = SQL("SELECT 1")
+        events: list[DbQueryEvent] = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            with mock.patch.object(SQL, "as_string", return_value="SELECT 1") as render:
+                traced_cursor = Psycopg3FetchTracedCursor(cursor, cfg=config.psycopg)
+                traced_cursor.execute(query)
+                traced_cursor.fetchone()
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        assert render.call_args_list == [mock.call(cursor)] * 3
+        assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")]
+        assert [span.resource for span in self.get_spans()] == ["SELECT 1", "SELECT 1"]
+        cursor.execute.assert_called_once_with(query)
+        cursor.fetchone.assert_called_once_with()
+
+    def test_composed_query_event_uses_psycopg_renderer(self) -> None:
+        cursor = mock.Mock(spec=["rowcount"])
+        cursor.rowcount = 0
+        query = SQL("SELECT ") + SQL("1")
+
+        with mock.patch.object(Composed, "as_string", return_value="SELECT 1") as render:
+            result = Psycopg3TracedCursor(cursor, cfg=config.psycopg)._render_dbapi_query(query)
+
+        assert result == "SELECT 1"
+        render.assert_called_once_with(cursor)
+
+    def test_literal_composed_query_is_inspected(self) -> None:
+        payload = "' OR 1=1 --"
+        query = SQL("SELECT ") + Literal(payload)
+        events: list[DbQueryEvent] = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            with self._get_conn() as connection, connection.cursor() as cursor:
+                cursor.execute(query)
+                assert cursor.fetchone() == (payload,)
+                expected_query = query.as_string(cursor)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
+
+    def test_byte_query_event_uses_connection_encoding(self) -> None:
+        query = "SELECT 'é'"
+        original_query = query.encode("iso8859-1")
+        events: list[DbQueryEvent] = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            with psycopg.connect(**POSTGRES_CONFIG, client_encoding="LATIN1") as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(original_query)
+                    assert cursor.fetchone() == ("é",)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=query, span_name_prefix="postgres")]
+
+    @skipIf(
+        sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
+        "psycopg template queries require Python 3.14 and psycopg 3.3",
+    )
+    def test_template_query_event_for_default_and_client_cursors(self) -> None:
+        payload = "' OR 1=1 --"
+        query = eval(
+            't"SELECT {payload:l}, {bound} AS {column:i}"', {"payload": payload, "bound": "safe", "column": "value"}
+        )
+        events: list[DbQueryEvent] = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            for cursor_factory, bound_sql in ((psycopg.Cursor, "$1"), (psycopg.ClientCursor, "'safe'")):
+                with psycopg.connect(**POSTGRES_CONFIG, cursor_factory=cursor_factory) as connection:
+                    with connection.cursor() as cursor:
+                        cursor.execute(query)
+                        assert cursor.fetchone() == (payload, "safe")
+                        literal_sql = Literal(payload).as_string(cursor)
+                        identifier_sql = Identifier("value").as_string(cursor)
+                        expected = f"SELECT {literal_sql}, {bound_sql} AS {identifier_sql}"
+                        assert events[-1] == DbQueryEvent(query=expected, span_name_prefix="postgres")
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert len(events) == 2
 
     def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
