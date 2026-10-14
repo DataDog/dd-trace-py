@@ -611,3 +611,40 @@ async def test_inferred_spans_api_gateway(
                 distributed_parent_id=2,
                 distributed_sampling_priority=USER_KEEP,
             )
+
+
+@pytest.mark.parametrize("ddtrace_run", [False, True])
+def test_trace_app_without_patch(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, ddtrace_run):
+    code = """
+import asyncio
+
+from aiohttp import web
+from aiohttp.test_utils import TestClient
+from aiohttp.test_utils import TestServer
+
+from ddtrace.contrib.aiohttp import trace_app
+
+
+async def handler(request):
+    return web.Response(text="ok")
+
+
+async def main():
+    app = web.Application()
+    app.router.add_get("/", handler)
+    trace_app(app)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/")
+        assert response.status == 200, response.status
+        assert await response.text() == "ok"
+
+
+asyncio.run(main())
+"""
+    env = os.environ.copy()
+    if ddtrace_run:
+        env["DD_TRACE_ENABLED"] = "false"
+        out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    else:
+        out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
