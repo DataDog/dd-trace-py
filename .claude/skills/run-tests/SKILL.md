@@ -211,7 +211,7 @@ From `scripts/run-tests --list`, you'll see output like:
 When you have a specific venv hash you want to run, you can use it directly without specifying file paths:
 
 ```bash
-scripts/run-tests --venv e06abee
+scripts/run-tests --venv 8c8e9575c524
 ```
 
 The `--venv` flag automatically searches **all available venvs** across all suites, so it works regardless of what files you have locally changed. This is useful when:
@@ -231,12 +231,12 @@ scripts/run-tests --list ddtrace/contrib/internal/flask/patch.py
 
 # Select output (latest Python):
 # Suite: contrib::flask
-# Venv: hash=e06abee, Python 3.13, flask
+# Venv: hash=8c8e9575c524, Python 3.13, flask
 
-scripts/run-tests --venv e06abee
+scripts/run-tests --venv 8c8e9575c524
 
 # Rebuild after changing native sources or build configuration
-scripts/run-tests -r --venv e06abee
+scripts/run-tests -r --venv 8c8e9575c524
 ```
 
 ### Example 2: Fixing a Core Tracing Issue
