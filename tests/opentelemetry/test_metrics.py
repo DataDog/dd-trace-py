@@ -30,7 +30,7 @@ def skipif(
 
 
 @skipif(exporter_installed=True, unsupported_otel_version=True)
-def test_otel_metrics_sdk_not_installed_by_default():
+def test_otel_metrics_exporter_not_installed_by_default(caplog):
     """
     Test that the OpenTelemetry metrics exporter can be set up correctly.
     """
@@ -39,9 +39,25 @@ def test_otel_metrics_sdk_not_installed_by_default():
     # This should not raise an ImportError
     set_otel_meter_provider()
 
-    # If the OpenTelemetry SDK is not installed
+    assert (
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP metrics export."
+    ) in caplog.text
+
+    # The OpenTelemetry exporter dependencies are not installed.
     with pytest.raises(ImportError):
         from opentelemetry.sdk.resources import Resource  # noqa: F401
+
+
+@skipif(exporter_installed=True)
+def test_otel_metrics_exporter_import_warning(caplog):
+    from ddtrace.internal.opentelemetry.metrics import _import_exporter
+
+    assert _import_exporter("grpc") is None
+    assert (
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP metrics export."
+    ) in caplog.text
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
