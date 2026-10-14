@@ -67,6 +67,13 @@ def _clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
 
 
+def _describe_error(error: BaseException) -> str:
+    # The exception type tells DNS failures, refused connections and timeouts
+    # apart, even when the message is empty (a bare TimeoutError).
+    message = str(error)
+    return f"{type(error).__name__}: {message}" if message else type(error).__name__
+
+
 def _is_retryable_status(status: Optional[int]) -> bool:
     if status is None:
         return True
@@ -83,6 +90,7 @@ class AgentlessConfigurationSource(PeriodicService):
         api_key: Optional[str] = None,
         poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        env: Optional[str] = None,
     ) -> None:
         # A non-positive interval would make PeriodicThread schedule the next run
         # immediately, turning polling into a tight loop against the CDN, so fall
@@ -112,6 +120,9 @@ class AgentlessConfigurationSource(PeriodicService):
 
         self._apply_configuration = apply_configuration
         self._api_key = api_key
+        # Only reported in debug logs, to diagnose an SDK env that does not match
+        # the environment the flags were configured for.
+        self._env = env
         self._request_timeout = request_timeout
 
         # Split the endpoint into an origin (for the connection) and a request
@@ -208,13 +219,23 @@ class AgentlessConfigurationSource(PeriodicService):
             return
 
         after = [self._retry_delay(1), self._retry_delay(2)]
+        attempts = 0
+
+        def attempt() -> _PollResponse:
+            nonlocal attempts
+            attempts += 1
+            log.debug("Feature Flags: agentless configuration poll attempt %d/%d", attempts, MAX_ATTEMPTS)
+            response = self._request()
+            self._log_attempt_outcome(response, attempts)
+            return response
+
         poll = retry(
             after=after,
             # Stop retrying on a decisive response, or as soon as a shutdown is
             # requested (the backoff wait below returns early in that case).
             until=lambda r: self._stopping or not _is_retryable_status(r.status),
             sleep_func=self._wait,
-        )(self._request)
+        )(attempt)
         try:
             response = poll()
         except RetryError as e:
@@ -305,6 +326,29 @@ class AgentlessConfigurationSource(PeriodicService):
 
     # -- response handling --------------------------------------------------
 
+    def _log_attempt_outcome(self, response: _PollResponse, attempt: int) -> None:
+        if response.status == 304:
+            # The held configuration is still current; this is not a failure.
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d returned HTTP 304 (unchanged)",
+                attempt,
+                MAX_ATTEMPTS,
+            )
+        elif response.status is not None:
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d returned HTTP %d",
+                attempt,
+                MAX_ATTEMPTS,
+                response.status,
+            )
+        elif response.error is not None:
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d failed: %s",
+                attempt,
+                MAX_ATTEMPTS,
+                _describe_error(response.error),
+            )
+
     def _apply(self, response: _PollResponse) -> None:
         status = response.status
 
@@ -338,6 +382,12 @@ class AgentlessConfigurationSource(PeriodicService):
         # absent ETag clears the previous one.
         etag = (response.etag or "").strip()
         self._etag = etag or None
+
+        log.debug(
+            "Feature Flags: agentless configuration applied successfully (%d flag(s), env=%s)",
+            len(attributes["flags"]),
+            self._env or "unset",
+        )
 
     def _warn_failure(self, response: _PollResponse, attempts: int) -> None:
         status = response.status

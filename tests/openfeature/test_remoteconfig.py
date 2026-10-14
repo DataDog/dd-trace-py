@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from ddtrace.internal.openfeature._config import _get_ffe_config
@@ -174,3 +176,48 @@ def test_removals_first_batch_keeps_the_new_config():
     # A later removal of the config that was replaced must not clear the new one.
     callback([_payload(_OLD_PATH, None)])
     assert _get_ffe_config() is not None
+
+
+def test_debug_logs_applied_and_removed_configuration(caplog):
+    callback = FeatureFlagCallback()
+
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._remoteconfiguration"):
+        callback([_payload(_NEW_PATH, create_config(create_boolean_flag("a"), create_boolean_flag("b")))])
+        callback([_payload(_NEW_PATH, None)])
+
+    assert "Feature Flags: remote_config configuration apply applied successfully (2 flag(s))" in caplog.messages
+    assert "Feature Flags: remote_config configuration removed" in caplog.messages
+
+
+def test_debug_does_not_report_rejected_configuration_as_applied(caplog):
+    callback = FeatureFlagCallback()
+
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._remoteconfiguration"):
+        callback([_payload(_NEW_PATH, {"flags": {"broken": {}}})])
+
+    assert not any("applied successfully" in m for m in caplog.messages)
+
+
+def test_debug_ignored_deletion_is_not_reported_as_removed(caplog):
+    callback = FeatureFlagCallback()
+    callback([_payload(_NEW_PATH, create_config(create_boolean_flag("my-flag")))])
+
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._remoteconfiguration"):
+        callback([_payload(_OLD_PATH, None)])
+
+    assert "Feature Flags: remote_config configuration removed" not in caplog.messages
+
+
+def test_debug_logs_update_of_applied_configuration_as_modify(caplog):
+    callback = FeatureFlagCallback()
+    callback([_payload(_NEW_PATH, create_config(create_boolean_flag("a")))])
+
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._remoteconfiguration"):
+        callback([_payload(_NEW_PATH, create_config(create_boolean_flag("a"), create_boolean_flag("b")))])
+        callback([_payload(_OLD_PATH, create_config(create_boolean_flag("c")))])
+
+    applied = [m for m in caplog.messages if "applied successfully" in m]
+    assert applied == [
+        "Feature Flags: remote_config configuration modify applied successfully (2 flag(s))",
+        "Feature Flags: remote_config configuration apply applied successfully (1 flag(s))",
+    ], applied
