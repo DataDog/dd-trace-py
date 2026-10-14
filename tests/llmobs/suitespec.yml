@@ -463,6 +463,10 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
+      env:
+        # Retries re-raise the cached error of a failed module-scoped LLM fixture, and the
+        # report then drops the captured EngineCore output of the first attempt.
+        DD_CIVISIBILITY_FLAKY_RETRY_ENABLED: 'false'
       variants:
         - name: vllm
           python: ['3.10', '3.11', '3.12', '3.13']
