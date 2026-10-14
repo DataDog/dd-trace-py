@@ -42,10 +42,23 @@ from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_pa
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils.version import parse_version
 
 
 log = get_logger(__name__)
+
+
+def _pymysql_connection_escape_function() -> str:
+    """Return the Connection method PyMySQL uses to escape strings in the installed version.
+
+    PyMySQL 1.2.1 renamed Connection.escape_string to Connection._escape_string.
+    """
+    version: tuple[int, int, int] = parse_version(get_version_for_package("pymysql"))
+    if version >= (1, 2, 1):
+        return "Connection._escape_string"
+    return "Connection.escape_string"
 
 
 def patch_iast():
@@ -87,9 +100,7 @@ def patch_iast():
 
         # SQL sanitizers
         iast_funcs.wrap_function("mysql.connector.conversion", "MySQLConverter.escape", sqli_sanitizer)
-        iast_funcs.wrap_function("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
-        # PyMySQL 1.2.1 dropped Connection.escape_string; the implementation is _escape_string.
-        iast_funcs.wrap_function("pymysql.connections", "Connection._escape_string", sqli_sanitizer)
+        iast_funcs.wrap_function("pymysql.connections", _pymysql_connection_escape_function(), sqli_sanitizer)
         iast_funcs.wrap_function("pymysql.converters", "escape_string", sqli_sanitizer)
 
         # Header Injection sanitizers
