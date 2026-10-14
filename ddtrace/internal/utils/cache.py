@@ -71,8 +71,8 @@ class IdentityWeakKeyDictionary(Generic[WK, WV]):
 
     def _make_remove(self, key_id: int) -> Callable[["weakref.ref[WK]"], None]:
         def remove(ref: "weakref.ref[WK]") -> None:
-            # Only drop the entry if it still belongs to this ref: the id may
-            # have been reused by a new key that replaced the collected one.
+            # Only drop the entry this weakref was created for: the slot may
+            # since have been overwritten by a new key reusing the same id.
             item = self._data.get(key_id)
             if item is not None and item[0] is ref:
                 self._data.pop(key_id, None)
