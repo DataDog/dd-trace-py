@@ -9,6 +9,7 @@ from io import StringIO
 import logging
 from pathlib import Path
 import random
+import sys
 import traceback
 import typing as t
 
@@ -524,20 +525,16 @@ class TestOptPlugin(TestOptPluginProtocol):
         # import time; coverage machinery only matters once the session is finishing.
         # The integration is optional: without it (e.g. standalone testing package,
         # or a dd-trace-py install without the native extension) coverage
-        # reporting is skipped.
-        try:
-            from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
-            from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
-            from ddtrace.contrib.internal.coverage.patch import stop_coverage
-            from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
-            from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
-        except ImportError:
+        # reporting is skipped. The names resolve through module ``__getattr__``
+        # (see the bottom of this file): the plugin's import path stays free of
+        # ddtrace imports while the names remain patchable module attributes.
+        clear_coverage_instance = _optional_coverage_attr("clear_coverage_instance")
+        owns_coverage_instance = _optional_coverage_attr("owns_coverage_instance")
+        stop_coverage = _optional_coverage_attr("stop_coverage")
+        _is_pytest_cov_enabled = _optional_coverage_attr("_is_pytest_cov_enabled")
+        handle_coverage_report = _optional_coverage_attr("handle_coverage_report")
+        if handle_coverage_report is None:
             log.debug("ddtrace coverage integration unavailable; skipping coverage reporting")
-            clear_coverage_instance = None  # type: ignore[assignment]
-            owns_coverage_instance = None  # type: ignore[assignment]
-            stop_coverage = None  # type: ignore[assignment]
-            _is_pytest_cov_enabled = None  # type: ignore[assignment]
-            handle_coverage_report = None  # type: ignore[assignment]
 
         if (
             _is_pytest_cov_enabled is not None
@@ -572,7 +569,7 @@ class TestOptPlugin(TestOptPluginProtocol):
                 )
 
         coverage_percentage = (
-            get_coverage_percentage(_is_pytest_cov_enabled(session.config))  # type: ignore[misc]
+            get_coverage_percentage(_is_pytest_cov_enabled(session.config))
             if _is_pytest_cov_enabled is not None
             else None
         )
@@ -2077,3 +2074,46 @@ def ddspan(ddtracer):
         return None
 
     return ddtracer.current_root_span()
+
+
+_OPTIONAL_COVERAGE_ATTRS = frozenset(
+    (
+        "clear_coverage_instance",
+        "owns_coverage_instance",
+        "stop_coverage",
+        "_is_pytest_cov_enabled",
+        "handle_coverage_report",
+    )
+)
+
+
+def _optional_coverage_attr(name: str) -> t.Any:
+    """Resolve an optional coverage-integration helper installed on this module.
+
+    Returns ``None`` when the integration is unavailable (a standalone
+    ``ddtrace_testing`` install without its optional dependencies).
+    """
+    try:
+        return getattr(sys.modules[__name__], name)
+    except AttributeError:
+        return None
+
+
+def __getattr__(name: str) -> t.Any:
+    # PEP 562: ddtrace's coverage integration pulls the tracer at import time,
+    # which this standalone package must not do eagerly. Lazy resolution on
+    # first attribute access keeps these names patchable module attributes,
+    # as in the pre-split plugin (tests patch them on this module).
+    if name in _OPTIONAL_COVERAGE_ATTRS:
+        try:
+            from ddtrace.contrib.internal.coverage import patch as _coverage_patch_mod
+            from ddtrace.contrib.internal.coverage import utils as _coverage_utils_mod
+        except ImportError:
+            raise AttributeError(name) from None
+        for _mod in (_coverage_patch_mod, _coverage_utils_mod):
+            try:
+                return getattr(_mod, name)
+            except AttributeError:
+                continue
+        raise AttributeError(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

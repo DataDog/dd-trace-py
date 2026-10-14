@@ -169,7 +169,7 @@ class XdistTestOptPlugin:
     @pytest.hookimpl(tryfirst=True, optionalhook=True)
     def pytest_handlecrashitem(self, crashitem: str, report: TestReport, sched: t.Any) -> None:
         """Let ATR retry a test whose worker exited before reporting its result."""
-        # AIDEV-NOTE: EFD and ATF depend on worker-owned applicability and final-status state. Enabling this hook when
+        # EFD and ATF depend on worker-owned applicability and final-status state. Enabling this hook when
         # either feature is active can select a different policy after the crash. ATR-only sessions are safe because
         # ATR applies uniformly and its last result is authoritative. Only consumed ATR counts and limits cross the
         # process boundary through the crash retry ledger; test identity and event lifecycle remain worker-owned.

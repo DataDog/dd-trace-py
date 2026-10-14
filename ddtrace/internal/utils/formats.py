@@ -147,3 +147,9 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
 def format_trace_id(trace_id: int) -> str:
     """Translate a trace ID to a string format supported by the backend."""
     return f"{trace_id:032x}" if trace_id > MAX_UINT_64BITS else str(trace_id)
+
+
+# flatten_key_value/is_sequence moved to the native extension as the canonical implementation;
+# keep the historical pure-Python import path working.
+from ddtrace.internal.native._native import flatten_key_value as flatten_key_value  # noqa: E402,F401
+from ddtrace.internal.native._native import is_sequence as is_sequence  # noqa: E402,F401

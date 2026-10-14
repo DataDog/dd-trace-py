@@ -62,6 +62,7 @@ def cleanup_loaded_modules() -> None:
             "atexit",
             "copyreg",  # pickling issues for tracebacks with gevent
             "ddtrace",
+            "ddtrace_base",  # the split-out base package; keeps the module watchdog singleton from being orphaned
             "concurrent",
             "importlib._bootstrap",  # special import that must not be unloaded
             "typing",
