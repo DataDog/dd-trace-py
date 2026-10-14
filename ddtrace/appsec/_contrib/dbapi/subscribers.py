@@ -34,6 +34,9 @@ class AppSecDbApiSubscriber(Subscriber):
             # read as UTF-8 when the connection encoding cannot be resolved.
             try:
                 encoding = event.get_encoding() if event.get_encoding else None
+                # PostgreSQL reports SQL_ASCII as ascii, but it leaves the application's byte encoding unspecified.
+                if encoding == "ascii":
+                    encoding = "utf-8"
                 query = str(event.query, encoding or "utf-8", "replace")
             except Exception:
                 query = str(event.query, "utf-8", "replace")

@@ -1,10 +1,10 @@
-from operator import attrgetter
-
 import pymysql
 import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.internal.pymysql.cursor import PyMySQLFetchTracedCursor
+from ddtrace.contrib.internal.pymysql.cursor import PyMySQLTracedCursor
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
@@ -24,7 +24,6 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("pymysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(env.get("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
-        _dbapi_query_encoding=attrgetter("connection.encoding"),
     ),
 )
 
@@ -65,4 +64,5 @@ def _connect(func, instance, args, kwargs):
 def patch_conn(conn):
     tags = {t: _convert_to_string(getattr(conn, a)) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     tags[db.SYSTEM] = "mysql"
-    return TracedConnection(conn, cfg=config.pymysql, db_tags=tags)
+    cursor_cls = PyMySQLFetchTracedCursor if config.pymysql.trace_fetch_methods else PyMySQLTracedCursor
+    return TracedConnection(conn, cfg=config.pymysql, cursor_cls=cursor_cls, db_tags=tags)

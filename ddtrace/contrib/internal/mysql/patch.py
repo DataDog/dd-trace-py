@@ -4,6 +4,10 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
+from ddtrace.contrib.internal.mysql.cursor import MySQLFetchTracedAsyncCursor
+from ddtrace.contrib.internal.mysql.cursor import MySQLFetchTracedCursor
+from ddtrace.contrib.internal.mysql.cursor import MySQLTracedAsyncCursor
+from ddtrace.contrib.internal.mysql.cursor import MySQLTracedCursor
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
@@ -16,12 +20,6 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
 
-def _query_encoding(cursor) -> str:
-    # Cursors only reference their connection privately, as _cnx in older C extension cursors.
-    connection = cursor._cnx if hasattr(cursor, "_cnx") else cursor._connection
-    return connection.python_charset
-
-
 config._add(
     "mysql",
     dict(
@@ -30,7 +28,6 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(env.get("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
-        _dbapi_query_encoding=_query_encoding,
     ),
 )
 
@@ -68,7 +65,8 @@ def patch_conn(conn, traced_conn_cls=TracedConnection):
     if database := _convert_to_string(getattr(conn, "database", None)):
         tags[db.NAME] = database
     tags[db.SYSTEM] = "mysql"
-    return traced_conn_cls(conn, cfg=config.mysql, db_tags=tags)
+    cursor_cls = MySQLFetchTracedCursor if config.mysql.trace_fetch_methods else MySQLTracedCursor
+    return traced_conn_cls(conn, cfg=config.mysql, cursor_cls=cursor_cls, db_tags=tags)
 
 
 def _connect(func, instance, args, kwargs):
@@ -87,7 +85,8 @@ async def _connect_async(func, instance, args, kwargs):
         database = None
 
     tags[db.SYSTEM] = "mysql"
-    return TracedAsyncConnection(conn, cfg=config.mysql, db_tags=tags)
+    cursor_cls = MySQLFetchTracedAsyncCursor if config.mysql.trace_fetch_methods else MySQLTracedAsyncCursor
+    return TracedAsyncConnection(conn, cfg=config.mysql, cursor_cls=cursor_cls, db_tags=tags)
 
 
 def patch():

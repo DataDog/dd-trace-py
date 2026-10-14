@@ -8,6 +8,7 @@ import pytest
 from ddtrace.contrib.internal.mysql.patch import patch
 from ddtrace.contrib.internal.mysql.patch import unpatch
 from tests.contrib import shared_tests
+from tests.contrib import shared_tests_async
 from tests.contrib.config import MYSQL_CONFIG
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
@@ -406,6 +407,28 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             conn.close()
 
         patch()
+
+    @pytest.mark.skipif(not _has_mysql_aio(), reason="mysql.connector.aio.connect is not available")
+    @TracerTestCase.run_in_subprocess()
+    def test_async_byte_query_uses_connection_encoding(self):
+        from mysql.connector.aio import connect
+
+        params = dict(MYSQL_CONFIG)
+        params.pop("db")
+
+        async def run_queries():
+            for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+                conn = await connect(**params, charset=charset)
+                try:
+                    cursor = await conn.cursor()
+                    try:
+                        await shared_tests_async._test_byte_query_event(cursor, codec, "mysql")
+                    finally:
+                        await cursor.close()
+                finally:
+                    await conn.close()
+
+        asyncio.run(run_queries())
 
     @pytest.mark.skipif(not _has_mysql_aio(), reason="mysql.connector.aio.connect is not available")
     @TracerTestCase.run_in_subprocess()

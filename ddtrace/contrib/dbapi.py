@@ -140,9 +140,8 @@ class TracedCursor(wrapt.ObjectProxy):
                 self._set_post_execute_tags(s)
 
     def _dbapi_query_encoding(self) -> Optional[str]:
-        """Return the Python codec of the connection encoding, used to decode byte queries for inspection."""
-        get_encoding = getattr(self._self_config, "_dbapi_query_encoding", None)
-        return get_encoding(self.__wrapped__) if get_encoding else None
+        """Return the connection's Python codec, or None when it is unknown."""
+        return None
 
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
