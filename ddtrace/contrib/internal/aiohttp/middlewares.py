@@ -5,21 +5,9 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
-from ddtrace.internal.utils.formats import asbool
 
-
-config._add(
-    "aiohttp",
-    dict(
-        distributed_tracing=True,
-        disable_stream_timing_for_mem_leak=asbool(
-            _get_config("DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK", default=False)
-        ),
-    ),
-)
 
 CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"

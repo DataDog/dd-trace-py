@@ -648,3 +648,24 @@ asyncio.run(main())
     else:
         out, err, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
+
+
+def test_config_set_before_trace_app_import(ddtrace_run_python_code_in_subprocess):
+    code = """
+import aiohttp
+
+from ddtrace import config
+
+assert config.aiohttp["disable_stream_timing_for_mem_leak"] is False
+config.aiohttp.http.trace_headers(["x-request-id"])
+config.aiohttp["disable_stream_timing_for_mem_leak"] = True
+
+from ddtrace.contrib.aiohttp import trace_app
+
+assert config.aiohttp.http.header_is_traced("x-request-id")
+assert config.aiohttp["disable_stream_timing_for_mem_leak"] is True
+"""
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
