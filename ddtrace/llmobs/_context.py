@@ -6,6 +6,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.native._native import Context
+from ddtrace.llmobs._routing import get_routing_context as get_routing_context  # noqa: F401
 
 
 ContextTypeValue = Optional[Union[Context, Span]]
