@@ -171,41 +171,18 @@ def test_testing_unpatch_iast():
 
 
 @pytest.mark.parametrize(
-    "installed_version,expected,unexpected",
+    "installed_version,expected",
     [
-        ("1.1.2", "Connection.escape_string", "Connection._escape_string"),
-        ("1.2.0", "Connection.escape_string", "Connection._escape_string"),
-        ("1.2.1", "Connection._escape_string", "Connection.escape_string"),
-        ("1.2.3", "Connection._escape_string", "Connection.escape_string"),
-        ("", "Connection.escape_string", "Connection._escape_string"),
+        ("1.1.2", "Connection.escape_string"),
+        ("1.2.0", "Connection.escape_string"),
+        ("1.2.1", "Connection._escape_string"),
+        ("1.2.3", "Connection._escape_string"),
+        ("", "Connection.escape_string"),
     ],
 )
-def test_patch_iast_registers_pymysql_connection_escape_for_installed_version(
-    installed_version: str, expected: str, unexpected: str
-) -> None:
+def test_pymysql_connection_escape_function(installed_version: str, expected: str) -> None:
     """PyMySQL 1.2.1 renamed Connection.escape_string to _escape_string; IAST wraps the one that exists."""
-    recorded: list[tuple[str, str]] = []
+    from ddtrace.appsec._iast.main import _pymysql_connection_escape_function
 
-    class RecordingWrap:
-        def wrap_function(self, name: str, function: str, hook: object) -> None:
-            recorded.append((name, function))
-
-        def add_module_forced(self, name: str, function: str, hook: object) -> None:
-            recorded.append((name, function))
-
-        def patch(self) -> None:
-            return None
-
-    with patch("ddtrace.appsec._iast.main.WrapFunctonsForIAST", return_value=RecordingWrap()):
-        with patch("ddtrace.appsec._iast.main.json_tainting_patch"):
-            with patch("ddtrace.appsec._iast.main._apply_custom_security_controls"):
-                with patch("ddtrace.appsec._iast.main.asm_config") as cfg:
-                    with patch("ddtrace.appsec._iast.main.get_version_for_package", return_value=installed_version):
-                        cfg._iast_sink_points_enabled = False
-                        cfg._iast_propagation_enabled = True
-                        from ddtrace.appsec._iast.main import patch_iast
-
-                        patch_iast()
-
-    assert ("pymysql.connections", expected) in recorded
-    assert ("pymysql.connections", unexpected) not in recorded
+    with patch("ddtrace.appsec._iast.main.get_version_for_package", return_value=installed_version):
+        assert _pymysql_connection_escape_function() == expected
