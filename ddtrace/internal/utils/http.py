@@ -24,6 +24,7 @@ from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import W3C_DD_LIST_MEMBER_MAX_CHARS
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
@@ -188,6 +189,9 @@ def connector(url: str, **kwargs: Any) -> Connector:
     return _connector_context
 
 
+_W3C_DD_LIST_MEMBER_RESERVED_LEN = len("dd=") + len(f"{W3C_TRACESTATE_PARENT_ID_KEY}:{0:016x};")
+
+
 def w3c_get_dd_list_member(context):
     # Context -> str
     tags = []
@@ -211,7 +215,7 @@ def w3c_get_dd_list_member(context):
     if usr_id:
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
-    current_tags_len = sum(len(i) for i in tags)
+    current_tags_len = _W3C_DD_LIST_MEMBER_RESERVED_LEN + len(";".join(tags))
     for k, v in _get_metas_to_propagate(context):
         if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, _USER_ID_KEY]:
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
@@ -221,11 +225,11 @@ def w3c_get_dd_list_member(context):
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY, "_", k)),
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", v)),
             )
-            # we need to keep the total length under 256 char
-            potential_current_tags_len = current_tags_len + len(next_tag)
-            if not potential_current_tags_len > 256:
+            # account for ; before next tag entry
+            next_tag_len = len(next_tag) + (1 if tags else 0)
+            if current_tags_len + next_tag_len <= W3C_DD_LIST_MEMBER_MAX_CHARS:
                 tags.append(next_tag)
-                current_tags_len += len(next_tag)
+                current_tags_len += next_tag_len
             else:
                 log.debug("tracestate would exceed 256 char limit with tag: %s. Tag will not be added.", next_tag)
 
