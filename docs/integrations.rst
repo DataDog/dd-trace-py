@@ -636,6 +636,13 @@ Trio
 .. automodule:: ddtrace.contrib.internal.trio
 
 
+.. _typesafe:
+
+TypeSafe
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.typesafe
+
+
 .. _unittest:
 
 unittest

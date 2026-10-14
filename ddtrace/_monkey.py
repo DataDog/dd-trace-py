@@ -60,6 +60,7 @@ PATCH_MODULES = {
     "mariadb": True,
     "mcp": True,
     "mistralai": True,
+    "typesafe": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,
@@ -181,6 +182,7 @@ _MODULES_FOR_CONTRIB = {
     ),
     "mistralai": ("mistralai.client",),
     "openai_agents": ("agents",),
+    "typesafe": ("typesafe_sdk",),
     "pytorch": ("torch",),
 }
 
