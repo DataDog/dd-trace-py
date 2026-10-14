@@ -39,6 +39,12 @@ def capture_otlp_metrics(protocol):
 
 
 @contextmanager
+def capture_otlp_traces():
+    with _capture_http_requests(4318) as requests:
+        yield requests
+
+
+@contextmanager
 def _capture_grpc_metrics():
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceResponse
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import MetricsServiceServicer
@@ -65,13 +71,23 @@ def _capture_grpc_metrics():
 def _capture_http_metrics():
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 
+    with _capture_http_requests(4317, ExportMetricsServiceRequest) as requests:
+        yield requests
+
+
+@contextmanager
+def _capture_http_requests(port, request_type=None):
     requests = []
 
-    class MetricsHandler(BaseHTTPRequestHandler):
+    class RequestHandler(BaseHTTPRequestHandler):
         def do_POST(self):
-            request = ExportMetricsServiceRequest()
-            request.ParseFromString(self.rfile.read(int(self.headers["Content-Length"])))
-            requests.append(request)
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            if request_type is None:
+                requests.append(body)
+            else:
+                request = request_type()
+                request.ParseFromString(body)
+                requests.append(request)
             self.send_response(200)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -79,7 +95,7 @@ def _capture_http_metrics():
         def log_message(self, format_string, *args):
             pass
 
-    server = HTTPServer(("127.0.0.1", 4317), MetricsHandler)
+    server = HTTPServer(("127.0.0.1", port), RequestHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

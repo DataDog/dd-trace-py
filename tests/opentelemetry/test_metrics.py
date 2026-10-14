@@ -150,6 +150,9 @@ def test_otel_metrics_disabled_and_unset():
     env={
         "DD_METRICS_OTEL_ENABLED": "true",
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4317",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:4318/v1/traces",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+        "OTEL_TRACES_EXPORTER": "otlp",
     },
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", "http/protobuf"]},
 )
@@ -161,14 +164,16 @@ def test_otel_metrics_export_does_not_generate_client_spans():
 
     from ddtrace.trace import tracer
     from tests.opentelemetry.utils import capture_otlp_metrics
+    from tests.opentelemetry.utils import capture_otlp_traces
     from tests.opentelemetry.utils import metric_names
-    from tests.utils import DummyWriter
 
-    tracer._span_aggregator.writer = DummyWriter()
-
-    with capture_otlp_metrics(os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]) as requests:
+    with (
+        capture_otlp_metrics(os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]) as metric_requests,
+        capture_otlp_traces() as trace_requests,
+    ):
         get_meter("test.metrics").create_counter("test.metric").add(1)
         assert get_meter_provider().force_flush()
+        tracer.flush()
 
-    assert "test.metric" in metric_names(requests)
-    assert tracer._span_aggregator.writer.pop() == []
+    assert "test.metric" in metric_names(metric_requests)
+    assert trace_requests == []
