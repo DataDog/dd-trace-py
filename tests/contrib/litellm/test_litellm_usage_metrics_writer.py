@@ -350,6 +350,18 @@ def test_a_grpc_otlp_endpoint_is_recognized(monkeypatch, variables, grpc):
     assert _usage_metrics_writer.otlp_endpoint_is_grpc() is grpc
 
 
+def test_the_global_endpoint_keeps_its_query(collector, monkeypatch):
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", raising=False)
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", f"http://127.0.0.1:{collector.server_address[1]}/custom/?tenant=a"
+    )
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    [(sent_path, _, _)] = Collector.requests
+    assert sent_path == "/custom/v1/metrics?tenant=a"
+
+
 @pytest.mark.parametrize("path", ["/custom?tenant=a%20b", ""])
 def test_the_metrics_endpoint_is_used_as_given(collector, monkeypatch, path):
     url = f"http://127.0.0.1:{collector.server_address[1]}{path}"
@@ -547,6 +559,19 @@ def test_dogstatsd_lines_too_long_to_send_are_dropped_alone(monkeypatch):
     # Longer than the socket takes, or than the Agent reads: dropped, while the other lines and the socket are kept.
     assert b"\n".join(sock.sent).split(b"\n") == [b"b" * 10, b"d" * 10]
     assert not sock.closed and sender._socket is sock
+
+
+def test_close_flushes_and_releases_the_socket(monkeypatch):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{sock.getsockname()[1]}")
+    receiver = Receiver(sock)
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    writer.start()
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.close()
+    assert receiver.stop()
+    assert writer._dogstatsd._socket is None
 
 
 def test_dogstatsd_without_a_listener_never_raises(monkeypatch):

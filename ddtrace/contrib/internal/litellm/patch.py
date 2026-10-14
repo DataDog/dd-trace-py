@@ -3,6 +3,7 @@ import sys
 import litellm
 
 from ddtrace import config
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.contrib.internal.litellm import _usage_metrics
 from ddtrace.contrib.internal.litellm import _usage_metrics_writer
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
@@ -332,6 +333,21 @@ def _flush_usage_metrics_on_exit_signal():
         writer.on_shutdown()
 
 
+class _ExitSignalFlush(SpanProcessor):
+    """Flushes the usage metrics when the tracer shuts down. Off the main thread no signal handler can be installed,
+    but the tracer's own exit-signal handler, installed when it started, shuts every span processor down.
+    """
+
+    def on_span_start(self, span):
+        pass
+
+    def on_span_finish(self, span):
+        pass
+
+    def shutdown(self, timeout):
+        _flush_usage_metrics_on_exit_signal()
+
+
 def _enable_usage_metrics():
     global _exit_signal_flush_installed
     if _usage_metrics_writer.ai_usage is None:
@@ -383,7 +399,9 @@ def _enable_usage_metrics():
     if not _exit_signal_flush_installed:
         # Termination through ddtrace's signal handlers re-raises the signal, which skips atexit. A handler installed
         # now runs before the native runtime's, which the OTLP export needs.
-        _exit_signal_flush_installed = atexit.register_on_exit_signal(_flush_usage_metrics_on_exit_signal) is not None
+        if atexit.register_on_exit_signal(_flush_usage_metrics_on_exit_signal) is None:
+            _ExitSignalFlush().register()
+        _exit_signal_flush_installed = True
     forksafe.register(logger.reset)
     litellm._datadog_usage_metrics_writer = writer
     litellm._datadog_usage_metrics_logger = logger
@@ -404,9 +422,7 @@ def _disable_usage_metrics():
     _unwrap_stream_methods()
     atexit.unregister(writer.on_shutdown)
     forksafe.unregister(logger.reset)
-    writer.stop()
-    # The same bounded last flush as at exit.
-    writer.on_shutdown()
+    writer.close()
     del litellm._datadog_usage_metrics_logger
     del litellm._datadog_usage_metrics_writer
 

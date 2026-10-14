@@ -3,6 +3,7 @@ import datetime
 import importlib
 import json
 import os
+import threading
 
 import litellm
 import pytest
@@ -1154,3 +1155,39 @@ def test_a_writer_that_cannot_start_leaves_the_integration_patched(enabled, monk
     assert getattr(litellm, "_datadog_patch", False)
     assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None
     assert not any(isinstance(callback, UsageMetricsLogger) for callback in litellm.callbacks)
+
+
+def test_an_evicted_request_is_not_started_again(logger, writer, monkeypatch):
+    # Beyond the bounds the oldest request is forgotten with its attempts; its late hooks record nothing rather than a
+    # request without them.
+    monkeypatch.setattr(_usage_metrics, "_MAX_REQUESTS", 1)
+    first = Proxy(logger, call_id="call-1")
+    first.start()
+    first.attempt(0)
+    second = Proxy(logger, call_id="call-2")
+    second.start()
+    kwargs = first.kwargs(CHAT_USAGE, 5.7e-6)
+    kwargs["litellm_params"]["proxy_server_request"] = {"url": "http://proxy/chat/completions"}
+    run(logger.async_log_success_event(kwargs, None, T0, at(0.5)))
+    first.failed(Exception(), litellm_logging_obj=logging_object(0.6))
+    assert writer.of(GATEWAY_REQUEST) == [] and writer.of(PROVIDER_ATTEMPT) == []
+    second.attempt(0.1)
+    second.succeeded(0.6)
+    assert len(writer.of(GATEWAY_REQUEST)) == 1
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_patching_off_the_main_thread_flushes_on_tracer_shutdown(enabled, monkeypatch):
+    # Off the main thread no signal handler can be installed; the tracer's exit-signal handler shuts span processors
+    # down.
+    monkeypatch.setattr(litellm_patch, "_exit_signal_flush_installed", False)
+    registered = []
+    monkeypatch.setattr(litellm_patch._ExitSignalFlush, "register", lambda self: registered.append(self))
+    thread = threading.Thread(target=patch)
+    thread.start()
+    thread.join()
+    [processor] = registered
+    flushed = []
+    monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda: flushed.append(True))
+    processor.shutdown(None)
+    assert flushed == [True]

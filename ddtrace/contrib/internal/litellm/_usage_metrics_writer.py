@@ -97,8 +97,13 @@ def _retry_after(value: Optional[str]) -> Optional[float]:
 class _OtlpSender:
     def __init__(self) -> None:
         # OTEL_EXPORTER_OTLP_METRICS_ENDPOINT is used exactly as given, path and query included; otherwise
-        # this is OTEL_EXPORTER_OTLP_ENDPOINT + /v1/metrics, the agentless intake, or the local Agent.
+        # this is OTEL_EXPORTER_OTLP_ENDPOINT with /v1/metrics appended to its path (its query kept), the agentless
+        # intake, or the local Agent.
         endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
+        base = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+        if base and not env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
+            parts = parse.urlsplit(base)
+            endpoint = parse.urlunsplit(parts._replace(path=parts.path.rstrip("/") + "/v1/metrics"))
         url = parse.urlsplit(endpoint)
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = endpoint
@@ -306,6 +311,15 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         # The process is exiting: stop retrying, then try each pending export once, within a bounded time.
         self._stopping.set()
         self.flush(retry=False)
+
+    def close(self) -> None:
+        """Stop the worker, flush what is left as at exit, and release the exporter's socket."""
+        self.stop()
+        # The worker flushes once more as it stops.
+        self.join(_SHUTDOWN_SECONDS)
+        self.on_shutdown()
+        if self._dogstatsd is not None:
+            self._dogstatsd.close()
 
     def reset(self) -> None:
         # In a forked child, drop the parent's points and pending exports (the parent exports them), and the

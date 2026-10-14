@@ -513,8 +513,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         self._client_source = client_source
         self._resource = resource
         self._requests: OrderedDict[str, _Request] = OrderedDict()
-        # When each request recorded lately was forgotten, so that a late failure hook does not record it again.
-        self._recorded: OrderedDict[str, float] = OrderedDict()
+        # When each request recorded or evicted lately was forgotten, so that a late hook does not start it again.
+        self._forgotten: OrderedDict[str, float] = OrderedDict()
         # LiteLLM's worker threads take this lock too; a fork while one holds it must not leave the child locked.
         self._lock = forksafe.Lock()
 
@@ -522,7 +522,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         """Forget the requests in flight: in a forked child, they belong to the parent."""
         with self._lock:
             self._requests.clear()
-            self._recorded.clear()
+            self._forgotten.clear()
 
     # Request tracking
 
@@ -537,24 +537,34 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             return request
 
     def _evict(self) -> None:
-        cutoff = time.monotonic() - _REQUEST_TTL_SECONDS
+        """Forget the oldest requests beyond the bounds. Called with the lock held."""
+        now = time.monotonic()
         while self._requests:
             call_id, oldest = next(iter(self._requests.items()))
-            if len(self._requests) < _MAX_REQUESTS and oldest.created >= cutoff:
+            if len(self._requests) < _MAX_REQUESTS and oldest.created >= now - _REQUEST_TTL_SECONDS:
                 break
             del self._requests[call_id]
+            # Its attempts are lost: a late hook must not start it again as a request without them.
+            self._remember_forgotten(call_id, now)
+
+    def _remember_forgotten(self, call_id: str, now: float) -> None:
+        """Called with the lock held."""
+        self._forgotten[call_id] = now
+        while self._forgotten:
+            oldest = next(iter(self._forgotten.values()))
+            if len(self._forgotten) <= _MAX_REQUESTS and oldest >= now - _REQUEST_TTL_SECONDS:
+                break
+            self._forgotten.popitem(last=False)
+
+    def _was_forgotten(self, call_id: str) -> bool:
+        with self._lock:
+            return call_id in self._forgotten
 
     def _forget_if_done(self, call_id: str, request: _Request) -> None:
         if request.ended and all(attempt.closed for attempt in request.attempts):
-            now = time.monotonic()
             with self._lock:
                 self._requests.pop(call_id, None)
-                self._recorded[call_id] = now
-                while self._recorded:
-                    oldest = next(iter(self._recorded.values()))
-                    if len(self._recorded) <= _MAX_REQUESTS and oldest >= now - _REQUEST_TTL_SECONDS:
-                        break
-                    self._recorded.popitem(last=False)
+                self._remember_forgotten(call_id, time.monotonic())
 
     @staticmethod
     def _open_attempt(request: _Request, kwargs: dict[str, Any]) -> Optional[_Attempt]:
@@ -783,7 +793,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         """
         call_id = kwargs.get("litellm_call_id")
         request = self._request(call_id, create=False)
-        if request is not None or not isinstance(call_id, str):
+        if request is not None or not isinstance(call_id, str) or self._was_forgotten(call_id):
             return request
         if not (kwargs.get("litellm_params") or {}).get("proxy_server_request"):
             return None
@@ -806,9 +816,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         request = self._request(call_id, create=False)
         if request is not None or not isinstance(call_id, str):
             return request
-        with self._lock:
-            if call_id in self._recorded:
-                return None
+        if self._was_forgotten(call_id):
+            return None
         logging_obj = request_data.get("litellm_logging_obj")
         started = getattr(logging_obj, "start_time", None)
         operation = operation_name(getattr(logging_obj, "call_type", None))
