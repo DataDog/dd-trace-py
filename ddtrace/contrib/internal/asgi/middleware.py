@@ -259,6 +259,10 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        # Before activating distributed headers, as WSGI does: a MicroVM /run refresh detaches
+        # the active context, which would otherwise be the one just extracted from this request.
+        if scope["type"] == "http" and not is_subapp:
+            trace_utils.dispatch_asgi_web_request_starting(scope)
         try:
             headers = extract_headers(scope)
         except Exception:
@@ -275,8 +279,6 @@ class TraceMiddleware:
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
-            if not is_subapp:
-                trace_utils.dispatch_asgi_web_request_starting(scope)
 
         with (
             core.context_with_data(

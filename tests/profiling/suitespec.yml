@@ -30,6 +30,9 @@ suites:
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # The suite has more environments than jobs, so some jobs build two.
+        UV_NO_CACHE: '1'
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
