@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: The root LLMObs span now includes ``http.client_ip`` and
+    ``network.client.ip`` tags when AppSec or ``DD_TRACE_CLIENT_IP_ENABLED`` is active
+    and the web framework instruments the request. No additional LLMObs configuration
+    is required.
