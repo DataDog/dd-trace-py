@@ -40,10 +40,13 @@ class Collector(http.server.BaseHTTPRequestHandler):
     # Statuses for the next requests, before ``status`` applies again.
     statuses = []
     retry_after = None
+    # Seconds the collector waits before it answers.
+    delay = 0
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         Collector.requests.append((self.path, {k.lower(): v for k, v in self.headers.items()}, body))
+        time.sleep(Collector.delay)
         status = Collector.statuses.pop(0) if Collector.statuses else Collector.status
         self.send_response(status)
         if Collector.retry_after is not None and status >= 400:
@@ -60,6 +63,7 @@ def collector():
     Collector.status = 200
     Collector.statuses = []
     Collector.retry_after = None
+    Collector.delay = 0
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Collector)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -193,6 +197,18 @@ def test_a_rejected_export_is_not_retried(otlp_endpoint, sleeps):
     assert sleeps == []
 
 
+def test_a_redirect_is_not_taken_for_delivery(otlp_endpoint, monkeypatch, sleeps):
+    # The native client does not follow redirects: a 3xx response is not the collector accepting the export.
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    Collector.status = 307
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert len(Collector.requests) == 1 and not writer._pending
+    assert [args[2] for args in warnings] == [307]
+
+
 def test_retry_after_is_honored_up_to_a_bound(otlp_endpoint, sleeps):
     writer = UsageMetricsWriter("otlp", interval=60)
     Collector.statuses, Collector.retry_after = [503], "0.25"
@@ -262,6 +278,65 @@ def test_shutdown_time_is_bounded(otlp_endpoint, monkeypatch, sleeps):
     # Out of time: what is left is dropped, not sent.
     assert len(Collector.requests) == sent
     assert not writer._pending
+
+
+def test_shutdown_time_is_bounded_behind_a_collector_that_does_not_answer(otlp_endpoint, monkeypatch):
+    monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0.5)
+    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    Collector.delay = 3
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    started = time.monotonic()
+    writer.on_shutdown()
+    # The request at exit gets what is left of the shutdown time, not the export timeout.
+    assert time.monotonic() - started < 2
+    # Nor does the last flush wait out a periodic flush whose request the collector does not answer.
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    flushing = threading.Thread(target=writer.flush, daemon=True)
+    flushing.start()
+    while len(Collector.requests) < 2:
+        time.sleep(0.01)
+    started = time.monotonic()
+    writer.on_shutdown()
+    assert time.monotonic() - started < 2
+
+
+@pytest.mark.parametrize(
+    "variables, grpc",
+    [
+        ({"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317", "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"}, True),
+        ({"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317", "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "GRPC"}, True),
+        ({"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318"}, False),
+        (
+            {
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+                "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+                "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "http/protobuf",
+            },
+            False,
+        ),
+        (
+            {
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+                "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+                "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://collector:4318/v1/metrics",
+            },
+            False,
+        ),
+        ({"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"}, False),
+    ],
+)
+def test_a_grpc_otlp_endpoint_is_recognized(monkeypatch, variables, grpc):
+    for name in (
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_PROTOCOL",
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in variables.items():
+        monkeypatch.setenv(name, value)
+    assert _usage_metrics_writer.otlp_endpoint_is_grpc() is grpc
 
 
 @pytest.mark.parametrize("path", ["/custom?tenant=a%20b", ""])
@@ -372,6 +447,47 @@ def test_dogstatsd_over_udp_splits_packets(monkeypatch):
     assert len([line for line in lines if line.startswith("gen_ai.client.inference.duration:1.5|d|#")]) == 50
     assert all("trajectory.profile:gen_ai.client.provider_attempt/0.1.0" in line for line in lines)
     assert all("user.id:user-" in line for line in lines)
+
+
+def test_dogstatsd_host_that_resolves_to_ipv6_only(monkeypatch):
+    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    try:
+        sock.bind(("::1", 0))
+    except OSError:
+        sock.close()
+        pytest.skip("IPv6 loopback is not available")
+    resolve = socket.getaddrinfo
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, *args, **kwargs: resolve("::1" if host == "dogstatsd.test" else host, *args, **kwargs),
+    )
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://dogstatsd.test:{sock.getsockname()[1]}")
+    receiver = Receiver(sock)
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert receiver.stop()
+
+
+def test_dogstatsd_prefers_ipv4_when_a_host_resolves_to_both(monkeypatch):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, *args, **kwargs: [
+            (socket.AF_INET6, socket.SOCK_DGRAM, 17, "", ("::1", port, 0, 0)),
+            (socket.AF_INET, socket.SOCK_DGRAM, 17, "", ("127.0.0.1", port)),
+        ],
+    )
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://dogstatsd.test:{port}")
+    receiver = Receiver(sock)
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert receiver.stop()
 
 
 @pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="Unix sockets are not available")

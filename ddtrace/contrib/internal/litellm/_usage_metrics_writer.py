@@ -23,6 +23,7 @@ from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -63,6 +64,16 @@ def _wait(stopping: Any, seconds: float) -> bool:
     return bool(stopping.wait(seconds))
 
 
+def otlp_endpoint_is_grpc() -> bool:
+    """Whether the OTLP endpoint is OTEL_EXPORTER_OTLP_ENDPOINT configured for gRPC. The usage metrics are sent
+    over OTLP/HTTP only, which a gRPC endpoint does not accept.
+    """
+    if env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or not env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        return False
+    protocol = env.get("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL") or env.get("OTEL_EXPORTER_OTLP_PROTOCOL") or ""
+    return protocol.strip().lower() == "grpc"
+
+
 def _parse_headers(raw: str) -> list[tuple[str, str]]:
     headers = []
     for item in (raw or "").split(","):
@@ -95,8 +106,9 @@ class _OtlpSender:
             treat_http_errors_as_errors=False,
         )
 
-    def send(self, payload: bytes, stopping: Any, retry: bool = True) -> bool:
-        """Send one export, retrying a retryable failure after a short backoff, unless stopping is set.
+    def send(self, payload: bytes, stopping: Any, retry: bool = True, deadline: Optional[float] = None) -> bool:
+        """Send one export, retrying a retryable failure after a short backoff, unless stopping is set. A request
+        does not outlast deadline, a time.monotonic() value.
 
         Return False when the export still failed in a way worth trying again at the next flush: a retryable
         status, a refused connection, a timeout, or a broken response. Any other failure drops it.
@@ -105,15 +117,22 @@ class _OtlpSender:
         failure = ""
         for attempt in range(len(delays) + 1):
             requested: Optional[float] = None
+            timeout_ms = None
+            if deadline is not None:
+                remaining_ms = int((deadline - time.monotonic()) * 1000)
+                timeout_ms = max(min(remaining_ms, otel_config.exporter.METRICS_TIMEOUT), 1)
             try:
                 response = self._client.post(
-                    self.path, headers=[("Content-Type", "application/x-protobuf")], body=payload
+                    self.path,
+                    headers=[("Content-Type", "application/x-protobuf")],
+                    body=payload,
+                    timeout_ms=timeout_ms,
                 )
             except (ConnectionFailedError, TimedOutError, HttpIoError) as e:
                 failure = type(e).__name__
             else:
                 status = response.status_code
-                if status < 400:
+                if 200 <= status < 300:
                     return True
                 if status not in _RETRYABLE_STATUSES:
                     log.warning("LiteLLM usage metrics: OTLP export to %s failed with status %s", self.endpoint, status)
@@ -139,12 +158,14 @@ class _DogStatsdSender:
             url = "udp://" + url
         parsed = parse.urlparse(url)
         self._address: Any
+        self._family: Optional[socket.AddressFamily]
         if parsed.scheme == "unix":
             self._family = socket.AF_UNIX
             self._address = parsed.path
             self._max_packet = _UDS_MAX_PACKET
         elif parsed.scheme == "udp":
-            self._family = socket.AF_INET6 if parsed.hostname and ":" in parsed.hostname else socket.AF_INET
+            # The family is the one of the address the host resolves to when connecting.
+            self._family = None
             self._address = (parsed.hostname or "localhost", parsed.port or 8125)
             self._max_packet = _UDP_MAX_PACKET
         else:
@@ -153,12 +174,31 @@ class _DogStatsdSender:
 
     def _connect(self) -> socket.socket:
         if self._socket is None:
-            sock = socket.socket(self._family, socket.SOCK_DGRAM)
-            # A full Unix socket buffer blocks a send briefly instead of dropping it; the flush runs on the
-            # writer's own thread.
-            sock.settimeout(_SEND_TIMEOUT_SECONDS)
-            sock.connect(self._address)
-            self._socket = sock
+            if self._family is not None:
+                candidates = [(self._family, self._address)]
+            else:
+                # IPv4 first, as the DogStatsD client does, so that an Agent listening on IPv4 only keeps working on a
+                # host that resolves to both; a host that resolves to IPv6 only gets IPv6.
+                host, port = self._address
+                addresses = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
+                addresses.sort(key=lambda address: address[0] != socket.AF_INET)
+                candidates = [(family, address) for family, _, _, _, address in addresses]
+            for index, (family, address) in enumerate(candidates):
+                sock = socket.socket(family, socket.SOCK_DGRAM)
+                try:
+                    # A full Unix socket buffer blocks a send briefly instead of dropping it; the flush runs on the
+                    # writer's own thread.
+                    sock.settimeout(_SEND_TIMEOUT_SECONDS)
+                    sock.connect(address)
+                except OSError:
+                    sock.close()
+                    if index + 1 == len(candidates):
+                        raise
+                    continue
+                self._socket = sock
+                break
+            else:
+                raise OSError(f"{self._address[0]} resolves to no address")
         return self._socket
 
     def send(self, lines: list[str]) -> None:
@@ -264,36 +304,41 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             self._dogstatsd.close()
 
     def flush(self, retry: bool = True) -> None:
-        with self._flush_lock:
+        # At exit (retry False), the whole flush has the shutdown time, waiting for one in progress included.
+        deadline = None if retry else time.monotonic() + _SHUTDOWN_SECONDS
+        if not self._flush_lock.acquire(timeout=-1 if deadline is None else _SHUTDOWN_SECONDS):
+            log.debug("LiteLLM usage metrics: a flush in progress outlasted the shutdown time")
+            return
+        try:
             end_ns = time.time_ns()
             start_ns, self._window_start_ns = self._window_start_ns, end_ns
-            try:
-                if self._otlp is not None:
-                    payload = self._usage.take_otlp(SCOPE_NAME, __version__, start_ns, end_ns)
-                    if payload:
-                        if len(self._pending) == self._pending.maxlen:
-                            log.debug("LiteLLM usage metrics: dropping the oldest unsent OTLP export")
-                        self._pending.append(payload)
-                    self._send_pending(self._otlp, retry)
-                elif self._dogstatsd is not None:
-                    lines = self._usage.take_dogstatsd()
-                    if lines:
-                        self._dogstatsd.send(lines)
-            except Exception:
-                log.debug("LiteLLM usage metrics: export failed", exc_info=True)
+            if self._otlp is not None:
+                payload = self._usage.take_otlp(SCOPE_NAME, __version__, start_ns, end_ns)
+                if payload:
+                    if len(self._pending) == self._pending.maxlen:
+                        log.debug("LiteLLM usage metrics: dropping the oldest unsent OTLP export")
+                    self._pending.append(payload)
+                self._send_pending(self._otlp, deadline)
+            elif self._dogstatsd is not None:
+                lines = self._usage.take_dogstatsd()
+                if lines:
+                    self._dogstatsd.send(lines)
+        except Exception:
+            log.debug("LiteLLM usage metrics: export failed", exc_info=True)
+        finally:
+            self._flush_lock.release()
 
-    def _send_pending(self, sender: _OtlpSender, retry: bool) -> None:
+    def _send_pending(self, sender: _OtlpSender, deadline: Optional[float]) -> None:
         """Send the pending exports in order. Normally stop at the first that has to wait for a later flush; at
-        exit (retry False), try each once, as long as the shutdown time allows, since none can wait.
+        exit (with a deadline), try each once, as long as the shutdown time allows, since none can wait.
         """
-        deadline = None if retry else time.monotonic() + _SHUTDOWN_SECONDS
         while self._pending:
             if deadline is not None and time.monotonic() >= deadline:
                 log.debug("LiteLLM usage metrics: dropping %d unsent OTLP exports at exit", len(self._pending))
                 self._pending.clear()
                 return
             try:
-                done = sender.send(self._pending[0], self._stopping, retry=retry)
+                done = sender.send(self._pending[0], self._stopping, retry=deadline is None, deadline=deadline)
             except Exception:
                 # A failure that a retry would not fix, such as an invalid endpoint: drop the export.
                 log.debug("LiteLLM usage metrics: OTLP export failed", exc_info=True)

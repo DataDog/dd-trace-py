@@ -187,8 +187,8 @@ def _field(obj, name):
     return obj.get(name) if isinstance(obj, dict) else getattr(obj, name, None)
 
 
-def _positive(value):
-    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+def _count(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def traced_chunk_creator(func, instance, args, kwargs):
@@ -202,7 +202,11 @@ def traced_chunk_creator(func, instance, args, kwargs):
         try:
             chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
             usage = _field(chunk, "usage")
-            output_reported = _positive(_field(usage, "completion_tokens"))
+            prompt, completion = _field(usage, "prompt_tokens"), _field(usage, "completion_tokens")
+            # A usage of zeros is LiteLLM's placeholder for none; a zero next to a positive count is the provider's.
+            real = (_count(prompt) and prompt > 0) or (_count(completion) and completion > 0)
+            input_reported = real and _count(prompt)
+            output_reported = real and _count(completion)
             if output_reported and getattr(instance, "custom_llm_provider", None) == "anthropic":
                 choices = _field(chunk, "choices") or [None]
                 output_reported = bool(_field(choices[0], "finish_reason"))
@@ -210,7 +214,7 @@ def traced_chunk_creator(func, instance, args, kwargs):
             model = _field(chunk, "model")
             logger.observe_stream(
                 getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None),
-                _positive(_field(usage, "prompt_tokens")),
+                input_reported,
                 output_reported,
                 model if isinstance(model, str) else None,
                 isinstance(reasoning, int),
@@ -325,6 +329,12 @@ def _enable_usage_metrics():
     if exporter not in ("otlp", "dogstatsd"):
         log.warning("Unknown DD_LITELLM_USAGE_METRICS_EXPORTER %r, using otlp", exporter)
         exporter = "otlp"
+    if exporter == "otlp" and _usage_metrics_writer.otlp_endpoint_is_grpc():
+        log.warning(
+            "LiteLLM usage metrics are not enabled: they are sent over OTLP/HTTP, and OTEL_EXPORTER_OTLP_ENDPOINT "
+            "is configured for gRPC. Set OTEL_EXPORTER_OTLP_METRICS_ENDPOINT to an OTLP/HTTP metrics endpoint."
+        )
+        return
     tags = frozenset(tag.strip().lower() for tag in (config.litellm.usage_metrics_tags or "").split(",") if tag.strip())
     unknown = tags - _usage_metrics.OPT_IN_TAGS
     if unknown:

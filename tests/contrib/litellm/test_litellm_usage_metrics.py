@@ -799,6 +799,25 @@ def test_openai_chat_stream_usage_chunk(installed, writer):
     assert attempt["response_model"] == "gpt-4o-mini-2024-07-18"
 
 
+@pytest.mark.parametrize(
+    "usage_chunk, usage, source",
+    [
+        # A provider's zero next to a positive count is a count, such as the output of a filtered completion.
+        (chunk(12, 0), {"prompt_tokens": 12, "completion_tokens": 0}, None),
+        # A usage of zeros is LiteLLM's placeholder for none.
+        (chunk(0, 0), CHAT_USAGE, "estimated"),
+    ],
+)
+def test_chat_stream_zero_counts(installed, writer, usage_chunk, usage, source):
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    feed(StreamWrapper("openai"), chunk(model="gpt-4o-mini-2024-07-18"), usage_chunk)
+    proxy.succeeded(0.5, usage=usage, first_chunk=0.1)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert (attempt.get("input_token_source"), attempt.get("output_token_source")) == (source, source)
+
+
 def test_responses_stream_usage_reads_the_raw_events():
     created = 'data: {"type": "response.created", "response": {"model": "gpt-4o-mini-2024-07-18"}}'
     completed = json.dumps(
@@ -1045,3 +1064,44 @@ def test_a_fork_does_not_inherit_the_logger_lock_or_requests():
     thread.join()
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
     assert list(logger._requests) == ["parent-call"]
+
+
+def logging_object(seconds_ago, call_type="acompletion"):
+    """The LiteLLM logging object the proxy creates for a request, and keeps in its request data."""
+    started = datetime.datetime.now() - datetime.timedelta(seconds=seconds_ago)
+    return type("Logging", (), {"start_time": started, "call_type": call_type})()
+
+
+def test_a_request_that_failed_before_the_logger_saw_it(logger, writer):
+    # Rejected by an earlier pre-call hook, or, on a LiteLLM 1.6x proxy, failed before its first provider call.
+    request_data = {"litellm_call_id": "call-9", "model": "gpt", "litellm_logging_obj": logging_object(0.4)}
+    run(logger.async_post_call_failure_hook(request_data, Exception(), UserAPIKeyAuth()))
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["provider_operations"] == 0 and request["error_type"]
+    assert request["duration_seconds"] == pytest.approx(0.4, abs=0.3)
+    assert request["request_model"] == "gpt"
+    # Without LiteLLM's logging object, when the request started is unknown, so it is not recorded.
+    run(logger.async_post_call_failure_hook({"litellm_call_id": "call-10"}, Exception(), UserAPIKeyAuth()))
+    assert len(writer.of(GATEWAY_REQUEST)) == 1
+
+
+def test_a_failure_after_the_request_was_recorded_is_not_recorded_again(logger, writer):
+    # A post-call guardrail can reject a response whose success LiteLLM already logged.
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0)
+    proxy.succeeded(0.5)
+    proxy.failed(Exception(), litellm_logging_obj=logging_object(0.6))
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert "error_type" not in request
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_a_grpc_otlp_endpoint_is_refused(enabled, monkeypatch):
+    monkeypatch.setitem(config.litellm, "usage_metrics_exporter", "otlp")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", raising=False)
+    patch()
+    assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None

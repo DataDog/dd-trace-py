@@ -509,6 +509,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         self._client_source = client_source
         self._resource = resource
         self._requests: OrderedDict[str, _Request] = OrderedDict()
+        # When each request recorded lately was forgotten, so that a late failure hook does not record it again.
+        self._recorded: OrderedDict[str, float] = OrderedDict()
         # LiteLLM's worker threads take this lock too; a fork while one holds it must not leave the child locked.
         self._lock = forksafe.Lock()
 
@@ -516,6 +518,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         """Forget the requests in flight: in a forked child, they belong to the parent."""
         with self._lock:
             self._requests.clear()
+            self._recorded.clear()
 
     # Request tracking
 
@@ -539,8 +542,15 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
 
     def _forget_if_done(self, call_id: str, request: _Request) -> None:
         if request.ended and all(attempt.closed for attempt in request.attempts):
+            now = time.monotonic()
             with self._lock:
                 self._requests.pop(call_id, None)
+                self._recorded[call_id] = now
+                while self._recorded:
+                    oldest = next(iter(self._recorded.values()))
+                    if len(self._recorded) <= _MAX_REQUESTS and oldest >= now - _REQUEST_TTL_SECONDS:
+                        break
+                    self._recorded.popitem(last=False)
 
     @staticmethod
     def _open_attempt(request: _Request, kwargs: dict[str, Any]) -> Optional[_Attempt]:
@@ -752,11 +762,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 request.operation = operation_name(call_type)
                 route = data.get("model")
                 request.route = route if isinstance(route, str) else None
-                request.identity = {
-                    "user_api_key_user_id": getattr(user_api_key_dict, "user_id", None),
-                    "user_api_key_team_id": getattr(user_api_key_dict, "team_id", None),
-                    "user_api_key_alias": getattr(user_api_key_dict, "key_alias", None),
-                }
+                request.identity = _key_identity(user_api_key_dict)
         except Exception:
             log.debug("LiteLLM usage metrics: async_pre_call_hook failed", exc_info=True)
         return None
@@ -785,6 +791,33 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             route = metadata.get("original_model_group") or metadata.get("model_group")
             request.route = route if isinstance(route, str) else None
             request.identity = {key: metadata.get(key) for key in _IDENTITY_KEYS}
+        return request
+
+    def _failed_request(self, request_data: dict[str, Any], user_api_key_dict: Any) -> Optional[_Request]:
+        """The request a terminal failure ends. One that failed before this logger saw it (rejected by an earlier
+        pre-call hook, or, on proxies that assign the call id after async_pre_call_hook, before its first provider
+        call) starts when LiteLLM's logging object for it did.
+        """
+        call_id = request_data.get("litellm_call_id")
+        request = self._request(call_id, create=False)
+        if request is not None or not isinstance(call_id, str):
+            return request
+        with self._lock:
+            if call_id in self._recorded:
+                return None
+        logging_obj = request_data.get("litellm_logging_obj")
+        started = getattr(logging_obj, "start_time", None)
+        operation = operation_name(getattr(logging_obj, "call_type", None))
+        if not isinstance(started, datetime.datetime) or operation is None:
+            return None
+        request = self._request(call_id)
+        if request is not None and request.start is None:
+            elapsed = (datetime.datetime.now(started.tzinfo) - started).total_seconds()
+            request.start = time.monotonic() - max(elapsed, 0.0)
+            request.operation = operation
+            route = request_data.get("model")
+            request.route = route if isinstance(route, str) else None
+            request.identity = _key_identity(user_api_key_dict)
         return request
 
     def log_pre_api_call(self, model: Any, messages: Any, kwargs: Any) -> None:
@@ -863,7 +896,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
     ) -> Any:
         try:
             call_id = request_data.get("litellm_call_id")
-            request = self._request(call_id, create=False)
+            request = self._failed_request(request_data, user_api_key_dict)
             if request is not None:
                 error = error_type(original_exception) or "error"
                 # The last attempt, if no other hook closed it, is the one this failure ends: a stream that broke
@@ -882,6 +915,14 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         except Exception:
             log.debug("LiteLLM usage metrics: async_post_call_failure_hook failed", exc_info=True)
         return None
+
+
+def _key_identity(user_api_key_dict: Any) -> dict[str, Any]:
+    return {
+        "user_api_key_user_id": getattr(user_api_key_dict, "user_id", None),
+        "user_api_key_team_id": getattr(user_api_key_dict, "team_id", None),
+        "user_api_key_alias": getattr(user_api_key_dict, "key_alias", None),
+    }
 
 
 def _mark_current_span(profiles: str) -> None:
