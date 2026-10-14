@@ -20,7 +20,7 @@ import_roots = ["ddtrace"]
 owner = "@DataDog/apm-core-python"
 # Source paths are relative to this file.
 source_paths = ["ddtrace"]
-destination_repository = "datadog-apm-python"
+destination_repository = "https://github.com/DataDog/datadog-apm-python"
 
 [dependencies]
 # Names only; version ranges live in [compatibility].dependency_ranges and

@@ -34,6 +34,36 @@ coexist with one instrumentation activation; existing ddtrace behavior stays
 intact throughout. Extraction is *not* moving files: a package is independent
 only when release rehearsals pass.
 
+## Destination repository and layer rule (established facts)
+
+Destination: **https://github.com/DataDog/datadog-apm-python/** (private to
+Datadog) — a uv-workspace monorepo; packages live under `packages/<name>/`
+(src layout, per-package pyproject/README/riotfile/tests, shared
+ruff/pyright/deptry pins at the root). It already hosts the slim seed
+package `packages/ddtrace-internal` (published `ddtrace-internal==0.1.0`,
+a dd-trace-py runtime dependency, provides only `_ddtrace_internal`, the
+import-time module registry). Working rule of thumb for the destination
+layers (final names still pending plan review):
+
+- `ddtrace_internal_base` — all pure-Python code that depends on nothing but
+  the standard library (native-free, stdlib-only: the strictest `boundaries`
+  gate target);
+- `ddtrace_internal_native` — the compiled code required for
+  `ddtrace_internal` (native-required);
+- `ddtrace_internal` — all current `ddtrace.internal` code, using the two
+  above as dependencies (native stays behind optional adapters).
+
+The graph is acyclic: `ddtrace_internal` depends on `base` and `native`;
+nothing depends on `ddtrace_internal`. A pilot like
+`ddtrace.internal.codeowners` (stdlib-only, 0 outgoing internal edges)
+lands in `ddtrace_internal_base`. When creating packages there: register
+new import roots in `.importlinter` `root_packages` (`scripts/validate_packages.py`
+enforces it), respect the per-package lint/type contract, and use
+`scripts/api_semver_check.py` + `release/<package>:<level>` labels for API
+versioning. Seed the harness into that repository (thin
+`scripts/package-split` wrapper over the same versioned harness) as part
+of the first extraction's safety-net phase.
+
 ## Non-negotiable outcomes (stop and ask if you cannot meet one)
 
 1. New package imports are **inert**: no threads, network, process creation,
