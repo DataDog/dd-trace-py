@@ -8,8 +8,6 @@ from typing import cast
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
-
-# Cursor modules do not import database drivers, so Django can load them for any backend.
 from ddtrace.contrib.internal.mysql.cursor import MySQLTracedCursor
 from ddtrace.contrib.internal.mysqldb.cursor import MySQLdbTracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
