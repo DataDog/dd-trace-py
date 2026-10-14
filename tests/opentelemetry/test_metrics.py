@@ -30,7 +30,7 @@ def skipif(
 
 
 @skipif(exporter_installed=True, unsupported_otel_version=True)
-def test_otel_metrics_sdk_not_installed_by_default():
+def test_otel_metrics_exporter_not_installed_by_default(caplog):
     """
     Test that the OpenTelemetry metrics exporter can be set up correctly.
     """
@@ -39,9 +39,25 @@ def test_otel_metrics_sdk_not_installed_by_default():
     # This should not raise an ImportError
     set_otel_meter_provider()
 
-    # If the OpenTelemetry SDK is not installed
+    assert (
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP metrics export."
+    ) in caplog.text
+
+    # The OpenTelemetry exporter dependencies are not installed.
     with pytest.raises(ImportError):
         from opentelemetry.sdk.resources import Resource  # noqa: F401
+
+
+@skipif(exporter_installed=True)
+def test_otel_metrics_exporter_import_warning(caplog):
+    from ddtrace.internal.opentelemetry.metrics import _import_exporter
+
+    assert _import_exporter("grpc") is None
+    assert (
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP metrics export."
+    ) in caplog.text
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
@@ -82,6 +98,52 @@ def test_otel_metrics_enabled():
 
     meter_provider = get_meter_provider()
     assert meter_provider, "OpenTelemetry metrics exporter should be configured automatically."
+
+
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_SERVICE": "test_service",
+        "DD_VERSION": "test_version",
+        "DD_ENV": "test_env",
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env",
+    },
+)
+def test_otel_metrics_resource_uses_canonical_semantic_attributes():
+    from ddtrace.internal.opentelemetry.metrics import _build_resource
+
+    resource = _build_resource()
+    assert resource is not None
+    assert resource.attributes["service.name"] == "test_service"
+    assert resource.attributes["service.version"] == "test_version"
+    assert resource.attributes["deployment.environment.name"] == "test_env"
+    assert not {"service", "version", "env", "deployment.environment"} & resource.attributes.keys()
+
+
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env"
+    },
+)
+def test_otel_metrics_resource_remaps_semantic_tags():
+    from ddtrace import config
+    from ddtrace.internal.opentelemetry.metrics import _build_resource
+
+    assert config.service == "tag_service"
+    assert config.version == "tag_version"
+    assert config.env == "tag_env"
+    assert config.tags == {"env": "tag_env"}
+    resource = _build_resource()
+    assert resource is not None
+    assert resource.attributes["service.name"] == "tag_service"
+    assert resource.attributes["service.version"] == "tag_version"
+    assert resource.attributes["deployment.environment.name"] == "tag_env"
+    assert not {"service", "version", "env", "deployment.environment"} & resource.attributes.keys()
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
