@@ -6,6 +6,7 @@ import pytest
 from ddtrace.contrib.internal.llama_index.patch import patch
 from ddtrace.contrib.internal.llama_index.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._contrib import listen_integrations
 from tests.contrib.llama_index.utils import get_request_vcr
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -37,6 +38,9 @@ def llama_index():
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
         )
     ):
+        # ddtrace-run installs this hook in the LLMObs product's post_preload; these
+        # tests patch directly, so install it here to get the APM shadow tags.
+        listen_integrations()
         patch()
         import llama_index
 
