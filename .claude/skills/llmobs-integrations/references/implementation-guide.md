@@ -118,7 +118,7 @@ Some older or specialized integrations still call `integration.trace()` and `int
 
 ## Streaming
 
-Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/contrib/internal/stream_handler.py`:
+Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/internal/utils/streaming.py`, and import `make_traced_stream` from there too. `ddtrace/contrib/internal/stream_handler.py` only re-exports these for backwards compatibility; do not add new imports from it:
 
 - `initialize_chunk_storage()` — set up accumulators for content, usage, role
 - `process_chunk(chunk)` — accumulate text, tool blocks, usage from each chunk

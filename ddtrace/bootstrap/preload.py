@@ -8,6 +8,7 @@ import typing as t
 from ddtrace import config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.packages import prefetch_distributions
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -40,6 +41,9 @@ manager.run_protocol()
 
 # Post preload operations
 register_post_preload(manager.post_preload_products)
+
+# Scan installed distributions in the background, at the end of the bootstrap.
+register_post_preload(prefetch_distributions)
 
 
 # TODO: Migrate the following product logic to the new product plugin interface

@@ -1,0 +1,12 @@
+_v: 1
+name: pylibmc
+display_name: pylibmc
+description: Instruments pylibmc client operations against Memcached, tracing single-key and multi-key cache reads, writes,
+  mutations, and deletions.
+packages:
+- name: pylibmc
+category:
+- db.client
+systems:
+- memcached
+creation_date: '2016-09-16'
