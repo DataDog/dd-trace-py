@@ -801,7 +801,7 @@ def test_negative_start_and_duration_encode_as_zero(field):
 def test_a_user_origin_tag_of_any_type_yields_to_the_trace_origin(value):
     span = _finished_span()
     span.context.dd_origin = "synthetics"
-    span.set_metric("_dd.origin", value)
+    span.set_metric("_dd.origin", value)  # ast-grep-ignore: span-set-metric
 
     wire_span = _encode_v04(span)
     assert wire_span["meta"]["_dd.origin"] == "synthetics"
