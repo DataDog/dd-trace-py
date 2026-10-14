@@ -8,7 +8,7 @@ from urllib import parse
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -259,6 +259,10 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        # Before activating distributed headers, as WSGI does: a MicroVM /run refresh detaches
+        # the active context, which would otherwise be the one just extracted from this request.
+        if scope["type"] == "http" and not is_subapp:
+            trace_utils.dispatch_asgi_web_request_starting(scope)
         try:
             headers = extract_headers(scope)
         except Exception:

@@ -71,6 +71,8 @@ percent-encoding = "2.3"
 # TODO(py-315): 0.29 blocked — libdatadog v43.0.2 libdd-ffe requires pyo3 = "^0.28" (links = "python")
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
+# used to read distributions from zip archives on sys.path.
+zip = { version = "4.6", default-features = false, features = ["deflate"] }
 pyo3-ffi = { version = "0.28", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]

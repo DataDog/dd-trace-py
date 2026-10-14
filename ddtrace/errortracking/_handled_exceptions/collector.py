@@ -1,73 +1,23 @@
 import typing as t
-from typing import Callable
-from typing import NamedTuple
-from typing import Protocol
 
+from ddtrace.errortracking._handled_exceptions.events import HandledExceptionSpanProtocol
+from ddtrace.errortracking._handled_exceptions.events import SpanEventData
+from ddtrace.errortracking._handled_exceptions.events import capture_exception_event
+from ddtrace.errortracking._handled_exceptions.events import clear_exception_events
+from ddtrace.errortracking._handled_exceptions.events import get_exception_events
+from ddtrace.errortracking._handled_exceptions.events import on_span_exception
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
-from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.errortracking import config
 
 
-class SpanEventData(NamedTuple):
-    name: str
-    attributes: dict
-    time_unix_nano: t.Optional[int] = None
-
-
-class HandledExceptionSpanProtocol(Protocol):
-    """Structural span interface for handled-exception tracking.
-
-    Lets this module type-annotate spans without a runtime dependency on the concrete
-    ``ddtrace._trace.span.Span`` class.
-    """
-
-    span_id: int
-
-    def _set_attribute(self, key: str, value: t.Union[str, int, float]) -> None: ...
-
-    def _add_event(
-        self,
-        name: str,
-        attributes: t.Optional[t.Mapping[str, t.Any]] = None,
-        time_unix_nano: t.Optional[int] = None,
-    ) -> None: ...
-
-    def _add_on_finish_exception_callback(self, callback: Callable[["HandledExceptionSpanProtocol"], None]) -> None: ...
-
-
 log = get_logger(__name__)
-
-
-def _add_span_events(span: HandledExceptionSpanProtocol) -> None:
-    """
-    If the same error is handled/rethrown multiple times, we want
-    to report only one span events. Therefore, we do not add directly
-    a span event for every handled exceptions, we store them in the span
-    and add them when the span finishes.
-    """
-    exception_data = HandledExceptionCollector.get_exception_events(span.span_id).values()
-    events = [event for _exc, event in exception_data]
-    if events:
-        span._set_attribute(SPAN_EVENTS_HAS_EXCEPTION, "true")
-        for event in events:
-            span._add_event(event.name, event.attributes, event.time_unix_nano)
-    HandledExceptionCollector.clear_exception_events(span.span_id)
-
-
-def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
-    exception_events = HandledExceptionCollector.get_exception_events(span.span_id)
-    exc_id = id(exc_val)
-    if exception_events and exc_id in exception_events:
-        del exception_events[exc_id]
 
 
 class HandledExceptionCollector(Service):
     _instance: t.Optional["HandledExceptionCollector"] = None
-    _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEventData]]] = {}
 
     def __init__(self) -> None:
         super().__init__()
@@ -82,7 +32,7 @@ class HandledExceptionCollector(Service):
         log.debug("Enabling %s", cls.__name__)
         cls._instance = cls()
         cls._instance.start()
-        core.on("span.exception", _on_span_exception)
+        core.on("span.exception", on_span_exception)
 
         log.debug("%s enabled", cls.__name__)
 
@@ -140,20 +90,12 @@ class HandledExceptionCollector(Service):
 
     @classmethod
     def capture_exception_event(cls, span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData):
-        span_id = span.span_id
-        events_dict = cls._span_exception_events.setdefault(span_id, {})
-        if not events_dict:
-            span._add_on_finish_exception_callback(_add_span_events)
-        exc_id = id(exc)
-        if exc_id in events_dict or len(events_dict) < COLLECTOR_MAX_SIZE_PER_SPAN:
-            # Store both exception and event to keep exception alive and prevent ID reuse
-            events_dict[exc_id] = (exc, event)
+        capture_exception_event(span, exc, event)
 
     @classmethod
     def get_exception_events(cls, span_id: int):
-        return cls._span_exception_events.get(span_id, {})
+        return get_exception_events(span_id)
 
     @classmethod
     def clear_exception_events(cls, span_id: int):
-        if span_id in cls._span_exception_events:
-            del cls._span_exception_events[span_id]
+        clear_exception_events(span_id)

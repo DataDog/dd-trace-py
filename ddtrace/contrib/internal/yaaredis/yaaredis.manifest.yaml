@@ -1,0 +1,12 @@
+_v: 1
+name: yaaredis
+display_name: yaaredis
+description: Instruments asynchronous Redis command and pipeline execution through yaaredis clients, capturing command resources,
+  connection details, and result metrics.
+packages:
+- name: yaaredis
+category:
+- db.client
+systems:
+- redis
+creation_date: '2021-11-05'

@@ -28,6 +28,9 @@ extern "C"
       std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
 
     bool ddup_upload();
+
+    // Discards the samples and stats collected so far and restarts the profile window at the current time.
+    bool ddup_reset();
 #ifdef __cplusplus
 } // extern "C"
 #endif
