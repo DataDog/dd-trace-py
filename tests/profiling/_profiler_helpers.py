@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
-from typing import TypeAlias
 
 import pytest
+from typing_extensions import TypeAlias
 
 from ddtrace.profiling import profiler
 
