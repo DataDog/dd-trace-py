@@ -69,7 +69,7 @@ async def trace_middleware(app, handler):
                 distributed_headers_config_override=app_config["distributed_tracing_enabled"],
                 # DEV: aiohttp is special case maintains separate configuration from config api
                 trace_query_string=trace_query_string,
-                query=request.query_string,
+                query=request.rel_url.raw_query_string,
                 service=service,
             ),
             dispatch_end_event=False,
