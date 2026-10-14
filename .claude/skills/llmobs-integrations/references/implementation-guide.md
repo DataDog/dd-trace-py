@@ -37,11 +37,12 @@ Do not import the concrete `Span` class (`ddtrace.trace.Span` / `ddtrace._trace.
 `_annotate_llmobs_span_data` (and a few other helpers such as `get_tool_version_from_llm_span`) need `_set_ctx_item`, which `SpanData` doesn't have, so they're typed to accept `_LLMObsSpan` from `ddtrace.llmobs._span` — the single structural `Protocol` all LLMObs code uses for spans. Extend it there when a new call site needs another `Span` member instead of declaring a new per-module protocol. `SpanData` does not satisfy that protocol, so a caller passing a bare `SpanData` there is a type error rather than a silently swallowed exception. The object every integration actually passes at runtime is a full `Span`, which does satisfy the protocol, so annotate your integration's `_llmobs_set_tags` override (and its helpers) with `span: _LLMObsSpan`. That is a valid override of the base class's `span: Span` parameter. Don't type the span as `SpanData` and then `cast(Any, span)` at the call site: that disables the very check the protocol exists for.
 
 ```python
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 from ddtrace.internal.native._native import SpanData
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY, OUTPUT_TOKENS_METRIC_KEY, TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolDefinition, ToolResult
 
@@ -55,7 +56,7 @@ class MyLibIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: SpanData,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -68,10 +69,8 @@ class MyLibIntegration(BaseLLMIntegration):
         # response. Merge so response-derived keys never clobber the request params.
         if response is not None:
             metadata.update(self._extract_response_metadata(response))
-        # cast(Any, span): _annotate_llmobs_span_data needs _set_ctx_item, which SpanData lacks;
-        # the real object passed in at runtime is always a full Span.
         _annotate_llmobs_span_data(
-            cast(Any, span),
+            span,
             kind="llm",
             model_name=kwargs.get("model", ""),
             model_provider="mylib",
