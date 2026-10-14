@@ -159,6 +159,43 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert span.get_tag("http.method") is None
         assert span.get_tag("http.url") is None
 
+    def _putrequest_tags(self, conn, target):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            conn.putrequest("GET", target)
+        span = conn._datadog_span
+        tags = {**span.get_tags(), **span.get_metrics()}
+        span.finish()
+        return tags
+
+    def test_otel_semantics_sets_method_before_header_injection(self):
+        seen = []
+        conn = self.get_http_connection("localhost", 1)
+        with (
+            mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+            mock.patch(
+                "ddtrace.contrib.internal.httplib.patch.HTTPPropagator.inject",
+                side_effect=lambda ctx, headers: seen.append(conn._datadog_span.get_tag("http.request.method")),
+            ),
+            contextlib.closing(conn),
+            pytest.raises(OSError),
+        ):
+            conn.request("GET", "/")
+
+        assert seen == ["GET"]
+
+    def test_otel_semantics_ipv6_host(self):
+        tags = self._putrequest_tags(self.get_http_connection("[::1]"), "/x")
+        assert tags["url.full"] == "http://[::1]/x"
+        assert tags["server.address"] == "::1"
+        assert tags["server.port"] == 80
+
+    def test_otel_semantics_absolute_form_target(self):
+        conn = self.get_http_connection("proxy.local", 3128)
+        tags = self._putrequest_tags(conn, "http://origin.example/x")
+        assert tags["url.full"] == "http://origin.example/x"
+        assert tags["server.address"] == "origin.example"
+        assert tags["server.port"] == 80
+
     def test_httplib_request_get_request_multiqs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):
             return self.test_httplib_request_get_request("foo=bar&foo=baz&x=y")

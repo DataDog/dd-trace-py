@@ -6,6 +6,7 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
@@ -127,6 +128,7 @@ def _wrap_request(func, instance, args, kwargs):
             # OTel resource.
             method = get_argument_value(args, kwargs, 0, "method")
             if isinstance(method, str):
+                set_method_tag(span, method)
                 set_otel_resource_for_method(span, method)
 
         # propagate distributed tracing headers
@@ -176,7 +178,17 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         if (scheme == "http" and instance.port == 80) or (scheme == "https" and instance.port == 443):
             port = ""
-        url = f"{scheme}://{instance.host}{port}{path}"
+        if config._otel_trace_semantics_enabled:
+            if path.startswith(("http://", "https://")):
+                # Absolute-form target (plain HTTP proxy): already a full URL.
+                url = path
+            else:
+                host = instance.host
+                if ":" in host and not host.startswith("["):
+                    host = f"[{host}]"
+                url = f"{scheme}://{host}{port}{path}"
+        else:
+            url = f"{scheme}://{instance.host}{port}{path}"
 
         # sanitize url
         parsed = parse.urlparse(url)
