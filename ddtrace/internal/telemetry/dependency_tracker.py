@@ -18,7 +18,7 @@ from typing import Optional
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.settings._telemetry import config as telemetry_config
-from ddtrace.internal.settings.sca import config as sca_config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.threads import Lock
 
 from . import modules
@@ -47,7 +47,7 @@ class DependencyTracker:
 
     All mutable access is protected by an internal lock.
 
-    SCA-enabled state is read from the SCA configuration.
+    SCA-enabled state is read from the AppSec telemetry configuration.
     The DependencyEntry.metadata field state drives the wire format:
     - metadata is None  -> entry serialized without "metadata" key
     - metadata is not None -> entry serialized with "metadata" key
@@ -82,7 +82,7 @@ class DependencyTracker:
             # scan over all _imported_dependencies is pure overhead (~887us
             # at 10K deps).  Only entries created by the SCA hook or with
             # metadata attached can trigger needs_report() after initial send.
-            if not sca_config.SCA_ENABLED:
+            if not appsec_telemetry_config.SCA_ENABLED:
                 return new_deps if new_deps else None
 
             re_report_deps = self._collect_rereports(new_keys)
@@ -125,7 +125,7 @@ class DependencyTracker:
         Caller must hold self._lock.
         """
         key = _normalize_dep_name(package_name)
-        if key not in self._imported_dependencies and sca_config.SCA_ENABLED:
+        if key not in self._imported_dependencies and appsec_telemetry_config.SCA_ENABLED:
             try:
                 from importlib.metadata import version as importlib_metadata_version
 
@@ -180,7 +180,7 @@ class DependencyTracker:
 
         Called by the SCA product on start.  Sets metadata from None to []
         on all existing entries so the wire format includes the "metadata"
-        key. Future entries pick up the flag from SCA configuration.
+        key. Future entries pick up the flag from AppSec telemetry configuration.
         """
         with self._lock:
             for entry in self._imported_dependencies.values():
@@ -204,7 +204,7 @@ def update_imported_dependencies(
     newly discovered package.  Returns the list of serialized dependency
     dicts ready for the ``app-dependencies-loaded`` telemetry payload.
 
-    SCA-enabled state is read from ``sca_config.SCA_ENABLED``.
+    SCA-enabled state is read from ``appsec_telemetry_config.SCA_ENABLED``.
 
     NOTE: This function is kept for backward compatibility with
     tests and benchmarks that call it directly.  Production code should use
@@ -215,9 +215,9 @@ def update_imported_dependencies(
     telemetry path never propagates to ``sys.excepthook``.
     """
     try:
-        sca_enabled = sca_config.SCA_ENABLED
+        sca_enabled = appsec_telemetry_config.SCA_ENABLED
     except Exception:
-        log.debug("update_imported_dependencies: failed to read SCA config", exc_info=True)
+        log.debug("update_imported_dependencies: failed to read AppSec telemetry config", exc_info=True)
         return []
 
     deps: list[dict] = []

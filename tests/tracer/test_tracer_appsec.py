@@ -12,8 +12,8 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.settings.sca import config as sca_config
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -202,7 +202,7 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
     In ASM standalone mode, agent-based samplers should not interfere
     with the rate limiter.
     """
-    with mock.patch.object(sca_config, "SCA_ENABLED", True):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", True):
         tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
 
         try:
@@ -221,7 +221,7 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
             )
 
         finally:
-            with mock.patch.object(sca_config, "SCA_ENABLED", False):
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
 
 
@@ -232,10 +232,10 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
         if sca_enabled == "true":
-            assert sca_config.SCA_ENABLED is True
+            assert appsec_telemetry_config.SCA_ENABLED is True
         assert tracer.enabled is False
 
         assert isinstance(tracer._sampler.limiter, RateLimiter)
@@ -245,5 +245,5 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
         assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
 
     # reset tracer values
-    with mock.patch.object(sca_config, "SCA_ENABLED", False):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
         tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)

@@ -27,7 +27,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
-from ddtrace.internal.settings.sca import config as sca_config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -361,7 +361,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             headers = {
@@ -403,7 +403,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP
 
         finally:
-            with mock.patch.object(sca_config, "SCA_ENABLED", False):
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -419,7 +419,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -448,7 +448,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
             # Ensure span is dropped (no appsec event upstream or in this span)
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
-            with mock.patch.object(sca_config, "SCA_ENABLED", False):
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -498,7 +498,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -542,7 +542,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
             # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
-            with mock.patch.object(sca_config, "SCA_ENABLED", False):
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -608,7 +608,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -660,7 +660,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
             assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
 
         finally:
-            with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -678,7 +678,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -731,7 +731,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
             assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP  # user keep always
 
         finally:
-            with mock.patch.object(sca_config, "SCA_ENABLED", sca_enabled == "true"):
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 

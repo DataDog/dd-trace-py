@@ -23,7 +23,7 @@ from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 @pytest.fixture(autouse=True)
 def _restore_instrumenter_globals():
     """Save and restore module-level singletons and config to prevent cross-test contamination."""
-    from ddtrace.internal.settings.sca import config as sca_config
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
     saved_registry = _instrumenter_mod._registry
     saved_instance = _instrumenter_mod._instrumenter_instance
@@ -32,7 +32,7 @@ def _restore_instrumenter_globals():
         module_name: target_names.copy() for module_name, target_names in _instrumenter_mod._lazy_module_targets.items()
     }
     saved_global_registry = _registry_mod._global_registry
-    saved_sca_enabled = sca_config.SCA_ENABLED
+    saved_sca_enabled = appsec_telemetry_config.SCA_ENABLED
     yield
     _instrumenter_mod._registry = saved_registry
     _instrumenter_mod._instrumenter_instance = saved_instance
@@ -41,7 +41,7 @@ def _restore_instrumenter_globals():
     _instrumenter_mod._lazy_module_targets.clear()
     _instrumenter_mod._lazy_module_targets.update(saved_lazy_targets)
     _registry_mod._global_registry = saved_global_registry
-    sca_config.SCA_ENABLED = saved_sca_enabled
+    appsec_telemetry_config.SCA_ENABLED = saved_sca_enabled
 
 
 # ---------------------------------------------------------------------------
@@ -136,9 +136,9 @@ class TestSCADetectionHookIntegration:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        from ddtrace.internal.settings.sca import config as sca_config
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
-        sca_config.SCA_ENABLED = True
+        appsec_telemetry_config.SCA_ENABLED = True
 
         # Pre-populate a dependency with registered CVE
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
@@ -251,9 +251,9 @@ class TestCallerInfoToReachedArray:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        from ddtrace.internal.settings.sca import config as sca_config
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
-        sca_config.SCA_ENABLED = True
+        appsec_telemetry_config.SCA_ENABLED = True
 
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
         entry.mark_initial_sent()
@@ -305,9 +305,9 @@ class TestCallerInfoToReachedArray:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        from ddtrace.internal.settings.sca import config as sca_config
+        from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
-        sca_config.SCA_ENABLED = True
+        appsec_telemetry_config.SCA_ENABLED = True
 
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
         entry.mark_initial_sent()
@@ -533,7 +533,7 @@ class TestForkCallbackOrdering:
             reset_calls.append("registry_reset")
 
         with (
-            patch("ddtrace.internal.sca.product.sca_config") as mock_config,
+            patch("ddtrace.internal.sca.product.appsec_telemetry_config") as mock_config,
             patch(
                 "ddtrace.internal.sca._instrumenter._reset_after_fork",
                 side_effect=track_reset,
