@@ -31,7 +31,7 @@ def analyze(tmp_path: Path, package: str, consumers: dict[str, str], target: str
         path = tmp_path / package / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    return analyze_api_usage(tmp_path, [tmp_path / package], target)
+    return analyze_api_usage(tmp_path, [tmp_path / package], [package], target)
 
 
 def symbols_of(report) -> dict[str, list[str]]:

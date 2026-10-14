@@ -1,8 +1,9 @@
 """Used-API analysis: what other modules actually consume from a target.
 
-Computes what the rest of the repository actually uses from a module -- the
-de-facto API surface that must survive an extraction (e.g. when moving
-``ddtrace.internal.coverage`` to its own package).
+Complements the declared contract: ``[contracts].supported_exports`` records
+what a package promises, this module computes what the rest of the repository
+actually uses -- the de-facto API surface that must survive an extraction
+(e.g. when moving ``ddtrace.internal.coverage`` to its own namespace).
 
 Detection is static and over-approximating by design:
 
@@ -29,8 +30,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
-
-_EXCLUDED_DIRS = ("vendor", "node_modules")
+from .astdeps import build_graph
 
 
 @dataclass(frozen=True)
@@ -245,53 +245,41 @@ class _UsageCollector(ast.NodeVisitor):
                     self._record(name_binding, node)
 
 
-def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path]:
-    """Map each .py file under the source paths to its dotted module name.
+def analyze_api_usage(
+    root: Path,
+    source_paths: Iterable[Path],
+    import_roots: list[str],
+    target: str,
+) -> ApiUsageReport:
+    """Compute the used-API report for ``target`` across the source paths.
 
-    Names are relative to root: ddtrace/internal/x.py is ddtrace.internal.x.
-    Vendored code (vendor/) is skipped because we do not control its structure.
+    ``import_roots`` only seeds the module graph (module naming); usages are
+    matched purely on the resolved target prefix.
     """
-    modules: dict[str, Path] = {}
-    for source_path in source_paths:
-        if not source_path.exists():
-            raise ValueError("source path does not exist: %s" % source_path)
-        files = sorted(source_path.rglob("*.py")) if source_path.is_dir() else [source_path]
-        for py_file in files:
-            rel = py_file.relative_to(root)
-            if rel.parts[0] == "src":
-                rel = Path(*rel.parts[1:])
-            if any(part in _EXCLUDED_DIRS for part in rel.parts):
-                continue
-            parts = list(rel.with_suffix("").parts)
-            if parts and parts[-1] == "__init__":
-                parts = parts[:-1]
-            if parts:
-                modules.setdefault(".".join(parts), py_file)
-    return modules
-
-
-def analyze_api_usage(root: Path, source_paths: Iterable[Path], target: str) -> ApiUsageReport:
-    """Compute the used-API report for target across the source paths."""
-    modules = module_names_for(root, source_paths)
-    report = ApiUsageReport(target=target, files_scanned=len(modules))
+    graph = build_graph(root, source_paths, import_roots)
+    report = ApiUsageReport(target=target)
+    report.files_scanned = len(graph.modules)
 
     consumers = 0
-    for module, path in sorted(modules.items()):
+    for module, path in sorted(graph.modules.items()):
         # The target's own modules consume themselves by definition; only
         # external consumers define the extraction surface.
         if module == target or module.startswith(target + "."):
             continue
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            continue
         collector = _UsageCollector(module, str(path.relative_to(root)), target, report)
         # Pass 1: bindings (imports). Pass 2 must see assignments inside
         # function bodies too, so a plain two-visit order is not enough --
         # bindings are collected first, usages scanned after.
-        before = len(report.usages)
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 collector.visit_Import(node)
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
+        before = len(report.usages)
         collector._scan_usages(tree)
         if len(report.usages) > before:
             consumers += 1

@@ -32,6 +32,7 @@ components:
   package_split:
     - scripts/package-split
     - scripts/package_split/*
+    - package-contract.toml
     - tests/package_split/*
   crashtracker:
     - ddtrace/internal/core/crashtracking.py
@@ -166,8 +167,8 @@ suites:
       command: pytest -v {cmdargs} tests/package_split/
       variants:
         - name: package_split
-          python: ['3.12']
-          dependencies: [pytest-randomly]
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-randomly, tomli, build]
   smoke_test:
     type: helper
     paths:

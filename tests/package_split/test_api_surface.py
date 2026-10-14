@@ -26,7 +26,7 @@ def build_repo(tmp_path: Path, files: dict[str, str]) -> Path:
 
 
 def analyze(tmp_path: Path, roots=("shared", "app", "other"), zones=ZONES):
-    source_paths = [tmp_path / r for r in roots if (tmp_path / r).exists()]
+    source_paths = [tmp_path / r for r in roots]
     return analyze_api_surfaces(tmp_path, source_paths, list(roots), zones)
 
 
