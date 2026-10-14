@@ -540,6 +540,19 @@ def test_zero_cost_is_recorded_only_for_a_model_priced_at_zero(logger, writer, m
     assert attempt["cost_usd"] == 0.0
 
 
+def test_an_embeddings_model_priced_at_zero_has_an_input_price_only(logger, writer):
+    proxy = Proxy(logger, call_type="aembedding", route="embed")
+    proxy.start()
+    proxy.attempt(0, model="custom-embedder")
+    kwargs = proxy.kwargs({"prompt_tokens": 3, "completion_tokens": 0}, 0.0, model="custom-embedder")
+    kwargs["litellm_params"].update(input_cost_per_token=0.0)
+    run(logger.async_log_success_event(kwargs, None, T0, at(0.1)))
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["cost_usd"] == 0.0
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["estimated_cost_usd"] == 0.0
+
+
 def test_opt_in_tags(writer):
     tags = frozenset({"user", "team", "key_alias", "route", "destination"})
     logger = UsageMetricsLogger(writer, tags, "coding-agent", {"service.name": "gateway"})
@@ -1121,3 +1134,11 @@ def test_usage_metrics_are_flushed_on_an_exit_signal(enabled, monkeypatch):
     monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda: flushed.append(True))
     installed[0]()
     assert flushed == [True]
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_an_unusable_exporter_endpoint_leaves_the_integration_patched(enabled, monkeypatch):
+    monkeypatch.setattr(litellm_patch._usage_metrics_writer.agent_config, "dogstatsd_url", "tcp://localhost:8125")
+    patch()
+    assert getattr(litellm, "_datadog_patch", False)
+    assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None

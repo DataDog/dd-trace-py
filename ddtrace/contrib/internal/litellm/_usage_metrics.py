@@ -255,16 +255,20 @@ def usage_fields(usage: Any, embeddings: bool, modality: bool = True) -> dict[st
 def _priced_at_zero(kwargs: dict[str, Any]) -> bool:
     """Whether a zero cost is a real zero: the deployment or LiteLLM's price map prices the model at zero.
 
-    LiteLLM reports a cost of zero both for a model priced at zero and for a model it has no price for.
+    LiteLLM reports a cost of zero both for a model priced at zero and for a model it has no price for. An embeddings
+    call has an input price only.
     """
+    keys = ["input_cost_per_token"]
+    if operation_name(kwargs.get("call_type")) != "embeddings":
+        keys.append("output_cost_per_token")
     params = kwargs.get("litellm_params") or {}
-    configured = (params.get("input_cost_per_token"), params.get("output_cost_per_token"))
+    configured = [params.get(key) for key in keys]
     if all(price is not None for price in configured):
         return all(price == 0 for price in configured)
     entry = getattr(litellm, "model_cost", {}).get(kwargs.get("model") or "")
     if not isinstance(entry, dict):
         return False
-    prices = (entry.get("input_cost_per_token"), entry.get("output_cost_per_token"))
+    prices = [entry.get(key) for key in keys]
     return all(price is not None for price in prices) and all(price == 0 for price in prices)
 
 

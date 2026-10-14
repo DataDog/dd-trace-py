@@ -357,11 +357,17 @@ def _enable_usage_metrics():
         resource["service.name"] = config.service
     if "host" in tags:
         resource["host.name"] = get_hostname()
-    writer = _usage_metrics_writer.UsageMetricsWriter(
-        exporter,
-        interval=otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL / 1000.0,
-        metrics=list(_usage_metrics.DEFAULT_METRICS),
-    )
+    try:
+        writer = _usage_metrics_writer.UsageMetricsWriter(
+            exporter,
+            interval=otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL / 1000.0,
+            metrics=list(_usage_metrics.DEFAULT_METRICS),
+        )
+    except Exception as e:
+        # An endpoint the exporter cannot use, such as an ftp:// OTLP endpoint or a tcp:// DogStatsD URL, leaves the
+        # metrics off without failing the rest of the integration.
+        log.warning("LiteLLM usage metrics are not enabled: %s", e)
+        return
     logger = _usage_metrics.UsageMetricsLogger(
         writer, tags & _usage_metrics.OPT_IN_TAGS, config.litellm.usage_metrics_client_source, resource
     )
