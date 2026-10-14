@@ -26,6 +26,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_TRACE_ID_CTX_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEN_AI_APPLICATION_NAME_TAG_KEY
 from ddtrace.llmobs._constants import GEN_AI_CONVERSATION_ID_TAG_KEY
@@ -606,6 +607,9 @@ def get_llmobs_parent_id(span: _LLMObsSpan) -> Optional[str]:
 def get_llmobs_trace_id(span: _LLMObsSpan) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+    if trace_id is None:
+        # A routed span loses its meta_struct when it finishes.
+        trace_id = span._get_ctx_item(CACHED_LLMOBS_TRACE_ID_CTX_KEY)
     return trace_id
 
 
