@@ -1431,7 +1431,7 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
-def openai_set_meta_tags_from_decision(span: Span, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
     """Extract input, questions, and answers from a decisions api call."""
     metadata: dict[str, Any] = {}
     questions = kwargs.get("questions")
