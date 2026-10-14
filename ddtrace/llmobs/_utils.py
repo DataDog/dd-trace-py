@@ -23,8 +23,10 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_TRACE_ID_CTX_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEN_AI_APPLICATION_NAME_TAG_KEY
 from ddtrace.llmobs._constants import GEN_AI_CONVERSATION_ID_TAG_KEY
@@ -46,6 +48,7 @@ from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
@@ -53,8 +56,11 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import MessagePlaceholder
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import _Meta
@@ -71,7 +77,9 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
+ValidatedPromptDict = dict[
+    str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message], list[ChatTemplateItem]]
+]
 
 
 def resolve_llmobs_git_metadata() -> tuple[str, str]:
@@ -167,12 +175,16 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
 
     if chat_template:
         if not isinstance(chat_template, list):
-            raise TypeError("chat_template must be a list of dictionaries with string-string key value pairs.")
+            raise TypeError("chat_template must be a list of message or placeholder dictionaries.")
         for ct in chat_template:
-            if not (isinstance(ct, dict) and all(k in ct for k in ("role", "content"))):
-                raise TypeError(
-                    "Each 'chat_template' entry should be a string-string dictionary with role and content keys."
-                )
+            if not isinstance(ct, dict):
+                raise TypeError("Each 'chat_template' entry must be a message or placeholder dictionary.")
+            item = cast(dict[str, Any], ct)
+            if item.get("type") == "placeholder":
+                if not isinstance(item.get("name"), str) or not item["name"]:
+                    raise TypeError("Each message placeholder must have a non-empty string name.")
+            elif not all(k in item for k in ("role", "content")):
+                raise TypeError("Each 'chat_template' message must have role and content keys.")
 
     if variables:
         if not isinstance(variables, dict):
@@ -182,10 +194,14 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
         if not all(isinstance(k, str) for k in variables):
             raise TypeError("Keys of 'variables' must all be strings.")
 
-    final_chat_template = []
+    final_chat_template: list[ChatTemplateItem] = []
     if chat_template:
         for msg in chat_template:
-            final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
+            item = cast(dict[str, Any], msg)
+            if item.get("type") == "placeholder":
+                final_chat_template.append(MessagePlaceholder(type="placeholder", name=item["name"]))
+            else:
+                final_chat_template.append(ChatMessage(role=item["role"], content=item["content"]))
 
     if prompt_uuid and not isinstance(prompt_uuid, str):
         raise TypeError(f"prompt_uuid: {prompt_uuid} must be a string, received {type(prompt_uuid).__name__}")
@@ -463,31 +479,39 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
-def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
-    """Resolve (parent_agent_name, parent_agent_span_id) from the active LLMObs parent.
+def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Resolve (parent_agent_name, parent_agent_span_id, parent_agent_version) from the active LLMObs parent.
 
     active is the result of _llmobs_context_provider.active():
       - a Span whose kind is "agent": the parent IS the agent, so attribute to it.
       - any other Span: it already resolved its own attribution when it activated, so
         inherit its stored PARENT_AGENT_* values (one level of lookup, no walk).
       - a Context (distributed parent): read the propagated _dd.p.* keys off
-        context._meta. The name may be absent if an upstream hop ran an older SDK.
+        context._meta. The name may be absent if an upstream hop ran an older SDK. The
+        version is only present on in-process contexts handed to asyncio tasks and threads.
       - None: no parent, so there is no agent to attribute to.
 
-    An agent span never attributes itself: resolution always looks at the parent.
+    An agent span never attributes itself: resolution always looks at the parent. An agent without
+    its own version passes on the one it inherited.
     """
     if active is None:
-        return None, None
+        return None, None, None
 
     if isinstance(active, Span):
         # Read the meta_struct once: this runs on every span activation (hot path).
         data = _get_llmobs_data_metastruct(active)
         kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
         if kind == "agent":
-            return (data.get(LLMOBS_STRUCT.NAME) or active.name, str(active.span_id))
+            version = active._get_ctx_item(AGENT_VERSION) or active._get_ctx_item(PARENT_AGENT_VERSION)
+            return (
+                data.get(LLMOBS_STRUCT.NAME) or active.name,
+                str(active.span_id),
+                str(version) if version else None,
+            )
         return (
             data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME),
             data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID),
+            active._get_ctx_item(PARENT_AGENT_VERSION),
         )
 
     # Context parent (distributed). Keys land on context._meta via _dd.p.* propagation.
@@ -495,6 +519,7 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
     return (
         ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY),
         ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY),
+        ctx._meta.get(PARENT_AGENT_VERSION),
     )
 
 
@@ -581,6 +606,9 @@ def get_llmobs_parent_id(span: Span) -> Optional[str]:
 def get_llmobs_trace_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+    if trace_id is None:
+        # A routed span loses its meta_struct when it finishes.
+        trace_id = span._get_ctx_item(CACHED_LLMOBS_TRACE_ID_CTX_KEY)
     return trace_id
 
 

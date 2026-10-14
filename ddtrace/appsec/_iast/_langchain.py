@@ -4,15 +4,14 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 
 
-def langchain_listen(core):
+def langchain_listen():
     if not asm_config._iast_enabled:
         return
-    core.on("langchain.patch", _langchain_patch)
-    core.on("langchain.unpatch", _langchain_unpatch)
     core.on("langchain.llm.generate.after", _langchain_llm_generate_after)
     core.on("langchain.llm.agenerate.after", _langchain_llm_generate_after)
     core.on("langchain.chatmodel.generate.after", _langchain_chatmodel_generate_after)
@@ -20,7 +19,7 @@ def langchain_listen(core):
     core.on("langchain.stream.chunk.callback", _langchain_stream_chunk_callback)
 
 
-def _langchain_patch():
+def _on_langchain_patch():
     """
     Patch langchain for IAST. MUST NOT be called directly, only as a callback
     from ddtrace.contrib.internal.langchain.patch import wrap
@@ -80,7 +79,7 @@ def _langchain_patch():
                 continue  # Class or method doesn't exist, skip it
 
 
-def _langchain_unpatch():
+def _on_langchain_unpatch():
     if asm_config._iast_enabled:
         return
     try:

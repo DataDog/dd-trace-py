@@ -1,0 +1,13 @@
+_v: 1
+name: mlflow
+display_name: MLflow
+description: Instruments MLflow run lifecycles and step progression, captures logged metrics and parameters, and correlates
+  spans and logs with run IDs.
+packages:
+- name: mlflow
+- name: mlflow-skinny
+- name: mlflow-tracing
+category:
+- other
+systems: []
+creation_date: '2026-03-25'

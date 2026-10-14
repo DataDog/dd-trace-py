@@ -1,6 +1,7 @@
 import re
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)
@@ -49,12 +50,26 @@ def find_query_string_matches(ranges, evidence, query_string_pattern):
 
         # Convert to bytes for pattern matching (query string pattern is in bytes)
         query_bytes = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
+        byte_to_char = range(len(query_bytes) + 1)
+        if isinstance(query_string, str) and not query_string.isascii():
+            # Build once so converting all match offsets takes linear time.
+            byte_to_char = [index for index, char in enumerate(query_string) for _ in char.encode("utf-8")]
+            byte_to_char.append(len(query_string))
 
         # Find all matches
+        preserve_delimiter = (
+            config._query_string_obfuscation_preserve_delimiter
+            and query_string_pattern is config._obfuscation_query_string_pattern
+        )
         for match in query_string_pattern.finditer(query_bytes):
-            start = query_start + match.start()
-            end = query_start + match.end()
-            ranges.append({"start": start, "end": end})
+            start = match.end(1) if preserve_delimiter and match.start(1) != -1 else match.start()
+            end = match.end()
+            ranges.append(
+                {
+                    "start": query_start + byte_to_char[start],
+                    "end": query_start + (byte_to_char[end - 1] + 1 if end > start else byte_to_char[end]),
+                }
+            )
     except Exception:
         log.debug("Error applying query string pattern to URL evidence", exc_info=True)
 
