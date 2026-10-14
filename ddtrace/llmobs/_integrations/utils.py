@@ -182,7 +182,9 @@ LITELLM_METADATA_COMPLETION_KEYS = (
     "custom_llm_provider",
 )
 
-REACT_AGENT_TOOL_CALL_REGEX = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+# ReAct "Action: <tool>" and "Action Input: <input>" markers.
+REACT_ACTION_REGEX = re.compile(r"Action\s*(?:\d+\s*)?:")
+REACT_ACTION_INPUT_REGEX = re.compile(r"Action\s*(?:\d+\s*)?Input\s*(?:\d+\s*)?:")
 
 
 def get_llmobs_metrics_tags(integration_name, span):
@@ -876,10 +878,11 @@ def capture_plain_text_tool_usage(
         return
 
     try:
-        action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
-        if action_match and isinstance(tool_calls_info, list):
-            tool_name = action_match.group(1).strip().strip("*").strip()
-            tool_input_with_observation = action_match.group(2).split("\nObservation:")
+        action_match = REACT_ACTION_REGEX.search(content)
+        action_input_match = REACT_ACTION_INPUT_REGEX.search(content, action_match.end()) if action_match else None
+        if action_match and action_input_match and isinstance(tool_calls_info, list):
+            tool_name = content[action_match.end() : action_input_match.start()].strip().strip("*").strip()
+            tool_input_with_observation = content[action_input_match.end() :].lstrip().split("\nObservation:")
             tool_input = tool_input_with_observation[0].strip("`").strip().strip(' "')
             observation = ""
             if len(tool_input_with_observation) > 1:
@@ -1426,6 +1429,33 @@ def openai_set_meta_tags_from_response(
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     tool_definitions = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
+
+
+def openai_set_meta_tags_from_decision(span: Span, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+    """Extract input, questions, and answers from a decisions api call."""
+    metadata: dict[str, Any] = {}
+    questions = kwargs.get("questions")
+    if isinstance(questions, (list, tuple)):
+        metadata["questions"] = [load_data_value(q) for q in questions]
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
+        metadata=metadata,
+    )
+    if not response:
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        return
+
+    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(answers) or "")])
+
+
+def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
+    if hasattr(answer, "model_dump"):
+        return answer.model_dump(mode="json", exclude_none=True)
+    if isinstance(answer, dict):
+        return {k: v for k, v in answer.items() if v is not None}
+    return {}
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:

@@ -103,17 +103,55 @@ def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
 @pytest.mark.skipif(
     EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry SDK and Exporter to not be installed"
 )
-def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
-    """Test error when OpenTelemetry SDK is not installed."""
+def test_otel_exporter_not_installed(ddtrace_run_python_code_in_subprocess):
+    """Test error when OpenTelemetry OTLP exporters are not installed."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
 
     assert (
-        "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
-        "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support."
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP logs export."
     ) in stderr.decode(), f"Expected error message not found in stderr: {stderr.decode()}"
+
+
+@pytest.mark.skipif(EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry exporters to be absent")
+def test_otel_exporter_import_warning(caplog):
+    from ddtrace.internal.opentelemetry.logs import _import_exporter
+
+    assert _import_exporter("grpc") is None
+    assert (
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP logs export."
+    ) in caplog.text
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env"
+    },
+)
+def test_otel_logs_resource_remaps_semantic_tags():
+    from ddtrace import config
+    from ddtrace.internal.opentelemetry.logs import _build_resource
+
+    assert config.service == "tag_service"
+    assert config.version == "tag_version"
+    assert config.env == "tag_env"
+    assert config.tags == {"env": "tag_env"}
+    resource = _build_resource()
+    assert resource is not None
+    assert resource.attributes["service.name"] == "tag_service"
+    assert resource.attributes["service.version"] == "tag_version"
+    assert resource.attributes["deployment.environment.name"] == "tag_env"
+    assert not {"service", "version", "env", "deployment.environment"} & resource.attributes.keys()
 
 
 @pytest.mark.skipif(
@@ -186,6 +224,8 @@ def test_otel_logs_support_not_enabled():
         "DD_SERVICE": "ddservice",
         "DD_VERSION": "ddv1",
         "DD_ENV": "ddenv",
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env",
         "DD_TRACE_REPORT_HOSTNAME": "true",
         "DD_HOSTNAME": "ddhost",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
@@ -227,7 +267,7 @@ def test_otel_logs_exporter_auto_configured_http():
     captured_logs = decode_logs_request(request_body)
     assert len(captured_logs.resource_logs) > 0, "Expected at least one resource log in the OpenTelemetry logs request"
     assert all(
-        attr.key != "deployment.environment"
+        attr.key not in {"service", "version", "env", "deployment.environment"}
         for resource_logs in captured_logs.resource_logs
         for attr in resource_logs.resource.attributes
     )
