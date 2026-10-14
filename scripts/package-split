@@ -1,0 +1,28 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "packaging",
+#     "tomli; python_version < '3.11'",
+# ]
+# ///
+"""Thin package-split gate dispatcher.
+
+Runs the versioned harness in scripts/package_split/ (see
+docs/package-split/plan.md for the gate contract). This wrapper stays thin:
+all logic lives in the harness package so other repositories can adopt the
+same harness by copying scripts/package_split/ next to their own wrapper.
+"""
+
+from pathlib import Path
+import sys
+
+
+HARNESS = Path(__file__).with_name("package_split")
+
+if __name__ == "__main__":
+    sys.path.insert(0, str(HARNESS.parent))
+    from package_split.cli import main
+
+    sys.exit(main(sys.argv[1:]))

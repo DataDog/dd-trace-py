@@ -1,0 +1,51 @@
+---
+description: Package split (dd-trace-py → datadog-apm-python) guardrails, gates and contract manifest
+globs: scripts/package_split/**,scripts/package-split,package-contract.toml,package-freeze.toml,tests/package_split/**,.github/workflows/package-split-freeze-guard.yml,docs/package-split/**
+alwaysApply: false
+---
+# Package Split
+
+The package split migrates bounded parts of this repository into independently
+released packages under datadog-apm-python. The authoritative docs are
+`docs/package-split/plan.md` (plan and validation gates) and
+`docs/package-split/agent-prompt.md` (execution guardrails); the tooling
+reference is `scripts/package_split/README.md`. The `package-split` skill
+(`.claude/skills/package-split/SKILL.md`) drives the full workflow.
+
+## Key facts
+
+- `package-contract.toml` (repo root) is the machine-readable package contract,
+  validated against a versioned schema. The current one is PROVISIONAL and
+  records the single-distribution reality; it tightens as extraction proceeds.
+- `scripts/package-split <gate>` runs the versioned harness in
+  `scripts/package_split/`: `boundaries`, `contracts`, `artifacts`,
+  `lifecycle`, `compatibility`, `migration`, `freeze`, plus the informational
+  `api-usage` / `api-surface` surface analyses. Gates are fail-closed: a
+  missing prerequisite or unexecuted required scenario is `not_run` and never
+  counts as passing. Every gate writes JSON evidence with per-check results.
+- New-namespace packages must be import-inert (no threads, network, logging
+  changes, import hooks, patched callables at import time), must not import
+  `ddtrace`, and `native-free` packages must stay native-free across the whole
+  resolved runtime graph.
+- Compatibility bridges in ddtrace fall back only when the new top-level
+  package is genuinely absent; a broken new installation must fail loudly.
+- `package-freeze.toml` pins extraction provenance (revision + per-file
+  hashes + approved rewrites). The GitHub workflow
+  `package-split-freeze-guard.yml` enforces it on PRs: rules come from the base
+  branch and the PR head is inspected, never executed.
+- The harness's own tests live in `tests/package_split/` (the `package_split`
+  suite, Python 3.9–3.14) and include negative fixtures proving each gate
+  fails on a planted violation.
+
+## Rules when touching this domain
+
+- Keep gates fail-closed; never weaken a check, baseline or freeze rule to
+  make CI pass. Record skips with reasons instead.
+- Never report an unrun gate as passing; evidence paths must be reproducible.
+- Schema changes are versioned (`schema_version`); loaders reject unknown
+  versions — never silently reinterpret a newer manifest.
+- Update `package-contract.toml`, the README and the skill together when
+  interfaces change, and extend `tests/package_split/` with negative
+  fixtures for any new check.
+- Boundaries, names, native replacements and compatibility windows require
+  human approval — propose, don't invent.

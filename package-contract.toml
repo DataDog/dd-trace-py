@@ -1,0 +1,85 @@
+# Package contract manifest for dd-trace-py (schema v1).
+#
+# PROVISIONAL - see docs/package-split/plan.md. Package names and tooling
+# interfaces in the plan are proposals that are still under review, and this
+# manifest records the *current* single-distribution reality of this
+# repository as the starting point for the split. As extraction proceeds:
+#
+# - [dependencies].allowed_edges will tighten from "everything inside
+#   ddtrace is allowed" to the real distribution boundaries;
+# - [contracts].supported_exports will grow as supported APIs are pinned;
+# - gates run per extracted package, not over the whole tree at once.
+#
+# Owner: @DataDog/apm-core-python.
+
+schema_version = 1
+
+[identity]
+distribution = "ddtrace"
+import_roots = ["ddtrace"]
+owner = "@DataDog/apm-core-python"
+# Source paths are relative to this file.
+source_paths = ["ddtrace"]
+destination_repository = "datadog-apm-python"
+
+[dependencies]
+# Names only; version ranges live in [compatibility].dependency_ranges and
+# pyproject.toml remains the build source of truth.
+runtime = [
+    "bytecode",
+    "ddtrace-internal",
+    "envier",
+    "opentelemetry-api",
+    "wrapt",
+]
+build = ["cython", "cmake", "setuptools-rust", "patchelf"]
+
+# Native policy for the current monolithic distribution: the tracer itself
+# is native. Extracted pure-Python packages must declare "native-free".
+native_policy = "native-required"
+forbidden_namespaces = []
+
+[dependencies.extras]
+opentracing = ["opentracing"]
+opentelemetry = ["opentelemetry-exporter-otlp"]
+openfeature = ["openfeature-sdk"]
+
+# Current reality: ddtrace is one distribution, so the only edge policy is
+# "anything inside ddtrace may import anything inside ddtrace". The "*"
+# wildcard for externals is the transitional single-distribution policy;
+# extracted packages must enumerate their externals, and the wildcard must be
+# removed as soon as real distribution boundaries exist.
+[[dependencies.allowed_edges]]
+from_prefix = "ddtrace"
+to_prefixes = ["ddtrace"]
+external = ["*"]
+[compatibility]
+python = [">=3.9,<3.15"]
+platforms = ["linux", "macos", "windows"]
+dependency_ranges = { bytecode = ">=0.13.0,<1", envier = "~=0.6.1", wrapt = ">=1,!=2.2.0,<3" }
+# The deprecation policy is defined by the plan's compatibility window;
+# this field records where the policy is maintained, not its contents.
+deprecation_policy = "docs/package-split/plan.md"
+
+[contracts]
+# Supported exports are pinned per extracted package; today only the
+# package root's most stable attribute is pinned as a seed.
+supported_exports = { ddtrace = ["__version__"] }
+behavioral_fixtures = []
+# No explicit activation API in the current single-distribution layout:
+# ddtrace auto-initializes through its compatibility bootstrap, which the
+# split must preserve (see the plan's import-inertness requirement).
+
+[validation]
+consumer_contract_suites = []
+supported_version_combinations = []
+
+[release]
+# Empty build_command selects the harness default (uv build, PEP 517
+# isolated, falling back to python -m build).
+build_command = []
+artifact_expectations = ["wheel", "sdist"]
+entry_points = { console_scripts = ["ddtrace-run"] }
+resources = ["ddtrace:py.typed"]
+publishing_owner = "@DataDog/apm-core-python"
+rollback_procedure = "docs/package-split/plan.md (Deliverable 4, release rehearsal and cutover)"
