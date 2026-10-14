@@ -108,7 +108,7 @@ class BedrockIntegration(BaseLLMIntegration):
         )
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
+        if response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":

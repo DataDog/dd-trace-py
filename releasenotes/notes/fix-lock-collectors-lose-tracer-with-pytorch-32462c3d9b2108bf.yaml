@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: A bug where Lock profiling would not associate samples with spans and traces
+    when PyTorch profiling was enabled has been fixed.

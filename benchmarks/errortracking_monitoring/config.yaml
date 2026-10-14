@@ -1,0 +1,38 @@
+# Microbenchmark: direct sys.monitoring vs. multiplexer register_global for
+# EXCEPTION_HANDLED. The direct_* configs reproduce the pre-multiplexer code
+# path (dedicated tool slot, raw register_callback).  The direct_global_*
+# configs use the shared multiplexer's register_global / unregister_global API
+# when available, with direct delivery when supported; otherwise they fall
+# back to an equivalent direct callback.
+
+# Direct sys.monitoring: callback does no work (pure callback overhead).
+direct_passive:
+  handler: "direct_passive"
+
+# Direct sys.monitoring: callback counts each exception (active path).
+direct_active:
+  handler: "direct_active"
+
+# Multiplexer register_global: handler does no work (measures dispatch overhead).
+direct_global_passive:
+  handler: "direct_global_passive"
+
+# Multiplexer register_global: handler counts each exception (active path).
+direct_global_active:
+  handler: "direct_global_active"
+
+# Production Error Tracking collector with an active span and real reporting callback.
+production_handler:
+  handler: "production_handler"
+
+# Module-only reporting: high-cardinality filenames not in the configured set.
+module_filter_miss:
+  handler: "module_filter_miss"
+
+# Module-only reporting: configured filenames in the dynamic module set.
+module_filter_hit:
+  handler: "module_filter_hit"
+
+# Module-only reporting: small, repeatedly used filename set (warm-cache case).
+module_filter_warm:
+  handler: "module_filter_warm"

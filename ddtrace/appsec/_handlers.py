@@ -12,9 +12,9 @@ from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
-from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 
 def _on_set_http_meta(
-    span: SpanProtocol,
+    span: SpanData,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],
@@ -77,7 +77,7 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
 
 
 def _on_set_http_meta_for_normalized_route(
-    span: SpanProtocol,
+    span: SpanData,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],
@@ -111,7 +111,7 @@ def _on_set_http_meta_for_normalized_route(
         return
     # Flask DM sub-apps: url_rule.rule omits the mount prefix; use FLASK_RESOURCE_FULL when set.
     if integration_name == "flask":
-        full_resource = span.get_tag(FLASK_RESOURCE_FULL)
+        full_resource = span._get_str_attribute(FLASK_RESOURCE_FULL)
         if full_resource:
             _, _, assembled = full_resource.partition(" ")
             if assembled:

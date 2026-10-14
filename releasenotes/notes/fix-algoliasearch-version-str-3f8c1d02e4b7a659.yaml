@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    algoliasearch: This fix resolves an issue where applications failed to start
+    when ``algoliasearch`` 4.0.0 or later was installed, raising
+    ``TypeError: issubclass() arg 1 must be a class`` in Django applications.
