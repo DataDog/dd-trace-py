@@ -463,6 +463,10 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
+      env:
+        # vLLM 0.27 samples with FlashInfer, which JIT-compiles a kernel with nvcc.
+        # The CI image has no CUDA toolkit, so use the PyTorch sampler.
+        VLLM_USE_FLASHINFER_SAMPLER: '0'
       variants:
         - name: vllm
           python: ['3.10', '3.11', '3.12', '3.13']

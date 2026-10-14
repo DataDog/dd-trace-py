@@ -16,6 +16,8 @@ VLLM_VERSION = parse_version(version("vllm"))
 
 IGNORE_FIELDS = [
     "meta_struct",
+    "meta.llmobs_parent_id",
+    "meta.llmobs_trace_id",
     "metrics.vllm.latency.ttft",
     "metrics.vllm.latency.queue",
     "metrics.vllm.latency.prefill",
@@ -218,6 +220,12 @@ def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
     ]
 
     llm.reward(prompts)
+    # vLLM 0.10 returns the hidden states of each token (7 tokens of size 1024). Later versions return
+    # one reward score for each token.
+    if VLLM_VERSION < (0, 11, 0):
+        output_value, embedding_dim = "[7 embedding(s) returned with size 1024]", 1024
+    else:
+        output_value, embedding_dim = "[1 embedding(s) returned with size 7]", 7
     traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
@@ -238,8 +246,8 @@ def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
             model_name="BAAI/bge-reranker-v2-m3",
             model_provider="vllm",
             input_documents=[{"text": prompt}],
-            output_value="[1 embedding(s) returned with size 7]",
-            metadata={"embedding_dim": 7, "num_cached_tokens": 0},
+            output_value=output_value,
+            metadata={"embedding_dim": embedding_dim, "num_cached_tokens": 0},
             metrics={
                 "input_tokens": 7,
                 "output_tokens": 0,
