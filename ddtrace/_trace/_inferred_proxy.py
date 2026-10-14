@@ -91,9 +91,6 @@ HEADER_USERAGENT = _possible_header("user-agent")
 
 # How far in the past a request time from a proxy that is not known to set one may be and still be
 # used. Such a value is either a static constant from the proxy's rules engine or client-supplied,
-# so it is only honored when it is close enough to now to be plausible: that covers the
-# proxy-to-application delay, which can reach seconds when the origin cold starts or the proxy fails
-# over to a second origin, plus clock skew in the direction that does not invert the span.
 _MAX_UNTRUSTED_PROXY_SKEW_MS = 30_000
 
 POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION = _possible_header("x-goog-pubsub-subscription-name")
