@@ -1,9 +1,11 @@
 import bottle
+import pytest
 import webtest
 
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
@@ -78,6 +80,7 @@ class TraceBottleTest(TracerTestCase):
     def test_app_root(self):
         @self.app.route("/hi/<name>")
         def hi(name):
+            assert self.tracer.current_span().resource == "GET /hi/<name>"
             return "hi %s" % name
 
         self._trace_app(self.tracer)
@@ -86,6 +89,7 @@ class TraceBottleTest(TracerTestCase):
         spans = self.pop_spans()
         span = spans[0]
         assert span.get_tag("http.route") == "/api/v1/hi/<name>"
+        assert span.resource == "GET /hi/<name>"
 
     def test_query_string(self):
         return self.test_200("foo=bar")
@@ -565,3 +569,30 @@ class TraceBottleTest(TracerTestCase):
                     web_span = traces[0][0]
                     assert web_span.name == "bottle.request"
                     assert web_span._parent is None
+
+
+@pytest.mark.parametrize(
+    "resource,resource_route,expected",
+    [
+        (None, "/hi/<name>", "GET /hi/<name>"),
+        ("custom", "/hi/<name>", "custom"),
+        ("", "/hi/<name>", ""),
+        (None, None, None),
+        (None, "/", "GET /"),
+    ],
+)
+def test_http_event_route_resource(resource, resource_route, expected):
+    event = WebFrameworkRequestEvent(
+        http_operation="bottle.request",
+        component=config.bottle.integration_name,
+        integration_config=config.bottle,
+        request_url="http://localhost/api/hi/Ada",
+        request_method="GET",
+        request_headers={},
+        request_route="/api/hi/<name>",
+        resource=resource,
+        resource_route=resource_route,
+        headers_case_sensitive=True,
+    )
+    assert event.resource == expected
+    assert event.request_route == "/api/hi/<name>"

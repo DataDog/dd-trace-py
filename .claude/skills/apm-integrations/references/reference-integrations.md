@@ -29,10 +29,13 @@ This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
-## Bottle pre-handler contract POC
 
-Bottle retains WebFrameworkRequestEvent for tracing and dispatches
-HttpServerBeforeHandlerEvent from contrib/_events/http.py before the route callback
-when a consumer is registered. A synchronous consumer can set HttpServerBlockResponse;
-Bottle enforces it without importing security product code. This POC preserves the
-callback-return completion boundary and has no production WAF subscriber.
+## Bottle HTTP event boundary
+
+Bottle uses WebFrameworkRequestEvent.resource_route to opt in to shared METHOD route
+resource naming. The event derives the resource before span creation and preserves
+explicit resource overrides; request_route remains separate so mounted applications
+can report the full HTTP route without changing their historical span resource.
+Bottle extracts its local response via the existing set_response API, then resolves
+framework-specific returned/raised HTTPResponse status overrides. The shared tracing
+subscriber owns HTTP tagging and span completion; Bottle retains the callback boundary.

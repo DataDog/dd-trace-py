@@ -9,7 +9,6 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace.contrib._events.http import HttpServerBeforeHandlerEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -47,52 +46,24 @@ class TracePlugin:
             if not is_tracing_enabled():
                 return callback(*args, **kwargs)
 
-            resource = f"{request.method} {route.rule}"
-
-            method = request.method
-            url = request.url
-            full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-
-            with core.context_with_event(
-                WebFrameworkRequestEvent(
-                    http_operation="bottle.request",
-                    service=self.service,
-                    resource=resource,
-                    component=config.bottle.integration_name,
-                    request_headers=cast(MutableMapping[str, str], request.headers),
-                    request_url=url,
-                    query=request.query_string,
-                    request_route=full_route,
-                    request_method=method,
-                    integration_config=config.bottle,
-                    headers_case_sensitive=True,
-                    activate_distributed_headers=True,
-                )
-            ) as ctx:
+            event = WebFrameworkRequestEvent(
+                http_operation="bottle.request",
+                service=self.service,
+                resource_route=route.rule,
+                component=config.bottle.integration_name,
+                request_headers=cast(MutableMapping[str, str], request.headers),
+                request_url=request.url,
+                query=request.query_string,
+                request_route="/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")]),
+                request_method=request.method,
+                integration_config=config.bottle,
+                headers_case_sensitive=True,
+                activate_distributed_headers=True,
+            )
+            with core.context_with_event(event):
                 code = None
                 result = None
-                blocked_response = False
                 try:
-                    # Avoid collecting inspection data when no product needs this stage.
-                    if core.has_listeners(HttpServerBeforeHandlerEvent.event_name):
-                        before_handler = HttpServerBeforeHandlerEvent(
-                            operation_id=object(),
-                            http_operation="bottle.request",
-                            request_url=url,
-                            request_method=method,
-                            request_headers=dict(request.headers),
-                            query=request.query_string,
-                            route=full_route,
-                            path_parameters=dict(kwargs),
-                        )
-                        core.dispatch_event(before_handler, allow_raise=True)
-                        decision = before_handler.block_response
-                        if decision is not None:
-                            blocked_response = True
-                            result = HTTPResponse(
-                                body=decision.body, status=decision.status, headers=list(decision.headers)
-                            )
-                            return result
                     result = callback(*args, **kwargs)
                     return result
                 except (HTTPError, HTTPResponse) as e:
@@ -108,19 +79,12 @@ class TracePlugin:
                     code = 500
                     raise
                 finally:
+                    # Bottle's local response carries headers even when a returned
+                    # or raised HTTPResponse overrides the status.
+                    event.set_response(response)
                     if isinstance(result, HTTPResponse):
-                        response_code = result.status_code
+                        event.response_status_code = result.status_code
                     elif code:
-                        response_code = code
-                    else:
-                        # bottle local response has not yet been updated so this
-                        # will be default
-                        response_code = response.status_code
-
-                    event: WebFrameworkRequestEvent = ctx.event
-                    event.response_status_code = response_code
-                    event.response_headers = (
-                        result.headers if blocked_response and isinstance(result, HTTPResponse) else response.headers
-                    )
+                        event.response_status_code = code
 
         return wrapped

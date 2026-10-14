@@ -2,8 +2,6 @@ from collections.abc import Mapping
 from collections.abc import MutableMapping
 from collections.abc import Sequence
 from dataclasses import dataclass
-from enum import Enum
-from typing import ClassVar
 from typing import Optional
 from typing import Protocol
 from typing import Union
@@ -70,33 +68,3 @@ class HttpRequestBaseEvent(HttpBaseEvent):
 
     http_operation: str = event_field()
     query: Optional[str] = event_field(default=None)
-
-
-class HttpRequestBodyAvailability(Enum):
-    NOT_COLLECTED = "not_collected"
-
-
-@dataclass(frozen=True)
-class HttpServerBlockResponse:
-    """Consumer-owned response specification; the integration enforces it."""
-
-    status: int = 403
-    headers: tuple[tuple[str, str], ...] = (("Content-Type", "text/plain"),)
-    body: bytes = b"Blocked"
-
-
-@dataclass
-class HttpServerBeforeHandlerEvent(HttpRequestBaseEvent):
-    """Synchronous decision point after routing, before the wrapped handler.
-
-    A single decision consumer may set block_response before dispatch returns.
-    None means continue. Late writes have no effect. Consumers receive copied
-    headers and path parameters, not mutable framework request objects.
-    """
-
-    event_name: ClassVar[str] = "http.server.before_handler"
-    operation_id: object = event_field()
-    route: str = event_field()
-    path_parameters: dict[str, object] = event_field()
-    body_availability: HttpRequestBodyAvailability = event_field(default=HttpRequestBodyAvailability.NOT_COLLECTED)
-    block_response: Optional[HttpServerBlockResponse] = event_field(default=None)
