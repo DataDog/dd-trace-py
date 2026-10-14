@@ -173,6 +173,9 @@ class Profiler:
             self._profiler.start()
             Profiler._active_instance = self
 
+        # start() returned before reporting activation in the uWSGI master, so the worker reports it.
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
 
@@ -237,7 +240,7 @@ class _ProfilerInstance(service.Service):
                 return False
         return True
 
-    def _build_default_exporters(self) -> None:
+    def _start_exporter(self) -> None:
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
@@ -245,9 +248,8 @@ class _ProfilerInstance(service.Service):
         profiler_config = config_str(profiling_config)
         self.tags.update({"profiler_config": profiler_config})
 
-        endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
-            endpoint_call_counter_span_processor.enable()
+            self.tracer._endpoint_call_counter_span_processor.enable()
 
         ddup.config(
             env=self.env,
@@ -363,8 +365,6 @@ class _ProfilerInstance(service.Service):
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
 
-        self._build_default_exporters()
-
         scheduler_class: type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
             scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
         )
@@ -416,35 +416,45 @@ class _ProfilerInstance(service.Service):
                 LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
     _COPY_IGNORE_ATTRIBUTES = {"status", "process_tags"}
+    # Constructor arguments that are stored under a private name, so the generic filter below would drop them.
+    _COPY_PRIVATE_ATTRIBUTES = (
+        "_memory_collector_enabled",
+        "_stack_collector_enabled",
+        "_lock_collector_enabled",
+        "_pytorch_collector_enabled",
+        "_exception_profiling_enabled",
+    )
 
     def copy(self) -> "_ProfilerInstance":
-        return self.__class__(
-            **{
-                key: value
-                for key, value in vars(self).items()
-                if not key.startswith("_") and key not in self._COPY_IGNORE_ATTRIBUTES
-            }
-        )
+        kwargs = {
+            key: value
+            for key, value in vars(self).items()
+            if not key.startswith("_") and key not in self._COPY_IGNORE_ATTRIBUTES
+        }
+        kwargs.update({key: getattr(self, key) for key in self._COPY_PRIVATE_ATTRIBUTES})
+        return self.__class__(**kwargs)
 
-    def _start_service(self) -> None:
-        """Start the profiler."""
+    def _arm_native_heap_profiling(self) -> None:
         # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
         # inherit the patched GOT (and the activator skips a redundant re-install).
         # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED
         # (unset = on); that is not a ddtrace setting — see heap_gotter docs.
-        if profiling_config.native_heap.enabled:
-            from ddtrace.internal.datadog.profiling import heap_gotter
+        if not profiling_config.native_heap.enabled:
+            return
 
-            try:
-                if heap_gotter.install():
-                    mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
-                    LOG.info("Native heap profiling armed (GOT overrides installed, %s)", mode)
-                else:
-                    LOG.warning("Native heap profiling requested but GOT overrides were not installed")
-            except Exception:
-                LOG.error("Failed to arm native heap profiling", exc_info=True)
+        from ddtrace.internal.datadog.profiling import heap_gotter
 
-        collectors = []
+        try:
+            if heap_gotter.install():
+                mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
+                LOG.info("Native heap profiling armed (GOT overrides installed, %s)", mode)
+            else:
+                LOG.warning("Native heap profiling requested but GOT overrides were not installed")
+        except Exception:
+            LOG.error("Failed to arm native heap profiling", exc_info=True)
+
+    def _start_collectors(self) -> None:
+        started_collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         for col in self._collectors:
             try:
                 col.start()
@@ -453,9 +463,22 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
             else:
-                collectors.append(col)
-        self._collectors = collectors
+                started_collectors.append(col)
 
+        self._collectors = started_collectors
+
+    def _start_service(self) -> None:
+        """Start the profiler."""
+
+        self._arm_native_heap_profiling()
+
+        # Start ddup
+        self._start_exporter()
+
+        # Start collectors (stack, memory, etc.)
+        self._start_collectors()
+
+        # Start the upload scheduler
         if self._scheduler is not None:
             self._scheduler.start()
 

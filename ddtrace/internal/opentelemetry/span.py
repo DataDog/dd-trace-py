@@ -20,12 +20,12 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
-from ddtrace.trace import tracer as ddtracer
 
 
 if TYPE_CHECKING:
@@ -195,7 +195,7 @@ class Span(OtelSpan):
             # decision is made. Since the default sampling decision is to unsample spans this can result
             # in missing spans. To resolve this issue, a sampling decision must be made the first time
             # the span context is accessed.
-            ddtracer.sample(self._ddspan._local_root)
+            core.root.get_item("tracer").sample(self._ddspan._local_root)
 
         context = self._ddspan.context
         tf = TraceFlags(context._trace_flags)
