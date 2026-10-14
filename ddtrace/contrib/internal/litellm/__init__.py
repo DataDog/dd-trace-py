@@ -65,8 +65,9 @@ against its budgets. The two cost metrics describe the same spend and are never 
    ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality to the endpoint given by
    ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``), with the
    headers in ``OTEL_EXPORTER_OTLP_METRICS_HEADERS``. Without an endpoint, metrics go to the Datadog Agent's OTLP receiver
-   on port 4318. When ``OTEL_EXPORTER_OTLP_ENDPOINT`` is configured for gRPC (``OTEL_EXPORTER_OTLP_PROTOCOL=grpc``), set
-   ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` to an OTLP/HTTP endpoint; otherwise the metrics are not enabled. An export
+   on port 4318. An endpoint configured for gRPC (``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL``, or else
+   ``OTEL_EXPORTER_OTLP_PROTOCOL``, set to ``grpc``) is not supported: set ``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL`` to
+   ``http/protobuf`` with an OTLP/HTTP ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``, or the metrics are not enabled. An export
    that fails with status 429, 502, 503 or 504, a refused connection or a timeout is retried, and kept for later exports
    while the endpoint stays unavailable. ``dogstatsd`` sends the same series to the Datadog Agent's DogStatsD endpoint.
 

@@ -343,8 +343,9 @@ def _enable_usage_metrics():
         exporter = "otlp"
     if exporter == "otlp" and _usage_metrics_writer.otlp_endpoint_is_grpc():
         log.warning(
-            "LiteLLM usage metrics are not enabled: they are sent over OTLP/HTTP, and OTEL_EXPORTER_OTLP_ENDPOINT "
-            "is configured for gRPC. Set OTEL_EXPORTER_OTLP_METRICS_ENDPOINT to an OTLP/HTTP metrics endpoint."
+            "LiteLLM usage metrics are not enabled: they are sent over OTLP/HTTP, and the OTLP metrics endpoint is "
+            "configured for gRPC. Set OTEL_EXPORTER_OTLP_METRICS_PROTOCOL=http/protobuf with an OTLP/HTTP "
+            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT."
         )
         return
     tags = frozenset(tag.strip().lower() for tag in (config.litellm.usage_metrics_tags or "").split(",") if tag.strip())

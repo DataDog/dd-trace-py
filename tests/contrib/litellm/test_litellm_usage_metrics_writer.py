@@ -37,7 +37,7 @@ def observation(user="u1", input_tokens=12):
 class Collector(http.server.BaseHTTPRequestHandler):
     requests = []
     status = 200
-    # Statuses for the next requests, before ``status`` applies again.
+    # Statuses for the next requests, before status applies again.
     statuses = []
     retry_after = None
     # Seconds the collector waits before it answers.
@@ -315,14 +315,24 @@ def test_shutdown_time_is_bounded_behind_a_collector_that_does_not_answer(otlp_e
             },
             False,
         ),
+        # A metrics endpoint is read with the metrics protocol, which defaults to the global one.
+        ({"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://collector:4317", "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"}, True),
         (
             {
-                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
-                "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+                "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://collector:4317",
+                "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "grpc",
+            },
+            True,
+        ),
+        (
+            {
                 "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://collector:4318/v1/metrics",
+                "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "http/protobuf",
+                "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
             },
             False,
         ),
+        # Without a configured endpoint, the metrics go to an OTLP/HTTP default.
         ({"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"}, False),
     ],
 )

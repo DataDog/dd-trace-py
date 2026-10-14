@@ -1,6 +1,6 @@
 """Replay the hook calls of a running LiteLLM proxy and check what the integration records against what happened.
 
-``usage_metrics_recordings.json`` holds 38 scenarios recorded from ``litellm[proxy]==1.104.0`` serving a fake
+usage_metrics_recordings.json holds 38 scenarios recorded from litellm[proxy]==1.104.0 serving a fake
 OpenAI and Anthropic provider: streams with and without provider usage, the Anthropic Messages and Responses routes,
 retries, fallbacks, failures, timeouts, disconnects, cache hits, and unpriced and zero-priced models. Each scenario
 holds the hooks the proxy called, in order, with the fields of their arguments the integration reads, and the ground

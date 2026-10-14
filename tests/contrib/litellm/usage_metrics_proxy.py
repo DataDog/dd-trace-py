@@ -1,8 +1,8 @@
 """A LiteLLM proxy under ddtrace-run, a fake model provider, and collectors for the metrics it exports.
 
 The fake provider answers like OpenAI and Anthropic with fixed usage numbers, and can fail on purpose:
-a model name containing ``fail429`` or ``fail500`` always fails, ``flaky`` fails every other call with a 429,
-and ``nousage`` streams without usage. Nothing leaves localhost.
+a model name containing fail429 or fail500 always fails, flaky fails every other call with a 429,
+and nousage streams without usage. Nothing leaves localhost.
 """
 
 import collections

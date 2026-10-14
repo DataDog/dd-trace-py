@@ -1,8 +1,8 @@
 """Periodic export of LiteLLM usage and cost metrics.
 
-Records are projected into metric points by the native ``ai_usage`` module as they arrive. Every
+Records are projected into metric points by the native ai_usage module as they arrive. Every
 interval the points recorded since the last flush are encoded once and sent, either as an OTLP/HTTP
-protobuf ``ExportMetricsServiceRequest`` (delta temporality) or as DogStatsD lines.
+protobuf ExportMetricsServiceRequest (delta temporality) or as DogStatsD lines.
 """
 
 from __future__ import annotations
@@ -65,10 +65,11 @@ def _wait(stopping: Any, seconds: float) -> bool:
 
 
 def otlp_endpoint_is_grpc() -> bool:
-    """Whether the OTLP endpoint is OTEL_EXPORTER_OTLP_ENDPOINT configured for gRPC. The usage metrics are sent
-    over OTLP/HTTP only, which a gRPC endpoint does not accept.
+    """Whether the configured OTLP metrics endpoint is a gRPC one: its protocol, the metrics one or else the global
+    one, is gRPC. The usage metrics are sent over OTLP/HTTP only, which a gRPC endpoint does not accept. Without a
+    configured endpoint they go to an OTLP/HTTP default.
     """
-    if env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or not env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+    if not (env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or env.get("OTEL_EXPORTER_OTLP_ENDPOINT")):
         return False
     protocol = env.get("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL") or env.get("OTEL_EXPORTER_OTLP_PROTOCOL") or ""
     return protocol.strip().lower() == "grpc"
@@ -84,7 +85,7 @@ def _parse_headers(raw: str) -> list[tuple[str, str]]:
 
 
 def _retry_after(value: Optional[str]) -> Optional[float]:
-    """The delay a ``Retry-After`` header asks for, in seconds. Only the delay-seconds form is read."""
+    """The delay a Retry-After header asks for, in seconds. Only the delay-seconds form is read."""
     try:
         return max(float(value), 0.0) if value else None
     except ValueError:
@@ -246,7 +247,7 @@ class _DogStatsdSender:
 
 
 class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
-    """Collects usage metric observations and exports them every ``interval`` seconds."""
+    """Collects usage metric observations and exports them every interval seconds."""
 
     def __init__(self, exporter: str, interval: float, metrics: Optional[list[str]] = None) -> None:
         super().__init__(interval=interval)

@@ -1,29 +1,29 @@
 """Usage and cost metrics for calls made through a LiteLLM proxy.
 
-A LiteLLM ``CustomLogger`` builds two kinds of plain observations, which the native ``ai_usage``
+A LiteLLM CustomLogger builds two kinds of plain observations, which the native ai_usage
 module turns into OpenTelemetry metric points:
 
-- one per *provider attempt*, a request from the proxy to a model provider. Retries and fallbacks are
-  separate attempts. It is projected under ``gen_ai.client.provider_attempt@0.1.0`` and, when usage is
-  known, ``trajectory.gen_ai.client.token_breakdown@0.1.0``;
-- one per *gateway request*, a request from a client to the proxy, projected under
-  ``trajectory.gen_ai.gateway.request@0.1.0``.
+- one per provider attempt, a request from the proxy to a model provider. Retries and fallbacks are
+  separate attempts. It is projected under gen_ai.client.provider_attempt@0.1.0 and, when usage is
+  known, trajectory.gen_ai.client.token_breakdown@0.1.0;
+- one per gateway request, a request from a client to the proxy, projected under
+  trajectory.gen_ai.gateway.request@0.1.0.
 
 The adapter only copies fields. It does no arithmetic on usage, knows no metric names, and never reads
 prompts, responses, keys or key hashes.
 
 How LiteLLM's hooks map to the two grains (verified against a running proxy, litellm 1.104):
 
-- ``async_pre_call_hook`` starts a gateway request, keyed by ``litellm_call_id``, which every later hook
+- async_pre_call_hook starts a gateway request, keyed by litellm_call_id, which every later hook
   of the same client request carries.
-- ``log_pre_api_call`` fires once per provider attempt, retries and fallbacks included, and never for a
+- log_pre_api_call fires once per provider attempt, retries and fallbacks included, and never for a
   gateway cache hit. The attempts of one request run one after the other.
-- An attempt that fails before streaming ends with ``async_post_call_failure_deployment_hook``. One that
-  fails mid-stream ends with ``async_log_failure_event``. The request's final attempt ends with its one
-  ``async_log_success_event``, which also ends the gateway request.
-- ``async_post_call_failure_hook`` ends a gateway request that failed for good, and any attempt still open.
+- An attempt that fails before streaming ends with async_post_call_failure_deployment_hook. One that
+  fails mid-stream ends with async_log_failure_event. The request's final attempt ends with its one
+  async_log_success_event, which also ends the gateway request.
+- async_post_call_failure_hook ends a gateway request that failed for good, and any attempt still open.
 - Which token counts a provider reported in a stream is seen in the stream itself: in
-  ``CustomStreamWrapper.chunk_creator`` for chat and text completion streams, and in the raw events of native
+  CustomStreamWrapper.chunk_creator for chat and text completion streams, and in the raw events of native
   Anthropic Messages and Responses streams.
 """
 
@@ -140,7 +140,7 @@ _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
 
 def _identifier(value: Any) -> Optional[str]:
-    """A low-cardinality identifier: lower case, ``[a-z0-9_.-]``, starting with a letter."""
+    """A low-cardinality identifier: lower case, [a-z0-9_.-], starting with a letter."""
     if not isinstance(value, str) or not value:
         return None
     text = _IDENTIFIER_INVALID.sub("_", value.strip().lower())
@@ -163,7 +163,7 @@ def provider_name(custom_llm_provider: Any) -> Optional[str]:
 
 
 def error_type(error_class: Any) -> Optional[str]:
-    """``RateLimitError`` -> ``rate_limit_error``."""
+    """RateLimitError -> rate_limit_error."""
     if isinstance(error_class, BaseException):
         error_class = type(error_class).__name__
     if not isinstance(error_class, str) or not error_class:
@@ -285,7 +285,7 @@ def _response_model(kwargs: dict[str, Any]) -> Optional[str]:
 
 
 def _metadata(kwargs: dict[str, Any]) -> dict[str, Any]:
-    """The request metadata: under ``litellm_params`` in callback kwargs, at the top of deployment hook data."""
+    """The request metadata: under litellm_params in callback kwargs, at the top of deployment hook data."""
     metadata = (kwargs.get("litellm_params") or {}).get("metadata") or kwargs.get("metadata")
     return metadata if isinstance(metadata, dict) else {}
 
@@ -374,7 +374,7 @@ def _sse_events(chunks: Any) -> Any:
 def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str]]:
     """Which sides of a native Anthropic Messages stream the provider reported, and the model it named.
 
-    ``message_start`` carries the input count and a placeholder output count; ``message_delta`` carries the output
+    message_start carries the input count and a placeholder output count; message_delta carries the output
     count. A stream that ends without one leaves LiteLLM to estimate that side.
     """
     input_reported = output_reported = False
@@ -554,7 +554,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
 
     @staticmethod
     def _open_attempt(request: _Request, kwargs: dict[str, Any]) -> Optional[_Attempt]:
-        """The open attempt an event belongs to: the one that started at the event's ``api_call_start_time``,
+        """The open attempt an event belongs to: the one that started at the event's api_call_start_time,
         else the latest open one.
         """
         start = kwargs.get("api_call_start_time")
@@ -608,7 +608,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         """Called by the integration's wrapper when a chat or text completion attempt raises before streaming.
 
         Attempts of one request run one after the other, so the failed attempt is the latest open one. On LiteLLM
-        versions that call ``async_post_call_failure_deployment_hook``, that hook has already closed it.
+        versions that call async_post_call_failure_deployment_hook, that hook has already closed it.
         """
         try:
             call_id = kwargs.get("litellm_call_id")
@@ -717,7 +717,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         cost: Any,
         failed: bool = False,
     ) -> None:
-        """Record the gateway request. ``failed`` marks a request that failed for good, whose ``cost`` is what the
+        """Record the gateway request. failed marks a request that failed for good, whose cost is what the
         proxy charged for it, zero included.
         """
         if request.ended:
@@ -774,8 +774,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
     def _proxy_request(self, kwargs: dict[str, Any], elapsed: float = 0.0) -> Optional[_Request]:
         """The request a call belongs to. Only calls made by the proxy are recorded.
 
-        Proxies that assign the call id after ``async_pre_call_hook`` (LiteLLM 1.6x) have no request yet at their
-        first call: it starts there, ``elapsed`` seconds ago, with its route and identity from the call's metadata.
+        Proxies that assign the call id after async_pre_call_hook (LiteLLM 1.6x) have no request yet at their
+        first call: it starts there, elapsed seconds ago, with its route and identity from the call's metadata.
         """
         call_id = kwargs.get("litellm_call_id")
         request = self._request(call_id, create=False)

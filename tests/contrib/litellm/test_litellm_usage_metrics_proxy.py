@@ -88,7 +88,7 @@ class Export:
 
     @staticmethod
     def _matches(attributes, wanted):
-        """``None`` wants the attribute absent and ``"*"`` wants it present with any value."""
+        """None wants the attribute absent and "*" wants it present with any value."""
         attributes = dict(attributes)
 
         def match(key, value):
@@ -118,7 +118,7 @@ class Export:
 
     def datadog_series(self):
         """The Datadog series these points give: Counts for counters (nano-USD in USD) and each histogram's
-        ``.count`` companion. Durations differ between runs; their sample counts do not.
+        .count companion. Durations differ between runs; their sample counts do not.
         """
         out = collections.Counter()
         for (profile, name, unit, attributes), value in self.counters.items():
