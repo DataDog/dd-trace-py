@@ -41,7 +41,7 @@ Patch Module (ddtrace/contrib/internal/)  -->  Spans + Tags
 - **`PATCH_MODULES`** -- registration dict in `ddtrace/_monkey.py` for `patch_all()` discovery
 - **`INTEGRATION_CONFIGS`** -- frozenset in `ddtrace/internal/settings/_config.py`, required for config to work
 - **`registry.yaml`** -- dependency names and tested version range in `scripts/integration_registry/registry.yaml`
-- **`{name}.manifest.yaml`** -- declarative metadata (packages, categories, systems) next to each patch module. Required for every new integration; existing ones rarely change. See [Integration Manifest](references/integration-manifest.md)
+- **`{name}.manifest.yaml`** -- declarative metadata (packages, categories, systems) next to each patch module. Required for every new integration; existing ones rarely change. See "What is an integration manifest?" in [Contributing Integrations](../../../docs/contributing-integrations.rst)
 
 ## Type Annotations
 
@@ -110,6 +110,6 @@ This clears the Rust target directory and pip's download/build caches. Run this 
 
 - [Implementation Guide](references/implementation-guide.md) -- Step-by-step new integration (all types)
 - [Reference Integrations](references/reference-integrations.md) -- All 13 categories with canonical examples
-- [Integration Manifest](references/integration-manifest.md) -- `{name}.manifest.yaml` fields and when to update it
+- [Contributing Integrations](../../../docs/contributing-integrations.rst) -- "What is an integration manifest?": `{name}.manifest.yaml` fields and when to update it
 - [Design Decisions](references/design-decisions.md) -- Why integrations are structured this way
 - [Anti-Patterns](references/anti-patterns.md) -- Silent failures and common gotchas

@@ -273,6 +273,8 @@ Keep the fields in this order:
 
 ``display_name``
     The library's established spelling and capitalization, for example ``Flask``, ``HTTPX``, or ``LangGraph``.
+    When the integration is named after a protocol or technology rather than a package, use that technology's
+    spelling, for example ``GraphQL``, ``gRPC``, or ``Kafka``.
 
 ``description``
     One sentence, normally starting with "Instruments" and usually 15 to 25 words, describing the behavior the
@@ -281,9 +283,9 @@ Keep the fields in this order:
     everything the library can do.
 
 ``packages``
-    The PyPI distributions that activate the integration, sorted. These must match ``dependency_names`` in
-    ``scripts/integration_registry/registry.yaml``. Use ``[]`` for standard library integrations such as
-    ``httplib`` or ``logging``.
+    The PyPI distributions that activate the integration, as a sorted list of ``- name: <distribution>`` entries.
+    These must match ``dependency_names`` in ``scripts/integration_registry/registry.yaml``. Use ``[]`` for
+    standard library integrations such as ``httplib`` or ``logging``.
 
 ``category``
     A sorted, non-empty list of every kind of operation the integration instruments, such as ``db.client``,
@@ -302,11 +304,19 @@ Keep the fields in this order:
 ``creation_date``
     The quoted ``'YYYY-MM-DD'`` author date of the first commit that added working instrumentation. Commits that
     only add autopatching or registry entries, or that move files, do not count. For a new integration, this is
-    the author date of the commit that adds the patch code.
+    the author date of the commit that adds the patch code. For an existing integration, start from:
 
-``category`` and ``systems`` values come from a shared taxonomy that is not part of this repository. Reuse values
-that already appear in other manifests under ``ddtrace/contrib/internal/``. If none fit, or you are unsure which
-value applies, say so in the pull request description so a reviewer can confirm it.
+    .. code-block:: bash
+
+        git --no-pager log --follow --diff-filter=A --date=short --format='%H %ad %s' -- ddtrace/contrib/internal/<integration>/patch.py
+
+    If the oldest result only moves or renames the file, repeat the command with the older path, for example
+    ``ddtrace/contrib/<integration>/patch.py``, until you reach the commit that added working instrumentation.
+
+``category`` and ``systems`` values come from a shared taxonomy that is not part of this repository. Only use values
+that already appear in other manifests under ``ddtrace/contrib/internal/``, and never introduce a new one. If no
+category fits, use ``other``; if no system fits, use ``[]``. If you think a new value is needed, or you are unsure
+which value applies, say so in the pull request description so a reviewer can confirm it.
 
 Most changes to an existing integration do not touch its manifest. Bug fixes, refactors, new tags,
 configuration options, and supported-version changes leave it as is. Update the manifest only when:

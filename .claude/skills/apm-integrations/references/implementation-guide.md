@@ -62,9 +62,9 @@ it's patched. **Without this entry, integration config settings are silently ign
 
 Add `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` describing the
 integration's packages, categories, and systems. Its `packages` must match the
-registry `dependency_names` you just added. See
-[Integration Manifest](integration-manifest.md) for the field rules and for
-the rare cases where modifying an existing integration requires a manifest update.
+registry `dependency_names` you just added. See "What is an integration manifest?" in
+[Contributing Integrations](../../../../docs/contributing-integrations.rst) for
+the field rules and for the rare cases where modifying an existing integration requires a manifest update.
 
 ## 3. Create LLMObs integration (LLM only)
 
@@ -133,7 +133,7 @@ Every new integration must complete ALL applicable items:
 - [ ] `ddtrace/_monkey.py` -- `PATCH_MODULES` entry in alphabetical order
 - [ ] `scripts/integration_registry/registry.yaml` -- dependency names and tested version range
 - [ ] `ddtrace/internal/settings/_config.py` -- `INTEGRATION_CONFIGS` frozenset entry
-- [ ] `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` -- integration manifest (see [Integration Manifest](integration-manifest.md))
+- [ ] `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` -- integration manifest (see "What is an integration manifest?" in [Contributing Integrations](../../../../docs/contributing-integrations.rst))
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` -- import + `__all__` entry (LLM only)
 
 ### Patch Code
