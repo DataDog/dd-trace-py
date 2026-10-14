@@ -1,4 +1,3 @@
-from concurrent import futures
 from contextlib import contextmanager
 import os
 from unittest.mock import Mock
@@ -38,9 +37,10 @@ def get_otlp_http_request(call):
 
 def create_mock_grpc_server():
     """Create a mock gRPC server for testing OpenTelemetry logs exporter."""
-    import grpc
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
+
+    from tests.opentelemetry.utils import create_grpc_server
 
     class MockLogsService(LogsServiceServicer):
         def __init__(self):
@@ -53,9 +53,7 @@ def create_mock_grpc_server():
             return ExportLogsServiceResponse()
 
     mock_service = MockLogsService()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    add_LogsServiceServicer_to_server(mock_service, server)
-    server.add_insecure_port("[::]:4317")
+    server = create_grpc_server(mock_service, add_LogsServiceServicer_to_server)
     return mock_service, server
 
 
