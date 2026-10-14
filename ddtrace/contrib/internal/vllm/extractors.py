@@ -117,10 +117,16 @@ def get_num_cached_tokens(req_state: RequestState, engine_core_output: EngineCor
     prefill_stats on the prefill step output only, and then copies it to req_state.
     The prefill step can also be the final step (pooling, single-token generation), so read
     prefill_stats first, because req_state is not updated yet at capture time.
+    With disaggregated prefill, vLLM >= 0.31 overrides the count with remote_prefill_cached_tokens,
+    the cache hits on the remote prefill worker. vLLM sets it when it creates the request state.
     """
     num_cached_tokens = getattr(engine_core_output, "num_cached_tokens", None)
     if num_cached_tokens is not None:
         return int(num_cached_tokens)
+
+    remote_prefill_cached_tokens = getattr(req_state, "remote_prefill_cached_tokens", None)
+    if remote_prefill_cached_tokens is not None:
+        return int(remote_prefill_cached_tokens)
 
     prefill_stats = getattr(engine_core_output, "prefill_stats", None)
     if prefill_stats is not None:
