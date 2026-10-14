@@ -6,7 +6,6 @@ from typing import Protocol
 from typing import Union
 from typing import cast
 
-from ddtrace._trace.provider import BaseContextProvider
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal._context_watcher import register_context_watcher
@@ -15,9 +14,17 @@ from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 
 
+class BaseContextProviderProtocol(Protocol):
+    """Structural stand-in for ddtrace._trace.provider.BaseContextProvider, so this module does not need to
+    import from the tracing product.
+    """
+
+    def active(self) -> Optional[Union[Context, SpanData]]: ...
+
+
 class TracerProtocol(Protocol):
     @property
-    def context_provider(self) -> BaseContextProvider: ...
+    def context_provider(self) -> BaseContextProviderProtocol: ...
 
 
 class _LocalRootProtocol(Protocol):
@@ -30,7 +37,7 @@ class _LocalRootProtocol(Protocol):
     def span_type(self) -> Optional[str]: ...
 
 
-_ContextActivationListener = Callable[[BaseContextProvider, Optional[Union[Context, SpanData]]], None]
+_ContextActivationListener = Callable[[BaseContextProviderProtocol, Optional[Union[Context, SpanData]]], None]
 _ContextSwitchListener = Callable[[], None]
 _ThreadContextListeners = tuple[_ContextActivationListener, _ContextSwitchListener]
 
@@ -61,7 +68,7 @@ if sys.platform == "linux":
             _sync_otel_thread_context(tracer.context_provider.active())
 
         def _on_context_provider_activate(
-            provider: BaseContextProvider, ctx: Optional[Union[Context, SpanData]]
+            provider: BaseContextProviderProtocol, ctx: Optional[Union[Context, SpanData]]
         ) -> None:
             if provider is tracer.context_provider:
                 _sync_otel_thread_context(ctx)

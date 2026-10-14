@@ -1,34 +1,25 @@
-import sys
 from time import time
 from time import time_ns
 
 import confluent_kafka
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.kafka import KafkaConsumeEvent
+from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.propagation.http import HTTPPropagator as Propagator
-from ddtrace.trace import tracer
 
 
 _Producer = confluent_kafka.Producer
@@ -190,45 +181,49 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
-    with tracer.trace(
-        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.WORKER,
-    ) as span:
-        set_service_and_source(span, trace_utils.ext_service(None, config.kafka), config.kafka)
-        cluster_id = _get_cluster_id(instance, topic)
+    tracing_headers = {}
+    cluster_id = _get_cluster_id(instance, topic)
+
+    event = KafkaProducerEvent(
+        messaging_operation=kafkax.PRODUCE,
+        provider="kafka",
+        topic=topic,
+        bootstrap_servers=instance._dd_bootstrap_servers,
+        distributed_headers=tracing_headers,
+        component=config.kafka.integration_name,
+        integration_config=config.kafka,
+        service=trace_utils.ext_service(None, config.kafka),
+        cluster_id=cluster_id,
+        partition=partition,
+        tombstone=value is None,
+    )
+
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id:
-            span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
 
-        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
-
-        span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span._set_attribute(COMPONENT, config.kafka.integration_name)
-        span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
-        span._set_attribute(kafkax.TOPIC, topic)
-        if topic:
-            # Should fall back to broker id if topic is not provided but it is not readily available here
-            span._set_attribute(MESSAGING_DESTINATION_NAME, topic)
+        core.dispatch(
+            "kafka.produce.start",
+            (instance, args, kwargs, isinstance(instance, _SerializingProducer), span),
+        )
 
         if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
             serialized_key = serialize_key(instance, topic, message_key, headers)
             if serialized_key is not None:
-                span._set_attribute(kafkax.MESSAGE_KEY, serialized_key)
+                event.message_key = serialized_key
         else:
-            span._set_attribute(kafkax.MESSAGE_KEY, message_key)
+            event.message_key = message_key
 
-        span.set_tag(kafkax.PARTITION, partition)
-        span._set_attribute(kafkax.TOMBSTONE, str(value is None))
-        span._set_attribute(_SPAN_MEASURED_KEY, 1)
-        if instance._dd_bootstrap_servers is not None:
-            span._set_attribute(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
-
-        # inject headers with Datadog tags if trace propagation is enabled
-        if config.kafka.distributed_tracing_enabled:
-            # inject headers with Datadog tags:
-            headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
-            Propagator.inject(span.context, headers)
+        if tracing_headers:
+            # Re-read after kafka.produce.start: DSM may have replaced kwargs["headers"]
+            # with a pathway-bearing mapping distinct from the empty object captured above.
+            headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
+            if isinstance(headers, dict):
+                headers.update(tracing_headers)
+            else:
+                headers.extend(tracing_headers.items())
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
+
         return func(*args, **kwargs)
 
 
@@ -260,34 +255,25 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 
 def _instrument_message(messages, start_ns, instance, err):
-    ctx = None
-    links = []
     first_message = messages[0] if len(messages) else None
-    if config.kafka.distributed_tracing_enabled:
-        if config.kafka.propagation_as_span_links:
-            # Relate the consume span to every message's producer via span links rather
-            # than continuing any single producer's trace. This applies to both poll() (a
-            # single message) and consume() (a batch): no producer is privileged as the
-            # parent, so no producer trace is polluted by the consume span's children.
-            for message in messages:
-                if message is None or not message.headers():
-                    continue
-                link_ctx = Propagator.extract(dict(message.headers()))
-                if link_ctx is not None and link_ctx.trace_id is not None:
-                    links.append(link_ctx)
-        elif first_message is not None and first_message.headers():
-            # First message is used to extract context and enrich datadog spans
-            # This approach aligns with the opentelemetry confluent kafka semantics
-            ctx = Propagator.extract(dict(first_message.headers()))
-    with tracer.start_span(
-        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-        span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
-        activate=True,
-    ) as span:
-        if links:
-            core.dispatch("kafka.consume.link_spans", (span, links))
-        set_service_and_source(span, trace_utils.ext_service(None, config.kafka), config.kafka)
+    topic = str(first_message.topic()) if first_message is not None else None
+    event = KafkaConsumeEvent(
+        messaging_operation=kafkax.CONSUME,
+        provider="kafka",
+        direction=SpanDirection.PROCESSING,
+        topic=topic,
+        group_id=instance._group_id,
+        message_headers=[dict(message.headers() or []) if message is not None else {} for message in messages],
+        propagation_as_span_links=config.kafka.propagation_as_span_links,
+        component=config.kafka.integration_name,
+        integration_config=config.kafka,
+        service=trace_utils.ext_service(None, config.kafka),
+        error=err,
+    )
+
+    with core.context_with_event(event) as event_ctx:
+        span = span_from_context(event_ctx)
+
         # reset span start time to before function call
         span.start_ns = start_ns
         cluster_id = None
@@ -299,19 +285,11 @@ def _instrument_message(messages, start_ns, instance, err):
                 core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, message, span))
 
-        span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span._set_attribute(COMPONENT, config.kafka.integration_name)
-        span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
-        if cluster_id:
-            span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
-        span._set_attribute(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
-        span._set_attribute(kafkax.GROUP_ID, instance._group_id)
+        event.cluster_id = cluster_id
+        event.received_message = first_message is not None
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
-            topic = str(first_message.topic())
-            span._set_attribute(kafkax.TOPIC, topic)
-            span._set_attribute(MESSAGING_DESTINATION_NAME, topic)
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
@@ -320,19 +298,15 @@ def _instrument_message(messages, start_ns, instance, err):
                 or isinstance(message_key, str)
                 or isinstance(message_key, bytes)
             ):
-                span._set_attribute(kafkax.MESSAGE_KEY, message_key)
-            span.set_tag(kafkax.PARTITION, first_message.partition())
+                event.message_key = message_key
+            event.partition = first_message.partition()
             is_tombstone = False
             try:
                 is_tombstone = len(first_message) == 0
             except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
                 pass
-            span._set_attribute(kafkax.TOMBSTONE, str(is_tombstone))
-            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-        if err is not None:
-            span.set_exc_info(*sys.exc_info())
+            event.tombstone = is_tombstone
+            event.message_offset = message_offset
 
 
 def traced_commit(func, instance, args, kwargs):
@@ -365,7 +339,10 @@ def serialize_key(instance, topic, key, headers):
                 log.debug("Failed to set Kafka Consumer key tag: %s", str(key))
                 return None
         else:
-            log.warning("Failed to set Kafka Consumer key tag, no method available to serialize key: %s", str(key))
+            log.warning(
+                "Failed to set Kafka Consumer key tag, no method available to serialize key: %s",
+                str(key),
+            )
             return None
 
 

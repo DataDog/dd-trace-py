@@ -6,6 +6,7 @@ from inspect import isgeneratorfunction
 from typing import Any
 from typing import Callable
 from typing import Generic
+from typing import Iterator
 from typing import Optional
 from typing import TypeVar
 import weakref
@@ -62,14 +63,21 @@ class IdentityWeakKeyDictionary(Generic[WK, WV]):
     identical but separately created code objects).
     """
 
-    __slots__ = ("_data",)
+    __slots__ = ("_data", "_on_remove")
 
-    def __init__(self) -> None:
+    def __init__(self, on_remove: Optional[Callable[[], None]] = None) -> None:
         self._data: dict[int, tuple[weakref.ref[WK], WV]] = {}
+        self._on_remove = on_remove
 
     def _make_remove(self, key_id: int) -> Callable[["weakref.ref[WK]"], None]:
-        def remove(_ref: "weakref.ref[WK]") -> None:
-            self._data.pop(key_id, None)
+        def remove(ref: "weakref.ref[WK]") -> None:
+            # Only drop the entry this weakref was created for: the slot may
+            # since have been overwritten by a new key reusing the same id.
+            item = self._data.get(key_id)
+            if item is not None and item[0] is ref:
+                self._data.pop(key_id, None)
+                if (on_remove := self._on_remove) is not None:
+                    on_remove()
 
         return remove
 
@@ -85,6 +93,15 @@ class IdentityWeakKeyDictionary(Generic[WK, WV]):
     def __contains__(self, key: WK) -> bool:
         item = self._data.get(id(key))
         return item is not None and item[0]() is key
+
+    def __iter__(self) -> Iterator[WK]:
+        for ref, _value in tuple(self._data.values()):
+            key = ref()
+            if key is not None:
+                yield key
+
+    def __len__(self) -> int:
+        return len(self._data)
 
     def __getitem__(self, key: WK) -> WV:
         item = self._data.get(id(key))
@@ -111,6 +128,9 @@ class IdentityWeakKeyDictionary(Generic[WK, WV]):
             raise
         del self[key]
         return value
+
+    def clear(self) -> None:
+        self._data.clear()
 
 
 def is_not_void_function(f, argspec: FullArgSpec):

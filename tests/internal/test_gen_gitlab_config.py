@@ -105,7 +105,7 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
     metadata = {
         "env123": (
-            ".riot/requirements/env123.txt",
+            "tests/requirements_locks/env123.txt",
             "tests/tracer/**/test*.py",
             "pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
             "PYTHONOPTIMIZE=1",
@@ -121,7 +121,7 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
         environments=[("env123", "3.12")],
         k=1,
         metadata=metadata,
-        wait_lockfile=".riot/requirements/wait.txt",
+        wait_lockfile="tests/requirements_locks/wait.txt",
     )
 
     content = output.getvalue()
@@ -187,7 +187,7 @@ def test_unpinned_jobs_allow_prerelease_dependencies(gen_gitlab_config_mod, monk
 
 
 def test_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
-    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value=".riot/requirements/wait.txt"):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="tests/requirements_locks/wait.txt"):
         config = str(
             gen_gitlab_config_mod.JobSpec(name="requests", stage="contrib", suite="contrib::requests", snapshot=True)
         )
