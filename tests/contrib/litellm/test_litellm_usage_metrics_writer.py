@@ -377,7 +377,7 @@ def test_a_grpc_otlp_endpoint_is_recognized(monkeypatch, variables, grpc):
 
 def test_the_logged_endpoint_has_no_secrets(collector, monkeypatch):
     port = collector.server_address[1]
-    url = f"http://user:hunter2@127.0.0.1:{port}/v1/metrics?api_key=secret123"
+    url = f"http://user:hunter2@127.0.0.1:{port}/token-123/v1/metrics?api_key=secret123"
     monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", url)
     warnings = []
     monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
@@ -386,11 +386,11 @@ def test_the_logged_endpoint_has_no_secrets(collector, monkeypatch):
     writer.record(PROVIDER_ATTEMPT, *observation())
     writer.flush()
     [(sent_path, _, _)] = Collector.requests
-    assert sent_path == "/v1/metrics?api_key=secret123"
+    assert sent_path == "/token-123/v1/metrics?api_key=secret123"
     [args] = warnings
     logged = " ".join(str(arg) for arg in args)
-    assert "hunter2" not in logged and "secret123" not in logged
-    assert f"http://127.0.0.1:{port}/v1/metrics" in logged
+    assert "hunter2" not in logged and "secret123" not in logged and "token-123" not in logged
+    assert f"http://127.0.0.1:{port}" in logged
 
 
 def test_close_spends_one_shutdown_budget(otlp_endpoint, monkeypatch):

@@ -78,14 +78,14 @@ def otlp_endpoint_is_grpc() -> bool:
 
 
 def _redacted(url: str) -> str:
-    """The URL without its credentials or query, which can hold secrets, for logs."""
+    """The URL's scheme, host and port, for logs: its credentials, path and query can all hold secrets."""
     parts = parse.urlsplit(url)
     host = parts.hostname or ""
     if ":" in host:
         host = f"[{host}]"
     if parts.port:
         host = f"{host}:{parts.port}"
-    return parse.urlunsplit((parts.scheme, host, parts.path, "", ""))
+    return parse.urlunsplit((parts.scheme, host, "", "", ""))
 
 
 def _parse_headers(raw: str) -> list[tuple[str, str]]:
