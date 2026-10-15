@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Any
 from typing import Optional
 
@@ -113,13 +114,15 @@ def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
     and are listed under "assets" in the order the SDK uploads them; their bytes go in separate parts and are not
     recorded.
     """
-    aliases = {id(asset): name for name, asset in (kwargs.get("assets") or {}).items()}
+    assets = kwargs.get("assets") or {}
+    # Like the SDK, an image passed under several names is written as its last name but uploaded once per name
+    aliases = {id(asset): name for name, asset in assets.items()}
     found: dict[str, None] = {}
     body = {"state": kwargs.get("state"), "model": kwargs.get("model"), "questions": kwargs.get("questions")}
     body.update(kwargs.get("extra_body") or {})
     data: dict[str, Any] = _to_data(body, aliases, found)
     if "assets" not in body:
-        names = list(dict.fromkeys([*aliases.values(), *found]))
+        names = list(dict.fromkeys([*assets, *found]))
         if names:
             data["assets"] = {name: {"type": "image", "part": f"asset-{i}"} for i, name in enumerate(names)}
     return data
@@ -133,6 +136,8 @@ def _response_body(response: Any) -> str:
         raw_text = None
     if isinstance(raw_text, str) and raw_text:
         return raw_text
+    if hasattr(response, "model_dump"):
+        return safe_json(response.model_dump(mode="json")) or ""  # type: ignore[no-untyped-call]
     return safe_json(_to_data(response)) or ""  # type: ignore[no-untyped-call]
 
 
@@ -143,11 +148,11 @@ def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Option
     """
     aliases = {} if aliases is None else aliases
     found = {} if found is None else found
-    if value is None or isinstance(value, (str, bytes)):
+    if value is None or isinstance(value, (str, bytes, bytearray)):
         return load_data_value(value)  # type: ignore[no-untyped-call]
     if isinstance(value, Mapping):
         return {str(k): _to_data(v, aliases, found) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, Sequence):
         return [_to_data(v, aliases, found) for v in value]
     reference = getattr(value, "_reference", None)
     if isinstance(reference, str):
@@ -169,11 +174,9 @@ def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Option
     model_fields = getattr(type(value), "model_fields", None)
     if isinstance(model_fields, dict):
         # Walk pydantic fields instead of using model_dump so images nested in questions keep their alias
-        data = {
+        return {
             field.serialization_alias or field.alias or name: _to_data(getattr(value, name), aliases, found)
             for name, field in model_fields.items()
             if getattr(value, name, None) is not None
         }
-        data.update(_to_data(getattr(value, "__pydantic_extra__", None) or {}, aliases, found))
-        return data
     return load_data_value(value)  # type: ignore[no-untyped-call]

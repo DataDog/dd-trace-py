@@ -208,11 +208,14 @@ def _call_with_recording_transport(typesafe_sdk, test_spans, **kwargs):
     return spans[0], input_body, _sent_json_body(transport.requests[0]), output
 
 
-@pytest.mark.parametrize("extra_body", [None, {"model": "jev-latest", "debug": True}])
-def test_system_one_span_io_matches_http_bodies(typesafe_sdk, typesafe_llmobs, test_spans, extra_body):
-    span, input_body, sent_body, output = _call_with_recording_transport(
-        typesafe_sdk, test_spans, state=STATE, questions=build_questions(typesafe_sdk), extra_body=extra_body
-    )
+@pytest.mark.parametrize(
+    "overrides",
+    [{}, {"extra_body": {"model": "jev-latest", "debug": True}}, {"state": range(3)}],
+    ids=["plain", "extra_body", "sequence_state"],
+)
+def test_system_one_span_io_matches_http_bodies(typesafe_sdk, typesafe_llmobs, test_spans, overrides):
+    kwargs = {"state": STATE, "questions": build_questions(typesafe_sdk), **overrides}
+    span, input_body, sent_body, output = _call_with_recording_transport(typesafe_sdk, test_spans, **kwargs)
     assert input_body == sent_body
     assert output == STUB_RESPONSE
     assert span.get_tag("typesafe.request.model") == sent_body["model"]
@@ -240,8 +243,9 @@ def test_system_one_images_recorded_as_references(typesafe_sdk, typesafe_llmobs,
     }
 
 
-def test_system_one_custom_response_model_keeps_extra_fields(typesafe_sdk, typesafe_llmobs, test_spans):
-    """A custom response_model has no raw HTTP response, so the parsed model is recorded, extra fields included."""
+@pytest.mark.parametrize("kind", ["extra_allow", "root_model"])
+def test_system_one_custom_response_model(typesafe_sdk, typesafe_llmobs, test_spans, kind):
+    """A custom response_model has no raw HTTP response, so the parsed model is recorded as the model serializes it."""
     if parse_version(get_version()) < (0, 7):
         pytest.skip("response_model requires typesafe-sdk>=0.7")
     pydantic = pytest.importorskip("pydantic")
@@ -249,7 +253,24 @@ def test_system_one_custom_response_model_keeps_extra_fields(typesafe_sdk, types
     class AnyResponse(pydantic.BaseModel):
         model_config = pydantic.ConfigDict(extra="allow")
 
+    response_model = AnyResponse if kind == "extra_allow" else pydantic.RootModel[dict]
     _, _, _, output = _call_with_recording_transport(
-        typesafe_sdk, test_spans, state=STATE, questions=build_questions(typesafe_sdk), response_model=AnyResponse
+        typesafe_sdk, test_spans, state=STATE, questions=build_questions(typesafe_sdk), response_model=response_model
     )
     assert json.loads(output) == json.loads(STUB_RESPONSE)
+
+
+def test_system_one_image_under_several_names(typesafe_sdk, typesafe_llmobs, test_spans):
+    """The SDK uploads an image once per name it is passed under, so every name stays in the assets manifest."""
+    if not hasattr(typesafe_sdk, "Image"):
+        pytest.skip("images require typesafe-sdk>=0.7.5")
+    photo = typesafe_sdk.Image(PNG_BYTES)
+    _, input_body, sent_body, _ = _call_with_recording_transport(
+        typesafe_sdk,
+        test_spans,
+        state=["My order arrived broken.", photo],
+        questions=build_questions(typesafe_sdk),
+        assets={"original": photo, "thumbnail": photo},
+    )
+    assert input_body == sent_body
+    assert list(input_body["assets"]) == ["original", "thumbnail"]
