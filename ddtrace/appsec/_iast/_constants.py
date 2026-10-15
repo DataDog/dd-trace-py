@@ -32,10 +32,6 @@ TELEMETRY_OFF_VERBOSITY = 40
 class IAST(metaclass=Constant_Class):
     """Specific constants for IAST"""
 
-    ENV: Literal["DD_IAST_ENABLED"] = "DD_IAST_ENABLED"
-    ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
-    ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
-    ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     STRUCT: Literal["iast"] = "iast"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"

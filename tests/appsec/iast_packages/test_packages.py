@@ -1144,7 +1144,7 @@ def test_packages_patched(package):
     if package.test_import:
         # TODO: create fixtures with exported patched code and compare it with the generated in the test
         # (only for non-latest versions)
-        with override_env({IAST.ENV: "true"}):
+        with override_env({"DD_IAST_ENABLED": "true"}):
             # 1. Try with the specified version
             cmdlist = [
                 python_bin,

@@ -44,7 +44,7 @@ CONFIG_SERVER_PORT = "9596"
 def no_request_sampling(tracer):
     with override_env(
         {
-            IAST.ENV_REQUEST_SAMPLING: "100",
+            "DD_IAST_REQUEST_SAMPLING": "100",
             "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
         }
     ):
