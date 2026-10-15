@@ -30,6 +30,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
 from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
+from ddtrace.testing.internal.pytest.plugin import setup_coverage_collection
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
@@ -680,6 +681,23 @@ class TestSkippingAndITRFeatures:
         expected = 1 if coverage_enabled else 0
         assert mock_telemetry.record_coverage_started.call_count == expected
         assert mock_telemetry.record_coverage_finished.call_count == expected
+
+
+class TestSetupCoverageCollection:
+    @pytest.mark.parametrize("file_level_coverage", [True, False])
+    def test_installs_coverage_in_the_mode_used_for_skippable_requests(self, file_level_coverage: bool) -> None:
+        """The collector mode and the skippable-tests coverage header must come from the same decision."""
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.get_workspace_path", return_value=Path("/repo")),
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.is_file_level_coverage_enabled",
+                return_value=file_level_coverage,
+            ),
+            patch("ddtrace.testing.internal.pytest.plugin.install_coverage") as mock_install_coverage,
+        ):
+            setup_coverage_collection()
+
+        mock_install_coverage.assert_called_once_with(Path("/repo"), file_level_coverage=file_level_coverage)
 
 
 class TestFinalStatusFeatures:

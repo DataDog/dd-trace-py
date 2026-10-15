@@ -17,14 +17,13 @@ from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
-from ddtrace.internal.settings import env
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.utils.paths import is_contained
@@ -201,7 +200,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         cls._instance._include_paths = include_paths
         cls._instance._collect_import_coverage = collect_import_time_coverage
         cls._instance._file_level_coverage = (
-            asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")) if file_level_coverage is None else file_level_coverage
+            is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
         )
 
         if collect_import_time_coverage:
