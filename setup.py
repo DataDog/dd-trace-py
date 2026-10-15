@@ -322,6 +322,7 @@ if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info
         rust_features.append("crashtracker")
 if not SERVERLESS_BUILD:
     rust_features.append("ffe")
+    rust_features.append("ai_usage")
 
 
 class PatchedDistribution(Distribution):

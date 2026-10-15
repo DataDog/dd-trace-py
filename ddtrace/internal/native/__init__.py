@@ -56,6 +56,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from ._native import ai_usage  # noqa: F401
+except ImportError:
+    pass
+
 
 def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:
     """

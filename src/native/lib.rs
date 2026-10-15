@@ -2,6 +2,8 @@
 mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
+#[cfg(feature = "ai_usage")]
+mod ai_usage;
 mod config;
 mod context;
 mod context_provider;
@@ -104,6 +106,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "ffe")]
     {
         m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
+    }
+
+    // Add LLM usage metrics submodule
+    #[cfg(feature = "ai_usage")]
+    {
+        m.add_wrapped(pyo3::wrap_pymodule!(ai_usage::ai_usage))?;
     }
 
     // Add logger submodule
