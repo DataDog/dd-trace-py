@@ -32,7 +32,6 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -65,7 +64,9 @@ def _on_django_login(
                 user_login,
                 django_config.include_user_login,
             )
-            with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            with core.context_with_data(  # type: ignore[no-untyped-call]
+                "django.contrib.auth.login", span_name="django.contrib.auth.login", span_type=SpanTypes.AUTH
+            ):
                 session_key = getattr(getattr(request, "session", None), "session_key", None)
                 track_user_login_success_event(
                     None,
@@ -108,7 +109,9 @@ def _on_django_auth(
             break
 
     if not result_user:
-        with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+        with core.context_with_data(  # type: ignore[no-untyped-call]
+            "django.contrib.auth.login", span_name="django.contrib.auth.login", span_type=SpanTypes.AUTH
+        ):
             exists = info_retriever.user_exists()
             user_id_found, user_extra = info_retriever.get_user_info(
                 login=django_config.include_user_login,
