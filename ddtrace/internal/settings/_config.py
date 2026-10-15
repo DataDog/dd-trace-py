@@ -945,9 +945,9 @@ class Config:
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._integration_configs[integration] = IntegrationConfig(
-                self, integration, _deepmerge(existing, settings)
-            )
+            merged = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            object.__setattr__(merged, "http", existing.http)
+            self._integration_configs[integration] = merged
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 
