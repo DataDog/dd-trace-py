@@ -57,6 +57,7 @@ from ..gitmetadata import get_git_tags
 from ..logger import get_logger
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
+from ..serverless import in_aws_lambda_microvm
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
@@ -152,6 +153,14 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
+    def _stop_accepting_writes(self) -> None:
+        """Reject later writes. MicroVM identity refresh calls this on the writer it replaces."""
+        # Only MicroVM writers have a writer lock; elsewhere there is no refresh and nothing to close.
+        writer_lock = getattr(self, "_writer_lock", None)
+        if writer_lock is not None:
+            with writer_lock:
+                self._accepting_writes = False
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -241,6 +250,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck: RLock = RLock()
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
@@ -425,6 +436,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans=None):
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -846,7 +867,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-
+        # Identity refresh closes this writer before stopping it; the replacement writer accepts writes.
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
@@ -1122,11 +1145,24 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        # Identity refresh can close this writer concurrently; only MicroVM writers need this lock.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
+            # Flush under the writer lock: once refresh closes this writer, recreate() shuts down
+            # a sync writer's exporter, so a flush after that would send through a dead exporter.
             self.flush_queue()
 
     @staticmethod
