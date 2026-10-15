@@ -10,11 +10,10 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf.waf import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
+from ddtrace.appsec._waf import DDWaf
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -121,12 +120,11 @@ def test_nested_different_service_web_span_uses_separate_asm_context(tracer):
         assert _asm_request_context.get_active_asm_context() is parent_env
 
 
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._waf.DDWaf.run")
 def test_only_owner_finish_flushes_shared_asm_context(mock_run, tracer):
-    from ddtrace.appsec._utils import DDWaf_result
-    from ddtrace.appsec._utils import _observator
+    from ddtrace.internal.native._native.ddwaf import Result
 
-    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    mock_run.return_value = Result()
     config = {"_asm_enabled": True, "_asm_static_rule_file": rules.RULES_SRB_RESPONSE}
 
     with asm_context(tracer=tracer, service="svc", config=config):
@@ -332,7 +330,7 @@ def test_ip_update_rules_and_block(tracer):
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
     assert AppSecSpanProcessor._instance
-    assert py_ddwaf_builder_get_config_paths(AppSecSpanProcessor._instance._ddwaf._builder, "ASM/data") == 1
+    assert AppSecSpanProcessor._instance._ddwaf.config_paths_count("ASM/data") == 1
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -455,31 +453,22 @@ def test_ddwaf_not_raises_exception():
         )
 
 
-@pytest.mark.subprocess(err="Disabling AppSec: libddwaf failed to load (mock libddwaf load failure)\n")
+@pytest.mark.subprocess(
+    err="Disabling AppSec: WAF initialization failed (import of ddtrace.appsec._waf halted; None in sys.modules)\n"
+)
 def test_appsec_abort_on_waf_failure():
-    """Simulate a libddwaf loading error
+    """Simulate a WAF adapter import error
 
     AppSecSpanProcessor enablement occurs in `load_appsec` with `override_global_config` and should abort
     completely if an error is found in the bindings layer.
     """
-    import ctypes
+    import sys
     from unittest import mock
 
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
 
-    original_cdll = ctypes.CDLL
-
-    ERROR_MESSAGE = "mock libddwaf load failure"
-
-    def _raise_on_libddwaf(path, *args, **kwargs):
-        if path == asm_config._asm_libddwaf:
-            raise OSError(ERROR_MESSAGE)
-        return original_cdll(path, *args, **kwargs)
-
-    with (
-        mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
-    ):
+    with mock.patch.dict(sys.modules, {"ddtrace.appsec._waf": None}):
         with override_global_config(
             dict(
                 _asm_enabled=True,
@@ -630,11 +619,11 @@ def test_ddwaf_run():
         }
         ctx = _ddwaf._at_request_start()
         res = _ddwaf.run(ctx, data, timeout_ms=DEFAULT.WAF_TIMEOUT)  # res is a serialized json
-        assert res.data
-        assert res.data[0]["rule"]["id"] == "crs-942-100"
-        assert res.runtime > 0
-        assert res.total_runtime > 0
-        assert res.total_runtime > res.runtime
+        assert res.events
+        assert res.events[0]["rule"]["id"] == "crs-942-100"
+        assert res.duration_ns > 0
+        assert res.total_duration_ns > 0
+        assert res.total_duration_ns > res.duration_ns
         assert res.timeout is False
 
 
@@ -648,9 +637,9 @@ def test_ddwaf_run_timeout():
         }
         ctx = _ddwaf._at_request_start()
         res = _ddwaf.run(ctx, data, timeout_ms=0.001)  # res is a serialized json
-        assert res.runtime > 0
-        assert res.total_runtime > 0
-        assert res.total_runtime > res.runtime
+        assert res.duration_ns > 0
+        assert res.total_duration_ns > 0
+        assert res.total_duration_ns > res.duration_ns
         assert res.timeout is True
 
 
@@ -661,9 +650,9 @@ def test_ddwaf_info():
 
         info = _ddwaf.info
         rules_json = json.loads(rules_json_str.decode())
-        assert info.loaded == len(rules_json["rules"])
-        assert info.failed == 0
-        assert info.errors == ""
+        assert info.accepted_rules == len(rules_json["rules"])
+        assert info.rejected_rules == 0
+        assert info.errors == {}
         assert info.version == "rules_good"
 
 
@@ -673,13 +662,13 @@ def test_ddwaf_info_with_2_errors():
         _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
-        assert info.loaded == 1
-        assert info.failed == 2
+        assert info.accepted_rules == 1
+        assert info.rejected_rules == 2
         # Compare dict contents insensitive to ordering
         expected_dict = sorted(
             {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
         )
-        assert sorted(json.loads(info.errors).items()) == expected_dict
+        assert sorted(info.errors.items()) == expected_dict
         assert info.version == "5.5.5"
 
 
@@ -689,9 +678,9 @@ def test_ddwaf_info_with_3_errors():
         _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
-        assert info.loaded == 1
-        assert info.failed == 2
-        assert json.loads(info.errors) == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
+        assert info.accepted_rules == 1
+        assert info.rejected_rules == 2
+        assert info.errors == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
 
 
 def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
@@ -702,15 +691,15 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
     the rejected path as loaded in ``_asm_dd_cache`` before checking the result, leaving the WAF
     without the default rules (fail-open).
     """
-    from ddtrace.appsec._ddwaf.waf import ASM_DD_DEFAULT
+    ASM_DD_DEFAULT = "ASM_DD/default"
 
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         _ddwaf = DDWaf(rule_set.read(), b"", b"")
 
     # The bundled default ruleset is the only ASM_DD config loaded at startup.
     assert _ddwaf.initialized
-    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 1
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 1
     default_required_data = set(_ddwaf.required_data)
 
     # An ASM_DD payload that libddwaf rejects (here: "rules" is not a list, so no rule loads).
@@ -719,9 +708,9 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
 
     # The update reports failure and the default ruleset is preserved, not the rejected payload.
     assert ok is False
-    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, rejected_path) == 0
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 1
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 1
+    assert _ddwaf.config_paths_count(rejected_path) == 0
     assert _ddwaf.initialized
     assert set(_ddwaf.required_data) == default_required_data
 
@@ -729,8 +718,8 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
     # never stored is the desired end-state, so it must not be reported as a failed update.
     ok = _ddwaf.update_rules([("ASM_DD", rejected_path)], [])
     assert ok is True
-    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 1
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 1
 
     # A valid ASM_DD payload must still take over and displace the default ruleset.
     with open(rules.RULES_GOOD_PATH) as rule_set:
@@ -739,9 +728,10 @@ def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
     ok = _ddwaf.update_rules([], [("ASM_DD", accepted_path, valid_rules)])
 
     assert ok is True
-    assert _ddwaf._asm_dd_cache == {accepted_path}
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 0
-    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, accepted_path) == 1
+    assert _ddwaf.config_paths_count(accepted_path) == 1
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 0
+    assert _ddwaf.config_paths_count(ASM_DD_DEFAULT) == 0
+    assert _ddwaf.config_paths_count(accepted_path) == 1
 
 
 def test_ddwaf_run_contained_typeerror(tracer, caplog):
@@ -751,7 +741,7 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     with (
         caplog.at_level(logging.DEBUG),
         mock.patch(
-            "ddtrace.appsec._ddwaf.waf.ddwaf_context_eval",
+            "ddtrace.appsec._waf.DDWaf.run",
             side_effect=TypeError("expected c_long instead of int"),
         ),
     ):
@@ -790,7 +780,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_context_eval", side_effect=OSError("ddwaf run failed")),
+        mock.patch("ddtrace.appsec._waf.DDWaf.run", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -945,16 +935,15 @@ def test_required_addresses():
     "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
 )
 @pytest.mark.parametrize("non_persistent", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._waf.DDWaf.run")
 def test_persistent_dedup_and_non_persistent_resend(mock_run, persistent, non_persistent):
     # dd-trace-py only sends each persistent address to the WAF once per request (it persists in
     # the context), while non-persistent addresses are re-sent on every call. This dedup policy is
     # independent of the libddwaf version. call_args[0][1] is the single `data` argument of DDWaf.run.
-    from ddtrace.appsec._utils import DDWaf_result
-    from ddtrace.appsec._utils import _observator
+    from ddtrace.internal.native._native.ddwaf import Result
     from ddtrace.trace import tracer
 
-    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    mock_run.return_value = Result()
 
     with asm_context(tracer=tracer, config=config_asm, rc_payload=CUSTOM_RULE_METHOD) as span:
         processor = AppSecSpanProcessor._instance
@@ -975,13 +964,12 @@ def test_persistent_dedup_and_non_persistent_resend(mock_run, persistent, non_pe
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._waf.DDWaf.run")
 def test_waf_action_none_value_non_persistent_address(mock_run):
-    from ddtrace.appsec._utils import DDWaf_result
-    from ddtrace.appsec._utils import _observator
+    from ddtrace.internal.native._native.ddwaf import Result
     from ddtrace.trace import tracer
 
-    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    mock_run.return_value = Result()
 
     with asm_context(tracer=tracer, config=config_asm) as span:
         processor = AppSecSpanProcessor._instance
@@ -1136,7 +1124,7 @@ def test_rasp_subcontext_fresh_per_non_ssrf_call():
     assert waf.created == 2
 
 
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._waf.DDWaf.run")
 def test_rasp_bypassed_when_subcontext_unavailable(mock_run):
     """If a RASP subcontext can't be created, the WAF call is bypassed entirely (not run on the
     main context, which would persist the non-persisting RASP data).

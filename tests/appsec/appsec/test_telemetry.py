@@ -9,18 +9,16 @@ import pytest
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-import ddtrace.appsec._ddwaf.ddwaf_types
-import ddtrace.appsec._ddwaf.waf
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import AppSecCallback
-from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.appsec._utils import _observator
+from ddtrace.appsec._waf import DDWaf
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.appsec.product import _disable_asm
 from ddtrace.internal.appsec.product import _enable_asm
+from ddtrace.internal.native._native.ddwaf import Result
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.trace import tracer
@@ -290,7 +288,7 @@ def test_waf_duration_distribution_metrics(telemetry_writer, test_agent_session,
 
 def test_rasp_duration_distribution_metrics(telemetry_writer, test_agent_session, tracer):
     with asm_context(tracer=tracer, span_name="test", config=config_asm):
-        waf_result = DDWaf_result(0, [], {}, 12.5, 20.25, False, _observator(), {})
+        waf_result = Result(duration_ns=12500, total_duration_ns=20250)
         asm_request_context.set_waf_telemetry_results(
             "rules_rasp",
             False,
@@ -298,7 +296,7 @@ def test_rasp_duration_distribution_metrics(telemetry_writer, test_agent_session
             EXPLOIT_PREVENTION.TYPE.SQLI,
             False,
         )
-        waf_result = DDWaf_result(0, [], {}, 3.0, 4.0, False, _observator(), {})
+        waf_result = Result(duration_ns=3000, total_duration_ns=4000)
         asm_request_context.set_waf_telemetry_results(
             "rules_rasp",
             False,
@@ -381,15 +379,15 @@ def test_log_metric_error_ddwaf_update(telemetry_writer, test_agent_session):
     assert f"waf_version:{asm_config._ddwaf_version}" in update_logs[0]["tags"]
 
 
-unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_context_eval
+unpatched_run = DDWaf.run
 
 
 def _wrapped_run(*args, **kwargs):
     unpatched_run(*args, **kwargs)
-    return -3
+    return Result(error_code=-3)
 
 
-@mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_context_eval", new=_wrapped_run)
+@mock.patch.object(DDWaf, "run", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer, test_agent_session):
     """Test that an internal error is logged when the WAF returns an internal error."""
 

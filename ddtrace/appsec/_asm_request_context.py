@@ -38,9 +38,9 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 if TYPE_CHECKING:
-    from ddtrace.appsec._utils import DDWaf_info
-    from ddtrace.appsec._utils import DDWaf_result
-    from ddtrace.appsec._utils import WafEvent
+    from ddtrace.internal.native._native.ddwaf import Result
+    from ddtrace.internal.native._native.ddwaf import RulesetInfo
+    from ddtrace.internal.native._native.ddwaf import WafEvent
 
 logger = ddlogger.get_logger(__name__)
 
@@ -52,7 +52,7 @@ class WafCallable(Protocol):
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
         force_sent: bool = False,
-    ) -> Optional["DDWaf_result"]: ...
+    ) -> Optional["Result"]: ...
 
 
 class WARNING_TAGS(metaclass=Constant_Class):
@@ -117,7 +117,7 @@ class ASM_Environment:
         else:
             self.framework = self.span.name
         self.framework = self.framework.lower().replace(" ", "_")
-        self.waf_info: Optional[Callable[[], DDWaf_info]] = None
+        self.waf_info: Optional[Callable[[], RulesetInfo]] = None
         self.waf_addresses: dict[str, Any] = {}
         self.waf_callable: Optional[WafCallable] = waf_callable
         self.block_callable: Optional[Callable[[], None]] = None
@@ -393,12 +393,12 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             info = env.waf_info()
             try:
                 if info.errors:
-                    entry_span._set_attribute(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    entry_span._set_attribute(APPSEC.EVENT_RULE_ERRORS, json.dumps(info.errors, separators=(",", ":")))
                     extra = {"product": "appsec", "more_info": info.errors, "stack_limit": 4}
                     logger.debug("asm_context::finalize_asm_env::waf_errors", extra=extra, stack_info=True)
                 entry_span._set_attribute(APPSEC.EVENT_RULE_VERSION, info.version)
-                entry_span._set_attribute(APPSEC.EVENT_RULE_LOADED, info.loaded)
-                entry_span._set_attribute(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+                entry_span._set_attribute(APPSEC.EVENT_RULE_LOADED, info.accepted_rules)
+                entry_span._set_attribute(APPSEC.EVENT_RULE_ERROR_COUNT, info.rejected_rules)
             except Exception:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
         if asm_config._rc_client_id is not None:
@@ -473,7 +473,7 @@ def get_waf_address(address: str, default: Any = None) -> Any:
     return env.waf_addresses.get(address, default)
 
 
-def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
+def set_waf_info(info: Callable[[], "RulesetInfo"]) -> None:
     env = _get_asm_context()
     if env is None:
         logger.warning(WARNING_TAGS.SET_WAF_INFO_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
@@ -486,7 +486,7 @@ def call_waf_callback(
     crop_trace: Optional[str] = None,
     rule_type: Optional[str] = None,
     force_sent: bool = False,
-) -> Optional["DDWaf_result"]:
+) -> Optional["Result"]:
     if not asm_config._asm_enabled:
         return None
     env = get_active_asm_context()
@@ -589,7 +589,7 @@ def asm_request_context_set(
 def set_waf_telemetry_results(
     rules_version: str,
     is_blocked: bool,
-    waf_results: "DDWaf_result",
+    waf_results: "Result",
     rule_type: Optional[str],
     is_sampled: bool,
 ) -> None:
@@ -597,19 +597,19 @@ def set_waf_telemetry_results(
     if env is None:
         return
     result: Telemetry_result = env.telemetry
-    is_triggered = bool(waf_results.data)
+    is_triggered = bool(waf_results.events)
 
     result.rate_limited |= is_sampled
-    if waf_results.return_code < 0:
+    if waf_results.error_code is not None:
         if result.error:
-            result.error = max(result.error, waf_results.return_code)
+            result.error = max(result.error, waf_results.error_code)
         else:
-            result.error = waf_results.return_code
+            result.error = waf_results.error_code
 
-        report_waf_run_error(waf_results.return_code, rules_version, rule_type)
-    report_waf_truncation(waf_results.truncation)
+        report_waf_run_error(waf_results.error_code, rules_version, rule_type)
+    report_waf_truncation(waf_results.stats)
     for key in ["container_size", "container_depth", "string_length"]:
-        res = getattr(waf_results.truncation, key)
+        res = getattr(waf_results.stats, key)
         if isinstance(res, int):
             getattr(result.truncation, key).append(res)
     if rule_type is None:
@@ -619,8 +619,8 @@ def set_waf_telemetry_results(
         result.timeout += waf_results.timeout
         if rules_version:
             result.version = rules_version
-        result.duration += waf_results.runtime
-        result.total_duration += waf_results.total_runtime
+        result.duration += waf_results.duration_ns / 1e3
+        result.total_duration += waf_results.total_duration_ns / 1e3
     else:
         # Exploit Prevention telemetry
         result.rasp.blocked |= is_blocked
@@ -628,9 +628,9 @@ def set_waf_telemetry_results(
         result.rasp.eval[rule_type] += 1
         result.rasp.match[rule_type] += int(is_triggered)
         result.rasp.timeout[rule_type] += int(waf_results.timeout)
-        result.rasp.durations[rule_type] += waf_results.runtime
-        result.rasp.duration += waf_results.runtime
-        result.rasp.total_duration += waf_results.total_runtime
+        result.rasp.durations[rule_type] += waf_results.duration_ns / 1e3
+        result.rasp.duration += waf_results.duration_ns / 1e3
+        result.rasp.total_duration += waf_results.total_duration_ns / 1e3
 
 
 def get_waf_telemetry_results() -> Optional[Telemetry_result]:

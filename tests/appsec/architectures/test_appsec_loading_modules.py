@@ -13,7 +13,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._constants"]
-MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf"]
+MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._waf"]
 MODULE_IAST_ONLY = [
     "ddtrace.appsec._iast",
     "ddtrace.appsec._iast._taint_tracking._native",

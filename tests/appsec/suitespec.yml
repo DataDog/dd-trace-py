@@ -7,6 +7,9 @@ components:
     - '!ddtrace/appsec/_iast/*'
     - '!ddtrace/appsec/sca/*'
     - ddtrace/internal/settings/asm.py
+    - src/native/appsec/*
+    - src/native/Cargo.*
+    - src/native/lib.rs
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/_iast/*
