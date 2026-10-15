@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 from unittest import mock
 
@@ -206,6 +207,32 @@ def _assert_expected_agent_run(
             _assert_span_link(spans[i], span, "output", "input")
             previous_tool_spans.append(span)
     return previous_tool_spans
+
+
+@pytest.mark.asyncio
+async def test_llmobs_concurrent_agents_in_same_apm_trace(
+    agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent, tracer
+):
+    with request_vcr.use_cassette("test_simple_agent.yaml", allow_playback_repeats=True):
+        with tracer.trace("experiment"):
+            results = await asyncio.gather(
+                agents.Runner.run(simple_agent, "What is the capital of France?"),
+                agents.Runner.run(simple_agent, "What is the capital of France?"),
+            )
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    workflow_spans = [span for span in spans if span.name == "Agent workflow"]
+
+    assert len(workflow_spans) == 2
+    for workflow_span, result in zip(sorted(workflow_spans, key=lambda span: span.start_ns), results):
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(workflow_span),
+            span_kind="workflow",
+            input_value="What is the capital of France?",
+            output_value=result.final_output,
+            metadata={},
+            tags=COMMON_TAGS,
+        )
 
 
 @pytest.mark.asyncio
