@@ -6,7 +6,6 @@ import hashlib
 import io
 import os
 from pathlib import Path
-import platform
 import re
 import shutil
 import subprocess
@@ -14,6 +13,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import types
 import typing as t
 
 import pytest
@@ -21,6 +21,10 @@ import pytest
 
 SETUP_PY = Path(__file__).resolve().parents[2] / "setup.py"
 LIBRARY = b"genuine libddwaf"
+LAYOUTS = {
+    "Linux": ("x86_64", "libddwaf.so", "libddwaf.so"),
+    "Windows": ("x64", "ddwaf.dll", "libddwaf.dll"),
+}
 
 
 def _definition_name(node):
@@ -40,21 +44,21 @@ def _sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _setup_py_download(here, urlretrieve=None):
-    """Exec the libddwaf download of setup.py as a Linux x86_64 build would run it."""
+def _setup_py_download(here, urlretrieve=None, system="Linux"):
+    """Exec the libddwaf download of setup.py as a 64-bit x86 build would run it."""
     namespace = {
         "contextlib": contextlib,
         "hashlib": hashlib,
         "io": io,
         "os": os,
-        "platform": platform,
+        "platform": types.SimpleNamespace(machine=lambda: "x86_64"),
         "shutil": shutil,
         "tarfile": tarfile,
         "tempfile": tempfile,
         "time": time,
         "t": t,
         "Path": Path,
-        "CURRENT_OS": "Linux",
+        "CURRENT_OS": system,
         "HERE": here,
         "LIBDDWAF_DOWNLOAD_DIR": here / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf",
         "get_platform": lambda: "linux-x86_64",
@@ -76,8 +80,9 @@ def _setup_py_download(here, urlretrieve=None):
     return namespace
 
 
-def _libddwaf_download(tmp_path):
+def _libddwaf_download(tmp_path, system="Linux"):
     """The libddwaf download of setup.py, fetching from a stub release."""
+    arch, archived, _ = LAYOUTS[system]
     release = tmp_path / "release"
     release.mkdir()
     downloads = []
@@ -87,20 +92,20 @@ def _libddwaf_download(tmp_path):
         shutil.copyfile(release / url.rsplit("/", 1)[-1], dest)
         return str(dest), None
 
-    download = _setup_py_download(tmp_path / "source", urlretrieve)["LibDDWafDownload"]
+    download = _setup_py_download(tmp_path / "source", urlretrieve, system)["LibDDWafDownload"]
     download.CACHE_DIR = tmp_path / "cache"
     download.USE_CACHE = True
 
-    archive_name = download.get_archive_name("x86_64", "Linux")
+    archive_name = download.get_archive_name(arch, system)
     archive = release / archive_name
-    _write_archive(archive, download.get_package_name("x86_64", "Linux"), LIBRARY)
+    _write_archive(archive, download.get_package_name(arch, system), LIBRARY, archived)
     download.expected_checksums = {archive_name: _sha256(archive)}
     return download, archive, downloads
 
 
-def _write_archive(path, package_name, library):
+def _write_archive(path, package_name, library, archived="libddwaf.so"):
     with tarfile.open(path, "w:gz") as tar:
-        member = tarfile.TarInfo("%s/lib/libddwaf.so" % package_name)
+        member = tarfile.TarInfo("%s/lib/%s" % (package_name, archived))
         member.size = len(library)
         tar.addfile(member, io.BytesIO(library))
 
@@ -109,8 +114,17 @@ def _tamper(download, archive):
     _write_archive(archive, download.get_package_name("x86_64", "Linux"), b"tampered")
 
 
-def _bundled_library(download):
-    return Path(download.download_dir) / "x86_64" / "lib" / "libddwaf.so"
+def _bundled_library(download, system="Linux"):
+    arch, _, bundled = LAYOUTS[system]
+    return Path(download.download_dir) / arch / "lib" / bundled
+
+
+def _rename_without_replacing(self, target):
+    """Path.rename as it behaves on Windows, where an existing target is never replaced."""
+    if Path(target).exists():
+        raise FileExistsError(target)
+    os.rename(self, target)
+    return Path(target)
 
 
 def _cached(download, archive):
@@ -233,6 +247,21 @@ def test_a_library_not_extracted_from_a_pinned_archive_is_replaced(tmp_path):
 
     assert len(downloads) == 1
     assert library.read_bytes() == LIBRARY
+
+
+def test_a_windows_library_not_extracted_from_a_pinned_archive_is_replaced(tmp_path, monkeypatch):
+    download, _, downloads = _libddwaf_download(tmp_path, "Windows")
+    library = _bundled_library(download, "Windows")
+    library.parent.mkdir(parents=True)
+    library.write_bytes(b"unverified libddwaf")
+    (Path(download.download_dir) / ".version").write_text(download.version)
+    monkeypatch.setattr(Path, "rename", _rename_without_replacing)
+
+    download.run()
+
+    assert len(downloads) == 1
+    assert library.read_bytes() == LIBRARY
+    assert not (library.parent / "ddwaf.dll").exists()
 
 
 def test_a_library_extracted_from_a_pinned_archive_is_reused(tmp_path):

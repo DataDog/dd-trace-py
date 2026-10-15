@@ -613,7 +613,7 @@ class LibraryDownload:
                 original_file = lib_dir / f"{cls.name}{suffix}"
                 if original_file.exists():
                     renamed_file = lib_dir / f"lib{cls.name}{suffix}"
-                    original_file.rename(renamed_file)
+                    original_file.replace(renamed_file)
 
             extracted_from.write_text(expected_checksum)
 
