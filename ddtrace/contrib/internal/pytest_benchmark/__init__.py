@@ -1,2 +1,7 @@
-# Backwards-compatibility shim: stale venvs may still have
-# entry-point metadata referencing this package.
+"""
+The pytest-benchmark integration traces executions of pytest benchmarks.
+
+The instrumentation is implemented as part of the ``ddtrace`` pytest plugin at
+``ddtrace/testing/internal/pytest/benchmark`` and requires no separate plugin
+or entry point.
+"""
