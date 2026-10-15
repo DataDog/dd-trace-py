@@ -54,7 +54,7 @@ def _abort_appsec(failure_msg: str) -> None:
 
     disable_appsec_rc()
 
-    core.dispatch("asm.tracer.reconfigure", (False, ""))
+    core.dispatch("asm.tracer.reconfigure", (False, ""), allow_raise=True)
     _report_asm_enabled()
 
 
@@ -75,7 +75,7 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
 
     asm_config._asm_enabled = False
     if reconfigure_tracer:
-        core.dispatch("asm.tracer.reconfigure", (False, ""))
+        core.dispatch("asm.tracer.reconfigure", (False, ""), allow_raise=True)
 
     _report_asm_enabled()
     return
@@ -155,7 +155,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     if reconfigure_tracer:
         if origin:
             asm_config._asm_enabled_origin = origin  # type: ignore[assignment]
-        core.dispatch("asm.tracer.reconfigure", (True, origin))
+        core.dispatch("asm.tracer.reconfigure", (True, origin), allow_raise=True)
 
     _report_asm_enabled()
     return True
