@@ -350,6 +350,41 @@ def test_a_grpc_otlp_endpoint_is_recognized(monkeypatch, variables, grpc):
     assert _usage_metrics_writer.otlp_endpoint_is_grpc() is grpc
 
 
+def test_the_logged_endpoint_has_no_secrets(collector, monkeypatch):
+    port = collector.server_address[1]
+    url = f"http://user:hunter2@127.0.0.1:{port}/v1/metrics?api_key=secret123"
+    monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", url)
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    Collector.status = 400
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    [(sent_path, _, _)] = Collector.requests
+    assert sent_path == "/v1/metrics?api_key=secret123"
+    [args] = warnings
+    logged = " ".join(str(arg) for arg in args)
+    assert "hunter2" not in logged and "secret123" not in logged
+    assert f"http://127.0.0.1:{port}/v1/metrics" in logged
+
+
+def test_close_spends_one_shutdown_budget(otlp_endpoint, monkeypatch):
+    # Unpatching while a flush waits on a collector that does not answer.
+    monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 1.5)
+    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    Collector.delay = 3
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.start()
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    flushing = threading.Thread(target=writer.flush, daemon=True)
+    flushing.start()
+    while not Collector.requests:
+        time.sleep(0.01)
+    started = time.monotonic()
+    writer.close()
+    assert time.monotonic() - started < 2.5
+
+
 def test_the_global_endpoint_keeps_its_query(collector, monkeypatch):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", raising=False)
     monkeypatch.setenv(
@@ -531,6 +566,33 @@ def test_dogstatsd_over_unix_socket(monkeypatch):
     # Every line arrives, even where the socket takes smaller datagrams than 8 KiB (2 KiB on macOS).
     inputs = [line for line in lines if line.startswith("gen_ai.client.inference.usage.input_tokens:12|c|#")]
     assert len(inputs) == 20
+
+
+def test_dogstatsd_moves_to_the_next_address_after_a_failed_send(monkeypatch):
+    # A UDP connect succeeds without a listener: only a failed send shows that the first address is wrong.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    listening = sock.getsockname()[1]
+    unused = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    unused.bind(("127.0.0.1", 0))
+    closed = unused.getsockname()[1]
+    unused.close()
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, *args, **kwargs: [
+            (socket.AF_INET, socket.SOCK_DGRAM, 17, "", ("127.0.0.1", closed)),
+            (socket.AF_INET, socket.SOCK_DGRAM, 17, "", ("127.0.0.1", listening)),
+        ],
+    )
+    monkeypatch.setattr(agent_config, "dogstatsd_url", "udp://dogstatsd.test:8125")
+    receiver = Receiver(sock)
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    for _ in range(4):
+        writer.record(PROVIDER_ATTEMPT, *observation())
+        writer.flush()
+        time.sleep(0.05)
+    assert receiver.stop()
 
 
 class SizeLimitedSocket:

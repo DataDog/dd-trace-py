@@ -22,6 +22,7 @@ from ddtrace.contrib.internal.litellm._usage_metrics import usage_fields
 from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
 from ddtrace.contrib.internal.litellm.patch import patch
 from ddtrace.contrib.internal.litellm.patch import unpatch
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.trace import tracer
 
 
@@ -1132,7 +1133,7 @@ def test_usage_metrics_are_flushed_on_an_exit_signal(enabled, monkeypatch):
     patch()
     assert installed == [litellm_patch._flush_usage_metrics_on_exit_signal]
     flushed = []
-    monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda: flushed.append(True))
+    monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda *args: flushed.append(True))
     installed[0]()
     assert flushed == [True]
 
@@ -1188,6 +1189,13 @@ def test_patching_off_the_main_thread_flushes_on_tracer_shutdown(enabled, monkey
     thread.join()
     [processor] = registered
     flushed = []
-    monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda: flushed.append(True))
+    monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda *args: flushed.append(True))
     processor.shutdown(None)
     assert flushed == [True]
+
+
+def test_a_non_positive_export_interval_falls_back_to_the_default(monkeypatch):
+    monkeypatch.setattr(otel_config.exporter, "METRICS_METRIC_READER_EXPORT_INTERVAL", 0)
+    default = otel_config.exporter.DEFAULT_METRICS_METRIC_READER_EXPORT_INTERVAL / 1000.0
+    assert default > 0
+    assert litellm_patch._export_interval_seconds() == default

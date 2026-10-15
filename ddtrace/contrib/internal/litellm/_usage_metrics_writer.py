@@ -77,6 +77,17 @@ def otlp_endpoint_is_grpc() -> bool:
     return protocol.strip().lower() == "grpc"
 
 
+def _redacted(url: str) -> str:
+    """The URL without its credentials or query, which can hold secrets, for logs."""
+    parts = parse.urlsplit(url)
+    host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    if parts.port:
+        host = f"{host}:{parts.port}"
+    return parse.urlunsplit((parts.scheme, host, parts.path, "", ""))
+
+
 def _parse_headers(raw: str) -> list[tuple[str, str]]:
     headers = []
     for item in (raw or "").split(","):
@@ -106,7 +117,7 @@ class _OtlpSender:
             endpoint = parse.urlunsplit(parts._replace(path=parts.path.rstrip("/") + "/v1/metrics"))
         url = parse.urlsplit(endpoint)
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
-        self.endpoint = endpoint
+        self.endpoint = _redacted(endpoint)
         self._client = HTTPClient(
             f"{url.scheme}://{url.netloc}",
             timeout_ms=otel_config.exporter.METRICS_TIMEOUT,
@@ -179,6 +190,8 @@ class _DogStatsdSender:
         else:
             raise ValueError(f"Unknown scheme `{parsed.scheme}` for DogStatsD URL `{url}`")
         self._socket: Optional[socket.socket] = None
+        # Failed sends so far: each makes the next connection start at the next address the host resolves to.
+        self._failed_sends = 0
 
     def _connect(self) -> socket.socket:
         if self._socket is None:
@@ -191,6 +204,9 @@ class _DogStatsdSender:
                 addresses = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
                 addresses.sort(key=lambda address: address[0] != socket.AF_INET)
                 candidates = [(family, address) for family, _, _, _, address in addresses]
+                if candidates:
+                    start = self._failed_sends % len(candidates)
+                    candidates = candidates[start:] + candidates[:start]
             for index, (family, address) in enumerate(candidates):
                 sock = socket.socket(family, socket.SOCK_DGRAM)
                 try:
@@ -254,6 +270,8 @@ class _DogStatsdSender:
                     time.sleep(0.005)
                     continue
                 log.debug("LiteLLM usage metrics: failed to send a DogStatsD packet", exc_info=True)
+                # A UDP connect succeeds without a listener, so only a failed send shows that an address is wrong.
+                self._failed_sends += 1
                 self.close()
                 return
 
@@ -307,17 +325,21 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
     def periodic(self) -> None:
         self.flush()
 
-    def on_shutdown(self) -> None:  # type: ignore[override]
+    def on_shutdown(self, deadline: Optional[float] = None) -> None:  # type: ignore[override]
         # The process is exiting: stop retrying, then try each pending export once, within a bounded time.
         self._stopping.set()
-        self.flush(retry=False)
+        self.flush(retry=False, deadline=deadline)
 
     def close(self) -> None:
-        """Stop the worker, flush what is left as at exit, and release the exporter's socket."""
+        """Stop the worker, flush what is left as at exit, and release the exporter's socket, all within the shutdown
+        time.
+        """
+        deadline = time.monotonic() + _SHUTDOWN_SECONDS
+        # A flush in progress stops retrying; the worker flushes once more as it stops.
+        self._stopping.set()
         self.stop()
-        # The worker flushes once more as it stops.
-        self.join(_SHUTDOWN_SECONDS)
-        self.on_shutdown()
+        self.join(max(deadline - time.monotonic(), 0.0))
+        self.on_shutdown(deadline)
         if self._dogstatsd is not None:
             self._dogstatsd.close()
 
@@ -332,10 +354,12 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         if self._dogstatsd is not None:
             self._dogstatsd.close()
 
-    def flush(self, retry: bool = True) -> None:
-        # At exit (retry False), the whole flush has the shutdown time, waiting for one in progress included.
-        deadline = None if retry else time.monotonic() + _SHUTDOWN_SECONDS
-        if not self._flush_lock.acquire(timeout=-1 if deadline is None else _SHUTDOWN_SECONDS):
+    def flush(self, retry: bool = True, deadline: Optional[float] = None) -> None:
+        # At exit (retry False), the whole flush has the shutdown time, or what deadline leaves of it, waiting for one
+        # in progress included.
+        if not retry and deadline is None:
+            deadline = time.monotonic() + _SHUTDOWN_SECONDS
+        if not self._flush_lock.acquire(timeout=-1 if deadline is None else max(deadline - time.monotonic(), 0.0)):
             log.debug("LiteLLM usage metrics: a flush in progress outlasted the shutdown time")
             return
         try:

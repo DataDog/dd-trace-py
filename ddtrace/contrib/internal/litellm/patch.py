@@ -327,6 +327,17 @@ def _mark_gateway_span(span, kwargs):
 _exit_signal_flush_installed = False
 
 
+def _export_interval_seconds() -> float:
+    interval_ms = otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL
+    if interval_ms <= 0:
+        default_ms = otel_config.exporter.DEFAULT_METRICS_METRIC_READER_EXPORT_INTERVAL
+        log.warning(
+            "Ignoring OTEL_METRIC_EXPORT_INTERVAL=%s, which is not positive; using %s ms", interval_ms, default_ms
+        )
+        interval_ms = default_ms
+    return float(interval_ms) / 1000.0
+
+
 def _flush_usage_metrics_on_exit_signal():
     writer = getattr(litellm, "_datadog_usage_metrics_writer", None)
     if writer is not None:
@@ -376,7 +387,7 @@ def _enable_usage_metrics():
     try:
         writer = _usage_metrics_writer.UsageMetricsWriter(
             exporter,
-            interval=otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL / 1000.0,
+            interval=_export_interval_seconds(),
             metrics=list(_usage_metrics.DEFAULT_METRICS),
         )
         writer.start()
