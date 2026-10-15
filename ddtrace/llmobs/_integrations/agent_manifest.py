@@ -10,6 +10,18 @@ from typing import cast
 from typing import get_args
 from typing import get_origin
 
+from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs.types import AgentManifest
+
+
+log = get_logger(__name__)
+
+# SDK-set, so a consumer can tell a hand-declared manifest from one read off a framework object.
+MANUAL_FRAMEWORK_NAME = "manual"
+
+# What build_manual_agent_manifest reads.
+MANUAL_MANIFEST_KEYS = frozenset({"name", "instructions", "model", "model_settings", "tools"})
+
 
 # Bounds this function's own recursion, not the payload. metadata is a caller dict, and nesting it
 # past the interpreter's limit raises RecursionError here. The span sanitizer truncates deep values
@@ -89,6 +101,13 @@ def is_flat_scalar_value(value: Any) -> bool:
 T = TypeVar("T")
 
 
+def is_unset(value: Any) -> bool:
+    """True for a value that means "not configured". 0, 0.0 and False are configured values."""
+    if value is None:
+        return True
+    return isinstance(value, (str, bytes, list, tuple, dict, set, frozenset)) and len(value) == 0
+
+
 def prune_empty(node: T) -> T:
     """Drop every value that means "not configured", depth-first. 0, 0.0 and False are kept.
 
@@ -100,9 +119,7 @@ def prune_empty(node: T) -> T:
         kept: dict[Any, Any] = {}
         for key, value in node.items():
             pruned = prune_empty(value)
-            if pruned is None:
-                continue
-            if isinstance(pruned, (str, bytes, list, tuple, dict, set, frozenset)) and len(pruned) == 0:
+            if is_unset(pruned):
                 continue
             kept[key] = pruned
         return cast(T, kept)
@@ -153,3 +170,152 @@ def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = (), budg
                 coerced[str(key)] = wired
         return coerced or None
     return None
+
+
+def build_manual_agent_manifest(agent: Any) -> AgentManifest:
+    """Build the manifest a caller declared through LLMObs.annotate(agent=...).
+
+    Every value is caller-supplied and unvalidated, so each field is gated on its own type and
+    unreportable values are dropped. Sections are independent so one bad field cannot blank the
+    rest. Never raises: the caller of this path drops the whole span event on an exception.
+    """
+    if not isinstance(agent, dict):
+        return {}
+    manifest: AgentManifest = {}
+    for name, section in (
+        ("labels", _manual_labels),
+        ("model", _manual_model_name),
+        ("model_settings", _manual_model_settings),
+        ("tools", _manual_tools),
+    ):
+        try:
+            manifest.update(section(agent))
+        except Exception:
+            log.debug("failed to build manual agent manifest section %s", name, exc_info=True)
+    try:
+        # Sections assign unconditionally so mypy checks every key name; this drops the blanks.
+        manifest = prune_empty(manifest)
+    except Exception:
+        log.debug("failed to prune manual agent manifest", exc_info=True)
+        return {}
+    if not manifest:
+        # framework alone would render an empty panel. A version-only agent lands here.
+        return {}
+    manifest["framework"] = MANUAL_FRAMEWORK_NAME
+    return manifest
+
+
+def _manual_labels(agent: dict[str, Any]) -> AgentManifest:
+    """What the agent is called and what it is told."""
+    fields: AgentManifest = {}
+    name = agent.get("name")
+    # str-only throughout the manual path. The span encoder reprs what it cannot
+    # encode, and a caller object's repr can carry anything it holds.
+    if isinstance(name, str):
+        fields["name"] = name
+    instructions = agent.get("instructions")
+    if isinstance(instructions, str):
+        fields["instructions"] = instructions
+    return fields
+
+
+def _manual_model_name(agent: dict[str, Any]) -> AgentManifest:
+    """The model identifier the caller set."""
+    fields: AgentManifest = {}
+    model = agent.get("model")
+    if isinstance(model, str):
+        fields["model"] = model
+    return fields
+
+
+def _manual_model_settings(agent: dict[str, Any]) -> AgentManifest:
+    """Inference params filtered by ALLOWED_MODEL_SETTINGS_KEYS.
+
+    Separate from _manual_model_name so a malformed settings dict does not discard a valid model.
+    """
+    fields: AgentManifest = {}
+    settings = agent.get("model_settings")
+    if isinstance(settings, dict):
+        allowed: dict[str, Any] = {}
+        for key, value in settings.items():
+            if key not in ALLOWED_MODEL_SETTINGS_KEYS or not is_flat_scalar_value(value):
+                continue
+            # prune_empty drops what wire_value could not encode, so assign it either way.
+            allowed[key] = wire_value(value)
+        fields["model_settings"] = allowed
+    return fields
+
+
+def _manual_tools(agent: dict[str, Any]) -> AgentManifest:
+    """Declared tools as {name, description?, parameters?}, the shape the integrations emit."""
+    fields: AgentManifest = {}
+    declared = agent.get("tools")
+    if not isinstance(declared, list):
+        return fields
+    tools: list[dict[str, Any]] = []
+    for tool in declared:
+        if not isinstance(tool, dict):
+            continue
+        name = tool.get("name")
+        # An unnamed tool is unidentifiable once it ships, so drop it rather than pad the count.
+        if not isinstance(name, str) or not name:
+            continue
+        description = tool.get("description")
+        tools.append(
+            {
+                "name": name,
+                "description": description if isinstance(description, str) else None,
+                "parameters": _manual_tool_parameters(tool.get("parameters")),
+            }
+        )
+    wired = wire_value(tools)
+    if wired is not None:
+        fields["tools"] = wired
+    return fields
+
+
+def _manual_tool_parameters(parameters: Any) -> dict[str, Any]:
+    """{param: {type?, required?}}, matching what the framework integrations extract."""
+    if not isinstance(parameters, dict):
+        return {}
+    specs, required_params = _tool_parameter_specs(parameters)
+    coerced: dict[str, Any] = {}
+    for param, spec in specs.items():
+        entry: dict[str, Any] = {}
+        if isinstance(spec, dict):
+            # str-only per _manual_labels: wire_value coerces rather than drops, so an int or a
+            # nested mapping would otherwise ship as the type.
+            declared_type = spec.get("type")
+            if isinstance(declared_type, str):
+                entry["type"] = declared_type
+            # Omitted rather than false, matching the auto path.
+            if spec.get("required") is True:
+                entry["required"] = True
+        # str-only per _manual_labels. Non-string names are dropped rather than coerced, since
+        # str(param) on a custom object can surface whatever it holds, including secrets.
+        if not isinstance(param, str):
+            continue
+        if param in required_params:
+            entry["required"] = True
+        coerced[param] = entry
+    return coerced
+
+
+def _tool_parameter_specs(parameters: dict[Any, Any]) -> tuple[dict[Any, Any], frozenset[str]]:
+    """Split a parameters mapping into per-parameter specs and the names required elsewhere.
+
+    Accepts a JSON Schema object as well as the documented {param: {type, required}} mapping.
+    A JSON Schema is what OpenAI, Gemini and MCP tool definitions carry, so a caller pasting one
+    would otherwise report a tool with no parameters at all. pydantic_ai and openai_agents already
+    flatten properties/required this way, so both paths render the same.
+    """
+    properties = parameters.get("properties")
+    required = parameters.get("required")
+    has_required_list = isinstance(required, (list, tuple, set, frozenset))
+    # Two markers rather than properties alone, so a documented mapping that happens to declare a
+    # parameter named properties is still read as a mapping.
+    if not isinstance(properties, dict) or not (parameters.get("type") == "object" or has_required_list):
+        return parameters, frozenset()
+    if not has_required_list:
+        return properties, frozenset()
+    return properties, frozenset(param for param in cast(Any, required) if isinstance(param, str))

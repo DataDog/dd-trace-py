@@ -19,7 +19,7 @@ def test_gc_callback_lifecycle_is_idempotent_and_preserves_user_callbacks() -> N
     ddup.start()
     ddup.upload()
 
-    def user_callback(phase, info):
+    def user_callback(phase: str, info: dict[str, int]) -> None:
         pass
 
     gc.callbacks.append(user_callback)

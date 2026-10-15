@@ -12,7 +12,7 @@ import threading  # noqa: E402, F402, I001
 import time  # noqa: E402, F402
 
 
-def fibonacci(n) -> int:
+def fibonacci(n: int) -> int:
     if n == 0:
         return 0
     elif n == 1:

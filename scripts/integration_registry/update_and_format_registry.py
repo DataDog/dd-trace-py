@@ -23,9 +23,9 @@ PATH_UPDATE_REGISTRY_SCRIPT = (
 PATH_FORMAT_REGISTRY_SCRIPT = PROJECT_ROOT / "scripts" / "integration_registry" / "_format_integration_registry.py"
 
 
-def _run_script(script_path: pathlib.Path, *args: str) -> bool:
-    """Executes a given Python script using the current interpreter and handles output/errors."""
-    command: list[str] = [sys.executable, str(script_path)] + list(args)
+def _run_script(script_path: pathlib.Path, *args: str, use_script_environment: bool = False) -> bool:
+    """Execute a script with its declared dependencies when requested."""
+    command = [str(script_path), *args] if use_script_environment else [sys.executable, str(script_path), *args]
     script_name: str = script_path.name
     print(f" -> Running {script_path.relative_to(PROJECT_ROOT)} {' '.join(args)}...")
 
@@ -61,7 +61,7 @@ def main() -> int:
     print("=" * 60)
 
     # Step 1: Regenerate supported version data
-    if not _run_script(PATH_GENERATE_SUPPORTED_VERSIONS_SCRIPT):
+    if not _run_script(PATH_GENERATE_SUPPORTED_VERSIONS_SCRIPT, use_script_environment=True):
         print(f"\nWorkflow aborted: {PATH_GENERATE_SUPPORTED_VERSIONS_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
         print("=" * 60)
         return 1
