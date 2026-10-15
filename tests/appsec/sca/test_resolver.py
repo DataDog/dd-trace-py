@@ -2,7 +2,7 @@
 
 from types import FunctionType
 
-from ddtrace.appsec.sca._resolver import SymbolResolver
+from ddtrace.internal.sca._resolver import SymbolResolver
 
 
 def test_resolve_module_function():

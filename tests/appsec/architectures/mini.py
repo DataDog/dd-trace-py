@@ -35,7 +35,7 @@ dep_tracker.update_imported_dependencies = wrap_update_imported_dependencies
 def hello_world():
     res = []
     for m in sys.modules:
-        if m.startswith("ddtrace.appsec"):
+        if m.startswith(("ddtrace.appsec", "ddtrace.internal.sca", "ddtrace.internal._stacktrace")):
             res.append(m)
     with open(__file__) as f:
         # open a file to trigger exploit prevention instrumentation

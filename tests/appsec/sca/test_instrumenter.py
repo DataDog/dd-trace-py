@@ -10,12 +10,12 @@ from unittest.mock import patch
 
 import pytest
 
-import ddtrace.appsec.sca._instrumenter as _instrumenter_mod
-from ddtrace.appsec.sca._instrumenter import Instrumenter
-from ddtrace.appsec.sca._instrumenter import _first_instr_line
-import ddtrace.appsec.sca._registry as _registry_mod
-from ddtrace.appsec.sca._registry import InstrumentationRegistry
 from ddtrace.internal.bytecode_injection import inject_hook
+import ddtrace.internal.sca._instrumenter as _instrumenter_mod
+from ddtrace.internal.sca._instrumenter import Instrumenter
+from ddtrace.internal.sca._instrumenter import _first_instr_line
+import ddtrace.internal.sca._registry as _registry_mod
+from ddtrace.internal.sca._registry import InstrumentationRegistry
 from ddtrace.internal.telemetry.dependency import DependencyEntry
 from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 
@@ -180,7 +180,7 @@ class TestSCADetectionHookIntegration:
 
         mock_writer.attach_dependency_metadata = capture_attach
 
-        with patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer):
+        with patch("ddtrace.internal.sca._instrumenter.telemetry_writer", mock_writer):
             # Call the function — the hook should fire
             result = target_func(42)
 
@@ -220,7 +220,7 @@ class TestSCADetectionHookIntegration:
             {"pkg": package_name, "cve": cve_id, "path": path, "symbol": symbol, "line": line}
         )
 
-        with patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer):
+        with patch("ddtrace.internal.sca._instrumenter.telemetry_writer", mock_writer):
             # Call through the WRAPPER — hook should still fire
             result = wrapt_wrapper(42)
 
@@ -278,9 +278,9 @@ class TestCallerInfoToReachedArray:
         )
 
         with (
-            patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer),
+            patch("ddtrace.internal.sca._instrumenter.telemetry_writer", mock_writer),
             patch(
-                "ddtrace.appsec.sca._instrumenter._get_caller_info",
+                "ddtrace.internal.sca._instrumenter._get_caller_info",
                 return_value=("app/views.py", 42, "MyView.handle"),
             ),
         ):
@@ -332,9 +332,9 @@ class TestCallerInfoToReachedArray:
 
         # Simulate _get_caller_info returning empty (native frame walker failure)
         with (
-            patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer),
+            patch("ddtrace.internal.sca._instrumenter.telemetry_writer", mock_writer),
             patch(
-                "ddtrace.appsec.sca._instrumenter._get_caller_info",
+                "ddtrace.internal.sca._instrumenter._get_caller_info",
                 return_value=("", 0, ""),
             ),
         ):
@@ -480,9 +480,9 @@ class TestForkCallbackOrdering:
         """restart() must reset state then re-init. After calling
         apply_instrumentation_updates, _registry must be set.
         """
-        import ddtrace.appsec.sca._instrumenter as instrumenter_mod
-        from ddtrace.appsec.sca._instrumenter import _reset_after_fork
-        from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+        import ddtrace.internal.sca._instrumenter as instrumenter_mod
+        from ddtrace.internal.sca._instrumenter import _reset_after_fork
+        from ddtrace.internal.sca._instrumenter import apply_instrumentation_updates
 
         # Start clean
         _reset_after_fork()
@@ -500,9 +500,9 @@ class TestForkCallbackOrdering:
         If it were, the CPython fork callback would fire AFTER restart() and
         wipe _registry=None permanently.
         """
-        import ddtrace.appsec.sca._instrumenter as instrumenter_mod
-        from ddtrace.appsec.sca._instrumenter import _reset_after_fork
-        from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+        import ddtrace.internal.sca._instrumenter as instrumenter_mod
+        from ddtrace.internal.sca._instrumenter import _reset_after_fork
+        from ddtrace.internal.sca._instrumenter import apply_instrumentation_updates
 
         # Set up _registry
         _reset_after_fork()
@@ -535,11 +535,11 @@ class TestForkCallbackOrdering:
         with (
             patch("ddtrace.internal.sca.product.appsec_telemetry_config") as mock_config,
             patch(
-                "ddtrace.appsec.sca._instrumenter._reset_after_fork",
+                "ddtrace.internal.sca._instrumenter._reset_after_fork",
                 side_effect=track_reset,
             ),
             patch(
-                "ddtrace.appsec.sca._registry._reset_global_registry_after_fork",
+                "ddtrace.internal.sca._registry._reset_global_registry_after_fork",
                 side_effect=track_registry_reset,
             ),
             patch("ddtrace.internal.sca.product.start"),

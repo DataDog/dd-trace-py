@@ -58,8 +58,8 @@ def _load_and_instrument(after_fork: bool = False) -> None:
             targets since they inherit injected hooks from the parent
             process.  Only populate the registry so existing hooks work.
     """
-    from ddtrace.appsec.sca._cve_loader import load_cve_targets
-    from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+    from ddtrace.internal.sca._cve_loader import load_cve_targets
+    from ddtrace.internal.sca._instrumenter import apply_instrumentation_updates
 
     installed = _get_installed_packages()
     if not installed:
@@ -148,8 +148,8 @@ def restart(join: bool = False) -> None:
 
     # Reset instrumenter and registry state BEFORE re-initializing.
     # This must happen here (not in register_at_fork) to ensure correct ordering.
-    from ddtrace.appsec.sca._instrumenter import _reset_after_fork as reset_instrumenter
-    from ddtrace.appsec.sca._registry import _reset_global_registry_after_fork as reset_registry
+    from ddtrace.internal.sca._instrumenter import _reset_after_fork as reset_instrumenter
+    from ddtrace.internal.sca._registry import _reset_global_registry_after_fork as reset_registry
 
     reset_instrumenter()
     reset_registry()

@@ -12,23 +12,23 @@ from types import FunctionType
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from ddtrace.appsec._patch_utils import get_caller_frame_info
-from ddtrace.appsec.sca._registry import get_global_registry
-from ddtrace.appsec.sca._resolver import SymbolResolver
-from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.sca._registry import get_global_registry
+from ddtrace.internal.sca._resolver import SymbolResolver
+from ddtrace.internal.sca._types import CveTarget
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.utils.stacktrace import get_caller_frame_info
 
 
 if TYPE_CHECKING:
     from _thread import LockType
 
-    from ddtrace.appsec.sca._registry import InstrumentationRegistry
+    from ddtrace.internal.sca._registry import InstrumentationRegistry
 
 
 log = get_logger(__name__)
@@ -270,7 +270,7 @@ def _process_additions(
             carry the hook from the parent process.  We only populate
             the registry so the existing hooks can look up CVE info.
     """
-    from ddtrace.appsec.sca._resolver import SymbolResolver
+    from ddtrace.internal.sca._resolver import SymbolResolver
 
     for target_info in targets:
         dep_name = target_info["dependency_name"]
@@ -349,7 +349,7 @@ def _instrument_lazy_targets(module_name: str) -> None:
 
     for target_name in target_names:
         try:
-            from ddtrace.appsec.sca._registry import get_global_registry
+            from ddtrace.internal.sca._registry import get_global_registry
 
             registry = get_global_registry()
             if registry.is_instrumented(target_name):

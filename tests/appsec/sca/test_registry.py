@@ -2,8 +2,8 @@
 
 import threading
 
-from ddtrace.appsec.sca._registry import InstrumentationRegistry
-from ddtrace.appsec.sca._registry import get_global_registry
+from ddtrace.internal.sca._registry import InstrumentationRegistry
+from ddtrace.internal.sca._registry import get_global_registry
 
 
 def test_registry_add_target():

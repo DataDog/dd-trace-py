@@ -417,9 +417,3 @@ class STACK_TRACE(metaclass=Constant_Class):
 
 # AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the
 # top-level aiguard package. Import from there: `from ddtrace.aiguard._constants import AI_GUARD`.
-
-
-class SCA(metaclass=Constant_Class):
-    """SCA (Software Composition Analysis) related constants."""
-
-    ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"

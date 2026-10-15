@@ -5,7 +5,6 @@ components:
     - '!ddtrace/appsec/ai_guard/*'
     - '!ddtrace/appsec/iast/*'
     - '!ddtrace/appsec/_iast/*'
-    - '!ddtrace/appsec/sca/*'
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
@@ -16,7 +15,7 @@ components:
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
   sca:
-    - ddtrace/appsec/sca/*
+    - ddtrace/internal/sca/*
 suites:
   appsec:
     venvs_per_job: 5
