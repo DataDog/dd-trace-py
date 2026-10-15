@@ -179,14 +179,15 @@ def _wrap_putrequest(func, instance, args, kwargs):
         if (scheme == "http" and instance.port == 80) or (scheme == "https" and instance.port == 443):
             port = ""
         if config._otel_trace_semantics_enabled:
-            if path.startswith(("http://", "https://")):
+            if path[:8].lower().startswith(("http://", "https://")):
                 # Absolute-form target (plain HTTP proxy): already a full URL.
                 url = path
             else:
                 host = instance.host
                 if ":" in host and not host.startswith("["):
                     host = f"[{host}]"
-                url = f"{scheme}://{host}{port}{path}"
+                # Asterisk-form ("*") and authority-form ("host:port") targets are not paths.
+                url = f"{scheme}://{host}{port}{path if path.startswith('/') else ''}"
         else:
             url = f"{scheme}://{instance.host}{port}{path}"
 
