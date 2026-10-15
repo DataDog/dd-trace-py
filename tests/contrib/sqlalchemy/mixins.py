@@ -63,7 +63,7 @@ class SQLAlchemyTestBase:
         self.session = Session()
 
         # trace the engine
-        trace_engine(self.engine, self.tracer)
+        trace_engine(self.engine)
 
     def tearDown(self):
         # clear the database and dispose the engine

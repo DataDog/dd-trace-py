@@ -53,12 +53,9 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #if PY_VERSION_HEX >= 0x030b0000
         code.co_qualname = reinterpret_cast<PyObject*>(p3);
         code.co_linetable = reinterpret_cast<PyObject*>(p4);
-#elif PY_VERSION_HEX >= 0x030a0000
-        code.co_name = reinterpret_cast<PyObject*>(p3);
-        code.co_linetable = reinterpret_cast<PyObject*>(p4);
 #else
         code.co_name = reinterpret_cast<PyObject*>(p3);
-        code.co_lnotab = reinterpret_cast<PyObject*>(p4);
+        code.co_linetable = reinterpret_cast<PyObject*>(p4);
 #endif
 
         EchionSampler echion_sampler;

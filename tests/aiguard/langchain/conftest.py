@@ -65,7 +65,7 @@ def llmobs(tracer):
     with override_global_config({"_dd_api_key": "<not-a-real-key>"}):
         # agentless would swap the tracer's DummyWriter and break test_spans.
         LLMObs.enable(
-            _tracer=tracer, ml_app="aiguard_langchain_test", integrations_enabled=False, agentless_enabled=False
+            _tracer=tracer, agent_service="aiguard_langchain_test", integrations_enabled=False, agentless_enabled=False
         )
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()

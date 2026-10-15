@@ -15,8 +15,6 @@ from ddtrace.ext import db
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer as ddtracer
 
 from .utils import _extract_client
@@ -51,20 +49,13 @@ def _supported_versions() -> dict[str, str]:
     return {"flask_cache": ">=0.13"}
 
 
-def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
+def get_traced_cache(service=DEFAULT_SERVICE, meta=None, cache_cls=None):
     """
     Return a traced Cache object that behaves exactly as ``cache_cls``.
 
     ``cache_cls`` defaults to ``flask.ext.cache.Cache`` if Flask-Cache is installed
     or ``flask_caching.Cache`` if flask-caching is installed.
     """
-    if tracer is not None:
-        deprecate(
-            "The tracer parameter is deprecated",
-            message="The global tracer will be used instead.",
-            category=DDTraceDeprecationWarning,
-            removal_version="5.0.0",
-        )
 
     if cache_cls is None:
         # for compatibility reason, first check if flask_cache is present
@@ -93,7 +84,6 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             Start a tracing with default attributes and tags
             """
             # create a new span
-            # ddtracer references `ddtrace.trace.tracer`, tracer parameter will be removed in a future release.
             s = ddtracer.trace(
                 schematize_cache_operation(cmd, cache_provider="flask_cache"),
                 span_type=SpanTypes.CACHE,

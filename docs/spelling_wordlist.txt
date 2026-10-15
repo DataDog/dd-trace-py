@@ -19,7 +19,6 @@ api
 app
 appsec
 AppSec
-aredis
 args
 ARN
 ASAN
@@ -380,7 +379,6 @@ vendored
 vendoring
 versioned
 vertexai
-vertica
 vLLM
 w3c
 Webbrowser

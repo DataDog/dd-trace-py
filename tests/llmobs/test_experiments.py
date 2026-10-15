@@ -1546,7 +1546,7 @@ def test_project_name_set(run_python_code_in_subprocess):
         """
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(ml_app="ml-app", project_name="test-project-123")
+LLMObs.enable(agent_service="ml-app", project_name="test-project-123")
 assert LLMObs._project_name == "test-project-123"
 """,
         env=env,

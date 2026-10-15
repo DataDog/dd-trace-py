@@ -50,7 +50,7 @@ _lazy_hooks_lock = Lock()
 if sys.version_info < (3, 11):
 
     def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first body-instruction line on Python 3.9 and 3.10."""
+        """Return the first body-instruction line on Python 3.10."""
         import dis
 
         for instr in dis.get_instructions(code):

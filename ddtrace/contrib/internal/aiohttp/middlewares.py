@@ -5,8 +5,6 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 
 
 CONFIG_KEY = "datadog_trace"
@@ -131,7 +129,7 @@ async def on_prepare(request, response):
     finish_request_span(request, response)
 
 
-def trace_app(app, tracer=None, service="aiohttp-web"):
+def trace_app(app, service="aiohttp-web"):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the global tracer.
@@ -145,13 +143,6 @@ def trace_app(app, tracer=None, service="aiohttp-web"):
         return
     app.__datadog_trace = True
 
-    if tracer is not None:
-        deprecate(
-            "The tracer parameter is deprecated",
-            message="The global tracer will be used instead.",
-            category=DDTraceDeprecationWarning,
-            removal_version="5.0.0",
-        )
     # configure datadog settings
     app[CONFIG_KEY] = {
         "service": config._get_service(default=service),

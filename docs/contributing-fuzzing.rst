@@ -311,7 +311,7 @@ Current Limitations
 -------------------
 
 **Python Versions**
-  CI fuzzes on Python 3.9 through 3.14 (one image per version, see ``.gitlab/fuzz.yml``).
+  CI fuzzes on Python 3.10 through 3.14 (one image per version, see ``.gitlab/fuzz.yml``).
   Python 3.15 is not fuzzed yet, so bugs in 3.15-specific code paths may not be discovered.
 
 Resources and References

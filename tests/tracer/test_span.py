@@ -16,7 +16,6 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import Context
 from ddtrace.trace import Span
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
@@ -33,7 +32,6 @@ class SpanTestCase(TracerTestCase):
         assert s2.span_id == 2
         assert s2.parent_id == 1
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
     def test_128bit_trace_ids(self):
         s = Span(name="test.span")
         assert s.trace_id >= 2**64
@@ -42,22 +40,6 @@ class SpanTestCase(TracerTestCase):
         trace_id_binary = format(s.trace_id, "b")
         trace_id64_binary = format(s._trace_id_64bits, "b")
         assert int(trace_id64_binary, 2) == int(trace_id_binary[-64:], 2)
-
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
-    def test_128bit_trace_id_config_deprecation_warning(self):
-        """Test that setting DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED emits a deprecation warning."""
-        import warnings
-
-        from ddtrace.internal.settings._config import Config
-        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-
-        warnings.simplefilter("always")
-        with warnings.catch_warnings(record=True) as warns:
-            Config()
-
-        deprecation_warns = [w for w in warns if issubclass(w.category, DDTraceDeprecationWarning)]
-        assert len(deprecation_warns) >= 1
-        assert "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated" in str(deprecation_warns[0].message)
 
     def test_set_baggage_item(self):
         s = Span(name="test.span")

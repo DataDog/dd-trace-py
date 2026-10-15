@@ -406,24 +406,6 @@
         ]
     },
     {
-        "dependencyName": "aredis",
-        "integrationName": "aredis",
-        "autoInstrumented": true,
-        "versions": [
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.9"
-                    ]
-                },
-                "supportedRange": "*",
-                "tested": [
-                    "1.1.8"
-                ]
-            }
-        ]
-    },
-    {
         "dependencyName": "pytest-asyncio",
         "integrationName": "asyncio",
         "autoInstrumented": true,
@@ -4425,26 +4407,6 @@
                 ]
             }
         ]
-    },
-    {
-        "dependencyName": "vertica-python",
-        "integrationName": "vertica",
-        "autoInstrumented": true,
-        "versions": [
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.9"
-                    ]
-                },
-                "supportedRange": ">=0.6",
-                "tested": [
-                    "0.6.14",
-                    "0.7.4"
-                ]
-            }
-        ],
-        "pinned": true
     },
     {
         "dependencyName": "vllm",

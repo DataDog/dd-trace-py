@@ -25,17 +25,17 @@ class TraceBottleDistributedTest(TracerTestCase):
     def tearDown(self):
         super().tearDown()
 
-    def _trace_app(self, tracer=None):
-        self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
+    def _trace_app(self):
+        self.app.install(TracePlugin(service=SERVICE))
         self.app = webtest.TestApp(self.app)
 
-    def _trace_app_distributed(self, tracer=None):
+    def _trace_app_distributed(self):
         ddtrace.config.bottle["distributed_tracing"] = True
-        self._trace_app(tracer=tracer)
+        self._trace_app()
 
-    def _trace_app_not_distributed(self, tracer=None):
+    def _trace_app_not_distributed(self):
         ddtrace.config.bottle["distributed_tracing"] = False
-        self._trace_app(tracer=tracer)
+        self._trace_app()
 
     def test_distributed(self):
         # setup our test app
@@ -43,7 +43,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app_distributed(self.tracer)
+        self._trace_app_distributed()
 
         # make a request
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
@@ -72,7 +72,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app_not_distributed(self.tracer)
+        self._trace_app_not_distributed()
 
         # make a request
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
@@ -101,7 +101,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
@@ -130,7 +130,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         def default_endpoint():
             return bottle.HTTPResponse("", status=200)
 
-        self._trace_app_distributed(self.tracer)
+        self._trace_app_distributed()
 
         # make a request
         headers = {
@@ -178,7 +178,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         def default_endpoint():
             return bottle.HTTPResponse("", status=200)
 
-        self._trace_app_distributed(self.tracer)
+        self._trace_app_distributed()
 
         # make a request
         headers = {

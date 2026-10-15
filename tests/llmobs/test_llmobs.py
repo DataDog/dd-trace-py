@@ -55,36 +55,17 @@ from ddtrace.llmobs.types import Prompt
 
 
 class TestMLApp:
-    @pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "legacy-ml-app"})
-    def test_config_reads_legacy_ml_app_env_var(self):
+    @pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "legacy-ml-app", "DD_SERVICE": "my-service"})
+    def test_config_ignores_removed_ml_app_env_var(self):
         import ddtrace
+        from ddtrace.llmobs._utils import resolve_ml_app
 
-        assert ddtrace.config._llmobs_ml_app == "legacy-ml-app"
+        assert ddtrace.config._llmobs_ml_app is None
+        assert resolve_ml_app() == "my-service"
 
-    @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
-    def test_tag_defaults_to_env_var(self, llmobs, tracer, llmobs_env):
-        """Test that no ml_app defaults to the environment variable DD_LLMOBS_ML_APP."""
-        with llmobs.workflow("root_llm_span") as span:
-            pass
-        assert get_llmobs_tags(span)["ml_app"] == "<not-a-real-app-name>"
-
-    @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
-    def test_tag_overrides_env_var(self, llmobs, tracer, llmobs_env):
-        """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_ML_APP."""
-        with llmobs.workflow("root_llm_span", ml_app="test-ml-app") as span:
-            pass
-        assert get_llmobs_tags(span)["ml_app"] == "test-ml-app"
-
-    @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
-    def test_agent_service_tag_overrides_env_var(self, llmobs, tracer, llmobs_env):
-        """Test that when agent_service is set on the span, it overrides the DD_LLMOBS_ML_APP env var."""
+    def test_agent_service_tag_overrides_global_config(self, llmobs, tracer):
+        """Test that agent_service set on the span overrides the globally configured agent service."""
         with llmobs.workflow("root_llm_span", agent_service="test-agent-service") as span:
-            pass
-        assert get_llmobs_tags(span)["ml_app"] == "test-agent-service"
-
-    def test_agent_service_tag_overrides_ml_app_tag(self, llmobs, tracer):
-        """Test that agent_service takes precedence over the legacy ml_app argument."""
-        with llmobs.workflow("root_llm_span", ml_app="test-ml-app", agent_service="test-agent-service") as span:
             pass
         assert get_llmobs_tags(span)["ml_app"] == "test-agent-service"
 
@@ -93,7 +74,7 @@ class TestMLApp:
         Test that when ml_app is not set, we propagate from nearest LLMObs ancestor
         even if there are non-LLMObs spans in between.
         """
-        with llmobs.workflow("root_llm_span", ml_app="test-ml-app"):
+        with llmobs.workflow("root_llm_span", agent_service="test-ml-app"):
             with tracer.trace("child_span"):
                 with llmobs.workflow("llm_grandchild_span"):
                     with llmobs.workflow("great_grandchild_span"):
@@ -267,7 +248,7 @@ class TestLLMIOProcessing:
     def test_ddtrace_run_register_processor(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Users using ddtrace-run can register a processor to be called on each LLMObs span."""
         env = os.environ.copy()
-        env["DD_LLMOBS_ML_APP"] = "test-ml-app"
+        env["DD_SERVICE"] = "test-ml-app"
         env["DD_API_KEY"] = "test-api-key"
         env["DD_LLMOBS_ENABLED"] = "1"
         env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
@@ -520,7 +501,7 @@ class TestLLMIOProcessing:
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
         env = os.environ.copy()
-        env["DD_LLMOBS_ML_APP"] = "test-ml-app"
+        env["DD_SERVICE"] = "test-ml-app"
         env["DD_API_KEY"] = "test-api-key"
         env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
         env["DD_TRACE_ENABLED"] = "0"
@@ -1522,7 +1503,7 @@ def test_matching_rule_overrides_global_rate(llmobs, llmobs_events):
     assert by_name["unmatched"] == {**by_name["unmatched"], "sample_rate": "0", "sampling_decision": "0"}
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app"})
+@pytest.mark.subprocess(env={"DD_SERVICE": "test-app"})
 def test_enable_sample_rate_sets_sampler():
     """LLMObs.enable(sample_rate=...) configures the span sampler."""
     from ddtrace.llmobs import LLMObs
@@ -1531,7 +1512,7 @@ def test_enable_sample_rate_sets_sampler():
     assert LLMObs._instance._sampler.sample_rate == 0.3
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
+@pytest.mark.subprocess(env={"DD_SERVICE": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
 def test_enable_sample_rate_arg_takes_precedence_over_env():
     """LLMObs.enable(sample_rate=...) takes precedence over DD_LLMOBS_SAMPLE_RATE."""
     from ddtrace.llmobs import LLMObs
@@ -1540,7 +1521,7 @@ def test_enable_sample_rate_arg_takes_precedence_over_env():
     assert LLMObs._instance._sampler.sample_rate == 0.3
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
+@pytest.mark.subprocess(env={"DD_SERVICE": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
 def test_enable_sample_rate_zero_is_respected():
     """LLMObs.enable(sample_rate=0.0) is respected and does not fall back to the env var/default."""
     from ddtrace.llmobs import LLMObs
@@ -1549,7 +1530,7 @@ def test_enable_sample_rate_zero_is_respected():
     assert LLMObs._instance._sampler.sample_rate == 0.0
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.4"})
+@pytest.mark.subprocess(env={"DD_SERVICE": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.4"})
 def test_enable_keeps_valid_env_sample_rate():
     """A valid DD_LLMOBS_SAMPLE_RATE is kept when no sample_rate is passed to enable()."""
     from ddtrace.llmobs import LLMObs
@@ -1558,7 +1539,7 @@ def test_enable_keeps_valid_env_sample_rate():
     assert LLMObs._instance._sampler.sample_rate == 0.4
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "1.5"})
+@pytest.mark.subprocess(env={"DD_SERVICE": "test-app", "DD_LLMOBS_SAMPLE_RATE": "1.5"})
 def test_enable_validates_env_sample_rate():
     """An out-of-range DD_LLMOBS_SAMPLE_RATE is validated at enable() and falls back to 1.0."""
     from unittest import mock
@@ -1573,7 +1554,7 @@ def test_enable_validates_env_sample_rate():
     )
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.2"})
+@pytest.mark.subprocess(env={"DD_SERVICE": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.2"})
 def test_enable_invalid_sample_rate_keeps_configured_rate():
     """An out-of-range (negative) sample_rate argument is ignored, keeping the configured env rate."""
     from unittest import mock
@@ -1588,7 +1569,7 @@ def test_enable_invalid_sample_rate_keeps_configured_rate():
     )
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "5.0"})
+@pytest.mark.subprocess(env={"DD_SERVICE": "test-app", "DD_LLMOBS_SAMPLE_RATE": "5.0"})
 def test_enable_invalid_arg_and_invalid_env_falls_back():
     """When both the argument and the env-derived rate are invalid, fall back to the default (1.0)."""
     from unittest import mock
@@ -1610,7 +1591,7 @@ def test_enable_invalid_arg_and_invalid_env_falls_back():
     ddtrace_run=True,
     env={
         "DD_LLMOBS_ENABLED": "1",
-        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_SERVICE": "test-app",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
     },
     parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0", "0.25", "0.5", "0.75", "1"]},
@@ -1636,7 +1617,7 @@ def test_sample_rate_inherited_by_child_span():
     ddtrace_run=True,
     env={
         "DD_LLMOBS_ENABLED": "1",
-        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_SERVICE": "test-app",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
     },
     parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0.2", "0.4", "0.6", "0.8"]},

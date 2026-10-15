@@ -8,15 +8,12 @@ from typing import Optional
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
 
 from ..constants import _SPAN_MEASURED_KEY
@@ -53,18 +50,9 @@ class TracedCursor(wrapt.ObjectProxy):
     def __init__(
         self,
         cursor,
-        pin: Optional[Pin] = None,
         cfg: Optional[Mapping[str, str]] = None,
         db_tags: Optional[Mapping[str, str]] = None,
     ):
-        if pin is not None:
-            deprecate(
-                "The pin parameter is deprecated",
-                message="This parameter has no effect.",
-                category=DDTraceDeprecationWarning,
-                removal_version="5.0.0",
-            )
-
         super().__init__(cursor)
 
         # Allow dbapi-based integrations to override default span name prefix
@@ -268,14 +256,7 @@ class FetchTracedCursor(TracedCursor):
 class TracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
-    def __init__(self, conn, pin=None, cfg=None, cursor_cls=None, db_tags: Optional[Mapping[str, str]] = None):
-        if pin is not None:
-            deprecate(
-                "The pin parameter is deprecated",
-                message="This parameter has no effect.",
-                category=DDTraceDeprecationWarning,
-                removal_version="5.0.0",
-            )
+    def __init__(self, conn, cfg=None, cursor_cls=None, db_tags: Optional[Mapping[str, str]] = None):
         if not cfg:
             cfg = config.dbapi2
         # Set default cursor class if one was not provided

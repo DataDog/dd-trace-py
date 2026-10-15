@@ -1,5 +1,4 @@
 from collections import namedtuple
-import sys
 
 
 LineNo = namedtuple("LineNo", ["create", "acquire", "release"])
@@ -35,10 +34,7 @@ def get_lock_locations(path: str) -> None:
 
 
 def get_lock_linenos(name: str, with_stmt: bool = False) -> LineNo:
-    linenos = lock_locs.get(name, LineNo(0, 0, 0))
-    if with_stmt and sys.version_info < (3, 10):
-        linenos = linenos._replace(release=linenos.release + 1)
-    return linenos
+    return lock_locs.get(name, LineNo(0, 0, 0))
 
 
 def init_linenos(path: str) -> None:

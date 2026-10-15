@@ -289,22 +289,12 @@ impl SpanData {
                 }
                 Err(_) => {
                     // Invalid type — fall through to auto-generation.
-                    let id = if crate::config::get_128_bit_trace_id_enabled() {
-                        crate::rand::generate_128bit_trace_id()
-                    } else {
-                        crate::rand::rand64bits() as u128
-                    };
-                    span.set_trace_id_native(id);
+                    span.set_trace_id_native(crate::rand::generate_128bit_trace_id());
                     None
                 }
             },
             None => {
-                let id = if crate::config::get_128_bit_trace_id_enabled() {
-                    crate::rand::generate_128bit_trace_id()
-                } else {
-                    crate::rand::rand64bits() as u128
-                };
-                span.set_trace_id_native(id);
+                span.set_trace_id_native(crate::rand::generate_128bit_trace_id());
                 None
             }
         };

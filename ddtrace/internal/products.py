@@ -7,7 +7,6 @@ import typing as t
 from typing import Protocol
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
@@ -30,15 +29,8 @@ _TRUSTED_PRODUCT_DISTRIBUTIONS = frozenset({"ddtrace"})
 _TRUSTED_PRODUCT_MODULE_PREFIXES = frozenset({"ddtrace."})
 
 
-if is_at_least_py(3, 10):
-
-    def get_product_entry_points() -> list[t.Any]:
-        return list(entry_points(group="ddtrace.products"))
-
-else:
-
-    def get_product_entry_points() -> list[t.Any]:
-        return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
+def get_product_entry_points() -> list[t.Any]:
+    return list(entry_points(group="ddtrace.products"))
 
 
 class Product(Protocol):

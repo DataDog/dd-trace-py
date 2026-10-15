@@ -29,8 +29,8 @@ class TraceBottleTest(TracerTestCase):
     def tearDown(self):
         super().tearDown()
 
-    def _trace_app(self, tracer=None, extra_environ={}):
-        self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
+    def _trace_app(self, extra_environ={}):
+        self.app.install(TracePlugin(service=SERVICE))
         self.app = webtest.TestApp(self.app, extra_environ=extra_environ)
 
     def test_200(self, query_string=""):
@@ -44,7 +44,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         resp = self.app.get("/hi/dougie" + fqs)
@@ -80,7 +80,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
         res = self.app.get("/hi/dougie", extra_environ={"SCRIPT_NAME": "/api/v1"})
         assert res.status_code == 200
         spans = self.pop_spans()
@@ -110,7 +110,7 @@ class TraceBottleTest(TracerTestCase):
         def handled():
             return bottle.HTTPResponse("", status=202)
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         try:
@@ -130,7 +130,7 @@ class TraceBottleTest(TracerTestCase):
         def handled400():
             return bottle.HTTPResponse(status=400)
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         try:
@@ -159,7 +159,7 @@ class TraceBottleTest(TracerTestCase):
         def handled400():
             raise bottle.HTTPResponse(status=400)
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         try:
@@ -188,7 +188,7 @@ class TraceBottleTest(TracerTestCase):
         def hi():
             raise Exception("oh no")
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         try:
@@ -231,7 +231,7 @@ class TraceBottleTest(TracerTestCase):
             bottle.response.status = 503
             return "hmmm"
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         try:
             self.app.get("/5XX-1")
@@ -262,7 +262,7 @@ class TraceBottleTest(TracerTestCase):
         def hi():
             raise bottle.abort(420, "Enhance Your Calm")
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         try:
@@ -321,7 +321,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
@@ -338,7 +338,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
@@ -355,7 +355,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
@@ -372,7 +372,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self.app.install(TracePlugin(tracer=self.tracer))
+        self.app.install(TracePlugin())
         self.app = webtest.TestApp(self.app)
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
@@ -390,7 +390,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self.app.install(TracePlugin(tracer=self.tracer))
+        self.app.install(TracePlugin())
         self.app = webtest.TestApp(self.app)
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
@@ -408,7 +408,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
@@ -425,7 +425,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
@@ -442,7 +442,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()

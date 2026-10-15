@@ -1291,7 +1291,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_openai import OpenAI
 
         patch(langchain=True, openai=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_span_kinds(["workflow", "llm"])
 
@@ -1300,7 +1300,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_openai import AzureChatOpenAI
 
         patch(langchain=True, openai=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_azure_openai_chat(AzureChatOpenAI)
         self._assert_span_kinds(["workflow", "llm"])
 
@@ -1310,7 +1310,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         from langchain_openai import OpenAI
 
         patch(langchain=True, openai=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
         llm.invoke("안녕,\n 지금 몇 시야?")
         spans = self._llmobs_spans()
@@ -1323,7 +1323,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         from langchain_openai import OpenAIEmbeddings
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
         self._assert_span_kinds(["workflow", "embedding"])
 
@@ -1333,7 +1333,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         from langchain_openai import OpenAIEmbeddings
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
         self._assert_span_kinds(["embedding"])
 
@@ -1343,7 +1343,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_span_kinds(["llm"])
 
@@ -1353,7 +1353,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_azure_openai_chat(AzureChatOpenAI)
         self._assert_span_kinds(["llm"])
 
@@ -1363,7 +1363,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, anthropic=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_span_kinds(["workflow", "llm"])
 
@@ -1373,7 +1373,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
 
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_span_kinds(["llm"])
@@ -1388,7 +1388,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, google_genai=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_google_genai_chat(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["workflow", "llm"])
 
@@ -1402,7 +1402,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_google_genai_chat(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["llm"])
 
@@ -1416,7 +1416,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, google_genai=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_google_genai_chat_stream(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["workflow", "llm"])
 
@@ -1430,7 +1430,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, google_genai=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_google_genai_chat_legacy_client(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["llm"])
 
@@ -1444,7 +1444,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, google_genai=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_google_genai_llm(GoogleGenerativeAI)
         self._assert_span_kinds(["workflow", "llm"])
 
@@ -1458,7 +1458,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
         self._call_google_genai_llm(GoogleGenerativeAI)
         self._assert_span_kinds(["llm"])
 

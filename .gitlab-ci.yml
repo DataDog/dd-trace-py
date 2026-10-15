@@ -228,7 +228,7 @@ macrobenchmarks:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
+            PYTHON_TAG: "cp310-cp310"
             IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
@@ -862,7 +862,7 @@ profiling_native:
         - pyproject.toml
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         SANITIZER: ["safety", "thread", ""]
       # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
       # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,

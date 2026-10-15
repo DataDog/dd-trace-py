@@ -788,7 +788,7 @@ def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess)
         """
 import litellm
 from ddtrace.llmobs import LLMObs
-LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
 assert LLMObs.enabled
 LLMObs.disable()
 """
@@ -804,7 +804,7 @@ def test_import_litellm_after_llmobs_was_enabled(run_python_code_in_subprocess):
     _, err, _, _ = run_python_code_in_subprocess(
         """
 from ddtrace.llmobs import LLMObs
-LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+LLMObs.enable(agent_service="<ml-app-name>", integrations_enabled=False)
 assert LLMObs.enabled
 import litellm
 LLMObs.disable()

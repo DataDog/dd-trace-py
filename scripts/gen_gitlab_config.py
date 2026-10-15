@@ -61,7 +61,7 @@ def _wait_lockfile() -> str:
     from tests.suitespec import get_test_environments
 
     environments = get_test_environments(nightly=False)["wait"]
-    return str(next(environment.lockfile for environment in environments if environment.python == "3.9"))
+    return str(next(environment.lockfile for environment in environments if environment.python == "3.10"))
 
 
 @dataclass
@@ -153,7 +153,7 @@ class JobSpec:
             if "testagent" in wait_for:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             lines.append(
-                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
+                f"    - {wait_environment}uv run --no-project --python 3.10 --no-python-downloads "
                 f"--with-requirements {_wait_lockfile()} --no-progress "
                 f"python tests/wait-for-services.py {' '.join(wait_for)}"
             )

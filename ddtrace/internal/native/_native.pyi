@@ -1353,14 +1353,6 @@ class config:
     """Native config module for tracer configuration managed in Rust."""
 
     @staticmethod
-    def get_128_bit_trace_id_enabled() -> bool:
-        """Return whether 128-bit trace ID generation is enabled."""
-        ...
-    @staticmethod
-    def set_128_bit_trace_id_enabled(val: bool) -> None:
-        """Set whether 128-bit trace ID generation is enabled."""
-        ...
-    @staticmethod
     def get_raise() -> bool:
         """Return whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
         ...

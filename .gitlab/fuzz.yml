@@ -22,7 +22,6 @@ fuzz_infra:
     - when: manual
   parallel:
     matrix:
-      - PYTHON_VERSION: "3.9"
       - PYTHON_VERSION: "3.10"
       - PYTHON_VERSION: "3.11"
       - PYTHON_VERSION: "3.12"

@@ -262,22 +262,6 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 )
 
 
-_ml_app_deprecation_warned = False
-
-
-def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) -> Optional[str]:
-    global _ml_app_deprecation_warned
-    if ml_app and not _ml_app_deprecation_warned:
-        _ml_app_deprecation_warned = True
-        deprecate(
-            "The `ml_app` argument is deprecated",
-            message="Use `agent_service` instead. `ml_app` will be removed in a future major version.",
-            removal_version="5.0.0",
-            category=DDTraceDeprecationWarning,
-        )
-    return agent_service or ml_app
-
-
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
@@ -1034,7 +1018,6 @@ class LLMObs(Service):
     @classmethod
     def enable(
         cls,
-        ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
         agentless_enabled: Optional[bool] = None,
         instrumented_proxy_urls: Optional[set[str]] = None,
@@ -1053,9 +1036,7 @@ class LLMObs(Service):
         """
         Enable LLM Observability tracing.
 
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: The name of your agent service. Takes precedence over ``ml_app`` and
-                                  ``service``, in that order.
+        :param str agent_service: The name of your agent service. Takes precedence over ``service``.
         :param bool integrations_enabled: set to `true` to enable LLM integrations.
         :param bool agentless_enabled: set to `true` to disable sending data that requires a Datadog Agent.
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
@@ -1093,7 +1074,7 @@ class LLMObs(Service):
         cls._git_repository_url, cls._git_commit_sha = resolve_llmobs_git_metadata()
         config.env = env or config.env
         config.service = service or config.service
-        config._llmobs_ml_app = _resolve_agent_service(agent_service, ml_app) or config._llmobs_ml_app
+        config._llmobs_ml_app = agent_service or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
         # Validate and fallback sample rates (inline arg --> env var --> 1.0)
         if sample_rate is not None and 0.0 <= sample_rate <= 1.0:
@@ -1264,7 +1245,6 @@ class LLMObs(Service):
     def publish_evaluator(
         cls,
         evaluator: BaseEvaluator,
-        ml_app: Optional[str] = None,
         eval_name: Optional[str] = None,
         variable_mapping: Optional[dict[str, str]] = None,
         agent_service: Optional[str] = None,
@@ -1273,19 +1253,17 @@ class LLMObs(Service):
         Publish a custom evaluator configuration.
 
         :param BaseEvaluator evaluator: The evaluator to publish.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead. Required if ``agent_service`` is not provided.
         :param str eval_name: The name to use for the published evaluator. Defaults to the evaluator name.
         :param dict variable_mapping: A mapping from evaluator variables to span fields.
-        :param str agent_service: The agent service for this evaluator. Required if ``ml_app`` is not provided.
+        :param str agent_service: The agent service for this evaluator. Required.
         :returns: A dictionary containing the evaluator configuration UI URL.
         """
         if not cls._instance or not cls._instance.enabled:
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
 
-        resolved_agent_service = _resolve_agent_service(agent_service, ml_app)
-        if not isinstance(resolved_agent_service, str) or not resolved_agent_service.strip():
+        if not isinstance(agent_service, str) or not agent_service.strip():
             raise ValueError("`agent_service` must be provided as a non-empty string.")
-        ml_app = resolved_agent_service.strip()
+        ml_app = agent_service.strip()
         evaluation_payload = evaluator._build_publish_payload(
             ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
         )
@@ -2859,7 +2837,6 @@ class LLMObs(Service):
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
@@ -2871,9 +2848,9 @@ class LLMObs(Service):
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2889,7 +2866,7 @@ class LLMObs(Service):
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
-            agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_service=agent_service,
             _decorator=_decorator,
         )
 
@@ -2898,7 +2875,6 @@ class LLMObs(Service):
         cls,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
@@ -2907,9 +2883,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2919,7 +2895,7 @@ class LLMObs(Service):
             "tool",
             name=name,
             session_id=session_id,
-            agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_service=agent_service,
             _decorator=_decorator,
         )
 
@@ -2928,7 +2904,6 @@ class LLMObs(Service):
         cls,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
@@ -2937,9 +2912,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2949,7 +2924,7 @@ class LLMObs(Service):
             "task",
             name=name,
             session_id=session_id,
-            agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_service=agent_service,
             _decorator=_decorator,
         )
 
@@ -2958,7 +2933,6 @@ class LLMObs(Service):
         cls,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         version: Optional[str] = None,
         _decorator: bool = False,
@@ -2968,9 +2942,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
         :param str version: The version of this agent. Set as an ``agent_version`` tag on this span
                             and on its child spans within the same process.
 
@@ -2982,7 +2956,7 @@ class LLMObs(Service):
             "agent",
             name=name,
             session_id=session_id,
-            agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_service=agent_service,
             agent_version=version,
             _decorator=_decorator,
         )
@@ -2992,7 +2966,6 @@ class LLMObs(Service):
         cls,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
@@ -3001,9 +2974,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -3013,7 +2986,7 @@ class LLMObs(Service):
             "workflow",
             name=name,
             session_id=session_id,
-            agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_service=agent_service,
             _decorator=_decorator,
         )
 
@@ -3024,7 +2997,6 @@ class LLMObs(Service):
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
@@ -3037,9 +3009,9 @@ class LLMObs(Service):
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -3055,7 +3027,7 @@ class LLMObs(Service):
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
-            agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_service=agent_service,
             _decorator=_decorator,
         )
 
@@ -3064,7 +3036,6 @@ class LLMObs(Service):
         cls,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
@@ -3073,9 +3044,9 @@ class LLMObs(Service):
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -3085,7 +3056,7 @@ class LLMObs(Service):
             "retrieval",
             name=name,
             session_id=session_id,
-            agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_service=agent_service,
             _decorator=_decorator,
         )
 
@@ -3094,7 +3065,6 @@ class LLMObs(Service):
         cls,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
-        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         experiment_id: Optional[str] = None,
         run_id: Optional[str] = None,
@@ -3109,17 +3079,15 @@ class LLMObs(Service):
         Trace an LLM experiment, only used internally by the experiments SDK.
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+                           propagated value from a parent span/context, the ``agent_service`` passed to
+                           ``LLMObs.enable()``, or ``DD_SERVICE``.
         :param str experiment_id: The ID of the experiment to associate with this span and its children.
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        span = cls._instance._start_span(
-            "experiment", name=name, session_id=session_id, agent_service=_resolve_agent_service(agent_service, ml_app)
-        )
+        span = cls._instance._start_span("experiment", name=name, session_id=session_id, agent_service=agent_service)
 
         # root experiment span needs each baggage value mirrored into llmobs tags explicitly.
         # child spans automatically pick these up from baggage on activation.
@@ -3501,7 +3469,6 @@ class LLMObs(Service):
         span: Optional[dict] = None,
         span_with_tag_value: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
-        ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         metadata: Optional[dict[str, object]] = None,
         assessment: Optional[str] = None,
@@ -3521,7 +3488,6 @@ class LLMObs(Service):
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
                             uniquely identifying the span associated with this evaluation.
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service for this evaluation metric.
         :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
                                     If not set, the current time will be used.
@@ -3549,7 +3515,6 @@ class LLMObs(Service):
                 span=span,
                 span_with_tag_value=span_with_tag_value,
                 tags=tags,
-                ml_app=ml_app,
                 timestamp_ms=timestamp_ms,
                 metadata=metadata,
                 assessment=assessment,
@@ -3557,7 +3522,6 @@ class LLMObs(Service):
                 eval_scope=eval_scope,
                 agent_service=agent_service,
                 otel_trace_enabled=config._otel_trace_enabled,
-                resolve_agent_service=_resolve_agent_service,
                 submission_error_cls=LLMObsSubmitEvaluationError,
                 telemetry_context=telemetry_context,
             )
@@ -3582,7 +3546,6 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         feedback_join_key: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
-        ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         assessment: Optional[str] = None,
         reasoning: Optional[str] = None,
@@ -3607,7 +3570,6 @@ class LLMObs(Service):
         :param str session_id: The ID of the session associated with the feedback.
         :param str feedback_join_key: A customer-defined key associated with the feedback.
         :param tags: A dictionary of string key-value pairs to tag the feedback with.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param int timestamp_ms: The Unix timestamp in milliseconds when the feedback was generated.
                                   If not set, the current time is used.
         :param str assessment: An assessment of this feedback. Must be either "pass" or "fail".
@@ -3634,12 +3596,10 @@ class LLMObs(Service):
                 session_id=session_id,
                 feedback_join_key=feedback_join_key,
                 tags=tags,
-                ml_app=ml_app,
                 timestamp_ms=timestamp_ms,
                 assessment=assessment,
                 reasoning=reasoning,
                 agent_service=agent_service,
-                resolve_agent_service=_resolve_agent_service,
                 submission_error_cls=LLMObsSubmitEvaluationError,
                 telemetry_context=telemetry_context,
             )
@@ -3659,7 +3619,6 @@ class LLMObs(Service):
         query: Optional[str] = None,
         span_kind: Optional[str] = None,
         span_name: Optional[str] = None,
-        ml_app: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         from_date: str = "now-7d",
         to_date: str = "now",
@@ -3677,9 +3636,8 @@ class LLMObs(Service):
         :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
                                ``tool``, ``task``, ``embedding``, ``retrieval``.
         :param str span_name: Filter by span name.
-        :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: Filter by agent service name. Defaults to ``DD_LLMOBS_ML_APP``,
-                                    service name, or the default ML app name.
+        :param str agent_service: Filter by agent service name. Defaults to the ``agent_service``
+                                    passed to ``LLMObs.enable()``, ``DD_SERVICE``, or the default ML app name.
         :param dict tags: Filter by tag key-value pairs, e.g. ``{"utterance_id": "123"}``.
         :param str from_date: Start of the time range. Accepts ISO 8601, date math
                                (e.g. ``"now-7d"``), or millisecond timestamps. Default: ``"now-7d"``.
@@ -3695,7 +3653,7 @@ class LLMObs(Service):
                   ``input``, ``output``, ``metrics``, and ``tags``.
         :rtype: list[dict]
         """
-        ml_app = resolve_ml_app(_resolve_agent_service(agent_service, ml_app))
+        ml_app = resolve_ml_app(agent_service)
 
         optional_filters = (
             ("trace_id", trace_id),

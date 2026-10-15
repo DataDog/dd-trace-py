@@ -152,16 +152,6 @@ Traces
      version_added:
        v0.41.0:
 
-   DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
-     type: Boolean
-     default: True
-
-     description: |
-         This configuration enables the generation of 128 bit trace ids.
-
-     version_added:
-       v1.12.0:
-
    DD_TRACE_API_VERSION:
      default: |
          ``v0.5``

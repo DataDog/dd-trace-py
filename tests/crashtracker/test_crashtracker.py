@@ -484,7 +484,6 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
 def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
     import json
 

@@ -25,7 +25,6 @@ from contrib.config import PUBSUB_CONFIG
 from contrib.config import RABBITMQ_CONFIG
 from contrib.config import REDIS_CONFIG
 from contrib.config import SELENIUM_CONFIG
-from contrib.config import VERTICA_CONFIG
 import kombu
 import mysql.connector
 from psycopg2 import OperationalError
@@ -33,7 +32,6 @@ from psycopg2 import connect
 import pymssql
 import redis
 import requests
-import vertica_python
 
 
 logging.basicConfig(level=logging.INFO)
@@ -115,15 +113,6 @@ def check_cassandra(cassandra_config):
 @try_until_timeout(Exception, args={"mysql_config": MYSQL_CONFIG})
 def check_mysql(mysql_config):
     conn = mysql.connector.connect(**mysql_config)
-    try:
-        conn.cursor().execute("SELECT 1;")
-    finally:
-        conn.close()
-
-
-@try_until_timeout(Exception, args={"vertica_config": VERTICA_CONFIG})
-def check_vertica(vertica_config):
-    conn = vertica_python.connect(**vertica_config)
     try:
         conn.cursor().execute("SELECT 1;")
     finally:
@@ -272,7 +261,6 @@ if __name__ == "__main__":
         "redis": check_redis,
         "selenium-chrome": check_selenium,
         "testagent": check_agent,
-        "vertica": check_vertica,
         "azurecosmosemulator": check_azurecosmosemulator,
         "azureeventhubsemulator": check_azureeventhubsemulator,
         "azureservicebusemulator": check_azureservicebusemulator,

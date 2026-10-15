@@ -74,7 +74,7 @@ get_code_from_frame(py_frame_t* frame)
     /* Python 3.13: f_executable is an untagged PyObject*. */
     return reinterpret_cast<PyCodeObject*>(frame->f_executable);
 #else
-    /* Python 3.9-3.12: f_code is a direct PyCodeObject*. */
+    /* Python 3.10-3.12: f_code is a direct PyCodeObject*. */
     return frame->f_code;
 #endif
 }
@@ -137,7 +137,7 @@ get_code_name(PyCodeObject* code)
  *                 is in _Py_CODEUNIT units.  No -1 adjustment needed.
  *   Python 3.11-3.12: prev_instr points to the last executed
  *                     instruction; result is in _Py_CODEUNIT units.
- *   Pre-3.11: f_lasti is a byte offset (3.9) or codeunit index (3.10). */
+ *   Python 3.10: f_lasti is a codeunit index. */
 inline int
 get_lasti(py_frame_t* frame, [[maybe_unused]] PyCodeObject* code)
 {
