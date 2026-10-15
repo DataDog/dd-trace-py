@@ -20,13 +20,7 @@ suites:
   ci_visibility:
     paths:
       - '@ci_visibility'
-      - '@ci'
-      - '@core'
-      - '@coverage'
-      - '@git'
       - '@pytest'
-      - '@codeowners'
-      - '@unittest'
       - '@testing'
       - tests/ci_visibility/*
     pattern: 'ci_visibility$'
@@ -43,13 +37,7 @@ suites:
   ci_visibility:snapshot:
     paths:
       - '@ci_visibility'
-      - '@ci'
-      - '@core'
-      - '@coverage'
-      - '@git'
       - '@pytest'
-      - '@codeowners'
-      - '@unittest'
       - '@testing'
       - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
@@ -67,8 +55,6 @@ suites:
   dd_coverage:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@dd_coverage'
       - tests/coverage/*
     snapshot: true
@@ -78,14 +64,8 @@ suites:
   pytest:
     venvs_per_job: 9
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/internal/coverage/*
@@ -120,14 +100,8 @@ suites:
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest:snapshot:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/snapshot/*
       - tests/snapshots/tests.contrib.pytest.*
@@ -157,14 +131,8 @@ suites:
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest_benchmark:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_benchmark.py
@@ -180,14 +148,8 @@ suites:
           dependencies: [msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
   pytest_bdd:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_bdd.py
@@ -206,14 +168,8 @@ suites:
           dependencies: ['pytest==7.4.4', msgpack, 'more_itertools<8.11.0', pytest-randomly, 'pytest-bdd>=6.0,<6.1']
   pytest_flaky:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_flaky.py
@@ -233,14 +189,8 @@ suites:
     venvs_per_job: 4
     retry: 2
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/testing/*
       - tests/contrib/internal/coverage/*
@@ -276,13 +226,8 @@ suites:
       SELENIUM_GRID_URL: http://selenium-chrome:4444
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@ci_visibility'
-      - '@pytest'
       - '@unittest'
-      - '@selenium'
       - '@testing'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
@@ -300,10 +245,8 @@ suites:
   unittest:
     venvs_per_job: 5
     paths:
-      - '@contrib'
       - '@unittest'
       - '@ci_visibility'
-      - '@coverage'
       - '@testing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*

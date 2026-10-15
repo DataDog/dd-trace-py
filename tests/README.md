@@ -72,6 +72,38 @@ can be declared in any file within the `/tests` sub-tree. The CI configuration
 generator will aggregate all the components and suites to build the full test
 suite specification and resolve the components after that.
 
+### Discovered dependencies
+
+A suite's `paths` only need the code it tests, plus the dependencies that
+imports cannot reveal. A reference to a component declared in the same
+`suitespec.yml` is shorthand for that component's patterns, and is replaced by
+them when the file is loaded. The suite's explicit patterns that point into
+`ddtrace/` then pull in the components that the matching sources import
+directly. For example, the debugger suite references `@debugging`, whose
+sources import the tracer, core and remote configuration code, so changes
+there trigger the suite without being listed.
+
+Discovery goes one hop only: the components it adds are not expanded further,
+and neither are references to components declared in other `suitespec.yml`
+files, such as `@bootstrap`. Those are taken as they are.
+
+An imported file belongs to the component with the most specific matching
+pattern (an exact path beats a glob, a longer prefix beats a shorter one).
+Discovery counts imports inside functions, but not imports under
+`TYPE_CHECKING`. It also counts imports in Cython files, and names that a
+package resolves lazily through a module-level `__getattr__` and a
+name-to-module dict.
+
+Declare these in `paths` explicitly, because imports cannot reveal them:
+
+- `@bootstrap`, which tests enter through `ddtrace-run` and `sitecustomize`;
+- integration components, which `ddtrace/_monkey.py` imports by name;
+- code loaded dynamically, such as product plugins and the Data Streams
+  integrations;
+- dependencies of a component declared in another `suitespec.yml`.
+
+Discovery only adds patterns: the declared ones always apply.
+
 For standard test suites, `venvs_per_job` is the target number of dependency
 environments per generated job. The job count is the environment count divided by
 this value and rounded up, with a limit of 25 jobs per suite. Lower values increase
