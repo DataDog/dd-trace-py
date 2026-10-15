@@ -429,6 +429,12 @@ download_dependency_wheels:
       artifacts: true
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+  rules:
+    # TODO(py-315): pip refuses the local ddtrace wheel on 3.15 while
+    # requires-python is <3.15. Remove this rule when requires-python allows 3.15.
+    - if: '$PYTHON_VERSION == "3.15"'
+      when: never
+    - when: on_success
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.9.13"
