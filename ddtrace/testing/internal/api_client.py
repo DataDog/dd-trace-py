@@ -23,6 +23,7 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.utils import is_file_level_coverage_enabled
 
 
 log = logging.getLogger(__name__)
@@ -429,7 +430,7 @@ class APIClient:
             result = self.connector.post_json(
                 "/api/v2/ci/tests/skippable",
                 request_data,
-                headers=SKIPPABLE_ITR_CODE_COVERAGE_HEADER,
+                headers=SKIPPABLE_ITR_CODE_COVERAGE_HEADER if is_file_level_coverage_enabled() else None,
                 telemetry=telemetry,
             )
             result.on_error_raise_exception()

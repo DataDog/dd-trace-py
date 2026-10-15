@@ -1239,7 +1239,26 @@ class TestAPIClientGetKnownCommits:
 
 
 class TestAPIClientGetSkippableTests:
-    def test_get_skippable_tests(self, mock_telemetry: Mock) -> None:
+    @pytest.mark.parametrize(
+        "file_level_coverage,expected_headers",
+        [
+            (None, None),
+            ("false", None),
+            ("true", {"X-Datadog-ITR-Code-Coverage": "false"}),
+        ],
+    )
+    def test_get_skippable_tests(
+        self,
+        mock_telemetry: Mock,
+        monkeypatch: pytest.MonkeyPatch,
+        file_level_coverage: t.Optional[str],
+        expected_headers: t.Optional[dict[str, str]],
+    ) -> None:
+        if file_level_coverage is None:
+            monkeypatch.delenv("_DD_COVERAGE_FILE_LEVEL", raising=False)
+        else:
+            monkeypatch.setenv("_DD_COVERAGE_FILE_LEVEL", file_level_coverage)
+
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/ci/tests/skippable",
@@ -1314,7 +1333,7 @@ class TestAPIClientGetSkippableTests:
                         },
                     }
                 },
-                headers={"X-Datadog-ITR-Code-Coverage": "false"},
+                headers=expected_headers,
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
             )
         ]

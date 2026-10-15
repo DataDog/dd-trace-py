@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.tracer_api import rand64bits
 
 
@@ -26,6 +27,10 @@ def asbool(value: t.Union[str, bool, None]) -> bool:
         return value
 
     return value.lower() in ("true", "1")
+
+
+def is_file_level_coverage_enabled() -> bool:
+    return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 
 def ensure_text(s: t.Any) -> str:
