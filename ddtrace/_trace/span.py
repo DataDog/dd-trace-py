@@ -15,9 +15,6 @@ from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _AttributeValueType
-from ddtrace.constants import _SAMPLING_AGENT_DECISION
-from ddtrace.constants import _SAMPLING_LIMIT_DECISION
-from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -35,9 +32,7 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
-from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
@@ -60,7 +55,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "_context",
         "_store",
         # Internal attributes
         "_ignored_exceptions",
@@ -106,18 +100,6 @@ class Span(SpanData):
         """
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._parent_context: Optional[Context] = context
-        if context is None:
-            # PERF/CORRECTNESS: a root span owns fresh, unshared trace-level state.
-            # Build its Context inline now, in the creating thread before the span can
-            # be published, so concurrent first-readers can't race and build divergent
-            # state — no lock required. Built inline (not via the `context` property) to
-            # keep root-span creation off the property-getter call overhead on the hot
-            # path; this mirrors the property's root branch below. Child spans stay lazy.
-            self._context: Optional[Context] = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-        else:
-            self._context = None
-
         if links:
             for link in links:
                 self._set_link(link.trace_id, link.span_id, link.tracestate, link.flags, link.attributes)
@@ -125,52 +107,6 @@ class Span(SpanData):
         self._parent: Optional[Span] = None
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
         self._store: Optional[dict[str, Any]] = None
-
-    @property
-    def context(self) -> Context:
-        """The trace context for this span.
-
-        For a child span this is a copy of the parent context that shares the
-        trace-level ``_meta``/``_metrics``/``_baggage`` while carrying this
-        span's own ``trace_id``/``span_id``; for a root span it is fresh
-        trace-level state. Child contexts are built lazily on first read; root
-        contexts are forced eagerly in ``__init__`` (before the span is published)
-        so the build cannot race across threads.
-        """
-        ctx = self._context
-        if ctx is None:
-            parent = self._parent_context
-            if parent is not None:
-                ctx = parent.copy(self.trace_id, self.span_id)
-            else:
-                # Root fallback (mirrors the eager inline build in __init__); reached
-                # only if a root's _context was cleared, e.g. via the setter.
-                ctx = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-            self._context = ctx
-        return ctx
-
-    @context.setter
-    def context(self, value: Context) -> None:
-        self._context = value
-
-    def _context_for_child(self) -> Context:
-        """Return the context a child span should inherit trace-level state from.
-
-        Reuses a context that already holds this trace's shared
-        ``_meta``/``_metrics``/``_baggage`` — this span's own context if it
-        was built, otherwise its (local) parent-context — so a deep local trace
-        materializes a single Context instead of one per span. A remote
-        parent-context is never handed down: a local child's parent-context must
-        stay local so ``_is_remote``/reactivation keep their meaning, so a
-        distributed entry span materializes its (local) context once here.
-        """
-        ctx = self._context
-        if ctx is not None:
-            return ctx
-        parent = self._parent_context
-        if parent is not None and not parent._is_remote:
-            return parent
-        return self.context
 
     def _update_tags_from_context(self) -> None:
         ctx = self.context
@@ -220,21 +156,6 @@ class Span(SpanData):
 
         for cb in self._on_finish_callbacks:
             cb(self)
-
-    def _override_sampling_decision(self, decision: Optional[NumericType]):
-        self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
-        self.context._publish_sampling_decision(decision, 0.0, False)
-        if self._local_root:
-            for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
-                self._local_root._remove_attribute(key)
-
-    def _set_sampling_decision_maker(
-        self,
-        sampling_mechanism: int,
-    ) -> Optional[str]:
-        value = "-%d" % sampling_mechanism
-        self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
-        return value
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span."""

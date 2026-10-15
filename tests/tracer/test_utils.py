@@ -9,6 +9,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils import time
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
@@ -409,6 +410,126 @@ def test_callonce_signature():
         @callonce
         def _():
             yield 42
+
+
+def test_identity_weak_key_dictionary_never_hashes_keys():
+    class Meta(type):
+        def __hash__(cls):
+            raise AssertionError("key hashed")
+
+        def __eq__(cls, other):
+            raise AssertionError("key compared")
+
+    class Unhashable(metaclass=Meta):
+        pass
+
+    d = IdentityWeakKeyDictionary()
+    d[Unhashable] = 42
+
+    assert Unhashable in d
+    assert d[Unhashable] == 42
+    assert d.get(Unhashable) == 42
+    assert list(d) == [Unhashable]
+    assert len(d) == 1
+
+
+def test_identity_weak_key_dictionary_distinguishes_equal_keys():
+    code = compile("x = 1", "<test>", "exec")
+    clone = code.replace()
+    assert code == clone and code is not clone
+
+    d = IdentityWeakKeyDictionary()
+    d[code] = "original"
+    d[clone] = "clone"
+
+    assert d[code] == "original"
+    assert d[clone] == "clone"
+    assert len(d) == 2
+
+
+def test_identity_weak_key_dictionary_missing_keys():
+    class Key:
+        pass
+
+    key = Key()
+    d = IdentityWeakKeyDictionary()
+
+    assert key not in d
+    assert d.get(key) is None
+    assert d.get(key, 1) == 1
+    assert d.pop(key, 2) == 2
+    with pytest.raises(KeyError):
+        d[key]
+    with pytest.raises(KeyError):
+        del d[key]
+    with pytest.raises(KeyError):
+        d.pop(key)
+
+    d[key] = 3
+    assert d.pop(key) == 3
+    assert key not in d
+
+
+def test_identity_weak_key_dictionary_drops_collected_keys():
+    import gc
+
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+
+    key = Key()
+    d[key] = "value"
+    del key
+    gc.collect()
+
+    assert len(d) == 0
+    assert removed == [True]
+
+
+def test_identity_weak_key_dictionary_stale_callback_keeps_new_entry():
+    import gc
+
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+
+    key = Key()
+    d[key] = "old"
+    stale_ref = d._data[id(key)][0]
+    # Overwrite the slot, then fire the callback of the replaced weakref by hand,
+    # as would happen if the old key died after its id was reused.
+    d[key] = "new"
+    d._make_remove(id(key))(stale_ref)
+
+    assert d[key] == "new"
+    assert removed == []
+
+    del key, stale_ref
+    gc.collect()
+    assert len(d) == 0
+    assert removed == [True]
+
+
+def test_identity_weak_key_dictionary_clear():
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+    keys = [Key() for _ in range(3)]
+    for k in keys:
+        d[k] = None
+
+    d.clear()
+    del keys
+
+    assert len(d) == 0
+    assert list(d) == []
+    assert removed == []
 
 
 @pytest.mark.parametrize(

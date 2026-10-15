@@ -3,9 +3,9 @@ from typing import AsyncGenerator
 from typing import Generator
 from typing import Optional
 
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 

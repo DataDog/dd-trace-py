@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: The agent version set through ``LLMObs.agent(version=...)``, ``@agent(version=...)``,
+    ``LLMObs.annotate(agent={"version": ...})`` or ``LLMObs.annotation_context(agent={"version": ...})`` is now
+    also reported as an ``agent_version`` tag on child spans of that agent within the same process.

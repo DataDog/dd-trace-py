@@ -5,6 +5,8 @@ from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.internal.mysqldb.cursor import MySQLdbFetchTracedCursor
+from ddtrace.contrib.internal.mysqldb.cursor import MySQLdbTracedCursor
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
@@ -13,11 +15,11 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -66,11 +68,7 @@ def patch():
     if hasattr(MySQLdb, "connect"):
         _w("MySQLdb", "connect", _connect)
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-
-        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
+    core.dispatch("sql.patch")
 
 
 def unpatch():
@@ -110,4 +108,5 @@ def patch_conn(conn, *args, **kwargs):
     }
     tags[db.SYSTEM] = "mysql"
     tags[net.TARGET_PORT] = _convert_to_string(conn.port)
-    return TracedConnection(conn, cfg=config.mysqldb, db_tags=tags)
+    cursor_cls = MySQLdbFetchTracedCursor if config.mysqldb.trace_fetch_methods else MySQLdbTracedCursor
+    return TracedConnection(conn, cfg=config.mysqldb, cursor_cls=cursor_cls, db_tags=tags)
