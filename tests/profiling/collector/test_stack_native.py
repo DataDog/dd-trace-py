@@ -164,7 +164,7 @@ def test_native_frames_preserved_after_fork() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -254,7 +254,7 @@ def test_native_frames_detection_hashlib() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -316,7 +316,7 @@ def test_native_frames_detection_hashlib_kwarg() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -381,7 +381,7 @@ def test_native_frames_detection_numpy_flat() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -445,7 +445,7 @@ def test_native_frames_detection_numpy_nested() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -503,7 +503,7 @@ def test_native_frames_detection_zlib() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -559,7 +559,7 @@ def test_native_frames_detection_sorted_builtin() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -615,7 +615,7 @@ def test_native_frames_detection_list_sort_method() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -673,7 +673,7 @@ def test_native_frames_detection_regex_method() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -731,7 +731,7 @@ def test_native_frames_detection_expression_arg() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -790,7 +790,7 @@ def test_native_frames_detection_nested_c_calls() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -850,7 +850,7 @@ def test_native_frames_detection_call_kw() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -907,7 +907,7 @@ def test_native_frames_detection_many_args() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -963,7 +963,7 @@ def test_native_frames_detection_method_two_args() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1020,7 +1020,7 @@ def test_native_frames_detection_method_on_literal() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1078,7 +1078,7 @@ def test_native_frames_detection_sequential_calls() -> None:
 
     FILE_NAME = "test_stack_native.py"
 
-    def loc(function_name, filename="", line_no=-1):
+    def loc(function_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())

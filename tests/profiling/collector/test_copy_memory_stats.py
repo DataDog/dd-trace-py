@@ -8,7 +8,7 @@ import pytest
     ),
     err=None,
 )
-def test_copy_memory_error_count_present():
+def test_copy_memory_error_count_present() -> None:
     """copy_memory_error_count is always emitted (even when 0) and is non-negative."""
     import json
     import os
@@ -49,7 +49,7 @@ def test_copy_memory_error_count_present():
     ),
     err=None,
 )
-def test_fast_copy_memory_disabled():
+def test_fast_copy_memory_disabled() -> None:
     """fast_copy_memory_enabled is False when _DD_PROFILING_STACK_FAST_COPY=false."""
     import json
     import os

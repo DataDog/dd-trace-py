@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 
 import pytest
@@ -16,7 +17,7 @@ except ImportError:
 
 
 @pytest.mark.skipif(not _HAS_TORCH, reason="torch is not installed")
-def test_call_script_pytorch_cpu(tmp_path, monkeypatch):
+def test_call_script_pytorch_cpu(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The torch profiler integration should reconstruct the operator call tree.
 
     Each torch event's stack is built by walking the ``cpu_parent`` chain, so a
@@ -58,7 +59,7 @@ def test_call_script_pytorch_cpu(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILING_PYTORCH_ENABLED", False), reason="Not testing pytorch GPU")
-def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
+def test_call_script_pytorch_gpu(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from ddtrace.profiling.collector.pytorch import _DEVICE_FRAME_FILE_NAME
     from ddtrace.profiling.collector.pytorch import _FILE_PLACEHOLDER
 

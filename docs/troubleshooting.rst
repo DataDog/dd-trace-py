@@ -127,9 +127,9 @@ ModuleNotFoundError when running tests
 =======================================
 If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``
 
-Run the affected environment again without ``-s`` so its dependencies and ddtrace installation are refreshed:
+Rebuild the affected environment so its dependencies and ddtrace installation are refreshed:
 
-``scripts/run-tests --venv <environment-hash>``
+``scripts/run-tests -r --venv <environment-hash>``
 
 If the environment definition changed, regenerate and commit the dependency locks as described in
 :ref:`testing_guidelines`.
