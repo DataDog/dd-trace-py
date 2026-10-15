@@ -55,7 +55,7 @@ Source Code Integration
 OpenFeature
 ===========
 
-.. autoclass:: ddtrace.openfeature.DataDogProvider
+.. py:class:: ddtrace.openfeature.DataDogProvider(*args, initialization_timeout=None, enable_evaluation_telemetry_opt_out_parameter=None, **kwargs)
 
 Per-evaluation telemetry opt-out is disabled by default. Enable it with
 ``DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED=true`` or the
@@ -86,4 +86,4 @@ telemetry, but cannot restore it for an opted-out evaluation. Existing queued
 telemetry remains intact.
 
 This option does not disable experiment exposures. It does not change flag
-values, variants, randomization, exposure deduplication, or application hooks.
+values, variants, randomization, exposure caching, or application hooks.
