@@ -6,6 +6,7 @@ import socket
 import pytest
 
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.native import ConnectionFailedError
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
@@ -253,7 +254,6 @@ def test_debug_logs_each_attempt_and_its_outcome(harness, caplog):
         "Feature Flags: agentless configuration poll attempt 1/3",
         "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 503",
         "Feature Flags: agentless configuration poll attempt 2/3",
-        # The exception type identifies a timeout even though its message is empty.
         "Feature Flags: agentless configuration poll attempt 2/3 failed: TimeoutError",
         "Feature Flags: agentless configuration poll attempt 3/3",
         "Feature Flags: agentless configuration poll attempt 3/3 returned HTTP 200",
@@ -261,15 +261,64 @@ def test_debug_logs_each_attempt_and_its_outcome(harness, caplog):
     ], messages
 
 
-def test_debug_logs_network_error_detail(harness, caplog):
-    src = harness([ConnectionRefusedError(111, "Connection refused"), _FakeResponse(304)])
+@pytest.mark.parametrize("recovers", [True, False], ids=["successful-retry", "exhausted-retries"])
+@pytest.mark.parametrize("scheme", ["https:", "http:", ""])
+def test_poll_failure_logs_redact_transport_urls(harness, caplog, recovers, scheme):
+    endpoint = f"{scheme}//user:secret-password@flags.example.test/secret-path?token=secret-query"
+    error_message = f"error sending request for url ({endpoint})"
+    responses = [ConnectionFailedError(error_message)]
+    if recovers:
+        responses.append(_FakeResponse(200, _ufc_body()))
+    else:
+        responses.extend([ConnectionFailedError(error_message), ConnectionFailedError(error_message)])
+    src = harness(responses)
     with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
         src.periodic()
 
-    assert (
-        "Feature Flags: agentless configuration poll attempt 1/3 failed: "
-        "ConnectionRefusedError: [Errno 111] Connection refused"
-    ) in _debug_messages(caplog)
+    diagnostic = "ConnectionFailedError: error sending request for url (<endpoint>)"
+    assert (f"Feature Flags: agentless configuration poll attempt 1/3 failed: {diagnostic}") in _debug_messages(caplog)
+    for sensitive in ("secret-password", "secret-path", "secret-query", "flags.example.test"):
+        assert sensitive not in caplog.text
+    if recovers:
+        assert len(src._applied) == 1
+        assert "Feature Flags: agentless configuration poll attempt 2/3 returned HTTP 200" in caplog.messages
+    else:
+        assert src._applied == []
+        assert f"Feature Flagging agentless request failed after 3 attempts: {diagnostic}" in caplog.messages
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ("connection refused", "connection refused"),
+        ("", ""),
+        (
+            "failed for 'https://user:secret@host/path?token=secret'",
+            "failed for '<endpoint>'",
+        ),
+        (
+            "failed for https://host/path'secret?token=secret",
+            "failed for <endpoint>",
+        ),
+        (
+            "redirect from https://host/secret to https://other/secret failed",
+            "redirect from <endpoint> to <endpoint> failed",
+        ),
+    ],
+)
+def test_describe_error_redacts_urls(message, expected):
+    error = ConnectionFailedError(message)
+    assert source_mod._describe_error(error) == (
+        f"ConnectionFailedError: {expected}" if expected else "ConnectionFailedError"
+    )
+
+
+def test_describe_error_handles_broken_str():
+    class BrokenError(Exception):
+        def __str__(self):
+            raise ValueError("https://host/secret")
+
+    assert source_mod._describe_error(BrokenError()) == "BrokenError"
 
 
 def test_debug_logs_unchanged_304(harness, caplog):
