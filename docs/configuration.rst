@@ -772,7 +772,7 @@ AI Guard
      description: |
        Timeout of each request to the AI Guard service. The value is currently applied with
        whole-second granularity: it is rounded down to the nearest second, so set it to at least
-       ``1000``.
+       ``1000``. A value below ``1000`` logs a warning at startup and the default is used instead.
 
    DD_AI_GUARD_MAX_CONTENT_SIZE:
      type: Integer
@@ -1072,13 +1072,10 @@ Test Visibility
      default: True
 
      description: |
-        Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
-        independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
-        also contains performance and memory usage improvements.
-
-        Setting this option to ``false`` selects the legacy ``pytest`` plugin
-        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in ddtrace 5.0.0. Remove this
-        environment variable, or set it to ``true``, to use the supported default plugin.
+        Deprecated: this option no longer has any effect. The legacy ``pytest`` plugin
+        (``ddtrace/contrib/internal/pytest``) has been removed, and the ``pytest`` plugin at
+        ``ddtrace/testing/internal/pytest`` is always used. Setting this option emits a ``DDTraceDeprecationWarning``;
+        remove the environment variable from your configuration.
 
      version_added:
         v4.3.0:
