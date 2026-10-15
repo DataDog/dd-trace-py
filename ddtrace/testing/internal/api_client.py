@@ -9,6 +9,7 @@ import uuid
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import EMPTY_NAME
+from ddtrace.testing.internal.constants import SKIPPABLE_ITR_CODE_COVERAGE_HEADER
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -425,7 +426,12 @@ class APIClient:
             self.connector.conn.close()
             self.connector.conn.timeout = max(10.0, _prev_timeout or 0.0)
         try:
-            result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
+            result = self.connector.post_json(
+                "/api/v2/ci/tests/skippable",
+                request_data,
+                headers=SKIPPABLE_ITR_CODE_COVERAGE_HEADER,
+                telemetry=telemetry,
+            )
             result.on_error_raise_exception()
 
         except Exception as e:

@@ -1314,6 +1314,7 @@ class TestAPIClientGetSkippableTests:
                         },
                     }
                 },
+                headers={"X-Datadog-ITR-Code-Coverage": "false"},
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
             )
         ]

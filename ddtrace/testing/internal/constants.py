@@ -19,6 +19,10 @@ TAG_FALSE = "false"
 
 EMPTY_NAME = "."
 
+# Asks the skippable-tests endpoint not to compute meta.coverage (line coverage of skipped tests). We never use it to
+# backfill coverage percentages, and skipping that computation makes the response faster and smaller.
+SKIPPABLE_ITR_CODE_COVERAGE_HEADER = {"X-Datadog-ITR-Code-Coverage": "false"}
+
 # Git metadata environment variables
 DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA = "DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"
 
