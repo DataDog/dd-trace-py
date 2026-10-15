@@ -206,6 +206,29 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 
 Once the run finishes, the snapshot file will have been regenerated.
 
+Snapshots of OTLP traces
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The test agent also snapshots the OTLP traces it receives during a test session to
+``tests/snapshots/<token>_otlp_traces.json``, next to the native ``<token>.json`` snapshot. The file is an OTLP/JSON
+document, which is what a collector receives over ``http/json``: ids are renumbered and the snapshot ignores reuse the
+native syntax, for example ``meta.<key>`` matches the span and resource attribute ``<key>``.
+
+To compare Datadog and OpenTelemetry semantics, export OTLP from a subprocess test and parametrize
+``DD_TRACE_OTEL_SEMANTICS_ENABLED`` so each variant writes its own file. The W3C ``tracestate`` carries the random parent id, so ignore it::
+
+    @pytest.mark.snapshot(ignores=["meta.tracestate"])
+    @pytest.mark.subprocess(
+        env={"OTEL_TRACES_EXPORTER": "otlp", "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf"},
+        parametrize={"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["false", "true"]},
+    )
+    def test_my_integration():
+        ...
+
+The tracer sends the test session token with its OTLP requests, and ``snapshot_context`` points the OTLP exporter at
+the test agent when ``scripts/run-tests`` remaps its OTLP port. See ``tests/integration/test_otlp_trace_snapshot.py``
+for an example of a test that exports OTLP.
+
 How should I write integration tests for my integration?
 --------------------------------------------------------
 
@@ -316,6 +339,104 @@ If in the process of writing tests for your integration you create a sample appl
 consider adding it to the `trace examples repository <https://github.com/Datadog/trace-examples>`_ along
 with screenshots of some example traces in the PR description.
 
+What is an integration manifest?
+--------------------------------
+
+Every integration ships a manifest at ``ddtrace/contrib/internal/<integration>/<integration>.manifest.yaml``.
+It is declarative, machine-readable metadata describing what the integration instruments, so that tools
+listing Datadog integrations do not have to parse tracer code. It has no effect at runtime and is not
+included in the published package.
+
+Here is the ``aiokafka`` manifest:
+
+.. code-block:: yaml
+
+    _v: 1
+    name: aiokafka
+    display_name: aiokafka
+    description: Instruments aiokafka message publishing and consumption with distributed tracing and Data Streams Monitoring,
+      including consumer offset tracking.
+    packages:
+    - name: aiokafka
+    category:
+    - messaging.consumer
+    - messaging.producer
+    systems:
+    - kafka
+    creation_date: '2025-11-18'
+
+Keep the fields in this order:
+
+``_v``
+    The manifest schema version. Always ``1``.
+
+``name``
+    The integration name. It must match the directory name and the ``integration_name`` in
+    ``scripts/integration_registry/registry.yaml``. A new integration that registers settings with
+    ``config._add()`` should use the same name there. Some existing integrations use a different configuration
+    key, for example ``sqlite3`` registers ``sqlite``; the manifest still uses the directory name.
+
+``display_name``
+    The library's established spelling and capitalization, for example ``Flask``, ``HTTPX``, or ``LangGraph``.
+    When the integration is named after a protocol or technology rather than a package, use that technology's
+    spelling, for example ``GraphQL``, ``gRPC``, or ``Kafka``.
+
+``description``
+    One sentence, normally starting with "Instruments" and usually 15 to 25 words, describing the behavior the
+    integration instruments. Describe each distinct operation family once, for example "message publishing and
+    consumption", instead of listing individual wrapped methods. Describe only what the patch code covers, not
+    everything the library can do.
+
+``packages``
+    The PyPI distributions that activate the integration, as a sorted list of ``- name: <distribution>`` entries.
+    These must match ``dependency_names`` in ``scripts/integration_registry/registry.yaml``. Use ``[]`` for
+    standard library integrations such as ``httplib`` or ``logging``.
+
+``category``
+    A sorted, non-empty list of every kind of operation the integration instruments, such as ``db.client``,
+    ``http.client``, ``http.server``, ``messaging.consumer``, ``messaging.producer``, ``gen_ai``, or
+    ``template.render``. Each category must correspond to behavior the patch code instruments. Client and server,
+    or producer and consumer, must each be proven separately. Prefer the specific category over the underlying
+    protocol: an LLM API call made over HTTP is ``gen_ai``, not ``http.client``. Use ``other``, on its own, only
+    when nothing else fits.
+
+``systems``
+    A sorted list of the concrete backends or providers the integration is bound to, such as ``postgresql``,
+    ``kafka``, ``redis``, ``aws.s3``, or ``openai``. A backend counts only when the integration's code is tied to
+    it, for example through a dedicated client. Use ``[]`` when the backend is chosen at runtime, as with generic
+    HTTP clients and web frameworks.
+
+``creation_date``
+    The quoted ``'YYYY-MM-DD'`` author date of the first commit that added working instrumentation. Commits that
+    only add autopatching or registry entries, or that move files, do not count. For a new integration, this is
+    the author date of the commit that adds the patch code. For an existing integration, start from:
+
+    .. code-block:: bash
+
+        git --no-pager log --follow --diff-filter=A --date=short --format='%H %ad %s' -- ddtrace/contrib/internal/<integration>/patch.py
+
+    If the oldest result only moves or renames the file, repeat the command with the older path, for example
+    ``ddtrace/contrib/<integration>/patch.py``, until you reach the commit that added working instrumentation.
+
+``category`` and ``systems`` values come from a shared taxonomy that is not part of this repository. Only use values
+that already appear in other manifests under ``ddtrace/contrib/internal/``, and never introduce a new one. If no
+category fits, use ``other``; if no system fits, use ``[]``. If you think a new value is needed, or you are unsure
+which value applies, say so in the pull request description so a reviewer can confirm it.
+
+Most changes to an existing integration do not touch its manifest. Bug fixes, refactors, new tags,
+configuration options, and supported-version changes leave it as is. Update the manifest only when:
+
+- The packages that activate the integration change. Update ``packages`` together with ``registry.yaml``.
+- The integration starts or stops instrumenting a kind of operation, for example a client-only integration that
+  adds server spans. Add or remove the ``category``.
+- The integration adds or drops dedicated support for a backend or provider. Add or remove the ``systems`` entry.
+- ``description`` no longer matches what the integration instruments, for example because a behavior it names was
+  removed. Update ``description``.
+- The integration is renamed. Update ``name`` and ``display_name``.
+
+Never change ``creation_date`` on an existing manifest. When an integration is removed, delete its manifest
+along with the rest of its directory.
+
 What does a complete PR look like when adding a new integration?
 ----------------------------------------------------------------
 
@@ -323,6 +444,7 @@ The following is the check list for ensuring you have all of the components to h
 
 - Define `patch` and `unpatch` functions for your new integration under ``ddtrace/contrib/internal/your_integration_name``.
 - Document your integration in a ``ddtrace/contrib/internal/<integration_name>/__init__.py`` module and reference the doc string in ``docs/integrations.rst``.
+- An integration manifest at ``ddtrace/contrib/internal/<integration_name>/<integration_name>.manifest.yaml`` (see "What is an integration manifest?" above).
 - Test code for the above in ``tests/contrib/your_integration_name``.
 - The test environment and GitLab CI configuration in ``tests/contrib/suitespec.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.

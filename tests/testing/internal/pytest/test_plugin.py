@@ -29,6 +29,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
 from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
+from ddtrace.testing.internal.pytest.plugin import setup_coverage_collection
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
@@ -677,6 +678,23 @@ class TestSkippingAndITRFeatures:
         assert mock_telemetry.record_coverage_finished.call_count == expected
 
 
+class TestSetupCoverageCollection:
+    @pytest.mark.parametrize("file_level_coverage", [True, False])
+    def test_installs_coverage_in_the_mode_used_for_skippable_requests(self, file_level_coverage: bool) -> None:
+        """The collector mode and the skippable-tests coverage header must come from the same decision."""
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.get_workspace_path", return_value=Path("/repo")),
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.is_file_level_coverage_enabled",
+                return_value=file_level_coverage,
+            ),
+            patch("ddtrace.testing.internal.pytest.plugin.install_coverage") as mock_install_coverage,
+        ):
+            setup_coverage_collection()
+
+        mock_install_coverage.assert_called_once_with(Path("/repo"), file_level_coverage=file_level_coverage)
+
+
 class TestFinalStatusFeatures:
     """Test final status tag functionality."""
 
@@ -845,6 +863,60 @@ class TestSessionManagement:
             plugin.pytest_sessionstart(mock_session)
 
         assert plugin.is_xdist_worker is True
+
+    def test_patch_all_enabled_via_command_line_option(self) -> None:
+        """The --ddtrace-patch-all command line flag enables all ddtrace integrations."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {}
+        mock_config.invocation_params = Mock(args=[])
+        mock_config.getoption.return_value = True
+        mock_config.getini.return_value = False
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin.enable_all_ddtrace_integrations is True
+
+    def test_patch_all_enabled_via_ini(self) -> None:
+        """The ddtrace-patch-all ini key enables all ddtrace integrations without the CLI flag."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {}
+        mock_config.invocation_params = Mock(args=[])
+        mock_config.getoption.return_value = False
+        mock_config.getini.return_value = True
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin.enable_all_ddtrace_integrations is True
+
+    def test_patch_all_disabled_by_default(self) -> None:
+        """Without the flag or ini key, all ddtrace integrations stay disabled."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {}
+        mock_config.invocation_params = Mock(args=[])
+        mock_config.getoption.return_value = False
+        mock_config.getini.return_value = False
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin.enable_all_ddtrace_integrations is False
 
     def test_get_test_command_extraction(self) -> None:
         """Test that the pytest session command is properly extracted."""
