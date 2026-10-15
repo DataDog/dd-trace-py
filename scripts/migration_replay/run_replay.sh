@@ -25,7 +25,9 @@ SANDBOX=""
 OUT_DIR=""
 MAX_BUDGET_USD="${MAX_BUDGET_USD:-40}"
 TIMEOUT_SECS="${TIMEOUT_SECS:-10800}"  # 3h
+# Phase-pinned interpreters (env overrides OK). py315rc2 is the 3.15.0rc2 prefix.
 PY315RC2="${PY315RC2:-${HOME}/.local/py315rc2}"
+PYTHON314="${PYTHON314:-/opt/homebrew/bin/python3.14}"
 CURSOR_BIN="${CURSOR_BIN:-cursor-agent}"
 CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 
@@ -36,7 +38,8 @@ Usage: run_replay.sh --runner cursor|claude --arm assisted|blind \
 
 Environment:
   MAX_BUDGET_USD (default 40), TIMEOUT_SECS (default 10800),
-  PY315RC2, CURSOR_API_KEY / ANTHROPIC_API_KEY, CURSOR_BIN, CLAUDE_BIN
+  PY315RC2 (default ~/.local/py315rc2), PYTHON314 (default Homebrew 3.14),
+  CURSOR_API_KEY / ANTHROPIC_API_KEY, CURSOR_BIN, CLAUDE_BIN
 EOF
 }
 
@@ -96,7 +99,8 @@ Add Continuous Profiler support for CPython 3.15 to this repo, following
 
 ## Phase pin (do not re-derive from the real clock or PEP page)
 Treat today as **just after 3.15.0rc2 shipped**. The 3.15 interpreter for local
-work is at \`${PY315RC2}\` (bin/python). Previous minor: system/Homebrew 3.14.
+work is at \`${PY315RC2}\` (\`bin/python3.15\`). Previous minor:
+\`${PYTHON314}\` (Homebrew 3.14 unless overridden).
 
 ## Isolation rules (hard)
 - Do not call \`gh\`, \`git push\`, or fetch from github.com/DataDog/dd-trace-py PRs.
@@ -126,13 +130,25 @@ BASELINE_SHA="$(git -C "$SANDBOX" rev-parse HEAD)"
 echo "$BASELINE_SHA" >"${OUT_DIR}/baseline_sha.txt"
 
 # Strip credentials / agent home leakage.
+# Put PY315RC2/bin and Homebrew ahead of a minimal PATH so find_python /
+# python_env.sh resolve 3.15rc2 and 3.14 without pyenv.
 RUN_ENV=(
   "HOME=${CLEAN_HOME}"
-  "PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:${HOME}/.local/bin:${HOME}/.volta/bin"
+  "PATH=${PY315RC2}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${HOME}/.local/bin:${HOME}/.volta/bin"
   "PY315RC2=${PY315RC2}"
+  "PYTHON314=${PYTHON314}"
   "LANG=C.UTF-8"
   "LC_ALL=C.UTF-8"
 )
+if [[ -x "${PY315RC2}/bin/python3.15" ]]; then
+  RUN_ENV+=("PYTHON=${PY315RC2}/bin/python3.15")
+fi
+if [[ ! -x "${PY315RC2}/bin/python3.15" ]]; then
+  echo "WARN: PY315RC2 python missing: ${PY315RC2}/bin/python3.15" >&2
+fi
+if [[ ! -x "${PYTHON314}" ]]; then
+  echo "WARN: PYTHON314 missing: ${PYTHON314}" >&2
+fi
 # Keep only the API key needed for the chosen runner.
 if [[ "$RUNNER" == "cursor" ]]; then
   if [[ -z "${CURSOR_API_KEY:-}" ]]; then
@@ -246,6 +262,7 @@ meta = {
     "max_budget_usd": float("${MAX_BUDGET_USD}"),
     "timeout_secs": int("${TIMEOUT_SECS}"),
     "py315rc2": "${PY315RC2}",
+    "python314": "${PYTHON314}",
     "transcript": str(Path("${TRANSCRIPT}")),
 }
 Path(sys.argv[1]).write_text(json.dumps(meta, indent=2) + "\n")

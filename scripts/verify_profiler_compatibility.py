@@ -117,7 +117,8 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
 
     Checks:
       - ddup and stack C++ extensions are available
-      - The profiler collects at least _MIN_WALL_TIME_SAMPLES wall-time samples
+      - The profiler collects at least the version registry's min_wall_time_samples
+        (falling back to _MIN_WALL_TIME_SAMPLES)
       - asyncio task names appear in the profiler output
     """
     # Ensure the asyncio watchdog is registered before asyncio is imported /
@@ -134,6 +135,9 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
         return {"passed": False, "skipped": True, "reason": f"ddup unavailable: {ddup.failure_msg}"}
     if not _stack_ext.is_available:
         return {"passed": False, "skipped": True, "reason": f"stack unavailable: {_stack_ext.failure_msg}"}
+
+    running_key: str = f"{sys.version_info.major}.{sys.version_info.minor}"
+    min_wall_time_samples: int = _min_wall_samples_for_key(running_key)
 
     pprof_prefix: str = os.path.join(tmpdir, "compat")
     output_filename: str = pprof_prefix + "." + str(os.getpid())
@@ -195,9 +199,9 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
         result["asyncio_task_names_seen"] = sorted(names_seen)
 
         expected: set[str] = set(_ASYNCIO_TASK_NAMES)
-        if result["wall_time_samples"] < _MIN_WALL_TIME_SAMPLES:
+        if result["wall_time_samples"] < min_wall_time_samples:
             result["error"] = (
-                f"Too few wall-time samples: {result['wall_time_samples']} < {_MIN_WALL_TIME_SAMPLES}. "
+                f"Too few wall-time samples: {result['wall_time_samples']} < {min_wall_time_samples}. "
                 "The profiler may not have started correctly."
             )
         elif result["asyncio_task_samples"] == 0:
@@ -287,9 +291,12 @@ def _find_python(version: str | None) -> str:
 
     Accepts:
       None          → current interpreter
-      "3.15"        → tries python3.15, then ~/.pyenv/versions/3.15.*/bin/python3
-      "3.15.0a7"    → tries ~/.pyenv/versions/3.15.0a7/bin/python3, then python3.15
+      "3.15"        → PY315RC2 / PATH python3.15 / pyenv (pyenv last)
+      "3.15.0a7"    → exact pyenv path, then python3.15
       "/path/to/py" → used as-is
+
+    Explicit PYTHON / PY315RC2 / PYTHON314 and known prefixes beat pyenv so a
+    stale pyenv 3.15.0a7 cannot override ~/.local/py315rc2 (3.15.0rc2).
     """
     if version is None:
         return sys.executable
@@ -300,24 +307,70 @@ def _find_python(version: str | None) -> str:
             raise SystemExit(f"Python not found at: {version}")
         return version
 
-    # Try exact pyenv path first (handles pre-releases like 3.15.0a7)
+    import glob as _glob
+
+    short: list[str] = version.split(".")
+    short_name: str = f"python{short[0]}.{short[1]}" if len(short) >= 2 else ""
+    major_minor: str = f"{short[0]}.{short[1]}" if len(short) >= 2 else version
+
+    def _matches(exe: str) -> bool:
+        if not os.path.isfile(exe) or not os.access(exe, os.X_OK):
+            return False
+        try:
+            proc: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603
+                [exe, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return False
+        got: str = proc.stdout.strip()
+        return got == major_minor
+
+    # Explicit PYTHON when it matches the requested major.minor.
+    env_python: str = os.environ.get("PYTHON", "")
+    if env_python and _matches(env_python):
+        return env_python
+
+    # Exact pyenv path first when a full pre-release (e.g. 3.15.0a7) was requested.
     pyenv_root: str = os.path.expanduser("~/.pyenv/versions")
     pyenv_exact: str = os.path.join(pyenv_root, version, "bin", "python3")
     if os.path.isfile(pyenv_exact):
         return pyenv_exact
 
-    # Try python3.X in PATH (handles short versions like "3.15")
-    short: list[str] = version.split(".")
-    short_name: str = ""
-    if len(short) >= 2:
-        short_name = f"python{short[0]}.{short[1]}"
+    # Known local prefixes for major.minor requests (before pyenv glob).
+    prefix_candidates: list[str] = []
+    if version == "3.15":
+        py315rc2: str = os.environ.get("PY315RC2") or os.path.expanduser("~/.local/py315rc2")
+        prefix_candidates.extend(
+            [
+                os.path.join(py315rc2, "bin", "python3.15"),
+                os.path.join(py315rc2, "bin", "python3"),
+                os.path.join(py315rc2, "bin", "python"),
+            ]
+        )
+    if version == "3.14":
+        python314: str = os.environ.get("PYTHON314", "")
+        if python314:
+            prefix_candidates.append(python314)
+        prefix_candidates.extend(
+            [
+                "/opt/homebrew/bin/python3.14",
+                "/usr/local/bin/python3.14",
+            ]
+        )
+    for candidate in prefix_candidates:
+        if _matches(candidate):
+            return candidate
+
+    # PATH binary python3.X
+    if short_name:
         found: str | None = shutil.which(short_name)
-        if found:
+        if found and _matches(found):
             return found
 
-    # Try pyenv glob for partial versions (e.g. "3.15" matches "3.15.0a7")
-    import glob as _glob
-
+    # pyenv glob last (e.g. "3.15" → "3.15.0a7") — after local rc2 / Homebrew.
     matches: list[str] = _glob.glob(os.path.join(pyenv_root, version + "*", "bin", "python3"))
     if matches:
         matches.sort()
@@ -325,8 +378,9 @@ def _find_python(version: str | None) -> str:
 
     raise SystemExit(
         f"Could not find Python {version!r}.\n"
-        f"  Tried: {pyenv_exact}, {short_name if len(short) >= 2 else '(n/a)'}, PATH\n"
-        f"  Install with: pyenv install {version}"
+        f"  Tried: PYTHON, PY315RC2/PYTHON314 prefixes, {pyenv_exact}, "
+        f"{short_name if short_name else '(n/a)'}, PATH, pyenv glob\n"
+        f"  Install 3.15 under ~/.local/py315rc2, Homebrew python@3.14, or: pyenv install {version}"
     )
 
 
@@ -442,16 +496,20 @@ def _scaffold_version(version: str) -> None:
     if key not in baselines:
         version_meta: dict[str, Any] = versions[key]
         min_samples: int = int(version_meta.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES))
+        # Scaffold stubs are untrusted: --compare rejects them until --baseline
+        # records a real known-good run.
         baselines[key] = {
-            "asyncio_guards": {"passed": True},
+            "scaffolded": True,
+            "asyncio_guards": {"passed": False},
             "profiler_samples": {
-                "passed": True,
+                "passed": False,
                 "min_wall_time_samples": min_samples,
                 "asyncio_task_names_seen": list(_DEFAULT_ASYNCIO_TASK_NAMES),
             },
         }
         _save_baselines(baselines)
         print(f"Stubbed compatibility baseline for Python {key} → {_BASELINE_FILE}")
+        print("  (scaffolded — run --baseline on a known-good interpreter before --compare)")
     else:
         print(f"Compatibility baseline already has Python {key}; leaving entry unchanged.")
 
@@ -523,13 +581,12 @@ def _compare_with_baseline(results: dict[str, Any], baseline: dict[str, Any]) ->
         if ref_passed and not cur_passed:
             failures.append(f"{suite}: was PASS in baseline, now FAIL — {cur.get('error', '?')}")
 
-        # Check sample count regression
-        if "wall_time_samples" in ref and "wall_time_samples" in cur:
-            if cur["wall_time_samples"] < ref.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES):
-                failures.append(
-                    f"{suite}: wall_time_samples dropped: {cur['wall_time_samples']} "
-                    f"< baseline minimum {ref.get('min_wall_time_samples', _MIN_WALL_TIME_SAMPLES)}"
-                )
+        # Baselines persist min_wall_time_samples, not the last run's wall_time_samples.
+        if suite == "profiler_samples" and "wall_time_samples" in cur:
+            min_wall: int = int(ref.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES))
+            cur_wall: int = int(cur["wall_time_samples"])
+            if cur_wall < min_wall:
+                failures.append(f"{suite}: wall_time_samples dropped: {cur_wall} < baseline minimum {min_wall}")
 
         # Check task names
         if "asyncio_task_names_seen" in ref:
@@ -582,6 +639,8 @@ def main() -> None:
 
     if args.quick and args.baseline:
         raise SystemExit("--quick cannot be combined with --baseline (quick omits profiler_samples)")
+    if args.baseline and args.compare:
+        raise SystemExit("--baseline and --compare are mutually exclusive")
 
     # --- Subprocess mode ---
     if args.subprocess:
@@ -639,9 +698,14 @@ def main() -> None:
     for suite_name in ("asyncio_guards", "profiler_samples"):
         if suite_name not in results:
             continue
-        line: str = _format_result(suite_name, results[suite_name])
+        suite_result: dict[str, Any] = results[suite_name]
+        line: str = _format_result(suite_name, suite_result)
         print(line)
-        if not results[suite_name].get("passed") and not results[suite_name].get("skipped"):
+        # Full runs include profiler_samples; a skip (missing native ext) is a
+        # failure. Quick mode omits the suite entirely, so it never appears here.
+        if suite_name == "profiler_samples" and suite_result.get("skipped"):
+            all_passed = False
+        elif not suite_result.get("passed") and not suite_result.get("skipped"):
             all_passed = False
 
     print()
@@ -673,6 +737,12 @@ def main() -> None:
         baselines = _load_baselines()
         if baseline_key not in baselines:
             print(f"No baseline for Python {baseline_key}. Run with --baseline on a known-good version first.")
+            all_passed = False
+        elif baselines[baseline_key].get("scaffolded"):
+            print(
+                f"Baseline for Python {baseline_key} is a scaffold stub. "
+                "Run with --baseline on a known-good version first."
+            )
             all_passed = False
         else:
             failures: list[str] = _compare_with_baseline(results, baselines[baseline_key])

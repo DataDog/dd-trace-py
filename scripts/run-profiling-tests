@@ -8,14 +8,14 @@
 #   - verify_profiler_compatibility.py (async guards + real profiler samples)
 #   - profile      (main profiling suite: asyncio, stack, threading, lock, etc.)
 #   - profile-memalloc  (memory allocator variants: malloc, pymalloc, debug)
-#   - profile-uwsgi is SKIPPED when the registry marks uwsgi_supported=false
+#   - profile-uwsgi when the registry marks uwsgi_supported=true; otherwise SKIPPED
 #
 # Usage:
 #   scripts/run-profiling-tests                  # default from profiling_versions.json
 #   scripts/run-profiling-tests --python 3.14    # another Python version
-#   scripts/run-profiling-tests --quick          # skip rebuild check + full riot suites;
+#   scripts/run-profiling-tests --quick          # skip rebuild check + full suitespec suites;
 #                                                # only run compatibility script
-#   scripts/run-profiling-tests --check-only     # run compatibility script only, no riot
+#   scripts/run-profiling-tests --check-only     # run compatibility script only, no suites
 
 set -euo pipefail
 
@@ -69,30 +69,78 @@ fi
 # ---------------------------------------------------------------------------
 # Locate the Python interpreter
 # ---------------------------------------------------------------------------
+# Preference order (pyenv last so a stale pyenv 3.15.0a7 cannot beat
+# ~/.local/py315rc2 for the migration-replay phase pin):
+#   1) explicit PYTHON if it matches major.minor
+#   2) version-specific env / known prefixes (PY315RC2, PYTHON314, Homebrew)
+#   3) PATH binaries pythonX.Y / python3
+#   4) pyenv
+_python_matches_version() {
+    local exe="$1" version="$2" ver
+    [[ -x "$exe" ]] || return 1
+    ver=$("$exe" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null) || return 1
+    [[ "$ver" == "$version" ]]
+}
+
 find_python() {
     local version="$1"
+    local candidate=""
+    local pyenv_version=""
+    local prefix=""
 
-    # Try pyenv first (resolves 3.15 → 3.15.0a7 etc.)
-    if command -v pyenv &>/dev/null; then
-        local pyenv_version
-        pyenv_version=$(pyenv versions --bare 2>/dev/null | grep "^${version}" | sort -V | tail -1)
-        if [[ -n "$pyenv_version" ]]; then
-            echo "$HOME/.pyenv/versions/$pyenv_version/bin/python"
-            return
-        fi
+    if [[ -n "${PYTHON:-}" ]] && _python_matches_version "$PYTHON" "$version"; then
+        echo "$PYTHON"
+        return
     fi
 
-    # Try direct binary names
+    if [[ "$version" == "3.15" ]]; then
+        prefix="${PY315RC2:-${HOME}/.local/py315rc2}"
+        for candidate in \
+            "${prefix}/bin/python3.15" \
+            "${prefix}/bin/python3" \
+            "${prefix}/bin/python"
+        do
+            if _python_matches_version "$candidate" "$version"; then
+                echo "$candidate"
+                return
+            fi
+        done
+    fi
+
+    if [[ "$version" == "3.14" ]]; then
+        for candidate in \
+            "${PYTHON314:-}" \
+            "/opt/homebrew/bin/python3.14" \
+            "/usr/local/bin/python3.14"
+        do
+            if [[ -n "$candidate" ]] && _python_matches_version "$candidate" "$version"; then
+                echo "$candidate"
+                return
+            fi
+        done
+    fi
+
     for candidate in "python${version}" "python3"; do
         if command -v "$candidate" &>/dev/null; then
-            local ver
-            ver=$("$candidate" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
-            if [[ "$ver" == "$version"* ]]; then
-                echo "$(command -v "$candidate")"
+            candidate="$(command -v "$candidate")"
+            if _python_matches_version "$candidate" "$version"; then
+                echo "$candidate"
                 return
             fi
         fi
     done
+
+    if command -v pyenv &>/dev/null; then
+        # `|| true`: unmatched grep is status 1 under `set -euo pipefail`.
+        pyenv_version=$(pyenv versions --bare 2>/dev/null | grep "^${version}" | sort -V | tail -1 || true)
+        if [[ -n "$pyenv_version" ]]; then
+            candidate="$HOME/.pyenv/versions/$pyenv_version/bin/python"
+            if _python_matches_version "$candidate" "$version"; then
+                echo "$candidate"
+                return
+            fi
+        fi
+    fi
 
     echo ""
 }
@@ -100,7 +148,9 @@ find_python() {
 PYTHON=$(find_python "$PYTHON_VERSION")
 if [[ -z "$PYTHON" ]]; then
     echo "ERROR: Python $PYTHON_VERSION not found." >&2
-    echo "Install it with: pyenv install $PYTHON_VERSION" >&2
+    echo "Tried: PYTHON=${PYTHON:-}, PY315RC2=${PY315RC2:-~/.local/py315rc2}," \
+         "PYTHON314=${PYTHON314:-/opt/homebrew/bin/python3.14}, PATH, pyenv." >&2
+    echo "Install 3.15rc2 under ~/.local/py315rc2, Homebrew python@3.14, or pyenv." >&2
     exit 1
 fi
 
@@ -152,7 +202,18 @@ if missing:
 
         echo "  Rebuilding stack extension..."
         cd "$REPO_ROOT"
-        "$PYTHON" -m pip install -e . --no-build-isolation -q 2>&1 | grep -E "Building|CMake|error|warning|_stack" | head -30 || true
+        # Capture status before filtering: `grep|head` can SIGPIPE a healthy pip
+        # and `|| true` would hide a real install failure.
+        set +e
+        rebuild_log="$("$PYTHON" -m pip install -e . --no-build-isolation -q 2>&1)"
+        rebuild_status=$?
+        set -e
+        echo "$rebuild_log" | grep -E "Building|CMake|error|warning|_stack" | head -30 || true
+        if [[ "$rebuild_status" -ne 0 ]]; then
+            echo "ERROR: Rebuild failed — pip install exited $rebuild_status." >&2
+            echo "$rebuild_log" >&2
+            exit 1
+        fi
 
         if [[ ! -f "$STACK_SO" ]]; then
             echo "ERROR: Rebuild failed — $STACK_SO not found after pip install." >&2
@@ -179,29 +240,47 @@ echo ""
 
 if [[ "$QUICK" == true || "$CHECK_ONLY" == true ]]; then
     if [[ "$CHECK_ONLY" == true ]]; then
-        echo "=== --check-only: skipping riot suites ==="
+        echo "=== --check-only: skipping suitespec suites ==="
     else
-        echo "=== --quick: skipping riot suites ==="
+        echo "=== --quick: skipping suitespec suites ==="
     fi
     exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# Step 3: Discover riot venv hashes dynamically for the target Python version
+# Step 3: Discover suitespec environment hashes for the target Python version
 # ---------------------------------------------------------------------------
-# Riot hashes change when riotfile.py changes, so discover them at runtime.
-RIOT_PYTHON="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile\$" 2>/dev/null | tr '\n' ' ')"
-RIOT_MEMALLOC="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile-memalloc\$" 2>/dev/null | tr '\n' ' ')"
+# Hashes come from tests/profiling/suitespec.yml via tests.suitespec (Riot was
+# removed in #19713). Discover at runtime so suite edits do not hard-code hashes.
+discover_suite_hashes() {
+    local suite_leaf="$1"
+    local python_version="$2"
+    (
+        cd "$REPO_ROOT" && python3 -c "
+from tests.suitespec import get_test_environments
+
+suite = 'profiling::' + '''${suite_leaf}'''
+python_version = '''${python_version}'''
+matrix = get_test_environments(nightly=False).get(suite, ())
+hashes = [env.hash for env in matrix if env.python == python_version]
+print(' '.join(hashes))
+"
+    )
+}
+
+PROFILE_HASHES="$(discover_suite_hashes profile "$PYTHON_VERSION")"
+MEMALLOC_HASHES="$(discover_suite_hashes profile-memalloc "$PYTHON_VERSION")"
 
 missing_venvs=0
-if [[ -z "$RIOT_PYTHON" ]]; then
-    echo "ERROR: No 'profile' riot venvs found for Python $PYTHON_VERSION." >&2
+if [[ -z "$PROFILE_HASHES" ]]; then
+    echo "ERROR: No 'profile' test environments found for Python $PYTHON_VERSION." >&2
+    echo "Add 3.15 (or the requested minor) to tests/profiling/suitespec.yml and regenerate locks." >&2
     missing_venvs=1
 else
-    echo "--- Running profile suites: $RIOT_PYTHON---"
+    echo "--- Running profile suites: $PROFILE_HASHES---"
     # shellcheck disable=SC2086
     VENV_ARGS=""
-    for hash in $RIOT_PYTHON; do
+    for hash in $PROFILE_HASHES; do
         VENV_ARGS="$VENV_ARGS --venv $hash"
     done
     # shellcheck disable=SC2086
@@ -209,13 +288,14 @@ else
     echo ""
 fi
 
-if [[ -z "$RIOT_MEMALLOC" ]]; then
-    echo "ERROR: No 'profile-memalloc' riot venvs found for Python $PYTHON_VERSION." >&2
+if [[ -z "$MEMALLOC_HASHES" ]]; then
+    echo "ERROR: No 'profile-memalloc' test environments found for Python $PYTHON_VERSION." >&2
+    echo "Add 3.15 (or the requested minor) to tests/profiling/suitespec.yml and regenerate locks." >&2
     missing_venvs=1
 else
-    echo "--- Running profile-memalloc suites: $RIOT_MEMALLOC---"
+    echo "--- Running profile-memalloc suites: $MEMALLOC_HASHES---"
     VENV_ARGS=""
-    for hash in $RIOT_MEMALLOC; do
+    for hash in $MEMALLOC_HASHES; do
         VENV_ARGS="$VENV_ARGS --venv $hash"
     done
     # shellcheck disable=SC2086
@@ -224,7 +304,7 @@ else
 fi
 
 if [[ "$missing_venvs" -ne 0 ]]; then
-    echo "ERROR: required riot venvs/tests missing." >&2
+    echo "ERROR: required test environments/suites missing." >&2
     exit 1
 fi
 
@@ -238,7 +318,19 @@ entry = data.get('versions', {}).get(version, {})
 print('true' if entry.get('uwsgi_supported') else 'false')
 " "$REGISTRY_FILE" "$PYTHON_VERSION")"
 if [[ "$UWSGI_SUPPORTED" == "true" ]]; then
-    echo "profile-uwsgi: not wired in this runner yet (registry uwsgi_supported=true)"
+    UWSGI_HASHES="$(discover_suite_hashes profile-uwsgi "$PYTHON_VERSION")"
+    if [[ -z "$UWSGI_HASHES" ]]; then
+        echo "ERROR: No 'profile-uwsgi' test environments found for Python $PYTHON_VERSION." >&2
+        exit 1
+    fi
+    echo "--- Running profile-uwsgi suites: $UWSGI_HASHES---"
+    VENV_ARGS=""
+    for hash in $UWSGI_HASHES; do
+        VENV_ARGS="$VENV_ARGS --venv $hash"
+    done
+    # shellcheck disable=SC2086
+    "$SCRIPTS_DIR/run-tests" $VENV_ARGS
+    echo ""
 else
     echo "profile-uwsgi: SKIPPED (registry uwsgi_supported=false for Python $PYTHON_VERSION)"
 fi

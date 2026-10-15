@@ -34,8 +34,13 @@ FIRST_315_SHA="${FIRST_315_SHA:-8a9b5083ed7b6fea5f390bc1c3867f50b7807449}"
 # introduce cp315 packaging. They remain in the sandbox history.
 #
 # Overlay tips (do not use older 19273 commits for docs/tooling):
-OVERLAY_TOOLING_SHA="${OVERLAY_TOOLING_SHA:-2b68ceab9d260a0720dd3a86b04cb4b6a52ca1eb}"  # vlad/315-profiling-dev-tooling
-OVERLAY_DELTA_SHA="${OVERLAY_DELTA_SHA:-419aa0acd7}"  # vlad/315-profiling-cpython-delta tip (short ok if unique)
+OVERLAY_TOOLING_SHA="${OVERLAY_TOOLING_SHA:-a49560659ea4bac3e0e7e44f2c9100c404000094}"  # #19273 tip (verify/registry/suitespec)
+OVERLAY_DELTA_SHA="${OVERLAY_DELTA_SHA:-6a55229d09e88ffec35a23c4a192a76620273dd8}"  # #20565 tip
+
+# Phase-pinned interpreters (env overrides OK). Not required to *build* the
+# sandbox, but recorded in SANDBOX_PINS and preferred by overlaid discovery.
+PY315RC2="${PY315RC2:-${HOME}/.local/py315rc2}"
+PYTHON314="${PYTHON314:-/opt/homebrew/bin/python3.14}"
 
 ARM=""
 OUT_DIR=""
@@ -47,7 +52,8 @@ usage() {
 Usage: prepare_sandbox.sh --arm assisted|blind --out DIR [--source-repo PATH]
 
 Environment overrides:
-  BASE_SHA, FIRST_315_SHA, OVERLAY_TOOLING_SHA, OVERLAY_DELTA_SHA, SOURCE_REPO
+  BASE_SHA, FIRST_315_SHA, OVERLAY_TOOLING_SHA, OVERLAY_DELTA_SHA, SOURCE_REPO,
+  PY315RC2 (default ~/.local/py315rc2), PYTHON314 (default Homebrew 3.14)
 EOF
 }
 
@@ -172,7 +178,7 @@ overlay_file() {
   esac
 }
 
-# #19273 tooling/docs (tip after genericize + Copilot fail-closed fixes)
+# #19273 tooling/docs (tip after Q3 split + verify/registry/suitespec claim)
 TOOLING_FILES=(
   .claude/skills/compare-cpython-versions/SKILL.md
   .claude/skills/find-cpython-usage/SKILL.md
@@ -190,6 +196,12 @@ TOOLING_FILES=(
   scripts/run-profiling-tests
   scripts/verify_profiler_compatibility.py
   tests/internal/test_profiler_compat_fail_closed.py
+  tests/profiling/suitespec.yml
+  # Riot lockfiles that accompany the suitespec 3.15 matrix claim on #19273.
+  .riot/requirements/1353f9a.txt
+  .riot/requirements/16ca938.txt
+  .riot/requirements/850dd40.txt
+  .riot/requirements/ce4b2ba.txt
 )
 
 # #20565 cpython_delta (+ its skills/tests). Skills overlap with tooling tip;
@@ -215,6 +227,28 @@ for f in "${DELTA_FILES[@]}"; do
   overlay_file "$DELTA_SHA" "$f"
 done
 
+# Harness-local interpreter discovery rides on the tip overlay so sandboxes
+# resolve ~/.local/py315rc2 + Homebrew 3.14 without pyenv (and so pyenv's
+# stale 3.15.0a7 cannot beat the phase-pinned rc2).
+echo "Applying harness interpreter-discovery overlay..."
+for f in \
+  scripts/run-profiling-tests \
+  scripts/verify_profiler_compatibility.py \
+  scripts/migration_replay/python_env.sh
+do
+  src="${HARNESS_REPO}/${f}"
+  dest="${OUT_DIR}/${f}"
+  if [[ ! -f "$src" ]]; then
+    echo "ERROR: harness file missing: ${src}" >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$dest")"
+  cp "$src" "$dest"
+  case "$f" in
+    scripts/run-profiling-tests|scripts/migration_replay/python_env.sh) chmod +x "$dest" ;;
+  esac
+done
+
 # Record pins inside the sandbox for scorers / humans.
 mkdir -p "${OUT_DIR}/scripts/migration_replay"
 cat >"${OUT_DIR}/scripts/migration_replay/SANDBOX_PINS.txt" <<EOF
@@ -223,8 +257,21 @@ base_sha=${BASE_SHA}
 first_315_sha=${FIRST_315_SHA}
 overlay_tooling_sha=${TOOLING_SHA}
 overlay_delta_sha=${DELTA_SHA}
+py315rc2=${PY315RC2}
+python314=${PYTHON314}
 prepared_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
+
+if [[ -x "${PY315RC2}/bin/python3.15" ]]; then
+  echo "  interpreter 3.15: ${PY315RC2}/bin/python3.15 ($("${PY315RC2}/bin/python3.15" -c 'import sys; print(sys.version.split()[0])'))"
+else
+  echo "WARN: PY315RC2 python missing: ${PY315RC2}/bin/python3.15" >&2
+fi
+if [[ -x "${PYTHON314}" ]]; then
+  echo "  interpreter 3.14: ${PYTHON314} ($("${PYTHON314}" -c 'import sys; print(sys.version.split()[0])'))"
+else
+  echo "WARN: PYTHON314 missing: ${PYTHON314}" >&2
+fi
 
 if [[ "$ARM" == "blind" ]]; then
   echo "Blind arm: wiping version layer + resetting 3.15 registry entry..."
