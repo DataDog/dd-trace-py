@@ -125,6 +125,29 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 
 Once the run finishes, the snapshot file will have been regenerated.
 
+Snapshots of OTLP traces
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The test agent also snapshots the OTLP traces it receives during a test session to
+``tests/snapshots/<token>_otlp_traces.json``, next to the native ``<token>.json`` snapshot. The file is an OTLP/JSON
+document, which is what a collector receives over ``http/json``: ids are renumbered and the snapshot ignores reuse the
+native syntax, for example ``meta.<key>`` matches the span and resource attribute ``<key>``.
+
+To compare Datadog and OpenTelemetry semantics, export OTLP from a subprocess test and parametrize
+``DD_TRACE_OTEL_SEMANTICS_ENABLED`` so each variant writes its own file. The W3C ``tracestate`` carries the random parent id, so ignore it::
+
+    @pytest.mark.snapshot(ignores=["meta.tracestate"])
+    @pytest.mark.subprocess(
+        env={"OTEL_TRACES_EXPORTER": "otlp", "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf"},
+        parametrize={"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["false", "true"]},
+    )
+    def test_my_integration():
+        ...
+
+The tracer sends the test session token with its OTLP requests, and ``snapshot_context`` points the OTLP exporter at
+the test agent when ``scripts/run-tests`` remaps its OTLP port. See ``tests/integration/test_otlp_trace_snapshot.py``
+for an example of a test that exports OTLP.
+
 How should I write integration tests for my integration?
 --------------------------------------------------------
 
