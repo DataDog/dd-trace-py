@@ -1,9 +1,9 @@
 """WrappingContext must refuse obfuscated code before wrap-side registration.
 
-Uses a stub ``is_obfuscated_code`` rather than real PyArmor, matching
-``tests/debugging/function/test_store.py``. This is mechanism-specific: only
-``WrappingContext.wrap`` raises ``ObfuscatedCodeError`` (``internal.wrap``
-logs and returns the original function).
+Uses a stub is_obfuscated_code rather than real PyArmor, matching
+tests/debugging/function/test_store.py. This is mechanism-specific: only
+WrappingContext.wrap raises ObfuscatedCodeError (internal.wrap logs and
+returns the original function).
 """
 
 from types import CodeType
