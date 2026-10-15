@@ -5,10 +5,18 @@ class LiteLLMUsageMetrics(bm.Scenario):
     tagged: bool
 
     def run(self):
-        from ddtrace.contrib.internal.litellm._usage_metrics import GATEWAY_REQUEST
-        from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
-        from ddtrace.contrib.internal.litellm._usage_metrics import TOKEN_BREAKDOWN
-        from ddtrace.contrib.internal.litellm._usage_metrics_writer import UsageMetricsWriter
+        try:
+            from ddtrace.contrib.internal.litellm._usage_metrics import GATEWAY_REQUEST
+            from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
+            from ddtrace.contrib.internal.litellm._usage_metrics import TOKEN_BREAKDOWN
+            from ddtrace.contrib.internal.litellm._usage_metrics_writer import UsageMetricsWriter
+        except ImportError:
+            # A baseline built before the usage metrics existed has nothing to measure.
+            def nothing(loops):
+                pass
+
+            yield nothing
+            return
 
         writer = UsageMetricsWriter("otlp", interval=60)
         attempt = {
