@@ -39,15 +39,17 @@ def capture_otlp_metrics(protocol):
 
 
 @contextmanager
-def capture_otlp_traces(protocol):
+def capture_otlp_traces(protocol, port=None):
     if protocol == "grpc":
         capture = _capture_grpc_traces
+        port = 4317 if port is None else port
     elif protocol == "http/protobuf":
         capture = _capture_http_traces
+        port = 4318 if port is None else port
     else:
         raise ValueError("Unsupported OTLP protocol: %s" % protocol)
 
-    with capture() as requests:
+    with capture(port) as requests:
         yield requests
 
 
@@ -64,13 +66,13 @@ def _capture_grpc_metrics():
 
 
 @contextmanager
-def _capture_grpc_traces():
+def _capture_grpc_traces(port):
     from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceResponse
     from opentelemetry.proto.collector.trace.v1.trace_service_pb2_grpc import TraceServiceServicer
     from opentelemetry.proto.collector.trace.v1.trace_service_pb2_grpc import add_TraceServiceServicer_to_server
 
     with _capture_grpc_requests(
-        TraceServiceServicer, add_TraceServiceServicer_to_server, ExportTraceServiceResponse, 4317
+        TraceServiceServicer, add_TraceServiceServicer_to_server, ExportTraceServiceResponse, port
     ) as requests:
         yield requests
 
@@ -103,10 +105,10 @@ def _capture_http_metrics():
 
 
 @contextmanager
-def _capture_http_traces():
+def _capture_http_traces(port):
     from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 
-    with _capture_http_requests(4318, ExportTraceServiceRequest) as requests:
+    with _capture_http_requests(port, ExportTraceServiceRequest) as requests:
         yield requests
 
 
