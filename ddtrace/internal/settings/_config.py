@@ -924,7 +924,8 @@ class Config:
             since it contains integration defaults.
         :param bool merge: Whether to merge any existing settings with those provided,
             or if we should overwrite the settings with those provided;
-            Note: when merging existing settings take precedence.
+            Note: when merging existing settings take precedence, and the existing HTTP settings
+            (config.<integration>.http) are kept; overwriting resets them.
         """
         if integration not in INTEGRATION_CONFIGS:
             log.error(
@@ -946,7 +947,7 @@ class Config:
             # >>> config.requests['split_by_domain']
             # True
             merged = IntegrationConfig(self, integration, _deepmerge(existing, settings))
-            object.__setattr__(merged, "http", existing.http)
+            object.__setattr__(merged, "http", getattr(existing, "http", merged.http))
             self._integration_configs[integration] = merged
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
