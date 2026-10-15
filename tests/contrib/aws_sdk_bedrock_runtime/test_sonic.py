@@ -634,3 +634,50 @@ def test_audio_delta_cannot_exceed_aggregate_delta():
         "total_tokens": 17,
         "output_audio_tokens": 4,
     }
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("invalid", [None, -1, True, "5", 1.5])
+def test_unknown_aggregate_counter_is_not_zero(direction, invalid):
+    sonic, integration = state()
+    fields = {"input": "totalInputTokens", "output": "totalOutputTokens"}
+    other = "output" if direction == "input" else "input"
+    sonic.observe(event("usageEvent", {fields[direction]: invalid, fields[other]: 2}))
+    assert sonic.pending.metrics == {other + "_tokens": 2}
+    sonic.observe(event("usageEvent", {fields[direction]: 3, fields[other]: 2}))
+    expected = {direction + "_tokens": 3, other + "_tokens": 2, "total_tokens": 5}
+    assert sonic.pending.metrics == expected
+    sonic.observe(event("usageEvent", {fields[direction]: 3, fields[other]: 2}))
+    sonic.observe(event("usageEvent", {fields[direction]: 1, fields[other]: 1}))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == expected
+
+
+@pytest.mark.parametrize(
+    "usage,expected",
+    [
+        ({"totalInputTokens": 0}, {"input_tokens": 0}),
+        ({"totalOutputTokens": 0}, {"output_tokens": 0}),
+        ({"totalInputTokens": 0, "totalOutputTokens": 0}, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}),
+    ],
+)
+def test_explicit_zero_usage_is_emitted(usage, expected):
+    sonic, integration = state()
+    sonic.observe(event("usageEvent", usage))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == expected
+
+
+@pytest.mark.parametrize("report_zero", [False, True])
+def test_usage_presence_resets_between_turns(report_zero):
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.observe(event("usageEvent", {"totalInputTokens": 3, "totalOutputTokens": 2}))
+    sonic.pending.user_text = "next question"
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    if report_zero:
+        sonic.observe(event("usageEvent", {"totalInputTokens": 3, "totalOutputTokens": 2}))
+    sonic.finish()
+    first, second = [data(span)["metrics"] for span in llms(integration)]
+    assert first == {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}
+    assert second == ({"input_tokens": 0, "output_tokens": 0, "total_tokens": 0} if report_zero else {})

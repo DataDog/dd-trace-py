@@ -207,6 +207,10 @@ async def test_invoke_failure_emits_error_without_replacing_exception(monkeypatc
     emitted = [call.args[0] for call in llmobs.enqueue.call_args_list]
     assert len(emitted) == 2
     assert all(span["status"] == "error" for span in emitted)
+    response = next(span for span in emitted if span["name"] == "nova sonic response")
+    assert response["metrics"] == {}
+    assert response["meta"]["input"]["messages"][0]["content"] == ""
+    assert response["meta"]["output"]["messages"][0]["content"] == ""
 
 
 @pytest.mark.asyncio
@@ -811,3 +815,127 @@ def test_configured_event_budget_preserves_transcripts(monkeypatch, llmobs, limi
         assert actual["meta"]["input"]["messages"][-1]["content"] == "user transcript"
         assert actual["meta"]["output"]["messages"][0]["content"] == "assistant transcript"
         assert "audio_parts" not in actual["meta"]["output"]["messages"][0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("started", [False, True])
+@pytest.mark.parametrize("llmobs", [{"_llmobs_sampling_rules": '[{"sample_rate":0.5}]'}], indirect=True)
+async def test_open_stream_keeps_context_across_llmobs_restart(monkeypatch, llmobs, tracer, started):
+    events = [
+        event("contentStart", {"contentId": "text", "role": "ASSISTANT", "type": "TEXT"}),
+        event("textOutput", {"contentId": "text", "content": "answer"}),
+        event("contentEnd", {"contentId": "text"}),
+    ]
+    await mock_stream(monkeypatch, events)
+    async with AsyncBedrockRuntimeClient() as client:
+        with LLMObs.workflow(name="caller", agent_service="caller-app") as caller:
+            trace_id = get_llmobs_trace_id(caller)
+            stream = await client.invoke_model_with_bidirectional_stream(
+                InvokeModelWithBidirectionalStreamOperationInput(model_id=MODEL)
+            )
+        caller_event = next(c.args[0] for c in llmobs.enqueue.call_args_list if c.args[0]["name"] == "caller")
+        old_provider = LLMObs._instance._llmobs_context_provider
+        _, output = await stream.await_output()
+        if started:
+            assert await output.receive() is events[0]
+        LLMObs.disable()
+        LLMObs.enable(integrations_enabled=False, _tracer=tracer, agentless_enabled=False)
+        writer = LLMObs._instance._llmobs_span_writer
+        writer.stop()
+        monkeypatch.setattr(writer, "enqueue", MagicMock())
+        provider = LLMObs._instance._llmobs_context_provider
+        assert provider is not old_provider
+        with LLMObs.workflow(name="receiver", agent_service="receiver-app") as receiver:
+            assert old_provider.active() is provider.active() is receiver
+            assert [item async for item in output] == events[int(started) :]
+            assert provider.active() is receiver
+        await stream.close()
+    payloads = [call.args[0] for call in writer.enqueue.call_args_list]
+    root = next(s for s in payloads if s["name"] == "nova sonic audio turn")
+    llm = next(s for s in payloads if s["name"] == "nova sonic response")
+    assert root["parent_id"] == str(caller.span_id)
+    assert llm["parent_id"] == root["span_id"]
+    for span in (root, llm):
+        assert span["trace_id"] == trace_id
+        assert "agent_service:caller-app" in span["tags"]
+        assert span["_dd"]["sample_rate"] == caller_event["_dd"]["sample_rate"] == "0.5"
+        assert span["_dd"]["sampling_decision"] == caller_event["_dd"]["sampling_decision"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish", ["close", "error", "cancelled"])
+async def test_unreported_usage_stays_unknown_on_partial_response(monkeypatch, llmobs, finish):
+    events = [
+        event("contentStart", {"contentId": "text", "type": "TEXT", "role": "ASSISTANT"}),
+        event("textOutput", {"contentId": "text", "content": "partial"}),
+    ]
+    error = asyncio.CancelledError() if finish == "cancelled" else RuntimeError("stream failed")
+    await mock_stream(monkeypatch, events if finish == "close" else events + [error])
+    async with AsyncBedrockRuntimeClient() as client:
+        stream = await client.invoke_model_with_bidirectional_stream(
+            InvokeModelWithBidirectionalStreamOperationInput(model_id=MODEL)
+        )
+        _, receiver = await stream.await_output()
+        for expected in events:
+            assert await receiver.receive() is expected
+        if finish == "close":
+            await stream.close()
+        else:
+            with pytest.raises(type(error)) as caught:
+                await receiver.receive()
+            assert caught.value is error
+    response = next(c.args[0] for c in llmobs.enqueue.call_args_list if c.args[0]["name"] == "nova sonic response")
+    assert response["metrics"] == {}
+    assert response["meta"]["input"]["messages"][0]["content"] == ""
+    assert response["meta"]["output"]["messages"][0]["content"] == "partial"
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["tool", "input", "output", "empty-input", "empty-output", "invalid-input", "invalid-output", "omitted-output"],
+)
+def test_audio_placeholder_requires_observed_unrepresented_audio(monkeypatch, llmobs, kind):
+    state = SonicState(
+        AwsSdkBedrockRuntimeIntegration(config.aws_sdk_bedrock_runtime),
+        MODEL,
+        Context(),
+        LLMObs._instance._llmobs_context_provider,
+    )
+    input_audio = kind == "input" or kind.endswith("-input")
+    output_audio = kind == "output" or kind.endswith("-output")
+    if kind == "omitted-output":
+        monkeypatch.setattr(sonic_module, "MAX_AUDIO", 2)
+    content = "" if kind.startswith("empty-") else "invalid!" if kind.startswith("invalid-") else "AAAAAA=="
+    if input_audio:
+        state.observe(
+            event(
+                "contentStart",
+                {"contentName": "mic", "type": "AUDIO", "role": "USER", "audioInputConfiguration": INPUT},
+            ),
+            outbound=True,
+        )
+        state.observe(event("audioInput", {"contentName": "mic", "content": content}), outbound=True)
+    if output_audio:
+        state.observe(
+            event(
+                "contentStart",
+                {"contentId": "output", "type": "AUDIO", "role": "ASSISTANT", "audioOutputConfiguration": OUTPUT},
+            )
+        )
+        state.observe(event("audioOutput", {"contentId": "output", "content": content}))
+    else:
+        state.observe(event("contentStart", {"contentId": "tool", "type": "TOOL", "role": "ASSISTANT"}))
+        state.observe(
+            event("toolUse", {"contentId": "tool", "toolName": "lookup", "toolUseId": "call", "content": "{}"})
+        )
+    state.finish()
+    response = next(c.args[0] for c in llmobs.enqueue.call_args_list if c.args[0]["name"] == "nova sonic response")
+    user = response["meta"]["input"]["messages"][-1]
+    assistant = response["meta"]["output"]["messages"][0]
+    assert user["content"] == ("[audio]" if input_audio and kind != "empty-input" else "")
+    assert assistant["content"] == ("[audio]" if kind in ("invalid-output", "omitted-output") else "")
+    if kind == "output":
+        assert "audio_parts" in assistant
+    if kind == "tool" or input_audio:
+        assert assistant["tool_calls"][0]["tool_id"] == "call"
+    assert response["metrics"] == {}

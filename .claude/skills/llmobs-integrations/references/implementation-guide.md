@@ -263,3 +263,8 @@ input_audio_tokens/output_audio_tokens as subsets, never add them to total_token
 and preserve explicit zero. A missing or invalid breakdown makes that turn's
 corresponding audio metric unknown; recover the baseline before pricing later
 turns, without attributing earlier unknown usage to them.
+Aggregate token counters are also unknown until valid usage is reported for that
+turn. Preserve explicit zeros and derive total_tokens only when both input and
+output counts are known. Audio fallback markers require per-turn, per-direction
+audio evidence; empty failures and tool-only content must not invent audio.
+When an audio part is retained, empty transcript content can remain empty.
