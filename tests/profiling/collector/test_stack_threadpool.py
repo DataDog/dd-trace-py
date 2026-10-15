@@ -19,7 +19,9 @@ from ddtrace._trace.context import Context
 from ddtrace.contrib.internal.futures.patch import patch as futures_patch
 from ddtrace.contrib.internal.futures.patch import unpatch as futures_unpatch
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import endpoints
 from ddtrace.internal.datadog.profiling import stack as stack_module
+from ddtrace.internal.span_lifecycle import span_identity
 from ddtrace.profiling.collector import stack
 from ddtrace.trace import Tracer
 from tests.profiling.collector import pprof_utils
@@ -48,7 +50,7 @@ def test_link_span_plain_context_uses_span_id_as_local_root(monkeypatch: pytest.
     monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
     collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
+    collector._link_span(span_identity(ctx))
 
     assert calls == [(456, 456, None)]
 
@@ -65,7 +67,7 @@ def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, 
     ctx = Context(trace_id=123, span_id=456)
     context_meta.attach_profiler_link(ctx, local_root_span_id=789, span_type="web")
     collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
+    collector._link_span(span_identity(ctx))
 
     assert calls == [(456, 789, "web")]
 
@@ -91,7 +93,7 @@ def test_threadpool_worker_with_explicit_child_span(tmp_path: Path, tracer: Trac
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
 
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
@@ -150,7 +152,7 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler(tmp_path: P
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
 
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)

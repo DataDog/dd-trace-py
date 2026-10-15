@@ -9,6 +9,83 @@ tracing events remain compatible. The shared types live in
 ``ddtrace.contrib._events.http`` and Bottle's adapter lives in
 ``ddtrace.contrib.internal.bottle.trace``.
 
+Revision 4: LP span lifecycle contract consumed by Profiling
+----------------------------------------------------------
+
+Status: implemented. LP provides immutable identity and completion values in
+``ddtrace.internal.span_lifecycle``. Profiling consumes them for sample linkage and
+owns endpoint aggregation in ``ddtrace.internal.datadog.profiling.endpoints``.
+IDM still owns request completion and assigns the HTTP resource before finishing
+the span. No framework needs to import Profiling or publish a profiling event.
+
+Added interfaces
+~~~~~~~~~~~~~~~~
+
+* ``span_identity(active) -> Optional[SpanIdentity]`` copies identity from an active
+  span or propagated context. None means no active identity.
+* Frozen ``SpanIdentity`` fields: ``span_id``, ``local_root_span_id``,
+  ``local_root_span_type``, ``correlation_root_span_id``, and
+  ``correlation_root_span_type``. Local ownership is unavailable for a propagated
+  context without a live span; its correlation root can still be known. A worker
+  span can be a local root while correlating samples to a different propagated
+  root. Consumers must not use correlation roots to decide whether to count a span.
+* ``SpanActivationSubscription(provider_getter, callback)`` delivers identity snapshots
+  synchronously on that provider's activation thread. The getter resolves the current
+  provider at dispatch, so runtime provider replacement stays supported. ``start()`` and ``close()``
+  are idempotent; closing unregisters the subscription. It forwards future
+  transitions, including restoration and clearing; it does not replay prior state.
+* ``SpanCompletedEvent(span)`` is dispatched as ``span.lifecycle.completed``. Its
+  frozen ``CompletedSpan`` contains ``source_id``, ``span_id``,
+  ``local_root_span_id``, ``span_type``, ``resource``, ``recording``, and an
+  ``is_local_root`` property. ``source_id`` is the process-local identity of the
+  producing tracer, used to scope subscriptions, not a serializable trace identity.
+  Consumers can retain snapshots without retaining live spans or contexts.
+
+Ordering and failure guarantees
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The tracing runtime publishes completion once per finished span, after its span
+processors and before trace aggregation/export. This makes resource changes from
+IDM and span processors visible. Later trace-processing/export mutations and
+mutations to already-finished span objects do not rewrite the snapshot. This is
+an explicit completion boundary, not a guarantee that arbitrary code can never
+mutate a span again. The older ``trace.span_finish`` event keeps its existing early
+ordering for compatible consumers.
+
+Completion is independent of trace sampling or export success. ``recording`` says
+whether the producer enabled span processing for this completion. It preserves
+existing disabled-tracer behavior for endpoint counting while allowing active-span
+cleanup on all completions. Events use core's ordinary listener-failure isolation;
+DD_TESTING_RAISE deliberately exposes errors in diagnostic runs. Subscriber
+BaseExceptions retain core's propagation behavior.
+
+Profiling owns the consumer policy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The stack collector subscribes through LP and consumes correlation identity; it no
+longer reads private parent/local-root fields. The sample upload adapter also asks
+LP for identity. Propagated metadata retains its existing encoding, with the old
+``profiling.context_meta`` names forwarding to LP for compatibility.
+
+Profiling's endpoint counter subscribes to completed-span snapshots, filters by
+source, recording state, local-root ownership, and web span type, and maintains
+resource counts and resource-to-span-ID mappings. Upload/reset atomically rotates
+both maps. Start/stop own registration; failed startup removes the endpoint
+subscription. Weak source ownership prevents retained tracer instances, and fork
+handling clears inherited parent counts using reset fork-safe locks.
+
+The tracer-owned ``EndpointCallCounterProcessor`` and private
+``Tracer._endpoint_call_counter_span_processor`` have been removed. Profiling
+startup uses ``endpoints.enable(source)``, shutdown uses ``endpoints.disable(source)``,
+and upload uses ``endpoints.reset(source)``. These are Profiling-owned internal
+interfaces, not additions to LP. Public tracer and profiler APIs remain unchanged.
+
+Contract tests cover parent restoration, context propagation, immutable finalized
+resources, completion once, source isolation, subscriber failures, restart/cleanup,
+and endpoint counts for normal, failed, blocked, closed, and interleaved Bottle
+requests. Existing profile-output tests validate endpoint labels and counts through
+the migrated consumer.
+
 Revision 3: synchronous inspection and framework enforcement
 -----------------------------------------------------------
 
@@ -160,6 +237,5 @@ Outstanding boundaries
 * Register an ASM-owned subscriber and map snapshots to WAF inputs and results,
   including its timeout, telemetry, and product enable/disable lifecycle.
 * Expose additional data only when available without consuming application streams.
-* Agree the LP/Profiling completed local-root span identity/resource contract.
 * Migrate other framework adapters independently; these events are currently
   emitted by the application-installed Bottle plugin only.

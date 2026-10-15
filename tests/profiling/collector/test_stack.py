@@ -15,6 +15,7 @@ from pytest import MonkeyPatch
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import endpoints
 from ddtrace.profiling.collector import stack
 from ddtrace.trace import Tracer
 from tests.conftest import get_original_test_name
@@ -400,7 +401,7 @@ def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
 
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
@@ -446,7 +447,7 @@ def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
 
 def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, tracer: Tracer) -> None:
     with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
-        tracer._endpoint_call_counter_span_processor.enable()
+        endpoints.enable(tracer)
 
         test_name = "test_push_span_unregister_thread"
         pprof_prefix = str(tmp_path / test_name)
@@ -625,7 +626,7 @@ def test_thread_spanning_restart_with_wrapper_is_unregistered() -> None:
 
 
 def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
 
     test_name = "test_push_non_web_span"
     pprof_prefix = str(tmp_path / test_name)
@@ -682,7 +683,7 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
     ddup.start()
     ddup.upload()
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
 
     resource = str(uuid.uuid4())
 
@@ -1297,7 +1298,7 @@ def test_collect_span_id(tracer: Tracer, tmp_path: Path) -> None:
     ddup.start()
     ddup.upload()
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
     with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -1341,7 +1342,7 @@ def test_collect_span_resource_after_finish(tracer: Tracer, tmp_path: Path, requ
     ddup.start()
     ddup.upload()
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
     with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -1425,7 +1426,7 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
     ddup.start()
     ddup.upload()
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
     with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB

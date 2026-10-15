@@ -8,7 +8,6 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
-from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -19,7 +18,6 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -966,63 +964,6 @@ def assert_span_sampling_decision_tags(
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
     tracer._span_aggregator.sampling_processor = sampling_processor
-
-
-def test_endpoint_call_counter_processor():
-    """ProfilingSpanProcessor collects information about endpoints for profiling"""
-    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
-    spanA._local_root = spanA
-    spanB = Span("spanB", resource="b", span_type=SpanTypes.WEB)
-    spanB._local_root = spanB
-    spanNonWeb = Span("spanNonWeb", resource="c", span_type=SpanTypes.WORKER)
-    spanNonLocalRoot = Span("spanNonLocalRoot", resource="d")
-
-    processor = EndpointCallCounterProcessor()
-    processor.enable()
-
-    processor.on_span_finish(spanA)
-    processor.on_span_finish(spanA)
-    processor.on_span_finish(spanB)
-    processor.on_span_finish(spanNonWeb)
-    processor.on_span_finish(spanNonLocalRoot)
-
-    assert processor.reset()[0] == {"a": 2, "b": 1}
-    # Make sure data has been cleared
-    assert processor.reset()[0] == {}
-
-
-def test_endpoint_call_counter_processor_disabled():
-    """ProfilingSpanProcessor is disabled by default"""
-    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
-    spanA._local_root = spanA
-
-    processor = EndpointCallCounterProcessor()
-
-    processor.on_span_finish(spanA)
-
-    assert processor.reset()[0] == {}
-
-
-def test_endpoint_call_counter_processor_real_tracer(tracer):
-    tracer._endpoint_call_counter_span_processor.enable()
-
-    with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
-        with tracer.trace("child", service="top_level_test_service2"):
-            # Non root spans are ignores
-            with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.WEB):
-                pass
-
-    with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
-        pass
-
-    with tracer.trace("parent", service="top_level_test_service", resource="b", span_type=SpanTypes.WEB):
-        pass
-
-    # Non web spans are ignored
-    with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.HTTP):
-        pass
-
-    assert tracer._endpoint_call_counter_span_processor.reset()[0] == {"a": 2, "b": 1}
 
 
 def test_trace_tag_processor_adds_chunk_root_tags(tracer):

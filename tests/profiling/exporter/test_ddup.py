@@ -78,13 +78,7 @@ def test_code_provenance_uploaded() -> None:
         def log_message(self, _format: str, *args: object) -> None:
             pass
 
-    class EndpointProcessor:
-        def reset(self) -> tuple[dict[str, int], dict[str, list[int]]]:
-            return {}, {}
-
     class Tracer:
-        _endpoint_call_counter_span_processor: EndpointProcessor = EndpointProcessor()
-
         def __init__(self, agent_trace_url: str) -> None:
             self.agent_trace_url: str = agent_trace_url
 

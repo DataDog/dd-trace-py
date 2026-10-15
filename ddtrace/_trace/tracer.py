@@ -20,7 +20,6 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
-from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
@@ -34,6 +33,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
+from ddtrace.internal import span_lifecycle
 from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import LOG_ATTR_ENV
@@ -113,17 +113,13 @@ def _default_wrap_span_name(f: Callable) -> str:
     return f"{f.__module__}.{f.__name__}"
 
 
-def _default_span_processors_factory(
-    profiling_span_processor: EndpointCallCounterProcessor,
-) -> list[SpanProcessor]:
+def _default_span_processors_factory() -> list[SpanProcessor]:
     """Construct the default list of span processors to use."""
     span_processors: list[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
     if config._trace_resource_renaming_enabled:
         span_processors.append(ResourceRenamingProcessor())
-
-    span_processors.append(profiling_span_processor)
 
     return span_processors
 
@@ -177,8 +173,7 @@ class Tracer:
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
         # Direct link to the appsec processor
-        self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
+        self._span_processors = _default_span_processors_factory()
         self._span_aggregator = SpanAggregator(
             partial_flush_enabled=config._partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
@@ -469,9 +464,7 @@ class Tracer:
             reset_buffer=reset_buffer,
             flush_writer=flush_writer,
         )
-        self._span_processors = _default_span_processors_factory(
-            self._endpoint_call_counter_span_processor,
-        )
+        self._span_processors = _default_span_processors_factory()
 
     def start_span(
         self,
@@ -697,10 +690,14 @@ class Tracer:
                 span._set_attribute(_SERVICE_SOURCE, integration_name)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled:
-            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
+        recording = self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled
+        if recording:
+            for p in chain(self._span_processors, SpanProcessor.__processors__):
                 if p:
                     p.on_span_finish(span)
+        span_lifecycle.publish_completed(self, span, recording)
+        if recording:
+            self._span_aggregator.on_span_finish(span)
 
         log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 

@@ -14,6 +14,7 @@ import pytest
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import endpoints
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector.asyncio import AsyncioBoundedSemaphoreCollector
 from ddtrace.profiling.collector.asyncio import AsyncioConditionCollector
@@ -179,7 +180,7 @@ class BaseAsyncioLockCollectorTest:
 
     async def test_lock_events_tracer(self, tracer: Any) -> None:
         """Test event profiling with tracer integration."""
-        tracer._endpoint_call_counter_span_processor.enable()
+        endpoints.enable(tracer)
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
 

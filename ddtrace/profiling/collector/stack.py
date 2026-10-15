@@ -4,15 +4,14 @@ import logging
 from types import ModuleType
 import typing
 
-from ddtrace._trace.provider import BaseContextProvider
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
-from ddtrace.internal.native._native import Context
-from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.span_lifecycle import SpanActivationSubscription
+from ddtrace.internal.span_lifecycle import SpanCompletedEvent
+from ddtrace.internal.span_lifecycle import SpanIdentity
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
@@ -23,11 +22,6 @@ from ddtrace.profiling.collector import threading
 LOG = logging.getLogger(__name__)
 
 
-def _unlink_finished_span(span: SpanData) -> None:
-    """Remove physical-thread attribution derived from a finished span."""
-    stack.unlink_finished_span(span.span_id)
-
-
 class StackCollector(collector.Collector):
     """Execution stacks collector."""
 
@@ -35,6 +29,7 @@ class StackCollector(collector.Collector):
         "nframes",
         "tracer",
         "_native_call_monitor",
+        "_activation",
     )
 
     def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[ProfilerTracer] = None) -> None:
@@ -42,6 +37,9 @@ class StackCollector(collector.Collector):
 
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
+        self._activation = (
+            SpanActivationSubscription(lambda: tracer.context_provider, self._link_span) if tracer else None
+        )
         self._native_call_monitor: typing.Optional[ModuleType] = None
 
     def __repr__(self) -> str:
@@ -101,43 +99,24 @@ class StackCollector(collector.Collector):
 
         # Register only after every fallible initialization step. A failed collector is dropped without
         # _stop_service(), so registering earlier could leave process-wide tracing listeners behind.
-        if self.tracer is not None:
+        if self._activation is not None:
             try:
-                core.on("ddtrace.context_provider.activate", self._link_span)
-                core.on("trace.span_finish", _unlink_finished_span)
+                self._activation.start()
+                core.on(SpanCompletedEvent.event_name, self._unlink_finished_span)
             except Exception:
-                core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-                core.reset_listeners("trace.span_finish", _unlink_finished_span)
+                self._activation.close()
+                core.reset_listeners(SpanCompletedEvent.event_name, self._unlink_finished_span)
                 raise
 
-    def _link_span(
-        self,
-        provider: BaseContextProvider,
-        span: typing.Optional[typing.Union[Context, SpanData]],
-    ) -> None:
-        if self.tracer is None or provider is not self.tracer.context_provider:
-            return
-        if isinstance(span, SpanData):
-            span_id = span.span_id
-            local_root = typing.cast(typing.Any, span)._local_root
-            # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
-            # the new span, so read the distributed local-root metadata directly from the parent Context. This works
-            # across both thread and greenlet context propagation without relying on physical-thread-local state.
-            if span._parent is None and span.parent_id is not None and span._parent_context is not None:
-                propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(
-                    span._parent_context
-                )
-                local_root_span_id = propagated_root_span_id or local_root.span_id
-                local_root_span_type = propagated_root_span_type or local_root.span_type
-            else:
-                local_root_span_id = local_root.span_id
-                local_root_span_type = local_root.span_type
-            stack.link_span(span_id, local_root_span_id, local_root_span_type)
-        elif isinstance(span, Context) and span.span_id is not None:
-            local_root_span_id, span_type = context_meta.read_profiler_link(span)
-            stack.link_span(span.span_id, local_root_span_id, span_type)
-        else:
+    def _unlink_finished_span(self, event: SpanCompletedEvent) -> None:
+        if self.tracer is not None and event.span.source_id == id(self.tracer):
+            stack.unlink_finished_span(event.span.span_id)
+
+    def _link_span(self, identity: typing.Optional[SpanIdentity]) -> None:
+        if identity is None:
             stack.clear_span()
+        else:
+            stack.link_span(identity.span_id, identity.correlation_root_span_id, identity.correlation_root_span_type)
 
     @staticmethod
     def snapshot() -> None:
@@ -176,9 +155,9 @@ class StackCollector(collector.Collector):
             except Exception:
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
-        if self.tracer is not None:
-            core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-            core.reset_listeners("trace.span_finish", _unlink_finished_span)
+        if self._activation is not None:
+            self._activation.close()
+            core.reset_listeners(SpanCompletedEvent.event_name, self._unlink_finished_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop

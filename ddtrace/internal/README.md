@@ -455,3 +455,14 @@ LINE handler failures are logged and isolated so one subsystem cannot disrupt
 another. Global, PY_START, PY_RETURN, and PY_UNWIND handler failures propagate
 to the monitored frame; those handlers must contain their own failures when
 isolation is required.
+
+
+## Span identity and completion
+
+`span_lifecycle` is the LP-owned contract for immutable active-span identity and
+completed-span information. Consumers subscribe through `SpanActivationSubscription`
+and `SpanCompletedEvent`; they do not inspect private live-span fields. The producer
+publishes completion after span processors and before trace aggregation/export.
+Profiling owns filtering, endpoint counts, and upload-window rotation. See
+`docs/http-contract-api-changes.rst` revision 4 for fields, propagation semantics,
+ordering, failure isolation, and compatibility.

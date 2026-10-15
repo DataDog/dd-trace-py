@@ -14,6 +14,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import endpoints
 from ddtrace.profiling.collector import exception
 from ddtrace.trace import Tracer
 from tests.profiling.collector import pprof_utils
@@ -434,7 +435,7 @@ def test_exception_with_tracer(tmp_path: Path, tracer: Tracer) -> None:
 
     output_filename = _setup_profiler(tmp_path, "test_exception_with_tracer")
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
 
     with exception.ExceptionCollector(sampling_interval=1):
         with stack.StackCollector(tracer=tracer):

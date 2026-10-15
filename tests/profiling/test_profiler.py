@@ -959,9 +959,7 @@ def test_refused_profiler_does_not_reconfigure_running_instance() -> None:
 
 
 def test_construction_does_not_enable_endpoint_collection() -> None:
-    endpoint_processor = ddtrace.tracer._endpoint_call_counter_span_processor
-
-    with mock.patch.object(endpoint_processor, "enable") as mock_enable:
+    with mock.patch("ddtrace.profiling.profiler.endpoints.enable") as mock_enable:
         p = profiler.Profiler(endpoint_collection_enabled=True)
         mock_enable.assert_not_called()
 

@@ -20,6 +20,7 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import endpoints
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
@@ -1312,7 +1313,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
 
     def test_lock_events_tracer(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
+        endpoints.enable(tracer)
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.WEB
         with self.collector_class(
@@ -1373,7 +1374,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
 
     def test_lock_events_tracer_non_web(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
+        endpoints.enable(tracer)
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.SQL
         with self.collector_class(
@@ -1415,7 +1416,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
 
     def test_lock_events_tracer_late_finish(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
+        endpoints.enable(tracer)
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.WEB
         with self.collector_class(
@@ -1470,7 +1471,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
 
     def test_resource_not_collected(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
+        endpoints.enable(tracer)
         resource: str = str(uuid.uuid4())
         span_type: str = ext.SpanTypes.WEB
         with self.collector_class(

@@ -13,6 +13,7 @@ def test_stack_restores_parent_span_before_clearing_finished_trace() -> None:
     import time
 
     from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import endpoints
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
@@ -31,7 +32,7 @@ def test_stack_restores_parent_span_before_clearing_finished_trace() -> None:
     def untraced_work_after_root() -> None:
         time.sleep(0.3)
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
     p = profiler.Profiler(tracer=tracer)
     p.start()
     with tracer.trace("nested.request", resource=endpoint, span_type=ext.SpanTypes.WEB) as root_span:
@@ -94,6 +95,7 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread() -> None:
     import time
 
     from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import endpoints
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
@@ -113,7 +115,7 @@ def test_stack_clears_finished_endpoint_on_reused_worker_thread() -> None:
         worker_thread_ids.append(threading.get_ident())
         time.sleep(0.3)
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
     p = profiler.Profiler(tracer=tracer)
     p.start()
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -150,6 +152,7 @@ def test_stack_clears_span_finished_on_another_thread() -> None:
     import time
 
     from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import endpoints
     from ddtrace.profiling import profiler
     from ddtrace.trace import Span
     from ddtrace.trace import tracer
@@ -173,7 +176,7 @@ def test_stack_clears_span_finished_on_another_thread() -> None:
         worker_after_finish()
         tracer.context_provider.activate(None)
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
     p = profiler.Profiler(tracer=tracer)
     p.start()
     span = tracer.trace("cross-thread.request", resource=endpoint, span_type=ext.SpanTypes.WEB)
@@ -211,6 +214,7 @@ def test_stack_preserves_active_child_when_local_root_finishes_first() -> None:
     import time
 
     from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import endpoints
     from ddtrace.profiling import profiler
     from ddtrace.trace import Span
     from ddtrace.trace import tracer
@@ -230,7 +234,7 @@ def test_stack_preserves_active_child_when_local_root_finishes_first() -> None:
         worker_after_root_finish()
         tracer.context_provider.activate(None)
 
-    tracer._endpoint_call_counter_span_processor.enable()
+    endpoints.enable(tracer)
     p = profiler.Profiler(tracer=tracer)
     p.start()
     root = tracer.trace("out-of-order.request", resource=endpoint, span_type=ext.SpanTypes.WEB)

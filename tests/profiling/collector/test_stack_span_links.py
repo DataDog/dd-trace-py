@@ -15,6 +15,6 @@ def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.Monk
     monkeypatch.setattr(stack_module, "clear_span", lambda: cleared.append(True))
 
     collector = StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, None)
+    collector._link_span(None)
 
     assert cleared == [True]

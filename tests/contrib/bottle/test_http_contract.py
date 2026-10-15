@@ -569,3 +569,68 @@ def test_replacement_close_failure_completes_request(app, inspector, snapshots):
     assert snapshots[-1].response_committed
     assert snapshots[-1].errors[0].message == "close failed"
     assert sum(s.phase == HttpRequestPhase.COMPLETED for s in snapshots) == 1
+
+
+@pytest.mark.parametrize("outcome", ["normal", "error", "blocked", "closed", "interleaved"])
+def test_lp_completion_contract_drives_profiling_endpoints(app, inspector, tracer, outcome):
+    from ddtrace.internal.datadog.profiling import endpoints
+    from ddtrace.internal.span_lifecycle import SpanActivationSubscription
+
+    identities = []
+    subscription = SpanActivationSubscription(lambda: tracer.context_provider, identities.append)
+    subscription.start()
+    endpoints.enable(tracer)
+
+    @app.route("/items/<name>")
+    def handler(name):
+        if outcome == "error":
+            raise ValueError("handler failed")
+        if outcome in ("closed", "interleaved"):
+            return iter((b"first", b"second"))
+        return "done"
+
+    def inspect(event):
+        if outcome == "blocked" and event.snapshot.phase == HttpRequestPhase.BEFORE_HANDLER:
+            event.submit(block_response())
+
+    inspector(inspect)
+    try:
+        first = request(app)
+        assert identities[-1] is None
+        if outcome == "interleaved":
+            second = request(app, "/items/two")
+            assert identities[-1] is None
+            assert next(first) == b"first"
+            assert identities[-1] is None
+            second.close()
+        if outcome in ("closed", "interleaved"):
+            first.close()
+            first.close()
+        else:
+            consume(first)
+        counts, roots = endpoints.reset(tracer)
+        expected = 2 if outcome == "interleaved" else 1
+        assert counts == {"GET /items/<name>": expected}
+        assert len(set(roots["GET /items/<name>"])) == expected
+        assert identities[-1] is None
+    finally:
+        endpoints.disable(tracer)
+        subscription.close()
+
+
+def test_profiling_does_not_invent_endpoints_without_tracing(app, snapshots, tracer, monkeypatch):
+    from ddtrace.internal.datadog.profiling import endpoints
+
+    monkeypatch.setattr(tracer, "enabled", False)
+    endpoints.enable(tracer)
+
+    @app.route("/items/<name>")
+    def handler(name):
+        return "done"
+
+    try:
+        assert consume(request(app)) == b"done"
+        assert snapshots[-1].phase == HttpRequestPhase.COMPLETED
+        assert endpoints.reset(tracer) == ({}, {})
+    finally:
+        endpoints.disable(tracer)

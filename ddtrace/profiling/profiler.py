@@ -15,6 +15,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import endpoints
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env as _env
@@ -248,9 +249,6 @@ class _ProfilerInstance(service.Service):
         profiler_config = config_str(profiling_config)
         self.tags.update({"profiler_config": profiler_config})
 
-        if self.endpoint_collection_enabled:
-            self.tracer._endpoint_call_counter_span_processor.enable()
-
         ddup.config(
             env=self.env,
             service=self.service,
@@ -475,12 +473,18 @@ class _ProfilerInstance(service.Service):
         # Start ddup
         self._start_exporter()
 
-        # Start collectors (stack, memory, etc.)
-        self._start_collectors()
+        if self.endpoint_collection_enabled:
+            endpoints.enable(self.tracer)
+        try:
+            # Start collectors (stack, memory, etc.)
+            self._start_collectors()
 
-        # Start the upload scheduler
-        if self._scheduler is not None:
-            self._scheduler.start()
+            # Start the upload scheduler
+            if self._scheduler is not None:
+                self._scheduler.start()
+        except BaseException:
+            endpoints.disable(self.tracer)
+            raise
 
     def _stop_service(self, flush: bool = True, join: bool = True) -> None:
         """Stop the profiler.
@@ -517,6 +521,8 @@ class _ProfilerInstance(service.Service):
                     self._scheduler.flush()
                 except Exception:
                     LOG.error("Error while flushing the last profile", exc_info=True)
+
+        endpoints.disable(self.tracer)
 
         for col in reversed(self._collectors):
             try:
