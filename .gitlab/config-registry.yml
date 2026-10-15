@@ -5,6 +5,8 @@
 #   .update_central_configurations_version_range_v2
 
 validate_supported_configurations_v2_local_file:
+  rules:
+    - when: never
   extends: .validate_supported_configurations_v2_local_file
   stage: tests
   needs: []
@@ -13,6 +15,8 @@ validate_supported_configurations_v2_local_file:
     BACKFILLED: "true"
 
 update_central_configurations_version_range_v2:
+  rules:
+    - when: never
   extends: .update_central_configurations_version_range_v2
   stage: tests
   needs: []

@@ -27,6 +27,32 @@ import typing as t
 
 MAX_BENCHMARKS_PER_GROUP = 2
 MAX_TOTAL_TEST_JOBS = 600
+# EXPERIMENT (do not merge): CPU-asymmetry probe (PR #20052 / APMSP-4059).
+# T6: one scenario, one config, on chosen CPU pairs. When set, restricts the
+# generated microbenchmark matrix to exactly these suites regardless of which
+# suites the changed files would select. Set to None to restore normal
+# generation.
+BENCHMARK_SCENARIO_ALLOWLIST = ("appsec_iast_aspects_ospath",)
+# EXPERIMENT (do not merge): T6 single-benchmark CPU probe -- the cause run.
+# benchmarks/base/run.py replaces that side's CPU_AFFINITY (24-35 candidate /
+# 36-47 baseline, set by run-benchmarks.sh) with BENCH_CPUS_<side> when the
+# env var is set. Candidate and baseline still run concurrently inside each
+# job. Passes: the CPU-24 pair (24/36), a clean pair (25/37), and the swap
+# (36/24); 25/36 is dropped, T5 already showed it clean. Every pass and every
+# repetition is its own matrix job so all runs land in parallel.
+BENCHMARK_CPU_PROBE = {
+    "appsec_iast_aspects_ospath": {
+        # existing run.py config filter (BENCHMARK_CONFIGS), not a new one
+        "configs": "ospathbasename_aspect",
+        # (pass name, candidate CPUs, baseline CPUs)
+        "passes": (
+            ("cand24-base36", "24", "36"),
+            ("cand25-base37", "25", "37"),
+            ("cand36-base24", "36", "24"),
+        ),
+        "repetitions": 2,
+    },
+}
 # Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
 NO_PROXY_ADDITIONS = (
     "icanhazdadjoke.com",
@@ -324,6 +350,12 @@ def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
+    # EXPERIMENT (do not merge): see BENCHMARK_SCENARIO_ALLOWLIST above.
+    # Suites are keyed "benchmarks::<name>"; match on the clean name.
+    if BENCHMARK_SCENARIO_ALLOWLIST is not None:
+        required_suites = [s for s in suites if s.split("::")[-1] in BENCHMARK_SCENARIO_ALLOWLIST]
+        LOGGER.info("Benchmark allowlist active, generating only: %s", required_suites)
+
     if not required_suites:
         MICROBENCHMARKS_GEN.write_text(
             """
@@ -358,6 +390,45 @@ microbenchmark-noop:
         groups[jobspec.cpus_per_run].append(jobspec)
 
     with MICROBENCHMARKS_GEN.open("a") as f:
+        # EXPERIMENT (do not merge): see BENCHMARK_CPU_PROBE above. Probe
+        # scenarios are pulled out of the normal grouping -- they must not
+        # share jobs with other scenarios -- and emitted as one matrix entry
+        # per pass and repetition so everything runs in parallel.
+        probe_jobspecs = {}
+        for jobspecs in groups.values():
+            for jobspec in jobspecs:
+                if jobspec.name in BENCHMARK_CPU_PROBE:
+                    probe_jobspecs[jobspec.name] = jobspec
+        groups = {
+            cpus_per_run: [js for js in jobspecs if js.name not in BENCHMARK_CPU_PROBE]
+            for cpus_per_run, jobspecs in groups.items()
+        }
+        groups = {cpus_per_run: jobspecs for cpus_per_run, jobspecs in groups.items() if jobspecs}
+
+        for name, jobspec in sorted(probe_jobspecs.items()):
+            probe = BENCHMARK_CPU_PROBE[name]
+            for rep in range(probe["repetitions"]):
+                for pass_name, cand_cpus, base_cpus in probe["passes"]:
+                    print(
+                        '      - CPUS_PER_RUN: "%s"\n'
+                        '        SCENARIOS: "%s"\n'
+                        '        BENCHMARK_CONFIGS: "%s"\n'
+                        '        BENCH_CPUS_CANDIDATE: "%s"\n'
+                        '        BENCH_CPUS_BASELINE: "%s"\n'
+                        '        BENCH_PASS: "%s"\n'
+                        '        BENCH_REP: "%d"'
+                        % (
+                            jobspec.cpus_per_run,
+                            name,
+                            probe["configs"],
+                            cand_cpus,
+                            base_cpus,
+                            pass_name,
+                            rep,
+                        ),
+                        file=f,
+                    )
+
         for cpus_per_run, jobspecs in groups.items():
             print(f'      - CPUS_PER_RUN: "{cpus_per_run}"\n        SCENARIOS:', file=f)
             jobspecs = sorted(jobspecs, key=lambda s: s.name)
