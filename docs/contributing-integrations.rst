@@ -328,3 +328,32 @@ The following is the check list for ensuring you have all of the components to h
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
 - A release note for your addition generated with ``uvx --from 'reno==4.1.0' reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.
+
+ASGI HTTP observation scaffold
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The internal ``HttpLifecycleMiddleware`` offers an opt-in counterpart to Bottle's
+HTTP data contract. Install it explicitly around the complete ASGI application::
+
+    from ddtrace import patch
+    from ddtrace.contrib.internal.asgi.lifecycle import HttpLifecycleMiddleware
+
+    patch(starlette=True)
+    app = HttpLifecycleMiddleware(app, framework="starlette")
+
+It emits ``HttpRequestDataEvent`` snapshots at request entry, response readiness,
+response commitment, and completion. With Starlette patching enabled, the final
+route adds route-resolved and before-handler observations, including mount
+prefixes. A method mismatch resolves a route but does not start its handler.
+Generic ASGI applications have no route or before-handler observation.
+
+This is an observation-only scaffold: every snapshot has empty
+``supported_actions``, and no inspection events are dispatched. It creates no
+spans and does not replace the existing tracing or security middleware.
+Request and response bodies are not read or buffered; body fields stay unavailable.
+Duplicate headers are preserved. Commitment means the downstream send accepted
+``http.response.start``; it does not guarantee delivery to a client. Completion
+follows application return or failure, including background work and cancellation,
+rather than the final response-body message. Exceptions caught inside the
+application are not observable here. WebSocket and lifespan scopes pass through.
+Nested wrappers reuse the outer lifecycle. This internal API is experimental.

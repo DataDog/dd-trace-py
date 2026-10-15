@@ -69,3 +69,14 @@ Never implement security policy in the integration or import AppSec here. The ad
 advertises only actions it can enforce at that phase. The API history and exact failure,
 late-decision, and transport rules live in `docs/http-contract-api-changes.rst`. See the HTTP request-data contract in
 `docs/contributing-integrations.rst` for phase timing, ownership, and lifetime rules.
+
+## ASGI HTTP observation scaffold
+
+`contrib/internal/asgi/lifecycle.py` provides an explicitly installed
+`HttpLifecycleMiddleware` that emits immutable HTTP data snapshots without creating
+spans or dispatching inspection events. It forwards ASGI messages unchanged and
+marks response commitment only after the downstream start send succeeds.
+Completion follows application return, including background work and cancellation.
+The optional Starlette route hook runs before the tracing-context guard, accumulates
+mount templates, and emits leaf routing phases without depending on spans.
+All enforcement capabilities are empty. LLMObs integration patterns are unaffected.

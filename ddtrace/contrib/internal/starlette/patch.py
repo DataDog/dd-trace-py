@@ -265,11 +265,17 @@ def traced_handler(wrapped, instance, args, kwargs):
     if not scope:
         return wrapped(*args, **kwargs)
 
+    lifecycle = scope.get("datadog.http_lifecycle")
+    if lifecycle is not None and isinstance(instance, (starlette.routing.Mount, starlette.routing.Route)):
+        lifecycle.route(instance, isinstance(instance, starlette.routing.Route), _get_fastapi_effective_path(scope))
+
     # Our ASGI TraceMiddleware has not been called, skip since
     # we won't have a request span to attach this information onto
     # DEV: This can happen if patching happens after the app has been created
     if "datadog" not in scope:
         log.warning("datadog context not present in ASGI request scope, trace middleware may be missing")
+        if lifecycle is not None and isinstance(instance, starlette.routing.Route):
+            lifecycle.before_handler(instance)
         return wrapped(*args, **kwargs)
 
     # FastAPI >= 0.137 calls super().handle() from APIRoute.handle, causing traced_handler to fire
@@ -358,6 +364,8 @@ def traced_handler(wrapped, instance, args, kwargs):
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
         request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
 
+    if lifecycle is not None and isinstance(instance, starlette.routing.Route):
+        lifecycle.before_handler(instance)
     return wrapped(*args, **kwargs)
 
 
