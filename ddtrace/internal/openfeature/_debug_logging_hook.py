@@ -29,7 +29,7 @@ def debug_logging_enabled() -> bool:
 
 
 class DebugLoggingHook(Hook):
-    """Logs full evaluation details, using finally_after so errored evaluations are covered too."""
+    """Logs evaluation diagnostics, using finally_after so errored evaluations are covered too."""
 
     def finally_after(
         self,
@@ -37,8 +37,12 @@ class DebugLoggingHook(Hook):
         details: FlagEvaluationDetails[typing.Any],
         hints: HookHints,
     ) -> None:
-        # The details carry the flag key, value, variant, reason, error and flag
-        # metadata, but never the evaluation context (targeting key/attributes).
-        # Formatting is deferred to the logging framework, which reports its own
-        # errors instead of raising, and the SDK guards hooks as well.
-        log.debug("Feature Flags: evaluated %s: %r", hook_context.flag_key, details)
+        # Values, raw errors and arbitrary metadata can contain sensitive data.
+        # Full-data consent for evaluation telemetry does not authorize logging them.
+        log.debug(
+            "Feature Flags: evaluated %s: variant=%r, reason=%s, error_code=%s",
+            hook_context.flag_key,
+            details.variant,
+            details.reason,
+            details.error_code,
+        )
