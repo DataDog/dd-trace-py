@@ -32,6 +32,7 @@ TELEMETRY_OFF_VERBOSITY = 40
 class IAST(metaclass=Constant_Class):
     """Specific constants for IAST"""
 
+    ORIGIN_VALUE: Literal["appsec"] = "appsec"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     STRUCT: Literal["iast"] = "iast"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
