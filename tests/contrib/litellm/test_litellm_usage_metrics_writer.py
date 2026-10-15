@@ -138,6 +138,31 @@ def test_otlp_export_decodes(otlp_endpoint):
     assert point.start_time_unix_nano < point.time_unix_nano
 
 
+def test_a_wall_clock_set_back_does_not_invert_the_window(otlp_endpoint):
+    metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
+    writer = UsageMetricsWriter("otlp", interval=60, metrics=["gen_ai.client.inference.usage.input_tokens"])
+    # As if the clock went back ten seconds since the window started.
+    writer._window_start_ns = time.time_ns() + 10_000_000_000
+    writer.record(PROVIDER_ATTEMPT, *observation(input_tokens=10))
+    writer.flush()
+    request = metrics_service_pb2.ExportMetricsServiceRequest()
+    request.ParseFromString(Collector.requests[0][2])
+    [point] = request.resource_metrics[0].scope_metrics[0].metrics[0].sum.data_points
+    assert point.start_time_unix_nano <= point.time_unix_nano
+
+
+def test_the_shutdown_deadline_is_capped(otlp_endpoint, monkeypatch):
+    # A caller's deadline later than the shutdown time does not extend it.
+    monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0.5)
+    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    Collector.delay = 3
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    started = time.monotonic()
+    writer.on_shutdown(time.monotonic() + 30)
+    assert time.monotonic() - started < 2
+
+
 def test_otlp_export_failures_never_raise(otlp_endpoint, collector, monkeypatch, sleeps):
     Collector.status = 500
     writer = UsageMetricsWriter("otlp", interval=60)

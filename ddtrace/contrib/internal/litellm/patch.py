@@ -1,4 +1,5 @@
 import sys
+import time
 
 import litellm
 
@@ -338,10 +339,10 @@ def _export_interval_seconds() -> float:
     return float(interval_ms) / 1000.0
 
 
-def _flush_usage_metrics_on_exit_signal():
+def _flush_usage_metrics_on_exit_signal(deadline=None):
     writer = getattr(litellm, "_datadog_usage_metrics_writer", None)
     if writer is not None:
-        writer.on_shutdown()
+        writer.on_shutdown(deadline)
 
 
 class _ExitSignalFlush(SpanProcessor):
@@ -356,7 +357,7 @@ class _ExitSignalFlush(SpanProcessor):
         pass
 
     def shutdown(self, timeout):
-        _flush_usage_metrics_on_exit_signal()
+        _flush_usage_metrics_on_exit_signal(None if timeout is None else time.monotonic() + max(timeout, 0.0))
 
 
 def _enable_usage_metrics():

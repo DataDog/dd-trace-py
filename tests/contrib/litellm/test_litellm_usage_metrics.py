@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import threading
+import time
 
 import litellm
 import pytest
@@ -1192,6 +1193,15 @@ def test_patching_off_the_main_thread_flushes_on_tracer_shutdown(enabled, monkey
     monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda *args: flushed.append(True))
     processor.shutdown(None)
     assert flushed == [True]
+    # The tracer's shutdown timeout bounds the flush.
+    deadlines = []
+    monkeypatch.setattr(
+        litellm._datadog_usage_metrics_writer, "on_shutdown", lambda deadline=None: deadlines.append(deadline)
+    )
+    before = time.monotonic()
+    processor.shutdown(0)
+    [deadline] = deadlines
+    assert before <= deadline <= time.monotonic()
 
 
 def test_a_non_positive_export_interval_falls_back_to_the_default(monkeypatch):

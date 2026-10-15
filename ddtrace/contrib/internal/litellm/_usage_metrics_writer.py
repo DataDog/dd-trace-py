@@ -357,13 +357,15 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
     def flush(self, retry: bool = True, deadline: Optional[float] = None) -> None:
         # At exit (retry False), the whole flush has the shutdown time, or what deadline leaves of it, waiting for one
         # in progress included.
-        if not retry and deadline is None:
-            deadline = time.monotonic() + _SHUTDOWN_SECONDS
+        if not retry:
+            limit = time.monotonic() + _SHUTDOWN_SECONDS
+            deadline = limit if deadline is None else min(deadline, limit)
         if not self._flush_lock.acquire(timeout=-1 if deadline is None else max(deadline - time.monotonic(), 0.0)):
             log.debug("LiteLLM usage metrics: a flush in progress outlasted the shutdown time")
             return
         try:
-            end_ns = time.time_ns()
+            # A wall clock set back must not end the window before it starts.
+            end_ns = max(time.time_ns(), self._window_start_ns)
             start_ns, self._window_start_ns = self._window_start_ns, end_ns
             if self._otlp is not None:
                 payload = self._usage.take_otlp(SCOPE_NAME, __version__, start_ns, end_ns)
