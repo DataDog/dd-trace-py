@@ -1,12 +1,9 @@
-from collections.abc import Sequence
 import contextvars
 from functools import partial
-import importlib
-import inspect
-import json
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Sequence
 import uuid
 
 from ddtrace.aiguard import AIGuardAbortError
@@ -39,6 +36,11 @@ action_agents_classes = (
     "openai_functions_multi_agent.base.OpenAIMultiFunctionsAgent",
 )
 
+# The LangChain model calls in progress in this context, innermost last.
+_SCOPES: contextvars.ContextVar[tuple["_CallScope", ...]] = contextvars.ContextVar(
+    "ai_guard_langchain_scopes", default=()
+)
+
 
 def _langchain_patch(client: AIGuardClient) -> None:
     # langchain < 1.0: agents subclass one of the action-agent classes and
@@ -64,30 +66,36 @@ def _langchain_patch(client: AIGuardClient) -> None:
 
     # With stream analysis on, a LangChain stream is read in full and its response evaluated before the caller
     # gets a chunk, and the run manager's callbacks are held until then, inside generate too (see _CallScope).
-    for module_name, method, make_wrapper in _MODEL_CALL_TARGETS:
+    chat_models = "langchain_core.language_models.chat_models"
+    llms = "langchain_core.language_models.llms"
+    run_managers = "langchain_core.callbacks.manager"
+    for module_name, method, wrapper in (
+        (chat_models, "BaseChatModel.stream", partial(_langchain_buffered_stream, client, True)),
+        (chat_models, "BaseChatModel.astream", partial(_langchain_buffered_astream, client, True)),
+        (llms, "BaseLLM.stream", partial(_langchain_buffered_stream, client, False)),
+        (llms, "BaseLLM.astream", partial(_langchain_buffered_astream, client, False)),
+        (run_managers, "CallbackManagerForLLMRun.on_llm_new_token", _langchain_run_new_token),
+        (run_managers, "CallbackManagerForLLMRun.on_llm_end", _langchain_run_end),
+        (run_managers, "AsyncCallbackManagerForLLMRun.on_llm_new_token", _langchain_arun_new_token),
+        (run_managers, "AsyncCallbackManagerForLLMRun.on_llm_end", _langchain_arun_end),
+    ):
         try:
-            wrap(module_name, method, make_wrapper(client))
-            class_name, method_name = method.split(".")
-            owner = getattr(importlib.import_module(module_name), class_name)
-            _installed_wrappers.append((owner, method_name, owner.__dict__[method_name]))
+            wrap(module_name, method, wrapper)
         except Exception:
             logger.debug("Failed to instrument %s.%s", module_name, method, exc_info=True)
 
 
 def _langchain_unpatch() -> None:
     try:
-        import langchain.agents  # noqa: F401
+        import langchain.agents
     except ImportError:
         logger.debug("Failed to unpatch langchain.agents")
     else:
         for class_ in action_agents_classes:
             try:
-                if "." in class_:
-                    module_path, class_name = class_.rsplit(".", 1)
-                    module = __import__("langchain.agents." + module_path, fromlist=[class_name])
-                else:
-                    module, class_name = langchain.agents, class_
-                agent_class = getattr(module, class_name)
+                agent_class = langchain.agents
+                for part in class_.split("."):
+                    agent_class = getattr(agent_class, part)
                 unwrap(agent_class, "plan")
                 unwrap(agent_class, "aplan")
             except Exception:
@@ -101,26 +109,29 @@ def _langchain_unpatch() -> None:
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
 
-    while _installed_wrappers:
-        owner, method_name, installed = _installed_wrappers.pop()
-        try:
-            _remove_layer(owner, method_name, installed)
-        except Exception:
-            logger.debug("Failed to unpatch %s.%s", owner, method_name, exc_info=True)
-
-
-def _remove_layer(owner: type, method_name: str, installed: Any) -> None:
-    """Take AI Guard's wrapper out of owner.method_name, keeping any wrapper another library put over it."""
-    current = owner.__dict__.get(method_name)
-    if current is installed:
-        setattr(owner, method_name, installed.__wrapped__)
+    try:
+        from langchain_core.callbacks.manager import AsyncCallbackManagerForLLMRun
+        from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+        from langchain_core.language_models.chat_models import BaseChatModel
+        from langchain_core.language_models.llms import BaseLLM
+    except ImportError:
+        logger.debug("Failed to unpatch langchain_core")
         return
-    while current is not None:
-        inner = getattr(current, "__wrapped__", None)
-        if inner is installed:
-            current.__wrapped__ = installed.__wrapped__
-            return
-        current = inner
+
+    for owner, method in (
+        (BaseChatModel, "stream"),
+        (BaseChatModel, "astream"),
+        (BaseLLM, "stream"),
+        (BaseLLM, "astream"),
+        (CallbackManagerForLLMRun, "on_llm_new_token"),
+        (CallbackManagerForLLMRun, "on_llm_end"),
+        (AsyncCallbackManagerForLLMRun, "on_llm_new_token"),
+        (AsyncCallbackManagerForLLMRun, "on_llm_end"),
+    ):
+        try:
+            unwrap(owner, method)
+        except Exception:
+            logger.debug("Failed to unpatch %s.%s", owner.__name__, method, exc_info=True)
 
 
 def _langchain_agent_plan(
@@ -155,16 +166,6 @@ async def _langchain_toolnode_arun_one(
     """Async variant of :func:`_langchain_toolnode_run_one`."""
     _evaluate_langchain_tool_call(client, args, kwargs)
     return await func(*args, **kwargs)
-
-
-def _try_parse_json(value: dict[str, Any], attribute: str) -> Any:
-    json_str = value.get(attribute, None)
-    if json_str is None:
-        return None
-    try:
-        return json.loads(json_str)
-    except Exception:
-        return {attribute: json_str}
 
 
 def _get_message_text(msg: Any) -> str:
@@ -255,6 +256,8 @@ def _canonical_arguments(value: Any) -> str:
     function_call arguments as a JSON string while the agent hook holds the parsed
     mapping, so both are normalised through the same sorted dump.
     """
+    import json
+
     if isinstance(value, str):
         try:
             parsed = json.loads(value)
@@ -739,12 +742,6 @@ def _push_generate_scope(client: AIGuardClient) -> _CallScope:
     return scope
 
 
-# The LangChain model calls in progress in this context, innermost last.
-_SCOPES: contextvars.ContextVar[tuple[_CallScope, ...]] = contextvars.ContextVar(
-    "ai_guard_langchain_scopes", default=()
-)
-
-
 def _holding_scope() -> Optional[_CallScope]:
     scopes = _SCOPES.get()
     return scopes[-1] if scopes and scopes[-1].holds else None
@@ -834,7 +831,9 @@ async def _aread_then_replay(scope: _CallScope, stream: Any) -> Any:
             yield chunk
     finally:
         for end in scope.ends or ():
-            await _call(end)
+            result = end()
+            if result is not None:
+                await result
 
 
 def _record_fingerprints(scope: _CallScope, chunks: list[Any]) -> None:
@@ -905,36 +904,12 @@ async def _langchain_arun_end(func: Callable[..., Any], instance: Any, args: Any
             except Exception:
                 logger.debug("AI Guard langchain: on_llm_error callback failed", exc_info=True)
             raise
+        # Callbacks held from the sync manager that get_sync() derives return None instead of a coroutine.
         for call in held:
-            await _call(call)
+            result = call()
+            if result is not None:
+                await result
         if scope.ends is not None:
             scope.ends.append(partial(func, *args, **kwargs))
             return None
     return await func(*args, **kwargs)
-
-
-async def _call(call: Callable[[], Any]) -> None:
-    # A callback held from the sync manager LangChain derives with get_sync() returns no awaitable.
-    result = call()
-    if inspect.isawaitable(result):
-        await result
-
-
-# The wrappers AI Guard installed on the model-call targets, so unpatch removes only its own layer.
-_installed_wrappers: list[tuple[type, str, Any]] = []
-
-_CHAT_MODELS = "langchain_core.language_models.chat_models"
-_LLMS = "langchain_core.language_models.llms"
-_RUN_MANAGERS = "langchain_core.callbacks.manager"
-
-# The LangChain methods AI Guard wraps for stream buffering and callback holding, with each one's wrapper.
-_MODEL_CALL_TARGETS: tuple[tuple[str, str, Callable[[AIGuardClient], Callable[..., Any]]], ...] = (
-    (_CHAT_MODELS, "BaseChatModel.stream", lambda client: partial(_langchain_buffered_stream, client, True)),
-    (_CHAT_MODELS, "BaseChatModel.astream", lambda client: partial(_langchain_buffered_astream, client, True)),
-    (_LLMS, "BaseLLM.stream", lambda client: partial(_langchain_buffered_stream, client, False)),
-    (_LLMS, "BaseLLM.astream", lambda client: partial(_langchain_buffered_astream, client, False)),
-    (_RUN_MANAGERS, "CallbackManagerForLLMRun.on_llm_new_token", lambda client: _langchain_run_new_token),
-    (_RUN_MANAGERS, "CallbackManagerForLLMRun.on_llm_end", lambda client: _langchain_run_end),
-    (_RUN_MANAGERS, "AsyncCallbackManagerForLLMRun.on_llm_new_token", lambda client: _langchain_arun_new_token),
-    (_RUN_MANAGERS, "AsyncCallbackManagerForLLMRun.on_llm_end", lambda client: _langchain_arun_end),
-)

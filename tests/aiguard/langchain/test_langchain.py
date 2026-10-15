@@ -1834,26 +1834,6 @@ def test_unpatch_removes_every_layer_of_the_stream_wrappers(langchain):
     assert not hasattr(BaseChatModel.__dict__["astream"], "__wrapped__")
 
 
-def test_unpatch_leaves_a_wrapper_installed_after_ai_guard(langchain):
-    """Another library may wrap a method after LangChain is patched; unpatch must not remove that wrapper."""
-    from langchain_core.callbacks.manager import CallbackManagerForLLMRun
-    import wrapt
-
-    from ddtrace.contrib.internal.langchain.patch import unpatch
-
-    ai_guard_layer = CallbackManagerForLLMRun.__dict__["on_llm_end"]
-    original = ai_guard_layer.__wrapped__
-    external = wrapt.FunctionWrapper(ai_guard_layer, lambda func, instance, args, kwargs: func(*args, **kwargs))
-    CallbackManagerForLLMRun.on_llm_end = external
-    try:
-        unpatch()
-        assert CallbackManagerForLLMRun.__dict__["on_llm_end"] is external
-        # AI Guard's layer is taken out from under the later wrapper, so a repatch does not stack a second one.
-        assert external.__wrapped__ is original
-    finally:
-        CallbackManagerForLLMRun.on_llm_end = original
-
-
 class _FailingStream:
     """A stream that yields one chunk, then fails; records whether the reader closed it."""
 
