@@ -81,5 +81,7 @@ class ResourceRenamingProcessor(SpanProcessor):
 
         if not is_404 and (not route or config._trace_resource_renaming_always_simplified_endpoint):
             url = span.get_tag(http.URL)
+            if not url:
+                return
             endpoint = self.simplified_endpoint_computer.from_url(url)
             span._set_attribute(http.ENDPOINT, endpoint)

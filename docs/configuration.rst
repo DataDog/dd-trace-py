@@ -772,7 +772,7 @@ AI Guard
      description: |
        Timeout of each request to the AI Guard service. The value is currently applied with
        whole-second granularity: it is rounded down to the nearest second, so set it to at least
-       ``1000``.
+       ``1000``. A value below ``1000`` logs a warning at startup and the default is used instead.
 
    DD_AI_GUARD_MAX_CONTENT_SIZE:
      type: Integer
@@ -1283,7 +1283,9 @@ Logs
 
      description: |
          When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
-         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+         by the OpenTelemetry Logging API. Setting ``OTEL_LOGS_EXPORTER=otlp`` also enables this support, while
+         ``OTEL_LOGS_EXPORTER=none`` disables it. If both environment variables are set,
+         ``DD_LOGS_OTEL_ENABLED`` takes precedence. The application must also include its own OTLP logs exporter.
 
      version_added:
        v3.12.0: Adds support for submitting logs via an OTLP Exporter.
