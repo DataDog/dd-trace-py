@@ -6,4 +6,5 @@ packages:
 - name: typesafe-sdk
 category:
 - gen_ai
+systems: []
 creation_date: '2026-10-14'
