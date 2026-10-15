@@ -1734,7 +1734,7 @@ def pytest_configure(config: pytest.Config) -> None:
                         "effect; this pytest plugin is always used. Remove the environment variable from your "
                         "configuration."
                     ),
-                    removal_version="5.0.0",
+                    removal_version="?",
                 )
             ),
             stacklevel=2,
@@ -1748,7 +1748,7 @@ def pytest_configure(config: pytest.Config) -> None:
                         "the legacy pytest plugin has been removed. The environment variable no longer has any "
                         "effect and can be removed from your configuration."
                     ),
-                    removal_version="5.0.0",
+                    removal_version="?",
                 )
             ),
             stacklevel=2,
@@ -1762,7 +1762,7 @@ def pytest_configure(config: pytest.Config) -> None:
                         "the legacy pytest plugin that supported them has been removed. Class names are always "
                         "included in test names; remove the option from your command line or configuration."
                     ),
-                    removal_version="5.0.0",
+                    removal_version="?",
                 )
             ),
             stacklevel=2,
