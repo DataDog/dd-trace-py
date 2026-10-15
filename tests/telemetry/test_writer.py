@@ -914,8 +914,8 @@ def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatc
             assert first_worker.start_calls == 1
             runtime.refresh_identity()
 
-            assert first_worker.drop_calls == 0
-            assert first_worker.stop_calls == [False]
+            assert first_worker.drop_calls == 1
+            assert first_worker.stop_calls == []
             assert workers[-1] is writer._worker
             assert workers[-1].kwargs["runtime_id"] == runtime.get_runtime_id()
             assert workers[-1].kwargs["session_id"] == runtime.get_runtime_id()
@@ -933,6 +933,134 @@ def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatc
             writer.disable()
             _runtime_id._RUNTIME_ID = original_runtime_id
             assert callbacks == set()
+
+
+def test_microvm_shared_worker_handout_rebuilds_stale_worker(monkeypatch):
+    """The trace exporter must never be handed a telemetry worker built for an older runtime ID.
+
+    The refresh registry is an unordered set, so the tracer callback can rebuild the trace writer, and
+    ask for a worker, after the ID rotated but before this writer's own refresh callback ran.
+    """
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+    import ddtrace.internal.native as native
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    workers = []
+    original_runtime_id = runtime.get_runtime_id()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", set())
+
+    class FakeTelemetryWorker:
+        def __init__(self, native_runtime, **kwargs):
+            self.kwargs = kwargs
+            self.start_calls = 0
+            workers.append(self)
+
+        def start(self):
+            self.start_calls += 1
+
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                pass
+
+            return _noop
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", False),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=True),
+        mock.patch.object(native, "TelemetryWorker", FakeTelemetryWorker),
+        mock.patch("ddtrace.internal.native_runtime.get_native_runtime", return_value=object()),
+    ):
+        writer = TelemetryWriter(agentless=False)
+        monkeypatch.setattr(ddtrace.internal.telemetry, "telemetry_writer", writer)
+        try:
+            writer.app_started()
+            stale_worker = workers[-1]
+
+            # Rotate the ID without running refresh callbacks, as if the tracer callback ran first.
+            _runtime_id._refresh_runtime_id()
+            shared_worker = writer._get_shared_worker()
+
+            assert shared_worker is not stale_worker
+            assert shared_worker.kwargs["runtime_id"] == runtime.get_runtime_id()
+
+            # The telemetry callback that runs afterwards must not rebuild the worker again.
+            writer._refresh_runtime_identity(runtime.get_runtime_id())
+            assert writer._worker is shared_worker
+            assert shared_worker.start_calls == 1
+        finally:
+            writer.disable()
+            _runtime_id._RUNTIME_ID = original_runtime_id
+
+
+def test_microvm_shared_worker_handout_withholds_worker_when_drop_fails(monkeypatch):
+    """If the stale worker can't be dropped, the exporter gets no worker rather than the stale one."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+    import ddtrace.internal.native as native
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    workers = []
+    original_runtime_id = runtime.get_runtime_id()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", set())
+
+    class FakeTelemetryWorker:
+        def __init__(self, native_runtime, **kwargs):
+            workers.append(self)
+
+        def drop(self):
+            raise RuntimeError("drop failed")
+
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                pass
+
+            return _noop
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", False),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=True),
+        mock.patch.object(native, "TelemetryWorker", FakeTelemetryWorker),
+        mock.patch("ddtrace.internal.native_runtime.get_native_runtime", return_value=object()),
+    ):
+        writer = TelemetryWriter(agentless=False)
+        monkeypatch.setattr(ddtrace.internal.telemetry, "telemetry_writer", writer)
+        try:
+            writer.app_started()
+            stale_worker = workers[-1]
+
+            _runtime_id._refresh_runtime_id()
+
+            assert writer._get_shared_worker() is None
+            # The failed drop() keeps the old worker, which must still never be handed out.
+            assert writer._worker is stale_worker
+        finally:
+            # Release the fake worker directly; its drop() always raises.
+            writer._worker = None
+            writer.disable()
+            _runtime_id._RUNTIME_ID = original_runtime_id
+
+
+def test_microvm_identity_refresh_discard_failure_propagates():
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    worker = mock.Mock()
+    worker.drop.side_effect = RuntimeError("discard failed")
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._enabled = True
+    writer._worker = worker
+    writer._worker_access_lock = threading.RLock()
+    writer.started = True
+    writer._dependency_tracker = mock.Mock()
+
+    with pytest.raises(RuntimeError, match="discard failed"):
+        writer._refresh_runtime_identity("new-runtime-id")
+
+    assert writer._worker is worker
+    assert writer.started is True
+    writer._dependency_tracker.refresh.assert_not_called()
 
 
 def test_microvm_identity_refresh_stops_legacy_worker_without_drop():
@@ -977,8 +1105,7 @@ def test_microvm_identity_refresh_stop_failure_propagates():
     writer = TelemetryWriter.__new__(TelemetryWriter)
     writer._enabled = True
     writer._worker = worker
-    writer._is_microvm = True
-    writer._enable_lock = threading.RLock()
+    writer._worker_access_lock = threading.RLock()
     writer.started = True
     writer._dependency_tracker = mock.Mock()
     writer.enable = mock.Mock(return_value=True)
@@ -1000,6 +1127,30 @@ def test_microvm_identity_refresh_stop_failure_propagates():
     writer.enable.assert_not_called()
 
 
+def test_microvm_identity_refresh_drops_worker_without_stop():
+    """A native drop() discards the worker without the flushing stop(), then detaches it."""
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    worker = mock.Mock(spec=["drop", "stop"])
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._worker = worker
+    writer.started = True
+    writer._worker_subscribers = []
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders") as unbind,
+        mock.patch.object(writer, "_notify_worker_changed") as notify,
+    ):
+        writer._discard_worker("while refreshing runtime identity")
+
+    worker.drop.assert_called_once_with()
+    worker.stop.assert_not_called()
+    assert writer._worker is None
+    assert writer.started is False
+    unbind.assert_called_once_with(writer)
+    notify.assert_called_once_with(None)
+
+
 def test_microvm_identity_refresh_retries_failed_rebuild():
     from ddtrace.internal.telemetry.writer import TelemetryWriter
 
@@ -1011,6 +1162,7 @@ def test_microvm_identity_refresh_retries_failed_rebuild():
     writer._is_microvm = True
     writer._worker = old_worker
     writer._enable_lock = lock
+    writer._worker_access_lock = lock
     writer._worker_subscribers = []
     writer._metric_contexts = {}
     writer._metric_lock = threading.Lock()
@@ -1052,6 +1204,7 @@ def _microvm_refresh_writer(workers):
     writer._worker = None
     writer._worker_runtime_id = None
     writer._enable_lock = lock
+    writer._worker_access_lock = lock
     writer._worker_subscribers = []
     writer._metric_contexts = {}
     writer._metric_lock = threading.Lock()
@@ -1163,7 +1316,7 @@ def test_microvm_periodic_retries_failed_discard():
     from ddtrace.internal import runtime
 
     old_worker, replacement_worker = mock.Mock(), mock.Mock()
-    old_worker.stop.side_effect = [RuntimeError("stop failed"), None]
+    old_worker.drop.side_effect = [RuntimeError("drop failed"), None]
     writer = _microvm_refresh_writer([old_worker, replacement_worker])
     original_runtime_id = runtime.get_runtime_id()
 
@@ -1175,7 +1328,7 @@ def test_microvm_periodic_retries_failed_discard():
             writer.app_started()
             _runtime_id._refresh_runtime_id()
 
-            with pytest.raises(RuntimeError, match="stop failed"):
+            with pytest.raises(RuntimeError, match="drop failed"):
                 writer._refresh_runtime_identity(runtime.get_runtime_id())
             assert writer._worker is old_worker
 
@@ -1183,7 +1336,7 @@ def test_microvm_periodic_retries_failed_discard():
 
             assert writer._worker is replacement_worker
             assert writer._worker_runtime_id == runtime.get_runtime_id()
-            assert old_worker.stop.call_count == 2
+            assert old_worker.drop.call_count == 2
             replacement_worker.start.assert_called_once_with()
             assert writer.started is True
         finally:
@@ -1191,9 +1344,9 @@ def test_microvm_periodic_retries_failed_discard():
 
 
 def test_microvm_identity_refresh_contains_native_panic_and_keeps_stale_worker():
-    """A Rust panic from the old worker's stop() must not abort /run, and the stale worker stays for the retry."""
+    """A Rust panic from the old worker's drop() must not abort /run, and the stale worker stays for the retry."""
     old_worker, replacement_worker = mock.Mock(), mock.Mock()
-    old_worker.stop.side_effect = [_FakePanicException("stop panicked"), KeyboardInterrupt(), None]
+    old_worker.drop.side_effect = [_FakePanicException("drop panicked"), KeyboardInterrupt(), None]
     writer = _microvm_refresh_writer([old_worker, replacement_worker])
 
     with (
@@ -1223,7 +1376,7 @@ def test_microvm_periodic_contains_native_panic_from_stale_worker_rebuild():
     from ddtrace.internal import runtime
 
     old_worker, replacement_worker = mock.Mock(), mock.Mock()
-    old_worker.stop.side_effect = [_FakePanicException("stop panicked"), None]
+    old_worker.drop.side_effect = [_FakePanicException("drop panicked"), None]
     writer = _microvm_refresh_writer([old_worker, replacement_worker])
     original_runtime_id = runtime.get_runtime_id()
 
@@ -1569,6 +1722,8 @@ def test_app_started_holds_enable_lock_only_in_microvm(is_microvm):
     worker = mock.Mock()
     writer = _microvm_refresh_writer([worker])
     writer._is_microvm = is_microvm
+    # 19821 serializes app_started() on the worker access lock, which only MicroVM writers have.
+    writer._worker_access_lock = writer._enable_lock if is_microvm else None
     lock_held = []
     worker.start.side_effect = lambda: lock_held.append(writer._enable_lock._is_owned())
 
@@ -1616,6 +1771,8 @@ def test_dependency_report_holds_enable_lock_only_in_microvm(is_microvm):
     """A MicroVM refresh must not land between reading the worker and consuming the dependency report."""
     writer = _microvm_refresh_writer([mock.Mock()])
     writer._is_microvm = is_microvm
+    # 19821 serializes collection on the worker access lock, which only MicroVM writers have.
+    writer._worker_access_lock = writer._enable_lock if is_microvm else None
     lock_held = []
     tracker = mock.Mock()
     tracker.collect_report.side_effect = lambda: lock_held.append(writer._enable_lock._is_owned()) or [
@@ -1680,6 +1837,7 @@ def test_periodic_skips_stale_worker_check_outside_microvm():
     worker = mock.Mock()
     writer = _microvm_refresh_writer([worker])
     writer._is_microvm = False
+    writer._worker_access_lock = None
 
     with mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"):
         writer.app_started()
@@ -1709,8 +1867,8 @@ def test_microvm_identity_refresh_emits_new_runtime_id(telemetry_writer, test_ag
 
     telemetry_writer._is_microvm = True
     # The fixture writer was built outside a MicroVM with a non-reentrant lock; refresh re-enters
-    # it through enable(), so install the RLock a MicroVM writer would use.
-    telemetry_writer._enable_lock = threading.RLock()
+    # it through enable(), so install the shared RLock a MicroVM writer would use.
+    telemetry_writer._enable_lock = telemetry_writer._worker_access_lock = threading.RLock()
     runtime.on_runtime_identity_refresh(telemetry_writer._refresh_runtime_identity)
 
     try:
@@ -1750,12 +1908,96 @@ def test_non_microvm_writer_does_not_register_identity_refresh(monkeypatch):
     ):
         writer = TelemetryWriter(agentless=False)
 
-    assert writer._is_microvm is False
+    assert writer._worker_access_lock is None
     assert callbacks == set()
 
     with mock.patch.object(writer, "_refresh_runtime_identity_without_lock") as refresh:
         writer._refresh_runtime_identity("new-runtime-id")
     refresh.assert_not_called()
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_worker_subscription_initial_sync_is_microvm_only(is_microvm):
+    class Subscriber:
+        def __init__(self):
+            self.workers = []
+
+        def on_worker_changed(self, worker):
+            self.workers.append(worker)
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = is_microvm
+    writer._worker_access_lock = threading.RLock() if is_microvm else None
+    writer._worker_subscribers = []
+    first_worker = object()
+    second_worker = object()
+    writer._worker = first_worker
+    subscriber = Subscriber()
+
+    writer._subscribe_worker_changes(subscriber.on_worker_changed, first_worker)
+    writer._notify_worker_changed(second_worker)
+
+    assert subscriber.workers == [second_worker]
+
+
+def test_microvm_worker_subscription_syncs_replacement():
+    class Subscriber:
+        def __init__(self):
+            self.workers = []
+
+        def on_worker_changed(self, worker):
+            self.workers.append(worker)
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = True
+    writer._worker_access_lock = threading.RLock()
+    writer._worker_subscribers = []
+    first_worker = object()
+    second_worker = object()
+    writer._worker = second_worker
+    subscriber = Subscriber()
+
+    writer._subscribe_worker_changes(subscriber.on_worker_changed, first_worker)
+
+    assert subscriber.workers == [second_worker]
+
+
+def test_microvm_worker_subscription_can_sync_a_local_target():
+    class Subscriber:
+        def on_worker_changed(self, worker):
+            pass
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = True
+    writer._worker_access_lock = threading.RLock()
+    writer._worker_subscribers = []
+    first_worker = object()
+    second_worker = object()
+    writer._worker = second_worker
+    subscriber = Subscriber()
+    late_callback = mock.Mock()
+
+    writer._subscribe_worker_changes(subscriber.on_worker_changed, first_worker, late_callback)
+
+    late_callback.assert_called_once_with(second_worker)
+
+
+def test_non_microvm_worker_subscription_does_not_use_late_callback():
+    class Subscriber:
+        def on_worker_changed(self, worker):
+            pass
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = False
+    writer._worker_access_lock = None
+    writer._worker_subscribers = []
+    writer._worker = object()
+
+    subscriber = Subscriber()
+    late_callback = mock.Mock()
+    writer._subscribe_worker_changes(subscriber.on_worker_changed, object(), late_callback)
+
+    late_callback.assert_not_called()
 
 
 @pytest.mark.parametrize("is_microvm", [True, False])
@@ -1771,8 +2013,8 @@ def test_configuration_replay_store_is_microvm_only(is_microvm):
         "ddtrace.internal.telemetry.writer._native_telemetry_enums",
         return_value={"origin": mock.Mock(env_var="env_var", unknown="unknown")},
     ):
-        writer.add_configuration("single.config", True, "env_var")
-        writer.add_configurations([("bulk.config", False, "env_var")])
+        writer._add_configuration_without_lock("single.config", True, "env_var", None)
+        writer._add_configurations_without_lock([("bulk.config", False, "env_var")])
 
     assert writer._worker.add_configuration.call_count == 2
     if is_microvm:
@@ -1796,8 +2038,8 @@ def test_integration_and_product_replay_store_is_microvm_only(is_microvm):
     writer._product_versions = {}
     writer.enable = mock.Mock(return_value=True)
 
-    writer.add_integration("flask", True, auto_patched=True, error_msg="", version="1.0")
-    writer.product_activated("appsec", True)
+    writer._add_integration_without_lock("flask", True, auto_patched=True, error_msg="", version="1.0")
+    writer._product_activated_without_lock("appsec", True)
 
     writer._worker.add_integration.assert_called_once_with("flask", "1.0", True, True, True, None)
     writer._worker.add_product_change.assert_called_once()
@@ -1876,9 +2118,145 @@ def test_metric_recorder_rebind_keeps_context_paired_with_worker():
     assert contexts == [old_context]
 
 
+def test_report_endpoints_tolerates_concurrent_registration():
+    """add_endpoint() inserts into the set before its callback waits for the worker lock, so a request
+    can add an endpoint while a MicroVM refresh replays the set under that lock.
+    """
+    from ddtrace.internal.endpoints import HttpEndPoint
+
+    collection = mock.Mock(endpoints={HttpEndPoint(method="GET", path="/a")})
+    worker = mock.Mock()
+    worker.add_endpoint.side_effect = lambda *args, **kwargs: collection.endpoints.add(
+        HttpEndPoint(method="GET", path="/b")
+    )
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._worker = worker
+
+    with mock.patch("ddtrace.internal.telemetry.writer.endpoint_collection", collection):
+        writer._report_endpoints_without_lock()
+
+    assert [call.args[:2] for call in worker.add_endpoint.call_args_list] == [("GET", "/a")]
+
+
+def test_worker_subscription_can_be_removed():
+    class Subscriber:
+        def __init__(self):
+            self.workers = []
+
+        def on_worker_changed(self, worker):
+            self.workers.append(worker)
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = True
+    writer._worker_access_lock = threading.RLock()
+    writer._worker_subscribers = []
+    worker = object()
+    writer._worker = worker
+    subscriber = Subscriber()
+
+    writer._subscribe_worker_changes(subscriber.on_worker_changed, worker)
+    writer._unsubscribe_worker_changes(subscriber.on_worker_changed)
+    writer._notify_worker_changed(object())
+
+    assert subscriber.workers == []
+
+
+def test_microvm_metric_recording_serializes_identity_refresh():
+    """A MicroVM refresh waits for an in-flight metric write on the old worker."""
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    class TrackingLock:
+        def __init__(self):
+            self._lock = threading.RLock()
+            self._attempts = 0
+            self._attempts_lock = threading.Lock()
+            self.metric_acquired = threading.Event()
+            self.refresh_attempted = threading.Event()
+
+        def __enter__(self):
+            with self._attempts_lock:
+                self._attempts += 1
+                if self._attempts == 1:
+                    self.metric_acquired.set()
+                elif self._attempts == 2:
+                    self.refresh_attempted.set()
+            self._lock.acquire()
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self._lock.release()
+
+    class BlockingWorker:
+        def __init__(self):
+            self.point_entered = threading.Event()
+            self.release_point = threading.Event()
+            self.stopped = False
+
+        def add_point(self, context, value):
+            self.point_entered.set()
+            assert self.release_point.wait(5)
+            assert not self.stopped
+
+        def drop(self):
+            self.stopped = True
+
+        def stop(self, send_app_closing):
+            self.stopped = True
+
+    lock = TrackingLock()
+    worker = BlockingWorker()
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = True
+    writer._enable_lock = lock
+    writer._worker_access_lock = lock
+    writer._enabled = True
+    writer._worker = worker
+    writer._metric_contexts = {}
+    writer._metric_lock = threading.Lock()
+    writer._worker_subscribers = []
+    writer.started = False
+    writer._dependency_tracker = mock.Mock()
+    writer.enable = lambda: True
+    writer.app_started = lambda: None
+
+    metric_errors = []
+    refresh_errors = []
+
+    def record_metric():
+        try:
+            writer.add_count_metric("tracers", "test.metric")
+        except BaseException as error:
+            metric_errors.append(error)
+
+    def refresh_identity():
+        try:
+            writer._refresh_runtime_identity("new-runtime-id")
+        except BaseException as error:
+            refresh_errors.append(error)
+
+    with mock.patch("ddtrace.internal.telemetry.writer.register_metric_context", return_value=object()):
+        metric_thread = threading.Thread(target=record_metric)
+        metric_thread.start()
+        assert lock.metric_acquired.wait(5)
+        assert worker.point_entered.wait(5)
+
+        refresh_thread = threading.Thread(target=refresh_identity)
+        refresh_thread.start()
+        assert lock.refresh_attempted.wait(5)
+
+        worker.release_point.set()
+        metric_thread.join(5)
+        refresh_thread.join(5)
+
+    assert metric_errors == []
+    assert refresh_errors == []
+    assert worker.stopped is True
+
+
 def test_metric_context_registered_on_replaced_worker_is_not_cached():
-    """Contexts are worker-specific. A thread that read the worker before a MicroVM identity refresh
-    replaced it must not cache the old worker's context for the new one.
+    """Contexts are worker-specific. A thread that read the worker before it was replaced must not cache the
+    old worker's context for the new one. Outside a MicroVM there is no worker access lock, so an agentless
+    switch can still replace the worker in between.
     """
     from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -1897,6 +2275,36 @@ def test_metric_context_registered_on_replaced_worker_is_not_cached():
         assert writer._register_metric_context(new_worker, "count", TELEMETRY_NAMESPACE.TRACERS, "m") is new_context
 
     assert writer._metric_contexts == {(TELEMETRY_NAMESPACE.TRACERS, "m", "count"): new_context}
+
+
+def test_non_microvm_data_paths_keep_the_worker_they_read():
+    """Outside a MicroVM there is no worker access lock, so disable() or an agentless switch on another thread
+    can clear the worker mid-operation. The operation must keep using the worker it read, not reread None.
+    """
+    worker = mock.Mock()
+    writer = _microvm_refresh_writer([])
+    writer._is_microvm = False
+    writer._worker_access_lock = None
+    writer._worker = worker
+
+    def clear_worker_then_report():
+        writer._worker = None
+        return [{"name": "dep", "version": "1.0"}]
+
+    tracker = mock.Mock()
+    tracker.collect_report.side_effect = clear_worker_then_report
+    writer._dependency_tracker = tracker
+    # The helper stubs _report_dependencies on the instance; use the real method.
+    del writer._report_dependencies
+
+    assert writer._report_dependencies() == [{"name": "dep", "version": "1.0"}]
+    worker.add_dependency.assert_called_once_with("dep", "1.0", None)
+
+    writer._worker = worker
+    worker.add_configuration.side_effect = lambda *_args: setattr(writer, "_worker", None)
+    writer.add_configurations([("first.config", 1, "env_var"), ("second.config", 2, "env_var")])
+
+    assert [call.args[0] for call in worker.add_configuration.call_args_list] == ["first.config", "second.config"]
 
 
 def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):
