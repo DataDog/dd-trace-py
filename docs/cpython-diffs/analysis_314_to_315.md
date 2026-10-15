@@ -62,8 +62,8 @@ Changed macros:
 
 **Echion impact:**
 - Echion reads `PyGenObject.gi_frame_state` (not `_PyInterpreterFrame.f_frame_state`,
-  which does not exist) in `stack/src/echion/tasks.cc` and
-  `stack/echion/echion/cpython/tasks.h`. Comparing against old constants silently
+  which does not exist) in `ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc` and
+  `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h`. Comparing against old constants silently
   misclassifies frames (e.g., `FRAME_EXECUTING = 0` in 3.14 now means
   `FRAME_CREATED` in 3.15).
 - `FRAME_COMPLETED` is gone — code checking `>= FRAME_COMPLETED` will break.
@@ -72,8 +72,9 @@ Changed macros:
   hardcoding values, so the `#if PY_VERSION_HEX` guard only needs to cover the
   macro definitions, not every use site.
 
-**Files to update:** `stack/src/echion/tasks.cc`,
-`stack/echion/echion/cpython/tasks.h` (and any other `gi_frame_state` readers).
+**Files to update:** `ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc`,
+`ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` (and any other
+`gi_frame_state` readers).
 `frame.h` / `state.h` do not check frame state.
 
 **Guard:** `#if PY_VERSION_HEX >= 0x030f0000`
@@ -157,8 +158,9 @@ static inline _PyStackRef _PyFrame_StackPeek(_PyInterpreterFrame *f, int depth);
 **Echion impact:**
 - Remote `PyGen_yf` must read `stackpointer[-2]` (and require `stacktop >= 2`), not
   `[-1]`. Reading `[-1]` masks to `nullptr` and truncates the await chain.
-- Implemented in `echion/cpython/tasks.h` (`PY_VERSION_HEX >= 0x030f0000`); covered by
-  `stack/test/test_frame_state_315.cpp`.
+- Implemented in `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h`
+  (`PY_VERSION_HEX >= 0x030f0000`); covered by
+  `ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp`.
 
 **Guard:** `#if PY_VERSION_HEX >= 0x030f0000`
 

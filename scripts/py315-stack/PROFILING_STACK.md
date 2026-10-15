@@ -1,15 +1,17 @@
 # Python 3.15 profiling stack — status map
 
-**Vintage:** Mon 2026-10-05 (EDT). Live PR states via `gh pr view` on that date.
+**Vintage:** Thu 2026-10-15 (CEST). Live PR states via `gh pr view` on that date.
 **Do not treat tip SHAs in older revisions of this file as current.**
 
-Runtime is already on `main` via the merged PRs below. Docs closeout is the
+Native ABI, asyncio, collector, and cp315 wheel work is on `main` via the
+merged PRs below. Official packaging support is still pending
+(`requires-python` excludes 3.15). Docs closeout is the
 thin Q3 PR (catalog + stack map + pointers). Suitespec 3.15 opt-in, version
 registry, and verify tooling (`verify_profiler_compatibility.py`,
 `run-profiling-tests`, baselines) live on #19273 (Q4). #19272 is **not** the
 wrap lift (#19910 is on `main`).
 
-## Current status (2026-10-05)
+## Current status (2026-10-15)
 
 | PR | State | Role |
 | --- | --- | --- |
@@ -18,9 +20,10 @@ wrap lift (#19910 is on `main`).
 | [#19207](https://github.com/DataDog/dd-trace-py/pull/19207) | **merged** | prof-correctness gate on profiling PRs |
 | [#19861](https://github.com/DataDog/dd-trace-py/pull/19861) | **merged** | Cython&lt;3.3 pin; cp315 wheels started optional |
 | [#20450](https://github.com/DataDog/dd-trace-py/pull/20450) | **merged** | require cp315 wheels; schedule lib_injection on 3.15 |
+| [#20671](https://github.com/DataDog/dd-trace-py/pull/20671) | **merged** | 3.15 shutdown stderr noise; memalloc test expectation |
 | [#20474](https://github.com/DataDog/dd-trace-py/pull/20474) | **open** | hermetic pip / PEP 440 local versions |
 | [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | **closed** | profiling readiness ADR |
-| [#20814](https://github.com/DataDog/dd-trace-py/pull/20814) | **open (draft)** | Q3 catalog, stack map, thin bring-up pointers |
+| [#20814](https://github.com/DataDog/dd-trace-py/pull/20814) | **open** | Q3 catalog, stack map, thin bring-up pointers |
 | [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | **open (draft)** | Q4 verify tooling + suitespec 3.15 matrix |
 
 ## Layer table

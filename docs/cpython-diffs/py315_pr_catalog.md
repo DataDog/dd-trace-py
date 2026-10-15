@@ -3,16 +3,14 @@
 **Vintage:** 2026-09-30. **Scope:** profiling-only bring-up for CPython 3.15.
 **Author filter:** `vlad-scherbich`, created ≥ 2026-03-01 (plus reference #17849).
 **Location:** `docs/cpython-diffs/py315_pr_catalog.md` (feeds the profiling CPython-upgrade runbook).
-**Companion JSON (local research artifact, not committed):** `/tmp/py315_pr_catalog_summary.json`.
 
 ## Method (verified)
 
-- Author sweep: `gh search prs --author vlad-scherbich --created >=2026-03-01`, month-by-month (Mar–Sep 2026) to stay under the 100/page search cap.
-- Repos via GitHub.com search: `dd-trace-py` (265), `prof-correctness` (35), `libdatadog` (4), `system-tests` (7; none profiling-315).
-- Repos needing personal `gh` account (search fails under `vlad-scherbich_ddog`): `images`, `experimental`.
-- Enterprise-only (`ddoghq/*`, not searchable from this host's default token for PR API): `images#11732` confirmed via local `images` git merge `1e5e2333f`; `dd-source#98654` confirmed via prior session + local branch `vlad/fix-py315-whl-installer-host-pip` (commits not on `origin/main` as of vintage).
+- Author sweep: `gh search prs --author vlad-scherbich --created ">=2026-03-01"`, month-by-month (Mar–Sep 2026) to stay under the 100/page search cap.
+- Public repos: `dd-trace-py` (265), `prof-correctness` (35), `libdatadog` (4), `system-tests` (7; none profiling-315).
+- Internal repos (base images, monorepo build, staging A/B harness) were swept too. Rows from them are marked *internal*; PR links live in PROF-14616.
 - Relevance filter: read titles + `gh api .../pulls/N/files` (73 dd-trace-py candidates); keep if diff touches PY_VERSION_HEX/3.15/cp315, profiling native/collectors/`_asyncio`, wrapping/`sys.monitoring`, pyo3/Cython/CI/wheels/images/engraver/SSI, prof-correctness, or staging_ab.
-- Cross-check: issue #17817 / parent #17809, runbook on `vlad/315-profiling-dev-tooling`, `PROFILING_STACK.md`, ADR #20478, analysis_314_to_315.md.
+- Cross-check: issue #17817 / parent #17809, runbook draft on #19273, `PROFILING_STACK.md`, ADR #20478, analysis_314_to_315.md.
 - Scope: profiling-only. Integration test-enable PRs → one aggregate row. Non-315 profiling (lock/MEM/heap/hooks) excluded.
 - Exception reference row: #17849 by P403n1x87.
 
@@ -29,7 +27,7 @@
 - **In-scope PR rows (individual):** 116
 - **Plus aggregate row:** 1
 - **Catalog rows total:** 117
-- Confirmed: images#11732 ✓, dd-source#98654 ✓, reference #17849 ✓
+- Confirmed: internal engraver image ✓, internal wheel-installer fix ✓, reference #17849 ✓
 
 ## 1. Alpha — natives, layout contracts, gated CI
 
@@ -96,14 +94,14 @@
 
 | PR | State | Kind | Trigger | Expected? | Automate | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| images#9814 | merged | wheels/images | pypa manylinux must ship cp315 interpreter | expected | script_template | Mirror manylinux2014 + musllinux_1_2 2026.05.13-1 (cp315). |
-| images#9815 | merged | wheels/images | dd-trace-py base image bump after mirror | expected | script_template | Register bumped manylinux/musllinux bases for dd-trace-py. |
+| *internal* (images) | merged | wheels/images | pypa manylinux must ship cp315 interpreter | expected | script_template | Mirror manylinux2014 + musllinux_1_2 2026.05.13-1 (cp315). |
+| *internal* (images) | merged | wheels/images | dd-trace-py base image bump after mirror | expected | script_template | Register bumped manylinux/musllinux bases for dd-trace-py. |
 | [#17959](https://github.com/DataDog/dd-trace-py/pull/17959) | merged | wheels/images | cp315 wheels blocked without new base IMAGE_TAGs | expected | script_template | Bump base images to 2026.05.13-1 inside dd-trace-py CI. |
 | [#18146](https://github.com/DataDog/dd-trace-py/pull/18146) | closed/draft | build/CI matrix | enable cp315 across wheel matrix before natives ready | dead_end | script_template | DEAD-END LESSON: enabling full matrix before natives/packaging ready creates thrash; wait for #19269+#19861 path. |
-| images#11355 | merged | wheels/images | rc1 manylinux must ship updated cp315 | expected | script_template | Mirror manylinux 2026.08.04-1 (cp315 rc1). |
-| images#11356 | merged | wheels/images | consume rc1 manylinux mirror | expected | script_template | Bump dd-trace-py bases to 2026.08.04-1 (PROF-15844). |
-| images#11374 | closed/draft | wheels/images | duplicate of #11355 | dead_end | none | Duplicate mirror PR; closed. |
-| [#19936](https://github.com/DataDog/dd-trace-py/pull/19936) | merged | wheels/images | IMAGE_TAG bump after images#11356 | expected | script_template | Wheel-builder IMAGE_TAGs after images mirror. |
+| *internal* (images) | merged | wheels/images | rc1 manylinux must ship updated cp315 | expected | script_template | Mirror manylinux 2026.08.04-1 (cp315 rc1). |
+| *internal* (images) | merged | wheels/images | consume rc1 manylinux mirror | expected | script_template | Bump dd-trace-py bases to 2026.08.04-1 (PROF-15844). |
+| *internal* (images) | closed/draft | wheels/images | duplicate of the rc1 mirror PR | dead_end | none | Duplicate mirror PR; closed. |
+| [#19936](https://github.com/DataDog/dd-trace-py/pull/19936) | merged | wheels/images | IMAGE_TAG bump after the rc1 base-image bump | expected | script_template | Wheel-builder IMAGE_TAGs after images mirror. |
 | [#20001](https://github.com/DataDog/dd-trace-py/pull/20001) | closed | wheels/images | unofficial-stack IMAGE_TAGs to rc1 | dead_end | script_template | Unofficial-stack IMAGE_TAG bump; closed. |
 | [#19861](https://github.com/DataDog/dd-trace-py/pull/19861) | merged | lockfiles | Cython 3.3 breaks 3.15; wheels must start optional | surprise | script_template | TOP GOTCHA: pin Cython<3.3 on 3.15; cp315 REQUIRED_PLATFORMS empty (optional). |
 | [#19865](https://github.com/DataDog/dd-trace-py/pull/19865) | closed/draft | wheels/images | attempt to unblock wheels on stock manylinux via requires-python only | dead_end | script_template | DEAD-END LESSON: widening requires-python alone is not enough; need Cython pin + optional platforms (#19861) then require later (#20450). |
@@ -113,8 +111,8 @@
 | [#19906](https://github.com/DataDog/dd-trace-py/pull/19906) | merged | build/CI matrix | smoke_test must run on 3.15 | expected | script_template | Schedule smoke_test.py on 3.15. |
 | [#19907](https://github.com/DataDog/dd-trace-py/pull/19907) | merged | build/CI matrix | testrunner cache + Cython pin for 3.15 | expected | script_template | Rebuild 3.15-dev; pin Cython<3.3 on 3.15 cache. |
 | [#20157](https://github.com/DataDog/dd-trace-py/pull/20157) | merged | wheels/images | dependency-wheel download fails until python image mirrored | surprise | script_template | Skip 3.15 dependency-wheel download until image mirrored. |
-| [images#11732](https://github.com/ddoghq/images/pull/11732) | merged | wheels/images | Rapid/staging needs engraver python:3.15.0rc2 (+fips) | expected | script_template | CONFIRMED (ddoghq/images; local git 1e5e2333f). First engraver packages for 3.15.0rc2 + fips on Ubuntu 26.04. Keyword search missed this. |
-| [dd-source#98654](https://github.com/ddoghq/dd-source/pull/98654) | open/draft | wheels/images | whl_installer PYTHONPATH→vendored pip 24.0 breaks 3.15 locate_file; need engraver digests + dd_py_image | surprise | skill_checklist | CONFIRMED (ddoghq/dd-source). TOP GOTCHA: host-pip patch + seed engraver digests + wire dd_py_image. Also hermetic 3.15 must pin exact prerelease (a2≠rc2 ABI). Not on main as of vintage. Keyword search missed this. |
+| *internal* (images) | merged | wheels/images | Rapid/staging needs engraver python:3.15.0rc2 (+fips) | expected | script_template | First engraver packages for 3.15.0rc2 + fips on Ubuntu 26.04. Keyword search missed this. |
+| *internal* (dd-source) | open/draft | wheels/images | whl_installer PYTHONPATH→vendored pip 24.0 breaks 3.15 locate_file; need engraver digests + dd_py_image | surprise | skill_checklist | TOP GOTCHA: host-pip patch + seed engraver digests + wire dd_py_image. Also hermetic 3.15 must pin exact prerelease (a2≠rc2 ABI). Not on main as of vintage. Keyword search missed this. |
 | [ld#2491](https://github.com/DataDog/libdatadog/pull/2491) | merged | lockfiles | pyo3 0.28→0.29 for continued 3.15 native | expected | script_template | Second pyo3 bump during bring-up. |
 | [#20450](https://github.com/DataDog/dd-trace-py/pull/20450) | merged | wheels/images | promote cp315 from optional to required; schedule lib_injection | expected | script_template | Require cp315 wheels; schedule lib_injection on 3.15. |
 | [#20474](https://github.com/DataDog/dd-trace-py/pull/20474) | open | packaging/SSI | hermetic pip check rejects PEP 440 local versions | surprise | script_template | STATUS/GOTCHA: accept PEP 440-equivalent local versions in verify-package-version. |
@@ -191,12 +189,12 @@
 
 | PR | State | Kind | Trigger | Expected? | Automate | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| [exp#11316](https://github.com/DataDog/experimental/pull/11316) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | staging_ab common helpers. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
-| [exp#11317](https://github.com/DataDog/experimental/pull/11317) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | workers reuse run_wheels_pipeline. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
-| [exp#11318](https://github.com/DataDog/experimental/pull/11318) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | services.cfg + dispatcher. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
-| [exp#11319](https://github.com/DataDog/experimental/pull/11319) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | A/B runner on unified dispatcher. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
-| [exp#11529](https://github.com/DataDog/experimental/pull/11529) | open | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | Rapid TD backend. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
-| [exp#11530](https://github.com/DataDog/experimental/pull/11530) | closed | staging harness | need staging A/B harness for profiling-315 validation | dead_end | skill_checklist | DEAD-END LESSON: collision/integration-branch guards; auth/signing/BUILD_WEDGED are staging failures not profiler bugs. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
+| *internal* (experimental) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | staging_ab common helpers. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
+| *internal* (experimental) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | workers reuse run_wheels_pipeline. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
+| *internal* (experimental) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | services.cfg + dispatcher. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
+| *internal* (experimental) | open/draft | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | A/B runner on unified dispatcher. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
+| *internal* (experimental) | open | staging harness | need staging A/B harness for profiling-315 validation | status | skill_checklist | Rapid TD backend. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
+| *internal* (experimental) | closed | staging harness | need staging A/B harness for profiling-315 validation | dead_end | skill_checklist | DEAD-END LESSON: collision/integration-branch guards; auth/signing/BUILD_WEDGED are staging failures not profiler bugs. Preflight: AppGate/vault, SSH unknown_key, passphrase in tmux, BUILD_WEDGED, wheel availability. |
 
 **Automate for 3.16:**
 - Preflight auth (AppGate/vault), SSH keys, signing, wheel availability before blaming profiler
@@ -236,9 +234,9 @@
 | #17977 | Do not enable SSI/OCI until final; never publish SSI from the wheel PR. |
 | #18146 | Do not flip the full cp3XX matrix on before natives + Cython/optional-wheel path exist. |
 | #19865 | Widening `requires-python` alone does not unblock wheels — need Cython pin + optional platforms, then require. |
-| images#11374 | Duplicate mirror PRs waste review; one mirror + one consumer bump. |
+| *internal* (images) | Duplicate mirror PRs waste review; one mirror + one consumer bump. |
 | pc#191 | Pin gate images to the **exact** prerelease tag; a2≠rc2 ABI mismatch looks like profiler CrashLoop. |
-| exp#11530 | Staging `BUILD_WEDGED` / auth / signing failures are not profiler bugs — preflight first. |
+| *internal* (experimental) | Staging `BUILD_WEDGED` / auth / signing failures are not profiler bugs — preflight first. |
 | #17055/#18503 stack | Prefer thin stacked PRs (native → compile gate → asyncio) over one monolithic ABI PR. |
 
 ## Top unexpected gotchas
@@ -246,7 +244,7 @@
 1. **`wrap()` broke for asyncio `create_task` on 3.15** → `#19272` `sys.monitoring` on 3.15+ while keeping `wrap` below; wrong fail-closed gate had to be fixed. Multiplexer `#19247` was a prerequisite.
 2. **Prerelease ABI mismatch (a2 vs rc2)** → CrashLoop / `_native` import errors that look like profiler bugs. Pin hermetic + prof-correctness images to the exact tag.
 3. **Cython ≥3.3 on 3.15** → pin `<3.3`; start cp3XX wheels **optional** (`#19861`) then require (`#20450`).
-4. **Rapid bake `whl_installer` PYTHONPATH** → vendored pip 24.0 lacks `locate_file` on 3.15 (`dd-source#98654`). Engraver `images#11732` digests required for true `@python_3_15_*` bases.
+4. **Rapid bake `whl_installer` PYTHONPATH** → vendored pip 24.0 lacks `locate_file` on 3.15 (internal build fix). Engraver image digests required for true `@python_3_15_*` bases.
 5. **Import-time crash via wrapping** before natives/wheels ready (`#19724`); **wrap trampoline still gated** after `#17849` until `#19910` bumped `NEXT_PY`.
 6. **Staging failures are auth/signing/wheels** (`BUILD_WEDGED`, AppGate/vault, SSH `unknown_key`, passphrase in detached tmux) — not the profiler.
 7. **Memory:** local smoke AB (#19272) ~+15% RSS with profiler on (~53% runtime / ~47% profiler); no staging claim. memalloc is not the lever; do not gate the functional claim on memory parity.

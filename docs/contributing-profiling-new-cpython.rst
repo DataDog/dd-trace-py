@@ -4,15 +4,17 @@ Profiling and new CPython versions
 ==================================
 
 Short bring-up pointers for Continuous Profiler support on a **new CPython
-minor**. Runtime for 3.15 is already on ``main`` (native ABI / asyncio /
-packaging). This page is the process map only — version-specific answers live
+minor**. For 3.15, the native ABI, asyncio, and ``cp315`` wheel work is on
+``main``; official packaging support is not (``requires-python`` still excludes
+3.15). This page is the process map only — version-specific answers live
 elsewhere.
 
 Prior art and version-specific answers:
 
 * Prior migration example: `PR #15546`__ (Python 3.14) — framed as prior art
   only; do not treat its deltas as the answer key for a later minor.
-* Latest completed-minor catalog (ABI fixes, hook choices, gotchas, PR map):
+* Current migration catalog for 3.15 (ABI fixes, hook choices, gotchas, PR
+  map; not final until 3.15 support ships):
   ``docs/cpython-diffs/py315_pr_catalog.md``.
 * Header-diff notes for that minor: ``docs/cpython-diffs/analysis_314_to_315.md``.
 * Live stack status: ``scripts/py315-stack/PROFILING_STACK.md``.

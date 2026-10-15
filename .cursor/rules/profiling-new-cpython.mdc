@@ -13,8 +13,9 @@ When editing profiling natives, collectors, or `setup.py` version gates:
 1. **Pointers** — start from
    `.claude/skills/migrate-profiling-new-cpython/SKILL.md` and
    `docs/contributing-profiling-new-cpython.rst`. Do not invent a parallel
-   checklist. ABI/hook answers live in `docs/cpython-diffs/py3XX_pr_catalog.md`
-   and live PR states in `scripts/py3XX-stack/PROFILING_STACK.md`.
+   checklist. ABI/hook answers live in `docs/cpython-diffs/py315_pr_catalog.md`
+   and live PR states in `scripts/py315-stack/PROFILING_STACK.md` (latest
+   minor; a later bring-up adds its own `py3NN` copies).
 
 2. **Registry / verify / suitespec** — `scripts/profiles/profiling_versions.json`,
    local verify, `run-profiling-tests`, and suitespec matrix opt-in live on
