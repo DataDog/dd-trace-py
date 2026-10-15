@@ -40,6 +40,7 @@ from ddtrace.internal.utils.time import Time
 
 
 log = get_logger(__name__)
+_RUNTIME_IDENTITY_GENERATION_KEY = "_ddtrace_runtime_identity_generation"
 
 
 _SPECIAL_TAG_KEYS = frozenset(
