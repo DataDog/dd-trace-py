@@ -149,6 +149,9 @@ The following environment variables are supported:
 - ``OTEL_{METRICS,LOGS}_EXPORTER``
   This value defaults to ``otlp``. We can gauge the prevalence of other exporters by observing other values, such as ``prometheus``, ``console``, or ``none``.
 
+- ``OTEL_TRACES_EXPORTER``
+  Set this to ``otlp`` to export traces using OTLP instead of the Datadog Agent protocol.
+
 - ``OTEL_METRIC_EXPORT_INTERVAL``
   Interval (in milliseconds) between metric exports.
 
@@ -160,19 +163,20 @@ The following environment variables are supported:
   The default value in the Datadog SDKs is ``delta``, which differs from the OpenTelemetry specified default of ``cumulative``.
   Tracking this configuration helps understand how many customers prefer Cumulative Temporality and why.
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_ENDPOINT``
-  When metrics export is enabled with ``DD_METRICS_OTEL_ENABLED=true``, this defines the target endpoint for metrics export (default: ``http://<agent_hostname>:4317``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_ENDPOINT``
+  Defines the target endpoint for the corresponding OTLP signal (default: ``http://<agent_hostname>:4317``).
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_HEADERS``
-  Optional headers for metrics or logs export in JSON format (default: ``{}``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_HEADERS``
+  Optional comma-separated key-value pairs for OTLP export (default: empty).
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_TIMEOUT``
-  Request timeout in milliseconds for metrics or logs export (default: ``10000``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_TIMEOUT``
+  Request timeout in milliseconds for OTLP export (default: ``10000``).
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_PROTOCOL``
-  OTLP protocol used for metrics or logs. Supported protocols are ``grpc`` (default) and ``http/protobuf``.
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_PROTOCOL``
+  OTLP protocol used for export. Metrics and logs support ``grpc`` (default) and ``http/protobuf``.
+  Traces also support ``http/json``.
 
-**Important:** Metrics and logs are exported using the OTLP protocol and can be routed to any OTLP-compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details. Traces, however, use Datadog’s custom MsgPack format and require a Datadog Agent.
+OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
 
 
 Trace Mapping

@@ -1919,7 +1919,7 @@ def test_explicit_otlp_trace_endpoint_wins_over_agentless():
 
     writer = tracer._span_aggregator.writer
     assert writer.agentless is False
-    assert writer._otlp_endpoint == "http://collector:4318/v1/traces"
+    assert writer._otlp_endpoint == "http://collector:4318"
 
 
 @pytest.mark.subprocess(

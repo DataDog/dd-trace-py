@@ -901,10 +901,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
-            # Only http/json and http/protobuf are supported; fall back to http/protobuf
-            # for anything else (e.g. grpc).
+            # Fall back to HTTP/protobuf for unknown protocols.
             otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
-            if otlp_protocol not in ("http/json", "http/protobuf"):
+            if otlp_protocol not in ("grpc", "http/json", "http/protobuf"):
                 log.debug(
                     "OTLP trace protocol %r is not supported; defaulting to http/protobuf",
                     otlp_protocol,

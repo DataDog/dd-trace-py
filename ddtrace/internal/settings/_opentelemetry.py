@@ -122,12 +122,14 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     # Signal-specific endpoint takes precedence (full URL, no path appended).
     if traces_endpoint := env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
         return traces_endpoint
-    # Global endpoint is a base URL; append the traces signal path.
+    protocol = config.TRACES_PROTOCOL
+    # A global HTTP endpoint is a base URL; gRPC uses it as-is.
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
+        if protocol.lower() == "grpc":
+            return global_endpoint.rstrip("/")
         return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
-    # Nothing configured: fall back to the local HTTP OTLP endpoint.
-    return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.TRACES_PATH}"
+    return _default_endpoint(config, protocol, ExporterConfig.TRACES_PATH)
 
 
 def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
@@ -208,7 +210,7 @@ class ExporterConfig(DDConfig):
     METRICS_METRIC_READER_EXPORT_INTERVAL = DDConfig.d(int, _derive_metrics_metric_reader_export_interval)
     METRICS_METRIC_READER_EXPORT_TIMEOUT = DDConfig.d(int, _derive_metrics_metric_reader_export_timeout)
 
-    # OTLP trace encoding: http/json or http/protobuf (see NativeWriter for how it is applied).
+    # OTLP trace transport and encoding: grpc, http/json, or http/protobuf.
     TRACES_PROTOCOL = DDConfig.d(str, _derive_traces_protocol)
     TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
     TRACES_HEADERS = DDConfig.d(str, _derive_traces_headers)
