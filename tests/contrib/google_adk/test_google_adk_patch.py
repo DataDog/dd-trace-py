@@ -63,8 +63,10 @@ class TestGoogleADKPatch(PatchTestCase.Base):
         ((2, 8, 0), ("flows.llm_flows.functions", "__call_tool_async")),
         ((2, 9, 0), ("flows.llm_flows._tool_caller", "_call_tool_async")),
         ((2, 9, 1), ("flows.llm_flows._tool_caller", "_call_tool_async")),
+        ((2, 10, 0), ("flows.llm_flows.tools._caller", "_call_tool_async")),
+        ((2, 11, 0), ("flows.llm_flows.tools._caller", "_call_tool_async")),
     ],
 )
-def test_tool_dispatch_target_follows_the_google_adk_2_9_move(version, expected):
+def test_tool_dispatch_target_follows_the_google_adk_moves(version, expected):
     """The wrap target is chosen by version, so this holds whatever google-adk the venv installed."""
     assert _tool_dispatch_target(version) == expected
