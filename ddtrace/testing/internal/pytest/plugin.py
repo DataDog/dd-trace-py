@@ -423,6 +423,10 @@ class TestOptPlugin(TestOptPluginProtocol):
             self.session.itr_suite_reporting_enabled = True
 
         if session.config.getoption("ddtrace-patch-all") or session.config.getini("ddtrace-patch-all"):
+            # TODO: honor patch-all even when Test Optimization is not enabled. The legacy
+            # plugin applied it via a session-scoped autouse fixture without requiring
+            # `--ddtrace`; this hook only runs when the plugin is enabled, so standalone
+            # `--ddtrace-patch-all` / `ddtrace-patch-all` ini usage is currently ignored.
             self.enable_all_ddtrace_integrations = True
 
         self.session.start()
@@ -1342,6 +1346,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         if not terminalreporter.stats["failed"]:
             del terminalreporter.stats["failed"]
 
+        # TODO: report list of attempt-to-fix results.
         print_test_report_links(terminalreporter, self.manager)
 
 
