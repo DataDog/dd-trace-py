@@ -178,6 +178,15 @@ SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes",
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
 LIBDDWAF_VERSION = "2.1.0"
+LIBDDWAF_CHECKSUMS = {
+    "libddwaf-2.1.0-aarch64-linux-musl.tar.gz": "ba4a51e3c96ab3421d0c83c4b711cf2ade47aa5c986653c4c66527feffd80bec",
+    "libddwaf-2.1.0-x86_64-linux-musl.tar.gz": "b1a4a57098ec86d8e07036ecd9a43f4fc3b3d4497924c9ceffd91089647ab2ac",
+    "libddwaf-2.1.0-darwin-arm64.tar.gz": "bba0f952f3bd119b10008d3a2e9f263bed892bccd5eee3e5ea576336b6978651",
+    "libddwaf-2.1.0-darwin-x86_64.tar.gz": "3ca7bd84c2d4220379a1f0ca4b42fc93677beeec99675c951f301e80885a1281",
+    "libddwaf-2.1.0-windows-arm64.tar.gz": "124247affb836e0f042514b29bf8258ee77967207c4504c3c6c1ffecc212264f",
+    "libddwaf-2.1.0-windows-win32.tar.gz": "e4cbd6f26656f4d98a5e4ccb276b15009a076486b1d36cead897d4c66cf3fb82",
+    "libddwaf-2.1.0-windows-x64.tar.gz": "b7cd03f964e5bf0de1a1191b26a33c04adaea714ef94952f7a8b44a70060b8d3",
+}
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -283,32 +292,18 @@ def retry_download(
     return decorator
 
 
-def verify_checksum_from_file(sha256_filename, filename):
-    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    expected_checksum, expected_filename = list(filter(None, open(sha256_filename).read().strip().split(" ")))
-    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
-    try:
-        assert expected_filename.endswith(Path(filename).name)
-        assert expected_checksum == actual_checksum
-    except AssertionError:
-        print("Checksum verification error: Checksum and/or filename don't match:")
-        print("expected checksum: %s" % expected_checksum)
-        print("actual checksum: %s" % actual_checksum)
-        print("expected filename: %s" % expected_filename)
-        print("actual filename: %s" % filename)
-        sys.exit(1)
+def sha256_checksum(filename) -> str:
+    return hashlib.sha256(Path(filename).read_bytes()).hexdigest()
 
 
-def verify_checksum_from_hash(expected_checksum, filename):
-    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
-    try:
-        assert expected_checksum == actual_checksum
-    except AssertionError:
-        print("Checksum verification error: Checksum mismatch:")
-        print("expected checksum: %s" % expected_checksum)
-        print("actual checksum: %s" % actual_checksum)
-        sys.exit(1)
+def verify_checksum(expected_checksum, filename):
+    actual_checksum = sha256_checksum(filename)
+    if actual_checksum != expected_checksum:
+        Path(filename).unlink()
+        raise RuntimeError(
+            "Checksum mismatch for %s: expected %s, got %s. The file was deleted."
+            % (filename, expected_checksum, actual_checksum)
+        )
 
 
 def is_64_bit_python():
@@ -497,7 +492,7 @@ class LibraryDownload:
     version: t.Optional[str] = None
     url_root: t.Optional[str] = None
     available_releases: dict[str, list[str]] = {}
-    expected_checksums: t.Optional[dict[str, dict[str, str]]] = None
+    expected_checksums: dict[str, str] = {}
     translate_suffix: dict[str, tuple[str, ...]] = {}
 
     @classmethod
@@ -552,9 +547,17 @@ class LibraryDownload:
                 archive_name,
             )
 
+            expected_checksum = cls.expected_checksums.get(archive_name)
+            if expected_checksum is None:
+                raise RuntimeError("No pinned checksum for %s, see docs/build_system.rst" % archive_name)
+
             download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else Path(archive_name)
             if cls.USE_CACHE and not cls.CACHE_DIR.exists():
                 cls.CACHE_DIR.mkdir(parents=True)
+
+            if cls.USE_CACHE and download_dest.exists() and sha256_checksum(download_dest) != expected_checksum:
+                print(f"WARNING: Discarding cached {download_dest}: checksum mismatch")
+                download_dest.unlink()
 
             if not (cls.USE_CACHE and download_dest.exists()):
                 print(f"Downloading {archive_name} to {download_dest}")
@@ -567,16 +570,7 @@ class LibraryDownload:
                     return urlretrieve(url, str(dest))
 
                 filename, _ = download_file(download_address, download_dest)
-
-                # Verify checksum of downloaded file
-                if cls.expected_checksums is None:
-                    sha256_address = download_address + ".sha256"
-                    sha256_dest = str(download_dest) + ".sha256"
-                    sha256_filename, _ = download_file(sha256_address, sha256_dest)
-                    verify_checksum_from_file(sha256_filename, str(download_dest))
-                else:
-                    expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
-                    verify_checksum_from_hash(expected_checksum, str(download_dest))
+                verify_checksum(expected_checksum, filename)
 
                 DebugMetadata.download_times[archive_name] = time.time_ns() - start_ns
 
@@ -635,6 +629,7 @@ class LibDDWafDownload(LibraryDownload):
     download_dir = LIBDDWAF_DOWNLOAD_DIR
     version = LIBDDWAF_VERSION
     url_root = "https://github.com/DataDog/libddwaf/releases/download"
+    expected_checksums = LIBDDWAF_CHECKSUMS
     available_releases = {
         "Windows": ["arm64", "win32", "x64"],
         "Darwin": ["arm64", "x86_64"],

@@ -283,6 +283,22 @@ These environment variables modify aspects of the build process.
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
 
+Verifying the bundled libddwaf
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each libddwaf archive is checked against the SHA-256 checksum pinned for it in ``LIBDDWAF_CHECKSUMS`` in ``setup.py``,
+both right after a download and before an archive from the download cache is reused. A cached archive that does not
+match is downloaded again; a downloaded archive that does not match is deleted and fails the build.
+
+Bumping ``LIBDDWAF_VERSION`` therefore means replacing ``LIBDDWAF_CHECKSUMS`` with the checksums of the new release's
+archives. Each archive has a ``.sha256`` asset next to it on the release; check it against the digest GitHub computed when
+the archive was uploaded:
+
+.. code-block:: bash
+
+    gh release view <version> --repo DataDog/libddwaf --json assets \
+        --jq '.assets[] | select(.name | endswith(".tar.gz")) | "\(.digest)  \(.name)"'
+
 Using a system-provided libddwaf
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
