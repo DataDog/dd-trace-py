@@ -36,8 +36,17 @@ Bottle builds its own `METHOD rule` span resource and passes it as
 `script_name` prefix, so mounted applications report the full `http.route` without
 changing their historical span resource.
 
-Bottle extracts its local response via `set_response`, then applies the
-framework-specific status overrides a returned or raised `HTTPResponse` implies. The
-local response still supplies headers in every path, including when the status is
-overridden. The shared tracing subscriber owns HTTP tagging and span completion;
-Bottle owns only the callback boundary and Bottle-specific interpretation.
+An application-installed plugin wraps Bottle's WSGI boundary and owns a request
+lifecycle through response exhaustion, failure, or explicit close. Its router
+wrapper supplies the resource as soon as routing succeeds, before handler
+invocation. The WSGI start_response callback supplies the final status and headers; HTTPError conversion preserves
+exceptions that Bottle handles internally. Unmatched requests use METHOD STATUS
+resources. Route-local plugins retain their callback-scoped behavior.
+
+IDM owns HTTP semantics and the completion decision. The shared HTTP tracing
+subscriber applies those semantics; core supplies context and span lifecycle
+mechanisms. The lifecycle finalizes the resource before ending its context, so
+completed-span consumers see the endpoint. Each WSGI call and body operation runs
+in the request's copied context, preventing suspended streams from becoming the
+active parent of unrelated requests. Exhaustion and close share an idempotent
+completion path. A WSGI server must consume or close the response iterable.
