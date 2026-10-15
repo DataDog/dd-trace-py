@@ -973,6 +973,7 @@ suites:
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
+      POSTGRES_IMAGE: registry.ddbuild.io/images/mirror/postgres:16-alpine
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
