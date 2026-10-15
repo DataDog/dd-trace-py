@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import typing as t
 import uuid
@@ -41,6 +42,17 @@ _PARENT_RUNTIME_ID: t.Optional[str] = env.get(_ENV_PARENT_SESSION_ID)
 # Module-level set[...] in Python 3.10 affects import timing. See packages.py for details.
 _ON_RUNTIME_ID_CHANGE: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
 _ON_RUNTIME_IDENTITY_REFRESH: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
+# An explicit identity refresh has to move the runtime ID and notify dependent
+# components as one lifecycle transition. Reporting code uses this lock to keep
+# an in-flight payload on the identity it read.
+_RUNTIME_IDENTITY_LOCK = forksafe.RLock()
+
+
+@contextlib.contextmanager
+def runtime_identity_lock() -> t.Iterator[None]:
+    """Serialize an explicit runtime identity refresh with dependent reporting."""
+    with _RUNTIME_IDENTITY_LOCK:
+        yield
 
 
 def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
@@ -121,8 +133,9 @@ def refresh_identity(raise_on_error: bool = False) -> None:
     # Notify consumers that only need the new ID first. The explicit refresh
     # callbacks below are for components that must rebuild restore-sensitive
     # state, which is different from the fork handling in _set_runtime_id().
-    _refresh_runtime_id()
-    _notify_runtime_identity_refresh_callbacks(raise_on_error=raise_on_error)
+    with runtime_identity_lock():
+        _refresh_runtime_id()
+        _notify_runtime_identity_refresh_callbacks(raise_on_error=raise_on_error)
 
 
 # Multiple request layers can observe the same /run hook. Refresh identity once per
