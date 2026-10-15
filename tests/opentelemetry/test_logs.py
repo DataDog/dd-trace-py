@@ -1,5 +1,7 @@
-from concurrent import futures
+from contextlib import contextmanager
 import os
+from unittest.mock import Mock
+from unittest.mock import patch
 
 from opentelemetry.version import __version__ as api_version_string
 import pytest
@@ -16,11 +18,29 @@ except ImportError:
     EXPORTER_VERSION = (0, 0, 0)
 
 
+@contextmanager
+def mock_otlp_http_request():
+    response = Mock(status=200, status_code=200, data=b"", content=b"", headers={}, reason="OK")
+    mock_request = Mock(return_value=response)
+    with (
+        patch("requests.sessions.Session.request", new=mock_request),
+        patch("urllib3.poolmanager.PoolManager.request", new=mock_request),
+    ):
+        yield mock_request
+
+
+def get_otlp_http_request(call):
+    method = call.kwargs.get("method", call.args[0] if call.args else None)
+    url = call.kwargs.get("url", call.args[1] if len(call.args) > 1 else None)
+    return method, url, call.kwargs.get("body", call.kwargs.get("data"))
+
+
 def create_mock_grpc_server():
     """Create a mock gRPC server for testing OpenTelemetry logs exporter."""
-    import grpc
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
+
+    from tests.opentelemetry.utils import create_grpc_server
 
     class MockLogsService(LogsServiceServicer):
         def __init__(self):
@@ -33,9 +53,7 @@ def create_mock_grpc_server():
             return ExportLogsServiceResponse()
 
     mock_service = MockLogsService()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    add_LogsServiceServicer_to_server(mock_service, server)
-    server.add_insecure_port("[::]:4317")
+    server = create_grpc_server(mock_service, add_LogsServiceServicer_to_server)
     return mock_service, server
 
 
@@ -206,19 +224,16 @@ def test_otel_logs_support_not_enabled():
 def test_otel_logs_exporter_auto_configured_http():
     """Test OpenTelemetry logs exporter auto-configuration for HTTP protocol."""
     from logging import getLogger
-    from unittest.mock import Mock
-    from unittest.mock import patch
 
     from opentelemetry._logs import get_logger_provider
 
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
+    from tests.opentelemetry.test_logs import get_otlp_http_request
+    from tests.opentelemetry.test_logs import mock_otlp_http_request
 
     log = getLogger()
-    with patch("requests.sessions.Session.request") as mock_request:
-        mock_response = Mock(status_code=200)
-        mock_request.return_value = mock_response
-
+    with mock_otlp_http_request() as mock_request:
         log.error("test_otel_logs_exporter_auto_configured_http")
 
         logger_provider = get_logger_provider()
@@ -226,9 +241,9 @@ def test_otel_logs_exporter_auto_configured_http():
 
         request_body = None
         for call in mock_request.call_args_list:
-            method, url = call[0][:2]
+            method, url, data = get_otlp_http_request(call)
             if method == "POST" and "/v1/logs" in url:
-                request_body = call[1].get("data", None)
+                request_body = data
                 break
         assert request_body is not None, (
             "Expected a request body to be present in the "
@@ -609,20 +624,19 @@ def test_otel_logs_does_not_generate_client_grpc_spans():
 def test_otel_logs_does_not_generate_client_http_spans():
     """Test that OpenTelemetry http logs exporter does not generate client spans."""
     from logging import getLogger
-    from unittest.mock import Mock
-    from unittest.mock import patch
 
     from opentelemetry._logs import get_logger_provider
 
-    logger = getLogger()
-    with patch("requests.sessions.Session.request") as mock_request:
-        mock_request.return_value = Mock(status_code=200)
+    from tests.opentelemetry.test_logs import get_otlp_http_request
+    from tests.opentelemetry.test_logs import mock_otlp_http_request
 
+    logger = getLogger()
+    with mock_otlp_http_request() as mock_request:
         logger.error("test_otel_logs_http")
         get_logger_provider().force_flush()
 
         log_request_found = any(
-            len(call[0]) >= 2 and call[0][0] == "POST" and "/v1/logs" in call[0][1]
-            for call in mock_request.call_args_list
+            method == "POST" and "/v1/logs" in url
+            for method, url, _ in (get_otlp_http_request(call) for call in mock_request.call_args_list)
         )
         assert log_request_found, f"Expected HTTP log export request but found none: {mock_request.call_args_list}"
