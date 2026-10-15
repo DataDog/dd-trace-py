@@ -46,13 +46,13 @@ EMBED_METADATA_PARAMS = [
 class MistralAIIntegration(BaseLLMIntegration):
     _integration_name = "mistralai"
 
-    def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
-    ) -> None:
-        if provider is not None:
-            span._set_attribute("mistralai.request.provider", provider)
-        if model is not None:
-            span._set_attribute("mistralai.request.model", model)
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself.
+
+        See MODEL_TAG/PROVIDER_TAG in ddtrace.contrib.internal.mistralai.patch. MistralAI
+        has no per-request base_url to record, so unlike other integrations there is no
+        LLMObs-only span state to set at start.
+        """
 
     def _llmobs_set_tags(
         self,

@@ -10,16 +10,27 @@ from mistralai.client.models.chatcompletionresponse import ChatCompletionRespons
 from mistralai.client.models.embeddingresponse import EmbeddingResponse
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
+from ddtrace.contrib.internal.mistralai._utils import extract_provider
 from ddtrace.contrib.internal.stream_handler import make_traced_stream
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.llmobs._integrations import MistralAIIntegration
-from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
+from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 
 
 config._add("mistralai", {})  # type: ignore[no-untyped-call]
+
+# LLMObs subscribes to LlmEvents for this component; see ddtrace/llmobs/_contrib/mistralai.
+COMPONENT = "mistralai"
+
+# APM tags owned by this integration. ddtrace.llmobs._integrations.mistralai no longer
+# writes them, so they must stay in sync with the snapshot expectations here.
+MODEL_TAG = "mistralai.request.model"
+PROVIDER_TAG = "mistralai.request.provider"
 
 
 def _supported_versions() -> dict[str, str]:
@@ -42,29 +53,46 @@ def _kwargs_with_server_url(instance: Chat | Embeddings, kwargs: dict[str, Any])
     return kwargs
 
 
+def _request_event(
+    func: Callable[..., Any],
+    instance: Chat | Embeddings,
+    kwargs: dict[str, Any],
+    operation: str,
+) -> LlmRequestEvent:
+    """Build the LlmRequestEvent for a chat or embedding call.
+
+    request_kwargs carries the server_url-enriched kwargs because the LLMObs side
+    re-derives the provider from them at span finish.
+    """
+    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
+    provider = extract_provider(enriched_kwargs)
+    model = kwargs.get("model", "")
+    return LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.mistralai,
+        service=int_service(None, config.mistralai),
+        resource="%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider=provider,
+        model=model,
+        tags={PROVIDER_TAG: provider, MODEL_TAG: model},
+        submit_to_llmobs=True,
+        request_kwargs=enriched_kwargs,
+        instance=instance,
+        operation=operation,
+    )
+
+
 def traced_chat_generate(
     func: Callable[..., ChatCompletionResponse],
     instance: Chat,
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> ChatCompletionResponse:
-    integration: MistralAIIntegration = client._datadog_integration
-    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = extract_provider(enriched_kwargs)
-    model_name = kwargs.get("model", "")
-
-    with integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider_name,
-        model=model_name,
-        submit_to_llmobs=True,
-    ) as span:
-        resp = None
-        try:
-            resp = func(*args, **kwargs)
-            return resp
-        finally:
-            integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="llm")
+    event = _request_event(func, instance, kwargs, "llm")
+    with core.context_with_event(event):
+        resp = func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 async def traced_async_chat_generate(
@@ -73,23 +101,11 @@ async def traced_async_chat_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> ChatCompletionResponse:
-    integration: MistralAIIntegration = client._datadog_integration
-    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = extract_provider(enriched_kwargs)
-    model_name = kwargs.get("model", "")
-
-    with integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider_name,
-        model=model_name,
-        submit_to_llmobs=True,
-    ) as span:
-        resp = None
-        try:
-            resp = await func(*args, **kwargs)
-            return resp
-        finally:
-            integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="llm")
+    event = _request_event(func, instance, kwargs, "llm")
+    with core.context_with_event(event):
+        resp = await func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 def traced_generate_stream(
@@ -98,25 +114,20 @@ def traced_generate_stream(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
-    integration: MistralAIIntegration = client._datadog_integration
-    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = extract_provider(enriched_kwargs)
-    model_name = kwargs.get("model", "")
-
-    span = integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider_name,
-        model=model_name,
-        submit_to_llmobs=True,
-    )
-    try:
-        resp = func(*args, **kwargs)
-        return make_traced_stream(resp, MistralAIStreamHandler(integration, span, args, enriched_kwargs))  # type: ignore[no-untyped-call]
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=None, operation="llm")
-        span.finish()
-        raise
+    event = _request_event(func, instance, kwargs, "llm")
+    # dispatch_end_event=False defers the ended event until the stream handler calls
+    # ctx.dispatch_ended_event() in finalize_stream(). Errors before the stream exists
+    # must dispatch it manually so the span finishes with the error info.
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        handler = MistralAIStreamHandler(  # type: ignore[no-untyped-call]
+            None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
+        )
+        return make_traced_stream(resp, handler)
 
 
 async def traced_async_generate_stream(
@@ -125,25 +136,17 @@ async def traced_async_generate_stream(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
-    integration: MistralAIIntegration = client._datadog_integration
-    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = extract_provider(enriched_kwargs)
-    model_name = kwargs.get("model", "")
-
-    span = integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider_name,
-        model=model_name,
-        submit_to_llmobs=True,
-    )
-    try:
-        resp = await func(*args, **kwargs)
-        return make_traced_stream(resp, MistralAIAsyncStreamHandler(integration, span, args, enriched_kwargs))  # type: ignore[no-untyped-call]
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=None, operation="llm")
-        span.finish()
-        raise
+    event = _request_event(func, instance, kwargs, "llm")
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = await func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        handler = MistralAIAsyncStreamHandler(  # type: ignore[no-untyped-call]
+            None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
+        )
+        return make_traced_stream(resp, handler)
 
 
 def traced_embed_generate(
@@ -152,25 +155,11 @@ def traced_embed_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> EmbeddingResponse:
-    integration: MistralAIIntegration = client._datadog_integration
-    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = extract_provider(enriched_kwargs)
-    model_name = kwargs.get("model", "")
-
-    with integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider_name,
-        model=model_name,
-        submit_to_llmobs=True,
-    ) as span:
-        resp = None
-        try:
-            resp = func(*args, **kwargs)
-            return resp
-        finally:
-            integration.llmobs_set_tags(
-                span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="embedding"
-            )
+    event = _request_event(func, instance, kwargs, "embedding")
+    with core.context_with_event(event):
+        resp = func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 async def async_traced_embed_generate(
@@ -179,25 +168,11 @@ async def async_traced_embed_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> EmbeddingResponse:
-    integration: MistralAIIntegration = client._datadog_integration
-    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = extract_provider(enriched_kwargs)
-    model_name = kwargs.get("model", "")
-
-    with integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider_name,
-        model=model_name,
-        submit_to_llmobs=True,
-    ) as span:
-        resp = None
-        try:
-            resp = await func(*args, **kwargs)
-            return resp
-        finally:
-            integration.llmobs_set_tags(
-                span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="embedding"
-            )
+    event = _request_event(func, instance, kwargs, "embedding")
+    with core.context_with_event(event):
+        resp = await func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 def patch() -> None:
@@ -205,8 +180,6 @@ def patch() -> None:
         return
 
     client._datadog_patch = True
-    integration = MistralAIIntegration(integration_config=config.mistralai)
-    client._datadog_integration = integration
 
     wrap("mistralai.client.chat", "Chat.complete", traced_chat_generate)
     wrap("mistralai.client.chat", "Chat.complete_async", traced_async_chat_generate)
@@ -215,6 +188,10 @@ def patch() -> None:
     wrap("mistralai.client.embeddings", "Embeddings.create", traced_embed_generate)
     wrap("mistralai.client.embeddings", "Embeddings.create_async", async_traced_embed_generate)
 
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    core.dispatch("mistralai.patch", tuple())
+
 
 def unpatch() -> None:
     if not getattr(client, "_datadog_patch", False):
@@ -222,11 +199,11 @@ def unpatch() -> None:
 
     client._datadog_patch = False
 
+    core.dispatch("mistralai.unpatch", tuple())
+
     unwrap(client.chat.Chat, "complete")
     unwrap(client.chat.Chat, "complete_async")
     unwrap(client.chat.Chat, "stream")
     unwrap(client.chat.Chat, "stream_async")
     unwrap(client.embeddings.Embeddings, "create")
     unwrap(client.embeddings.Embeddings, "create_async")
-
-    delattr(client, "_datadog_integration")

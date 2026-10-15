@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.mistralai.patch import patch
 from ddtrace.contrib.internal.mistralai.patch import unpatch
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._contrib import listen_integrations
 from tests.utils import override_global_config
 
 
@@ -21,6 +22,9 @@ def reset_standalone_config():
 
 @pytest.fixture
 def mistralai():
+    # ddtrace-run installs this hook in the LLMObs product's post_preload; these
+    # tests patch directly, so install it here to get the APM shadow tags.
+    listen_integrations()
     patch()
     from mistralai.client.sdk import Mistral
 
