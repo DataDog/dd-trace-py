@@ -3,6 +3,7 @@
 import logging
 
 from openfeature import api
+from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.flag_evaluation import FlagType
@@ -12,6 +13,7 @@ import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._debug_logging_hook import DebugLoggingHook
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
@@ -56,7 +58,7 @@ def test_hook_logs_evaluation_details(caplog):
 
     (message,) = _evaluated_messages(caplog)
     assert message.startswith("Feature Flags: evaluated my-flag: ")
-    for expected in ("value=True", "variant='on'", "TARGETING_MATCH", "alloc-1"):
+    for expected in ("variant='on'", "TARGETING_MATCH", "error_code=None"):
         assert expected in message, message
 
 
@@ -74,7 +76,55 @@ def test_hook_logs_errored_evaluations(caplog):
 
     (message,) = _evaluated_messages(caplog)
     assert "FLAG_NOT_FOUND" in message, message
-    assert "Flag not found" in message, message
+    assert "Flag not found" not in message, message
+
+
+@pytest.mark.parametrize("consent", [None, False, True], ids=["consent-absent", "protected", "full-data"])
+@pytest.mark.parametrize("failed", [False, True], ids=["resolved", "fallback"])
+@pytest.mark.parametrize(
+    "flag_type,value",
+    [
+        (FlagType.STRING, "secret-flag-value"),
+        (FlagType.OBJECT, {"token": "secret-flag-value"}),
+    ],
+    ids=["string", "object"],
+)
+def test_hook_omits_sensitive_data(caplog, consent, failed, flag_type, value):
+    metadata = {"custom": "secret-metadata"}
+    if consent is not None:
+        metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] = consent
+    context = HookContext(
+        flag_key="private-flag",
+        flag_type=flag_type,
+        default_value=value,
+        evaluation_context=EvaluationContext(
+            targeting_key="secret-targeting-key", attributes={"email": "secret-context-email"}
+        ),
+    )
+    details = FlagEvaluationDetails(
+        flag_key="private-flag",
+        value=value,
+        variant=None if failed else "on",
+        reason=Reason.ERROR if failed else Reason.TARGETING_MATCH,
+        error_code=ErrorCode.GENERAL if failed else None,
+        error_message="Invalid context: secret-error-email" if failed else None,
+        flag_metadata=metadata,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger=HOOK_LOGGER):
+        DebugLoggingHook().finally_after(context, details, {})
+
+    (message,) = _evaluated_messages(caplog)
+    assert "private-flag" in message
+    assert ("GENERAL" if failed else "TARGETING_MATCH") in message
+    for sensitive in (
+        "secret-flag-value",
+        "secret-metadata",
+        "secret-targeting-key",
+        "secret-context-email",
+        "secret-error-email",
+    ):
+        assert sensitive not in caplog.text
 
 
 def test_provider_registers_hook_when_debug_enabled(caplog):
