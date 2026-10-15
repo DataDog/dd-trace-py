@@ -4,8 +4,8 @@ import threading
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.appsec._iast._constants import IAST
 from tests.appsec.iast.conftest import CONFIG_SERVER_PORT
 from tests.utils import _build_env
 
@@ -24,6 +24,16 @@ def _run_python_file(*args, **kwargs):
     ret = subprocess.run(cmd, cwd=current_dir, env=env)
 
     assert ret.returncode == 0
+
+
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="false"))
+def test_settings_does_not_initialize_iast():
+    import sys
+
+    from ddtrace.internal.settings.asm import config
+
+    assert config._iast_enabled is False
+    assert "ddtrace.appsec._iast" not in sys.modules
 
 
 def test_env_var_iast_enabled(capfd) -> None:

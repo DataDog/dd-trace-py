@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.iast_packages import clonevirtualenv
 from tests.utils import DDTRACE_PATH

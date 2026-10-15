@@ -3,7 +3,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 import ddtrace.appsec._iast._iast_request_context_base as base
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
