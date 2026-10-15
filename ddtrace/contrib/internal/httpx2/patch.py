@@ -1,3 +1,4 @@
+# This is a fork of httpx.
 import httpx2
 
 from ddtrace import config
