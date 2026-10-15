@@ -103,17 +103,28 @@ def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
 @pytest.mark.skipif(
     EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry SDK and Exporter to not be installed"
 )
-def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
-    """Test error when OpenTelemetry SDK is not installed."""
+def test_otel_exporter_not_installed(ddtrace_run_python_code_in_subprocess):
+    """Test error when OpenTelemetry OTLP exporters are not installed."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
 
     assert (
-        "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
-        "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support."
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP logs export."
     ) in stderr.decode(), f"Expected error message not found in stderr: {stderr.decode()}"
+
+
+@pytest.mark.skipif(EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry exporters to be absent")
+def test_otel_exporter_import_warning(caplog):
+    from ddtrace.internal.opentelemetry.logs import _import_exporter
+
+    assert _import_exporter("grpc") is None
+    assert (
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP logs export."
+    ) in caplog.text
 
 
 @pytest.mark.skipif(

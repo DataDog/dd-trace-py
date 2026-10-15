@@ -38,10 +38,13 @@ GOOGLE_ADK_VERSION = parse_version(get_version())
 def _tool_dispatch_target(version):
     """Return the module path under google.adk and the attribute name of the central tool dispatcher.
 
-    google-adk 2.9.0 moved it from functions.__call_tool_async to _tool_caller._call_tool_async.
-    functions only re-exports the new name and every 2.9 caller reads it from _tool_caller, so the
-    wrap has to land on _tool_caller or it intercepts nothing.
+    google-adk 2.9.0 moved it from functions.__call_tool_async to _tool_caller._call_tool_async,
+    and 2.10.0 moved it again to tools._caller._call_tool_async. functions only re-exports the
+    name and every caller reads it from the defining module's globals, so the wrap has to land on
+    that module or it intercepts nothing.
     """
+    if version >= (2, 10, 0):
+        return "flows.llm_flows.tools._caller", "_call_tool_async"
     if version >= (2, 9, 0):
         return "flows.llm_flows._tool_caller", "_call_tool_async"
     return "flows.llm_flows.functions", "__call_tool_async"
