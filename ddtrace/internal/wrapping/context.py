@@ -1,4 +1,5 @@
 from abc import ABC
+from collections import deque
 from contextvars import ContextVar
 from functools import lru_cache
 from inspect import CO_ASYNC_GENERATOR
@@ -465,6 +466,10 @@ if is_at_least_py(3, 15):
     # context holding unpicklable state (locks, ContextVars). See issue #16443.
     _fn_registry: "weakref.WeakKeyDictionary[FunctionType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
     _ctx_registry_lock = Lock()
+    # Cleanups of wrapped functions collected without unwrap(). A finalizer can run from the cyclic GC at any
+    # allocation, including on a thread that already holds _ctx_registry_lock inside wrap(), so it never waits for that
+    # lock: when the lock is taken, the cleanup stays queued for the next wrap() or unwrap().
+    _pending_cleanups: "deque[tuple[weakref.ref[_UniversalWrappingContext], CodeType]]" = deque()
 
 
 # This is abstract and should not be used directly
@@ -925,6 +930,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             return ctx
 
         def wrap(self) -> None:
+            _drain_pending_cleanups()
             f: FunctionType = self.__wrapped__
             original_code: CodeType = get_function_code(f)
             with _ctx_registry_lock:
@@ -972,6 +978,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 self._original_code = original_code
 
         def unwrap(self) -> None:
+            _drain_pending_cleanups()
             f: FunctionType = self.__wrapped__
             finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)  # type: ignore[type-arg]
             if finalize is not None:
@@ -1306,24 +1313,41 @@ if is_at_least_py(3, 15):
         self_ref: "weakref.ref[_UniversalWrappingContext]",
         code: CodeType,
     ) -> None:
-        """Unregister sys.monitoring when a wrapped function is collected without unwrap().
+        """Queue the sys.monitoring cleanup of a wrapped function collected without unwrap().
 
         weakref.finalize fires only after the wrapped function is unreachable, so by the
         time this runs, self.__wrapped__ is already gone; unwrap() (and self.unwrap's use
         of self.__wrapped__) cannot be used here. Clean up via the cloned monitor code
         object instead, which the finalizer callback captures directly.
+
+        The cyclic GC can run this on a thread that holds _ctx_registry_lock (any allocation
+        inside wrap() can trigger it), and that lock is not reentrant. So the cleanup is queued,
+        and done now only if the lock is free; otherwise the next wrap() or unwrap() does it.
         """
-        self: t.Optional[_UniversalWrappingContext] = self_ref()
-        if self is None:
+        _pending_cleanups.append((self_ref, code))
+        _drain_pending_cleanups(blocking=False)
+
+    def _drain_pending_cleanups(blocking: bool = True) -> None:
+        """Unregister the queued wrapped functions that were collected without unwrap()."""
+        if not _pending_cleanups:
             return
+        if not _ctx_registry_lock.acquire(blocking):
+            return
+        collected: list[tuple[CodeType, _UniversalWrappingContext]] = []
         try:
-            with _ctx_registry_lock:
-                if _ctx_registry.get(code) is not self:
-                    return
-                del _ctx_registry[code]
-            _monitoring.unregister(code, self)
-        except Exception:
-            log.exception("ddtrace: error during finalizer cleanup of monitoring wrap")
+            while _pending_cleanups:
+                self_ref, code = _pending_cleanups.popleft()
+                self: t.Optional[_UniversalWrappingContext] = self_ref()
+                if self is not None and _ctx_registry.get(code) is self:
+                    del _ctx_registry[code]
+                    collected.append((code, self))
+        finally:
+            _ctx_registry_lock.release()
+        for code, self in collected:
+            try:
+                _monitoring.unregister(code, self)
+            except Exception:
+                log.exception("ddtrace: error during finalizer cleanup of monitoring wrap")
 
     def wrapping_context_for(f: FunctionType) -> "t.Optional[_UniversalWrappingContext]":
         """Return the _UniversalWrappingContext for *f*, or None if not context-wrapped."""

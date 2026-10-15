@@ -2035,3 +2035,40 @@ def test_an_exception_from_enter_is_still_swallowed():
         assert _storage_chain_length(context._storage.get()) == 0
     finally:
         context.unwrap()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 15), reason="sys.monitoring-based wrapping is used on 3.15+")
+@pytest.mark.subprocess(timeout=60)
+def test_wrapping_context_collected_during_wrap_does_not_deadlock():
+    # A wrapped function freed by the cyclic GC while wrap() holds the registry lock must not block on that lock.
+    import gc
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    class Context(WrappingContext):
+        pass
+
+    gc.disable()
+
+    class App:
+        def method(self):
+            return 1
+
+    Context(App.method).wrap()
+    # A class is always in a reference cycle, so only the cyclic GC frees it and its wrapped method.
+    del App
+
+    register = monitoring.register
+
+    def register_after_collecting(*args, **kwargs):
+        gc.collect()
+        return register(*args, **kwargs)
+
+    monitoring.register = register_after_collecting
+
+    def other():
+        return 2
+
+    Context(other).wrap()
+    assert other() == 2
