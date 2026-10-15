@@ -23,6 +23,7 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesB
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_import_hooks
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -56,7 +57,7 @@ _IMPORT_NAME_ARG_SHIFT: int = 2 if is_at_least_py(3, 15) else 0
 EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
-_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
+_USE_FILE_LEVEL_COVERAGE = is_file_level_coverage_enabled()
 _ACCURATE_IMPORTS_REQUESTED = asbool(env.get("_DD_COVERAGE_ACCURATE_IMPORTS", "false"))
 _USE_ACCURATE_IMPORTS: bool = not is_at_least_py(3, 15) and _ACCURATE_IMPORTS_REQUESTED
 if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
