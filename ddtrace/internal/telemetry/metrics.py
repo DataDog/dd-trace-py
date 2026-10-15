@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import ContextManager
 from typing import Optional
 from typing import Union
 import weakref
@@ -162,7 +163,7 @@ def get_metric_recorder(
         if recorder is None:
             recorder = _metric_recorders[key] = MetricRecorder(namespace, name, metric_type, tags)
             if _active_worker is not None:
-                recorder._rebind(_active_worker)
+                recorder._rebind(_active_worker, getattr(_active_writer, "_worker_access_lock", None))
         return recorder
 
 
@@ -172,7 +173,7 @@ def _bind_metric_recorders(writer: object, worker: "TelemetryWorker") -> None:
     with _recorder_lock:
         _active_writer, _active_worker = writer, worker
         for recorder in list(_metric_recorders.values()):
-            recorder._rebind(worker)
+            recorder._rebind(worker, getattr(writer, "_worker_access_lock", None))
 
 
 def _unbind_metric_recorders(writer: object) -> None:
@@ -212,7 +213,16 @@ class MetricRecorder:
     writer rebuilds its worker.
     """
 
-    __slots__ = ("_namespace", "_name", "_metric_type", "_tags", "_worker", "_context", "__weakref__")
+    __slots__ = (
+        "_namespace",
+        "_name",
+        "_metric_type",
+        "_tags",
+        "_worker",
+        "_context",
+        "_worker_access_lock",
+        "__weakref__",
+    )
 
     def __init__(
         self,
@@ -227,15 +237,31 @@ class MetricRecorder:
         self._tags = tags
         self._worker: Union[TelemetryWorker, _NoopWorker, _PendingWorker] = _NOOP_WORKER
         self._context: Optional[MetricContext] = None
+        self._worker_access_lock: Optional[ContextManager[Any]] = None
 
     def add(self, value: float = 1) -> None:
         """Record value against this recorder's metric."""
         # _context is None until the pending worker registers it; the noop and pending workers
         # both ignore what is passed. mypy can't see that pairing across the union.
-        self._worker.add_point(self._context, value)  # type: ignore[arg-type]
+        # Read _worker before the lock: _rebind() sets the lock first, so a None lock means this
+        # worker was read before any MicroVM binding and is the noop worker.
+        worker = self._worker
+        worker_access_lock = self._worker_access_lock
+        if worker_access_lock is None:
+            worker.add_point(self._context, value)  # type: ignore[arg-type]
+            return
+        with worker_access_lock:
+            self._worker.add_point(self._context, value)  # type: ignore[arg-type]
 
-    def _rebind(self, worker: Optional["TelemetryWorker"]) -> None:
+    def _rebind(
+        self, worker: Optional["TelemetryWorker"], worker_access_lock: Optional[ContextManager[Any]] = None
+    ) -> None:
         """Point at worker, whose context is registered on the next recorded point."""
         # Leave _context alone: add() reads _worker and _context separately, so clearing it here
         # could pair the old real worker with None. The noop and pending workers ignore the stale one.
+        # Keep the MicroVM lock while unbound. A call that read the old worker before this transition
+        # must wait for the refresh rather than call that worker after it is discarded.
+        # Set the lock before _worker; add() relies on that order (see there).
+        if worker is not None:
+            self._worker_access_lock = worker_access_lock
         self._worker = _NOOP_WORKER if worker is None else _PendingWorker(self, worker)
