@@ -57,8 +57,13 @@ OpenFeature
 
 .. autoclass:: ddtrace.openfeature.DataDogProvider
 
-Per-evaluation telemetry opt-out is disabled by default. Enable it explicitly
-when the application supplies the consent decision::
+Per-evaluation telemetry opt-out is disabled by default. Enable it with
+``DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED=true`` or the
+constructor option below. An explicit constructor ``True`` or ``False`` overrides
+the environment. An omitted option or ``None`` uses the environment setting.
+The provider captures this setting at construction, not during evaluation.
+
+The application supplies the consent decision in the evaluation context::
 
     from openfeature import api
     from openfeature.evaluation_context import EvaluationContext

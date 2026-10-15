@@ -34,6 +34,7 @@ from tests.utils import override_global_config
 
 
 PARAMETER = "dd_evaluation_telemetry_opt_out"
+ACTIVATION_ENV = "DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED"
 FLAG = "telemetry-opt-out"
 
 
@@ -88,6 +89,7 @@ class Emissions:
 
 @pytest.fixture
 def emission_factory(monkeypatch):
+    monkeypatch.delenv(ACTIVATION_ENV, raising=False)
     _set_ffe_config(None)
     api.clear_hooks()
     api.set_evaluation_context(EvaluationContext())
@@ -150,6 +152,59 @@ def test_parameter_requires_provider_activation(emission_factory, options):
     emissions = emission_factory(**options)
     assert emissions.evaluate(context("control", True)).value is True
     assert emissions.counts() == {"evaluations": 1, "metrics": 1, "annotated_spans": 1, "exposures": 1}
+
+
+@pytest.mark.parametrize("env_value,enabled", [(None, False), ("true", True), ("false", False), ("invalid", False)])
+def test_environment_controls_activation(emission_factory, monkeypatch, env_value, enabled):
+    if env_value is not None:
+        monkeypatch.setenv(ACTIVATION_ENV, env_value)
+    emissions = emission_factory()
+    details = emissions.evaluate(context("environment", True))
+    assert details.value is True
+    assert details.variant == "true"
+    assert details.error_code is None
+    count = int(not enabled)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+
+
+@pytest.mark.parametrize(
+    "env_value,option,enabled",
+    [("true", False, False), ("false", True, True), ("true", None, True), ("false", None, False)],
+)
+def test_environment_and_constructor_precedence(emission_factory, monkeypatch, env_value, option, enabled):
+    monkeypatch.setenv(ACTIVATION_ENV, env_value)
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=option)
+    details = emissions.evaluate(context("precedence", True))
+    assert details.value is True
+    assert details.variant == "true"
+    assert details.error_code is None
+    count = int(not enabled)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+
+
+@pytest.mark.parametrize("attributes", [{}, {PARAMETER: False}, {PARAMETER: None}, {PARAMETER: "true"}, {PARAMETER: 1}])
+def test_environment_activation_still_requires_subject_boolean_true(emission_factory, monkeypatch, attributes):
+    monkeypatch.setenv(ACTIVATION_ENV, "true")
+    emissions = emission_factory()
+    details = emissions.evaluate(EvaluationContext(targeting_key="allowed", attributes=attributes))
+    assert details.value is True
+    assert details.variant == "true"
+    assert details.error_code is None
+    assert emissions.counts() == {"evaluations": 1, "metrics": 1, "annotated_spans": 1, "exposures": 1}
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_environment_activation_is_captured_at_provider_creation(emission_factory, monkeypatch, enabled):
+    monkeypatch.setenv(ACTIVATION_ENV, str(enabled).lower())
+    original = emission_factory()
+    monkeypatch.setenv(ACTIVATION_ENV, str(not enabled).lower())
+    assert original.evaluate(context("original", True)).value is True
+    count = int(not enabled)
+    assert original.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+    updated = emission_factory()
+    assert updated.evaluate(context("updated", True)).value is True
+    count = int(enabled)
+    assert updated.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 2}
 
 
 @pytest.mark.parametrize("value", [False, None, "true", "TRUE", 1, 0, 1.0, {}, []])

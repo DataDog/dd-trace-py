@@ -114,25 +114,27 @@ class DataDogProvider(AbstractProvider):
     Implements the OpenFeature provider interface for Datadog's
     Feature Flags and Experimentation (FFE) product.
 
-    :param bool enable_evaluation_telemetry_opt_out_parameter:
-        Enable per-evaluation telemetry opt-out. Defaults to ``False``.
+    :param enable_evaluation_telemetry_opt_out_parameter:
+        Enable per-evaluation telemetry opt-out. When omitted or ``None``, use
+        ``DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED``
+        (default ``False``). Explicit ``True`` or ``False`` overrides the environment.
         When enabled, only boolean ``True`` in the final evaluation context's
         ``dd_evaluation_telemetry_opt_out`` attribute suppresses evaluation events,
         evaluation metrics, and automatic flag span annotations. Flag results,
         experiment exposures, and application hooks remain unchanged.
+    :type enable_evaluation_telemetry_opt_out_parameter: bool or None
     """
 
     def __init__(
         self,
         *args: typing.Any,
         initialization_timeout: typing.Optional[float] = None,
-        enable_evaluation_telemetry_opt_out_parameter: bool = False,
+        enable_evaluation_telemetry_opt_out_parameter: typing.Optional[bool] = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
-        self._enable_evaluation_telemetry_opt_out_parameter = enable_evaluation_telemetry_opt_out_parameter
         self._evaluation_telemetry: ContextVar[typing.Optional[EvaluationTelemetryHook]] = ContextVar(
             "ddtrace.openfeature.evaluation_telemetry", default=None
         )
@@ -146,6 +148,11 @@ class DataDogProvider(AbstractProvider):
         # provider-construction time rather than at import time (see the killswitch
         # note below for the same reasoning).
         instance_config = OpenFeatureConfig()
+        self._enable_evaluation_telemetry_opt_out_parameter = (
+            instance_config.evaluation_telemetry_per_subject_opt_out_enabled
+            if enable_evaluation_telemetry_opt_out_parameter is None
+            else enable_evaluation_telemetry_opt_out_parameter
+        )
 
         # How long initialize() waits for that first config, in seconds. The
         # constructor argument wins so embedders and tests can override the

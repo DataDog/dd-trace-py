@@ -1,7 +1,10 @@
 ---
 features:
   - |
-    OpenFeature: Adds ``DataDogProvider(enable_evaluation_telemetry_opt_out_parameter=True)``
-    (default ``False``) to suppress new evaluation events, metrics, and automatic flag span
-    annotations when ``dd_evaluation_telemetry_opt_out`` is boolean ``True`` in the evaluation context.
-    Flag results and experiment exposures remain unchanged.
+    OpenFeature: Adds per-subject evaluation telemetry opt-out through
+    ``DataDogProvider(enable_evaluation_telemetry_opt_out_parameter=True)`` or
+    ``DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED=true``
+    (disabled by default), with explicit constructor values taking precedence.
+    Only boolean ``True`` in the ``dd_evaluation_telemetry_opt_out`` context attribute
+    suppresses new evaluation events, metrics, and automatic flag span annotations,
+    while preserving flag results and experiment exposures.
