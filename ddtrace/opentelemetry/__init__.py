@@ -54,6 +54,24 @@ Usage example::
         span.set_attribute("key", "value")
         # Your code here
 
+OpenTelemetry HTTP semantics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Setting ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true`` makes HTTP spans follow the OpenTelemetry HTTP
+semantic conventions:
+
+- Request methods are normalized (for example, ``get`` becomes ``GET`` and unknown methods become
+  ``_OTHER``), and the original value is kept in ``http.request.method_original``.
+- Client and server spans record URL, address, port, and status attributes. URL credentials are
+  redacted, captured query values are obfuscated, and ports and status codes stay numeric.
+- Client spans treat status codes of 400 and above as errors; server spans treat 500 and above as
+  errors unless ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` is set.
+- Resource names are built from the method and route template, and a resource set by application
+  code is never overwritten.
+- Traces are exported over OTLP with native span events, span attribute schema ``v0`` is used, and
+  automatic peer-service names are disabled. Conflicting schema and peer-service settings are
+  overridden and reported through logs and telemetry.
+
 
 Metrics
 -------

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from types import TracebackType
 from typing import TYPE_CHECKING
@@ -14,7 +16,7 @@ from ddtrace.internal.utils import get_argument_value
 
 
 if TYPE_CHECKING:
-    from aiokafka import AIOKafkaConsumer
+    from aiokafka.consumer.consumer import AIOKafkaConsumer
     from aiokafka.consumer.group_coordinator import GroupCoordinator
     from aiokafka.structs import ConsumerRecord
     from aiokafka.structs import TopicPartition
@@ -85,10 +87,10 @@ def dsm_aiokafka_send_completed(
 
 
 def dsm_aiokafka_message_consume(
-    instance: "AIOKafkaConsumer",
+    instance: AIOKafkaConsumer,
     span_ctx: core.ExecutionContext,
     _start_ns: Optional[int],
-    message: Optional["ConsumerRecord"],
+    message: Optional[ConsumerRecord],
     _error: Optional[BaseException],
 ) -> None:
     from . import data_streams_processor as processor
@@ -133,9 +135,9 @@ def dsm_aiokafka_message_consume(
 
 
 def dsm_aiokafka_many_messages_consume(
-    instance: "AIOKafkaConsumer",
+    instance: AIOKafkaConsumer,
     ctx: core.ExecutionContext,
-    messages: Optional[dict["TopicPartition", list["ConsumerRecord"]]],
+    messages: Optional[dict[TopicPartition, list[ConsumerRecord]]],
 ) -> None:
     if messages is not None:
         for _, records in messages.items():
@@ -143,7 +145,7 @@ def dsm_aiokafka_many_messages_consume(
                 dsm_aiokafka_message_consume(instance, ctx, None, record, None)
 
 
-def dsm_aiokafka_message_commit(instance: "GroupCoordinator", args: Any, kwargs: Any) -> None:
+def dsm_aiokafka_message_commit(instance: GroupCoordinator, args: Any, kwargs: Any) -> None:
     from . import data_streams_processor as processor
 
     dsm_processor = processor()

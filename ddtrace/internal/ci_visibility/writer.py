@@ -1,7 +1,7 @@
 from http.client import RemoteDisconnected
 import socket
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Optional
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -57,7 +57,7 @@ class CIVisibilityEventClient(WriterClientBase):
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",
             },
         )
-        super(CIVisibilityEventClient, self).__init__(encoder)
+        super().__init__(encoder)
 
     def set_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         if isinstance(self.encoder, CIVisibilityEncoderV01):
@@ -76,7 +76,7 @@ class CIVisibilityCoverageClient(WriterClientBase):
         self._intake_url = intake_url
         if headers:
             self._headers = headers
-        super(CIVisibilityCoverageClient, self).__init__(encoder)
+        super().__init__(encoder)
 
 
 class CIVisibilityProxiedCoverageClient(CIVisibilityCoverageClient):
@@ -95,7 +95,7 @@ class CIVisibilityCoverageReportClient(WriterClientBase):
         self._intake_url = intake_url
         if headers:
             self._headers = headers
-        super(CIVisibilityCoverageReportClient, self).__init__(encoder)
+        super().__init__(encoder)
 
     @property
     def coverage_encoder(self) -> CIVisibilityCoverageReportEncoder:
@@ -210,7 +210,7 @@ class CIVisibilityWriter(HTTPWriter):
                 )
             )
 
-        super(CIVisibilityWriter, self).__init__(
+        super().__init__(
             intake_url=intake_url,
             clients=clients,
             processing_interval=processing_interval,
@@ -226,7 +226,7 @@ class CIVisibilityWriter(HTTPWriter):
 
     def stop(self, timeout=None):
         if self.status != service.ServiceStatus.STOPPED:
-            super(CIVisibilityWriter, self).stop(timeout=timeout)
+            super().stop(timeout=timeout)
 
     def recreate(
         self, appsec_enabled: Optional[bool] = None, llmobs_enabled: Optional[bool] = None

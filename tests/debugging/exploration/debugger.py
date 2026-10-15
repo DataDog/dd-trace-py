@@ -44,7 +44,7 @@ _debugger.remoteconfig_poller = NoopRemoteConfig()
 
 class ModuleCollector(DebuggerModuleWatchdog):
     def __init__(self, *args, **kwargs):
-        super(ModuleCollector, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._imported_modules: set[str] = set()
 
@@ -84,7 +84,7 @@ class ModuleCollector(DebuggerModuleWatchdog):
 
         self._on_new_module(module)
 
-        super(ModuleCollector, self).after_import(module)
+        super().after_import(module)
 
         if config.elusive:
             # Handle any new modules that have been imported since the last time
@@ -103,10 +103,10 @@ class ModuleCollector(DebuggerModuleWatchdog):
                 if name not in self._imported_modules:
                     self._imported_modules.add(name)
                     self._on_new_module(m)
-                    super(ModuleCollector, self).after_import(m)
+                    super().after_import(m)
 
 
-class NoopDebuggerRC(object):
+class NoopDebuggerRC:
     def __init__(self, *args, **kwargs):
         pass
 
@@ -138,7 +138,7 @@ class NoopSnapshotJsonEncoder(LogSignalJsonEncoder):
 
 class ExplorationSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
-        super(ExplorationSignalCollector, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
@@ -215,7 +215,7 @@ class ExplorationDebugger(Debugger):
         # with the shared code collector ourselves, before enabling.
         ModuleCodeCollector.register("di")
 
-        super(ExplorationDebugger, cls).enable()
+        super().enable()
 
         cls._instance._probe_registry = LightProbeRegistry(cls._instance._status_logger)
 
@@ -256,7 +256,7 @@ class ExplorationDebugger(Debugger):
                 log(f"  - {e.error_type}: {e.message}, in {probe_id}")
                 log(f"    >>> {linecache.getline(file, int(line))}")
 
-        super(ExplorationDebugger, cls).disable(join=join)
+        super().disable(join=join)
 
         if failed:
             os._exit(2)

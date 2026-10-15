@@ -1,5 +1,6 @@
+from unittest import mock
+
 import flask
-import mock
 
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
@@ -105,8 +106,8 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             # Assert the span that was created
             span = spans[0]
             self.assertEqual(span.service, "flask")
-            self.assertEqual(span.name, "tests.contrib.flask.{}".format(signal_name))
-            self.assertEqual(span.resource, "tests.contrib.flask.{}".format(signal_name))
+            self.assertEqual(span.name, f"tests.contrib.flask.{signal_name}")
+            self.assertEqual(span.resource, f"tests.contrib.flask.{signal_name}")
             self.assertEqual(
                 set(span.get_tags().keys()),
                 set(

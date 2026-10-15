@@ -6,10 +6,11 @@ import subprocess
 
 import pytest
 
+import ddtrace
 from tests.contrib.integration_registry.test_contrib_versions import _get_integration_supported_versions
 
 
-internal_contrib_dir = Path(os.path.dirname(__file__)) / ".." / ".." / "ddtrace" / "contrib" / "internal"
+internal_contrib_dir = Path(ddtrace.__file__).resolve().parent / "contrib" / "internal"
 
 anthropic_spec = _get_integration_supported_versions(internal_contrib_dir, "anthropic")["anthropic"]
 pymemcache_spec = _get_integration_supported_versions(internal_contrib_dir, "pymemcache")["pymemcache"]

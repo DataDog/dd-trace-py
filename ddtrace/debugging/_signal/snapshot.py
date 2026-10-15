@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from itertools import chain
@@ -7,7 +8,6 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import ClassVar
-from typing import Mapping
 from typing import Optional
 from typing import cast
 

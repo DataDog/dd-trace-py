@@ -238,7 +238,7 @@ class LangChainIntegration(BaseLLMIntegration):
         }
         span_kind = span_kind_map.get(operation, "workflow")
         metrics = {}
-        if operation in ("llm", "chat") and response is not None and not span.error:
+        if operation in ("llm", "chat") and response is not None:
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(response)
             if total_tokens > 0:
                 metrics = {
@@ -496,7 +496,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._llmobs_set_metadata(span, kwargs)
 
-        if span.error:
+        if completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
@@ -565,7 +565,7 @@ class LangChainIntegration(BaseLLMIntegration):
             **cast(dict[str, Any], {input_key: input_messages}),
         )
 
-        if span.error:
+        if chat_completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
@@ -745,7 +745,7 @@ class LangChainIntegration(BaseLLMIntegration):
             embedding_dim = len(output_values[0])
             _annotate_llmobs_span_data(
                 span,
-                output_value="[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+                output_value=f"[{embeddings_count} embedding(s) returned with size {embedding_dim}]",
             )
         except (TypeError, IndexError):
             log.warning("Failed to write output vectors", output_embedding)
@@ -787,7 +787,7 @@ class LangChainIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             output_documents=format_langchain_io(documents) if documents else None,
-            output_value="[{} document(s) retrieved]".format(len(output_documents)),
+            output_value=f"[{len(output_documents)} document(s) retrieved]",
         )
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:

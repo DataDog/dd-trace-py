@@ -10,7 +10,8 @@ description: |
   Triggers: "dd-trace-py", "ddtrace", "contrib", "integration", "patch.py",
   "trace_handlers", "PATCH_MODULES", "context_with_data", "context_with_event",
   "TracingEvent", "VCR", "cassette", "generative-ai", "LLM integration",
-  "run-tests", "suitespec", "new integration", "wrap", "unwrap".
+  "run-tests", "suitespec", "new integration", "wrap", "unwrap",
+  "manifest.yaml", "integration manifest".
 ---
 
 # dd-trace-py APM Integrations
@@ -40,6 +41,7 @@ Patch Module (ddtrace/contrib/internal/)  -->  Spans + Tags
 - **`PATCH_MODULES`** -- registration dict in `ddtrace/_monkey.py` for `patch_all()` discovery
 - **`INTEGRATION_CONFIGS`** -- frozenset in `ddtrace/internal/settings/_config.py`, required for config to work
 - **`registry.yaml`** -- dependency names and tested version range in `scripts/integration_registry/registry.yaml`
+- **`{name}.manifest.yaml`** -- declarative metadata (packages, categories, systems) next to each patch module. Required for every new integration; existing ones rarely change. See "What is an integration manifest?" in [Contributing Integrations](../../../docs/contributing-integrations.rst)
 
 ## Type Annotations
 
@@ -82,7 +84,7 @@ sanitization, LLMObs assertions, and VCR cassette setup.
 
 1. **Investigate** -- Read 1-2 reference integrations of the same type (see tables above)
 2. **Create patch module** -- `ddtrace/contrib/internal/{name}/patch.py` with `patch()`, `unpatch()`, `get_version()`
-3. **Register** -- Add to `PATCH_MODULES`, `scripts/integration_registry/registry.yaml`, and `INTEGRATION_CONFIGS`
+3. **Register** -- Add to `PATCH_MODULES`, `scripts/integration_registry/registry.yaml`, and `INTEGRATION_CONFIGS`, and add `{name}.manifest.yaml`
 4. **LLM only: Create integration class** -- Subclass `BaseLLMIntegration` in `ddtrace/llmobs/_integrations/`. See the **llmobs-integrations** skill's [Implementation Guide](../llmobs-integrations/references/implementation-guide.md) for full patterns.
 5. **Write tests** -- Add a suitespec environment and test files
 6. **Run tests** -- Use the **run-tests** skill
@@ -108,5 +110,6 @@ This clears the Rust target directory and pip's download/build caches. Run this 
 
 - [Implementation Guide](references/implementation-guide.md) -- Step-by-step new integration (all types)
 - [Reference Integrations](references/reference-integrations.md) -- All 13 categories with canonical examples
+- [Contributing Integrations](../../../docs/contributing-integrations.rst) -- "What is an integration manifest?": `{name}.manifest.yaml` fields and when to update it
 - [Design Decisions](references/design-decisions.md) -- Why integrations are structured this way
 - [Anti-Patterns](references/anti-patterns.md) -- Silent failures and common gotchas

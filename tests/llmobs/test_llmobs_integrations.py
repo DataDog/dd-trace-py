@@ -1,7 +1,9 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 
 
@@ -43,6 +45,27 @@ def test_integration_trace(mock_integration_config, test_spans):
     assert span[0].resource == "dummy_operation_id"
     assert span[0].service == "dummy_service"
     mock_set_base_span_tags.assert_called_once()
+
+
+@pytest.mark.parametrize("llmobs_enabled", [True, False])
+def test_integration_trace_sets_apm_shadow_enabled_metric(llmobs_enabled, mock_integration_config, test_spans):
+    with mock.patch("ddtrace.llmobs._integrations.base.is_enabled", return_value=llmobs_enabled):
+        integration = BaseLLMIntegration(mock_integration_config)
+        integration._set_base_span_tags = mock.Mock()
+        with integration.trace("dummy_operation_id", submit_to_llmobs=True):
+            pass
+    span = test_spans.pop()[0]
+    assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == (1 if llmobs_enabled else 0)
+
+
+def test_integration_trace_no_apm_shadow_enabled_metric_without_submit_to_llmobs(mock_integration_config, test_spans):
+    with mock.patch("ddtrace.llmobs._integrations.base.is_enabled", return_value=True):
+        integration = BaseLLMIntegration(mock_integration_config)
+        integration._set_base_span_tags = mock.Mock()
+        with integration.trace("dummy_operation_id"):
+            pass
+    span = test_spans.pop()[0]
+    assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) is None
 
 
 @mock.patch("ddtrace.llmobs._integrations.base.log")

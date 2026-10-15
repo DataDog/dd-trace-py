@@ -27,6 +27,6 @@ def kafka_ready():
                     await admin.close()
                 except Exception:
                     pass
-        raise RuntimeError("Kafka at {} not ready after 30s: {}".format(bootstrap, last_err))
+        raise RuntimeError(f"Kafka at {bootstrap} not ready after 30s: {last_err}")
 
     asyncio.run(_wait())

@@ -1,0 +1,4 @@
+simple_one_span:
+  workload: simple_one_span
+flask_trace:
+  workload: flask_trace

@@ -14,7 +14,7 @@ REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 class FlaskHookTestCase(BaseFlaskTestCase):
     def setUp(self):
-        super(FlaskHookTestCase, self).setUp()
+        super().setUp()
 
         @self.app.route("/")
         def index():

@@ -3,13 +3,14 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 
+from collections.abc import Mapping
 import json
 from json.decoder import JSONDecodeError
-from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
@@ -47,7 +48,7 @@ class RateSampler:
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
-    def sample(self, span: Span) -> bool:
+    def sample(self, span: SpanData) -> bool:
         sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
 
@@ -182,9 +183,11 @@ class DatadogSampler:
             sample_rate = matched_rule.sample_rate
         elif not self._rate_limit_always_on:
             key = self._key(span.service, span.get_tag(ENV_KEY))
-            if key in self._agent_based_samplers:
+            agent_sampler = self._agent_based_samplers.get(key)
+            if agent_sampler is None:
+                agent_sampler = self._agent_based_samplers.get(self._default_key)
+            if agent_sampler is not None:
                 # Agent service based sampling
-                agent_sampler = self._agent_based_samplers[key]
                 sampled = agent_sampler.sample(span)
                 sample_rate = agent_sampler.sample_rate
 

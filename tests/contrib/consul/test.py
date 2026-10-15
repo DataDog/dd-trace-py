@@ -20,7 +20,7 @@ class TestConsulPatch(TracerTestCase):
     def setUp(self):
         if "CONSUL_HTTP_ADDR" in os.environ:
             del os.environ["CONSUL_HTTP_ADDR"]
-        super(TestConsulPatch, self).setUp()
+        super().setUp()
         patch()
         c = consul.Consul(
             host=CONSUL_CONFIG["host"],
@@ -30,7 +30,7 @@ class TestConsulPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestConsulPatch, self).tearDown()
+        super().tearDown()
 
     def test_put(self):
         key = "test/put/consul"
@@ -164,7 +164,7 @@ class TestConsulPatch(TracerTestCase):
 
 class TestSchematization(TracerTestCase):
     def setUp(self):
-        super(TestSchematization, self).setUp()
+        super().setUp()
         patch()
         c = consul.Consul(
             host=CONSUL_CONFIG["host"],
@@ -174,7 +174,7 @@ class TestSchematization(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestSchematization, self).tearDown()
+        super().tearDown()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_service_name_default(self):

@@ -1,8 +1,8 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from types import FrameType
 from typing import Any
-from typing import Mapping
 from typing import Optional
 from typing import cast
 

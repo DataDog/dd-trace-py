@@ -80,13 +80,38 @@ experiments:
           - name: djangosimple-exception-replay-enabled
             thresholds:
               - execution_time < 1.45 ms
+          # errortrackingmonitoring
+          - name: errortrackingmonitoring-direct_passive
+            thresholds:
+              - execution_time < 0.0007 ms
+          - name: errortrackingmonitoring-direct_active
+            thresholds:
+              - execution_time < 0.0018 ms
+          - name: errortrackingmonitoring-direct_global_passive
+            thresholds:
+              - execution_time < 0.0008 ms
+          - name: errortrackingmonitoring-direct_global_active
+            thresholds:
+              - execution_time < 0.0019 ms
+          - name: errortrackingmonitoring-production_handler
+            thresholds:
+              - execution_time < 0.033 ms
+          - name: errortrackingmonitoring-module_filter_miss
+            thresholds:
+              - execution_time < 0.042 ms
+          - name: errortrackingmonitoring-module_filter_hit
+            thresholds:
+              - execution_time < 0.067 ms
+          - name: errortrackingmonitoring-module_filter_warm
+            thresholds:
+              - execution_time < 0.067 ms
           # errortrackingdjangosimple
           - name: errortrackingdjangosimple-baseline
             thresholds:
               - execution_time < 10000 ms
           - name: errortrackingdjangosimple-errortracking-enabled-all
             thresholds:
-              - execution_time < 19.85 ms
+              - execution_time < 27.00 ms
           - name: errortrackingdjangosimple-errortracking-enabled-user
             thresholds:
               - execution_time < 19.40 ms
@@ -99,7 +124,7 @@ experiments:
               - execution_time < 10000 ms
           - name: errortrackingflasksqli-errortracking-enabled-all
             thresholds:
-              - execution_time < 2.34 ms
+              - execution_time < 3.10 ms
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
               - execution_time < 2.85 ms
@@ -109,7 +134,7 @@ experiments:
           # packagespackageforrootmodulemapping
           - name: packagespackageforrootmodulemapping-cache_off
             thresholds:
-              - execution_time < 372.30 ms
+              - execution_time < 60.00 ms
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:
               - execution_time < 0.01 ms

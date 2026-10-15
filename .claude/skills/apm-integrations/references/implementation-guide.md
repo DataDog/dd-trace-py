@@ -60,6 +60,12 @@ Add to `INTEGRATION_CONFIGS` frozenset in `ddtrace/internal/settings/_config.py`
 in alphabetical order — this allows users to configure the integration before
 it's patched. **Without this entry, integration config settings are silently ignored.**
 
+Add `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` describing the
+integration's packages, categories, and systems. Its `packages` must match the
+registry `dependency_names` you just added. See "What is an integration manifest?" in
+[Contributing Integrations](../../../../docs/contributing-integrations.rst) for
+the field rules and for the rare cases where modifying an existing integration requires a manifest update.
+
 ## 3. Create LLMObs integration (LLM only)
 
 Create `ddtrace/llmobs/_integrations/{name}.py` subclassing `BaseLLMIntegration`.
@@ -79,9 +85,6 @@ Key rules:
 - Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
 - Cover the oldest supported and latest compatible dependency versions
 - Regenerate the committed locks with `scripts/test-requirements lock <environment-name>`
-
-Until the test-runner migration is complete, mirror environment changes in `riotfile.py` and run
-[`test_uv_suitespec_matches_riot`](https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py).
 
 ### suitespec.yml
 
@@ -130,6 +133,7 @@ Every new integration must complete ALL applicable items:
 - [ ] `ddtrace/_monkey.py` -- `PATCH_MODULES` entry in alphabetical order
 - [ ] `scripts/integration_registry/registry.yaml` -- dependency names and tested version range
 - [ ] `ddtrace/internal/settings/_config.py` -- `INTEGRATION_CONFIGS` frozenset entry
+- [ ] `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` -- integration manifest (see "What is an integration manifest?" in [Contributing Integrations](../../../../docs/contributing-integrations.rst))
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` -- import + `__all__` entry (LLM only)
 
 ### Patch Code

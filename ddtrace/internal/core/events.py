@@ -66,7 +66,7 @@ from typing import TypeVar
 
 EventType = TypeVar("EventType", bound="Event")
 
-_PY3_9 = sys.version_info < (3, 10)
+_PY3_9: bool = sys.version_info[:2] == (3, 9)
 
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:

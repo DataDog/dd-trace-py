@@ -631,7 +631,7 @@ def _generate_exception_table(
         table.extend(to_varint(new_start >> 1, True))
         table.extend(to_varint(size >> 1))
         table.extend(to_varint(new_target >> 1))
-        table.extend(to_varint(((entry.depth << 1) | (1 if entry.lasti else 0))))
+        table.extend(to_varint((entry.depth << 1) | (1 if entry.lasti else 0)))
 
     return bytes(table)
 

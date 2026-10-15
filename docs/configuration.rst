@@ -177,6 +177,16 @@ Traces
        v1.19.1: default reverted to ``v0.4``.
        v2.4.0: default changed to ``v0.5``.
 
+   DD_TRACE_OTEL_SEMANTICS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Select OpenTelemetry HTTP semantics mode for tracing. When enabled, traces use
+         OTLP export and span attribute schema ``v0``, and automatic peer-service names are
+         disabled. This setting takes precedence over conflicting trace API, schema, and
+         peer-service settings.
+
    DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH:
       type: Integer
       default: 10
@@ -253,7 +263,7 @@ Traces
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
-         ``'(?ix)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?: bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
+         ``'(?i)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?|app(?:lication)?[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?:bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|(^|[^\\w%-]|%[0-9a-f]{2})ey[I-L][\\w-]+(?:=|%3D)*\\.ey[I-L][\\w-]+(?:=|%3D)*(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
 
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
 
@@ -585,6 +595,59 @@ Metrics
      version_added:
        v3.11.0:
 
+   DD_TRACE_STATS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 7000
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct trace metrics aggregation keys tracked during a single flush period when
+         client-side stats computation is enabled. Once the limit is reached, further keys are
+         aggregated together under a sentinel key. Lower it to bound memory usage for applications
+         with very high cardinality.
+
+   DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT:
+     type: Integer
+     default: 1024
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct resource names tracked during a single flush period when client-side stats
+         computation is enabled. Resource names beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct HTTP endpoints tracked during a single flush period when client-side stats
+         computation is enabled. Endpoints beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct peer tag combinations tracked during a single flush period when client-side
+         stats computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 100
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct combinations of the tags configured with
+         ``DD_TRACE_STATS_ADDITIONAL_TAGS`` tracked during a single flush period when client-side stats
+         computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
 Application & API Security
 --------------------------
 
@@ -685,6 +748,45 @@ AI Guard
 --------
 
 .. ddtrace-configuration-options::
+
+   DD_AI_GUARD_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       Master switch for AI Guard. When set to ``True``, the tracer evaluates LLM prompts, tool calls
+       and tool results of the instrumented integrations with the Datadog AI Guard service. When set
+       to ``False`` (default), AI Guard is not loaded and every other ``DD_AI_GUARD_*`` option is
+       ignored. Requires ``DD_API_KEY`` and ``DD_APP_KEY``.
+
+   DD_AI_GUARD_ENDPOINT:
+     type: String
+     default: (derived from ``DD_SITE``)
+     description: |
+       Overrides the AI Guard service endpoint. When unset, the endpoint is
+       ``https://app.<DD_SITE>/api/v2/ai-guard``, for example
+       ``https://app.datadoghq.com/api/v2/ai-guard``.
+
+   DD_AI_GUARD_TIMEOUT:
+     type: Integer
+     default: 10000 (unit:milliseconds)
+     description: |
+       Timeout of each request to the AI Guard service. The value is currently applied with
+       whole-second granularity: it is rounded down to the nearest second, so set it to at least
+       ``1000``. A value below ``1000`` logs a warning at startup and the default is used instead.
+
+   DD_AI_GUARD_MAX_CONTENT_SIZE:
+     type: Integer
+     default: 524288 (unit:characters)
+     description: |
+       Maximum length of each message content reported on the AI Guard span. Longer content is
+       truncated in the span only; the AI Guard service always evaluates the full content.
+
+   DD_AI_GUARD_MAX_MESSAGES_LENGTH:
+     type: Integer
+     default: 16
+     description: |
+       Maximum number of messages reported on the AI Guard span. Only the most recent messages are
+       kept; the AI Guard service always evaluates the full conversation.
 
    DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED:
      type: Boolean
@@ -970,13 +1072,10 @@ Test Visibility
      default: True
 
      description: |
-        Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
-        independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
-        also contains performance and memory usage improvements.
-
-        Setting this option to ``false`` selects the legacy ``pytest`` plugin
-        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in ddtrace 5.0.0. Remove this
-        environment variable, or set it to ``true``, to use the supported default plugin.
+        Deprecated: this option no longer has any effect. The legacy ``pytest`` plugin
+        (``ddtrace/contrib/internal/pytest``) has been removed, and the ``pytest`` plugin at
+        ``ddtrace/testing/internal/pytest`` is always used. Setting this option emits a ``DDTraceDeprecationWarning``;
+        remove the environment variable from your configuration.
 
      version_added:
         v4.3.0:
@@ -1181,7 +1280,9 @@ Logs
 
      description: |
          When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
-         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+         by the OpenTelemetry Logging API. Setting ``OTEL_LOGS_EXPORTER=otlp`` also enables this support, while
+         ``OTEL_LOGS_EXPORTER=none`` disables it. If both environment variables are set,
+         ``DD_LOGS_OTEL_ENABLED`` takes precedence. The application must also include its own OTLP logs exporter.
 
      version_added:
        v3.12.0: Adds support for submitting logs via an OTLP Exporter.

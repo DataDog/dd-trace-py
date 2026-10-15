@@ -1,0 +1,10 @@
+_v: 1
+name: urllib
+display_name: urllib
+description: Instruments outbound HTTP requests through urllib.request for SSRF vulnerability detection, exploit prevention,
+  and response analysis.
+packages: []
+category:
+- http.client
+systems: []
+creation_date: '2024-05-13'

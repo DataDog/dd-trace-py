@@ -17,7 +17,7 @@ def test_asyncio_executor_wall_time() -> None:
     from tests.profiling.collector import pprof_utils
 
     assert stack.is_available, stack.failure_msg
-    from typing import AsyncGenerator
+    from collections.abc import AsyncGenerator
 
     async def deep_dependency() -> None:
         # This is a regular (non-generator) coroutine called

@@ -5,7 +5,6 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -43,6 +42,9 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.utils.formats import asbool
+
+
+BENCHMARK_INFO = BENCHMARK_TAG_MAP["duration_info"]
 
 
 log = get_logger(__name__)
@@ -128,8 +130,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
         module_name = self.parent.parent.name if self.parent is not None and self.parent.parent is not None else "none"
-        return "{}(name={}, suite={}, module={}, parameters={}, status={})".format(
-            self.__class__.__name__, self.name, suite_name, module_name, self._parameters, self._status
+        return (
+            f"{self.__class__.__name__}(name={self.name}, suite={suite_name},"
+            f" module={module_name}, parameters={self._parameters}, status={self._status})"
         )
 
     def _get_hierarchy_tags(self) -> dict[str, str]:

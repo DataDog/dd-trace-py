@@ -1,8 +1,6 @@
-# -*- encoding: utf-8 -*-
 import math
 import re
-from typing import Any  # noqa:F401
-from typing import Text  # noqa:F401
+from typing import Any
 
 from hypothesis import given
 from hypothesis.strategies import text
@@ -13,6 +11,7 @@ from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import _to_tainted_string_with_origin
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -24,10 +23,10 @@ mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 class TestOperatorModuloReplacement(BaseReplacement):
     def _assert_modulo_result(
         self,
-        taint_escaped_template: Text,
+        taint_escaped_template: str,
         taint_escaped_parameter: Any,
-        expected_result: Text,
-        escaped_expected_result: Text,
+        expected_result: str,
+        escaped_expected_result: str,
     ) -> None:
         template = _to_tainted_string_with_origin(taint_escaped_template)
 
@@ -393,6 +392,18 @@ class TestModuloAspectEdgeCases:
         # is implemented
         # assert ranges[0].source.name == "input1"
         # assert ranges[1].source.name == "input2"
+
+    def test_modulo_with_tainted_lone_surrogate_parameter(self) -> None:
+        # A lone surrogate cannot be encoded to UTF-8, so the native string conversion throws.
+        # The aspect must fall back to the plain result instead of aborting the process.
+        clean = "Alice"
+        tainted = taint_pyobject(clean, source_name="name", source_value=clean, source_origin=OriginType.BODY)
+        param = add_aspect(add_aspect(tainted, " "), "\ud800bad")
+        assert get_tainted_ranges(param)
+
+        result = mod.do_modulo("Hello %s", param)
+
+        assert result == "Hello Alice \ud800bad"
 
 
 @pytest.mark.parametrize("is_tainted", [True, False])

@@ -58,7 +58,7 @@ unwind_frame(EchionSampler& echion,
     seen_frames.clear();
     // Having no remaining frame budget does not prove truncation: frame_addr
     // may be null or lead only through ignored C/interpreter frames.
-    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
+    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_STACK_UNWIND_SAFETY_LIMIT)) {
         return UnwindResult::Unknown();
     }
 
@@ -66,12 +66,12 @@ unwind_frame(EchionSampler& echion,
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
-        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
+        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_STACK_UNWIND_SAFETY_LIMIT;
         if (at_limit) {
             if (!detect_truncation) {
                 return result;
             }
-            if (frames_probed_after_limit >= MAX_TASK_FRAMES) {
+            if (frames_probed_after_limit >= MAX_STACK_UNWIND_SAFETY_LIMIT) {
                 // Exhausting the probe budget does not prove another reportable frame exists.
                 return result;
             }

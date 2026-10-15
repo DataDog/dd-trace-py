@@ -3,10 +3,10 @@
 Keep these contracts below the consumers that construct, inspect, and send events.
 """
 
+from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Any
-from typing import Mapping
 from typing import Optional
-from typing import Sequence
 from typing import TypedDict
 from typing import Union
 

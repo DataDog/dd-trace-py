@@ -5,8 +5,8 @@ import os
 import pprint
 import threading
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -280,27 +280,31 @@ def llmobs(
     with override_global_config(global_config):
         # Pin agentless_enabled=False: the default flips to agentless when the Agent is
         # unreachable, swapping the ``tracer`` fixture's DummyWriter and breaking ``test_spans``.
-        llmobs_service.enable(_tracer=tracer, agentless_enabled=False, **llmobs_enable_opts)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        llmobs_service._instance._llmobs_span_writer.start()
-        # The cassette proxy stands in for intake, so keep this client in direct mode. Without an
-        # app key it would otherwise pick the agent proxy and prefix every path with /evp_proxy/v2,
-        # which no recording matches.
-        dne_client = llmobs_service._instance._dne_client
-        dne_client._agentless = True
-        dne_client._endpoint = dne_client.ENDPOINT
-        dne_client._intake = llmobs_api_proxy_url
-        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
-            llmobs_span_writer,
-            tracer,
-            keep_meta_struct=True,
-            sampling_resolver=llmobs_service._instance._sampling_resolver,
-        )
         try:
+            # Setup lives inside the try so a failure here cannot leak an enabled instance holding
+            # this test's mocked writers into later tests on the same worker.
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, **llmobs_enable_opts)
+            llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+            llmobs_service._instance._llmobs_span_writer.start()
+            # The cassette proxy stands in for intake, so keep this client in direct mode. Without an
+            # app key it would otherwise pick the agent proxy and prefix every path with /evp_proxy/v2,
+            # which no recording matches.
+            dne_client = llmobs_service._instance._dne_client
+            dne_client._agentless = True
+            dne_client._endpoint = dne_client.ENDPOINT
+            dne_client._intake = llmobs_api_proxy_url
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+                llmobs_span_writer,
+                tracer,
+                keep_meta_struct=True,
+                sampling_resolver=llmobs_service._instance._sampling_resolver,
+            )
             yield llmobs_service
         finally:
-            tracer.shutdown()
-            llmobs_service.disable()
+            try:
+                tracer.shutdown()
+            finally:
+                llmobs_service.disable()
 
 
 @pytest.fixture
