@@ -2,6 +2,7 @@ import atexit
 import contextlib
 from dataclasses import dataclass
 import hashlib
+import io
 from itertools import chain
 import json
 import os
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import sysconfig
 import tarfile
+import tempfile
 import time
 import typing as t
 import warnings
@@ -292,18 +294,11 @@ def retry_download(
     return decorator
 
 
-def sha256_checksum(filename) -> str:
-    return hashlib.sha256(Path(filename).read_bytes()).hexdigest()
-
-
-def verify_checksum(expected_checksum, filename):
-    actual_checksum = sha256_checksum(filename)
-    if actual_checksum != expected_checksum:
-        Path(filename).unlink()
-        raise RuntimeError(
-            "Checksum mismatch for %s: expected %s, got %s. The file was deleted."
-            % (filename, expected_checksum, actual_checksum)
-        )
+def checksum_mismatch(data: bytes, expected_checksum: str, source) -> t.Optional[str]:
+    actual_checksum = hashlib.sha256(data).hexdigest()
+    if actual_checksum == expected_checksum:
+        return None
+    return "Checksum mismatch for %s: expected %s, got %s" % (source, expected_checksum, actual_checksum)
 
 
 def is_64_bit_python():
@@ -532,14 +527,22 @@ class LibraryDownload:
 
             arch_dir = download_dir / arch
 
+            archive_dir = cls.get_package_name(arch, CURRENT_OS)
+            archive_name = cls.get_archive_name(arch, CURRENT_OS)
+            expected_checksum = cls.expected_checksums.get(archive_name)
+            if expected_checksum is None:
+                raise RuntimeError("No pinned checksum for %s, see docs/build_system.rst" % archive_name)
+
             # A source checkout can be shared between host and container builds.
             # Only the library for this OS/architecture makes an existing directory complete.
             lib_dir = arch_dir / "lib"
-            if all((lib_dir / f"lib{cls.name}{suffix}").is_file() for suffix in suffixes):
+            extracted_from = arch_dir / f"{archive_name}.sha256"
+            if (
+                extracted_from.is_file()
+                and extracted_from.read_text() == expected_checksum
+                and all((lib_dir / f"lib{cls.name}{suffix}").is_file() for suffix in suffixes)
+            ):
                 continue
-
-            archive_dir = cls.get_package_name(arch, CURRENT_OS)
-            archive_name = cls.get_archive_name(arch, CURRENT_OS)
 
             download_address = "%s/%s/%s" % (
                 cls.url_root,
@@ -547,19 +550,21 @@ class LibraryDownload:
                 archive_name,
             )
 
-            expected_checksum = cls.expected_checksums.get(archive_name)
-            if expected_checksum is None:
-                raise RuntimeError("No pinned checksum for %s, see docs/build_system.rst" % archive_name)
-
             download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else Path(archive_name)
             if cls.USE_CACHE and not cls.CACHE_DIR.exists():
                 cls.CACHE_DIR.mkdir(parents=True)
 
-            if cls.USE_CACHE and download_dest.exists() and sha256_checksum(download_dest) != expected_checksum:
-                print(f"WARNING: Discarding cached {download_dest}: checksum mismatch")
-                download_dest.unlink()
+            archive = None
+            if cls.USE_CACHE and download_dest.exists():
+                archive = download_dest.read_bytes()
+                mismatch = checksum_mismatch(archive, expected_checksum, download_dest)
+                if mismatch:
+                    print(f"WARNING: Discarding the cached archive. {mismatch}")
+                    archive = None
+                else:
+                    print(f"Using cached {download_dest}")
 
-            if not (cls.USE_CACHE and download_dest.exists()):
+            if archive is None:
                 print(f"Downloading {archive_name} to {download_dest}")
                 start_ns = time.time_ns()
 
@@ -569,23 +574,29 @@ class LibraryDownload:
                     """Download file with automatic retry on transient errors."""
                     return urlretrieve(url, str(dest))
 
-                filename, _ = download_file(download_address, download_dest)
-                verify_checksum(expected_checksum, filename)
+                fd, partial_dest = tempfile.mkstemp(prefix=f"{archive_name}.", suffix=".part", dir=download_dest.parent)
+                os.close(fd)
+                try:
+                    download_file(download_address, partial_dest)
+                    archive = Path(partial_dest).read_bytes()
+                    mismatch = checksum_mismatch(archive, expected_checksum, download_address)
+                    if mismatch:
+                        raise RuntimeError(mismatch)
+                    if cls.USE_CACHE:
+                        os.replace(partial_dest, download_dest)
+                finally:
+                    with contextlib.suppress(OSError):
+                        os.unlink(partial_dest)
 
                 DebugMetadata.download_times[archive_name] = time.time_ns() - start_ns
-
-            else:
-                # If the file exists in the cache, we will use it
-                filename = str(download_dest)
-                print(f"Using cached {filename}")
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
-            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
+            with tarfile.open(fileobj=io.BytesIO(archive), mode="r|gz", errorlevel=2) as tar:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
 
-            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
+            with tarfile.open(fileobj=io.BytesIO(archive), mode="r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
 
             extracted_dir = Path(HERE / archive_dir)
@@ -604,8 +615,7 @@ class LibraryDownload:
                     renamed_file = lib_dir / f"lib{cls.name}{suffix}"
                     original_file.rename(renamed_file)
 
-            if not cls.USE_CACHE:
-                Path(filename).unlink()
+            extracted_from.write_text(expected_checksum)
 
         # Record the version so future incremental runs can detect bumps.
         if cls.version:

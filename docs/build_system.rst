@@ -288,16 +288,20 @@ Verifying the bundled libddwaf
 
 Each libddwaf archive is checked against the SHA-256 checksum pinned for it in ``LIBDDWAF_CHECKSUMS`` in ``setup.py``,
 both right after a download and before an archive from the download cache is reused. A cached archive that does not
-match is downloaded again; a downloaded archive that does not match is deleted and fails the build.
+match is downloaded again; a downloaded archive that does not match fails the build and is not cached. A library already
+extracted in the source tree is only reused if it was extracted from an archive with the pinned checksum.
 
-Bumping ``LIBDDWAF_VERSION`` therefore means replacing ``LIBDDWAF_CHECKSUMS`` with the checksums of the new release's
-archives. Each archive has a ``.sha256`` asset next to it on the release; check it against the digest GitHub computed when
-the archive was uploaded:
+Bumping ``LIBDDWAF_VERSION`` therefore means replacing every entry of ``LIBDDWAF_CHECKSUMS`` with the checksum of the
+matching archive of the new release. This command prints the entries, from the digest GitHub computed when each archive
+was uploaded; check them against the ``.sha256`` asset published next to each archive:
 
 .. code-block:: bash
 
-    gh release view <version> --repo DataDog/libddwaf --json assets \
-        --jq '.assets[] | select(.name | endswith(".tar.gz")) | "\(.digest)  \(.name)"'
+    gh release view <version> --repo DataDog/libddwaf --json assets --jq '.assets[]
+        | select(.name | endswith(".tar.gz") and (contains("universal") | not))
+        | "    \"\(.name)\": \"\(.digest | ltrimstr("sha256:"))\","'
+
+A unit test fails if the table has no entry for an archive the build uses, or an entry for one it does not.
 
 Using a system-provided libddwaf
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
