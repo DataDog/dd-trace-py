@@ -4,6 +4,18 @@
       "resource": {
         "attributes": [
           {
+            "key": "_dd.sdk.otlp_export",
+            "value": {
+              "stringValue": "true"
+            }
+          },
+          {
+            "key": "datadog.sdk.semantics",
+            "value": {
+              "stringValue": "datadog"
+            }
+          },
+          {
             "key": "runtime-id",
             "value": {
               "stringValue": "90994c38bbdd40c9bf375bdad99a47a2"
