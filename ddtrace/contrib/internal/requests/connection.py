@@ -6,6 +6,8 @@ import requests
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientHopEvent
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -22,6 +24,8 @@ from ddtrace.internal.utils import get_argument_value
 
 
 log = get_logger(__name__)
+
+_HOP_STARTED = "context.started." + HttpClientEvents.REQUESTS_HOP.value
 
 
 def is_otlp_export(request: requests.models.Request) -> bool:
@@ -160,6 +164,11 @@ def _wrap_adapter_send(func, instance, args, kwargs):
     # redirects) so redirected requests.request spans aren't also suppressed.
     token = _http_propagation_suppressed.set(True)
     try:
-        return func(*args, **kwargs)
+        if not core.has_listeners(_HOP_STARTED):
+            return func(*args, **kwargs)
+        # Published whatever the tracing state: Session.send skips its context when tracing is off.
+        request = get_argument_value(args, kwargs, 0, "request", optional=True)
+        with core.context_with_event(HttpClientHopEvent(request_url=getattr(request, "url", None))):
+            return func(*args, **kwargs)
     finally:
         _http_propagation_suppressed.reset(token)

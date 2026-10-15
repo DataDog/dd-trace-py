@@ -1,4 +1,3 @@
-import functools
 import http.client as httplib
 import sys
 from urllib import parse
@@ -9,16 +8,15 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.httplib.events import is_internal_connection
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
@@ -77,12 +75,6 @@ def _wrap_getresponse(func, instance, args, kwargs):
             log.debug("error applying request tags", exc_info=True)
 
 
-def _call_asm_wrap(func, instance, *args, **kwargs):
-    from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
-
-    _wrap_request_asm(func, instance, args, kwargs)
-
-
 def _finish_span(instance, exc_info=None):
     """Finish the connection's span and detach it: _wrap_putrequest adopts any span still
     attached, so a finished one left behind silences the next request on that connection.
@@ -98,14 +90,9 @@ def _finish_span(instance, exc_info=None):
 
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    if asm_config._asm_enabled and asm_config._ep_enabled:
-        func_to_call = functools.partial(_call_asm_wrap, func, instance)
-    else:
-        func_to_call = func
-
     pin = Pin.get_from(instance)
     if should_skip_request(pin, instance):
-        return func_to_call(*args, **kwargs)
+        return func(*args, **kwargs)
 
     cfg = pin._config
 
@@ -132,7 +119,7 @@ def _wrap_request(func, instance, args, kwargs):
         _finish_span(instance)
 
     try:
-        return func_to_call(*args, **kwargs)
+        return func(*args, **kwargs)
     except BaseException:
         # AIDEV-NOTE: AppSec RASP blocks an outgoing request by raising BlockingException, which
         # derives from BaseException, so this guard must not be narrowed to Exception.
@@ -205,20 +192,13 @@ def _wrap_putheader(func, instance, args, kwargs):
 
 def should_skip_request(pin, request):
     """Helper to determine if the provided request should be traced"""
-    if getattr(request, _HTTPLIB_NO_TRACE_REQUEST, False):
-        return True
-
     if not pin or not pin.enabled():
         return True
 
     # httplib is used to send apm events (profiling,di, tracing, etc.) to the datadog agent
     # Tracing these requests introduces a significant noise and instability in ddtrace tests.
     # TO DO: Avoid tracing requests to APM internal services (ie: extend this functionality to agentless products).
-    agent_url = tracer.agent_trace_url
-    if agent_url:
-        parsed = parse.urlparse(agent_url)
-        return request.host == parsed.hostname and request.port == parsed.port
-    return False
+    return is_internal_connection(request)
 
 
 def patch():

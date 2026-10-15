@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    ASM: Exploit Prevention now inspects outgoing requests made directly with ``http.client``,
+    including their responses, for Server-Side Request Forgery even when the ``httplib`` integration
+    is disabled.

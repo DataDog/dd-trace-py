@@ -86,10 +86,14 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
 def _register_exploit_prevention_listeners() -> None:
     """Register listeners for operations monitored by Exploit Prevention."""
     from ddtrace.appsec._contrib.dbapi import listen as dbapi_listen
+    from ddtrace.appsec._contrib.httplib import listen as httplib_listen
     from ddtrace.appsec._contrib.httpx import listen as httpx_listen
+    from ddtrace.appsec._contrib.requests import listen as requests_listen
     from ddtrace.appsec._contrib.subprocess import listen as subprocess_listen
 
     dbapi_listen()
+    httplib_listen()
+    requests_listen()
     httpx_listen()
     subprocess_listen()
 
@@ -97,10 +101,14 @@ def _register_exploit_prevention_listeners() -> None:
 def _unregister_exploit_prevention_listeners() -> None:
     """Unregister AppSec subscribers that gate shared integration event dispatch."""
     from ddtrace.appsec._contrib.dbapi import unlisten as dbapi_unlisten
+    from ddtrace.appsec._contrib.httplib import unlisten as httplib_unlisten
     from ddtrace.appsec._contrib.httpx import unlisten as httpx_unlisten
+    from ddtrace.appsec._contrib.requests import unlisten as requests_unlisten
     from ddtrace.appsec._contrib.subprocess import unlisten as subprocess_unlisten
 
     dbapi_unlisten()
+    httplib_unlisten()
+    requests_unlisten()
     httpx_unlisten()
     subprocess_unlisten()
 

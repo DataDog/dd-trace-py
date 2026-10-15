@@ -1,9 +1,13 @@
 import base64
+from collections.abc import Iterable
 from collections.abc import Mapping
 from collections.abc import MutableMapping
 from http.cookies import SimpleCookie
+import io
 import json
+from typing import Any
 from typing import Optional
+from typing import Union
 from urllib.parse import parse_qs
 
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
@@ -71,4 +75,32 @@ def extract_cookies_from_headers(
             if header:
                 cookie.load(header)
             return {k: v.value for k, v in cookie.items()}
+    return None
+
+
+def build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[str]]]:
+    res: dict[str, Union[str, list[str]]] = {}
+    for a, b in lst:
+        if a in res:
+            v = res[a]
+            if isinstance(v, str):
+                res[a] = [v, b]
+            else:
+                v.append(b)
+        else:
+            res[a] = b
+    return res
+
+
+def parse_http_response_body(response: Any) -> Any:
+    """Decode a JSON http.client response body, then put it back so the application can still read it."""
+    try:
+        if response.length and response.headers.get("content-type", None) == "application/json":
+            length = response.length
+            body = response.read()
+            response.fp = io.BytesIO(body)
+            response.length = length
+            return json.loads(body)
+    except Exception:
+        return None
     return None
