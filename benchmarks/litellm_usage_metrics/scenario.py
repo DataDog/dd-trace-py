@@ -13,9 +13,11 @@ class LiteLLMUsageMetrics(bm.Scenario):
             if e.name != writer_module:
                 raise
 
-            # A baseline built before the usage metrics existed has nothing to measure.
+            # A baseline built before the usage metrics existed has nothing to measure; the loop still has to scale
+            # with loops for the runner to calibrate it.
             def nothing(loops):
-                pass
+                for _ in range(loops):
+                    pass
 
             yield nothing
             return
