@@ -7,6 +7,7 @@ from pathlib import Path
 import typing as t
 import uuid
 
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import SKIPPABLE_ITR_CODE_COVERAGE_HEADER
@@ -23,7 +24,6 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
-from ddtrace.testing.internal.tracer_api.coverage import is_file_level_coverage_enabled
 
 
 log = logging.getLogger(__name__)
