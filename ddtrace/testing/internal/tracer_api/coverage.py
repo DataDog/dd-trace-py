@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 import ddtrace.internal.coverage.installer
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled as _is_file_level_coverage_enabled
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
 
@@ -36,6 +37,10 @@ def install_coverage(workspace_path: Path, file_level_coverage: bool = False) ->
         file_level_coverage=file_level_coverage,
     )
     ModuleCodeCollector.start_coverage()
+
+
+def is_file_level_coverage_enabled() -> bool:
+    return _is_file_level_coverage_enabled()
 
 
 def uninstall_coverage() -> None:

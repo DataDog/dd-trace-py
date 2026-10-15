@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import re
-import sys
 import typing as t
 
-from ddtrace.internal.settings import env
 from ddtrace.testing.internal.tracer_api import rand64bits
 
 
@@ -28,15 +26,6 @@ def asbool(value: t.Union[str, bool, None]) -> bool:
         return value
 
     return value.lower() in ("true", "1")
-
-
-def is_file_level_coverage_enabled() -> bool:
-    # Only the sys.monitoring instrumentation (Python 3.12 to 3.15) can collect file-level coverage, and it does so
-    # unless _DD_COVERAGE_FILE_LEVEL is explicitly false. Older versions always collect lines. Keep the default in sync
-    # with ddtrace.internal.coverage.instrumentation_py3_12.
-    if not ((3, 12) <= sys.version_info < (3, 16)):
-        return False
-    return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
 
 
 def ensure_text(s: t.Any) -> str:
