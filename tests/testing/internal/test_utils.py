@@ -1,8 +1,15 @@
 """Tests for ddtrace.testing.internal.utils module."""
 
+import typing as t
+from unittest.mock import Mock
+
+import pytest
+
+from ddtrace.testing.internal import utils
 from ddtrace.testing.internal.utils import PlainTestContext
 from ddtrace.testing.internal.utils import _gen_item_id
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.utils import is_file_level_coverage_enabled
 
 
 class TestGenItemId:
@@ -66,6 +73,35 @@ class TestAsbool:
     def test_asbool_with_arbitrary_string(self) -> None:
         """Test asbool with arbitrary string returns False."""
         assert asbool("hello") is False
+
+
+class TestIsFileLevelCoverageEnabled:
+    @pytest.mark.parametrize(
+        "version_info,env_value,expected",
+        [
+            ((3, 11, 9), None, False),
+            ((3, 11, 9), "true", False),
+            ((3, 12, 0), None, True),
+            ((3, 12, 0), "true", True),
+            ((3, 12, 0), "false", False),
+            ((3, 14, 2), None, True),
+            ((3, 16, 0), None, False),
+        ],
+    )
+    def test_is_file_level_coverage_enabled(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        version_info: tuple[int, int, int],
+        env_value: t.Optional[str],
+        expected: bool,
+    ) -> None:
+        monkeypatch.setattr(utils, "sys", Mock(version_info=version_info))
+        if env_value is None:
+            monkeypatch.delenv("_DD_COVERAGE_FILE_LEVEL", raising=False)
+        else:
+            monkeypatch.setenv("_DD_COVERAGE_FILE_LEVEL", env_value)
+
+        assert is_file_level_coverage_enabled() is expected
 
 
 class TestPlainTestContext:

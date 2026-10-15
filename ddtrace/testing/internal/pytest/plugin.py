@@ -79,7 +79,6 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
-from ddtrace.testing.internal.utils import is_file_level_coverage_enabled
 from ddtrace.testing.internal.writer import _get_async_flush_events
 
 
@@ -1698,7 +1697,7 @@ def pytest_unconfigure() -> t.Generator[None, None, None]:
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path, file_level_coverage=is_file_level_coverage_enabled())
+    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
 
 
 def pytest_configure(config: pytest.Config) -> None:

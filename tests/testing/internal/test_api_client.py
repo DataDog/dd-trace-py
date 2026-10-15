@@ -1242,22 +1242,20 @@ class TestAPIClientGetSkippableTests:
     @pytest.mark.parametrize(
         "file_level_coverage,expected_headers",
         [
-            (None, None),
-            ("false", None),
-            ("true", {"X-Datadog-ITR-Code-Coverage": "false"}),
+            (False, None),
+            (True, {"X-Datadog-ITR-Code-Coverage": "false"}),
         ],
     )
     def test_get_skippable_tests(
         self,
         mock_telemetry: Mock,
         monkeypatch: pytest.MonkeyPatch,
-        file_level_coverage: t.Optional[str],
+        file_level_coverage: bool,
         expected_headers: t.Optional[dict[str, str]],
     ) -> None:
-        if file_level_coverage is None:
-            monkeypatch.delenv("_DD_COVERAGE_FILE_LEVEL", raising=False)
-        else:
-            monkeypatch.setenv("_DD_COVERAGE_FILE_LEVEL", file_level_coverage)
+        monkeypatch.setattr(
+            "ddtrace.testing.internal.api_client.is_file_level_coverage_enabled", lambda: file_level_coverage
+        )
 
         mock_connector = (
             mock_backend_connector().with_post_json_response(
