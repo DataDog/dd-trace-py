@@ -1,0 +1,1493 @@
+#!/usr/bin/env python3
+"""CPU probe: per-CPU microbenchmarks that flag asymmetric cores.
+
+EXPERIMENT (do not merge): CPU-asymmetry probe on benchmarking hosts
+(PR #20052 / APMSP-4059). Known result to reproduce: on the benchmarking
+hosts, CPU 24 runs allocation-heavy code ~1.4x slower than its neighbors
+(clean on 25/36/37) while every OS-level counter looks identical, so the
+probe measures the work itself on every CPU instead of watching counters.
+
+Ten synthetic/plain scenarios run on EVERY allowed CPU, plus the
+aspect-machinery scenario, with the process pinned to that single CPU for
+the duration (median of --reps reps kept, default 3):
+  int     tight arithmetic loop, no allocation
+  simd    bulk memcpy on 8 MiB blocks
+  alloc   small-object churn (short strings/tuples) -- always pure Python
+          on purpose: it mirrors the real dd-trace-py workload that found
+          CPU 24
+  fault   mmap fresh anonymous 1 MiB pages and touch every page
+  stream  memcpy between buffers larger than L3
+  mem-read  pointer-chase through a shuffled table larger than L3,
+          one dependent load per step (was "latency")
+  mem-write  same single-cycle trail as mem-read, but each step also
+          stores to a slot sharing the target's cache line, so every
+          visited line goes dirty and each eviction is a writeback -- the
+          write/ownership path (C core, with a Python fallback)
+  gc-read  build a large cyclic object graph (payload strings like IAST
+          taint ranges, cross-references) and time forced gc.collect() --
+          always pure Python, same reason as alloc (was "gc")
+  gc-write  build, cross-link and discard objects in a recycled pool
+          (payload strings + small satellites referencing each other),
+          timed per batch with NO forced gc.collect() -- the churn itself
+          (always pure Python, same reason as alloc)
+  slice   the REAL benchmark's own noaspect inner loop, copied verbatim:
+          one os.path.basename("/path/to/file") per iteration through
+          _ = getattr(functions, "ospathbasename_noaspect")() -- but in
+          this probe's plain harness (perf_counter around calibrated
+          batches), NOT pyperf and NOT the repo's harness, to split the
+          benchmark's loop shape from the pyperf harness (T10)
+  slice-aspect  the benchmark's aspect-patched call in the same plain
+          harness (T11): a child process (probe_slice_aspect.py) under a
+          venv built from the pass job's candidate/baseline ddtrace wheel
+          replicates the benchmark's verbatim IAST enable + import
+          (scenario.py:11-15), then times TWO variants per CPU: the patched
+          plain call (the noaspect config's executed loop, the F21
+          finding) and the aspect config's explicit aspect call. The
+          per-call absolute time is the fidelity record: ~5.3 us means the
+          machinery is engaged (F20's 5-7x gap), ~0.75 us means the AST
+          patch did NOT fire in the child and the report records that
+          plainly instead of pretending
+
+int/simd/fault/stream/mem-read/mem-write run in a checked-in C core
+(probe_native.c, no dependencies) compiled on first use; the toolchain
+policy preflights cc, then gcc, then clang, and if none exists tries ONE
+guarded apt-get install of gcc before falling back. If no compiler can
+be had or the build fails, the scenarios fall back to pure-Python cores
+and the report records fidelity "fallback-python" per scenario (the
+mem-read and mem-write fallbacks are interpreter-bound and say so); the
+report's native.path field records which path was taken (found /
+installed / cached / fallback). alloc is always "python-workload"; so are
+gc-read/gc-write (the collector and the churn are interpreter work) and
+slice (it IS the real benchmark's own Python loop -- a C core could not
+copy it faithfully); slice-aspect reports "ddtrace-child" (it runs in the
+wheel venv's child) or "unavailable" when no wheel/venv could be had.
+
+The slice scenario copies, verbatim:
+  benchmarks/appsec_iast_aspects_ospath/functions.py:45-46 -- the
+  ospathbasename_noaspect body, os.path.basename("/path/to/file")
+  benchmarks/appsec_iast_aspects_ospath/scenario.py:31 -- the noaspect
+  branch's per-iteration call, _ = getattr(functions, self.function_name)()
+  with function_name = "ospathbasename_noaspect" from config.yaml
+The probe's structural test (test_probe.py, SliceScenarioTests) enforces
+the copy stays verbatim against that source.
+
+The slice-aspect scenario mirrors the benchmark's setup the same way, in
+the child (probe_slice_aspect.py): scenario.py:1-8 (imports), :11-15 (the
+enable block, with `import functions` inside the enabled state so the
+ModuleWatchdog AST-patches it), :29-31 (the per-iteration call shape),
+:33-34 (which context wraps which config) and config.yaml's two
+function_names; test_probe.py's SliceAspectScenarioTests enforces the
+mirror stays verbatim. The child runs ONLY under the wheel venv; the unit
+tests never run it.
+
+Output (--out DIR, default ./probe-report):
+  report.json  per-scenario host median, per-CPU deviation, flags,
+               deviant CPUs, verdict, static host snapshot, per-source
+               availability
+  report.md    one row per CPU x scenario
+
+Flag rule: a CPU deviates in a scenario when its median time per op
+exceeds max(5%, 3x the median rep-to-rep spread) of the host median AND
+every rep deviates from the host's rep-wise median in the same direction;
+the direction clause keeps single-CPU flapping at the 5% boundary
+unflagged unless it is really one-sided.
+
+Best-effort everywhere: every failing source or mechanism is recorded
+as unavailable; the script never raises and always writes its report.
+Stdlib only.
+"""
+
+from __future__ import annotations
+
+import argparse
+from array import array
+import ctypes
+import gc
+import json
+import mmap as mmap_mod
+import os
+from pathlib import Path
+import platform
+import random
+import shutil
+import statistics
+import subprocess
+import sys
+import time
+import types
+
+
+SCENARIOS = (
+    "int",
+    "simd",
+    "alloc",
+    "fault",
+    "stream",
+    "mem-read",
+    "mem-write",
+    "gc-read",
+    "gc-write",
+    "slice",
+    "slice-aspect",
+)
+NATIVE_SCENARIOS = ("int", "simd", "fault", "stream", "mem-read", "mem-write")
+ALLOC = "alloc"  # always the pure-Python workload mirror
+GC_READ = "gc-read"  # same: the cyclic-GC graph chase mirrors the real workload
+GC_WRITE = "gc-write"  # same: the object churn mirrors the real workload
+SLICE = "slice"  # the real benchmark's own noaspect loop, copied verbatim
+SLICE_ASPECT = "slice-aspect"  # the benchmark's aspect-patched call, in this probe's plain harness
+SCENARIO_UNITS = {
+    "int": "iterations",
+    "simd": "bytes",
+    "alloc": "objects",
+    "fault": "pages",
+    "stream": "bytes",
+    "mem-read": "accesses",
+    "mem-write": "accesses",
+    "gc-read": "collections",
+    "gc-write": "batches",
+    "slice": "iterations",
+    "slice-aspect": "iterations",
+}
+DEFAULT_REPS = 3
+DEFAULT_REP_SECONDS = 1.5
+SIMD_BYTES = 8 << 20
+FAULT_CHUNK = 1 << 20
+PAGE = 4096
+L3_FALLBACK_BYTES = 256 << 20
+# the pure-Python mem-read fallback shuffles its table once; 64 MiB keeps
+# that one-time cost to a few seconds while still exceeding any L3
+# (mem-write shares the cap: its fallback table interleaves trail/slot
+# pairs, so half the entries for the same byte cap)
+MEM_FALLBACK_CAP = 64 << 20
+# the gc-read scenario's live cyclic graph: 150k nodes with string payloads and
+# 3-way cross-references is roughly 40 MB / 450k tracked objects, spanning
+# well beyond L2 and around the judges' 37 MB L3, like a taint-object heap
+GC_OBJECTS = 150_000
+GC_PAYLOAD_CHARS = 32  # payload string length per node, like an IAST taint range
+GC_CHURN_NODES = 512  # fresh cyclic garbage nodes per collection
+GC_SEVER = 64  # live nodes whose refs are dropped and rebuilt per collection
+# the gc-write scenario's recycled pool: fixed size so the heap does not
+# grow; a rotating slice is re-payloaded per batch and its satellites are
+# discarded (strings + small cross-linked objects, like taint ranges)
+GC_WRITE_POOL = 4096
+GC_WRITE_CHURN = 256  # pool nodes re-payloaded per batch
+# the slice scenario runs the real benchmark's own loop with its own rep
+# window (pre-registered in T10: 2-4 s per rep), NOT the global
+# --rep-seconds, which the synthetic scenarios use
+SLICE_REP_SECONDS = 2.0
+# one calibrated slice batch aims for this many seconds, so each timed
+# window is long enough for perf_counter's resolution and short enough
+# that the batch-count quantization stays coarse
+SLICE_BATCH_TARGET_S = 0.05
+# slice-aspect windows: the main variant (the patched plain call) gets the
+# same 2.0 s window as slice so the two are directly comparable; the
+# secondary explicit-aspect variant gets 1.0 s -- it only needs to separate
+# ~0.75 us from ~5 us and +-40%, not to be a primary metric
+SLICE_ASPECT_REP_SECONDS = 2.0
+SLICE_ASPECT_EXPLICIT_REP_SECONDS = 1.0
+# the aspect venv lives in the gitignored repo target dir next to the
+# native binary; one best-effort pip install of the wheel, never fatal
+_SLICE_ASPECT_CHILD = Path(__file__).with_name("probe_slice_aspect.py")
+SLICE_ASPECT_VENV_TIMEOUT_S = 120.0
+SLICE_ASPECT_INSTALL_TIMEOUT_S = 300.0
+SLICE_ASPECT_CHILD_TIMEOUT_S = 180.0
+FLAG_MIN_PCT = 5.0
+FLAG_SPREAD_MULT = 3.0
+# hard wall-clock cap on the sweep so the probe can never eat a CI job
+# (11 scenarios x 24 CPUs x 3 reps: 9 synthetic at 1.5 s, slice at 2.0 s,
+# slice-aspect at 2.0 s main + 1.0 s explicit measured plus a ~5-6 s
+# child startup per CPU, plus per-rep setup -- table/graph builds, slice
+# calibration -- lands around 27-28 min; 33 min keeps the sweep whole
+# while staying inside the raised 45 m job)
+MAX_SWEEP_S = 33 * 60.0
+NATIVE_BUILD_TIMEOUT_S = 60.0
+# toolchain policy: preflight cc, then gcc, then clang; if none exists, ONE
+# best-effort apt-get install of gcc (Linux only, never fatal) before falling
+# back to the Python cores
+APT_INSTALL_TIMEOUT_S = 120.0
+
+_SOURCE_NATIVE = Path(__file__).with_name("probe_native.c")
+_REPO_ROOT = Path(__file__).resolve().parents[3]  # steps -> benchmarks -> .gitlab -> repo
+# built into the gitignored repo target dir so repeat runs reuse it
+_NATIVE_BINARY = _REPO_ROOT / "target" / "probe_native"
+
+
+def _read(path) -> str | None:
+    try:
+        return Path(path).read_text()
+    except OSError:
+        return None
+
+
+def parse_cpulist(text: str) -> list:
+    """Parse a kernel CPU list like "24-35,40" or "0-3" into sorted CPU ids."""
+    cpus = []
+    for part in text.strip().split(","):
+        if not part:
+            continue
+        if "-" in part:
+            start, end = part.split("-")
+            try:
+                cpus.extend(range(int(start), int(end) + 1))
+            except ValueError:
+                pass
+        else:
+            try:
+                cpus.append(int(part))
+            except ValueError:
+                pass
+    return sorted(set(cpus))
+
+
+def parse_cache_size(text: str) -> int:
+    """Parse a /sys cache size like "49152K" (or "1024M", plain bytes) to bytes."""
+    t = text.strip()
+    mult = 1
+    if t and t[-1] in "KkMmGg":
+        mult = {"k": 1024, "m": 1024**2, "g": 1024**3}[t[-1].lower()]
+        t = t[:-1]
+    try:
+        return int(float(t) * mult)
+    except ValueError:
+        return 0
+
+
+def read_l3_bytes(base=Path("/sys/devices/system/cpu/cpu0/cache")):
+    """Total L3 bytes summed over cpu0's level-3 cache indexes; None if unreadable."""
+    total = 0
+    found = False
+    for idx in sorted(Path(base).glob("index*")):
+        level = _read(idx / "level")
+        size = _read(idx / "size")
+        if level is None or size is None:
+            continue
+        try:
+            if int(level.strip()) == 3:
+                total += parse_cache_size(size)
+                found = True
+        except ValueError:
+            continue
+    return total if found else None
+
+
+def parse_cpuinfo_model(text: str):
+    for line in text.splitlines():
+        if line.startswith("model name"):
+            return line.split(":", 1)[1].strip()
+    return None
+
+
+def parse_irq_effective_affinity(base=Path("/proc/irq")):
+    """{irq: effective affinity list} from /proc/irq/*/effective_affinity_list.
+
+    This is where the IRQs actually land, unlike smp_affinity_list which is
+    only the allowed mask; the earlier watch could only capture the latter.
+    """
+    out = {}
+    for irq_dir in sorted(Path(base).glob("[0-9]*")):
+        aff = _read(irq_dir / "effective_affinity_list")
+        if aff is not None:
+            out[irq_dir.name] = aff.strip()
+    return out
+
+
+# -- pure-Python benchmark cores (fallbacks, plus the alloc mirror) ------
+
+
+def py_int(seconds: float):
+    m = (1 << 64) - 1
+    x = 0x9E3779B97F4A7C15
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        for _ in range(4096):
+            x ^= (x << 13) & m
+            x ^= x >> 7
+            x ^= (x << 17) & m
+        ops += 4096
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+def make_memcpy_bufs(size: int):
+    """Pre-touched ctypes buffers for the memcpy cores; ctypes.memmove only
+    takes ctypes instances or addresses on current Pythons.
+    """
+    src = ctypes.create_string_buffer(size)
+    dst = ctypes.create_string_buffer(size)
+    ctypes.memset(src, 0xA5, size)
+    ctypes.memset(dst, 0, size)
+    return src, dst
+
+
+def py_memcpy(seconds: float, src, dst):
+    n = len(src)
+    move = ctypes.memmove
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        move(dst, src, n)
+        ops += n
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+def py_alloc(seconds: float):
+    """Create and discard small strings/tuples, mirroring the path-heavy
+    dd-trace-py microbenchmarks (ospathbasename_aspect) that found CPU 24.
+    """
+    ops = 0
+    i = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        for _ in range(256):
+            s = "a/b/c/file%d.txt" % i
+            name = s.rsplit("/", 1)[1]
+            (s, name, (i, name))  # built and immediately discarded: the churn is the workload
+            i += 1
+        ops += 256
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+def py_fault(seconds: float):
+    if not hasattr(mmap_mod, "mmap"):
+        raise NotImplementedError("mmap unavailable on this platform")
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        buf = mmap_mod.mmap(-1, FAULT_CHUNK)
+        for off in range(0, FAULT_CHUNK, PAGE):
+            buf[off] = 1
+        buf.close()
+        ops += FAULT_CHUNK // PAGE
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+def build_mem_read_table(bytes_: int):
+    """Shuffled u32 permutation in an array (a superset of the C core's table).
+
+    Sattolo's shuffle, like the C core: exactly one cycle over the whole
+    table, so every rep chases a full-DRAM circuit instead of a
+    random-length cycle that may sit in cache. Built once per probe and
+    reused; the Python loop is the price of the no-compiler fallback.
+    """
+    n = max(2, bytes_ // 4)
+    tbl = array("I", range(n))
+    rng = random.Random(0xC0FFEE)
+    for i in range(n - 1, 0, -1):
+        j = rng.randrange(i)  # strictly below i: one cycle over all n
+        tbl[i], tbl[j] = tbl[j], tbl[i]
+    return tbl
+
+
+def py_mem_read(seconds: float, tbl):
+    idx = 0
+    for _ in range(1 << 18):  # untimed warm-up, mirrors the C core
+        idx = tbl[idx]
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        for _ in range(256):
+            idx = tbl[idx]
+        ops += 256
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+def build_mem_write_table(bytes_: int):
+    """Interleaved u32 trail/slot pairs for the mem-write fallback.
+
+    Even indexes carry the same Sattolo single-cycle trail as mem-read
+    (a permutation of even values, so a chase stays on even indexes);
+    odd indexes are the write targets. Each step reads the trail and
+    writes the slot of the same node -- same 64-byte line -- so every
+    step takes line ownership before the next. Built once per probe.
+    """
+    n = max(2, bytes_ // 8)
+    tbl = array("I", range(2 * n))
+    rng = random.Random(0xC0FFEE)
+    for i in range(n - 1, 0, -1):
+        j = rng.randrange(i)  # strictly below i: one cycle over all n nodes
+        tbl[2 * i], tbl[2 * j] = tbl[2 * j], tbl[2 * i]
+    return tbl
+
+
+def py_mem_write(seconds: float, tbl):
+    """Fallback for the C mem-write core: same trail as py_mem_read, but
+    each step also increments the slot beside the trail entry (same
+    cache line), turning every visited line dirty. Interpreter-bound:
+    the store runs, but per-step interpreter overhead dominates.
+    """
+    idx = 0
+    for _ in range(1 << 18):  # untimed warm-up, mirrors the C core
+        idx = tbl[idx]
+        tbl[idx + 1] = (tbl[idx + 1] + 1) & 0xFFFFFFFF
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        for _ in range(256):
+            nxt = tbl[idx]
+            tbl[idx + 1] = (tbl[idx + 1] + 1) & 0xFFFFFFFF
+            idx = nxt
+        ops += 256
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+# -- gc-read scenario: cyclic object graph + forced collection ----------
+
+
+class _GCNode:
+    """One node of the cyclic graph: a payload string plus cross-references."""
+
+    __slots__ = ("refs", "payload")
+
+    def __init__(self, payload):
+        self.payload = payload
+        self.refs = ()
+
+
+def _gc_payload(i: int) -> str:
+    """Deterministic per-node payload, shaped like an IAST taint range."""
+    return "range %d:%d = %s" % (i, (i * 31) % 4096, "taint"[i % 5] * GC_PAYLOAD_CHARS)
+
+
+def build_gc_graph(n: int = GC_OBJECTS):
+    """Build the live cyclic graph: n nodes, each with a payload and 3
+    cross-references into pseudo-randomly spread peers, so pointer-chasing
+    it during collection walks far beyond L2. Deterministic in n.
+    """
+    nodes = [_GCNode(_gc_payload(i)) for i in range(n)]
+    for i, node in enumerate(nodes):
+        node.refs = (nodes[(i * 7 + 3) % n], nodes[(i * 31 + 11) % n], nodes[(i + 5) % n])
+    return nodes
+
+
+def py_gc_read(seconds: float, n: int = GC_OBJECTS):
+    """Time forced full collections over a large live cyclic graph.
+
+    The graph is rebuilt the same way for every rep (outside the timed
+    window); each timed iteration drops a rotating slice of references,
+    adds a ring of fresh cyclic garbage that points back into the graph,
+    rebuilds the slice, and forces gc.collect(). One op = one collection.
+    """
+    nodes = build_gc_graph(n)
+    rng = random.Random(0x5EED)  # same churn sequence every rep
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        # drop a rotating slice of live references
+        base = (ops * 611) % n
+        for k in range(GC_SEVER):
+            nodes[(base + k) % n].refs = ()
+        # fresh cyclic garbage: a ring of nodes referencing each other and
+        # two live nodes each, unreachable as soon as the locals die
+        first = prev = None
+        for _ in range(GC_CHURN_NODES):
+            node = _GCNode(_gc_payload(rng.randrange(n)))
+            node.refs = (prev, nodes[rng.randrange(n)], nodes[rng.randrange(n)])
+            if first is None:
+                first = node
+            prev = node
+        first.refs = (prev, nodes[rng.randrange(n)])
+        first = prev = node = None
+        gc.collect()
+        # rebuild the severed slice inside the timed window: the tuple
+        # construction is part of the churn, like real taint objects
+        for k in range(GC_SEVER):
+            i = (base + k) % n
+            nodes[i].refs = (nodes[(i * 7 + 3) % n], nodes[(i * 31 + 11) % n], nodes[(i + 5) % n])
+        ops += 1
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+# -- gc-write scenario: object churn in a recycled pool -------------------
+
+
+class _GCSatellite:
+    """Small satellite object for gc-write: refs only, no payload."""
+
+    __slots__ = ("refs",)
+
+    def __init__(self, refs=()):
+        self.refs = refs
+
+
+def build_gc_write_pool(pool_size: int = GC_WRITE_POOL):
+    """The recycled pool: nodes with taint-range-like payload strings."""
+    return [_GCNode(_gc_payload(i)) for i in range(pool_size)]
+
+
+def py_gc_write(seconds: float, pool=None, pool_size: int = GC_WRITE_POOL):
+    """Time object churn in a recycled pool, per batch, no forced collect.
+
+    Per batch (one op), a rotating slice of the pool gets a fresh payload
+    string plus two fresh _GCSatellite objects that reference each other
+    and the pool node -- strings + small cross-linked satellites, like
+    IAST taint ranges and their dependents -- and the old payload and
+    satellites are discarded. Nothing calls gc.collect() here (that is
+    gc-read's job): the dead satellite pairs are cycles, freed by the
+    generational collector whenever the churn itself trips its
+    thresholds, which is part of the workload being measured.
+    """
+    if pool is None:
+        pool = build_gc_write_pool(pool_size)
+    rng = random.Random(0xBADC0DE)  # same churn sequence every rep
+    n = len(pool)
+    ops = 0
+    start = time.monotonic()
+    deadline = start + seconds
+    while True:
+        base = (ops * 611) % n  # rotate the churn slice every batch
+        for k in range(GC_WRITE_CHURN):
+            i = (base + k) % n
+            node = pool[i]
+            node.payload = _gc_payload(rng.randrange(1 << 20))
+            a = _GCSatellite()
+            b = _GCSatellite()
+            a.refs = (b, node)  # the cross-link: a and b reference each
+            b.refs = (a, node)  # other, so the dead pair needs the
+            node.refs = (a, b, pool[(i * 7 + 3) % n])  # generational GC
+        ops += 1
+        if time.monotonic() >= deadline:
+            break
+    return ops, time.monotonic() - start
+
+
+# -- slice scenario: the real benchmark's own noaspect loop ------------
+
+
+def ospathbasename_noaspect(*args, **kwargs):  # copied verbatim from
+    return os.path.basename("/path/to/file")  # appsec_iast_aspects_ospath/functions.py:45-46
+
+
+def build_slice_functions():
+    """The benchmark's functions module, mirrored for the slice scenario.
+
+    The real loop (scenario.py:31, noaspect branch) resolves its callee by
+    getattr on the imported module, so the mirror is a real module holding
+    the verbatim-copied function -- the per-iteration call pattern below
+    is then indistinguishable from the benchmark's.
+    """
+    functions = types.ModuleType("functions")
+    functions.ospathbasename_noaspect = ospathbasename_noaspect
+    return functions
+
+
+def _slice_batch(functions, iterations: int):
+    """One timed batch: iterations of the benchmark's per-iteration shape
+    (scenario.py:31 with the name resolved from config.yaml), perf_counter
+    around the whole batch. The assignment to _ is part of the copied
+    shape, not decoration: the benchmark stores the result the same way.
+    """
+    start = time.perf_counter()
+    for _ in range(iterations):
+        _ = getattr(functions, "ospathbasename_noaspect")()
+    return time.perf_counter() - start
+
+
+def _slice_calibrate(functions, target_s: float = SLICE_BATCH_TARGET_S):
+    """Grow a batch size until one batch takes at least target_s seconds,
+    so every timed window clears perf_counter's resolution. Untimed setup.
+    """
+    n = 1024
+    while _slice_batch(functions, n) < target_s:
+        n *= 4
+    return n
+
+
+def py_slice(seconds: float, functions=None, batch=None):
+    """Time the benchmark's own noaspect loop in the probe's plain harness.
+
+    The timed body is the verbatim copy documented above (functions.py:45-46
+    reached through scenario.py:31's call pattern); each batch of calibrated
+    size is wrapped in perf_counter and only those windows count -- the
+    calibration runs before the clock starts and nothing but the copied loop
+    runs inside a window. No pyperf, no worker process, no repo harness:
+    that isolation is the point of the scenario. Returns (ops, seconds)
+    like the other cores, seconds being the sum of the batch windows.
+    """
+    if functions is None:
+        functions = build_slice_functions()
+    if batch is None:
+        batch = _slice_calibrate(functions)
+    ops = 0
+    elapsed = 0.0
+    while elapsed < seconds:
+        elapsed += _slice_batch(functions, batch)
+        ops += batch
+    return ops, elapsed
+
+
+# -- slice-aspect scenario: the benchmark's aspect machinery, in a child --
+
+
+class SliceAspectError(Exception):
+    pass
+
+
+def find_aspect_wheel(root=None):
+    """The benchmark's ddtrace wheel: candidate build first (what the
+    benchmark's candidate side measures), baseline second. The pass jobs
+    fetch both as artifacts (candidate-wheel/ from the candidate job,
+    baseline-wheel/ from baseline:build -- microbenchmarks.yml); in a no-op
+    run both hold the same code. None when absent (local runs), which makes
+    slice-aspect record itself unavailable instead of pretending.
+    """
+    base = Path(root) if root is not None else _REPO_ROOT
+    for name in ("candidate-wheel", "baseline-wheel"):
+        wheel_dir = base / name
+        try:
+            wheels = sorted(wheel_dir.glob("*.whl"))
+        except OSError:
+            continue
+        if wheels:
+            return wheels[0]
+    return None
+
+
+def prepare_slice_aspect(root=None):
+    """Best-effort venv with the benchmark's ddtrace wheel, for slice-aspect.
+
+    Never fatal: every failure returns (None, info) with the reason in
+    info["state"] and the scenario records itself unavailable. Returns
+    (venv_python_or_None, info) so the report shows the wheel used and
+    what happened.
+    """
+    base = Path(root) if root is not None else _REPO_ROOT
+    info = {"state": "not attempted", "wheel": None, "python": None, "install_s": None}
+    wheel = find_aspect_wheel(base)
+    if wheel is None:
+        info["state"] = "unavailable: no ddtrace wheel (candidate-wheel/ or baseline-wheel/ absent)"
+        return None, info
+    info["wheel"] = wheel.name
+    venv_dir = base / "target" / "slice-aspect-venv"
+    venv_python = venv_dir / "bin" / "python"
+    try:
+        if not venv_python.exists():
+            made = subprocess.run(
+                [sys.executable, "-m", "venv", str(venv_dir)],
+                capture_output=True,
+                timeout=SLICE_ASPECT_VENV_TIMEOUT_S,
+            )
+            if made.returncode != 0 or not venv_python.exists():
+                info["state"] = "unavailable: venv creation failed: rc=%d stdout=%s stderr=%s" % (
+                    made.returncode,
+                    made.stdout.decode("utf-8", "replace")[:120],
+                    made.stderr.decode("utf-8", "replace")[:120],
+                )
+                return None, info
+        importable = subprocess.run(
+            [str(venv_python), "-c", "import ddtrace.appsec._iast"], capture_output=True, timeout=60
+        )
+        if importable.returncode != 0:
+            started = time.monotonic()
+            installed = subprocess.run(
+                [str(venv_python), "-m", "pip", "install", "--quiet", str(wheel)],
+                capture_output=True,
+                timeout=SLICE_ASPECT_INSTALL_TIMEOUT_S,
+            )
+            info["install_s"] = round(time.monotonic() - started, 1)
+            if installed.returncode != 0:
+                info["state"] = (
+                    "unavailable: pip install failed: %s" % installed.stderr.decode("utf-8", "replace")[:300]
+                )
+                return None, info
+        checked = subprocess.run(
+            [str(venv_python), "-c", "import ddtrace.appsec._iast"], capture_output=True, timeout=60
+        )
+        if checked.returncode != 0:
+            info["state"] = (
+                "unavailable: ddtrace not importable in the venv: %s" % checked.stderr.decode("utf-8", "replace")[:200]
+            )
+            return None, info
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        info["state"] = "unavailable: %r" % exc
+        return None, info
+    info["python"] = str(venv_python)
+    info["state"] = "ok"
+    return venv_python, info
+
+
+def run_slice_aspect_child(venv_python, reps, seconds, explicit_seconds, timeout):
+    """One slice-aspect child on the current (inherited) CPU pin.
+
+    Returns the child's JSON dict (reps, explicit_reps, engagement). Raises
+    SliceAspectError on crash, timeout or unusable output so the caller can
+    record the error per CPU without failing the sweep.
+    """
+    cmd = [
+        str(venv_python),
+        str(_SLICE_ASPECT_CHILD),
+        "--reps",
+        str(reps),
+        "--seconds",
+        repr(seconds),
+        "--explicit-seconds",
+        repr(explicit_seconds),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise SliceAspectError("child rc=%d: %s" % (proc.returncode, proc.stderr.decode("utf-8", "replace")[-300:]))
+    parsed = None
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        try:
+            rec = json.loads(line)
+            if isinstance(rec, dict):
+                parsed = rec
+        except ValueError:
+            continue
+    if not parsed or not parsed.get("reps"):
+        raise SliceAspectError("child produced no usable JSON")
+    return parsed
+
+
+# -- native C core --------------------------------------------------------
+
+
+class NativeError(Exception):
+    pass
+
+
+def _find_compiler():
+    """Preflight the toolchain in policy order (cc, gcc, clang).
+
+    Returns (compiler_name, first --version line) or (None, None).
+    """
+    for candidate in ("cc", "gcc", "clang"):
+        try:
+            found = subprocess.run([candidate, "--version"], capture_output=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if found.returncode == 0:
+            return candidate, found.stdout.decode("utf-8", "replace").splitlines()[0]
+    return None, None
+
+
+def _install_gcc():
+    """ONE cheap best-effort install of gcc; only on Linux with apt-get.
+
+    Never fatal: any failure just means the caller falls back to the Python
+    cores. Returns True only if apt-get reports success.
+    """
+    if not sys.platform.startswith("linux") or not shutil.which("apt-get"):
+        return False
+    try:
+        proc = subprocess.run(
+            ["apt-get", "install", "-y", "--no-install-recommends", "gcc"],
+            capture_output=True,
+            timeout=APT_INSTALL_TIMEOUT_S,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0
+
+
+def compile_native(binary_path: Path = _NATIVE_BINARY, source: Path = _SOURCE_NATIVE):
+    """Best-effort `cc -O2` build of the C core, following the toolchain policy.
+
+    Preflight cc, then gcc, then clang; if none exists, try ONE apt-get install
+    of gcc before falling back. Returns (binary_path_or_None, toolchain_or_None,
+    path) where path records what happened for the report: "found:<cc>",
+    "installed:<gcc>", "cached", or "fallback-python".
+    """
+    try:
+        if binary_path.exists() and binary_path.stat().st_mtime >= source.stat().st_mtime:
+            # cached binary; still preflight so the report shows the toolchain
+            _cc, toolchain = _find_compiler()
+            return binary_path, toolchain, "cached"
+    except OSError:
+        pass
+    cc, toolchain = _find_compiler()
+    path = "found:%s" % cc if cc is not None else None
+    if cc is None and _install_gcc():
+        cc, toolchain = _find_compiler()
+        if cc is not None:
+            path = "installed:%s" % cc
+    if cc is None:
+        return None, None, "fallback-python"
+    try:
+        binary_path.parent.mkdir(parents=True, exist_ok=True)
+        built = subprocess.run(
+            [cc, "-O2", "-o", str(binary_path), str(source)],
+            capture_output=True,
+            timeout=NATIVE_BUILD_TIMEOUT_S,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None, toolchain, path or "fallback-python"
+    if built.returncode != 0 or not binary_path.exists():
+        return None, toolchain, path or "fallback-python"
+    return binary_path, toolchain, path
+
+
+def run_native(binary, scenario: str, seconds: float, reps: int, size=None):
+    """Run the C core once; returns [(ops, seconds), ...] one per rep."""
+    cmd = [str(binary), scenario, repr(seconds), str(reps)]
+    if size is not None:
+        cmd.append(str(size))
+    proc = subprocess.run(cmd, capture_output=True, timeout=seconds * reps * 8 + 60)
+    if proc.returncode != 0:
+        raise NativeError(
+            "probe_native %s rc=%d: %s" % (scenario, proc.returncode, proc.stderr.decode("utf-8", "replace")[:200])
+        )
+    out = []
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        try:
+            rec = json.loads(line)
+            if rec.get("ops", 0) > 0 and rec.get("seconds", 0) > 0:
+                out.append((int(rec["ops"]), float(rec["seconds"])))
+        except (ValueError, TypeError, KeyError):
+            continue
+    if not out:
+        raise NativeError("probe_native %s produced no usable output" % scenario)
+    return out
+
+
+# -- stats ----------------------------------------------------------------
+
+
+def rep_times(reps):
+    """seconds per op for each rep; [] if a rep produced no ops."""
+    return [seconds / ops for ops, seconds in reps if ops > 0]
+
+
+def spread_pct(times):
+    if len(times) < 2:
+        return 0.0
+    med = statistics.median(times)
+    return (max(times) - min(times)) / med * 100.0 if med else 0.0
+
+
+def compute_scenario_stats(per_cpu: dict):
+    """Host median, per-CPU deviation and flags for one scenario.
+
+    per_cpu: {cpu_key: [seconds_per_op, ...]} for the CPUs that ran.
+    A CPU is flagged when its median deviates from the host median by more
+    than max(5%, 3x the median per-CPU rep-to-rep spread) AND every rep
+    deviates from the host's rep-wise median in the same direction; the
+    direction clause keeps threshold-boundary flapping unflagged.
+    """
+    stats = {"ran": bool(per_cpu), "cpus": {}}
+    if len(per_cpu) < 2:
+        for cpu, times in per_cpu.items():
+            stats["cpus"][cpu] = {"median_s_per_op": statistics.median(times), "deviation_pct": None, "flagged": False}
+        return stats
+    medians = {cpu: statistics.median(times) for cpu, times in per_cpu.items()}
+    host_median = statistics.median(medians.values())
+    med_spread = statistics.median([spread_pct(t) for t in per_cpu.values()])
+    threshold = max(FLAG_MIN_PCT, FLAG_SPREAD_MULT * med_spread)
+    # host median per rep index, to judge a CPU's per-rep direction
+    n_reps = max(len(t) for t in per_cpu.values())
+    rep_medians = [statistics.median([t[r] for t in per_cpu.values() if len(t) > r]) for r in range(n_reps)]
+    stats["host_median_s_per_op"] = host_median
+    stats["rep_spread_pct"] = med_spread
+    stats["flag_threshold_pct"] = threshold
+    for cpu, med in medians.items():
+        dev = (med - host_median) / host_median * 100.0
+        deltas = [t - rep_medians[r] for r, t in enumerate(per_cpu[cpu]) if r < n_reps]
+        consistent = all(d >= 0 for d in deltas) or all(d <= 0 for d in deltas)
+        stats["cpus"][cpu] = {
+            "median_s_per_op": med,
+            "deviation_pct": round(dev, 2),
+            "direction_consistent": consistent,
+            "flagged": abs(dev) > threshold and consistent,
+        }
+    return stats
+
+
+def decide_verdict(pin: dict, fidelity: dict, deviant_cpus: dict, notes: list) -> str:
+    if not pin.get("pinned"):
+        return "inconclusive"
+    if any(f == "unavailable" for f in fidelity.values()):
+        return "inconclusive"
+    if any("budget" in n for n in notes):
+        return "inconclusive"
+    return "deviant" if deviant_cpus else "clean"
+
+
+# -- probe ----------------------------------------------------------------
+
+
+class Probe:
+    def __init__(self, out_dir: Path, reps: int = DEFAULT_REPS, rep_seconds: float = DEFAULT_REP_SECONDS, cpus=None):
+        self.out_dir = Path(out_dir)
+        self.reps = reps
+        self.rep_seconds = rep_seconds
+        self.cpus_override = cpus
+        self.sources = {}  # name -> "available" | "error: ..."
+        self.notes = []
+        self.native_binary = None
+        self.native_info = {"toolchain": None, "build": "not attempted", "binary": None}
+        self.fidelity = {}
+        self.results = {
+            s: {} for s in SCENARIOS
+        }  # scenario -> cpu -> {"reps": [(ops, s)...]} | {"error"/"skipped": str}
+        self.pin = {"pinned": False, "reason": "not run yet"}
+        self.static = {}
+        self.slice_aspect_info = {"state": "not attempted"}
+        self.slice_aspect_python = None
+        self.started = time.time()
+        # working-set sizes, overridable for tests
+        l3 = None
+        try:
+            l3 = read_l3_bytes()
+        except Exception:
+            pass
+        self.l3 = l3
+        self.stream_bytes = 2 * l3 if l3 else L3_FALLBACK_BYTES
+        self.mem_bytes = self.stream_bytes
+        self._simd_bufs = None
+        self._stream_bufs = None
+        self._mem_read_tbl = None
+        self._mem_write_tbl = None
+
+    # -- static snapshot --------------------------------------------------
+
+    def _static_snapshot(self) -> dict:
+        snap: dict = {"allowed_cpus": None}
+
+        cpuinfo = _read("/proc/cpuinfo")
+        model = parse_cpuinfo_model(cpuinfo) if cpuinfo is not None else None
+        if model is None:
+            model = self._sysctl_model() or platform.processor() or platform.machine()
+            self.sources["cpu_model"] = "available" if model else "error: no source"
+        else:
+            self.sources["cpu_model"] = "available"
+        snap["cpu_model"] = model
+
+        topo = {}
+        for cpu_dir in sorted(Path("/sys/devices/system/cpu").glob("cpu[0-9]*")):
+            value = _read(cpu_dir / "topology" / "thread_siblings_list")
+            if value is not None:
+                topo[cpu_dir.name[3:]] = value.strip()
+        snap["smt_siblings"] = topo
+        self.sources["cpu_topology"] = "available" if topo else "error: /sys topology unreadable"
+
+        nodes = {}
+        for node_dir in sorted(Path("/sys/devices/system/node").glob("node*")):
+            value = _read(node_dir / "cpulist")
+            if value is not None:
+                nodes[node_dir.name] = value.strip()
+        snap["numa"] = nodes
+        self.sources["numa"] = "available" if nodes else "error: /sys node unreadable"
+
+        version = _read("/proc/version")
+        snap["kernel"] = version.strip() if version is not None else " ".join(platform.uname())
+        self.sources["kernel"] = "available" if version is not None else "error: /proc/version unreadable (uname used)"
+
+        irq = parse_irq_effective_affinity()
+        snap["irq_effective_affinity"] = irq
+        self.sources["irq_effective_affinity"] = "available" if irq else "error: /proc/irq unreadable"
+
+        per_cpu = any(_read(p) is not None for p in sorted(Path("/sys/kernel/irq").glob("*/per_cpu_count"))[:5])
+        snap["irq_per_cpu_count"] = "available" if per_cpu else "unavailable"
+        self.sources["irq_per_cpu_count"] = "available" if per_cpu else "error: /sys/kernel/irq unreadable"
+
+        snap["l3_bytes"] = self.l3
+        self.sources["sys_cache"] = "available" if self.l3 else "error: /sys cache info unreadable"
+
+        try:
+            snap["allowed_cpus"] = sorted(os.sched_getaffinity(0))
+            self.sources["affinity_api"] = "available"
+        except (AttributeError, OSError) as exc:
+            self.sources["affinity_api"] = "error: %s" % exc
+        return snap
+
+    @staticmethod
+    def _sysctl_model():
+        try:
+            out = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, timeout=5)
+            if out.returncode == 0:
+                return out.stdout.decode("utf-8", "replace").strip()
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        return None
+
+    # -- cpu set ----------------------------------------------------------
+
+    def resolve_cpus(self) -> list:
+        if self.cpus_override is not None:
+            return list(self.cpus_override)
+        allowed = self.static.get("allowed_cpus") or []
+        if not allowed:
+            self.pin = {"pinned": False, "reason": "sched_getaffinity unavailable or empty"}
+            return []
+        return allowed
+
+    # -- native build -----------------------------------------------------
+
+    def _build_native(self) -> None:
+        binary, toolchain, path = compile_native()
+        self.native_info = {"toolchain": toolchain, "binary": str(binary) if binary else None, "path": path}
+        if binary is not None:
+            self.native_binary = binary
+            self.native_info["build"] = "ok"
+            self.sources["native_build"] = "available"
+        else:
+            if path == "fallback-python":
+                self.native_info["build"] = "no compiler after preflight (cc, gcc, clang) and install attempt"
+            else:
+                self.native_info["build"] = "failed; using Python fallbacks"
+            self.sources["native_build"] = "error: %s" % self.native_info["build"]
+        for scenario in NATIVE_SCENARIOS:
+            self.fidelity[scenario] = "native" if self.native_binary else "fallback-python"
+        self.fidelity[ALLOC] = "python-workload"
+        self.fidelity[GC_READ] = "python-workload"
+        self.fidelity[GC_WRITE] = "python-workload"
+        self.fidelity[SLICE] = "python-workload"
+        # slice-aspect's fidelity is set by _prepare_slice_aspect (ddtrace-child
+        # or unavailable); only its fallback branch below must not touch it
+        if self.native_binary is None:
+            self.notes.append("native core unavailable: int/simd/fault/stream/mem-read/mem-write use fallback-python")
+
+    def _prepare_slice_aspect(self) -> None:
+        """Build (once) the aspect venv the slice-aspect children run under."""
+        venv_python, info = prepare_slice_aspect()
+        self.slice_aspect_info = info
+        self.slice_aspect_python = venv_python
+        if venv_python is None:
+            self.fidelity[SLICE_ASPECT] = "unavailable"
+            self.notes.append("slice-aspect %s" % info.get("state", "unavailable"))
+        else:
+            self.fidelity[SLICE_ASPECT] = "ddtrace-child"
+
+    # -- scenario execution -----------------------------------------------
+
+    def _ensure_buffers(self, scenario):
+        if scenario == "simd":
+            if self._simd_bufs is None:
+                self._simd_bufs = make_memcpy_bufs(SIMD_BYTES)
+            return self._simd_bufs
+        if scenario == "stream":
+            if self._stream_bufs is None:
+                self._stream_bufs = make_memcpy_bufs(self.stream_bytes)
+            return self._stream_bufs
+        if scenario == "mem-read":
+            if self._mem_read_tbl is None:
+                self._mem_read_tbl = build_mem_read_table(min(self.mem_bytes, MEM_FALLBACK_CAP))
+            return self._mem_read_tbl
+        if scenario == "mem-write":
+            if self._mem_write_tbl is None:
+                self._mem_write_tbl = build_mem_write_table(min(self.mem_bytes, MEM_FALLBACK_CAP))
+            return self._mem_write_tbl
+        return None
+
+    def _python_core(self, scenario):
+        if scenario == "int":
+            return py_int(self.rep_seconds)
+        if scenario == "alloc":
+            return py_alloc(self.rep_seconds)
+        if scenario == "fault":
+            return py_fault(self.rep_seconds)
+        if scenario == "simd":
+            return py_memcpy(self.rep_seconds, *self._ensure_buffers("simd"))
+        if scenario == "stream":
+            return py_memcpy(self.rep_seconds, *self._ensure_buffers("stream"))
+        if scenario == "mem-read":
+            return py_mem_read(self.rep_seconds, self._ensure_buffers("mem-read"))
+        if scenario == "mem-write":
+            return py_mem_write(self.rep_seconds, self._ensure_buffers("mem-write"))
+        if scenario == "gc-read":
+            return py_gc_read(self.rep_seconds)
+        if scenario == "gc-write":
+            return py_gc_write(self.rep_seconds)
+        if scenario == SLICE:
+            # its own pre-registered window, not the synthetic scenarios'
+            return py_slice(SLICE_REP_SECONDS)
+        raise ValueError("unknown scenario %s" % scenario)
+
+    def _run_scenario(self, scenario):
+        """One scenario, --reps reps, on the current (pinned) CPU.
+
+        Returns {"reps": [(ops, seconds), ...]}; raises only if the scenario
+        is unavailable on this platform.
+        """
+        if scenario == SLICE_ASPECT:
+            # its own child process under the aspect venv; per-CPU failures
+            # are recorded, never raised, so one flaky child cannot mark the
+            # whole scenario unavailable
+            if not self.slice_aspect_python:
+                return {"skipped": self.slice_aspect_info.get("state", "not prepared")}
+            try:
+                out = run_slice_aspect_child(
+                    self.slice_aspect_python,
+                    self.reps,
+                    SLICE_ASPECT_REP_SECONDS,
+                    SLICE_ASPECT_EXPLICIT_REP_SECONDS,
+                    SLICE_ASPECT_CHILD_TIMEOUT_S,
+                )
+            except (SliceAspectError, OSError, subprocess.TimeoutExpired) as exc:
+                return {"error": repr(exc)}
+            entry = {"reps": [(int(ops), float(seconds)) for ops, seconds in out["reps"]]}
+            if out.get("explicit_reps"):
+                entry["explicit_reps"] = [(int(ops), float(seconds)) for ops, seconds in out["explicit_reps"]]
+            if isinstance(out.get("engagement"), dict):
+                entry["engagement"] = out["engagement"]
+            return entry
+        if scenario in NATIVE_SCENARIOS and self.native_binary:
+            size = None
+            if scenario == "simd":
+                size = SIMD_BYTES
+            elif scenario == "stream":
+                size = self.stream_bytes
+            elif scenario == "mem-read":
+                size = self.mem_bytes
+            elif scenario == "mem-write":
+                size = self.mem_bytes
+            try:
+                return {"reps": run_native(self.native_binary, scenario, self.rep_seconds, self.reps, size)}
+            except (NativeError, OSError, subprocess.TimeoutExpired) as exc:
+                self.fidelity[scenario] = "fallback-python"
+                self.notes.append("%s: native run failed (%s), using fallback-python" % (scenario, exc))
+        return {"reps": [self._python_core(scenario) for _ in range(self.reps)]}
+
+    # -- sweep ------------------------------------------------------------
+
+    def sweep(self, cpus: list) -> None:
+        if not cpus:
+            self.pin = {"pinned": False, "reason": self.pin.get("reason", "no allowed CPUs")}
+            for scenario in SCENARIOS:
+                try:
+                    self.results[scenario]["unpinned"] = self._run_scenario(scenario)
+                except Exception as exc:  # noqa: BLE001 - never fatal
+                    self.fidelity[scenario] = "unavailable"
+                    self.results[scenario]["unpinned"] = {"error": repr(exc)}
+                    self.notes.append("%s unavailable: %r" % (scenario, exc))
+            return
+        original = None
+        try:
+            original = set(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            pass
+        probed = []
+        failed_pins = []
+        deadline = time.monotonic() + MAX_SWEEP_S
+        budget_hit = False
+        for cpu in cpus:
+            if time.monotonic() > deadline:
+                budget_hit = True
+                self.notes.append("budget: sweep stopped before CPU %d (max %ds)" % (cpu, MAX_SWEEP_S))
+                continue
+            try:
+                os.sched_setaffinity(0, {cpu})
+            except (AttributeError, OSError) as exc:
+                failed_pins.append(cpu)
+                for scenario in SCENARIOS:
+                    self.results[scenario][str(cpu)] = {"skipped": "pin failed: %s" % exc}
+                continue
+            probed.append(cpu)
+            for scenario in SCENARIOS:
+                try:
+                    self.results[scenario][str(cpu)] = self._run_scenario(scenario)
+                except Exception as exc:  # noqa: BLE001 - never fatal
+                    self.fidelity[scenario] = "unavailable"
+                    self.results[scenario][str(cpu)] = {"error": repr(exc)}
+                    self.notes.append("%s unavailable on CPU %d: %r" % (scenario, cpu, exc))
+        if original is not None:
+            try:
+                os.sched_setaffinity(0, original)
+            except OSError:
+                pass
+        self.pin = {
+            "pinned": bool(probed),
+            "allowed_cpus": list(cpus),
+            "probed_cpus": probed,
+            "pin_failed_cpus": failed_pins,
+        }
+        if failed_pins:
+            self.notes.append("pin failed on CPUs %s" % failed_pins)
+        if budget_hit and probed:
+            self.notes.append("budget: %d CPUs skipped" % (len(cpus) - len(probed) - len(failed_pins)))
+
+    # -- report -----------------------------------------------------------
+
+    def _scenario_stats(self, scenario):
+        per_cpu = {}
+        for cpu, entry in self.results[scenario].items():
+            if isinstance(entry, dict) and entry.get("reps"):
+                times = rep_times(entry["reps"])
+                if times:
+                    per_cpu[cpu] = times
+        stats = compute_scenario_stats(per_cpu)
+        stats["fidelity"] = self.fidelity.get(scenario)
+        stats["unit"] = SCENARIO_UNITS[scenario]
+        if scenario in ("mem-read", "mem-write") and stats["fidelity"] == "fallback-python":
+            stats["note"] = "interpreter-bound"
+        elif scenario == "mem-write":
+            # name fidelity: what the timed loop actually adds over mem-read
+            stats["note"] = (
+                "per step: dependent trail load + slot store on the same line; every"
+                " visited line goes dirty so each eviction is a writeback. Single core"
+                " means the load already holds line ownership -- the store adds the"
+                " writeback path, not an extra RFO round-trip per step"
+            )
+        elif scenario == "gc-write":
+            stats["note"] = (
+                "per batch: fresh payload strings + cross-linked satellites in a"
+                " recycled pool, old ones discarded; no forced gc.collect() -- dead"
+                " satellite cycles are freed by the generational collector the churn"
+                " itself trips"
+            )
+        elif scenario == SLICE:
+            stats["note"] = (
+                "copied verbatim from the real benchmark's noaspect path:"
+                " ospathbasename_noaspect returning"
+                ' os.path.basename("/path/to/file")'
+                " (benchmarks/appsec_iast_aspects_ospath/functions.py:45-46),"
+                " called per iteration as"
+                ' _ = getattr(functions, "ospathbasename_noaspect")()'
+                " (scenario.py:31, noaspect branch, function_name from"
+                " config.yaml). Timed with perf_counter around calibrated"
+                " batches in this probe's own harness -- no pyperf, no repo"
+                " harness; rep window %s s (its own, not --rep-seconds)" % SLICE_REP_SECONDS
+            )
+        elif scenario == SLICE_ASPECT:
+            stats["note"] = (
+                "the benchmark's aspect machinery in this probe's plain harness:"
+                " a child (probe_slice_aspect.py) under a venv built from the"
+                " pass job's ddtrace wheel replicates the benchmark's verbatim"
+                " IAST enable + import (scenario.py:1-8 and scenario.py:11-15)"
+                " and times the AST-patched os.path.basename call -- the"
+                " noaspect config's executed loop (scenario.py:29-31,"
+                ' function_name "ospathbasename_noaspect" from config.yaml,'
+                " timed inside _without_iast_context per scenario.py:33-34) --"
+                " plus the aspect config's explicit aspect call"
+                " (functions.py:41-42, function_name"
+                ' "iast_ospathbasename_aspect", inside _with_iast_context) as'
+                " the explicit_aspect rows. Same plain calibrated-batch"
+                " harness as slice (no pyperf, no worker process, default"
+                " GC); rep windows %s s main / %s s explicit."
+                " Per-call absolute time is the fidelity record: ~5.3 us"
+                " means the machinery is engaged (F20's 5-7x gap over slice's"
+                " ~0.75 us), ~0.75 us means the AST patch did NOT fire in the"
+                " child -- see machinery_engaged.ast_patched, recorded as-is"
+                % (SLICE_ASPECT_REP_SECONDS, SLICE_ASPECT_EXPLICIT_REP_SECONDS)
+            )
+            # the explicit aspect call: same harness, cannot fail to engage
+            per_cpu_explicit = {}
+            engaged = {}
+            for cpu, entry in self.results[scenario].items():
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("explicit_reps"):
+                    times = rep_times(entry["explicit_reps"])
+                    if times:
+                        per_cpu_explicit[cpu] = times
+                if isinstance(entry.get("engagement"), dict):
+                    engaged[cpu] = bool(entry["engagement"].get("ast_patched"))
+            stats["explicit_aspect"] = compute_scenario_stats(per_cpu_explicit)
+            stats["explicit_aspect"]["unit"] = SCENARIO_UNITS[scenario]
+            if engaged:
+                stats["machinery_engaged"] = {"ast_patched": engaged, "engaged": any(engaged.values())}
+                for cpu in engaged:
+                    if cpu in stats.get("cpus", {}):
+                        stats["cpus"][cpu]["ast_patched"] = engaged[cpu]
+        for cpu, entry in self.results[scenario].items():
+            if "error" in (entry or {}):
+                stats.setdefault("errors", {})[cpu] = entry["error"]
+            elif "skipped" in (entry or {}):
+                stats.setdefault("skipped", {})[cpu] = entry["skipped"]
+            elif "reps" in (entry or {}) and cpu in stats["cpus"]:
+                stats["cpus"][cpu]["ops_per_s"] = [round(ops / seconds, 1) for ops, seconds in entry["reps"]]
+                if (
+                    scenario == SLICE_ASPECT
+                    and entry.get("explicit_reps")
+                    and cpu in stats["explicit_aspect"].get("cpus", {})
+                ):
+                    stats["explicit_aspect"]["cpus"][cpu]["ops_per_s"] = [
+                        round(ops / seconds, 1) for ops, seconds in entry["explicit_reps"]
+                    ]
+        return stats
+
+    def build_report(self):
+        scenarios = {s: self._scenario_stats(s) for s in SCENARIOS}
+        deviant = {}
+        for scenario, stats in scenarios.items():
+            for cpu, entry in stats.get("cpus", {}).items():
+                if entry.get("flagged"):
+                    deviant.setdefault(cpu, []).append({"scenario": scenario, "deviation_pct": entry["deviation_pct"]})
+        for scenario in SCENARIOS:
+            if not self.results[scenario] or all(
+                isinstance(e, dict) and ("error" in e or "skipped" in e) for e in self.results[scenario].values()
+            ):
+                if self.fidelity.get(scenario) != "unavailable":
+                    self.fidelity[scenario] = "unavailable"
+                    self.notes.append("%s: no usable results" % scenario)
+        verdict = decide_verdict(self.pin, self.fidelity, deviant, self.notes)
+        return {
+            "meta": {
+                "probe": "cpu-asymmetry probe (APMSP-4059)",
+                "started": self.started,
+                "finished": time.time(),
+                "reps": self.reps,
+                "rep_seconds": self.rep_seconds,
+                "tier": "ci" if (os.environ.get("CI") or os.environ.get("GITLAB_CI")) else "local",
+                "platform": platform.platform(),
+                "native": self.native_info,
+                "slice_aspect": self.slice_aspect_info,
+                "pin": self.pin,
+                "notes": self.notes,
+            },
+            "sources": self.sources,
+            "static": self.static,
+            "scenarios": scenarios,
+            "deviant_cpus": deviant,
+            "verdict": verdict,
+        }
+
+    def write_reports(self, report):
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        (self.out_dir / "report.json").write_text(json.dumps(report, indent=1) + "\n")
+        (self.out_dir / "report.md").write_text(render_markdown(report))
+
+    # -- main -------------------------------------------------------------
+
+    def run(self):
+        try:
+            self.static = self._static_snapshot()
+        except Exception as exc:  # noqa: BLE001 - never fatal
+            self.notes.append("static snapshot failed: %r" % exc)
+        cpus = []
+        try:
+            cpus = self.resolve_cpus()
+        except Exception as exc:  # noqa: BLE001
+            self.notes.append("cpu resolution failed: %r" % exc)
+            self.pin = {"pinned": False, "reason": repr(exc)}
+        try:
+            self._build_native()
+        except Exception as exc:  # noqa: BLE001
+            for scenario in SCENARIOS:
+                if scenario == SLICE_ASPECT:
+                    continue  # set by _prepare_slice_aspect below
+                self.fidelity[scenario] = (
+                    "fallback-python" if scenario not in (ALLOC, GC_READ, GC_WRITE, SLICE) else "python-workload"
+                )
+            self.notes.append("native build crashed: %r" % exc)
+        try:
+            self._prepare_slice_aspect()
+        except Exception as exc:  # noqa: BLE001 - never fatal
+            self.slice_aspect_info = {"state": "unavailable: %r" % exc}
+            self.fidelity[SLICE_ASPECT] = "unavailable"
+            self.notes.append("slice-aspect setup crashed: %r" % exc)
+        try:
+            self.sweep(cpus)
+        except Exception as exc:  # noqa: BLE001
+            self.notes.append("sweep failed: %r" % exc)
+            self.pin = {"pinned": False, "reason": "sweep crashed: %r" % exc}
+        report = self.build_report()
+        self.write_reports(report)
+        return report
+
+
+def _fmt_time(t):
+    """Format seconds-per-op in a human unit."""
+    if t >= 1e-3:
+        return "%.3f ms" % (t * 1e3)
+    if t >= 1e-6:
+        return "%.3f us" % (t * 1e6)
+    return "%.3f ns" % (t * 1e9)
+
+
+def render_markdown(report):
+    meta = report["meta"]
+    static = report.get("static", {})
+    lines = [
+        "# CPU-asymmetry probe report",
+        "",
+        "- verdict: **%s**" % report["verdict"],
+        "- cpu: %s | kernel: %s | platform: %s | tier: %s"
+        % (static.get("cpu_model"), static.get("kernel"), meta.get("platform"), meta.get("tier")),
+        "- allowed CPUs: %s | probed: %s" % (static.get("allowed_cpus"), meta["pin"].get("probed_cpus")),
+        "- pin: %s" % json.dumps(meta["pin"]),
+        "- native core: %s | L3: %s bytes" % (meta["native"].get("build"), static.get("l3_bytes")),
+        "- reps: %s x %ss per scenario and CPU" % (meta["reps"], meta["rep_seconds"]),
+    ]
+    deviant = report["deviant_cpus"]
+    if deviant:
+        lines.append("- deviant CPUs:")
+        for cpu, flagged in sorted(deviant.items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 0):
+            parts = ", ".join("%s %+0.1f%%" % (f["scenario"], f["deviation_pct"]) for f in flagged)
+            lines.append("  - CPU %s: %s" % (cpu, parts))
+    else:
+        lines.append("- deviant CPUs: none")
+    if meta.get("notes"):
+        lines.append("- notes: %s" % "; ".join(meta["notes"]))
+    slice_aspect = report["scenarios"].get("slice-aspect", {})
+    if "machinery_engaged" in slice_aspect:
+        # the T11 fidelity record, stated up top so a ~0.75 us row can never
+        # be mistaken for engaged machinery
+        lines.append(
+            "- slice-aspect AST patch engaged: %s (per-CPU ast_patched in report.json)"
+            % ("yes" if slice_aspect["machinery_engaged"]["engaged"] else "NO")
+        )
+    lines += ["", "| CPU | scenario | fidelity | time/op | deviation | flagged |", "|---|---|---|---|---|---|"]
+    for scenario, stats in report["scenarios"].items():
+        fid = stats.get("fidelity", "?")
+        for cpu, entry in sorted(stats.get("cpus", {}).items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 0):
+            dev = entry.get("deviation_pct")
+            lines.append(
+                "| %s | %s | %s | %s | %s | %s |"
+                % (
+                    cpu,
+                    scenario,
+                    fid,
+                    _fmt_time(entry.get("median_s_per_op", float("nan"))),
+                    "%+0.1f%%" % dev if dev is not None else "-",
+                    "**FLAG**" if entry.get("flagged") else "",
+                )
+            )
+        extra = stats.get("explicit_aspect")
+        if extra and extra.get("cpus"):
+            # the slice-aspect secondary variant: same harness, explicit
+            # aspect call, cannot fail to engage
+            for cpu, entry in sorted(extra["cpus"].items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 0):
+                dev = entry.get("deviation_pct")
+                lines.append(
+                    "| %s | %s (explicit aspect call) | %s | %s | %s | %s |"
+                    % (
+                        cpu,
+                        scenario,
+                        fid,
+                        _fmt_time(entry.get("median_s_per_op", float("nan"))),
+                        "%+0.1f%%" % dev if dev is not None else "-",
+                        "**FLAG**" if entry.get("flagged") else "",
+                    )
+                )
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="per-CPU microbenchmarks that flag asymmetric cores")
+    parser.add_argument("--out", default="./probe-report", help="output directory (default ./probe-report)")
+    parser.add_argument("--reps", type=int, default=DEFAULT_REPS, help="reps per CPU and scenario (default 3)")
+    parser.add_argument(
+        "--rep-seconds", type=float, default=DEFAULT_REP_SECONDS, help="measured seconds per rep (default 1.5)"
+    )
+    args = parser.parse_args()
+    probe = Probe(Path(args.out), reps=args.reps, rep_seconds=args.rep_seconds)
+    report = probe.run()
+    print("verdict: %s" % report["verdict"])
+    print("report: %s" % (probe.out_dir / "report.json"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

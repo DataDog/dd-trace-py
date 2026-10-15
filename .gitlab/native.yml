@@ -2,6 +2,8 @@ include:
   - local: ".gitlab/testrunner.yml"
 
 "rust ci":
+  rules:
+    - when: never
   stage: tests
   image: !reference [.testrunner, image]
   tags: !reference [.testrunner, tags]
@@ -38,6 +40,8 @@ include:
       echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_test\r\e[0K"
 
 "clang-tidy profiling":
+  rules:
+    - when: never
   stage: tests
   image: registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native
   tags: ["arch:amd64"]
