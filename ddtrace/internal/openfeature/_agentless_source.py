@@ -14,6 +14,7 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 from collections import namedtuple
 import os
 import random
+import re
 import socket
 import threading
 import time
@@ -58,6 +59,10 @@ FIRST_POLL_JITTER_MAX_S = 5.0
 SHUTDOWN_POLL_INTERVAL_S = 0.2
 _WAIT_EPSILON_S = 1e-6
 
+# Remove the entire URL: credentials can occur in userinfo, paths and queries.
+# Include embedded quotes; only trailing message punctuation is preserved.
+_URL_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
+
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
 _PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
@@ -68,10 +73,13 @@ def _clamp(value: float, minimum: float, maximum: float) -> float:
 
 
 def _describe_error(error: BaseException) -> str:
-    # The exception type tells DNS failures, refused connections and timeouts
-    # apart, even when the message is empty (a bare TimeoutError).
-    message = str(error)
-    return f"{type(error).__name__}: {message}" if message else type(error).__name__
+    """Keep transport diagnostics without quoting endpoint URLs or exception chains."""
+    name = type(error).__name__
+    try:
+        message = _URL_RE.sub("<endpoint>", str(error))
+    except Exception:
+        return name
+    return f"{name}: {message}" if message else name
 
 
 def _is_retryable_status(status: Optional[int]) -> bool:
@@ -407,6 +415,10 @@ class AgentlessConfigurationSource(PeriodicService):
         elif status:
             log.warning("Feature Flagging agentless endpoint returned HTTP %d after %d attempts", status, attempts)
         elif attempts > 1:
-            log.warning("Feature Flagging agentless request failed after %d attempts: %s", attempts, response.error)
+            log.warning(
+                "Feature Flagging agentless request failed after %d attempts: %s",
+                attempts,
+                _describe_error(response.error),
+            )
         else:
-            log.warning("Feature Flagging agentless request failed: %s", response.error)
+            log.warning("Feature Flagging agentless request failed: %s", _describe_error(response.error))
