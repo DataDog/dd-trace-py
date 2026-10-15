@@ -17,3 +17,6 @@ class TestOptPluginProtocol(t.Protocol):
     manager: SessionManager
     session: TestSession
     xdist_atr_crash_state_path: t.Optional[Path]
+    # Coverage data files persisted by xdist workers that delegated their coverage
+    # report upload to this controller (collected by XdistTestOptPlugin.pytest_testnodedown).
+    delegated_coverage_data_files: list[str]

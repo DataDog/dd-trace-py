@@ -28,7 +28,7 @@ def test_call_script() -> None:
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_call_script_gevent():
+def test_call_script_gevent() -> None:
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, pid = call_program(
