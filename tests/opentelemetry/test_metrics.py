@@ -151,6 +151,8 @@ def test_otel_metrics_disabled_and_unset():
         "DD_METRICS_OTEL_ENABLED": "true",
         "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4317",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:14318/v1/traces",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
         "OTEL_TRACES_EXPORTER": "otlp",
     },
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", "http/protobuf"]},
@@ -166,12 +168,12 @@ def test_otel_metrics_export_does_not_generate_client_spans():
     from tests.opentelemetry.utils import capture_otlp_traces
     from tests.opentelemetry.utils import metric_names
 
-    with capture_otlp_metrics(os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]) as metric_requests:
+    with (
+        capture_otlp_metrics(os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]) as metric_requests,
+        capture_otlp_traces("http/protobuf", port=14318) as trace_requests,
+    ):
         get_meter("test.metrics").create_counter("test.metric").add(1)
         assert get_meter_provider().force_flush()
-
-    # The native trace writer uses HTTP/protobuf, so reuse 4317 after the metric receiver stops.
-    with capture_otlp_traces("http/protobuf", port=4317) as trace_requests:
         tracer.flush()
 
     assert "test.metric" in metric_names(metric_requests)
