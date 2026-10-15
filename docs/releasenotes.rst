@@ -162,7 +162,7 @@ The convention in referring to components is as follows:
 
 * Tracer: ``tracing``
 * Profiler: ``profiling``
-* Application Security Monitoring: ``ASM``
+* App and API Protection: ``AAP`` or ``App and API Protection``
 * Dynamic Instrumentation: ``dynamic instrumentation``
 * CI Visibility: ``CI visibility``
 * Integrations: ``integration_name``
