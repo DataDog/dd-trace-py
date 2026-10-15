@@ -27,6 +27,9 @@ from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace.internal.settings._telemetry import config as telemetry_config
+from ddtrace.internal.utils import deprecations as deprecation_utils
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -76,7 +79,6 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
-import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import _get_async_flush_events
@@ -420,7 +422,11 @@ class TestOptPlugin(TestOptPluginProtocol):
         else:
             self.session.itr_suite_reporting_enabled = True
 
-        if session.config.getoption("ddtrace-patch-all"):
+        if session.config.getoption("ddtrace-patch-all") or session.config.getini("ddtrace-patch-all"):
+            # TODO: honor patch-all even when Test Optimization is not enabled. The legacy
+            # plugin applied it via a session-scoped autouse fixture without requiring
+            # `--ddtrace`; this hook only runs when the plugin is enabled, so standalone
+            # `--ddtrace-patch-all` / `ddtrace-patch-all` ini usage is currently ignored.
             self.enable_all_ddtrace_integrations = True
 
         self.session.start()
@@ -1340,6 +1346,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         if not terminalreporter.stats["failed"]:
             del terminalreporter.stats["failed"]
 
+        # TODO: report list of attempt-to-fix results.
         print_test_report_links(terminalreporter, self.manager)
 
 
@@ -1607,7 +1614,20 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
-    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_addoption(parser)
+    # Compatibility: the legacy plugin accepted --ddtrace-include-class-name (and the
+    # ddtrace-include-class-name ini) to prepend class names to test names. The new plugin
+    # always includes the class name in test names, so the option is a no-op, but it stays
+    # accepted so existing commands do not fail with "unrecognized arguments".
+    group.addoption(
+        "--ddtrace-include-class-name",
+        action="store_true",
+        dest="ddtrace-include-class-name",
+        default=False,
+        help="Deprecated no-op: class names are always included in test names",
+    )
+    parser.addini(
+        "ddtrace-include-class-name", "Deprecated no-op: class names are always included in test names", type="bool"
+    )
 
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
@@ -1703,6 +1723,51 @@ def setup_coverage_collection() -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # The legacy pytest plugin (ddtrace/contrib/internal/pytest) has been removed. The
+    # DD_PYTEST_USE_NEW_PLUGIN* environment variables no longer select a plugin: surface stale
+    # configuration with a deprecation warning, but do nothing else. This runs before the kill
+    # switch check because the notice is about plugin selection, not test tracing.
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "DD_PYTEST_USE_NEW_PLUGIN is deprecated",
+                    message=(
+                        "the legacy pytest plugin has been removed. The environment variable no longer has any "
+                        "effect; this pytest plugin is always used. Remove the environment variable from your "
+                        "configuration."
+                    ),
+                )
+            ),
+            stacklevel=2,
+        )
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "DD_PYTEST_USE_NEW_PLUGIN_BETA is deprecated",
+                    message=(
+                        "the legacy pytest plugin has been removed. The environment variable no longer has any "
+                        "effect and can be removed from your configuration."
+                    ),
+                )
+            ),
+            stacklevel=2,
+        )
+    if config.getoption("ddtrace-include-class-name", False) or config.getini("ddtrace-include-class-name"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "--ddtrace-include-class-name / ddtrace-include-class-name are deprecated",
+                    message=(
+                        "the legacy pytest plugin that supported them has been removed. Class names are always "
+                        "included in test names; remove the option from your command line or configuration."
+                    ),
+                )
+            ),
+            stacklevel=2,
+        )
+
     # We register the marker even if the kill switch is on, to avoid "Unknown pytest.mark.dd_tags" warnings in tests
     # when the plugin is disabled. This is similar to command line arguments, which are also registered in
     # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
@@ -1779,7 +1844,10 @@ def pytest_configure(config: pytest.Config) -> None:
         except Exception:
             log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
 
-    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
+    # Disable telemetry dependency collection for test sessions. This used to live in
+    # tracer_api/pytest_hooks.py alongside the IAST integration that was removed from the
+    # plugin; it is not IAST-related, so it is kept here.
+    telemetry_config.DEPENDENCY_COLLECTION = False
 
     # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
