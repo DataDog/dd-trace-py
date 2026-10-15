@@ -422,7 +422,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         else:
             self.session.itr_suite_reporting_enabled = True
 
-        if session.config.getoption("ddtrace-patch-all"):
+        if session.config.getoption("ddtrace-patch-all") or session.config.getini("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
 
         self.session.start()

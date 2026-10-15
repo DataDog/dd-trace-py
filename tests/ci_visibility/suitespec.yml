@@ -9,6 +9,9 @@ components:
   pytest:
     - ddtrace/testing/internal/pytest/*
     - ddtrace/testing/internal/*
+    - ddtrace/contrib/internal/pytest/*
+    - ddtrace/contrib/internal/pytest_bdd/*
+    - ddtrace/contrib/internal/pytest_benchmark/*
   selenium:
     - ddtrace/contrib/internal/selenium/*
   unittest:
