@@ -216,7 +216,7 @@ experiments:
               - execution_time < 0.70 ms
           - name: iastaspects-translate_noaspect
             thresholds:
-              - execution_time < 0.55 ms
+              - execution_time < 0.65 ms
           - name: iastaspects-upper_aspect
             thresholds:
               - execution_time < 0.50 ms

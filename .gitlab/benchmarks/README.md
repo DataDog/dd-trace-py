@@ -101,7 +101,7 @@ For microbenchmarks, on every pipeline:
 2. **`microbenchmarks`** (root pipeline) triggers `microbenchmarks-gen.yml` as a child
    pipeline, after `tests-gen` and the `build linux` job that produces the candidate wheel.
 3. **`baseline:detect`** then **`baseline:build`** resolve and build the wheel to compare
-   against, while **`candidate`** picks the `cp39` wheel out of the parent pipeline's
+   against, while **`candidate`** picks the `cp312` wheel out of the parent pipeline's
    artifacts. Both are cached, `baseline:build` on the baseline commit SHA.
 4. **`microbenchmarks`** (child pipeline) runs each matrix entry's scenarios against both wheels,
    then `analyze-results.sh` and an S3 upload.
