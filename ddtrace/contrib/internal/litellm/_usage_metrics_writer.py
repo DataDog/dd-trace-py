@@ -188,7 +188,7 @@ class _DogStatsdSender:
             self._address = (parsed.hostname or "localhost", parsed.port or 8125)
             self._max_packet = _UDP_MAX_PACKET
         else:
-            raise ValueError(f"Unknown scheme `{parsed.scheme}` for DogStatsD URL `{url}`")
+            raise ValueError(f"Unknown scheme `{parsed.scheme}` for the DogStatsD URL")
         self._socket: Optional[socket.socket] = None
         # Failed sends so far: each makes the next connection start at the next address the host resolves to.
         self._failed_sends = 0
@@ -295,6 +295,8 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._flush_lock = forksafe.Lock()
         # Set at exit: a flush in progress stops retrying, so the last flush does not wait behind it.
         self._stopping = forksafe.Event()
+        # Set by close(), so that the worker's own last flush as it stops keeps to the same deadline.
+        self._shutdown_deadline: Optional[float] = None
         self._otlp: Optional[_OtlpSender] = None
         self._dogstatsd: Optional[_DogStatsdSender] = None
         # OTLP exports that failed in a retryable way, oldest first.
@@ -328,13 +330,13 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
     def on_shutdown(self, deadline: Optional[float] = None) -> None:  # type: ignore[override]
         # The process is exiting: stop retrying, then try each pending export once, within a bounded time.
         self._stopping.set()
-        self.flush(retry=False, deadline=deadline)
+        self.flush(retry=False, deadline=deadline if deadline is not None else self._shutdown_deadline)
 
     def close(self) -> None:
         """Stop the worker, flush what is left as at exit, and release the exporter's socket, all within the shutdown
         time.
         """
-        deadline = time.monotonic() + _SHUTDOWN_SECONDS
+        deadline = self._shutdown_deadline = time.monotonic() + _SHUTDOWN_SECONDS
         # A flush in progress stops retrying; the worker flushes once more as it stops.
         self._stopping.set()
         self.stop()

@@ -1141,8 +1141,14 @@ def test_usage_metrics_are_flushed_on_an_exit_signal(enabled, monkeypatch):
 
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_an_unusable_exporter_endpoint_leaves_the_integration_patched(enabled, monkeypatch):
-    monkeypatch.setattr(litellm_patch._usage_metrics_writer.agent_config, "dogstatsd_url", "tcp://localhost:8125")
+    monkeypatch.setattr(
+        litellm_patch._usage_metrics_writer.agent_config, "dogstatsd_url", "tcp://user:hunter2@localhost:8125"
+    )
+    warnings = []
+    monkeypatch.setattr(litellm_patch.log, "warning", lambda *args: warnings.append(args))
     patch()
+    # The warning does not quote the endpoint, which can hold credentials.
+    assert warnings and not any("hunter2" in " ".join(str(arg) for arg in args) for args in warnings)
     assert getattr(litellm, "_datadog_patch", False)
     assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None
 

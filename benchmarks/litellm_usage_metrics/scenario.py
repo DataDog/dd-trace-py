@@ -5,18 +5,24 @@ class LiteLLMUsageMetrics(bm.Scenario):
     tagged: bool
 
     def run(self):
+        # The writer needs no LiteLLM installed, unlike the module that adapts its hooks.
+        writer_module = "ddtrace.contrib.internal.litellm._usage_metrics_writer"
         try:
-            from ddtrace.contrib.internal.litellm._usage_metrics import GATEWAY_REQUEST
-            from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
-            from ddtrace.contrib.internal.litellm._usage_metrics import TOKEN_BREAKDOWN
             from ddtrace.contrib.internal.litellm._usage_metrics_writer import UsageMetricsWriter
-        except ImportError:
+        except ModuleNotFoundError as e:
+            if e.name != writer_module:
+                raise
+
             # A baseline built before the usage metrics existed has nothing to measure.
             def nothing(loops):
                 pass
 
             yield nothing
             return
+
+        provider_attempt = "gen_ai.client.provider_attempt@0.1.0"
+        token_breakdown = "trajectory.gen_ai.client.token_breakdown@0.1.0"  # nosec B105: a profile id
+        gateway_request = "trajectory.gen_ai.gateway.request@0.1.0"
 
         writer = UsageMetricsWriter("otlp", interval=60)
         attempt = {
@@ -61,8 +67,8 @@ class LiteLLMUsageMetrics(bm.Scenario):
         def _(loops):
             # What one proxied call records: its provider attempt, its token breakdown and its gateway request.
             for _ in range(loops):
-                writer.record(PROVIDER_ATTEMPT, attempt, attributes)
-                writer.record(TOKEN_BREAKDOWN, attempt, attributes)
-                writer.record(GATEWAY_REQUEST, gateway, attributes)
+                writer.record(provider_attempt, attempt, attributes)
+                writer.record(token_breakdown, attempt, attributes)
+                writer.record(gateway_request, gateway, attributes)
 
         yield _

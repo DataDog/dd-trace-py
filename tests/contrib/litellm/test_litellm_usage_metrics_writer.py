@@ -410,6 +410,21 @@ def test_close_spends_one_shutdown_budget(otlp_endpoint, monkeypatch):
     assert time.monotonic() - started < 2.5
 
 
+def test_the_worker_shutdown_flush_keeps_the_close_deadline(otlp_endpoint, monkeypatch):
+    monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0.5)
+    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    Collector.delay = 3
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.start()
+    writer.close()
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    time.sleep(0.6)
+    # What the worker runs as it stops, after close()'s deadline has passed: it does not start a new one.
+    started = time.monotonic()
+    writer.on_shutdown()
+    assert time.monotonic() - started < 0.3
+
+
 def test_the_global_endpoint_keeps_its_query(collector, monkeypatch):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", raising=False)
     monkeypatch.setenv(

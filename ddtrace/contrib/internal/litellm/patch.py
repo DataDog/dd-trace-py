@@ -395,7 +395,8 @@ def _enable_usage_metrics():
     except Exception as e:
         # An endpoint the exporter cannot use, such as an ftp:// OTLP endpoint or a tcp:// DogStatsD URL, or a thread
         # that cannot start, leaves the metrics off without failing the rest of the integration.
-        log.warning("LiteLLM usage metrics are not enabled: %s", e)
+        # The type only: an exporter's error can quote its endpoint, credentials included.
+        log.warning("LiteLLM usage metrics are not enabled: the exporter could not start (%s)", type(e).__name__)
         return
     logger = _usage_metrics.UsageMetricsLogger(
         writer, tags & _usage_metrics.OPT_IN_TAGS, config.litellm.usage_metrics_client_source, resource
