@@ -89,6 +89,87 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+HTTP request-data contract
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``HttpRequestDataEvent`` in ``ddtrace.contrib._events.http`` exposes HTTP observations
+without requiring consumers to understand tracing configuration. Consumers register
+for ``http.server.request.data`` through ``core.on`` and receive the event's
+``snapshot``. The snapshot contains no span, resource, service, operation name, or
+integration configuration. ``WebFrameworkRequestEvent`` remains the compatible
+tracing interface; its settings and HTTP-to-span translation are separate.
+
+The application-installed Bottle plugin publishes this contract at these boundaries:
+
+* ``REQUEST_STARTED``: request entry, before Bottle's request hooks and routing.
+* ``ROUTE_RESOLVED``: successful routing, with the mounted route template available.
+* ``BEFORE_HANDLER``: immediately before the wrapped route callback is invoked.
+  ``handler_started`` is still false at this boundary and becomes true when that
+  callback begins. The callback includes any plugins wrapped inside the trace plugin.
+* ``RESPONSE_READY``: Bottle has prepared status and headers, before calling the
+  server's ``start_response``.
+* ``RESPONSE_COMMITTED``: ``start_response`` has returned successfully. This is
+  the integration's conservative commitment boundary, not proof of bytes sent on
+  the network.
+* ``COMPLETED``: response exhaustion, failure, or explicit close, exactly once.
+
+These are observations, not a required sequence for every request. Routing failures
+have no resolved-route or handler phase. Framework retries can repeat routing or
+response preparation. A failed ``start_response`` does not produce a committed
+phase. Streaming responses produce completion only when iteration finishes or the
+server closes them.
+
+Availability and lifetime
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+``None`` means a field is unavailable, whereas an empty string or tuple is a known
+empty value. In particular, ``response=None`` means no response has been prepared;
+``request.route=None`` means no route template is available. Empty query strings
+and empty parsed query pairs are available values. Bottle exposes the query pairs
+as parsed by the framework, preserving repeated keys. The raw query string is also
+available when exact wire ordering or encoding matters.
+
+Snapshots and their request, response, and error values are immutable. Header and
+query values are tuples of pairs; response headers retain duplicates, including
+multiple ``Set-Cookie`` values. Header names must be compared case-insensitively.
+Consumers may retain snapshots after dispatch; later lifecycle updates do not
+change earlier snapshots. The event envelope itself must not be modified.
+
+``request_id`` is an opaque token with identity shared by all snapshots of one
+request in this process. It is independent of span IDs and distinct for nested or
+interleaved requests. It is not a serializable or cross-process correlation ID.
+
+``errors`` contains the most recently observed failure, or an empty tuple when no
+failure has been observed. Errors contain a qualified type name and a message, with
+``message=None`` if the exception cannot be converted to text. They retain neither
+exception objects nor tracebacks. A failure after response commitment does not
+rewrite the prepared response status.
+
+Request and response bodies remain unavailable in Bottle. Producing these snapshots
+must not consume request bodies, buffer responses, or advance response streams.
+
+Capabilities and consumers
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``supported_actions`` lists enforcement actions implemented at the observed phase:
+``RESPOND`` means an adapter can send a replacement response, and ``TERMINATE``
+means it can stop producing the response body. Bottle supports ``RESPOND`` at
+request entry, route resolution, before the wrapped handler, and response preparation.
+After commitment it supports only ``TERMINATE``; completion supports neither.
+Consumers must not infer capabilities from the framework name or phase alone.
+
+This event is observational: listener return values are ignored and there is no
+blocking decision channel. Dispatch uses core's normal exception-isolation rules;
+control decisions, inspection deadlines, and failure policy belong to
+``HttpRequestInspectionEvent``. See :doc:`http-contract-api-changes` for the
+inspection API, enforcement semantics, and a chronological record of changes.
+
+Bottle emits snapshots when a consumer is registered even if tracing is disabled,
+without creating a request span. Consumers should register before request entry to
+observe the complete lifecycle. With neither tracing nor data or inspection consumers enabled,
+the WSGI wrapper delegates directly to Bottle. Route-local plugins retain their
+existing callback-scoped tracing and do not publish this lifecycle contract.
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 

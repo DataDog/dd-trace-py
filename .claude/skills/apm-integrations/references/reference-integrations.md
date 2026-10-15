@@ -50,3 +50,22 @@ completed-span consumers see the endpoint. Each WSGI call and body operation run
 in the request's copied context, preventing suspended streams from becoming the
 active parent of unrelated requests. Exhaustion and close share an idempotent
 completion path. A WSGI server must consume or close the response iterable.
+
+
+Bottle also publishes `HttpRequestDataEvent` from `contrib/_events/http.py` at
+request entry, route resolution, before the wrapped handler, response preparation,
+response commitment, and completion. Its immutable snapshot carries HTTP values,
+availability, lifecycle flags, and an opaque request token independently of
+`WebFrameworkRequestEvent` tracing settings. Consumers retain snapshots rather than
+framework objects or mutable tracing events. `None` means unavailable; empty strings
+and tuples mean known empty. Bodies are not read for this contract.
+
+A registered data consumer keeps the application lifecycle active when tracing is
+disabled, without creating a request span. An inspection subscriber also activates
+this lifecycle. `HttpRequestInspectionEvent` exposes synchronous `submit(decision)`;
+Bottle validates and enforces replacement responses before commitment and stops body
+production for termination at commitment. Decision callbacks close when dispatch ends.
+Never implement security policy in the integration or import AppSec here. The adapter
+advertises only actions it can enforce at that phase. The API history and exact failure,
+late-decision, and transport rules live in `docs/http-contract-api-changes.rst`. See the HTTP request-data contract in
+`docs/contributing-integrations.rst` for phase timing, ownership, and lifetime rules.
