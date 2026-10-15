@@ -152,11 +152,6 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@fbcf8bd456dd382b5bccebbe25c884e501924f1b
-    secrets: inherit
-    with:
-      library: python
-      ref: 'fbcf8bd456dd382b5bccebbe25c884e501924f1b'
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@648ead29e24f9c64f28bc4893f16fe6963c74d4f
     secrets: inherit
     with:
