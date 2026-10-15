@@ -55,12 +55,16 @@ class SimplifiedEndpointComputer:
         if not url:
             return "/"
 
-        try:
-            parsed_url = urlparse(url)
-        except ValueError as e:
-            log.error("Failed to parse http.url tag when processing span for resource renaming: %s", e)
-            return "/"
-        path = parsed_url.path
+        if config._otel_trace_semantics_enabled and url.startswith("/"):
+            # url.path is already a path; urlparse would read a leading "//" as an authority.
+            path = url
+        else:
+            try:
+                parsed_url = urlparse(url)
+            except ValueError as e:
+                log.error("Failed to parse http.url tag when processing span for resource renaming: %s", e)
+                return "/"
+            path = parsed_url.path
         if not path or path == "/":
             return "/"
 
