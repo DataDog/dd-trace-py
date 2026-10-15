@@ -1,4 +1,3 @@
-import sys
 from typing import Any
 from typing import Callable
 
@@ -51,29 +50,17 @@ def _request_event(integration: TypeSafeIntegration, instance: Any, request_kwar
 def traced_system_one(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     integration: TypeSafeIntegration = typesafe_sdk._datadog_integration
     event = _request_event(integration, instance, _request_kwargs(instance, args, kwargs))
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        try:
-            resp = func(*args, **kwargs)
-        except Exception:
-            ctx.dispatch_ended_event(*sys.exc_info())
-            raise
-        event.response = resp
-        ctx.dispatch_ended_event()
-        return resp
+    with core.context_with_event(event):
+        event.response = func(*args, **kwargs)
+        return event.response
 
 
 async def traced_async_system_one(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     integration: TypeSafeIntegration = typesafe_sdk._datadog_integration
     event = _request_event(integration, instance, _request_kwargs(instance, args, kwargs))
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        try:
-            resp = await func(*args, **kwargs)
-        except Exception:
-            ctx.dispatch_ended_event(*sys.exc_info())
-            raise
-        event.response = resp
-        ctx.dispatch_ended_event()
-        return resp
+    with core.context_with_event(event):
+        event.response = await func(*args, **kwargs)
+        return event.response
 
 
 def patch() -> None:

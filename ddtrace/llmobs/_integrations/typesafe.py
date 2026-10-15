@@ -66,9 +66,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
         metrics: dict[str, Any] = {}
         model_name = span.get_tag(MODEL) or ""
         if response is not None:
-            answers = _get_attr(response, "answers", None)
-            output = _to_data(answers) if answers is not None else _to_data(response)
-            output_content = safe_json(output)  # type: ignore[no-untyped-call]
+            output_content = safe_json(_to_data(response))  # type: ignore[no-untyped-call]
             output_messages = [Message(role="assistant", content=output_content or "")]
             model_name = _get_attr(response, "model", None) or model_name
             if span_kind == "llm":

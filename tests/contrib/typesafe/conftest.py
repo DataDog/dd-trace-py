@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.typesafe.patch import patch
 from ddtrace.contrib.internal.typesafe.patch import unpatch
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import LLMObs
+from tests.contrib.typesafe.utils import MODEL
 from tests.utils import override_global_config
 
 
@@ -40,6 +41,12 @@ def _client_kwargs(typesafe_sdk, api_key=None):
 @pytest.fixture
 def typesafe_client(typesafe_sdk):
     with typesafe_sdk.TypeSafeClient(**_client_kwargs(typesafe_sdk)) as client:
+        yield client
+
+
+@pytest.fixture
+def typesafe_client_default_model(typesafe_sdk):
+    with typesafe_sdk.TypeSafeClient(model=MODEL, **_client_kwargs(typesafe_sdk)) as client:
         yield client
 
 
