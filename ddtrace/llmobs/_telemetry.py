@@ -124,7 +124,7 @@ def record_span_created(span: Span, export_mode: LLMObsExportMode):
         ("has_session_id", str(int(has_session_id))),
         ("is_root_span", str(int(is_root_span))),
         ("span_kind", span_kind or "N/A"),
-        ("integration", integration or "N/A"),
+        ("integration", str(integration) if integration else "N/A"),
         ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
         ("intake", intake),

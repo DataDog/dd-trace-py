@@ -51,6 +51,9 @@ class TestLLMObsSamplingRule:
             # ml_app, service and session_id are ordinary members of the LLMObs tagset
             ({"ml_app": "my-app"}, {"ml_app": "my-app", "env": "prod"}, True),
             ({"service": "svc"}, {"service": "other"}, False),
+            # a multi-valued tag matches when any of its values matches
+            ({"resource": "audience:*"}, {"resource": ["dashboard:abc", "audience:team"]}, True),
+            ({"resource": "liftoff:*"}, {"resource": ["dashboard:abc", "audience:team"]}, False),
         ],
     )
     def test_tag_matching(self, rule_tags, span_tags, expected):

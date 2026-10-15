@@ -836,6 +836,37 @@ def test_annotate_cost_tags_empty_list_is_ignored(llmobs):
         assert get_llmobs_cost_tags(span) is None
 
 
+def test_annotate_tag_list_value_sets_multiple_values(llmobs, llmobs_events):
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span=span, tags={"resource": ["dashboard:abc", "audience:team", "dashboard:abc"], "n": [1, 2]})
+        assert get_llmobs_tags(span)["resource"] == ["dashboard:abc", "audience:team"]
+        assert get_llmobs_tags(span)["n"] == ["1", "2"]
+    tags = llmobs_events[0]["tags"]
+    assert {"resource:dashboard:abc", "resource:audience:team", "n:1", "n:2"} <= set(tags)
+    assert len([t for t in tags if t.startswith("resource:")]) == 2
+
+
+def test_annotate_tag_list_value_is_replaced_by_later_annotation(llmobs, llmobs_events):
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span=span, tags={"resource": ["dashboard:abc", "audience:team"]})
+        llmobs.annotate(span=span, tags={"resource": "dashboard:xyz"})
+    assert [t for t in llmobs_events[0]["tags"] if t.startswith("resource:")] == ["resource:dashboard:xyz"]
+
+
+def test_annotate_tag_empty_list_emits_no_tag(llmobs, llmobs_events):
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span=span, tags={"resource": []})
+    assert not [t for t in llmobs_events[0]["tags"] if t.startswith("resource:")]
+
+
+def test_annotate_tag_list_for_single_valued_key_keeps_last(llmobs, llmobs_events):
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span=span, tags={"session_id": ["first", "last"]})
+        assert get_llmobs_session_id(span) == "last"
+        assert get_llmobs_tags(span)["session_id"] == "last"
+    assert [t for t in llmobs_events[0]["tags"] if t.startswith("session_id:")] == ["session_id:last"]
+
+
 def test_annotate_tag_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         with pytest.raises(Exception) as excinfo:
