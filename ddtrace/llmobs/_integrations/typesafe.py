@@ -169,9 +169,11 @@ def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Option
     model_fields = getattr(type(value), "model_fields", None)
     if isinstance(model_fields, dict):
         # Walk pydantic fields instead of using model_dump so images nested in questions keep their alias
-        return {
+        data = {
             field.serialization_alias or field.alias or name: _to_data(getattr(value, name), aliases, found)
             for name, field in model_fields.items()
             if getattr(value, name, None) is not None
         }
+        data.update(_to_data(getattr(value, "__pydantic_extra__", None) or {}, aliases, found))
+        return data
     return load_data_value(value)  # type: ignore[no-untyped-call]

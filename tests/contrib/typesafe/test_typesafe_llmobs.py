@@ -4,6 +4,8 @@ import os
 import httpx2
 import pytest
 
+from ddtrace.contrib.internal.typesafe.patch import get_version
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_output_messages
@@ -202,16 +204,18 @@ def _call_with_recording_transport(typesafe_sdk, test_spans, **kwargs):
     assert len(spans) == 1
     assert len(transport.requests) == 1
     input_body = json.loads(get_llmobs_input_messages(spans[0])[0]["content"])
-    return input_body, _sent_json_body(transport.requests[0]), get_llmobs_output_messages(spans[0])[0]["content"]
+    output = get_llmobs_output_messages(spans[0])[0]["content"]
+    return spans[0], input_body, _sent_json_body(transport.requests[0]), output
 
 
 @pytest.mark.parametrize("extra_body", [None, {"model": "jev-latest", "debug": True}])
 def test_system_one_span_io_matches_http_bodies(typesafe_sdk, typesafe_llmobs, test_spans, extra_body):
-    input_body, sent_body, output = _call_with_recording_transport(
+    span, input_body, sent_body, output = _call_with_recording_transport(
         typesafe_sdk, test_spans, state=STATE, questions=build_questions(typesafe_sdk), extra_body=extra_body
     )
     assert input_body == sent_body
     assert output == STUB_RESPONSE
+    assert span.get_tag("typesafe.request.model") == sent_body["model"]
 
 
 def test_system_one_images_recorded_as_references(typesafe_sdk, typesafe_llmobs, test_spans):
@@ -220,7 +224,7 @@ def test_system_one_images_recorded_as_references(typesafe_sdk, typesafe_llmobs,
         pytest.skip("images require typesafe-sdk>=0.7.5")
     photo = typesafe_sdk.Image(PNG_BYTES)
     chart = typesafe_sdk.Image(PNG_BYTES)
-    input_body, sent_body, _ = _call_with_recording_transport(
+    _, input_body, sent_body, _ = _call_with_recording_transport(
         typesafe_sdk,
         test_spans,
         state={"message": "My order arrived broken.", "photo": photo},
@@ -234,3 +238,18 @@ def test_system_one_images_recorded_as_references(typesafe_sdk, typesafe_llmobs,
         "photo": {"type": "image", "part": "asset-0"},
         str(chart): {"type": "image", "part": "asset-1"},
     }
+
+
+def test_system_one_custom_response_model_keeps_extra_fields(typesafe_sdk, typesafe_llmobs, test_spans):
+    """A custom response_model has no raw HTTP response, so the parsed model is recorded, extra fields included."""
+    if parse_version(get_version()) < (0, 7):
+        pytest.skip("response_model requires typesafe-sdk>=0.7")
+    pydantic = pytest.importorskip("pydantic")
+
+    class AnyResponse(pydantic.BaseModel):
+        model_config = pydantic.ConfigDict(extra="allow")
+
+    _, _, _, output = _call_with_recording_transport(
+        typesafe_sdk, test_spans, state=STATE, questions=build_questions(typesafe_sdk), response_model=AnyResponse
+    )
+    assert json.loads(output) == json.loads(STUB_RESPONSE)

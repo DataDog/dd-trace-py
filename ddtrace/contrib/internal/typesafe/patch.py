@@ -27,7 +27,11 @@ def _request_kwargs(instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
     # state and questions are the only positional parameters of system_one
     request_kwargs = dict(zip(("state", "questions"), args))
     request_kwargs.update(kwargs)
-    if request_kwargs.get("model") is None:
+    # extra_body is shallow-merged over the request body, so a model in it is the one sent
+    extra_body = request_kwargs.get("extra_body") or {}
+    if "model" in extra_body:
+        request_kwargs["model"] = extra_body["model"]
+    elif request_kwargs.get("model") is None:
         request_kwargs["model"] = getattr(getattr(instance, "_config", None), "default_model", None)
     return request_kwargs
 
