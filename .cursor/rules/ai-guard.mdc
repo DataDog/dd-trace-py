@@ -190,7 +190,7 @@ All configuration is via environment variables, parsed in
 | `DD_AI_GUARD_BLOCK` | `true` | Whether non-`ALLOW` decisions raise `AIGuardAbortError`. |
 | `DD_AI_GUARD_MAX_CONTENT_SIZE` | `524288` | Per-message content truncation on the span (characters). |
 | `DD_AI_GUARD_MAX_MESSAGES_LENGTH` | `16` | Max trailing messages reported on the span. |
-| `DD_AI_GUARD_TIMEOUT` | `10000` | HTTP request timeout (ms), currently floored to whole seconds. |
+| `DD_AI_GUARD_TIMEOUT` | `10000` | HTTP request timeout (ms), currently floored to whole seconds; values below 1000 log a warning and use the default. |
 | `DD_AI_GUARD_REDACTION_ENABLED` | `true` | Apply the service's redaction replacements to reported messages. |
 | `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` | `false` | Buffer and evaluate streamed responses before replaying chunks. |
 | `DD_AI_GUARD_OPENAI_ENABLED` | `true` | Per-provider kill switch for the OpenAI integration. |

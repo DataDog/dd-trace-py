@@ -772,7 +772,7 @@ AI Guard
      description: |
        Timeout of each request to the AI Guard service. The value is currently applied with
        whole-second granularity: it is rounded down to the nearest second, so set it to at least
-       ``1000``.
+       ``1000``. A value below ``1000`` logs a warning at startup and the default is used instead.
 
    DD_AI_GUARD_MAX_CONTENT_SIZE:
      type: Integer
