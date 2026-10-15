@@ -8,7 +8,7 @@ import pytest
     ),
     err=None,
 )
-def test_asyncio_task_count_present():
+def test_asyncio_task_count_present() -> None:
     """asyncio_task_count is present and positive when asyncio tasks are active."""
     import asyncio
     import json
@@ -19,10 +19,10 @@ def test_asyncio_task_count_present():
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    async def worker():
+    async def worker() -> None:
         await asyncio.sleep(0.5)
 
-    async def main():
+    async def main() -> None:
         tasks = [asyncio.create_task(worker(), name=f"worker-{i}") for i in range(10)]
         await asyncio.gather(*tasks)
 
@@ -60,7 +60,7 @@ def test_asyncio_task_count_present():
     ),
     err=None,
 )
-def test_asyncio_task_count_survives_run_teardown():
+def test_asyncio_task_count_survives_run_teardown() -> None:
     """asyncio_task_count reflects the peak even after asyncio.run() tears down the loop.
 
     There may be sampling cycles that observe 0 tasks when other samples in the same profiling interval
@@ -79,10 +79,10 @@ def test_asyncio_task_count_survives_run_teardown():
     NUM_WORKERS = 10
     EXPECTED_PEAK = NUM_WORKERS + 1
 
-    async def worker():
+    async def worker() -> None:
         await asyncio.sleep(0.5)
 
-    async def main():
+    async def main() -> None:
         tasks = [asyncio.create_task(worker(), name=f"worker-{i}") for i in range(NUM_WORKERS)]
         await asyncio.gather(*tasks)
 

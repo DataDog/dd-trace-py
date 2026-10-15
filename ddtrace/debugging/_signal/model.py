@@ -12,7 +12,7 @@ from types import FrameType
 from typing import Any
 from typing import ClassVar
 from typing import Optional
-from typing import Union
+from typing import Protocol
 from typing import cast
 from uuid import uuid4
 
@@ -30,8 +30,16 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.utils.time import Time
-from ddtrace.trace import Context
-from ddtrace.trace import Span
+
+
+class TraceContextProtocol(Protocol):
+    """Structural stand-in for ddtrace.trace.Span or ddtrace.trace.Context, so this module does not need to
+    import from the tracing product.
+    """
+
+    trace_id: Optional[int]
+    span_id: Optional[int]
+    _meta: dict[str, str]
 
 
 @dataclass
@@ -84,7 +92,7 @@ class Signal(abc.ABC):
     probe: Probe
     frame: FrameType
     thread: Thread
-    trace_context: Optional[Union[Span, Context]] = None
+    trace_context: Optional[TraceContextProtocol] = None
     state: str = SignalState.NONE
     errors: list[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)

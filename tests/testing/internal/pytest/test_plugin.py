@@ -851,6 +851,60 @@ class TestSessionManagement:
 
         assert plugin.is_xdist_worker is True
 
+    def test_patch_all_enabled_via_command_line_option(self) -> None:
+        """The --ddtrace-patch-all command line flag enables all ddtrace integrations."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {}
+        mock_config.invocation_params = Mock(args=[])
+        mock_config.getoption.return_value = True
+        mock_config.getini.return_value = False
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin.enable_all_ddtrace_integrations is True
+
+    def test_patch_all_enabled_via_ini(self) -> None:
+        """The ddtrace-patch-all ini key enables all ddtrace integrations without the CLI flag."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {}
+        mock_config.invocation_params = Mock(args=[])
+        mock_config.getoption.return_value = False
+        mock_config.getini.return_value = True
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin.enable_all_ddtrace_integrations is True
+
+    def test_patch_all_disabled_by_default(self) -> None:
+        """Without the flag or ini key, all ddtrace integrations stay disabled."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {}
+        mock_config.invocation_params = Mock(args=[])
+        mock_config.getoption.return_value = False
+        mock_config.getini.return_value = False
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin.enable_all_ddtrace_integrations is False
+
     def test_get_test_command_extraction(self) -> None:
         """Test that the pytest session command is properly extracted."""
         # Mock config with various command parameters
