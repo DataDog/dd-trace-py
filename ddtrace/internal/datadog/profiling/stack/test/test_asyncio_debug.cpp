@@ -355,6 +355,8 @@ class AsyncioElfTest : public ::testing::Test
         }
     }
 
+    void remove_build_id() { loaded.note.header.n_type = on_disk.note.header.n_type = NT_GNU_ABI_TAG; }
+
     void inject(ReadFault fault, off_t offset = 0, unsigned int count = 1)
     {
         read_injection.offset = offset;
@@ -416,6 +418,52 @@ TEST(AsyncioElfDiscovery, ReadsBuildIdFreeProcessExecutableAndNamedMapping)
         EXPECT_EQ(offsets->interpreter_tasks_head, process_asyncio_debug_offsets.interpreter.asyncio_tasks_head);
         EXPECT_EQ(offsets->thread_tasks_head, process_asyncio_debug_offsets.thread.asyncio_tasks_head);
     }
+}
+
+TEST(AsyncioElfDiscovery, ReadsBuildIdFreeCopyWithDifferentFileIdentity)
+{
+#if defined(TEST_RUNNING_ON_VALGRIND)
+    GTEST_SKIP() << "/proc/self/exe identifies Valgrind rather than the test executable";
+#endif
+    // On overlayfs before Linux 6.8, fstat() and /proc/self/maps report different devices for the same library. A copy
+    // reproduces that mismatch without root: identical bytes, but a device and inode that no mapping refers to.
+    FILE* copy = std::tmpfile();
+    ASSERT_NE(copy, nullptr);
+    defer
+    {
+        std::fclose(copy);
+    };
+    const int source = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+    ASSERT_GE(source, 0);
+    std::array<char, 64 * 1024> buffer;
+    for (ssize_t count; (count = read(source, buffer.data(), buffer.size())) > 0;) {
+        ASSERT_EQ(write(fileno(copy), buffer.data(), static_cast<size_t>(count)), count);
+    }
+    close(source);
+
+    std::optional<AsyncioOffsets> offsets;
+    struct Context
+    {
+        int fd;
+        std::optional<AsyncioOffsets>* offsets;
+    } context{ fileno(copy), &offsets };
+    dl_iterate_phdr(
+      [](dl_phdr_info* binary, size_t, void* data) {
+          if (binary->dlpi_name != nullptr && binary->dlpi_name[0] != '\0') {
+              return 0;
+          }
+          auto* output = static_cast<Context*>(data);
+          // A named object takes the shared-library path rather than the process-executable path.
+          dl_phdr_info named_binary = *binary;
+          named_binary.dlpi_name = "/tmp/copied-asyncio-binary";
+          *output->offsets = read_asyncio_debug_offsets_from_elf(output->fd, named_binary);
+          return 1;
+      },
+      &context);
+
+    ASSERT_TRUE(offsets);
+    EXPECT_EQ(offsets->interpreter_tasks_head, process_asyncio_debug_offsets.interpreter.asyncio_tasks_head);
+    EXPECT_EQ(offsets->thread_tasks_head, process_asyncio_debug_offsets.thread.asyncio_tasks_head);
 }
 
 TEST_F(AsyncioElfTest, ReadsOffsetsFromMemoryNotFile)
@@ -500,10 +548,35 @@ TEST_F(AsyncioElfTest, RejectsMismatchedProgramHeaders)
     EXPECT_FALSE(discover());
 }
 
-TEST_F(AsyncioElfTest, RejectsMissingBuildIdWithoutMatchingFileIdentity)
+TEST_F(AsyncioElfTest, AcceptsBuildIdFreeBinaryWithMatchingTable)
 {
-    loaded.note.header.n_type = on_disk.note.header.n_type = NT_GNU_ABI_TAG;
+    // The fixture file is never mapped, so this also covers files whose device and inode differ from the mapping.
+    remove_build_id();
+    EXPECT_TRUE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsBuildIdFreeBinaryWithMismatchedTable)
+{
+    remove_build_id();
+    // Both tables are valid, so only the file-to-memory comparison can reject this replacement.
+    on_disk.table.thread.asyncio_tasks_head += sizeof(uintptr_t);
     EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsBuildIdFreeBinaryWithUnreadableFileTable)
+{
+    remove_build_id();
+    inject(ReadFault::IoError, offsetof(Binary, table));
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(read_injection.injected, 1);
+}
+
+TEST_F(AsyncioElfTest, RejectsBuildIdFreeBinaryWithTruncatedFileTable)
+{
+    remove_build_id();
+    inject(ReadFault::TruncateToShortRead, offsetof(Binary, table));
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(read_injection.injected, 1);
 }
 
 TEST_F(AsyncioElfTest, RejectsOversizedNoteName)

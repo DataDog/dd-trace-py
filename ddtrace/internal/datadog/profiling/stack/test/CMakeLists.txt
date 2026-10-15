@@ -118,7 +118,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Link the reader into the test executable so --wrap can observe direct memory reads and inject syscall failures
     # without changing the extension.
     target_sources(test_asyncio_debug PRIVATE ../src/echion/asyncio_debug.cc)
-    # Exercise /proc/self/exe identity validation when the executable has no GNU build ID.
+    # Exercise build-ID-free identity validation against the real executable.
     target_link_options(
         test_asyncio_debug
         PRIVATE

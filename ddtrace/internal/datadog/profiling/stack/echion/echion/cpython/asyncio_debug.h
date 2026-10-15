@@ -49,8 +49,9 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets);
 struct dl_phdr_info;
 
 // Reads section metadata from a borrowed regular-file descriptor, requiring its program headers to match the loaded
-// binary. A loaded GNU build ID must match when present; build-ID-free objects use the device and inode retained by
-// /proc/self/maps or /proc/self/exe. Truncated, unsupported, or mismatched metadata returns no offsets.
+// binary. A loaded GNU build ID must match when present; build-ID-free objects require the table's file bytes to equal
+// the loaded bytes, independent of filesystem identity. Truncated, unsupported, or mismatched metadata returns no
+// offsets.
 std::optional<AsyncioOffsets>
 read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary);
 #endif
