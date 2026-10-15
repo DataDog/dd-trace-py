@@ -13,9 +13,9 @@ from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
 import ddtrace
-from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.span_lifecycle import span_identity
 from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
 from ddtrace.internal.datadog.profiling.util import sanitize_string
@@ -617,23 +617,17 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             call_ddup_push_gpu_device_name(self.ptr, device_name)
 
-    def push_span(self, span: Optional[Span] = None) -> None:
+    def push_span(self, span=None) -> None:
         if self.ptr is NULL:
             return
-        if not span:
+        identity = span_identity(span)
+        if identity is None:
             return
-        span_id = getattr(span, 'span_id', None)
-        if span_id:
-            self.ptr.push_span_id(clamp_to_uint64_unsigned(span_id))
-        local_root = getattr(span, '_local_root', None)
-        if not local_root:
-            return
-        local_root_span_id = getattr(local_root, 'span_id', None)
-        if local_root_span_id:
-            self.ptr.push_local_root_span_id(clamp_to_uint64_unsigned(local_root_span_id))
-        local_root_span_type = getattr(local_root, 'span_type', None)
-        if local_root_span_type:
-            call_ddup_push_trace_type(self.ptr, local_root_span_type)
+        self.ptr.push_span_id(clamp_to_uint64_unsigned(identity.span_id))
+        if identity.local_root_span_id is not None:
+            self.ptr.push_local_root_span_id(clamp_to_uint64_unsigned(identity.local_root_span_id))
+        if identity.local_root_span_type:
+            call_ddup_push_trace_type(self.ptr, identity.local_root_span_type)
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:

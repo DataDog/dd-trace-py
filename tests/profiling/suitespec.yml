@@ -4,6 +4,7 @@ components:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
     - ddtrace/_trace/processor/endpoint_call_counter.py
+    - ddtrace/internal/span_lifecycle.py
     - ddtrace/internal/settings/profiling.py
 suites:
   profile:

@@ -455,3 +455,22 @@ LINE handler failures are logged and isolated so one subsystem cannot disrupt
 another. Global, PY_START, PY_RETURN, and PY_UNWIND handler failures propagate
 to the monitored frame; those handlers must contain their own failures when
 isolation is required.
+
+
+## Span identity
+
+`span_lifecycle` is the LP-owned contract for immutable active-span identity.
+Consumers subscribe through `SpanActivationSubscription` and receive a frozen
+`SpanIdentity`; they do not inspect private live-span fields.
+
+Local ownership and propagated correlation are deliberately separate.
+`local_root_span_id` is unavailable for a propagated context with no live span,
+while its correlation root can still be known, so a worker span can be a local
+root while correlating samples to a different propagated root. Consumers must
+not use correlation roots to decide whether a span owns a trace locally.
+
+Subscriptions deliver synchronously on the activating thread. The provider
+getter resolves at dispatch, so runtime provider replacement stays supported.
+`start()` and `close()` are idempotent. Subscriptions forward future
+transitions, including restoration and clearing; they do not replay prior state.
+Listener failures use core's ordinary isolation.
