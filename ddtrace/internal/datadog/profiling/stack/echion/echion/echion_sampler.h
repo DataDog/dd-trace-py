@@ -142,6 +142,8 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_; }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_; }
 
+    // TODO: Also check the runtime table's task layout (size, task_name, task_awaited_by, task_is_task,
+    // task_awaited_by_is_set, task_coro, task_node) against Echion's compile-time TaskObj mirror.
     void set_asyncio_offsets(const AsyncioOffsets& offsets)
     {
         asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
