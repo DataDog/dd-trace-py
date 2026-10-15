@@ -383,10 +383,11 @@ def test_final_text_stays_with_previous_response_after_new_speech():
     assert first["content"] == "repeatrepeat"
 
 
-def test_tool_use_and_result_keep_the_response_and_ids():
+@pytest.mark.parametrize("role", ["ASSISTANT", "TOOL"])
+def test_tool_use_and_result_keep_the_response_and_ids(role):
     sonic, integration = state()
     sonic.pending.user_text = "weather"
-    sonic.received("contentStart", {"contentId": "tool", "role": "ASSISTANT", "type": "TOOL"}, 1)
+    sonic.received("contentStart", {"contentId": "tool", "role": role, "type": "TOOL", "completionId": "completion"}, 1)
     sonic.received(
         "toolUse",
         {"contentId": "tool", "toolName": "weather", "toolUseId": "call-1", "content": '{"city":"Boston"}'},
@@ -422,6 +423,8 @@ def test_tool_use_and_result_keep_the_response_and_ids():
     meta = data(llms(integration)[0])["meta"]
     assert meta["output"]["messages"][0]["tool_calls"][0]["tool_id"] == "call-1"
     assert meta["input"]["messages"][-1]["tool_results"][0]["tool_id"] == "call-1"
+    assert meta["metadata"]["finish_reason"] == "END_TURN"
+    assert meta["metadata"]["completion_id"] == "completion"
 
 
 def test_user_json_is_not_an_interruption():
@@ -681,3 +684,178 @@ def test_usage_presence_resets_between_turns(report_zero):
     first, second = [data(span)["metrics"] for span in llms(integration)]
     assert first == {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}
     assert second == ({"input_tokens": 0, "output_tokens": 0, "total_tokens": 0} if report_zero else {})
+
+
+@pytest.mark.parametrize("size", [98, 100, 102, 196610])
+def test_input_frame_decoding_and_retention_are_bounded(monkeypatch, size):
+    monkeypatch.setattr(_sonic, "MAX_AUDIO", 100)
+
+    class MeasuredBuffer(bytearray):
+        peak = 0
+
+        def extend(self, value):
+            super().extend(value)
+            self.peak = max(self.peak, len(self))
+
+    decode = base64.b64decode
+    decoded_sizes = []
+
+    def measured_decode(value, **kwargs):
+        decoded_sizes.append(len(value))
+        return decode(value, **kwargs)
+
+    monkeypatch.setattr(_sonic.base64, "b64decode", measured_decode)
+    buf = InputAudio()
+    buf.configure(INPUT)
+    buf.data = MeasuredBuffer()
+    buf.append(base64.b64encode(b"\x01\x00" * 2), 0)
+    raw = b"\x02\x00" * (size // 2)
+    buf.append(base64.b64encode(raw).decode(), 1_000_000_000)
+    assert buf.valid
+    assert buf.total == size + 4
+    assert buf.anchor_ns == 1_000_000_000 - buf.total * 1_000_000_000 // 32000
+    assert bytes(buf.data) == (b"\x01\x00" * 2 + raw)[-100:]
+    assert buf.data.peak <= 100
+    assert max(decoded_sizes) <= 65536
+    # A later frame and absolute speech offsets still select the right samples.
+    buf.append(base64.b64encode(b"\x03\x00" * 16), 2_000_000_000)
+    assert buf.clip((size + 4) / 32, (size + 36) / 32) == b"\x03\x00" * 16
+
+
+@pytest.mark.parametrize("bad", ["!", "é", "AAAA=", "AA==AAAA"])
+def test_chunked_input_rejects_malformed_base64(bad):
+    buf = InputAudio()
+    buf.configure(INPUT)
+    with pytest.raises(ValueError):
+        buf.append("AAAA" * 16384 + bad, 100)
+    assert not buf.valid
+    assert buf.clip(0, 1) == b""
+
+
+def test_chunked_input_rejects_padding_before_final_chunk():
+    buf = InputAudio()
+    encoded = base64.b64encode(bytes(49150)).decode() + "AAAA"
+    with pytest.raises(ValueError, match="Padding before the end"):
+        buf.append(encoded, 100)
+    assert not buf.valid
+
+
+@pytest.mark.parametrize("size", [49151, 49153])
+def test_chunked_input_marks_odd_pcm_invalid(size):
+    buf = InputAudio()
+    buf.append(base64.b64encode(bytes(size)).decode(), 100)
+    assert not buf.valid
+    assert buf.total == size
+
+
+@pytest.mark.parametrize("next_speech", [False, True])
+def test_tool_first_partial_turn_keeps_identity_and_boundary(next_speech):
+    sonic, integration = state()
+    sonic.received("userSpeechStart", {"inputAudioOffsetMs": 0}, 100)
+    sonic.received("userSpeechEnd", {"inputAudioOffsetMs": 20}, 200)
+    sonic.received(
+        "contentStart", {"contentId": "tool", "completionId": "completion", "type": "TOOL", "role": "TOOL"}, 300
+    )
+    sonic.received("toolUse", {"contentId": "tool", "content": "{}", "toolName": "weather", "toolUseId": "call"}, 400)
+    sonic.received("contentEnd", {"contentId": "tool", "stopReason": "TOOL_USE"}, 450)
+    assert sonic.current.started_ns == 300
+    if next_speech:
+        sonic.received("userSpeechStart", {"inputAudioOffsetMs": 30}, 500)
+        sonic.received("userSpeechEnd", {"inputAudioOffsetMs": 40}, 600)
+        sonic.received("contentStart", {"contentId": "next", "role": "ASSISTANT", "type": "AUDIO"}, 700)
+    sonic.finish()
+    responses = llms(integration)
+    assert len(responses) == (2 if next_speech else 1)
+    meta = data(responses[0])["meta"]
+    assert meta["metadata"]["completion_id"] == "completion"
+    assert meta["metadata"]["finish_reason"] == "TOOL_USE"
+    assert meta["metadata"]["partial"]
+    assert len(meta["metadata"]["speech_windows"]) == 1
+    assert meta["output"]["messages"][0]["tool_calls"][0]["tool_id"] == "call"
+
+
+@pytest.mark.parametrize(
+    "reasons,expected",
+    [
+        (["PARTIAL_TURN"], "PARTIAL_TURN"),
+        (["TOOL_USE", "PARTIAL_TURN", "END_TURN", "PARTIAL_TURN"], "END_TURN"),
+        (["END_TURN", "INTERRUPTED", "END_TURN"], "INTERRUPTED"),
+        ([None, "unknown", {}], None),
+    ],
+)
+def test_model_finish_reason_precedence(reasons, expected):
+    sonic, integration = state()
+    for i, reason in enumerate(reasons):
+        key = str(i)
+        sonic.received("contentStart", {"contentId": key, "role": "ASSISTANT", "type": "TEXT"}, i * 2 + 1)
+        sonic.received("contentEnd", {"contentId": key, "stopReason": reason}, i * 2 + 2)
+    sonic.finish()
+    metadata = data(llms(integration)[0])["meta"]["metadata"]
+    if expected is None:
+        assert "finish_reason" not in metadata
+    else:
+        assert metadata["finish_reason"] == expected
+
+
+def test_user_stop_reason_does_not_interrupt_model():
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "model", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.received("contentEnd", {"contentId": "model", "stopReason": "END_TURN"}, 2)
+    sonic.received("contentStart", {"contentId": "user", "role": "USER", "type": "TEXT"}, 3)
+    sonic.received("contentEnd", {"contentId": "user", "stopReason": "INTERRUPTED"}, 4)
+    sonic.finish()
+    metadata = data(llms(integration)[0])["meta"]["metadata"]
+    assert metadata["finish_reason"] == "END_TURN"
+    assert not metadata["interrupted"]
+
+
+def test_control_interruption_preserves_finish_reason():
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "control", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.received("textOutput", {"contentId": "control", "content": '{"interrupted":true}'}, 2)
+    sonic.received("contentEnd", {"contentId": "control", "stopReason": "END_TURN"}, 3)
+    sonic.finish()
+    assert data(llms(integration)[0])["meta"]["metadata"]["finish_reason"] == "INTERRUPTED"
+
+
+def test_prompt_tool_definitions_are_snapshotted_and_shared_across_turns():
+    sonic, integration = state()
+    spec = {"name": "weather", "description": "Forecast", "inputSchema": {"json": {"type": "object"}}}
+    sonic.sent("promptStart", {"promptName": "prompt", "toolConfiguration": {"tools": [{"toolSpec": spec}]}}, 1)
+    spec["inputSchema"]["json"]["type"] = "changed"
+    for i in range(2):
+        sonic.pending.user_text = "weather"
+        sonic.received("contentStart", {"contentId": str(i), "role": "TOOL", "type": "TOOL"}, i + 2)
+    sonic.finish()
+    assert len(llms(integration)) == 2
+    for response in llms(integration):
+        assert data(response)["meta"]["tool_definitions"] == [
+            {"name": "weather", "description": "Forecast", "schema": {"json": {"type": "object"}}}
+        ]
+
+
+@pytest.mark.parametrize(
+    "configuration", [None, [], {"tools": None}, {"tools": [None, {}, {"toolSpec": []}, {"toolSpec": {"name": 1}}]}]
+)
+def test_malformed_tool_definitions_do_not_drop_output(configuration):
+    sonic, integration = state()
+    sonic.sent("promptStart", {"promptName": "prompt", "toolConfiguration": configuration}, 1)
+    sonic.received("contentStart", {"contentId": "text", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    sonic.received("textOutput", {"contentId": "text", "content": "answer"}, 3)
+    sonic.finish()
+    meta = data(llms(integration)[0])["meta"]
+    assert "tool_definitions" not in meta
+    assert meta["output"]["messages"][0]["content"] == "answer"
+
+
+def test_tool_definitions_are_bounded_by_count_and_serialized_size(monkeypatch):
+    sonic, _ = state()
+    small = {"toolSpec": {"name": "weather"}}
+    sonic.sent("promptStart", {"toolConfiguration": {"tools": [small] * 17}}, 1)
+    assert len(sonic.tool_definitions) == 16
+    monkeypatch.setattr(_sonic, "MAX_TEXT", 200)
+    oversized = {"toolSpec": {"name": "huge", "inputSchema": {"json": "x" * 201}}}
+    sonic.sent("promptStart", {"toolConfiguration": {"tools": [oversized] + [small] * 15}}, 2)
+    assert 0 < len(sonic.tool_definitions) < 16
+    assert all(tool["name"] == "weather" for tool in sonic.tool_definitions)
+    assert sum(len(json.dumps(tool)) for tool in sonic.tool_definitions) <= 200

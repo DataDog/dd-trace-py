@@ -256,6 +256,14 @@ response's ownership. Late END_TURN events cannot extend its interruption time.
 Bound attachments by the configured LLMObs event limit as well as the shared
 audio cap, reserving serialized text, metadata, tags, and event overhead.
 
+Decode input frames in bounded base64 chunks and trim retained bytes before
+extending the buffer; preserve absolute sample counters for later speech offsets.
+Inbound TOOL blocks start model responses just like ASSISTANT blocks. Capture
+bounded promptStart tool definitions and reserve their serialized size before
+attaching audio. Record model contentEnd reasons as finish_reason, keeping
+INTERRUPTED ahead of late END_TURN and terminal reasons ahead of partial blocks.
+User transcript endings do not describe model completion.
+
 Nova 2 Sonic usageEvent audio counts come from details.total.input.speechTokens
 and details.total.output.speechTokens. Difference these cumulative counters using
 the same turn attribution as totalInputTokens/totalOutputTokens. Emit

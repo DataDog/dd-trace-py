@@ -19,6 +19,7 @@ from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guar
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs.types import ToolDefinition
 
 
 log = get_logger(__name__)
@@ -57,20 +58,32 @@ class InputAudio:
         self.rate = rate
 
     def append(self, encoded: str, now: int) -> None:
+        size = 0
         try:
-            raw = base64.b64decode(encoded, validate=True)
+            # Decode aligned base64 chunks so a large frame cannot duplicate its full
+            # size in either the decoded temporary or the retained audio buffer.
+            for offset in range(0, len(encoded), 65536):
+                chunk = encoded[offset : offset + 65536]
+                if offset + 65536 < len(encoded) and ("=" in chunk if isinstance(chunk, str) else b"=" in chunk):
+                    raise ValueError("Padding before the end of an audio frame")
+                raw = base64.b64decode(chunk, validate=True)
+                size += len(raw)
+                if len(raw) >= MAX_AUDIO:
+                    self.data.clear()
+                    self.data.extend(raw[-MAX_AUDIO:])
+                else:
+                    excess = max(0, len(self.data) + len(raw) - MAX_AUDIO)
+                    del self.data[:excess]
+                    self.data.extend(raw)
         except ValueError:
             self.valid = False
             raise
-        if len(raw) % 2:
+        if size % 2:
             self.valid = False
-        self.total += len(raw)
+        self.total += size
         if self.rate:
             # Project offsets using the most recently sent sample, as Realtime does.
             self.anchor_ns = now - self.total * 1_000_000_000 // (2 * self.rate)
-        self.data.extend(raw)
-        if len(self.data) > MAX_AUDIO:
-            del self.data[: len(self.data) - MAX_AUDIO]
 
     def clip(self, start_ms: Optional[float], end_ms: Optional[float]) -> bytes:
         if not self.valid or not self.rate or start_ms is None or end_ms is None or start_ms >= end_ms:
@@ -113,6 +126,7 @@ class Turn:
         self.completion_id: Optional[str] = None
         self.partial = False
         self.emitted = False
+        self.finish_reason: Optional[str] = None
 
     @property
     def has_input(self) -> bool:
@@ -167,6 +181,7 @@ class Turn:
         if self.interrupted_ns is not None:
             return
         self.interrupted_ns = now
+        self.finish_reason = "INTERRUPTED"
         if self.output_start_ns is not None and self.output_end_ns is not None and self.output_rate:
             frames = max(0, now - self.output_start_ns) * self.output_rate // 1_000_000_000
             del self.output_pcm[frames * 2 :]
@@ -199,6 +214,7 @@ class SonicState:
         self.configuration: dict[str, Any] = {}
         self.output_configuration: dict[str, Any] = {}
         self.history: list[dict[str, Any]] = []
+        self.tool_definitions: list[ToolDefinition] = []
         self.closed = False
         self.turn_index = 0
         self.totals = {"input_tokens": 0, "output_tokens": 0}
@@ -239,6 +255,7 @@ class SonicState:
                 return
             self.prompt = data.get("promptName")
             self.output_configuration = data.get("audioOutputConfiguration", {})
+            self._set_tool_definitions(data.get("toolConfiguration"))
         elif name == "contentStart":
             self.outbound[key] = dict(data, text="")
             if data.get("type") == "AUDIO" and data.get("role") == "USER":
@@ -280,6 +297,43 @@ class SonicState:
                     block["text"] = block["text"][:remaining]
                     self.history.append({"role": block.get("role", "USER").lower(), "content": block["text"]})
         self._bound_maps()
+
+    def _set_tool_definitions(self, configuration: Any) -> None:
+        self.tool_definitions = []
+        tools = configuration.get("tools") if isinstance(configuration, dict) else None
+        if not isinstance(tools, list):
+            return
+        remaining = min(MAX_TEXT, max(0, config._llmobs_event_size_limit // 4))
+        for tool in tools[:MAX_TOOLS]:
+            spec = tool.get("toolSpec") if isinstance(tool, dict) else None
+            if not isinstance(spec, dict):
+                continue
+            name, description, schema = spec.get("name"), spec.get("description", ""), spec.get("inputSchema", {})
+            if (
+                not isinstance(name, str)
+                or not name
+                or not isinstance(description, str)
+                or not isinstance(schema, dict)
+            ):
+                continue
+            if len(name) > MAX_TOOL_TEXT or len(description) > MAX_TOOL_TEXT:
+                continue
+            definition = ToolDefinition(name=name, description=description, schema=schema)
+            # Stop serialization at the budget and retain a detached snapshot only
+            # for complete definitions; never export a truncated JSON schema.
+            parts = []
+            size = 0
+            try:
+                for part in json.JSONEncoder(ensure_ascii=True).iterencode(definition):
+                    size += len(part)
+                    if size > remaining:
+                        break
+                    parts.append(part)
+                else:
+                    self.tool_definitions.append(json.loads("".join(parts)))
+                    remaining -= size
+            except (ValueError, TypeError, RecursionError):
+                continue
 
     def _bound_maps(self) -> None:
         for mapping in (self.outbound, self.blocks):
@@ -349,7 +403,7 @@ class SonicState:
                     fields = {}
             stage = fields.get("generationStage") if isinstance(fields, dict) else None
             role = data.get("role")
-            if role == "ASSISTANT":
+            if role in ("ASSISTANT", "TOOL"):
                 # FINAL text can arrive after the next user's speechStart. It still
                 # belongs to the previous output; only new speculative/audio/tool
                 # generation consumes pending user input.
@@ -417,10 +471,15 @@ class SonicState:
                     else:
                         turn.speculative_text = (turn.speculative_text + text)[:MAX_TEXT]
                 reason = data.get("stopReason")
-                if reason == "INTERRUPTED":
-                    turn.interrupt(now)
-                if block["data"].get("type") == "AUDIO" and reason == "END_TURN" and turn.interrupted_ns is None:
-                    turn.generation_end_ns = now
+                if block["data"].get("role") in ("ASSISTANT", "TOOL"):
+                    if reason == "INTERRUPTED":
+                        turn.interrupt(now)
+                    elif turn.interrupted_ns is None and reason in ("END_TURN", "PARTIAL_TURN", "TOOL_USE"):
+                        # Intermediate blocks cannot replace a terminal turn reason.
+                        if turn.finish_reason != "END_TURN":
+                            turn.finish_reason = reason
+                    if block["data"].get("type") == "AUDIO" and reason == "END_TURN" and turn.interrupted_ns is None:
+                        turn.generation_end_ns = now
                 self.blocks.pop(key)
                 self.completed_ids.append(key)
         elif name == "usageEvent":
@@ -569,6 +628,10 @@ class SonicState:
                 "generated_output_bytes": turn.output_bytes,
                 "session_configuration": self.configuration,
             }
+            if turn.finish_reason is not None:
+                metadata["finish_reason"] = turn.finish_reason
+            if self.tool_definitions:
+                _annotate_llmobs_span_data(response, tool_definitions=self.tool_definitions)
             overhead_bytes = len(
                 json.dumps([metadata, _get_llmobs_data_metastruct(response)], ensure_ascii=True).encode()
             )
@@ -636,4 +699,5 @@ class SonicState:
             self.blocks.clear()
             self.outbound.clear()
             self.history.clear()
+            self.tool_definitions = []
             self.audio.data.clear()

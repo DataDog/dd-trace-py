@@ -800,12 +800,31 @@ def test_barge_in_keeps_unfinished_input_and_ignores_late_end(llmobs, late_end):
 def test_configured_event_budget_preserves_transcripts(monkeypatch, llmobs, limit):
     with override_global_config({"_llmobs_event_size_limit": limit}):
         state = speech_state()
+        state.sent(
+            "promptStart",
+            {
+                "toolConfiguration": {
+                    "tools": [
+                        {
+                            "toolSpec": {
+                                "name": "lookup",
+                                "description": "D" * 400,
+                                "inputSchema": {"json": {"type": "object"}},
+                            }
+                        }
+                    ]
+                }
+            },
+            2_800_000_000,
+        )
         state.current.user_text = "user transcript"
         state.current.final_text = "assistant transcript"
         output_chunk(state, 3_000_000_000, samples=24000)
         state.received("contentEnd", {"contentId": "output", "stopReason": "END_TURN"}, 3_050_000_000)
         state.finish()
         _, _, response = serialized_turn(llmobs)
+        assert response["meta"]["tool_definitions"][0]["name"] == "lookup"
+        assert response["meta"]["metadata"]["finish_reason"] == "END_TURN"
         assert len(json.dumps(response)) < limit
         # Exercise the writer's real size enforcement, not just its mocked enqueue boundary.
         queued = MagicMock()
