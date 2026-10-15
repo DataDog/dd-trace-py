@@ -50,3 +50,35 @@ Source Code Integration
 
 .. automodule:: ddtrace.sourcecode
     :members:
+
+
+OpenFeature
+===========
+
+.. autoclass:: ddtrace.openfeature.DataDogProvider
+
+Per-evaluation telemetry opt-out is disabled by default. Enable it explicitly
+when the application supplies the consent decision::
+
+    from openfeature import api
+    from openfeature.evaluation_context import EvaluationContext
+    from ddtrace.openfeature import DataDogProvider
+
+    provider = DataDogProvider(enable_evaluation_telemetry_opt_out_parameter=True)
+    api.set_provider(provider)
+    context = EvaluationContext(
+        targeting_key="subject-id",
+        attributes={"dd_evaluation_telemetry_opt_out": True},
+    )
+    value = api.get_client().get_boolean_value("flag-key", False, context)
+
+Only boolean ``True`` suppresses new evaluation events, evaluation metrics,
+and automatic flag span annotations. The provider captures the final merged context
+at resolver entry, including contexts returned by ``before`` hooks. A returned
+``False`` can override an earlier ``True`` according to the OpenFeature SDK's
+context precedence. Later changes to the shared hook context can suppress pending
+telemetry, but cannot restore it for an opted-out evaluation. Existing queued
+telemetry remains intact.
+
+This option does not disable experiment exposures. It does not change flag
+values, variants, randomization, exposure deduplication, or application hooks.
