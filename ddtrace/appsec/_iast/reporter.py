@@ -6,6 +6,7 @@ from typing import Any
 from typing import Optional
 import zlib
 
+from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
@@ -13,7 +14,6 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.appsec._iast_context import is_iast_request_enabled
-from ddtrace.internal.constants import IAST_STACK_TRACE_NAMESPACE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -190,7 +190,7 @@ class IastSpanReporter(NotNoneDictable):
         self.stacktrace_id += 1
 
         str_id = str(self.stacktrace_id)
-        if not report_stack(stack_id=str_id, namespace=IAST_STACK_TRACE_NAMESPACE):
+        if not report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
             vulnerability.location.stackId = None
         else:
             vulnerability.location.stackId = self.stacktrace_id
