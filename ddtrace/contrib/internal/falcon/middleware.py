@@ -1,5 +1,7 @@
 import sys
 
+from falcon import http_status_to_code
+
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
@@ -84,12 +86,15 @@ class TraceMiddleware:
                 return
 
             event: WebFrameworkRequestEvent = ctx.event
-            status = resp.status.partition(" ")[0]
+            try:
+                status = http_status_to_code(resp.status)
+            except ValueError:
+                status = None
 
             # Falcon does not always map errors or unmatched routes to the
             # proper status code, so retain the existing inference.
             if resource is None:
-                status = "404"
+                status = 404
                 span.resource = "%s 404" % req.method
             else:
                 err_type = sys.exc_info()[0]
@@ -100,7 +105,7 @@ class TraceMiddleware:
                 event.request_route = (req.root_path or "") + (req.uri_template or "")
                 event.response_headers = resp._headers
 
-            event.response_status_code = int(status)
+            event.response_status_code = status
         finally:
             ctx.dispatch_ended_event()
 
@@ -113,9 +118,9 @@ def _detect_and_set_status_error(err_type, span):
     """Detect the HTTP status code and set the traceback on the span."""
     if not _is_404(err_type):
         span.set_traceback()
-        return "500"
+        return 500
 
-    return "404"
+    return 404
 
 
 def _name(r):

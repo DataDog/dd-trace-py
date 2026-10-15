@@ -67,6 +67,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         self._self_datadog_name = schematize_database_operation("mysql.query", database_provider="mysql")
         self._self_db_tags = db_tags
 
+    def _dbapi_query_encoding(self) -> str:
+        return self.__wrapped__.connection.encoding
+
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         if not is_tracing_enabled():
             result = await method(*args, **kwargs)
@@ -103,16 +106,20 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                     s._set_attribute("db.rownumber", self.rownumber)
 
     async def executemany(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="mysql"))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=query, span_name_prefix="mysql", get_encoding=self._dbapi_query_encoding)
+            )
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="mysql"))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(query=query, span_name_prefix="mysql", get_encoding=self._dbapi_query_encoding)
+            )
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 
