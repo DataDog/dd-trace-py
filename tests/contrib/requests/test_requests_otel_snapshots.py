@@ -14,7 +14,14 @@ _ENV = {
     "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
 }
 _SEMANTICS = {"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["false", "true"]}
-_IGNORES = ["meta.tracestate", "meta.telemetry.sdk.version", "meta.http.useragent", "meta.user_agent.original"]
+# The user agent carries the requests version, and httpbin implementations differ in reason phrase case.
+_IGNORES = [
+    "meta.tracestate",
+    "meta.telemetry.sdk.version",
+    "meta.http.useragent",
+    "meta.user_agent.original",
+    "meta.http.status_msg",
+]
 
 
 @pytest.mark.snapshot(ignores=_IGNORES)
