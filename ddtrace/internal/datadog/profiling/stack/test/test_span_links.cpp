@@ -58,6 +58,105 @@ TEST(SpanLinks, UnlinkOnlyMatchingSpan)
     EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
 }
 
+TEST(SpanLinks, TaskSpanLifecycle)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    constexpr uint64_t task_id = 44;
+
+    links.link_task_span(task_id, 101, 100, "web");
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), Datadog::Span(101, 100, "web"));
+
+    links.link_task_span(task_id, 102, 100, "web");
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), Datadog::Span(102, 100, "web"));
+
+    links.unlink_task_span(task_id, 101);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), Datadog::Span(102, 100, "web"));
+    links.unlink_task_span(task_id, 102);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
+
+    links.link_task_span(task_id, 103, 100, "web");
+    links.unlink_task_span(task_id);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
+}
+
+TEST(SpanLinks, ThreadAndTaskIdentifiersAreIndependent)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    constexpr uint64_t shared_id = 45;
+
+    links.link_span(shared_id, 201, 200, "thread");
+    links.link_task_span(shared_id, 301, 300, "asyncio");
+
+    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(201, 200, "thread"));
+    EXPECT_EQ(links.get_active_span_from_task_id(shared_id), Datadog::Span(301, 300, "asyncio"));
+
+    links.unlink_task_span(shared_id);
+    EXPECT_EQ(links.get_active_span_from_task_id(shared_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(201, 200, "thread"));
+
+    links.unlink_span(shared_id);
+}
+
+TEST(SpanLinks, ResetClearsThreadAndTaskSpans)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    constexpr uint64_t thread_id = 46;
+    constexpr uint64_t task_id = 47;
+
+    links.link_span(thread_id, 401, 400, "thread");
+    links.link_task_span(task_id, 501, 500, "asyncio");
+    links.reset();
+
+    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
+}
+
+TEST(SpanLinks, FinishedSpanClearsThreadAndTaskLinks)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    links.reset();
+
+    links.link_span(10, 100, 90, "thread");
+    links.link_task_span(20, 100, 90, "asyncio");
+    links.link_task_span(40, 201, 200, "unrelated");
+
+    links.unlink_finished_span(100);
+    EXPECT_EQ(links.get_active_span_from_thread_id(10), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_task_id(20), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_task_id(40), Datadog::Span(201, 200, "unrelated"));
+
+    links.reset();
+}
+
+TEST(SpanLinks, FinishedLocalRootPreservesActiveTaskChildLink)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    links.reset();
+
+    links.link_span(10, 100, 100, "root");
+    links.link_task_span(20, 101, 100, "asyncio-child");
+
+    links.unlink_finished_span(100);
+    EXPECT_EQ(links.get_active_span_from_thread_id(10), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_task_id(20), Datadog::Span(101, 100, "asyncio-child"));
+
+    links.reset();
+}
+
+TEST(SpanLinks, NewerTaskLinkSurvivesFinishedSpanCleanup)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    links.reset();
+
+    links.link_task_span(20, 102, 100, "old");
+    links.link_task_span(20, 202, 200, "new");
+
+    links.unlink_finished_span(100);
+    EXPECT_EQ(links.get_active_span_from_task_id(20), Datadog::Span(202, 200, "new"));
+
+    links.reset();
+}
+
 TEST(SpanLinks, ClearFinished)
 {
     unsigned int num_thread_ids = 100;
@@ -151,6 +250,28 @@ TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
 
     links.unlink_finished_span(span_id);
     EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+}
+
+TEST(SpanLinks, FinishingWhileThreadAndTaskLinkingWaitsForBoth)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    constexpr uint64_t thread_id = 302;
+    constexpr uint64_t task_id = 303;
+    constexpr uint64_t span_id = 3002;
+    links.reset();
+
+    links.on_link_start(span_id);
+    links.on_link_start(span_id);
+    EXPECT_FALSE(links.on_span_finish(span_id));
+
+    links.link_span(thread_id, span_id, span_id, "web");
+    EXPECT_FALSE(links.on_link_end(span_id));
+    links.link_task_span(task_id, span_id, span_id, "web");
+    EXPECT_TRUE(links.on_link_end(span_id));
+
+    links.unlink_finished_span(span_id);
+    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
 }
 
 int
