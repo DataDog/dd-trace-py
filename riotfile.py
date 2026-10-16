@@ -3816,15 +3816,31 @@ venv = Venv(
             name="vllm",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+                # vLLM 0.27 samples with FlashInfer, which JIT-compiles a kernel with nvcc.
+                # The CI image has no CUDA toolkit, so use the PyTorch sampler.
+                "VLLM_USE_FLASHINFER_SAMPLER": "0",
             },
             command="pytest {cmdargs} tests/contrib/vllm",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "torch": latest,
-                "vllm": ["~=0.10.2", latest],
             },
-            pys=select_pys(min_version="3.10", max_version="3.13"),
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={
+                        "vllm": "~=0.10.2",
+                        "transformers": "<5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pkgs={
+                        "vllm": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="valkey",
