@@ -11,10 +11,10 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._inferred_proxy import set_inferred_proxy_tags
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -26,7 +26,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -250,28 +249,12 @@ def _on_web_framework_finish_request(
         route=route,
         **kwargs,
     )
-    _set_inferred_proxy_tags(span, status_code)
+    set_inferred_proxy_tags(span, status_code)
     for tk, tv in core.get_item("additional_tags", default=dict()).items():
         span._set_attribute(tk, tv)
 
     if finish:
         span.finish()
-
-
-def _set_inferred_proxy_tags(span: Span, status_code):
-    if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
-        inferred_span = span._parent
-        status_code = status_code or span._get_attribute("http.status_code")
-        if status_code:
-            inferred_span._set_attribute("http.status_code", status_code)
-        if span.error == 1:
-            inferred_span.error = span.error
-            if (error_msg := span._get_attribute(ERROR_MSG)) is not None:
-                inferred_span._set_attribute(ERROR_MSG, error_msg)
-            if (error_type := span._get_attribute(ERROR_TYPE)) is not None:
-                inferred_span._set_attribute(ERROR_TYPE, error_type)
-            if (error_stack := span._get_attribute(ERROR_STACK)) is not None:
-                inferred_span._set_attribute(ERROR_STACK, error_stack)
 
 
 def _set_pubsub_receive_attributes(
@@ -651,7 +634,7 @@ def _on_web_request_final_tags(span):
     # Necessary to add remaining http status codes and
     # errors relevant to the aws api gateway spans on close
     if span and span.span_type == "web":
-        _set_inferred_proxy_tags(span, None)
+        set_inferred_proxy_tags(span, None)
 
 
 def _django_request_path_params(request):
@@ -673,7 +656,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
         route=span.get_tag("http.route"),
         request_path_params=_django_request_path_params(request),
     )
-    _set_inferred_proxy_tags(span, None)
+    set_inferred_proxy_tags(span, None)
 
 
 def _on_django_start_response(ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str):

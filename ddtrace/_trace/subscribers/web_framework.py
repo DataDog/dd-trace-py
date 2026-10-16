@@ -1,9 +1,9 @@
 from types import TracebackType
 from typing import Optional
 
+from ddtrace._trace._inferred_proxy import set_inferred_proxy_tags
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
-from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import http
@@ -70,6 +70,6 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         if event.trace_query_string and event.query is not None:
             span._set_attribute(http.QUERY_STRING, event.query)
 
-        _set_inferred_proxy_tags(span, status_code)
+        set_inferred_proxy_tags(span, status_code)
         for tk, tv in event.additional_tags.items():
             span._set_attribute(tk, tv)

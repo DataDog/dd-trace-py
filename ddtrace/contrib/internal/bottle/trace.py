@@ -1,10 +1,8 @@
 from collections.abc import Callable
 from collections.abc import Iterable
-from collections.abc import MutableMapping
 from contextvars import copy_context
 from dataclasses import replace
 import sys
-from threading import get_ident
 from types import TracebackType
 from typing import Any
 from typing import Optional
@@ -18,21 +16,16 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
+from ddtrace.contrib._events.bottle import BottleRequestEvent
+from ddtrace.contrib._events.http import HTTP_REQUEST_DATA_EVENTS
 from ddtrace.contrib._events.http import HttpBlockingResponse
-from ddtrace.contrib._events.http import HttpDecisionAcceptance
-from ddtrace.contrib._events.http import HttpEnforcementAction
-from ddtrace.contrib._events.http import HttpInspectionDecision
+from ddtrace.contrib._events.http import HttpRequestBlock
+from ddtrace.contrib._events.http import HttpRequestBlockCheckEvent
 from ddtrace.contrib._events.http import HttpRequestData
-from ddtrace.contrib._events.http import HttpRequestDataEvent
 from ddtrace.contrib._events.http import HttpRequestError
-from ddtrace.contrib._events.http import HttpRequestInspectionEvent
 from ddtrace.contrib._events.http import HttpRequestPhase
-from ddtrace.contrib._events.http import HttpRequestSnapshot
 from ddtrace.contrib._events.http import HttpResponseData
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
@@ -40,6 +33,13 @@ from ddtrace.trace import tracer
 
 
 _REQUEST_SCOPE = "datadog.bottle.request"
+# Every name a consumer can subscribe to for a Bottle request. Nothing listening means
+# nothing to produce; whether tracing is enabled is a subscriber's concern, not ours.
+_LIFECYCLE_EVENTS = (
+    f"context.started.{BottleRequestEvent.event_name}",
+    HttpRequestBlockCheckEvent.event_name,
+    *(event.event_name for event in HTTP_REQUEST_DATA_EVENTS.values()),
+)
 _ExcInfo = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
 _Result = TypeVar("_Result")
 
@@ -84,6 +84,20 @@ def _valid_blocking_response(value: Any) -> bool:
     return True
 
 
+def _request_error(error_type: type, error: BaseException) -> HttpRequestError:
+    try:
+        message: Optional[str] = str(error)
+    except Exception:
+        message = None
+    return HttpRequestError(f"{error_type.__module__}.{error_type.__qualname__}", message)
+
+
+def _publish(phase: HttpRequestPhase, **fields: Any) -> None:
+    event = HTTP_REQUEST_DATA_EVENTS[phase]
+    if core.has_listeners(event.event_name):
+        core.dispatch_event(event(phase=phase, **fields))
+
+
 def _blocking_response(value: HttpBlockingResponse) -> HTTPResponse:
     result = HTTPResponse(body=value.body, status=value.status_code, headers=value.headers)
     if value.status_code not in (204, 304):
@@ -94,7 +108,7 @@ def _blocking_response(value: HttpBlockingResponse) -> HTTPResponse:
 class _RequestLifecycle:
     """IDM owns completion; core provides the context and span lifecycle machinery."""
 
-    def __init__(self, service: str, environ: dict[str, Any], app: Any, tracing_enabled: bool) -> None:
+    def __init__(self, service: str, environ: dict[str, Any], app: Any) -> None:
         self.app = app
         req = BaseRequest(environ)
         self.request_id = object()
@@ -110,90 +124,45 @@ class _RequestLifecycle:
         self.handler_started = False
         self.response_committed = False
         self.completed = False
-        self.terminate = False
-        self.event: Optional[WebFrameworkRequestEvent] = None
-        if tracing_enabled:
-            self.event = WebFrameworkRequestEvent(
-                http_operation="bottle.request",
+        self.blocked = False
+        self.context = copy_context()
+        self.provider = tracer.context_provider
+        self.ctx = core.context_with_event(
+            BottleRequestEvent(
                 service=service,
                 component=config.bottle.integration_name,
                 request_headers=dict(self.request_data.headers or ()),
-                request_url=self.request_data.url,
-                query=self.request_data.query_string,
-                request_method=self.request_data.method,
-                headers_case_sensitive=True,
                 integration_config=config.bottle,
                 activate_distributed_headers=True,
             )
-        self.context = copy_context()
-        self.provider = tracer.context_provider
-        self.ctx = (
-            core.context_with_event(self.event)
-            if self.event is not None
-            else core.context_with_data("bottle.request.lifecycle")
         )
         self.exc_info: _ExcInfo = (None, None, None)
 
-    def snapshot(self, phase: HttpRequestPhase) -> HttpRequestSnapshot:
-        actions: frozenset[HttpEnforcementAction] = frozenset()
-        if not self.completed:
-            if self.response_committed:
-                if phase == HttpRequestPhase.RESPONSE_COMMITTED:
-                    actions = frozenset((HttpEnforcementAction.TERMINATE,))
-            elif phase != HttpRequestPhase.COMPLETED:
-                actions = frozenset((HttpEnforcementAction.RESPOND,))
-        return HttpRequestSnapshot(
+    def event_fields(self) -> dict[str, Any]:
+        return dict(
             request_id=self.request_id,
             framework="bottle",
-            phase=phase,
             request=self.request_data,
             response=self.response_data,
             errors=self.errors,
             handler_started=self.handler_started,
             response_committed=self.response_committed,
-            supported_actions=actions,
         )
 
     def publish(self, phase: HttpRequestPhase) -> None:
-        if core.has_listeners(HttpRequestDataEvent.event_name):
-            core.dispatch_event(HttpRequestDataEvent(snapshot=self.snapshot(phase)))
+        if core.has_listeners(HTTP_REQUEST_DATA_EVENTS[phase].event_name):
+            _publish(phase, **self.event_fields())
 
-    def inspect(self, phase: HttpRequestPhase) -> Optional[HttpInspectionDecision]:
-        if not core.has_listeners(HttpRequestInspectionEvent.event_name):
+    def check_block(self, phase: HttpRequestPhase) -> Optional[HTTPResponse]:
+        if self.blocked or self.response_committed or not core.has_listeners(HttpRequestBlockCheckEvent.event_name):
             return None
-        snapshot = self.snapshot(phase)
-        decision: Optional[HttpInspectionDecision] = None
-        opened = True
-        owner = get_ident()
-
-        def submit(candidate: Any) -> HttpDecisionAcceptance:
-            nonlocal decision
-            if not opened or get_ident() != owner:
-                return HttpDecisionAcceptance.CLOSED
-            if not isinstance(candidate, HttpInspectionDecision):
-                return HttpDecisionAcceptance.INVALID
-            candidate = cast(Any, candidate)
-            if candidate.action is None:
-                return HttpDecisionAcceptance.ACCEPTED if candidate.response is None else HttpDecisionAcceptance.INVALID
-            if not isinstance(candidate.action, HttpEnforcementAction):
-                return HttpDecisionAcceptance.INVALID
-            if candidate.action not in snapshot.supported_actions:
-                return HttpDecisionAcceptance.UNSUPPORTED
-            if candidate.action == HttpEnforcementAction.RESPOND:
-                if not _valid_blocking_response(candidate.response):
-                    return HttpDecisionAcceptance.INVALID
-            elif candidate.response is not None:
-                return HttpDecisionAcceptance.INVALID
-            if decision is not None:
-                return HttpDecisionAcceptance.ALREADY_DECIDED
-            decision = candidate
-            return HttpDecisionAcceptance.ACCEPTED
-
         try:
-            core.dispatch_event(HttpRequestInspectionEvent(snapshot=snapshot, submit=submit))
-        finally:
-            opened = False
-        return decision
+            core.dispatch_event(HttpRequestBlockCheckEvent(phase=phase, **self.event_fields()))
+        except HttpRequestBlock as block:
+            if _valid_blocking_response(block.response):
+                self.blocked = True
+                return _blocking_response(block.response)
+        return None
 
     def call(self, function: Callable[..., _Result], *args: Any) -> _Result:
         previous = self.provider.active()
@@ -210,40 +179,29 @@ class _RequestLifecycle:
 
     def resolve_route(self, route: Any) -> None:
         full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-        self.request_data = replace(self.request_data, route=full_route)
-        if self.event is not None:
-            self.event.resource = f"{self.request_data.method} {route.rule}"
-            self.event.request_route = full_route
-            span_from_context(self.ctx).resource = self.event.resource
+        self.request_data = replace(self.request_data, route=full_route, route_pattern=route.rule)
         self.publish(HttpRequestPhase.ROUTE_RESOLVED)
-        decision = self.inspect(HttpRequestPhase.ROUTE_RESOLVED)
-        if decision is not None and decision.response is not None:
-            raise _blocking_response(decision.response)
+        blocked = self.check_block(HttpRequestPhase.ROUTE_RESOLVED)
+        if blocked is not None:
+            raise blocked
 
     def before_handler(self) -> Optional[HTTPResponse]:
         self.publish(HttpRequestPhase.BEFORE_HANDLER)
-        decision = self.inspect(HttpRequestPhase.BEFORE_HANDLER)
-        if decision is not None and decision.response is not None:
-            return _blocking_response(decision.response)
+        blocked = self.check_block(HttpRequestPhase.BEFORE_HANDLER)
+        if blocked is not None:
+            return blocked
         self.handler_started = True
         return None
 
     def record_exception(self, exc_info: _ExcInfo) -> None:
         if not self.completed and exc_info[0] is not None:
             self.exc_info = exc_info
-            error_type = exc_info[0]
-            try:
-                message = str(exc_info[1])
-            except Exception:
-                message = None
-            self.errors = (HttpRequestError(f"{error_type.__module__}.{error_type.__qualname__}", message),)
+            self.errors = (_request_error(exc_info[0], cast(BaseException, exc_info[1])),)
 
     def finish(self) -> None:
         if self.completed:
             return
         self.completed = True
-        if self.event is not None and not self.event.resource:
-            self.event.resource = f"{self.request_data.method} {self.event.response_status_code or 500}"
         try:
             self.publish(HttpRequestPhase.COMPLETED)
         finally:
@@ -263,41 +221,31 @@ class _RequestLifecycle:
             nonlocal replacement
             replacement = None
             self.response_data = HttpResponseData(status_code=int(status.split(" ", 1)[0]), headers=tuple(headers))
-            if self.event is not None:
-                self.event.response_status_code = self.response_data.status_code
-                self.event.response_headers = dict(headers)
             if exc_info:
                 self.record_exception(exc_info)
             self.publish(HttpRequestPhase.RESPONSE_READY)
-            decision = self.inspect(HttpRequestPhase.RESPONSE_READY)
-            if decision is not None and decision.response is not None:
-                replacement = _blocking_response(decision.response)
+            replacement = self.check_block(HttpRequestPhase.RESPONSE_READY)
+            if replacement is not None:
                 status, headers = replacement.status, replacement.headerlist
                 self.response_data = HttpResponseData(status_code=replacement.status_code, headers=tuple(headers))
-                if self.event is not None:
-                    self.event.response_status_code = replacement.status_code
-                    self.event.response_headers = dict(headers)
             result = start_response(status, headers, exc_info)
             self.response_committed = True
             self.publish(HttpRequestPhase.RESPONSE_COMMITTED)
-            decision = self.inspect(HttpRequestPhase.RESPONSE_COMMITTED)
-            self.terminate = decision is not None and decision.action == HttpEnforcementAction.TERMINATE
             return result
 
         try:
             self.publish(HttpRequestPhase.REQUEST_STARTED)
-            decision = self.inspect(HttpRequestPhase.REQUEST_STARTED)
-            if decision is not None and decision.response is not None:
-                blocked = _blocking_response(decision.response)
+            blocked = self.check_block(HttpRequestPhase.REQUEST_STARTED)
+            if blocked is not None:
                 body = [blocked.body]
                 response_ready(blocked.status, blocked.headerlist)
             else:
                 body = application(environ, response_ready)
-            if replacement is not None or self.terminate:
+            if replacement is not None:
                 close = getattr(body, "close", None)
                 if close is not None:
                     close()
-                body = [replacement.body] if replacement is not None and not self.terminate else []
+                body = [replacement.body]
             if self.request_data.method == "HEAD":
                 close = getattr(body, "close", None)
                 if close is not None:
@@ -306,8 +254,6 @@ class _RequestLifecycle:
             return _ResponseIterator(body, self)
         except BaseException:
             self.record_exception(sys.exc_info())
-            if not self.response_committed and self.event is not None:
-                self.event.response_status_code = 500
             self.finish()
             raise
         finally:
@@ -389,14 +335,9 @@ class TracePlugin:
         def traced_wsgi(environ: dict[str, Any], start_response: Callable[..., Any]) -> Any:
             # Resolve the installed plugin on each request so uninstall/reinstall works.
             plugin = next((p for p in reversed(app.plugins) if isinstance(p, TracePlugin)), None)
-            tracing_enabled = is_tracing_enabled()
-            if plugin is None or not (
-                tracing_enabled
-                or core.has_listeners(HttpRequestDataEvent.event_name)
-                or core.has_listeners(HttpRequestInspectionEvent.event_name)
-            ):
+            if plugin is None or not any(core.has_listeners(name) for name in _LIFECYCLE_EVENTS):
                 return application(environ, start_response)
-            lifecycle = _RequestLifecycle(plugin.service, environ, app, tracing_enabled)
+            lifecycle = _RequestLifecycle(plugin.service, environ, app)
             return lifecycle.call(lifecycle.run, application, environ, start_response)
 
         def traced_match(environ: dict[str, Any]) -> Any:
@@ -445,27 +386,44 @@ class TracePlugin:
                     lifecycle.record_exception(sys.exc_info())
                     raise
 
-            if not is_tracing_enabled():
-                return callback(*args, **kwargs)
-
-            # Route-local plugins do not receive setup(), so retain their callback scope.
-            event = WebFrameworkRequestEvent(
-                http_operation="bottle.request",
-                service=self.service,
-                resource=f"{request.method} {route.rule}",
-                component=config.bottle.integration_name,
-                request_headers=cast(MutableMapping[str, str], request.headers),
-                request_url=request.url,
-                query=request.query_string,
-                request_route="/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")]),
-                request_method=request.method,
-                integration_config=config.bottle,
-                headers_case_sensitive=True,
-                activate_distributed_headers=True,
+            # Route-local plugins do not receive setup(), so this path sees only the
+            # callback: no WSGI boundary, so no route resolution or response phases.
+            request_id = object()
+            request_data = HttpRequestData(
+                method=request.method,
+                url=request.url,
+                headers=tuple(request.headers.items()),
+                query_string=request.query_string,
+                query_parameters=tuple(request.query.allitems()),
+                route="/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")]),
+                route_pattern=route.rule,
             )
-            with core.context_with_event(event):
+
+            def publish(phase: HttpRequestPhase, **fields: Any) -> None:
+                _publish(
+                    phase,
+                    request_id=request_id,
+                    framework="bottle",
+                    request=request_data,
+                    **fields,
+                )
+
+            with core.context_with_event(
+                BottleRequestEvent(
+                    service=self.service,
+                    component=config.bottle.integration_name,
+                    request_headers=dict(request_data.headers or ()),
+                    integration_config=config.bottle,
+                    activate_distributed_headers=True,
+                )
+            ):
+                # The route is already matched when a route-local plugin runs, so this
+                # phase is announced before the handler rather than discovered at the
+                # WSGI boundary.
+                publish(HttpRequestPhase.ROUTE_RESOLVED)
                 code = None
                 result = None
+                errors: tuple[HttpRequestError, ...] = ()
                 try:
                     result = callback(*args, **kwargs)
                     return result
@@ -476,18 +434,25 @@ class TracePlugin:
                     # case with a 4xx status
                     code = e.status_code
                     raise
-                except Exception:
+                except Exception as e:
                     # bottle doesn't always translate unhandled exceptions, so
                     # we mark it here.
                     code = 500
+                    errors = (_request_error(type(e), e),)
                     raise
                 finally:
                     # Bottle's local response carries headers even when a returned
                     # or raised HTTPResponse overrides the status.
-                    event.set_response(response)
+                    status_code = response.status_code
                     if isinstance(result, HTTPResponse):
-                        event.response_status_code = result.status_code
+                        status_code = result.status_code
                     elif code:
-                        event.response_status_code = code
+                        status_code = code
+                    publish(
+                        HttpRequestPhase.COMPLETED,
+                        response=HttpResponseData(status_code=status_code, headers=tuple(response.headerlist)),
+                        errors=errors,
+                        handler_started=True,
+                    )
 
         return wrapped

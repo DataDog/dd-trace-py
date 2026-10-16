@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import MutableMapping
 from collections.abc import Sequence
@@ -81,11 +80,6 @@ class HttpRequestPhase(str, Enum):
     COMPLETED = "completed"
 
 
-class HttpEnforcementAction(str, Enum):
-    RESPOND = "respond"
-    TERMINATE = "terminate"
-
-
 @dataclass(frozen=True)
 class HttpRequestData:
     """Owned HTTP values: None means unavailable; empty strings/tuples mean known empty.
@@ -102,11 +96,14 @@ class HttpRequestData:
     query_parameters: Optional[tuple[tuple[str, str], ...]] = None
     route: Optional[str] = None
     body: Optional[bytes] = None
+    # The matched route as the application declared it, without any mount prefix.
+    # route carries the prefix; the two differ only for a mounted application.
+    route_pattern: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class HttpResponseData:
-    """A prepared response; the snapshot's committed flag says whether it was accepted."""
+    """A prepared response; the event's committed flag says whether it was accepted."""
 
     status_code: Optional[int] = None
     headers: Optional[tuple[tuple[str, str], ...]] = None
@@ -121,33 +118,64 @@ class HttpRequestError:
     message: Optional[str]
 
 
-@dataclass(frozen=True)
-class HttpRequestSnapshot:
-    """An immutable observation that consumers may retain after synchronous dispatch.
+@dataclass
+class HttpRequestDataEvent(Event):
+    """HTTP observations delivered under phase-specific event names.
 
-    The request_id is an opaque, process-local token shared by a request's snapshots;
-    it is not a span identity. No errors means no error has been observed so far.
-    Capabilities describe implemented actions at this phase, not framework potential.
-    This data event does not accept decisions or enforce actions.
+    Consumers must treat events as read-only. Each dispatch has a fresh envelope;
+    request, response, and error values are immutable and may be retained. The
+    request_id is an opaque process-local token, independent of span identity.
+    Listener return values do not affect request handling.
     """
 
-    request_id: object
-    framework: str
-    phase: HttpRequestPhase
-    request: HttpRequestData
-    response: Optional[HttpResponseData] = None
-    errors: tuple[HttpRequestError, ...] = ()
-    handler_started: bool = False
-    response_committed: bool = False
-    supported_actions: frozenset[HttpEnforcementAction] = frozenset()
+    request_id: object = event_field()
+    framework: str = event_field()
+    phase: HttpRequestPhase = event_field()
+    request: HttpRequestData = event_field()
+    response: Optional[HttpResponseData] = event_field(default=None)
+    errors: tuple[HttpRequestError, ...] = event_field(default=())
+    handler_started: bool = event_field(default=False)
+    response_committed: bool = event_field(default=False)
 
 
 @dataclass
-class HttpRequestDataEvent(Event):
-    """Dispatch-only envelope; consumers use the immutable snapshot, not tracing state."""
+class HttpRequestStartedEvent(HttpRequestDataEvent):
+    event_name = "http.server.request.started"
 
-    event_name = "http.server.request.data"
-    snapshot: HttpRequestSnapshot
+
+@dataclass
+class HttpRouteResolvedEvent(HttpRequestDataEvent):
+    event_name = "http.server.request.route_resolved"
+
+
+@dataclass
+class HttpBeforeHandlerEvent(HttpRequestDataEvent):
+    event_name = "http.server.request.before_handler"
+
+
+@dataclass
+class HttpResponseReadyEvent(HttpRequestDataEvent):
+    event_name = "http.server.request.response_ready"
+
+
+@dataclass
+class HttpResponseCommittedEvent(HttpRequestDataEvent):
+    event_name = "http.server.request.response_committed"
+
+
+@dataclass
+class HttpRequestCompletedEvent(HttpRequestDataEvent):
+    event_name = "http.server.request.completed"
+
+
+HTTP_REQUEST_DATA_EVENTS: Mapping[HttpRequestPhase, type[HttpRequestDataEvent]] = {
+    HttpRequestPhase.REQUEST_STARTED: HttpRequestStartedEvent,
+    HttpRequestPhase.ROUTE_RESOLVED: HttpRouteResolvedEvent,
+    HttpRequestPhase.BEFORE_HANDLER: HttpBeforeHandlerEvent,
+    HttpRequestPhase.RESPONSE_READY: HttpResponseReadyEvent,
+    HttpRequestPhase.RESPONSE_COMMITTED: HttpResponseCommittedEvent,
+    HttpRequestPhase.COMPLETED: HttpRequestCompletedEvent,
+}
 
 
 @dataclass(frozen=True)
@@ -159,30 +187,30 @@ class HttpBlockingResponse:
     body: bytes = b""
 
 
-@dataclass(frozen=True)
-class HttpInspectionDecision:
-    """None means allow; response data is required only for RESPOND."""
+class HttpRequestBlock(BaseException):
+    """Interrupt a synchronous block check with a replacement response.
 
-    action: Optional[HttpEnforcementAction] = None
-    response: Optional[HttpBlockingResponse] = None
+    BaseException deliberately bypasses the event hub's ordinary listener-error
+    isolation. Raise only from a HttpRequestBlockCheckEvent listener. The adapter
+    validates the response and owns transport framing and request completion.
+    """
 
-
-class HttpDecisionAcceptance(str, Enum):
-    ACCEPTED = "accepted"
-    CLOSED = "closed"
-    INVALID = "invalid"
-    UNSUPPORTED = "unsupported"
-    ALREADY_DECIDED = "already_decided"
+    def __init__(
+        self,
+        status_code: int = 403,
+        headers: tuple[tuple[str, str], ...] = (),
+        body: bytes = b"",
+    ) -> None:
+        super().__init__(status_code)
+        self.response = HttpBlockingResponse(status_code=status_code, headers=headers, body=body)
 
 
 @dataclass
-class HttpRequestInspectionEvent(Event):
-    """Synchronous inspection; submit is valid only on the dispatching thread.
+class HttpRequestBlockCheckEvent(HttpRequestDataEvent):
+    """A synchronous opportunity to raise HttpRequestBlock; first block wins.
 
-    Acceptance acknowledges a decision, not successful response delivery. The
-    adapter closes submit before resuming application or server execution.
+    Only dispatched where the adapter can replace a response. Returning permits
+    the next listener to run. Retaining this event grants no later control.
     """
 
-    event_name = "http.server.request.inspect"
-    snapshot: HttpRequestSnapshot
-    submit: Callable[[HttpInspectionDecision], HttpDecisionAcceptance]
+    event_name = "http.server.request.block_check"

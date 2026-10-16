@@ -92,12 +92,16 @@ Some example web framework integrations::
 HTTP request-data contract
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``HttpRequestDataEvent`` in ``ddtrace.contrib._events.http`` exposes HTTP observations
-without requiring consumers to understand tracing configuration. Consumers register
-for ``http.server.request.data`` through ``core.on`` and receive the event's
-``snapshot``. The snapshot contains no span, resource, service, operation name, or
-integration configuration. ``WebFrameworkRequestEvent`` remains the compatible
-tracing interface; its settings and HTTP-to-span translation are separate.
+This experimental internal API exposes HTTP observations without requiring tracing
+configuration. Register for phase-specific events such as ``HttpRouteResolvedEvent``
+and ``HttpRequestCompletedEvent`` from ``ddtrace.contrib._events.http`` using
+``core.on(EventClass.event_name, listener)``. Read ``event.request``, ``event.response``,
+``event.phase``, and ``event.request_id`` directly; there is no snapshot wrapper.
+The shared ``HttpRequestDataEvent`` base supplies fields, not a subscription name.
+Events carry no span, resource, service, operation name, or integration configuration.
+Bottle's integration-owned ``BottleRequestEvent`` provides its tracing context;
+its tracing subscriber consumes the HTTP observations separately.
+See ``examples/http-events/contract.py`` for consumer registration and blocking.
 
 The application-installed Bottle plugin publishes this contract at these boundaries:
 
@@ -129,13 +133,15 @@ and empty parsed query pairs are available values. Bottle exposes the query pair
 as parsed by the framework, preserving repeated keys. The raw query string is also
 available when exact wire ordering or encoding matters.
 
-Snapshots and their request, response, and error values are immutable. Header and
+Events are ordinary dataclasses and consumers must treat them as read-only.
+Their request, response, and error values are frozen dataclasses. Header and
 query values are tuples of pairs; response headers retain duplicates, including
 multiple ``Set-Cookie`` values. Header names must be compared case-insensitively.
-Consumers may retain snapshots after dispatch; later lifecycle updates do not
-change earlier snapshots. The event envelope itself must not be modified.
+Consumers may retain events after dispatch; each phase creates a fresh envelope,
+so later lifecycle updates do not change earlier observations. Mutation is not a
+decision channel and can affect other listeners receiving the same event.
 
-``request_id`` is an opaque token with identity shared by all snapshots of one
+``request_id`` is an opaque token with identity shared by all events of one
 request in this process. It is independent of span IDs and distinct for nested or
 interleaved requests. It is not a serializable or cross-process correlation ID.
 
@@ -145,30 +151,39 @@ failure has been observed. Errors contain a qualified type name and a message, w
 exception objects nor tracebacks. A failure after response commitment does not
 rewrite the prepared response status.
 
-Request and response bodies remain unavailable in Bottle. Producing these snapshots
+Request and response bodies remain unavailable in Bottle. Producing these events
 must not consume request bodies, buffer responses, or advance response streams.
 
-Capabilities and consumers
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Blocking and consumers
+^^^^^^^^^^^^^^^^^^^^^^
 
-``supported_actions`` lists enforcement actions implemented at the observed phase:
-``RESPOND`` means an adapter can send a replacement response, and ``TERMINATE``
-means it can stop producing the response body. Bottle supports ``RESPOND`` at
-request entry, route resolution, before the wrapped handler, and response preparation.
-After commitment it supports only ``TERMINATE``; completion supports neither.
-Consumers must not infer capabilities from the framework name or phase alone.
+Observation events are one-way: listener return values are ignored. A separate
+``HttpRequestBlockCheckEvent`` dispatch follows observation at request entry,
+route resolution, before the wrapped handler, and response preparation. Its fields
+are the same HTTP observations. A consumer can raise ``HttpRequestBlock`` with
+``status_code``, ``headers``, and a bytes ``body`` to request a replacement response.
+Returning normally allows the next listener to run.
 
-This event is observational: listener return values are ignored and there is no
-blocking decision channel. Dispatch uses core's normal exception-isolation rules;
-control decisions, inspection deadlines, and failure policy belong to
-``HttpRequestInspectionEvent``. See :doc:`http-contract-api-changes` for the
-inspection API, enforcement semantics, and a chronological record of changes.
+The first block interrupts the check, skipping remaining block-check listeners.
+An invalid blocking response is ignored, but skipped listeners are not resumed.
+Bottle validates status, headers, and body and owns transport framing. After a valid
+block it skips subsequent block checks, including checks of its replacement response.
+Ordinary listener exceptions retain core's normal isolation behavior; the testing
+raise setting still propagates them. ``HttpRequestBlock`` inherits ``BaseException``
+to use the hub's existing control-flow propagation. Raise it only from a block-check
+listener, never an observation listener. Process-control exceptions still propagate.
 
-Bottle emits snapshots when a consumer is registered even if tracing is disabled,
+Block checks are synchronous and run only before response commitment. Retaining an
+event or raising from a different thread cannot control the request. There is no
+acceptance callback, capability set, or post-commit stream termination API. Blocking
+is not an application error; response and completion observations still report the
+outcome, including delivery failures. See :doc:`http-contract-api-changes` for history.
+
+Bottle emits events when a consumer is registered even if tracing is disabled,
 without creating a request span. Consumers should register before request entry to
-observe the complete lifecycle. With neither tracing nor data or inspection consumers enabled,
-the WSGI wrapper delegates directly to Bottle. Route-local plugins retain their
-existing callback-scoped tracing and do not publish this lifecycle contract.
+observe the complete lifecycle. With no tracing, observation, or block-check listeners,
+the WSGI wrapper delegates directly to Bottle. Route-local plugins publish only route
+resolution and callback completion; they have no WSGI boundary and emit no block checks.
 
 Are there norms for integrating with database libraries?
 --------------------------------------------------------

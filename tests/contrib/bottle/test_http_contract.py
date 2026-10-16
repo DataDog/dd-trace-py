@@ -1,7 +1,6 @@
 from dataclasses import FrozenInstanceError
 from dataclasses import fields
 from io import BytesIO
-from threading import Thread
 from typing import Any
 from typing import cast
 
@@ -10,12 +9,9 @@ import pytest
 import webtest
 
 from ddtrace import config
-from ddtrace.contrib._events.http import HttpBlockingResponse
-from ddtrace.contrib._events.http import HttpDecisionAcceptance
-from ddtrace.contrib._events.http import HttpEnforcementAction
-from ddtrace.contrib._events.http import HttpInspectionDecision
-from ddtrace.contrib._events.http import HttpRequestDataEvent
-from ddtrace.contrib._events.http import HttpRequestInspectionEvent
+from ddtrace.contrib._events.http import HTTP_REQUEST_DATA_EVENTS
+from ddtrace.contrib._events.http import HttpRequestBlock
+from ddtrace.contrib._events.http import HttpRequestBlockCheckEvent
 from ddtrace.contrib._events.http import HttpRequestPhase
 from ddtrace.contrib.internal.bottle.trace import TracePlugin
 from ddtrace.internal import core
@@ -29,17 +25,20 @@ def app(tracer):
 
 
 @pytest.fixture
-def snapshots():
+def observations():
     observed = []
 
     def observe(event):
-        observed.append(event.snapshot)
+        observed.append(event)
 
-    core.on(HttpRequestDataEvent.event_name, observe)
+    names = [event.event_name for event in HTTP_REQUEST_DATA_EVENTS.values()]
+    for name in names:
+        core.on(name, observe)
     try:
         yield observed
     finally:
-        core.reset_listeners(HttpRequestDataEvent.event_name, observe)
+        for name in names:
+            core.reset_listeners(name, observe)
 
 
 def request(app, path="/items/one", start_response=None, **environ):
@@ -55,17 +54,17 @@ def consume(body):
         body.close()
 
 
-def test_phase_order_and_field_availability(app, snapshots, test_spans):
+def test_phase_order_and_field_availability(app, observations, test_spans):
     @app.route("/items/<name>")
     def handler(name):
-        assert snapshots[-1].phase == HttpRequestPhase.BEFORE_HANDLER
-        assert not snapshots[-1].handler_started
+        assert observations[-1].phase == HttpRequestPhase.BEFORE_HANDLER
+        assert not observations[-1].handler_started
         return bottle.HTTPResponse("done", status=201)
 
     assert consume(request(app, "/items/one?tag=a&tag=b&empty=")) == b"done"
-    assert [snapshot.phase for snapshot in snapshots] == list(HttpRequestPhase)
-    first, route, before, ready, committed, completed = snapshots
-    assert all(snapshot.request_id is first.request_id for snapshot in snapshots)
+    assert [observation.phase for observation in observations] == list(HttpRequestPhase)
+    first, route, before, ready, committed, completed = observations
+    assert all(observation.request_id is first.request_id for observation in observations)
     assert first.request.route is None
     assert first.response is None
     assert first.request.method == "GET"
@@ -80,16 +79,13 @@ def test_phase_order_and_field_availability(app, snapshots, test_spans):
     assert committed.response_committed
     assert completed.response_committed
     assert completed.errors == ()
-    assert before.supported_actions == frozenset((HttpEnforcementAction.RESPOND,))
-    assert committed.supported_actions == frozenset((HttpEnforcementAction.TERMINATE,))
-    assert completed.supported_actions == frozenset()
     (span,) = test_spans.pop()
     assert span.resource == "GET /items/<name>"
     assert span.get_tag("http.status_code") == "201"
     assert not {"resource", "service", "integration_config", "operation_name"} & {f.name for f in fields(first)}
 
 
-def test_retained_snapshots_are_immutable_and_keep_duplicate_headers(app, snapshots):
+def test_retained_observations_keep_frozen_values_and_duplicate_headers(app, observations):
     @app.route("/items/<name>")
     def handler(name):
         result = bottle.HTTPResponse("done")
@@ -98,35 +94,33 @@ def test_retained_snapshots_are_immutable_and_keep_duplicate_headers(app, snapsh
         return result
 
     def start_response(status, headers, exc_info):
-        headers.append(("X-Later", "not-in-snapshot"))
+        headers.append(("X-Later", "not-in-observation"))
 
     consume(request(app, start_response=start_response))
-    first = snapshots[0]
-    ready = next(snapshot for snapshot in snapshots if snapshot.phase == HttpRequestPhase.RESPONSE_READY)
+    first = observations[0]
+    ready = next(observation for observation in observations if observation.phase == HttpRequestPhase.RESPONSE_READY)
     assert first.request.route is None
     assert first.response is None
     assert [value for name, value in ready.response.headers if name.lower() == "set-cookie"] == ["a=1", "b=2"]
-    assert ("X-Later", "not-in-snapshot") not in ready.response.headers
-    with pytest.raises(FrozenInstanceError):
-        first.handler_started = True
+    assert ("X-Later", "not-in-observation") not in ready.response.headers
     with pytest.raises(FrozenInstanceError):
         first.request.method = "DELETE"
     with pytest.raises(FrozenInstanceError):
         ready.response.status_code = 500
 
 
-def test_empty_query_is_available(app, snapshots):
+def test_empty_query_is_available(app, observations):
     @app.route("/items/<name>")
     def handler(name):
         return "done"
 
     consume(request(app))
-    assert snapshots[0].request.query_string == ""
-    assert snapshots[0].request.query_parameters == ()
-    assert snapshots[0].request.body is None
+    assert observations[0].request.query_string == ""
+    assert observations[0].request.query_parameters == ()
+    assert observations[0].request.body is None
 
 
-def test_data_consumer_without_tracing(app, snapshots, tracer, test_spans, monkeypatch):
+def test_data_consumer_without_tracing(app, observations, tracer, test_spans, monkeypatch):
     monkeypatch.setattr(tracer, "enabled", False)
 
     @app.route("/items/<name>")
@@ -135,12 +129,12 @@ def test_data_consumer_without_tracing(app, snapshots, tracer, test_spans, monke
         return "done"
 
     assert consume(request(app)) == b"done"
-    assert [snapshot.phase for snapshot in snapshots] == list(HttpRequestPhase)
-    assert snapshots[-1].request.route == "/items/<name>"
+    assert [observation.phase for observation in observations] == list(HttpRequestPhase)
+    assert observations[-1].request.route == "/items/<name>"
     assert test_spans.pop() == []
 
 
-def test_request_body_is_not_consumed(app, snapshots):
+def test_request_body_is_not_consumed(app, observations):
     class UnreadableInput(BytesIO):
         def read(self, *args, **kwargs):
             raise AssertionError("the HTTP contract must not consume the request body")
@@ -153,10 +147,10 @@ def test_request_body_is_not_consumed(app, snapshots):
         return "done"
 
     consume(request(app, REQUEST_METHOD="POST", CONTENT_LENGTH="6", **{"wsgi.input": UnreadableInput(b"secret")}))
-    assert all(snapshot.request.body is None for snapshot in snapshots)
+    assert all(observation.request.body is None for observation in observations)
 
 
-def test_stream_snapshots_end_on_close(app, snapshots):
+def test_stream_observations_end_on_close(app, observations):
     produced = []
 
     @app.route("/items/<name>")
@@ -167,28 +161,28 @@ def test_stream_snapshots_end_on_close(app, snapshots):
 
     body = request(app)
     assert produced == [b"one"]  # Bottle peeks at the first chunk to choose response encoding.
-    assert snapshots[-1].phase == HttpRequestPhase.RESPONSE_COMMITTED
-    assert all(snapshot.response is None or snapshot.response.body is None for snapshot in snapshots)
+    assert observations[-1].phase == HttpRequestPhase.RESPONSE_COMMITTED
+    assert all(observation.response is None or observation.response.body is None for observation in observations)
     assert next(body) == b"one"
     body.close()
     body.close()
     assert produced == [b"one"]
-    assert [snapshot.phase for snapshot in snapshots].count(HttpRequestPhase.COMPLETED) == 1
+    assert [observation.phase for observation in observations].count(HttpRequestPhase.COMPLETED) == 1
 
 
-def test_stream_failure_preserves_committed_response(app, snapshots):
+def test_stream_failure_preserves_committed_response(app, observations):
     @app.route("/items/<name>")
     def handler(name):
         yield b"one"
         raise ValueError("stream failed")
 
     body = request(app)
-    before_error = snapshots[-1]
+    before_error = observations[-1]
     assert next(body) == b"one"
     with pytest.raises(ValueError, match="stream failed"):
         next(body)
     body.close()
-    completed = snapshots[-1]
+    completed = observations[-1]
     assert before_error.errors == ()
     assert completed.phase == HttpRequestPhase.COMPLETED
     assert completed.response_committed
@@ -198,20 +192,20 @@ def test_stream_failure_preserves_committed_response(app, snapshots):
     assert not hasattr(completed.errors[0], "__traceback__")
 
 
-def test_route_miss_has_no_handler_phase(app, snapshots):
+def test_route_miss_has_no_handler_phase(app, observations):
     consume(request(app, "/missing"))
-    assert [snapshot.phase for snapshot in snapshots] == [
+    assert [observation.phase for observation in observations] == [
         HttpRequestPhase.REQUEST_STARTED,
         HttpRequestPhase.RESPONSE_READY,
         HttpRequestPhase.RESPONSE_COMMITTED,
         HttpRequestPhase.COMPLETED,
     ]
-    assert snapshots[-1].request.route is None
-    assert not snapshots[-1].handler_started
-    assert snapshots[-1].response.status_code == 404
+    assert observations[-1].request.route is None
+    assert not observations[-1].handler_started
+    assert observations[-1].response.status_code == 404
 
 
-def test_start_response_failure_is_not_committed(app, snapshots):
+def test_start_response_failure_is_not_committed(app, observations):
     app.catchall = False
 
     @app.route("/items/<name>")
@@ -223,48 +217,45 @@ def test_start_response_failure_is_not_committed(app, snapshots):
 
     with pytest.raises(OSError, match="connection closed"):
         request(app, start_response=start_response)
-    assert HttpRequestPhase.RESPONSE_COMMITTED not in [snapshot.phase for snapshot in snapshots]
-    assert snapshots[-1].phase == HttpRequestPhase.COMPLETED
-    assert not snapshots[-1].response_committed
-    assert snapshots[-1].response.status_code == 200  # Prepared response, never accepted.
-    assert snapshots[-1].errors[0].type == "builtins.OSError"
+    assert HttpRequestPhase.RESPONSE_COMMITTED not in [observation.phase for observation in observations]
+    assert observations[-1].phase == HttpRequestPhase.COMPLETED
+    assert not observations[-1].response_committed
+    assert observations[-1].response.status_code == 200  # Prepared response, never accepted.
+    assert observations[-1].errors[0].type == "builtins.OSError"
 
 
-def test_interleaved_requests_have_distinct_tokens(app, snapshots):
+def test_interleaved_requests_have_distinct_tokens(app, observations):
     @app.route("/items/<name>")
     def handler(name):
         yield name.encode()
         yield b"done"
 
     first = request(app, "/items/one")
-    first_token = snapshots[0].request_id
+    first_token = observations[0].request_id
     second = request(app, "/items/two")
-    second_token = snapshots[-1].request_id
+    second_token = observations[-1].request_id
     assert first_token is not second_token
     first.close()
-    assert snapshots[-1].request_id is first_token
+    assert observations[-1].request_id is first_token
     second.close()
-    assert snapshots[-1].request_id is second_token
+    assert observations[-1].request_id is second_token
 
 
 @pytest.fixture
-def inspector():
+def block_checker():
     listeners = []
 
     def register(listener):
         listeners.append(listener)
-        core.on(HttpRequestInspectionEvent.event_name, listener)
+        core.on(HttpRequestBlockCheckEvent.event_name, listener)
 
     yield register
     for listener in listeners:
-        core.reset_listeners(HttpRequestInspectionEvent.event_name, listener)
+        core.reset_listeners(HttpRequestBlockCheckEvent.event_name, listener)
 
 
 def block_response(body=b"blocked", status=403):
-    return HttpInspectionDecision(
-        HttpEnforcementAction.RESPOND,
-        HttpBlockingResponse(status, (("Content-Type", "text/plain"),), body),
-    )
+    return HttpRequestBlock(status, (("Content-Type", "text/plain"),), body)
 
 
 @pytest.mark.parametrize(
@@ -276,7 +267,7 @@ def block_response(body=b"blocked", status=403):
         HttpRequestPhase.RESPONSE_READY,
     ],
 )
-def test_block_at_supported_boundary(app, snapshots, inspector, test_spans, phase):
+def test_block_at_supported_boundary(app, observations, block_checker, test_spans, phase):
     calls = []
 
     @app.route("/items/<name>")
@@ -285,34 +276,37 @@ def test_block_at_supported_boundary(app, snapshots, inspector, test_spans, phas
         return "original"
 
     def inspect(event):
-        if event.snapshot.phase == phase:
-            assert event.submit(block_response()) == HttpDecisionAcceptance.ACCEPTED
+        if event.phase == phase:
+            raise block_response()
 
-    inspector(inspect)
+    block_checker(inspect)
     assert consume(request(app)) == b"blocked"
     assert calls == (["one"] if phase == HttpRequestPhase.RESPONSE_READY else [])
-    assert snapshots[-1].response.status_code == 403
-    assert snapshots[-1].errors == ()
+    assert observations[-1].response.status_code == 403
+    assert observations[-1].errors == ()
     (span,) = test_spans.pop()
     assert span.get_tag("http.status_code") == "403"
     assert span.error == 0
     assert span.resource == ("GET 403" if phase == HttpRequestPhase.REQUEST_STARTED else "GET /items/<name>")
 
 
-def test_inspection_without_tracing_or_data_listener(app, inspector, tracer, monkeypatch, test_spans):
+def test_block_check_without_tracing_or_data_listener(app, block_checker, tracer, monkeypatch, test_spans):
     monkeypatch.setattr(tracer, "enabled", False)
 
     @app.route("/items/<name>")
     def handler(name):
         pytest.fail("blocked handler was invoked")
 
-    inspector(lambda event: event.submit(block_response()))
+    def block(event):
+        raise block_response()
+
+    block_checker(block)
     assert consume(request(app)) == b"blocked"
     assert test_spans.pop() == []
 
 
 @pytest.mark.parametrize("failure", [RuntimeError, TimeoutError])
-def test_inspection_failure_allows_request(app, inspector, failure, monkeypatch):
+def test_block_check_failure_allows_request(app, block_checker, failure, monkeypatch):
     # The suite enables DD_TESTING_RAISE; exercise production listener isolation.
     monkeypatch.setattr(config, "_raise", False)
 
@@ -321,45 +315,37 @@ def test_inspection_failure_allows_request(app, inspector, failure, monkeypatch)
         return "original"
 
     def inspect(event):
-        raise failure("inspection failed")
+        raise failure("block_check failed")
 
-    inspector(inspect)
+    block_checker(inspect)
     assert consume(request(app)) == b"original"
 
 
 @pytest.mark.parametrize(
     "candidate",
     [
-        None,
-        HttpInspectionDecision(cast(Any, "respond"), HttpBlockingResponse()),
-        HttpInspectionDecision(HttpEnforcementAction.RESPOND),
-        HttpInspectionDecision(response=HttpBlockingResponse()),
-        HttpInspectionDecision(HttpEnforcementAction.RESPOND, HttpBlockingResponse(99)),
-        HttpInspectionDecision(HttpEnforcementAction.RESPOND, HttpBlockingResponse(204, body=b"bad")),
-        HttpInspectionDecision(HttpEnforcementAction.RESPOND, HttpBlockingResponse(headers=(("X-Test", "bad\r\n"),))),
-        HttpInspectionDecision(
-            HttpEnforcementAction.RESPOND, HttpBlockingResponse(headers=(("Content-Length", "99"),))
-        ),
-        HttpInspectionDecision(
-            HttpEnforcementAction.RESPOND, HttpBlockingResponse(headers=(("Transfer-Encoding", "chunked"),))
-        ),
-        HttpInspectionDecision(HttpEnforcementAction.RESPOND, HttpBlockingResponse(body=cast(Any, "not bytes"))),
+        HttpRequestBlock(99),
+        HttpRequestBlock(204, body=b"bad"),
+        HttpRequestBlock(headers=(("X-Test", "bad\r\n"),)),
+        HttpRequestBlock(headers=(("Content-Length", "99"),)),
+        HttpRequestBlock(headers=(("Transfer-Encoding", "chunked"),)),
+        HttpRequestBlock(body=cast(Any, "not bytes")),
     ],
 )
-def test_invalid_decisions_allow_request(app, inspector, candidate):
+def test_invalid_blocks_allow_request(app, block_checker, candidate):
     @app.route("/items/<name>")
     def handler(name):
         return "original"
 
-    def inspect(event):
-        if event.snapshot.phase == HttpRequestPhase.BEFORE_HANDLER:
-            assert event.submit(candidate) == HttpDecisionAcceptance.INVALID
+    def check(event):
+        if event.phase == HttpRequestPhase.BEFORE_HANDLER:
+            raise candidate
 
-    inspector(inspect)
+    block_checker(check)
     assert consume(request(app)) == b"original"
 
 
-def test_late_decision_cannot_change_stream(app, inspector):
+def test_checks_stop_before_commit_and_retained_events_have_no_control(app, block_checker):
     retained = []
 
     @app.route("/items/<name>")
@@ -367,31 +353,39 @@ def test_late_decision_cannot_change_stream(app, inspector):
         yield b"first"
         yield b"second"
 
-    inspector(retained.append)
+    block_checker(retained.append)
     body = request(app)
     assert next(body) == b"first"
-    for event in retained:
-        assert event.submit(block_response()) == HttpDecisionAcceptance.CLOSED
+    assert [event.phase for event in retained] == list(HttpRequestPhase)[:4]
+    assert all(not hasattr(event, "submit") for event in retained)
     assert consume(body) == b"second"
+    assert len(retained) == 4
 
 
-def test_first_block_wins_and_allow_cannot_override_it(app, inspector):
-    @app.route("/items/<name>")
-    def handler(name):
-        return "original"
+def test_first_block_skips_remaining_checks_and_preserves_observations(app, block_checker, observations):
+    calls = []
 
-    def inspect(event):
-        if event.snapshot.phase == HttpRequestPhase.BEFORE_HANDLER:
-            assert event.submit(block_response()) == HttpDecisionAcceptance.ACCEPTED
-            assert event.submit(HttpInspectionDecision()) == HttpDecisionAcceptance.ACCEPTED
-            assert event.submit(block_response(b"second")) == HttpDecisionAcceptance.ALREADY_DECIDED
+    def first(event):
+        calls.append("first")
+        raise block_response()
 
-    inspector(inspect)
+    def second(event):
+        calls.append("second")
+        raise block_response(b"second")
+
+    block_checker(first)
+    block_checker(second)
     assert consume(request(app)) == b"blocked"
+    assert calls == ["first"]
+    assert [event.phase for event in observations] == [
+        HttpRequestPhase.REQUEST_STARTED,
+        HttpRequestPhase.RESPONSE_READY,
+        HttpRequestPhase.RESPONSE_COMMITTED,
+        HttpRequestPhase.COMPLETED,
+    ]
 
 
-@pytest.mark.parametrize("terminate", [False, True])
-def test_stream_replacement_or_termination_closes_original(app, snapshots, inspector, terminate):
+def test_stream_replacement_closes_original(app, observations, block_checker):
     progress = []
 
     @app.route("/items/<name>")
@@ -404,126 +398,71 @@ def test_stream_replacement_or_termination_closes_original(app, snapshots, inspe
         finally:
             progress.append("closed")
 
-    phase = HttpRequestPhase.RESPONSE_COMMITTED if terminate else HttpRequestPhase.RESPONSE_READY
+    def check(event):
+        if event.phase == HttpRequestPhase.RESPONSE_READY:
+            raise block_response()
 
-    def inspect(event):
-        if event.snapshot.phase == phase:
-            decision = HttpInspectionDecision(HttpEnforcementAction.TERMINATE) if terminate else block_response()
-            assert event.submit(decision) == HttpDecisionAcceptance.ACCEPTED
-
-    inspector(inspect)
-    assert consume(request(app)) == (b"" if terminate else b"blocked")
+    block_checker(check)
+    assert consume(request(app)) == b"blocked"
     assert progress == ["first", "closed"]
-    assert snapshots[-1].response.status_code == (200 if terminate else 403)
-    assert sum(s.phase == HttpRequestPhase.COMPLETED for s in snapshots) == 1
-
-
-def test_unsupported_decisions_are_rejected(app, inspector):
-    @app.route("/items/<name>")
-    def handler(name):
-        return "original"
-
-    def inspect(event):
-        candidate = (
-            block_response()
-            if event.snapshot.response_committed
-            else HttpInspectionDecision(HttpEnforcementAction.TERMINATE)
-        )
-        assert event.submit(candidate) == HttpDecisionAcceptance.UNSUPPORTED
-
-    inspector(inspect)
-    assert consume(request(app)) == b"original"
+    assert observations[-1].response.status_code == 403
+    assert sum(s.phase == HttpRequestPhase.COMPLETED for s in observations) == 1
 
 
 @pytest.mark.parametrize("phase", [HttpRequestPhase.REQUEST_STARTED, HttpRequestPhase.RESPONSE_READY])
-def test_head_block_has_no_body(app, snapshots, inspector, phase):
+def test_head_block_has_no_body(app, observations, block_checker, phase):
     @app.route("/items/<name>")
     def handler(name):
         return "original"
 
     def inspect(event):
-        if event.snapshot.phase == phase:
-            event.submit(block_response())
+        if event.phase == phase:
+            raise block_response()
 
-    inspector(inspect)
+    block_checker(inspect)
     assert consume(request(app, REQUEST_METHOD="HEAD")) == b""
-    assert snapshots[-1].response.status_code == 403
-    assert dict(snapshots[-1].response.headers)["Content-Length"] == "7"
+    assert observations[-1].response.status_code == 403
+    assert dict(observations[-1].response.headers)["Content-Length"] == "7"
 
 
-def test_other_thread_cannot_submit_during_inspection(app, inspector):
-    results = []
-
-    @app.route("/items/<name>")
-    def handler(name):
-        return "original"
-
-    def inspect(event):
-        worker = Thread(target=lambda: results.append(event.submit(block_response())))
-        worker.start()
-        worker.join()
-
-    inspector(inspect)
-    assert consume(request(app)) == b"original"
-    assert results and all(result == HttpDecisionAcceptance.CLOSED for result in results)
-
-
-def test_failure_does_not_cancel_accepted_block_or_other_listeners(app, inspector, monkeypatch):
+def test_listener_failure_does_not_skip_later_blocker(app, block_checker, monkeypatch):
     monkeypatch.setattr(config, "_raise", False)
-    observed = []
-
-    @app.route("/items/<name>")
-    def handler(name):
-        pytest.fail("blocked handler invoked")
+    calls = []
 
     def failed(event):
-        if event.snapshot.phase == HttpRequestPhase.REQUEST_STARTED:
-            observed.append(event.submit(block_response()))
-            raise TimeoutError("after decision")
+        calls.append("failed")
+        raise TimeoutError("consumer failed")
 
     def following(event):
-        if event.snapshot.phase == HttpRequestPhase.REQUEST_STARTED:
-            observed.append(event.submit(block_response(b"second")))
+        calls.append("following")
+        raise block_response()
 
-    inspector(failed)
-    inspector(following)
+    block_checker(failed)
+    block_checker(following)
     assert consume(request(app)) == b"blocked"
-    assert observed == [HttpDecisionAcceptance.ACCEPTED, HttpDecisionAcceptance.ALREADY_DECIDED]
+    assert calls == ["failed", "following"]
 
 
-def test_process_control_exception_propagates_and_closes_submit(app, inspector, snapshots):
-    retained = []
-
-    def inspect(event):
-        retained.append(event)
+def test_process_control_exception_propagates_and_completes(app, block_checker, observations):
+    def check(event):
         raise KeyboardInterrupt()
 
-    inspector(inspect)
+    block_checker(check)
     with pytest.raises(KeyboardInterrupt):
         request(app)
-    assert retained[0].submit(block_response()) == HttpDecisionAcceptance.CLOSED
-    assert snapshots[-1].phase == HttpRequestPhase.COMPLETED
+    assert observations[-1].phase == HttpRequestPhase.COMPLETED
 
 
-def test_blocked_response_keeps_duplicate_headers(app, inspector, snapshots):
-    def inspect(event):
-        if event.snapshot.phase == HttpRequestPhase.REQUEST_STARTED:
-            event.submit(
-                HttpInspectionDecision(
-                    HttpEnforcementAction.RESPOND,
-                    HttpBlockingResponse(
-                        headers=(("Set-Cookie", "a=1"), ("Set-Cookie", "b=2")),
-                        body=b"blocked",
-                    ),
-                )
-            )
+def test_blocked_response_keeps_duplicate_headers(app, block_checker, observations):
+    def check(event):
+        raise HttpRequestBlock(headers=(("Set-Cookie", "a=1"), ("Set-Cookie", "b=2")), body=b"blocked")
 
-    inspector(inspect)
+    block_checker(check)
     assert consume(request(app)) == b"blocked"
-    assert [v for k, v in snapshots[-1].response.headers if k.lower() == "set-cookie"] == ["a=1", "b=2"]
+    assert [v for k, v in observations[-1].response.headers if k.lower() == "set-cookie"] == ["a=1", "b=2"]
 
 
-def test_failed_replacement_does_not_leak_into_framework_retry(app, inspector, snapshots):
+def test_failed_replacement_does_not_leak_into_framework_retry(app, block_checker, observations):
     statuses = []
 
     @app.route("/items/<name>")
@@ -531,24 +470,24 @@ def test_failed_replacement_does_not_leak_into_framework_retry(app, inspector, s
         return "original"
 
     def inspect(event):
-        if event.snapshot.phase == HttpRequestPhase.RESPONSE_READY and event.snapshot.response.status_code == 200:
-            event.submit(block_response())
+        if event.phase == HttpRequestPhase.RESPONSE_READY and event.response.status_code == 200:
+            raise block_response()
 
     def start_response(status, headers, exc_info):
         statuses.append(status)
         if len(statuses) == 1:
             raise OSError("first response rejected")
 
-    inspector(inspect)
+    block_checker(inspect)
     body = consume(request(app, start_response=start_response))
     assert body != b"blocked"
     assert b"Critical error" in body
     assert [status.split()[0] for status in statuses] == ["403", "500"]
-    assert snapshots[-1].response.status_code == 500
-    assert snapshots[-1].response_committed
+    assert observations[-1].response.status_code == 500
+    assert observations[-1].response_committed
 
 
-def test_replacement_close_failure_completes_request(app, inspector, snapshots):
+def test_replacement_close_failure_completes_request(app, block_checker, observations):
     @app.route("/items/<name>")
     def handler(name):
         try:
@@ -558,14 +497,28 @@ def test_replacement_close_failure_completes_request(app, inspector, snapshots):
             raise RuntimeError("close failed")
 
     def inspect(event):
-        if event.snapshot.phase == HttpRequestPhase.RESPONSE_READY:
-            event.submit(block_response())
+        if event.phase == HttpRequestPhase.RESPONSE_READY:
+            raise block_response()
 
-    inspector(inspect)
+    block_checker(inspect)
     with pytest.raises(RuntimeError, match="close failed"):
         request(app)
-    assert snapshots[-1].phase == HttpRequestPhase.COMPLETED
-    assert snapshots[-1].response.status_code == 403
-    assert snapshots[-1].response_committed
-    assert snapshots[-1].errors[0].message == "close failed"
-    assert sum(s.phase == HttpRequestPhase.COMPLETED for s in snapshots) == 1
+    assert observations[-1].phase == HttpRequestPhase.COMPLETED
+    assert observations[-1].response.status_code == 403
+    assert observations[-1].response_committed
+    assert observations[-1].errors[0].message == "close failed"
+    assert sum(s.phase == HttpRequestPhase.COMPLETED for s in observations) == 1
+
+
+def test_observation_mutation_does_not_change_request_state(app, observations):
+    @app.route("/items/<name>")
+    def handler(name):
+        observations[0].handler_started = True
+        observations[0].request = None
+        return "done"
+
+    assert consume(request(app)) == b"done"
+    assert observations[-1].request.method == "GET"
+    assert observations[1].request.route == "/items/<name>"
+    assert not observations[1].handler_started
+    assert len({id(event) for event in observations}) == len(observations)
