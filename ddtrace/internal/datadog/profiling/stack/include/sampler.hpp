@@ -137,6 +137,7 @@ class Sampler
     bool was_running_at_fork_{ false };
 
     void atfork_child();
+    void register_current_thread_if_missing();
     friend void stack_atfork_prepare();
     friend void stack_atfork_parent();
     friend void stack_atfork_child();

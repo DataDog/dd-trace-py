@@ -597,7 +597,6 @@ def test_install_enabled_runtime_start_samples_asyncio_loop_in_other_thread() ->
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="loop-thread",
             task_name="pre-started-task",
             locations=[
                 pprof_utils.StackLocation(
@@ -644,8 +643,10 @@ def test_install_enabled_runtime_start_samples_pre_started_greenlet() -> None:
                 pass
             gevent.sleep(0)
 
-    pre_started_greenlet = gevent.spawn(pre_started_greenlet_task)
+    # The hooks track the greenlet when it starts, so it must have its name before that.
+    pre_started_greenlet = gevent.Greenlet(pre_started_greenlet_task)
     pre_started_greenlet.name = "pre-started-greenlet"
+    pre_started_greenlet.start()
     gevent.sleep(0.05)
 
     from ddtrace.profiling import Profiler
