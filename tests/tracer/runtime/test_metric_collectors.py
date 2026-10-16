@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.runtime.constants import CPU_PERCENT
+from ddtrace.internal.runtime.constants import CPU_TIME_USER
 from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN0
 from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN1
 from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN2
@@ -79,6 +80,31 @@ class TestNativeProcessMetricCollector(BaseTestCase):
         # 0.5s of user cpu time over a 1s wall-clock window == 50%.
         self.assertEqual(runtime_metrics[CPU_PERCENT], 50.0)
 
+    def test_reset_discards_pre_refresh_interval(self):
+        """reset() must reseed baselines so the next collect_fn() delta reflects only
+        activity after a MicroVM identity refresh, not the interval accumulated before it.
+        """
+        with mock.patch("ddtrace.internal.native.process_metrics", return_value=(0, 0, 0, 0, 1, 0)):
+            collector = NativeProcessMetricCollector()
+        native = collector.modules["ddtrace.internal.native"]
+
+        # Activity before the refresh: 10s of user cpu time accrues, but is never flushed.
+        with mock.patch.object(native, "process_metrics", return_value=(0, 10_000_000_000, 0, 0, 1, 0)):
+            collector.reset()
+
+        # Activity after the refresh: 1s of user cpu time accrues from the reset baseline.
+        with (
+            mock.patch.object(native, "process_metrics", return_value=(0, 11_000_000_000, 0, 0, 1, 0)),
+            mock.patch(
+                "ddtrace.internal.runtime.metric_collectors.time.monotonic",
+                return_value=collector._last_wall_time + 1,
+            ),
+        ):
+            runtime_metrics = dict(collector.collect_fn(None))
+
+        # Only the post-refresh 1s shows up; the pre-refresh 10s was discarded by reset().
+        self.assertAlmostEqual(runtime_metrics[CPU_TIME_USER], 1.0)
+
     def test_negative_ctx_switches_are_omitted(self):
         """A negative ctx-switch value (platform can't report it) should not be fabricated as a delta."""
         collector = NativeProcessMetricCollector()
@@ -102,6 +128,15 @@ class TestNativeProcessMetricCollector(BaseTestCase):
         # A disabled collector returns its (empty) `value` rather than `None`,
         # matching `TestRuntimeMetricCollector.test_failed_module_load_collect`'s contract.
         self.assertEqual(collector.collect(), [])
+
+    def test_reset_on_disabled_collector_does_not_raise(self):
+        """An identity refresh can fire reset() on a collector that failed its smoke test
+        (e.g. a missing/broken native extension). reset() must short-circuit like collect()
+        instead of re-invoking the still-broken native.process_metrics() call.
+        """
+        with mock.patch("ddtrace.internal.native.process_metrics", side_effect=OSError("boom")):
+            collector = NativeProcessMetricCollector()
+            collector.reset()  # must not raise
 
     def test_stop_unregisters_fork_hook(self) -> None:
         from ddtrace.internal import forksafe
@@ -291,6 +326,66 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         assert metrics[GC_COLLECTIONS_GEN1] == 0
         assert metrics[GC_COLLECTIONS_GEN2] == 0
 
+    def test_reset_discards_pre_refresh_pause_and_collections(self) -> None:
+        """reset() must drop the in-flight GC pause window and collections baseline so a
+        MicroVM identity refresh does not mix pre-refresh GC activity into the next flush.
+        """
+        import gc
+
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+        try:
+            collector.collect(GC_RUNTIME_METRICS)
+            gc.collect()  # accrues a pause and a collections delta, never flushed
+
+            collector.reset()
+
+            raw: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, int]]] = None
+            if raw is not None:
+                collected = [(name, int(value)) for name, value in raw]
+        finally:
+            collector.stop()
+
+        assert collected is not None
+        metrics: dict[str, int] = {name: int(value) for name, value in collected}
+
+        assert metrics[GC_PAUSE_TIME] == 0
+        assert metrics[GC_PAUSE_MAX] == 0
+        assert metrics[GC_COLLECTIONS_GEN0] == 0
+        assert metrics[GC_COLLECTIONS_GEN1] == 0
+        assert metrics[GC_COLLECTIONS_GEN2] == 0
+
+    def test_reset_collection_mid_reset_is_not_a_pause_without_collections(self) -> None:
+        """A collection landing between the two halves of reset() must not surface as a GC pause
+        with no collections delta: the baseline is reseeded before the pause window is cleared.
+        """
+        import gc
+
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+        try:
+            monitor = collector._monitor
+            assert monitor is not None
+            collector.collect(GC_RUNTIME_METRICS)
+            clear_pause_window = monitor.reset
+
+            def clear_pause_window_then_collect() -> None:
+                clear_pause_window()
+                gc.collect()  # lands after the pause window was cleared
+
+            with mock.patch.object(monitor, "reset", side_effect=clear_pause_window_then_collect):
+                collector.reset()
+
+            raw: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+        finally:
+            collector.stop()
+
+        assert raw is not None
+        metrics: dict[str, int] = {name: int(value) for name, value in raw}
+        collections = metrics[GC_COLLECTIONS_GEN0] + metrics[GC_COLLECTIONS_GEN1] + metrics[GC_COLLECTIONS_GEN2]
+
+        assert metrics[GC_PAUSE_TIME] > 0
+        assert collections > 0
+
     def test_stop_unregisters_fork_hook(self) -> None:
         from ddtrace.internal import forksafe
 
@@ -334,3 +429,15 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         self.assertEqual(monitor._refcount, before)
         if before == 0:
             self.assertFalse(any(cb is monitor._gc_hook for cb in gc.callbacks))
+
+    def test_reset_on_disabled_collector_does_not_raise(self) -> None:
+        """An identity refresh can fire reset() on a collector that failed its smoke test
+        (e.g. a persistently broken gc.get_stats()). reset() must short-circuit like collect()
+        instead of re-invoking the still-broken read.
+        """
+        with mock.patch(
+            "ddtrace.internal.runtime.metric_collectors._read_gc_collections",
+            side_effect=RuntimeError("boom"),
+        ):
+            collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+            collector.reset()  # must not raise
