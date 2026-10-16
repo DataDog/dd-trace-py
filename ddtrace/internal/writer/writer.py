@@ -1445,13 +1445,15 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         # The lock must not cover _create_buffer: the telemetry writer calls back while it holds its
         # own enable lock, and _create_buffer takes that lock.
         self._buffer_lock = forksafe.Lock()
+        # The MicroVM identity refresh closes the writer it replaces. Only MicroVM writers need the
+        # lock that makes the close wait for an in-flight write.
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
         self._telemetry_worker: Optional[native.TelemetryWorker] = None
         self._telemetry_worker_changed = False
         self._install_buffer()
 
     def _create_buffer(self) -> "native.TraceBuffer":
-        from ddtrace.internal.telemetry import telemetry_writer
-
         shared_worker = telemetry_writer._get_shared_worker() if config._telemetry_enabled else None
         builder = _build_exporter_builder(
             intake_url=self.intake_url,
@@ -1546,6 +1548,18 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             _safelog(log.warning, "failed to hand the agent response to the sampler", exc_info=True)
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        # Hold the lock for the whole write: in sync mode it blocks on the export, and the refresh
+        # shuts the buffer down right after it closes this writer.
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if not spans:
             return
         # This writer has no periodic thread. Each write() adds the buckets that the periodic flush of

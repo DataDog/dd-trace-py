@@ -54,10 +54,10 @@ fn buffer_err_to_pyerr(err: TraceBufferError) -> PyErr {
 /// here would then keep the exporter until the runtime shuts down.
 ///
 /// An export holds a strong reference until it ends. When the shutdown stops waiting for an export,
-/// that export holds the last reference, and it drops the exporter and does not shut it down. The workers of the exporter then stay
-/// registered, so that the runtime still pauses them before a fork and stops them at its own
-/// shutdown. The export runs on a runtime thread, and a worker stop from that thread can deadlock
-/// with the pause before a fork.
+/// that export holds the last reference. It then drops the exporter and does not shut it down. The
+/// workers of the exporter stay registered, so that the runtime still pauses them before a fork and
+/// stops them at its own shutdown. The export runs on a runtime thread, and a worker stop from that
+/// thread can deadlock with the pause before a fork.
 #[derive(Debug)]
 struct SpanExport {
     exporter: Weak<Exporter>,
@@ -378,7 +378,9 @@ impl TraceBufferPy {
     /// workers down. A step that runs over gives up only its own wait, not the caller's whole
     /// budget, so this returns close to `timeout_ns` even against an agent that never answers.
     ///
-    /// A second call is a no-op.
+    /// A second call is a no-op. It returns at once, even while the first call still flushes. A caller
+    /// that races another shutdown, for example atexit against recreate, can therefore see the
+    /// shutdown as done before the final export ends.
     fn shutdown(&self, py: Python<'_>, timeout_ns: u64) -> PyResult<()> {
         let taken = self.worker.lock().unwrap_or_else(|e| e.into_inner()).take();
         let Some(worker) = taken else {

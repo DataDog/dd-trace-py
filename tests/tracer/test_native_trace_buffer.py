@@ -1310,6 +1310,77 @@ class _RecordingBuffer(_StubBuffer):
         return None
 
 
+class _BlockingBuffer(_RecordingBuffer):
+    """Hold each write until release is set, as a synchronous export that waits on a slow agent."""
+
+    def __init__(self):
+        super().__init__()
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def write(self, spans, dd_origin=None):
+        self.entered.set()
+        self.release.wait(5.0)
+        return super().write(spans, dd_origin)
+
+
+def test_a_closed_microvm_buffer_writer_rejects_later_writes(monkeypatch, agent):
+    # The identity refresh closes the writer it replaces. Spans that finish afterwards belong to the
+    # replacement, so the closed writer must not accept them.
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    with buffer_writer(agent.port) as writer:
+        native_buffer = writer._buffer
+        recording = writer._buffer = _RecordingBuffer()
+        try:
+            writer.write([_finished_span(trace_id=1)])
+            writer._stop_accepting_writes()
+            writer.write([_finished_span(trace_id=2)])
+        finally:
+            writer._buffer = native_buffer
+    assert len(recording.writes) == 1
+
+
+def test_a_microvm_buffer_close_waits_for_an_in_flight_write(monkeypatch, agent):
+    # A synchronous write blocks on the export. The refresh shuts the buffer down after it closes the
+    # writer, so the close must wait for that write, or the write would run against a closed buffer.
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    with buffer_writer(agent.port) as writer:
+        native_buffer = writer._buffer
+        blocking = writer._buffer = _BlockingBuffer()
+        try:
+            write = threading.Thread(target=writer.write, args=([_finished_span()],), daemon=True)
+            write.start()
+            assert blocking.entered.wait(5.0)
+
+            close = threading.Thread(target=writer._stop_accepting_writes, daemon=True)
+            close.start()
+            close.join(0.2)
+            assert close.is_alive(), "the close did not wait for the in-flight write"
+
+            blocking.release.set()
+            write.join(5.0)
+            close.join(5.0)
+            assert not close.is_alive()
+            assert writer._accepting_writes is False
+        finally:
+            blocking.release.set()
+            writer._buffer = native_buffer
+
+
+def test_stop_accepting_writes_is_a_noop_for_a_buffer_writer_outside_microvm(monkeypatch, agent):
+    monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
+    with buffer_writer(agent.port) as writer:
+        native_buffer = writer._buffer
+        recording = writer._buffer = _RecordingBuffer()
+        try:
+            assert writer._writer_lock is None
+            writer._stop_accepting_writes()
+            writer.write([_finished_span()])
+        finally:
+            writer._buffer = native_buffer
+    assert len(recording.writes) == 1
+
+
 def test_a_write_that_races_a_buffer_rebuild_reaches_the_new_buffer(agent):
     # set_test_session_token closes the old buffer right after it installs the new one. A write that
     # still holds the old buffer must not lose its trace.
