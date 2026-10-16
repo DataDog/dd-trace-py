@@ -3,13 +3,16 @@ from types import TracebackType
 from typing import Optional
 from typing import cast
 
+from ddtrace import config
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -37,7 +40,11 @@ class HttpClientTracingSubscriber(TracingSubscriber):
         event: HttpClientRequestEvent = ctx.event
 
         if config._otel_trace_semantics_enabled and event.request_method:
-            span_from_context(ctx).resource = event.request_method.upper()
+            span = span_from_context(ctx)
+            set_method_tag(span, event.request_method)
+            # Preserve resources replaced by span-start callbacks.
+            record_initial_instrumentation_resource(span, event.resource)
+            set_otel_resource_for_method(span, event.request_method)
 
         if _http_propagation_suppressed.get():
             return
