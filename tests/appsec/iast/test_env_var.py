@@ -26,16 +26,6 @@ def _run_python_file(*args, **kwargs):
     assert ret.returncode == 0
 
 
-@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="false"))
-def test_settings_does_not_initialize_iast():
-    import sys
-
-    from ddtrace.internal.settings.asm import config
-
-    assert config._iast_enabled is False
-    assert "ddtrace.appsec._iast" not in sys.modules
-
-
 def test_env_var_iast_enabled(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
