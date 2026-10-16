@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where a trace is dropped, or an exception is raised in the application,
+    when a span tag or the trace origin contains a string that is not valid UTF-8 (for example, a
+    request header with invalid bytes decoded by aiohttp). These characters are now escaped.
