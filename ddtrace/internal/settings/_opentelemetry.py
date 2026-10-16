@@ -111,7 +111,7 @@ def _derive_traces_headers(config: "ExporterConfig"):
 
 
 def _derive_traces_protocol(config: "ExporterConfig"):
-    return get_config(["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
+    return get_config(["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], "http/protobuf")
 
 
 def _derive_traces_timeout(config: "ExporterConfig"):

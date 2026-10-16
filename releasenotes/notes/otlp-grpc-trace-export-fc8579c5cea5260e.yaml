@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    tracing: Adds gRPC support for OTLP trace export. When ``OTEL_TRACES_EXPORTER=otlp``,
-    traces use gRPC by default; set ``OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`` to
-    ``http/protobuf`` or ``http/json`` to use HTTP.
+    tracing: Adds gRPC support for OTLP trace export. Set
+    ``OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=grpc`` to use gRPC; ``http/protobuf`` remains
+    the default.
