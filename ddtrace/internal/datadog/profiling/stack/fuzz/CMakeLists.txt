@@ -68,7 +68,7 @@ function(add_fuzz_target TARGET_NAME)
     endif()
 
     # Link against dd_wrapper (imported target defined by the parent stack/CMakeLists.txt)
-    target_link_libraries(${TARGET_NAME} PRIVATE dd_wrapper)
+    target_link_libraries(${TARGET_NAME} PRIVATE dd_wrapper ${CMAKE_DL_LIBS})
 
     if(Python3_LIBRARIES)
         target_link_libraries(${TARGET_NAME} PRIVATE ${Python3_LIBRARIES})

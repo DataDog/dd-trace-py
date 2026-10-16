@@ -1,0 +1,4 @@
+security:
+  - |
+    tracing: Fixes a security vulnerability, as described in
+    `GHSA-3633-r77q-h3v3 <https://github.com/DataDog/dd-trace-py/security/advisories/GHSA-3633-r77q-h3v3>`_.

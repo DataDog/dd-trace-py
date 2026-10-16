@@ -177,6 +177,16 @@ Traces
        v1.19.1: default reverted to ``v0.4``.
        v2.4.0: default changed to ``v0.5``.
 
+   DD_TRACE_OTEL_SEMANTICS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Select OpenTelemetry HTTP semantics mode for tracing. When enabled, traces use
+         OTLP export and span attribute schema ``v0``, and automatic peer-service names are
+         disabled. This setting takes precedence over conflicting trace API, schema, and
+         peer-service settings.
+
    DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH:
       type: Integer
       default: 10
@@ -253,7 +263,7 @@ Traces
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
-         ``'(?ix)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?: bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
+         ``'(?i)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?|app(?:lication)?[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?:bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|(^|[^\\w%-]|%[0-9a-f]{2})ey[I-L][\\w-]+(?:=|%3D)*\\.ey[I-L][\\w-]+(?:=|%3D)*(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
 
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
 
@@ -762,7 +772,7 @@ AI Guard
      description: |
        Timeout of each request to the AI Guard service. The value is currently applied with
        whole-second granularity: it is rounded down to the nearest second, so set it to at least
-       ``1000``.
+       ``1000``. A value below ``1000`` logs a warning at startup and the default is used instead.
 
    DD_AI_GUARD_MAX_CONTENT_SIZE:
      type: Integer
@@ -784,7 +794,10 @@ AI Guard
      description: |
        When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
        OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
-       are fully buffered before any chunk is returned to the caller. The complete response is
+       are fully buffered before any chunk is returned to the caller. LangChain chat model and LLM
+       streams (``stream()`` and ``astream()``) from any provider are buffered too, and the tokens
+       LangChain reports to callbacks (for example ``astream_events()`` or LangGraph
+       ``stream_mode="messages"``) are held until the response is evaluated. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
        are evaluated and streamed chunks are forwarded live.
@@ -1062,13 +1075,10 @@ Test Visibility
      default: True
 
      description: |
-        Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
-        independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
-        also contains performance and memory usage improvements.
-
-        Setting this option to ``false`` selects the legacy ``pytest`` plugin
-        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in ddtrace 5.0.0. Remove this
-        environment variable, or set it to ``true``, to use the supported default plugin.
+        Deprecated: this option no longer has any effect. The legacy ``pytest`` plugin
+        (``ddtrace/contrib/internal/pytest``) has been removed, and the ``pytest`` plugin at
+        ``ddtrace/testing/internal/pytest`` is always used. Setting this option emits a ``DDTraceDeprecationWarning``;
+        remove the environment variable from your configuration.
 
      version_added:
         v4.3.0:
@@ -1273,7 +1283,9 @@ Logs
 
      description: |
          When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
-         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+         by the OpenTelemetry Logging API. Setting ``OTEL_LOGS_EXPORTER=otlp`` also enables this support, while
+         ``OTEL_LOGS_EXPORTER=none`` disables it. If both environment variables are set,
+         ``DD_LOGS_OTEL_ENABLED`` takes precedence. The application must also include its own OTLP logs exporter.
 
      version_added:
        v3.12.0: Adds support for submitting logs via an OTLP Exporter.

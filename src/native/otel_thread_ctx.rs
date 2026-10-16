@@ -1,12 +1,12 @@
 use crate::context::Context;
 use crate::span::SpanData;
-use libdd_otel_thread_ctx::linux::ThreadContext;
+use libdd_otel_thread_ctx::linux::OwnedThreadContext;
 use pyo3::{pyfunction, PyRef, Python};
 
 const UNKNOWN_LOCAL_ROOT_SPAN_ID: u64 = 0;
 
 fn update_thread_context(trace_id: u128, span_id: u64, trace_flags: u8, local_root_span_id: u64) {
-    ThreadContext::update(
+    OwnedThreadContext::update(
         trace_id.to_be_bytes(),
         span_id.to_be_bytes(),
         trace_flags,
@@ -33,7 +33,7 @@ pub fn update_otel_thread_context_from_span(
 #[pyfunction]
 pub fn update_otel_thread_context_from_context(context: PyRef<'_, Context>, trace_flags: u8) {
     let Some(trace_id) = context.trace_id.filter(|trace_id| *trace_id != 0) else {
-        ThreadContext::detach();
+        OwnedThreadContext::detach();
         return;
     };
     let Some(span_id) = context
@@ -41,7 +41,7 @@ pub fn update_otel_thread_context_from_context(context: PyRef<'_, Context>, trac
         .filter(|span_id| *span_id != 0)
         .and_then(|span_id| u64::try_from(span_id).ok())
     else {
-        ThreadContext::detach();
+        OwnedThreadContext::detach();
         return;
     };
 
@@ -50,5 +50,5 @@ pub fn update_otel_thread_context_from_context(context: PyRef<'_, Context>, trac
 
 #[pyfunction]
 pub fn detach_otel_thread_context() {
-    ThreadContext::detach();
+    OwnedThreadContext::detach();
 }
