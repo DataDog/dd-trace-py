@@ -310,9 +310,6 @@ class OTelHTTPSpanAttributes:
 
 
 def set_method_tag(span: Span, method: str) -> None:
-    if not config._otel_trace_semantics_enabled:
-        span._set_attribute(http.METHOD, method)
-        return
     normalized_method, original_method = normalize_http_method(method)
     span._set_attribute(otel_http.REQUEST_METHOD, normalized_method)
     if original_method is not None:
