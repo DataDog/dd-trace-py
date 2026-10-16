@@ -4,6 +4,8 @@ from typing import Any
 from typing import Optional
 
 from ddtrace._trace.otel.http.tags import _sanitized_url
+from ddtrace._trace.otel.http.tags import http_block_metadata  # noqa: F401
+from ddtrace._trace.otel.http.tags import set_url_tags_server  # noqa: F401
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -17,6 +19,8 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
 
 
+# http_block_metadata and set_url_tags_server are re-exported because products such as AppSec reach
+# the tracing helpers through the contrib layer instead of importing ddtrace._trace directly.
 log = get_logger(__name__)
 
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
