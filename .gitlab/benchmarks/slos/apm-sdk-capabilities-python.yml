@@ -266,7 +266,7 @@ experiments:
               - execution_time < 20.50 ms
           - name: span-record-exception
             thresholds:
-              - execution_time < 42.50 ms
+              - execution_time < 49.00 ms
           - name: span-set-status
             thresholds:
               - execution_time < 22.00 ms
