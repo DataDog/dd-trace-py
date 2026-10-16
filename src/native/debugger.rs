@@ -22,6 +22,7 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::pybacked::PyBackedBytes;
 
+use crate::gil::detach_or_hang_on_finalize;
 use crate::shared_runtime::SharedRuntimePy;
 
 create_exception!(
@@ -137,7 +138,7 @@ where
     F: std::future::Future<Output = anyhow::Result<()>> + Send,
 {
     let runtime = runtime.clone();
-    let result = py.detach(move || {
+    let result = detach_or_hang_on_finalize(py, move || {
         runtime.block_on(async move {
             match tokio::time::timeout(timeout, future).await {
                 Ok(result) => result,

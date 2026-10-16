@@ -2,6 +2,8 @@ use libdd_remote_config::config::{agent_config, agent_task};
 use libdd_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
 use pyo3::{create_exception, exceptions::PyException, prelude::*, Bound, PyErr};
 
+use crate::gil::detach_or_hang_on_finalize;
+
 create_exception!(
     tracer_flare_exceptions,
     ListeningError,
@@ -215,7 +217,7 @@ impl TracerFlareManagerPy {
         directory: &str,
         send_action: FlareActionPy,
     ) -> PyResult<()> {
-        py.detach(move || {
+        detach_or_hang_on_finalize(py, move || {
             let manager = &self.manager;
             manager
                 .zip_and_send_sync(vec![directory.to_string()], send_action.inner)
