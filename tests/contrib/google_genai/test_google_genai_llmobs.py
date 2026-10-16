@@ -731,6 +731,10 @@ def test_shadow_tags_generate_when_llmobs_disabled(tracer):
     response.usage_metadata.candidates_token_count = 6
     response.usage_metadata.thoughts_token_count = 0
     response.usage_metadata.total_token_count = 18
+    # A MagicMock auto-creates any attribute that is read, so pin the new
+    # tool-use count to None here: `extract_generation_metrics_google_genai`
+    # folds it into input_tokens, and an auto-created mock would inflate them.
+    response.usage_metadata.tool_use_prompt_token_count = None
     response.model_version = "gemini-2.0-flash"
 
     with tracer.trace("google_genai.request") as span:
