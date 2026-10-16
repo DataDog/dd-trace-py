@@ -153,6 +153,7 @@ jobs:
     needs:
       - download-s3-wheels
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@648ead29e24f9c64f28bc4893f16fe6963c74d4f
+    secrets: inherit
     with:
       library: python
       ref: '648ead29e24f9c64f28bc4893f16fe6963c74d4f'
