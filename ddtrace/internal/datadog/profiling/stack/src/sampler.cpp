@@ -66,12 +66,16 @@ mark_fast_copy_foreign_takeover()
 
 // Sticky takeover plus leftover memcpy (set_fast_copy_enabled(false) failed, or a
 // child inherited that state): drop to the syscall copy, or refuse to sample.
+// Always call the fallback once sticky is set — do not skip on fast_copy_active.
+// That flag is non-atomic and can disagree with safe_copy after a concurrent fork
+// mid-set_fast_copy_enabled (or store reordering); set_fast_copy_enabled(false) is
+// idempotent when already on the syscall path.
 // Returns true if the caller may continue sampling; false if there is no safe
 // fallback left and the caller must stop the sampler.
 static bool
 drop_fast_copy_after_foreign_takeover()
 {
-    if (!fast_copy_foreign_takeover.load(std::memory_order_relaxed) || !fast_copy_active) {
+    if (!fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
         return true;
     }
     if (set_fast_copy_enabled(false)) {
