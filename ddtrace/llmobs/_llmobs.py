@@ -146,6 +146,7 @@ from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
+from ddtrace.llmobs._integrations.elevenlabs import create_conversation_state
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -1010,6 +1011,7 @@ class LLMObs(Service):
             "http.activate_distributed_headers",
             self._activate_llmobs_distributed_context_soft_fail,
         )
+        core.reset_listeners("elevenlabs.conversation.start", create_conversation_state)
         core.reset_listeners("threading.submit", self._on_threading_submit)
         core.reset_listeners("threading.execution", self._on_threading_execution)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
@@ -1179,6 +1181,7 @@ class LLMObs(Service):
                 "http.activate_distributed_headers",
                 cls._activate_llmobs_distributed_context_soft_fail,
             )
+            core.on("elevenlabs.conversation.start", create_conversation_state, "state")
             core.on("threading.submit", cls._instance._on_threading_submit, "llmobs_ctx")
             core.on("threading.execution", cls._instance._on_threading_execution)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)

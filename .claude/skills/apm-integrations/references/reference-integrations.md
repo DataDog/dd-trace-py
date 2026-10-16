@@ -28,3 +28,26 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+## ElevenLabs Agents
+
+The ElevenLabs patch module wraps conversation worker lifecycle and uses
+conversation-local WebSocket proxies. It replaces only the SDK's imported
+asynchronous module binding; the global websockets module remains unchanged.
+The SDK's audio interfaces and application callbacks are preserved. Startup failure
+or cancellation finalizes only newly created state; retry captures its own caller
+context, while redundant startup cannot close an ongoing session. See the LLMObs
+implementation guide for per-turn span layout and audio timing eligibility.
+
+Optional raw vad_score events are observed by the same connection-local proxies
+before SDK filtering. They do not require new callbacks, patch points, or event
+subscriptions. See the LLMObs guide for the bounded clip-relative activity schema.
+
+
+ElevenLabs protocol/audio state is product-owned in llmobs/_integrations/elevenlabs_agents.py.
+Contrib wrappers depend only on a neutral state Protocol and request state through
+core event elevenlabs.conversation.start. LLMObs registers/removes the factory with
+its service lifecycle. Client-tool handler bodies scope both APM and LLMObs contexts,
+restoring caller contexts on success, failure, and cancellation. Synthetic replay
+fixtures are stored as deterministic gzip JSON to preserve exact event/audio data
+within the added-file size limit.

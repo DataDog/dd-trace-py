@@ -436,6 +436,13 @@ mysqlclient
 .. automodule:: ddtrace.contrib.internal.mysqldb
 
 
+.. _elevenlabs:
+
+ElevenLabs
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.elevenlabs
+
+
 .. _openai:
 
 OpenAI
