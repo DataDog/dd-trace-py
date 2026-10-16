@@ -968,6 +968,95 @@ async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, 
     mock_execute_request.assert_called_once()
 
 
+def _responses_stream_body() -> bytes:
+    snapshot = {
+        "id": "resp-test",
+        "object": "response",
+        "created_at": 0,
+        "model": "gpt-4o-mini",
+        "status": "completed",
+        "output": [
+            {
+                "id": "msg-test",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+            }
+        ],
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [],
+    }
+    events = [
+        ("response.created", {"type": "response.created", "response": {**snapshot, "status": "in_progress"}}),
+        (
+            "response.output_text.delta",
+            {
+                "type": "response.output_text.delta",
+                "item_id": "msg-test",
+                "output_index": 0,
+                "content_index": 0,
+                "delta": "ok",
+            },
+        ),
+        ("response.completed", {"type": "response.completed", "response": snapshot}),
+    ]
+    return b"".join(f"event: {name}\ndata: {json.dumps(data)}\n\n".encode() for name, data in events)
+
+
+@pytest.fixture
+def openai_contrib():
+    from ddtrace.contrib.internal.openai.patch import patch as patch_openai
+    from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
+
+    patch_openai()
+    try:
+        yield
+    finally:
+        unpatch_openai()
+
+
+def _responses_stream_chat(langchain_openai, is_async: bool):
+    import httpx
+
+    def _handler(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_responses_stream_body())
+
+    transport = httpx.MockTransport(_handler)
+    client_kwargs = (
+        {"http_async_client": httpx.AsyncClient(transport=transport)}
+        if is_async
+        else {"http_client": httpx.Client(transport=transport)}
+    )
+    return langchain_openai.ChatOpenAI(api_key="<not-a-real-key>", use_responses_api=True, **client_kwargs)
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_responses_api_evaluated_once(mock_execute_request, langchain_openai, openai_contrib):
+    """The provider call runs during iteration, after the langchain stream marks the AI Guard context active."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = _responses_stream_chat(langchain_openai, is_async=False)
+
+    for _ in model.stream(input="how can langsmith help with testing?"):
+        pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_chat_responses_api_evaluated_once_async(mock_execute_request, langchain_openai, openai_contrib):
+    """Async variant: the openai responses before-hook is skipped while the langchain stream is active."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = _responses_stream_chat(langchain_openai, is_async=True)
+
+    async for _ in model.astream(input="how can langsmith help with testing?"):
+        pass
+
+    mock_execute_request.assert_called_once()
+
+
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_chat_resets_context_after_block(mock_execute_request, langchain_openai, openai_url):
     """A blocked non-streaming chat call still releases the active counter.
