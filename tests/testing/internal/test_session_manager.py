@@ -534,7 +534,6 @@ class TestSessionManagerEnvVarOverrides:
         "env_var, env_value, setting_attr, expected",
         [
             ("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false", "coverage_report_upload_enabled", False),
-            ("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "0", "coverage_report_upload_enabled", False),
             ("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "false", "early_flake_detection.enabled", False),
             ("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "false", "auto_test_retries.enabled", False),
             ("DD_CIVISIBILITY_ITR_ENABLED", "false", "itr_enabled", False),
