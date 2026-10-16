@@ -1,5 +1,3 @@
-from unittest import mock
-
 import pytest
 
 from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
@@ -12,6 +10,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
+from tests.utils import override_global_config
 
 
 _INTEGRATION_RESOURCE = "composed by the integration"
@@ -26,7 +25,7 @@ def _integration_config():
 
 
 def _client_name(method=None, route=None, resource=_INTEGRATION_RESOURCE, span_hook=None):
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         with tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
             if resource is not None:
                 span.resource = resource
@@ -73,7 +72,7 @@ def test_client_span_without_a_method_is_left_alone():
 
 
 def test_unaccepted_client_method_is_normalized_at_start():
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         with tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
             span._set_attribute(SPAN_KIND, "client")
             normalized, original = normalize_http_method("PROPFIND")

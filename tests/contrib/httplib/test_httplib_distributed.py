@@ -6,7 +6,6 @@ from unittest import mock
 import wrapt
 
 # Project
-from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from tests.utils import TracerTestCase
 
@@ -77,7 +76,7 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
             seen.append(self.tracer.current_span().resource)
 
         with (
-            mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+            self.override_global_config(dict(_otel_trace_semantics_enabled=True)),
             mock.patch("ddtrace.contrib.internal.httplib.patch.HTTPPropagator.inject", side_effect=record_inject),
             self.override_config("httplib", dict(distributed_tracing=True)),
         ):

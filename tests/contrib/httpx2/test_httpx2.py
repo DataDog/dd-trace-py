@@ -1,5 +1,3 @@
-from unittest import mock
-
 import httpx2
 import pytest
 
@@ -9,6 +7,7 @@ from ddtrace.contrib.internal.httpx2.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.settings.http import HttpConfig
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -96,7 +95,7 @@ async def test_get_200():
 
 
 def test_otel_semantics_use_shared_http_client_subscriber(test_spans):
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         response = httpx2.get(get_url("/status/200"), headers=DEFAULT_HEADERS)
 
     assert response.status_code == 200

@@ -24,6 +24,7 @@ from ddtrace.ext import net
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings import _core as settings_core
 from ddtrace.internal.settings._config import config
+from tests.utils import override_global_config
 
 
 @pytest.mark.parametrize(
@@ -568,7 +569,7 @@ def test_otel_span_attributes_malformed_url_is_not_logged(tracer, integration_co
 def test_set_http_meta_http_span_without_kind_keeps_legacy_tags(tracer, integration_config):
     # Ray Serve proxy requests are HTTP spans with no span.kind and must not be treated as clients.
     with tracer.trace("proxy_request", span_type=SpanTypes.HTTP) as span:
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        with override_global_config(dict(_otel_trace_semantics_enabled=True)):
             trace_utils.set_http_meta(
                 span, integration_config, method="GET", url="http://example.com/x", status_code=200
             )

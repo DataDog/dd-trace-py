@@ -1544,13 +1544,13 @@ def test_otel_semantics_client_numeric_attributes_typed_for_otlp():
 def test_otel_client_semantics_flag_is_read_per_call(int_config):
     span = Span("http.request", span_type="http")
 
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
+    with override_global_config(dict(_otel_trace_semantics_enabled=False)):
         trace_utils.set_http_meta(span, int_config.myint, method="get")
         assert span.get_tag("http.method") == "get"
 
     span = Span("http.request", span_type="http")
     span._set_attribute("span.kind", "client")
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         trace_utils.set_http_meta(span, int_config.myint, method="get")
         assert span.get_tag("http.request.method") == "GET"
 
