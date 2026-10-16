@@ -10,18 +10,18 @@ from tests.utils import assert_is_measured
 PYODBC_CONNECT_DSN = "driver=SQLite3;database=:memory:;"
 
 
-class PyODBCTest(object):
+class PyODBCTest:
     """pyodbc test case reuses the connection across tests"""
 
     conn = None
     tracer = None
 
     def setUp(self):
-        super(PyODBCTest, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
-        super(PyODBCTest, self).tearDown()
+        super().tearDown()
         if self.conn:
             try:
                 self.conn.close()
@@ -259,7 +259,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+        assert span.service == "pyodbc", f"Expected service name to be 'pyodbc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
@@ -269,7 +269,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+        assert span.service == "pyodbc", f"Expected service name to be 'pyodbc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
@@ -279,7 +279,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
+        assert span.service == "mysvc", f"Expected service name to be 'mysvc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_name_default(self):
@@ -289,7 +289,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+        assert span.service == "pyodbc", f"Expected service name to be 'pyodbc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
@@ -299,7 +299,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
+        assert span.service == "pyodbc", f"Expected service name to be 'pyodbc' but was '{span.service}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
@@ -310,7 +310,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
-            "Expected service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME but was '{}'".format(span.service)
+            f"Expected service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME but was '{span.service}'"
         )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -323,9 +323,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(
-            span.name
-        )
+        assert span.name == "pyodbc.query", f"Expected operation name to be 'pyodbc.query' but was '{span.name}'"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
@@ -337,6 +335,4 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(
-            span.name
-        )
+        assert span.name == "pyodbc.query", f"Expected operation name to be 'pyodbc.query' but was '{span.name}'"

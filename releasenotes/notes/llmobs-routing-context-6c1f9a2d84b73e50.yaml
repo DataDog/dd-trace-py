@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: Adds ``LLMObs.routing_context()``, a context manager that sends LLM Observability
+    spans and evaluation metrics created within it to other Datadog organizations instead of the configured
+    one. Pass ``dd_api_key`` (and optionally ``dd_site``) to route to one organization, or ``targets`` to
+    send the same data to several. Routed data is sent directly to the LLM Observability intake; APM spans
+    are not routed.

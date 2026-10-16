@@ -1,14 +1,14 @@
+from collections.abc import Mapping
 from functools import wraps
 import sys
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from urllib import parse
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -215,6 +215,10 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        # Before activating distributed headers, as WSGI does: a MicroVM /run refresh detaches
+        # the active context, which would otherwise be the one just extracted from this request.
+        if scope["type"] == "http" and not is_subapp:
+            trace_utils.dispatch_asgi_web_request_starting(scope)
         try:
             headers = extract_headers(scope)
         except Exception:
@@ -277,14 +281,14 @@ class TraceMiddleware:
             raw_path = scope.get("raw_path")
             raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
-                url = "{}://{}{}".format(scheme, host_header, full_path)
-                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
+                url = f"{scheme}://{host_header}{full_path}"
+                raw_url = f"{scheme}://{host_header}{raw_path_str}"
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = "{}://{}{}".format(scheme, server_host, full_path)
-                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
+                url = f"{scheme}://{server_host}{full_path}"
+                raw_url = f"{scheme}://{server_host}{raw_path_str}"
             else:
                 url = None
                 raw_url = None

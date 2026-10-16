@@ -23,7 +23,7 @@ Feature: Simple feature
 
 _CAPTURE_PATH_ENV = "_DD_PYTEST_BDD_CAPTURE_PATH"
 
-# AIDEV-NOTE: This plugin installs mocks at import time so they are active before the
+# This plugin installs mocks at import time so they are active before the
 # child process initializes the Datadog pytest plugin. Keep these tests out of inline_run:
 # nested in-process pytest-cov sessions can corrupt the outer session's coverage state.
 _INFRA_PLUGIN = f"""\
@@ -64,6 +64,8 @@ _standard_mocks = setup_standard_mocks()
 _standard_mocks.__enter__()
 _event_capture_context = EventCapture.capture()
 _event_capture = _event_capture_context.__enter__()
+_coverage_report_patch = patch("ddtrace.testing.internal.pytest.plugin.handle_coverage_report")
+_coverage_report = _coverage_report_patch.start()
 
 
 @pytest.hookimpl(trylast=True)
@@ -89,7 +91,7 @@ def pytest_sessionfinish(session):
         }}
         for span in _step_spans
     ]
-    capture = {{"events": events, "step_spans": step_spans}}
+    capture = {{"events": events, "step_spans": step_spans, "coverage_reports": _coverage_report.call_count}}
     Path(os.environ["{_CAPTURE_PATH_ENV}"]).write_text(json.dumps(capture))
 """
 
@@ -100,9 +102,15 @@ def _run_bdd_subprocess(pytester: Pytester, file_name: str):
 
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setenv(_CAPTURE_PATH_ENV, str(capture_path))
+        # Nightly report upload belongs to the outer session. Reporting from its
+        # still-running pytest-cov collector repeatedly rescans the source tree
+        # as report generation itself produces more coverage data.
+        monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")
         result = pytester.runpytest_subprocess("-p", "no:randomly", "--ddtrace", "-p", "pytest_bdd_infra", file_name)
 
-    return result, json.loads(capture_path.read_text())
+    capture = json.loads(capture_path.read_text())
+    assert capture["coverage_reports"] == 0, "BDD subprocess must not generate a coverage report"
+    return result, capture
 
 
 class TestPytestBdd:
@@ -110,6 +118,18 @@ class TestPytestBdd:
     def clear_xdist_worker_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
         monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
+
+    def test_subprocess_does_not_upload_parent_coverage(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "true")
+        py_file = pytester.makepyfile("def test_simple(): pass")
+
+        result, capture = _run_bdd_subprocess(pytester, os.path.basename(str(py_file)))
+
+        result.assert_outcomes(passed=1)
+        assert [event["status"] for event in capture["events"] if event["type"] == "test"] == ["pass"]
+        assert os.environ["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] == "true"
 
     @pytest.mark.xfail(raises=ConnectionRefusedError, reason="test agent is down")
     def test_and_emit_get_version(self) -> None:

@@ -1,5 +1,7 @@
 import atexit
+import gzip
 from importlib.machinery import ModuleSpec
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -16,6 +18,7 @@ from ddtrace.internal.symbol_db.symbols import ScopeType
 from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
 from ddtrace.internal.symbol_db.symbols import _line_ranges
+from ddtrace.internal.symbol_db.symbols import get_fields
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -41,6 +44,27 @@ def test_symbol_from_code():
     symbols = Symbol.from_code(foo.__code__)
     assert {s.name for s in symbols if s.symbol_type == SymbolType.ARG} == {"a", "b", "c"}
     assert {s.name for s in symbols if s.symbol_type == SymbolType.LOCAL} == {"loc"}
+
+
+def test_get_fields_from_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+            self.b = 2
+
+    assert get_fields(Foo) == {"a", "b"}
+
+
+def test_get_fields_skips_obfuscated_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+
+    # Simulate a PyArmor-obfuscated __init__: disassembling it is what can
+    # hard-crash the interpreter, so get_fields must skip that step entirely
+    # rather than attempt it and rely on catching the fallout.
+    with mock.patch("ddtrace.internal.symbol_db.symbols.is_obfuscated_code", return_value=True):
+        assert get_fields(Foo) == set()
 
 
 def test_symbols_class():
@@ -75,10 +99,13 @@ def test_symbols_class():
             yield oroc
 
         def me(self) -> "Sym":
+            # The return type for this function MUST be quoted.
+            # Using from __future__ import annotations would also postpone
+            # gen's annotation, and symbol_db would then report t.Generator[...].
             return self
 
     module = ModuleType("test")
-    module.Sym = Sym
+    module.Sym = Sym  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -109,7 +136,7 @@ def test_symbols_class():
         "return_type": "typing.Generator[int, NoneType, NoneType]",
         "function_type": "generator",
     }
-    gen_line = Sym.gen.__code__.co_firstlineno + 1
+    gen_line = Sym.gen.__code__.co_firstlineno + 1  # type: ignore[attr-defined]
     assert gen_scope.symbols == [
         Symbol(symbol_type=SymbolType.ARG, name="n", line=gen_line, type="int"),
         Symbol(symbol_type=SymbolType.ARG, name="_untyped", line=gen_line, type=None),
@@ -133,7 +160,7 @@ def test_symbols_decorators():
         pass
 
     module = ModuleType("test")
-    module.foo = foo
+    module.foo = foo  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -152,8 +179,8 @@ def test_symbols_decorators_included():
         pass
 
     module = ModuleType("test")
-    module.deco = deco
-    module.foo = foo
+    module.deco = deco  # type: ignore[attr-defined]
+    module.foo = foo  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -177,8 +204,29 @@ def test_symbols_decorated_methods():
             pass
 
     scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
+    assert scope is not None
     (bar_scope,) = scope.scopes
     assert bar_scope.name == "bar"
+
+
+def test_symbols_skips_obfuscated_function():
+    class Foo:
+        def bar(self):
+            pass
+
+        def baz(self):
+            pass
+
+    # PyArmor's default mode protects individual functions, so the module
+    # level check alone does not keep them from being inspected.
+    obfuscated = Foo.bar.__code__
+    with mock.patch(
+        "ddtrace.internal.symbol_db.symbols.is_obfuscated_code", side_effect=lambda code: code is obfuscated
+    ):
+        scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
+
+    assert scope is not None
+    assert [s.name for s in scope.scopes] == ["baz"]
 
 
 @pytest.mark.subprocess
@@ -330,10 +378,6 @@ def test_scope_context_upload_metadata():
     and _upload_locked populates per-batch fields on both the event and the
     attachment payload, advancing batchNum across uploads.
     """
-    import gzip
-    import json
-    from unittest import mock
-
     from ddtrace.internal.symbol_db.symbols import ScopeContext
 
     def make_scope(name: str) -> Scope:
@@ -359,17 +403,16 @@ def test_scope_context_upload_metadata():
     assert ctx._event_data["uploadId"] == expected_upload_id
     assert ctx._event_data["final"] is False
 
-    captured = {}
-    real_compress = gzip.compress
+    def get_attachment() -> dict:
+        # The compressed attachment is embedded verbatim in the multipart
+        # body handed to the sender; extract it by its known size instead of
+        # intercepting gzip.compress.
+        body = sender_mock.return_value.send.call_args[0][0]
+        size = ctx._event_data["attachmentSize"]
+        start = body.index(b"\x1f\x8b")  # gzip magic number
+        return json.loads(gzip.decompress(body[start : start + size]).decode("utf-8"))
 
-    def capturing_compress(data, *args, **kwargs):
-        captured["bytes"] = data
-        return real_compress(data, *args, **kwargs)
-
-    with (
-        mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock,
-        mock.patch("ddtrace.internal.symbol_db.symbols.gzip.compress", side_effect=capturing_compress),
-    ):
+    with mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock:
         sender_mock.return_value.send.return_value.accepted = True
 
         # First upload: batchNum starts at 1 and the attachment carries the
@@ -380,9 +423,11 @@ def test_scope_context_upload_metadata():
 
         assert ctx._event_data["uploadId"] == expected_upload_id
         assert ctx._event_data["batchNum"] == 1
-        assert ctx._event_data["attachmentSize"] > 0
+        size = ctx._event_data["attachmentSize"]
+        assert isinstance(size, int)
+        assert size > 0
 
-        attachment = json.loads(captured["bytes"].decode("utf-8"))
+        attachment = get_attachment()
         assert attachment["upload_id"] == expected_upload_id
         assert attachment["batch_num"] == 1
         assert attachment["final"] is False
@@ -394,7 +439,7 @@ def test_scope_context_upload_metadata():
             ctx._upload_locked()
 
         assert ctx._event_data["batchNum"] == 2
-        attachment = json.loads(captured["bytes"].decode("utf-8"))
+        attachment = get_attachment()
         assert attachment["batch_num"] == 2
 
 
@@ -537,12 +582,57 @@ def test_symbols_fork_uploads():
                 assert child_context._event_data["uploadId"] == child_context._upload_id
                 assert child_context._batch_counter == 0
         except BaseException:
+            # Print the traceback before exiting: os._exit() bypasses the
+            # normal interpreter shutdown, so an uncaught exception here
+            # would otherwise vanish without a trace in the parent's
+            # captured output.
+            import traceback
+
+            traceback.print_exc()
             os._exit(1)
         os._exit(0)
 
     for pid in pids:
         _, status = os.waitpid(pid, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child {pid} exited with status {status}"
+
+
+def test_symbols_rejected_fork_child_does_not_claim_uploader_slot():
+    from ddtrace.internal.ipc import SharedStringFile
+    from ddtrace.internal.symbol_db import remoteconfig
+
+    # Sibling pytest-xdist workers share the controller-keyed pid file and clear
+    # it on teardown, so this test asserts on a file that no other worker touches.
+    pid_file = SharedStringFile(f"{os.getpid()}-symdb-pids-uploader-slot")
+    pid_file.clear()
+
+    with (
+        mock.patch.object(remoteconfig, "shared_pid_file", pid_file),
+        mock.patch.object(remoteconfig, "get_generation", return_value=1),
+        mock.patch.object(remoteconfig, "get_ancestor_runtime_id", return_value="parent-runtime-id"),
+        mock.patch.object(remoteconfig.SymbolDatabaseUploader, "is_installed", return_value=False),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "unregister_callback"),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "disable_product"),
+    ):
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=200),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=True),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == []
+
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=201),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=False),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == ["201"]
+
+    pid_file.clear()
 
 
 @pytest.mark.subprocess(ddtrace_run=True, err=None)

@@ -40,12 +40,12 @@ the PR description, not here.
 
 ## Write the note
 
-Generate the skeleton: `riot run reno new <slug>` (slug: lowercase, hyphenated, e.g.
+Generate the skeleton: `uvx --from 'reno==4.1.0' reno new <slug>` (slug: lowercase, hyphenated, e.g.
 `fix-aioredis-catch-canceled-error`). Edit the generated YAML, keeping only the section(s)
 that apply — one Reno fragment per change.
 
 Format: `<scope>: <sentence(s)>.` Scope is the component name (see
-:ref:`release_notes_scope` in docs/releasenotes.rst — `tracing`, `profiling`, `ASM`,
+:ref:`release_notes_scope` in docs/releasenotes.rst — `tracing`, `profiling`, `App and API Protection`,
 `dynamic instrumentation`, `CI visibility`, or the integration name). Use `internal` when the
 change genuinely isn't tied to one product (e.g. core threading/fork-safety affecting several
 products) — that's a legitimate scope, not a placeholder for when you didn't pick one.

@@ -2,7 +2,7 @@
 import dataclasses
 import json
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -63,7 +63,7 @@ vuln_data: list[VulnerabilityFoundInTest] = []
 def extract_code_snippet(filepath, line_number, context=3):
     """Extracts code snippet around the given line number."""
     try:
-        with open(filepath, "r") as file:
+        with open(filepath) as file:
             lines = file.readlines()
             start = max(0, line_number - context - 1)
             end = min(len(lines), line_number + context)

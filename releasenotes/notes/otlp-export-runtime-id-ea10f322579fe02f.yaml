@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the ``datadog.runtime_id`` resource attribute on OTLP trace
+    and trace-metrics exports was a randomly generated value instead of the tracer's runtime id,
+    preventing those exports from being correlated with the other signals emitted by the same
+    process.

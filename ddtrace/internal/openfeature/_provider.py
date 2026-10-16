@@ -27,9 +27,10 @@ from openfeature.provider import ProviderStatus
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
-from ddtrace.internal.openfeature._config import _get_ffe_config
+from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _register_provider
 from ddtrace.internal.openfeature._config import _unregister_provider
+from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
@@ -37,6 +38,7 @@ from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOIN_TIMEOUT
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
@@ -167,7 +169,7 @@ class DataDogProvider(AbstractProvider):
 
         # Agentless configuration-source poller; started in initialize() when
         # agentless is the resolved source and stopped in shutdown().
-        self._configuration_source: typing.Optional["AgentlessConfigurationSource"] = None
+        self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -180,7 +182,7 @@ class DataDogProvider(AbstractProvider):
         # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
         # (default on). Gates ONLY the EVP path; the OTel path above is always registered
         # when the provider is enabled (preserves the existing OTel non-regression).
-        # AIDEV-NOTE: the killswitch is read through the ddtrace config system
+        # the killswitch is read through the ddtrace config system
         # (OpenFeatureConfig.flagging_evaluation_counts_enabled, registered in
         # supported-configurations.json) rather than raw os.environ. It comes from the
         # fresh instance_config built at the top of __init__, so the value reflects the
@@ -286,8 +288,7 @@ class DataDogProvider(AbstractProvider):
 
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).
-        config = _get_ffe_config()
-        if config is not None:
+        if _get_ffe_snapshot() is not None:
             logger.debug("FFE configuration already available, provider is READY")
             self._config_received.set()
             self._status = ProviderStatus.READY
@@ -299,7 +300,7 @@ class DataDogProvider(AbstractProvider):
             self._status = ProviderStatus.READY
             return  # SDK will dispatch PROVIDER_READY
 
-        # AIDEV-NOTE: the wait above must stay bounded. A blocked initialize() blocks
+        # the wait above must stay bounded. A blocked initialize() blocks
         # set_provider() in openfeature-sdk 0.8.x and set_provider_and_wait() in 0.10+.
         # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
@@ -343,6 +344,8 @@ class DataDogProvider(AbstractProvider):
                 logger.debug("FlagEvaluationWriter has already stopped", exc_info=True)
             self._flag_eval_evp_writer = None
             self._flag_eval_evp_hook = None
+
+        reset_feature_flag_evp_route_selector()
 
         # Shutdown flag evaluation metrics
         if self._flag_eval_metrics is not None:
@@ -452,10 +455,15 @@ class DataDogProvider(AbstractProvider):
           flag is not found in the configuration
         - Returns error with error_code and error_message on other errors
         """
-        # AIDEV-NOTE: Stamp eval-time at provider entry so every OpenFeature exit path
-        # can feed the EVP flagevaluation hook first_evaluation/last_evaluation from
-        # evaluation time, not the later hook/flush time.
-        flag_metadata: dict[str, typing.Any] = {EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000)}
+        # Capture one snapshot at provider entry. Every exit path
+        # carries consent from the exact configuration used for resolution;
+        # downstream code must never reread live configuration.
+        snapshot = _get_ffe_snapshot()
+        observe_full_evaluation_data = snapshot.observe_full_evaluation_data if snapshot is not None else False
+        flag_metadata: dict[str, typing.Any] = {
+            EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000),
+            METADATA_OBSERVE_FULL_EVALUATION_DATA: observe_full_evaluation_data,
+        }
 
         # If provider is not active, return default value
         if not self._active:
@@ -467,8 +475,8 @@ class DataDogProvider(AbstractProvider):
             )
 
         try:
-            # Get the native Configuration object
-            config = _get_ffe_config()
+            # Resolve against the same snapshot that supplied consent.
+            config = snapshot.config if snapshot is not None else None
 
             # Resolve flag using native implementation
             details = resolve_flag(

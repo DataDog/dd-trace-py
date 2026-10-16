@@ -126,7 +126,7 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
 
         # Mark our _datadog_* checkpoints visited so the SDK's replay tracker
         # transitions REPLAY → NEW; without this it stays stuck in REPLAY.
-        # AIDEV-NOTE: always-on even when cross_invocation_tracing is off — if
+        # always-on even when cross_invocation_tracing is off — if
         # the writer was previously enabled, those ops still exist on resume and
         # must be marked or the SDK pins to REPLAY forever.
         mark_trace_context_checkpoints_visited(state)
@@ -183,7 +183,7 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
             is_replayed = checkpoint.is_succeeded() or checkpoint.is_failed()
             event.replayed = is_replayed
             event.id = operation_id
-            # AIDEV-NOTE: report operation_attempt 0-indexed (0 = original, 1 =
+            # report operation_attempt 0-indexed (0 = original, 1 =
             # first retry) so a fresh execution and its replay agree. The
             # server-maintained step_details.attempt is read at two points: a
             # pending checkpoint holds the prior-failure count (already the
@@ -194,7 +194,7 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
                     attempt = operation.step_details.attempt
-                    # AIDEV-NOTE: the `attempt > 0` guard is purely defensive;
+                    # the `attempt > 0` guard is purely defensive;
                     # we have NOT observed attempt == 0 on a terminal checkpoint. It
                     # avoids emitting operation_attempt = -1 if a terminal StepDetails
                     # ever lacks "Attempt" (from_dict defaults it to 0).
@@ -274,7 +274,7 @@ def patch():
 
     aws_durable_execution_sdk_python._datadog_patch = True
 
-    # AIDEV-NOTE: durable_execution is re-exported from the top-level __init__
+    # durable_execution is re-exported from the top-level __init__
     # via ``from .execution import durable_execution``. That creates a separate
     # name binding, so we must wrap in BOTH modules.
     wrap("aws_durable_execution_sdk_python.execution", "durable_execution", _traced_durable_execution)

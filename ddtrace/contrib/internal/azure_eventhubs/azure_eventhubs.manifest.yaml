@@ -1,0 +1,12 @@
+_v: 1
+name: azure_eventhubs
+display_name: Azure Event Hubs
+description: Instruments synchronous and asynchronous Azure Event Hubs producer operations for creating and sending events,
+  with distributed context propagation and batch span links.
+packages:
+- name: azure-eventhub
+category:
+- messaging.producer
+systems:
+- eventhubs
+creation_date: '2025-10-09'

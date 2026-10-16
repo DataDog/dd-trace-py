@@ -4,14 +4,14 @@
 
 #pragma once
 
-#include <memory>
-#include <unordered_set>
-
 #define PY_SSIZE_T_CLEAN
 #define Py_BUILD_CORE
 #include <Python.h>
 #include <dictobject.h>
 #include <setobject.h>
+
+#include <memory>
+#include <unordered_set>
 
 #include <echion/errors.h>
 #include <echion/vm.h>

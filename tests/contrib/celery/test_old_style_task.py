@@ -18,7 +18,7 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
 
             @classmethod
             def apply_async(cls, args=None, kwargs=None, **kwargs_):
-                return super(CelerySuperClass, cls).apply_async(args=args, kwargs=kwargs, **kwargs_)
+                return super().apply_async(args=args, kwargs=kwargs, **kwargs_)
 
             def run(self, *args, **kwargs):
                 if "stop" in kwargs:

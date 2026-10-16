@@ -1,15 +1,17 @@
 from collections import deque
 from types import CodeType
 from types import FunctionType
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
+from typing import Any
+from typing import Callable
 
 from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import set_function_code
@@ -29,7 +31,14 @@ class InvalidLine(Exception):
     """
 
 
-if PY >= (3, 15):
+# Depth of the instrumented frame as seen from inside a hook. Before 3.15 the
+# hook is called directly from the injected bytecode. On 3.15+ it is dispatched
+# via sys.monitoring, so the stack is:
+#   instrumented function -> monitoring._on_py_line -> _LineHookHandler.on_py_line -> hook
+HOOK_FRAME_DEPTH: int = 3 if is_at_least_py(3, 15) else 1
+
+
+if is_at_least_py(3, 15):
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos
@@ -42,9 +51,9 @@ if PY >= (3, 15):
             self._hooks: dict[int, list[tuple[HookType, Any]]] = {}
 
         def on_py_line(self, code: Any, line_number: int) -> Any:
-            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line_number)
+            hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line_number)
             if not hooks:
-                return _monitoring._DISABLE  # type: ignore[has-type]
+                return _monitoring._DISABLE
             for hook, arg in hooks:
                 hook(arg)
             return None
@@ -53,7 +62,7 @@ if PY >= (3, 15):
             self._hooks.setdefault(line, []).append((hook, arg))
 
         def remove(self, line: int, hook: HookType, arg: Any) -> None:
-            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line)
+            hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line)
             if hooks is not None:
                 try:
                     hooks.remove((hook, arg))
@@ -70,7 +79,7 @@ if PY >= (3, 15):
     # Distinct code objects can compare structurally equal (e.g. repeated identical
     # compiles, or CodeType.replace() clones), so a plain WeakKeyDictionary would let
     # a hook registered for one code object be looked up under another.
-    _line_hook_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+    _line_hook_registry: "IdentityWeakKeyDictionary[CodeType, Any]" = IdentityWeakKeyDictionary()
     _line_hook_lock = Lock()
 
     def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:
@@ -82,6 +91,13 @@ if PY >= (3, 15):
         Returns the list of hooks that failed to be injected.
         """
         code: CodeType = get_function_code(f)
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return list(hooks)
+
         valid_lines: set[int] = linenos(code)
         failed: list[HookInfoType] = []
 
@@ -105,7 +121,7 @@ if PY >= (3, 15):
                     _monitoring.register(code, handler)
                 else:
                     # Reset any lines that were DISABLE'd so newly added hooks fire.
-                    _monitoring.refresh(code)
+                    _monitoring.refresh(code, _monitoring._E.LINE)
 
         return failed
 
@@ -143,6 +159,13 @@ if PY >= (3, 15):
         Returns the list of hooks that failed to be ejected.
         """
         code: CodeType = get_function_code(f)
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return list(hooks)
+
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
@@ -164,6 +187,13 @@ if PY >= (3, 15):
 
     def inject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
         """Inject a hook into a function at the given line number."""
+        if is_obfuscated_code(get_function_code(f)):
+            log.warning(
+                "Cannot inject hook into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                f.__code__.co_name,
+            )
+            return f
+
         failed: list[HookInfoType] = inject_hooks(f, [(hook, line, arg)])
         if failed:
             raise InvalidLine("Line %d does not exist or is either blank or a comment" % line)
@@ -171,6 +201,13 @@ if PY >= (3, 15):
 
     def eject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
         """Eject a hook from a function at the given line number."""
+        if is_obfuscated_code(get_function_code(f)):
+            log.warning(
+                "Cannot eject hook from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                f.__code__.co_name,
+            )
+            return f
+
         failed: list[HookInfoType] = eject_hooks(f, [(hook, line, arg)])
         if failed:
             raise InvalidLine("Line %d does not contain a hook" % line)
@@ -183,7 +220,7 @@ else:
     # the stack to the state prior to the call.
 
     INJECTION_ASSEMBLY = Assembly()
-    if PY >= (3, 13):
+    if is_at_least_py(3, 13):
         INJECTION_ASSEMBLY.parse(
             r"""
             load_const      {hook}
@@ -193,7 +230,7 @@ else:
             pop_top
             """
         )
-    elif PY >= (3, 12):
+    elif is_at_least_py(3, 12):
         INJECTION_ASSEMBLY.parse(
             r"""
             push_null
@@ -203,7 +240,7 @@ else:
             pop_top
             """
         )
-    elif PY >= (3, 11):
+    elif is_at_least_py(3, 11):
         INJECTION_ASSEMBLY.parse(
             r"""
             push_null
@@ -276,8 +313,8 @@ else:
                 continue
             code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
-    _INJECT_HOOK_OPCODE_POS = 1 if (3, 11) <= PY < (3, 13) else 0
-    _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
+    _INJECT_HOOK_OPCODE_POS: int = 1 if is_at_least_py(3, 11) and is_at_most_py(3, 12) else 0
+    _INJECT_ARG_OPCODE_POS: int = 1 if is_at_most_py(3, 10) else 2
 
     def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
         """Eject a hook from the abstract code object at the given line number.

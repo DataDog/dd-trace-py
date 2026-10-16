@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
+from unittest import mock
+from unittest.mock import patch
 
-import mock
-from mock import patch
 import pytest
 
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT

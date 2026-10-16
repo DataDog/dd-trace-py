@@ -1,12 +1,12 @@
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
 #include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <memory>
 #include <random>
 #include <vector>
-
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
 
 #include "_memalloc_debug.h"
 #include "_memalloc_gc_guard.hpp"

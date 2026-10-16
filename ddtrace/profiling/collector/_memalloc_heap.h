@@ -1,10 +1,10 @@
 #pragma once
 
+#include <Python.h>
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#include <Python.h>
 
 /* The maximum heap sample size is the maximum value we can store in a heap_tracker_t.allocated_memory */
 #define MAX_HEAP_SAMPLE_SIZE UINT32_MAX

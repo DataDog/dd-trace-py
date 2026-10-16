@@ -122,7 +122,7 @@ class AgentlessConfigurationSource(PeriodicService):
         self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
 
         self._etag: Optional[str] = None
-        self._failure_warnings: "set[str]" = set()
+        self._failure_warnings: set[str] = set()
         self._malformed_payload_logged = False
         self._application_failure_logged = False
 

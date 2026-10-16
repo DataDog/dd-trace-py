@@ -16,7 +16,7 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: set True by a higher-level integration to skip its own injection
+# set True by a higher-level integration to skip its own injection
 # (e.g. botocore SigV4, requests suppressing the nested urllib3 span). Only
 # `patched_api_call`, `_wrapped_api_call`, and `_wrap_adapter_send` may set this,
 # and must reset() in try/finally — see PR #18152 for the leak that caused.

@@ -94,9 +94,6 @@ ProfilerState::init_interned_strings()
 void
 ProfilerState::reset_key_caches()
 {
-    for (auto& entry : tag_cache) {
-        entry.store(nullptr, std::memory_order_relaxed);
-    }
     for (auto& entry : label_cache) {
         entry.store(nullptr, std::memory_order_relaxed);
     }

@@ -32,7 +32,7 @@ MCP_IAST_ENV = {
 }
 
 
-# AIDEV-NOTE: This test is designed to detect segfaults that may occur when IAST
+# This test is designed to detect segfaults that may occur when IAST
 # interacts with MCP tool calls. MCP uses streaming internally for communication
 # between client and server, which may trigger context management issues in IAST.
 

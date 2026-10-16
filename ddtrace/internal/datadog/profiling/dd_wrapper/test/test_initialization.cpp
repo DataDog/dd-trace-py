@@ -1,5 +1,6 @@
 #include "ddup_interface.hpp"
 #include "test_utils.hpp"
+#include "uploader_builder.hpp"
 #include <gtest/gtest.h>
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the
@@ -56,13 +57,13 @@ short_lifetime_init()
         std::string runtime_version("3.10.6");
         std::string profiler_version("3.100");
 
-        ddup_config_service(service.c_str());
-        ddup_config_env(env.c_str());
-        ddup_config_version(version.c_str());
-        ddup_config_url(url.c_str());
-        ddup_config_runtime(runtime.c_str());
-        ddup_config_runtime_version(runtime_version.c_str());
-        ddup_config_profiler_version(profiler_version.c_str());
+        Datadog::UploaderBuilder::set_service(service.c_str());
+        Datadog::UploaderBuilder::set_env(env.c_str());
+        Datadog::UploaderBuilder::set_version(version.c_str());
+        Datadog::UploaderBuilder::set_url(url.c_str());
+        Datadog::UploaderBuilder::set_runtime(runtime.c_str());
+        Datadog::UploaderBuilder::set_runtime_version(runtime_version.c_str());
+        Datadog::UploaderBuilder::set_profiler_version(profiler_version.c_str());
     }
 
     ddup_start();

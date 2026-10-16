@@ -34,6 +34,11 @@ foreach ($line in $cmdOut) {
 $env:DISTUTILS_USE_SDK = '1'
 $env:MSSdk = '1'
 
+# Keep Rust proc-macro DLLs in the disposable container filesystem. When these
+# are built in the mounted checkout, Windows can retain a lock after the build
+# and prevent GitLab Runner from cleaning the workspace for the next job.
+$env:_DD_NATIVE_CARGO_TARGET_DIR = 'C:\cargo-target'
+
 # rust-tuf has too long paths
 Write-Host "=== Enabling git long paths ==="
 git config --global core.longpaths true

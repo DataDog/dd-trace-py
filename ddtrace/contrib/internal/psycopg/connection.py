@@ -23,7 +23,7 @@ class Psycopg3TracedConnection(dbapi.TracedConnection):
             # Do not trace `fetch*` methods by default
             cursor_cls = Psycopg3FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg3TracedCursor
 
-        super(Psycopg3TracedConnection, self).__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
+        super().__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
 
     def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
@@ -48,7 +48,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
             # Do not trace `fetch*` methods by default
             cursor_cls = Psycopg2FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg2TracedCursor
 
-        super(Psycopg2TracedConnection, self).__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
+        super().__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
 
 
 def patch_conn(conn, traced_conn_cls):
@@ -106,7 +106,7 @@ def patched_connect_factory(psycopg_module):
         else:
             with core.context_with_data(
                 "psycopg.patched_connect",
-                span_name="{}.{}".format(connect_func.__module__, connect_func.__name__),
+                span_name=f"{connect_func.__module__}.{connect_func.__name__}",
                 service=ext_service(pin, pin._config),
                 span_type=SpanTypes.SQL,
                 pin=pin,

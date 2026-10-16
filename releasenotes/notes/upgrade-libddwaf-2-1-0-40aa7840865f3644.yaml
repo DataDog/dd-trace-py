@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    AAP: Upgrades libddwaf to version 2.1.0.

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where the ``pytest`` plugin entered a code coverage
+    collection context around every test even when code coverage was disabled, which
+    reported coverage as active while no coverage was being collected and, on Python
+    3.12 and later, restarted ``sys.monitoring`` events once per test.

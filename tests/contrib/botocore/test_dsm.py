@@ -2,11 +2,11 @@ import base64
 import json
 import sys
 import unittest
+from unittest import mock
 
 import botocore
 import botocore.exceptions
 import botocore.session
-import mock
 from moto import mock_events
 from moto import mock_kinesis
 from moto import mock_sns
@@ -49,7 +49,7 @@ class BotocoreDSMTest(TracerTestCase):
 
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
-        super(BotocoreDSMTest, self).setUp()
+        super().setUp()
 
         # Setting the validated flag to False ensures the redaction paths configurations are re-validated
         # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
@@ -59,7 +59,7 @@ class BotocoreDSMTest(TracerTestCase):
         span_tags._PAYLOAD_TAGGER.validated = False
 
     def tearDown(self):
-        super(BotocoreDSMTest, self).tearDown()
+        super().tearDown()
 
         unpatch()
         self.sqs_client.delete_queue(QueueUrl=self.sqs_test_queue["QueueUrl"])

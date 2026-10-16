@@ -3,8 +3,8 @@ import glob
 import json
 import os
 import tempfile
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.ext import ci
@@ -54,7 +54,7 @@ def test_ci_providers(monkeypatch, name, environment, tags):
         elif key == ci._CI_ENV_VARS:
             assert json.loads(extracted_tags[key]) == json.loads(value)
         else:
-            assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
+            assert extracted_tags[key] == value, f"wrong tags in {name} for {environment}"
 
 
 def test_git_extract_user_info(git_repo):
@@ -181,7 +181,7 @@ def test_git_safe_directory_override_added_for_repo_root(tmp_path, monkeypatch):
 
     git._git_subprocess_cmd_with_details("status", cwd=str(subdir))
 
-    assert captured["args"][:3] == ["/usr/bin/git", "-c", "safe.directory={0}".format(str(repo))]
+    assert captured["args"][:3] == ["/usr/bin/git", "-c", f"safe.directory={str(repo)}"]
 
 
 def test_git_safe_directory_override_uses_start_dir_without_repo(monkeypatch, tmp_path):
@@ -203,7 +203,7 @@ def test_git_safe_directory_override_uses_start_dir_without_repo(monkeypatch, tm
     assert captured["args"] == [
         "/usr/bin/git",
         "-c",
-        "safe.directory={0}".format(os.path.realpath(str(tmp_path))),
+        f"safe.directory={os.path.realpath(str(tmp_path))}",
         "status",
     ]
 
@@ -238,7 +238,7 @@ def test_git_safe_directory_override_uses_realpath_for_symlinked_repo(monkeypatc
     assert captured["args"][:3] == [
         "/usr/bin/git",
         "-c",
-        "safe.directory={0}".format(os.path.realpath(str(repo))),
+        f"safe.directory={os.path.realpath(str(repo))}",
     ]
 
 
@@ -266,7 +266,7 @@ def test_git_safe_directory_override_uses_bare_repo_root(monkeypatch, tmp_path):
 
     git._git_subprocess_cmd_with_details("status", cwd=str(subdir))
 
-    assert captured["args"][:3] == ["/usr/bin/git", "-c", "safe.directory={0}".format(str(repo))]
+    assert captured["args"][:3] == ["/usr/bin/git", "-c", f"safe.directory={str(repo)}"]
 
 
 def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):

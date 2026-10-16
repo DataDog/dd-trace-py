@@ -1,3 +1,6 @@
+from typing import Mapping
+from typing import Optional
+from typing import Union
 from urllib import parse
 
 import urllib3
@@ -9,9 +12,10 @@ from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import OTLP_HTTP_EXPORT_HEADER
+from ddtrace.internal.constants import OTLP_HTTP_EXPORT_HEADER_VALUE
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -48,16 +52,6 @@ def patch():
     urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
-    if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request_6D4E8B2A1F095C73 as _make_request
-
-        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
-        if hasattr(urllib3, "_request_methods"):
-            _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
-        else:
-            # Old version before https://github.com/urllib3/urllib3/pull/2398
-            _w("urllib3.request", "RequestMethods.request", _wrap_request)
 
 
 def unpatch():
@@ -78,12 +72,18 @@ def _wrap_urlopen(func, instance, args, kwargs):
     :param kwargs: Keyword arguments from the target function
     :return: The ``HTTPResponse`` from the target function
     """
-    request_method = get_argument_value(args, kwargs, 0, "method")
-    request_url = get_argument_value(args, kwargs, 1, "url")
+    if not is_tracing_enabled():
+        return func(*args, **kwargs)
+
     try:
         request_headers = get_argument_value(args, kwargs, 3, "headers")
     except ArgumentError:
         request_headers = None
+    if _is_otlp_export(request_headers):
+        return func(*args, **kwargs)
+
+    request_method = get_argument_value(args, kwargs, 0, "method")
+    request_url = get_argument_value(args, kwargs, 1, "url")
     try:
         request_retries = get_argument_value(args, kwargs, 4, "retries")
     except ArgumentError:
@@ -91,12 +91,13 @@ def _wrap_urlopen(func, instance, args, kwargs):
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
     if request_url.startswith("/"):
+        host = str(instance.host)
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
         request_url = parse.urlunparse(
             (
                 instance.scheme,
-                "{}:{}".format(instance.host, instance.port)
-                if instance.port and instance.port not in DROP_PORTS
-                else str(instance.host),
+                f"{host}:{instance.port}" if instance.port and instance.port not in DROP_PORTS else host,
                 request_url,
                 None,
                 None,
@@ -106,9 +107,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
 
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
-
-    if not is_tracing_enabled():
-        return func(*args, **kwargs)
 
     service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(None, config.urllib3)
 
@@ -141,3 +139,10 @@ def _wrap_urlopen(func, instance, args, kwargs):
         finally:
             if response is not None:
                 ctx.event.set_response(response)
+
+
+def _is_otlp_export(headers: Optional[Mapping[str, Union[str, bytes]]]) -> bool:
+    if not headers:
+        return False
+    value = headers.get(OTLP_HTTP_EXPORT_HEADER)
+    return value is not None and ensure_text(value).lower() == OTLP_HTTP_EXPORT_HEADER_VALUE

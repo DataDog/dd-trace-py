@@ -18,7 +18,7 @@ class _HelloServicer(HelloServicer):
         if request.name == "exception":
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
 
-        return HelloReply(message="Hello {}".format(request.name))
+        return HelloReply(message=f"Hello {request.name}")
 
     def SayHelloTwice(self, request, context):
         yield HelloReply(message="first response")
@@ -58,7 +58,7 @@ class _HelloServicer(HelloServicer):
 
         # response for dangling request
         if last_request is not None:
-            yield HelloReply(message="{}".format(last_request.name))
+            yield HelloReply(message=f"{last_request.name}")
 
     def SayHelloUnknown(self, request, context):
         yield HelloReply(message="unknown")

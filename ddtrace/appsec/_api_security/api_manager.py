@@ -93,7 +93,7 @@ class APIManager(Service):
         log.debug("%s disabled", cls.__name__)
 
     def __init__(self) -> None:
-        super(APIManager, self).__init__()
+        super().__init__()
 
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
@@ -124,9 +124,9 @@ class APIManager(Service):
 
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         if route is None and env.blocked is None and not is_404:
-            endpoint = env.entry_span.get_tag(http.ENDPOINT)
+            endpoint = env.entry_span._get_str_attribute(http.ENDPOINT)
             if endpoint is None:
-                url = env.entry_span.get_tag(http.URL)
+                url = env.entry_span._get_str_attribute(http.URL)
                 endpoint = self.simplified_endpoint_computer.from_url(url)
             route = endpoint
 

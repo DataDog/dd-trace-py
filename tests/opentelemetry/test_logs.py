@@ -1,5 +1,7 @@
-from concurrent import futures
+from contextlib import contextmanager
 import os
+from unittest.mock import Mock
+from unittest.mock import patch
 
 from opentelemetry.version import __version__ as api_version_string
 import pytest
@@ -16,11 +18,29 @@ except ImportError:
     EXPORTER_VERSION = (0, 0, 0)
 
 
+@contextmanager
+def mock_otlp_http_request():
+    response = Mock(status=200, status_code=200, data=b"", content=b"", headers={}, reason="OK")
+    mock_request = Mock(return_value=response)
+    with (
+        patch("requests.sessions.Session.request", new=mock_request),
+        patch("urllib3.poolmanager.PoolManager.request", new=mock_request),
+    ):
+        yield mock_request
+
+
+def get_otlp_http_request(call):
+    method = call.kwargs.get("method", call.args[0] if call.args else None)
+    url = call.kwargs.get("url", call.args[1] if len(call.args) > 1 else None)
+    return method, url, call.kwargs.get("body", call.kwargs.get("data"))
+
+
 def create_mock_grpc_server():
     """Create a mock gRPC server for testing OpenTelemetry logs exporter."""
-    import grpc
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
+
+    from tests.opentelemetry.utils import create_grpc_server
 
     class MockLogsService(LogsServiceServicer):
         def __init__(self):
@@ -33,9 +53,7 @@ def create_mock_grpc_server():
             return ExportLogsServiceResponse()
 
     mock_service = MockLogsService()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    add_LogsServiceServicer_to_server(mock_service, server)
-    server.add_insecure_port("[::]:4317")
+    server = create_grpc_server(mock_service, add_LogsServiceServicer_to_server)
     return mock_service, server
 
 
@@ -65,7 +83,7 @@ def extract_resource_attributes(log_record, resource) -> dict:
     for attr in resource.attributes:
         if attr.key == "service.name":
             attributes["service"] = attr.value.string_value
-        elif attr.key == "deployment.environment":
+        elif attr.key == "deployment.environment.name":
             attributes["env"] = attr.value.string_value
         elif attr.key == "service.version":
             attributes["version"] = attr.value.string_value
@@ -103,17 +121,55 @@ def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
 @pytest.mark.skipif(
     EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry SDK and Exporter to not be installed"
 )
-def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
-    """Test error when OpenTelemetry SDK is not installed."""
+def test_otel_exporter_not_installed(ddtrace_run_python_code_in_subprocess):
+    """Test error when OpenTelemetry OTLP exporters are not installed."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
 
     assert (
-        "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
-        "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support."
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP logs export."
     ) in stderr.decode(), f"Expected error message not found in stderr: {stderr.decode()}"
+
+
+@pytest.mark.skipif(EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry exporters to be absent")
+def test_otel_exporter_import_warning(caplog):
+    from ddtrace.internal.opentelemetry.logs import _import_exporter
+
+    assert _import_exporter("grpc") is None
+    assert (
+        "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+        "OTLP logs export."
+    ) in caplog.text
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env"
+    },
+)
+def test_otel_logs_resource_remaps_semantic_tags():
+    from ddtrace import config
+    from ddtrace.internal.opentelemetry.logs import _build_resource
+
+    assert config.service == "tag_service"
+    assert config.version == "tag_version"
+    assert config.env == "tag_env"
+    assert config.tags == {"env": "tag_env"}
+    resource = _build_resource()
+    assert resource is not None
+    assert resource.attributes["service.name"] == "tag_service"
+    assert resource.attributes["service.version"] == "tag_version"
+    assert resource.attributes["deployment.environment.name"] == "tag_env"
+    assert not {"service", "version", "env", "deployment.environment"} & resource.attributes.keys()
 
 
 @pytest.mark.skipif(
@@ -186,6 +242,8 @@ def test_otel_logs_support_not_enabled():
         "DD_SERVICE": "ddservice",
         "DD_VERSION": "ddv1",
         "DD_ENV": "ddenv",
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=tag_service,service.version=tag_version,"
+        "deployment.environment.name=tag_env",
         "DD_TRACE_REPORT_HOSTNAME": "true",
         "DD_HOSTNAME": "ddhost",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
@@ -195,19 +253,16 @@ def test_otel_logs_support_not_enabled():
 def test_otel_logs_exporter_auto_configured_http():
     """Test OpenTelemetry logs exporter auto-configuration for HTTP protocol."""
     from logging import getLogger
-    from unittest.mock import Mock
-    from unittest.mock import patch
 
     from opentelemetry._logs import get_logger_provider
 
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
+    from tests.opentelemetry.test_logs import get_otlp_http_request
+    from tests.opentelemetry.test_logs import mock_otlp_http_request
 
     log = getLogger()
-    with patch("requests.sessions.Session.request") as mock_request:
-        mock_response = Mock(status_code=200)
-        mock_request.return_value = mock_response
-
+    with mock_otlp_http_request() as mock_request:
         log.error("test_otel_logs_exporter_auto_configured_http")
 
         logger_provider = get_logger_provider()
@@ -215,9 +270,9 @@ def test_otel_logs_exporter_auto_configured_http():
 
         request_body = None
         for call in mock_request.call_args_list:
-            method, url = call[0][:2]
+            method, url, data = get_otlp_http_request(call)
             if method == "POST" and "/v1/logs" in url:
-                request_body = call[1].get("data", None)
+                request_body = data
                 break
         assert request_body is not None, (
             "Expected a request body to be present in the "
@@ -226,13 +281,20 @@ def test_otel_logs_exporter_auto_configured_http():
 
     captured_logs = decode_logs_request(request_body)
     assert len(captured_logs.resource_logs) > 0, "Expected at least one resource log in the OpenTelemetry logs request"
+    assert all(
+        attr.key not in {"service", "version", "env", "deployment.environment"}
+        for resource_logs in captured_logs.resource_logs
+        for attr in resource_logs.resource.attributes
+    )
 
     attributes = extract_log_correlation_attributes(captured_logs, "test_otel_logs_exporter_auto_configured_http")
     assert len(attributes) == 6, f"Expected 6 log correlation attributes but found: {attributes}"
     assert attributes["service"] == "ddservice", (
         f"Expected service.name to be 'ddservice' but found: {attributes['service']}"
     )
-    assert attributes["env"] == "ddenv", f"Expected deployment.environment to be 'ddenv' but found: {attributes['env']}"
+    assert attributes["env"] == "ddenv", (
+        f"Expected deployment.environment.name to be 'ddenv' but found: {attributes['env']}"
+    )
     assert attributes["version"] == "ddv1", f"Expected service.version to be 'ddv1' but found: {attributes['version']}"
     assert attributes["host_name"] == "ddhost", (
         f"Expected host.name to be 'ddhost' but found: {attributes['host_name']}"
@@ -423,7 +485,7 @@ def test_ddtrace_log_correlation():
         f"Expected service.name to be 'test_service' but found: {attributes['service']}"
     )
     assert attributes["env"] == "test_env", (
-        f"Expected deployment.environment to be 'test_env' but found: {attributes['env']}"
+        f"Expected deployment.environment.name to be 'test_env' but found: {attributes['env']}"
     )
     assert attributes["version"] == "1.0", f"Expected service.version to be '1.0' but found: {attributes['version']}"
     assert attributes["host_name"] == "test_host2", (
@@ -490,7 +552,7 @@ def test_otel_trace_log_correlation():
         f"Expected service.name to be 'test_service' but found: {attributes['service']}"
     )
     assert attributes["env"] == "test_env", (
-        f"Expected deployment.environment to be 'test_env' but found: {attributes['env']}"
+        f"Expected deployment.environment.name to be 'test_env' but found: {attributes['env']}"
     )
     assert attributes["version"] == "1.0", f"Expected service.version to be '1.0' but found: {attributes['version']}"
     assert attributes["host_name"] == "test_host", (
@@ -598,20 +660,19 @@ def test_otel_logs_does_not_generate_client_grpc_spans():
 def test_otel_logs_does_not_generate_client_http_spans():
     """Test that OpenTelemetry http logs exporter does not generate client spans."""
     from logging import getLogger
-    from unittest.mock import Mock
-    from unittest.mock import patch
 
     from opentelemetry._logs import get_logger_provider
 
-    logger = getLogger()
-    with patch("requests.sessions.Session.request") as mock_request:
-        mock_request.return_value = Mock(status_code=200)
+    from tests.opentelemetry.test_logs import get_otlp_http_request
+    from tests.opentelemetry.test_logs import mock_otlp_http_request
 
+    logger = getLogger()
+    with mock_otlp_http_request() as mock_request:
         logger.error("test_otel_logs_http")
         get_logger_provider().force_flush()
 
         log_request_found = any(
-            len(call[0]) >= 2 and call[0][0] == "POST" and "/v1/logs" in call[0][1]
-            for call in mock_request.call_args_list
+            method == "POST" and "/v1/logs" in url
+            for method, url, _ in (get_otlp_http_request(call) for call in mock_request.call_args_list)
         )
         assert log_request_found, f"Expected HTTP log export request but found none: {mock_request.call_args_list}"

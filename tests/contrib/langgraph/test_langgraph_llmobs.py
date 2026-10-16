@@ -30,6 +30,19 @@ def _find_spans_by_name(spans, names):
     return sorted(matched, key=lambda s: s.start_ns)
 
 
+def _split_spans_by_link_source(spans, names, source_span):
+    """Find two spans named the same and split them by whether they have a link from source_span."""
+    matched = _find_spans_by_name(spans, names)
+    source_id = str(source_span.span_id)
+    with_link = [s for s in matched if any(link["span_id"] == source_id for link in (get_llmobs_span_links(s) or []))]
+    without_link = [s for s in matched if s not in with_link]
+    assert len(with_link) == 1 and len(without_link) == 1, (
+        f"Expected exactly one span linked from {source_id} and one without, "
+        f"got {len(with_link)} with and {len(without_link)} without"
+    )
+    return without_link[0], with_link[0]
+
+
 def _collect_spans(test_spans):
     return [s for trace in test_spans.pop_traces() for s in trace]
 
@@ -204,7 +217,7 @@ class TestLangGraphLLMObs:
         b_span = _find_span_by_name(spans, "b")
         c_span = _find_span_by_name(spans, "c")
         d_span = _find_span_by_name(spans, "d")
-        e_span_from_send, e_span = _find_spans_by_name(spans, ["e", "e"])
+        e_span_from_send, e_span = _split_spans_by_link_source(spans, ["e", "e"], b_span)
         f_span = _find_span_by_name(spans, "f")
         g_span = _find_span_by_name(spans, "g")
         h_span = _find_span_by_name(spans, "h")
@@ -236,7 +249,7 @@ class TestLangGraphLLMObs:
         b_span = _find_span_by_name(spans, "b")
         c_span = _find_span_by_name(spans, "c")
         d_span = _find_span_by_name(spans, "d")
-        e_span_from_send, e_span = _find_spans_by_name(spans, ["e", "e"])
+        e_span_from_send, e_span = _split_spans_by_link_source(spans, ["e", "e"], b_span)
         f_span = _find_span_by_name(spans, "f")
         g_span = _find_span_by_name(spans, "g")
         h_span = _find_span_by_name(spans, "h")

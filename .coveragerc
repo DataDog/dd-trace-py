@@ -6,6 +6,9 @@ parallel = true
 disable_warnings = couldnt-parse
 
 [paths]
+ddtrace =
+    ddtrace/
+    */site-packages/ddtrace/
 source =
     ./
     /root/project/

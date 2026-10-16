@@ -231,7 +231,7 @@ impl RemoteConfigClient {
         // The fetcher owns the storage; it's reached later via
         // `fetcher.fetcher.file_storage()`.
         let storage = ShmStorage::new();
-        let http = NativeCapabilities::new_without_connection_pooling();
+        let http = NativeCapabilities::new_periodic();
         let fetcher = if is_agentless {
             rt.block_on(SingleChangesFetcher::new(
                 storage, target, runtime_id, options, http,

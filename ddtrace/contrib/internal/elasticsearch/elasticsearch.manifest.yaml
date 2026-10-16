@@ -1,0 +1,20 @@
+_v: 1
+name: elasticsearch
+display_name: Elasticsearch
+description: Instruments synchronous and asynchronous Elasticsearch and OpenSearch transport requests, recording query metadata,
+  peer details, response status, errors, and server timing.
+packages:
+- name: elastic-transport
+- name: elasticsearch
+- name: elasticsearch1
+- name: elasticsearch2
+- name: elasticsearch5
+- name: elasticsearch6
+- name: elasticsearch7
+- name: opensearch-py
+category:
+- db.client
+systems:
+- elasticsearch
+- opensearch
+creation_date: '2016-06-22'

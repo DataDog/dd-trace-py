@@ -1,0 +1,10 @@
+_v: 1
+name: unittest
+display_name: unittest
+description: Instruments unittest test execution, recording session, module, suite, and test spans, outcomes, intelligent
+  skipping, and optional code coverage.
+packages: []
+category:
+- test.execution
+systems: []
+creation_date: '2023-08-28'

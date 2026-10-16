@@ -7,6 +7,7 @@ import re
 import typing as t
 
 from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.utils.paths import relative_path
 
 
 try:
@@ -24,15 +25,15 @@ def _get_relative_path_strings(executable_lines, workspace_path: Path) -> dict[s
 
     for path in executable_lines:
         path_obj = Path(path)
-        path_str = str(path_obj.relative_to(workspace_path) if path_obj.is_relative_to(workspace_path) else path_obj)
-        relative_path_strs[path] = path_str
+        relative = relative_path(path_obj, workspace_path)
+        relative_path_strs[path] = relative if relative is not None else str(path_obj)
 
     return relative_path_strs
 
 
 def _get_ast_for_path(path: str):
     if path not in ast_cache:
-        with open(path, "r") as f:
+        with open(path) as f:
             file_src = f.read()
         ast_cache[path] = ast.parse(file_src)
     return ast_cache[path]
@@ -185,10 +186,10 @@ def gen_json_report(
 
 def compare_coverage_reports(coverage_py_filename: str, dd_coverage_filename: str) -> dict[str, t.Any]:
     """Compare two JSON-formatted coverage reports and return a dictionary of the differences."""
-    with open(coverage_py_filename, "r") as coverage_py_f:
+    with open(coverage_py_filename) as coverage_py_f:
         coverage_py_data = json.load(coverage_py_f)
 
-    with open(dd_coverage_filename, "r") as dd_coverage_f:
+    with open(dd_coverage_filename) as dd_coverage_f:
         dd_coverage_data = json.load(dd_coverage_f)
 
     compared_data: dict[str, t.Any] = {

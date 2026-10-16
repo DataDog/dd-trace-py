@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for the native SpanData class.
 
@@ -8,7 +7,54 @@ that wouldn't be caught by testing the higher-level Span class.
 
 import pytest
 
+from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_RULE_DECISION
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import _set_sampling_tags
+
+
+def test_native_span_sampling():
+    span = SpanData(name="native", trace_id=123, span_id=456)
+    assert SamplingRule(sample_rate=1, name="native").matches(span)
+    assert SamplingRule(sample_rate=1).sample(span)
+    assert SpanSamplingRule(sample_rate=1, max_per_second=-1, name="native").sample(span)
+
+    _set_sampling_tags(span, True, 1, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
+    context = span.context
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context._is_remote is False
+    assert context.sampling_priority == 2
+    assert context._meta["_dd.p.dm"] == "-3"
+    _set_sampling_tags(span, False, 0, SamplingMechanism.DEFAULT)
+    assert span.context is context
+    assert context._meta["_dd.p.dm"] == "-3"
+
+
+@pytest.mark.parametrize("decision", [USER_KEEP, USER_REJECT, None])
+def test_native_span_override_sampling_decision(decision):
+    root = SpanData(name="root")
+    root.context._publish_sampling_decision(1, 0.5, True)
+    child = SpanData(name="child", context=root.context)
+    child._inherit_from_parent(root)
+    sampling_keys = (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION)
+    for key in sampling_keys:
+        root._set_attribute(key, 0.5)
+
+    child._override_sampling_decision(decision)
+
+    assert child.context.sampling_priority == decision
+    assert root.context.sampling_priority == decision
+    assert root.context._meta["_dd.p.dm"] == "-4"
+    assert root.context._otel_sampling_state_data == -1.0
+    for key in sampling_keys:
+        assert not root._has_attribute(key)
 
 
 # =============================================================================
@@ -49,8 +95,8 @@ UNICODE_STRINGS = [
 UTF8_BYTES = [
     pytest.param(b"test-bytes", id="ascii_bytes"),
     pytest.param(b"hello-world", id="hello_bytes"),
-    pytest.param("test-🔥".encode("utf-8"), id="emoji_bytes"),
-    pytest.param("日本語".encode("utf-8"), id="japanese_bytes"),
+    pytest.param("test-🔥".encode(), id="emoji_bytes"),
+    pytest.param("日本語".encode(), id="japanese_bytes"),
 ]
 
 # Strings with special characters that should be preserved

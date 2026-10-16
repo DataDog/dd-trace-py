@@ -56,7 +56,6 @@ class Profile
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
-    bool reset_profile();
     void cleanup();
     void prefork();
     void postfork_parent();

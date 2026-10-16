@@ -15,6 +15,7 @@ The tests spawn actual uwsgi processes and verify:
 2. Valid configurations produce actual profile samples in each worker
 """
 
+from collections.abc import Generator
 import glob
 from importlib.metadata import version
 import logging
@@ -29,8 +30,9 @@ import sys
 import time
 from typing import IO
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
-from typing import Generator
+from typing import NoReturn
 from typing import Optional
 
 import pytest
@@ -49,6 +51,9 @@ if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# Exit status uWSGI's end_me() uses for a worker stopped by SIGINT/SIGTERM. Defined in uwsgi.h and
+# unchanged since uWSGI 0.9.5, so it does not need gating on the uWSGI version.
+UWSGI_END_CODE = 30
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
@@ -85,7 +90,7 @@ def uwsgi(
 def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     """uWSGI postfork startup should set the active profiler singleton in workers."""
 
-    def _raise_master(*args, **kwargs):
+    def _raise_master(*args: Any, **kwargs: Any) -> NoReturn:
         raise profiler.uwsgi.uWSGIMasterProcess()
 
     monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
@@ -103,6 +108,32 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     p.stop(flush=False)  # type: ignore[unreachable]
 
 
+def test_uwsgi_postfork_start_reports_profiler_activated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The uWSGI master skips the telemetry report, so the worker must send it."""
+    from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+
+    def _raise_master(*args, **kwargs):
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
+
+    product_changes: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        profiler.telemetry_writer,
+        "product_activated",
+        lambda product, status: product_changes.append((product, status)),
+    )
+
+    p = profiler.Profiler()
+    p.start()
+    assert product_changes == []
+
+    p._start_on_fork()
+    assert product_changes == [(TELEMETRY_APM_PRODUCT.PROFILER, True)]
+
+    p.stop(flush=False)
+
+
 def test_uwsgi_worker_blocks_second_profiler_start(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -110,7 +141,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     """A worker started through uWSGI postfork should still reject a second profiler."""
     callback_holder = {}
 
-    def _register_postfork(callback, atexit=None):
+    def _register_postfork(callback: Callable[[], None], atexit: Optional[Callable[[], None]] = None) -> NoReturn:
         callback_holder["callback"] = callback
         raise profiler.uwsgi.uWSGIMasterProcess()
 
@@ -136,7 +167,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     p1.stop(flush=False)
 
 
-def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
+def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]) -> None:
     """Test that profiler fails when uwsgi threads are not enabled.
 
     The profiler requires threading support to run its background sampling thread.
@@ -241,12 +272,18 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
 
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
-        assert len(worker_pids) == 2, "expected 2 workers, saw %r" % worker_pids
+        assert len(worker_pids) == 2, "expected 2 workers, saw %r (uwsgi returncode=%r)" % (
+            worker_pids,
+            proc.poll(),
+        )
         for pid in worker_pids:
             _wait_for_profile_samples(filename, pid, "wall-time")
     finally:
         proc.terminate()
-        proc.wait()
+        exit_code = proc.wait()
+
+    # Without --master, SIGTERM terminates a worker via uWSGI's end_me() handler.
+    assert exit_code == UWSGI_END_CODE
 
 
 def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
@@ -354,12 +391,17 @@ def _wait_for_profile_samples(
                 raise FileNotFoundError(f"No profile files found for {filename_prefix}")
 
             profiles = [pprof_utils.parse_profile(f) for f in files]
-            profile = pprof_utils.merge_profiles(profiles)
         except _retry_exc:
             time.sleep(interval)
             continue
 
-        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
+        samples: list[pprof_pb2.Sample] = []
+        for profile in profiles:
+            try:
+                samples.extend(pprof_utils.get_samples_with_value_type(profile, value_type))
+            except StopIteration:
+                continue
+
         if samples:
             return samples
         time.sleep(interval)
@@ -502,29 +544,32 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
     # where Py_Finalize crashes in --lazy-apps mode (unbit/uwsgi#2726). --skip-atexit
     # makes non-master workers hard-exit via _exit(), but the *first* worker also
     # acts as the master (getpid() == masterpid), so end_me() still calls exit() ->
-    # atexit handlers -> uwsgi_python_atexit() -> Py_Finalize() for that worker.
-    # Native profiler threads (stack sampler in _stack.so, tokio blocking pool in
-    # the shared runtime) are still running while Py_Finalize's GC tears modules
-    # down, which can race and either segfault (SIGSEGV) or abort (SIGABRT). This
-    # race is pre-existing and orthogonal to what this test verifies (per-worker
-    # profile samples), so we tolerate ONLY those two signals AND only on the
-    # affected uwsgi versions. Any other signaled exit (SIGKILL, SIGBUS, etc.) or
-    # an uwsgi>=2.0.30 crash still fails the test -- see #19405.
+    # atexit handlers -> uwsgi_python_atexit() -> Py_Finalize() for that worker. That
+    # exit() path runs on the master-acting worker regardless of the uwsgi version,
+    # so uwsgi#2726 (fixed in 2.0.30) does not cover it. Native profiler threads
+    # (stack sampler in _stack.so, tokio blocking pool in the shared runtime) are
+    # still running while Py_Finalize's GC tears modules down, which can race and
+    # either segfault (SIGSEGV) or abort (SIGABRT). This race is pre-existing and
+    # orthogonal to what this test verifies (per-worker profile samples), so we
+    # tolerate ONLY those two signals on the master-acting worker, on any uwsgi
+    # version. Any other signaled exit (SIGKILL, SIGBUS, etc.) still fails the
+    # test -- see #19405.
     _uwsgi_ver = tuple(int(x) for x in version("uwsgi").split("."))
     _tolerated_signals = {signal.SIGSEGV, signal.SIGABRT}
     if os.WIFSIGNALED(res_status):
         term_sig = os.WTERMSIG(res_status)
-        if _uwsgi_ver < (2, 0, 30) and term_sig in _tolerated_signals:
+        if term_sig in _tolerated_signals:
             print(
-                "WARNING: uWSGI worker %d exited via signal %d (raw wait status %d). "
-                "This is a known race between native profiler shutdown and "
-                "Py_Finalize under uwsgi<2.0.30 with --skip-atexit; profile "
-                "samples should still be on disk from the last flush interval." % (parent_pid, term_sig, res_status)
+                "WARNING: uWSGI worker %d exited via signal %d (raw wait status %d, "
+                "uwsgi=%s). This is a known race between native profiler shutdown and "
+                "Py_Finalize on the master-acting worker's exit() path; profile "
+                "samples should still be on disk from the last flush interval."
+                % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
             )
         else:
             raise AssertionError(
                 "uWSGI worker %d crashed with signal %d (raw wait status %d, "
-                "uwsgi=%s). Only SIGSEGV/SIGABRT on uwsgi<2.0.30 is a known race."
+                "uwsgi=%s). Only SIGSEGV/SIGABRT is a known race."
                 % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
             )
 

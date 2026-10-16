@@ -27,7 +27,7 @@ class FeatureFlagCallback(RCCallback):
     """Remote Configuration callback for Feature Flagging and Experimentation (FFE)."""
 
     def __init__(self) -> None:
-        # AIDEV-NOTE: Path of the configuration currently loaded, so a removal only
+        # Path of the configuration currently loaded, so a removal only
         # clears it when it names that same path. Replacing a config is remove(old) +
         # add(new), and a forked child can see the two in either order because the
         # shared-memory distribution publishes a manifest per file operation (see

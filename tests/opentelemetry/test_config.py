@@ -37,9 +37,9 @@ def _global_sampling_rule():
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
-    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration "
-    b"will be ignored.\nTrace sampler set from always_off to parentbased_always_off; only parent based "
-    b"sampling is supported.\nFollowing style not supported by ddtrace: jaegar.\n",
+    err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n"
+    b"Setting OTEL_TRACES_EXPORTER to True is not supported by ddtrace, this configuration will be ignored.\n"
+    b"Following style not supported by ddtrace: jaegar.\n",
 )
 def test_dd_otel_mixed_env_configuration():
     from ddtrace import config
@@ -71,9 +71,9 @@ def test_dd_otel_mixed_env_configuration():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
         "OTEL_SDK_DISABLED": "False",
     },
-    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration will be ignored.\n"
-    b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n"
-    b"Following style not supported by ddtrace: jaegar.\n",
+    err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n"
+    b"Following style not supported by ddtrace: jaegar.\n"
+    b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
@@ -101,6 +101,40 @@ def test_otel_service_configuration():
     from ddtrace import config
 
     assert config.service == "Test", config.service
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "",
+    }
+)
+def test_empty_trace_protocol_falls_back_to_global_protocol():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_SERVICE_NAME": "",
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=resource-service",
+        "OTEL_EXPORTER_OTLP_TIMEOUT": "",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "",
+        "OTEL_METRIC_EXPORT_TIMEOUT": "",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "",
+    }
+)
+def test_empty_otel_configuration_uses_defaults():
+    from ddtrace import config
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert config.service == "resource-service"
+    assert config._otel_stats_computation_enabled is None
+    assert otel_config.exporter.TIMEOUT == 10000
+    assert otel_config.exporter.PROTOCOL == "grpc"
+    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
+    assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 7500
 
 
 @pytest.mark.subprocess(env={"OTEL_LOG_LEVEL": "debug"})
@@ -135,6 +169,15 @@ def test_otel_propagation_style_configuration():
     from ddtrace import config
 
     assert config._propagation_style_extract == ["b3", "tracecontext"], config._propagation_style_extract
+
+
+@pytest.mark.subprocess(env={"OTEL_PROPAGATORS": "tracecontext, baggage, b3multi"}, err=b"")
+def test_otel_baggage_propagation_style_configuration():
+    from ddtrace import config
+
+    expected_styles = ["tracecontext", "baggage", "b3multi"]
+    assert config._propagation_style_extract == expected_styles
+    assert config._propagation_style_inject == expected_styles
 
 
 @pytest.mark.subprocess(
@@ -247,7 +290,37 @@ def test_otel_logs_exporter_configuration():
     """
     Testing that a warning is not logged when 'none' value is found.
     """
-    from ddtrace import config  # noqa: F401
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is False
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "otlp"}, err=b"")
+def test_otel_logs_exporter_configuration_otlp():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is True
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "otlp", "DD_LOGS_OTEL_ENABLED": "false"}, err=b"")
+def test_dd_logs_otel_enabled_takes_precedence_over_otel_logs_exporter():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is False
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "otlp", "OTEL_SDK_DISABLED": "true"}, err=b"")
+def test_otel_sdk_disabled_takes_precedence_over_otel_logs_exporter():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is False
+
+
+@pytest.mark.subprocess(env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_SDK_DISABLED": "true"}, err=b"")
+def test_dd_logs_otel_enabled_takes_precedence_over_otel_sdk_disabled():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is True
 
 
 @pytest.mark.subprocess(
@@ -259,6 +332,7 @@ def test_otel_resource_attributes_unified_tags():
     assert config.service == "bleh"
     assert config.version == "1.0"
     assert config.env == "prod"
+    assert config.tags == {"env": "prod"}
 
 
 @pytest.mark.subprocess(
@@ -268,6 +342,7 @@ def test_otel_resource_attributes_prefer_stable_environment():
     from ddtrace import config
 
     assert config.env == "stable"
+    assert config.tags == {"env": "stable"}
 
 
 @pytest.mark.subprocess(
@@ -306,10 +381,10 @@ def test_otel_resource_attributes_mixed_tags():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4,testtag5=random5,"
         "testtag6=random6,testtag7=random7,testtag8=random8"
     },
-    err=b"To preserve metrics cardinality, only the following first 10 tags have been processed "
+    err=b"To reduce cardinality, only the first 10 tags derived from OpenTelemetry resource attributes were kept: "
     b"['version:1.0', 'service:bleh', 'env:prod', 'testtag1:random1', 'testtag2:random2', 'testtag3:random3', "
     b"'testtag4:random4', 'testtag5:random5', 'testtag6:random6', 'testtag7:random7']. "
-    b"The following tags were not ingested: ['testtag8:random8']\n",
+    b"Reduce the number of resource attributes to avoid dropping tags. Dropped tags: ['testtag8:random8']\n",
 )
 def test_otel_resource_attributes_tags_warning():
     from ddtrace import config

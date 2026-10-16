@@ -72,9 +72,9 @@ add_library(
     src/gc_frame_tracker.cpp
     src/origin_task_links.cpp
     src/sampler.cpp
+    src/span_links.cpp
     src/stack.cpp
-    src/stack_renderer.cpp
-    src/thread_span_links.cpp)
+    src/stack_renderer.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
@@ -136,7 +136,7 @@ elseif(UNIX)
     endif()
 endif()
 
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads ${CMAKE_DL_LIBS})
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)

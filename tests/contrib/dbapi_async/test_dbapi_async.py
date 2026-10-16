@@ -10,7 +10,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Span  # noqa:F401
+from ddtrace.trace import Span
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.utils import assert_is_measured
@@ -35,15 +35,17 @@ class TestTracedAsyncCursor(AsyncioTestCase):
 
     @mark_asyncio
     async def test_query_is_blocked_before_execution(self):
-        for method in ("execute", "executemany"):
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
-                with pytest.raises(BlockingException):
-                    await getattr(TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"}), method)(
-                        "SELECT 1"
-                    )
+        for query in ("SELECT 1", b"SELECT 1"):
+            for method in ("execute", "executemany"):
+                cursor = TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"})
+                with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+                    with pytest.raises(BlockingException):
+                        await getattr(cursor, method)(query)
 
-            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
-            getattr(self.cursor, method).assert_not_awaited()
+                dispatch_event.assert_called_once_with(
+                    DbQueryEvent(query=query, span_name_prefix="postgres", get_encoding=cursor._dbapi_query_encoding)
+                )
+                getattr(self.cursor, method).assert_not_awaited()
 
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     @mark_asyncio
@@ -185,7 +187,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are preserved"
@@ -208,7 +210,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         assert span.service == "cfg-service"
 
     @mark_asyncio
@@ -221,7 +223,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         assert span.service == "db"
 
     @mark_asyncio
@@ -235,7 +237,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         assert span.service == "default-svc"
 
     @mark_asyncio
@@ -252,7 +254,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -350,7 +352,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are preserved"
         assert span.name == "my_name", "Span name is respected"
         assert span.resource == "my_resource", "Resource is respected"
@@ -373,7 +375,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -390,7 +392,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = self.pop_spans()[0]  # type: Span
+        span: Span = self.pop_spans()[0]
         assert span.get_metric("db.row_count") is None
 
     @mark_asyncio

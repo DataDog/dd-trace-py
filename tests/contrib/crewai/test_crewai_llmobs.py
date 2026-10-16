@@ -1,7 +1,7 @@
 import json
+from unittest import mock
 
 import crewai
-import mock
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct

@@ -60,6 +60,12 @@ Add to `INTEGRATION_CONFIGS` frozenset in `ddtrace/internal/settings/_config.py`
 in alphabetical order — this allows users to configure the integration before
 it's patched. **Without this entry, integration config settings are silently ignored.**
 
+Add `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` describing the
+integration's packages, categories, and systems. Its `packages` must match the
+registry `dependency_names` you just added. See "What is an integration manifest?" in
+[Contributing Integrations](../../../../docs/contributing-integrations.rst) for
+the field rules and for the rare cases where modifying an existing integration requires a manifest update.
+
 ## 3. Create LLMObs integration (LLM only)
 
 Create `ddtrace/llmobs/_integrations/{name}.py` subclassing `BaseLLMIntegration`.
@@ -70,15 +76,15 @@ See the **llmobs-integrations** skill for the full LLM-specific implementation g
 
 ## 4. Add test environment
 
-Add a `Venv()` entry to `riotfile.py` near a similar integration. This remains the source of test dependency and Python-version combinations.
+Add a matrix entry to the nearest `suitespec.yml` file. Follow a similar integration's dependency and Python-version combinations.
 
 Key rules:
-- `name` must match the integration name used in `PATCH_MODULES`
+- A variant's `name` is the exact environment name passed to `scripts/test-requirements lock`; use the integration name as
+  its base and add a qualifier when needed
 - `command` points to the test directory
 - Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
-- Use `select_pys()` for Python version ranges
 - Cover the oldest supported and latest compatible dependency versions
-- Regenerate the committed locks with `scripts/ddtest scripts/compile-and-prune-test-requirements`
+- Regenerate the committed locks with `scripts/test-requirements lock <environment-name>`
 
 ### suitespec.yml
 
@@ -127,6 +133,7 @@ Every new integration must complete ALL applicable items:
 - [ ] `ddtrace/_monkey.py` -- `PATCH_MODULES` entry in alphabetical order
 - [ ] `scripts/integration_registry/registry.yaml` -- dependency names and tested version range
 - [ ] `ddtrace/internal/settings/_config.py` -- `INTEGRATION_CONFIGS` frozenset entry
+- [ ] `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` -- integration manifest (see "What is an integration manifest?" in [Contributing Integrations](../../../../docs/contributing-integrations.rst))
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` -- import + `__all__` entry (LLM only)
 
 ### Patch Code
@@ -141,8 +148,7 @@ Every new integration must complete ALL applicable items:
 - [ ] `_llmobs_set_tags()` implemented with all required LLMObs fields (LLM only)
 
 ### Test Environment
-- [ ] `riotfile.py` -- `Venv()` entry covering pinned + latest package versions
-- [ ] Suitespec entry -- component + suite in correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
+- [ ] Suitespec entry -- component, suite, and dependency variants in the correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
 - [ ] Compile and prune test requirements if needed -- follow `docs/contributing-testing.rst` and existing repo workflow
 
 ### Tests

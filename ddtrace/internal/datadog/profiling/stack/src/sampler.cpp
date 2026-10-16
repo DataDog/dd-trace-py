@@ -5,7 +5,7 @@
 #include "dd_wrapper/include/sample.hpp"
 #include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "echion/danger.h"
 #include "echion/echion_sampler.h"
@@ -26,6 +26,24 @@
 #include <utility>
 
 using namespace Datadog;
+
+// Reads as "does not own SIGBUS" or "no longer owns SIGSEGV and SIGBUS". The check that
+// sent us here and this description are separate reads of the dispositions, so both
+// signals can be ours again by the time we get here, leaving nothing specific to name.
+static std::string
+lost_ownership_clause(const char* verb, const std::string& foreign_signals) noexcept
+{
+    // Outside the sampling try/catch: if string allocation fails, degrade the
+    // warning text rather than let the exception crash the process.
+    try {
+        if (foreign_signals.empty()) {
+            return "cannot confirm it owns SIGSEGV and SIGBUS";
+        }
+        return std::string(verb) + " " + foreign_signals;
+    } catch (...) {
+        return {};
+    }
+}
 
 static void
 update_fast_copy_stats(ProfilerStats& stats)
@@ -459,9 +477,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // the process.
                         handler_fallback_done = true;
                         mark_fast_copy_syscall_fallback();
-                        std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
-                                     "handler; keeping the syscall-based memory copy to avoid crashing."
-                                  << std::endl;
+                        const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                        std::cerr << "ddtrace stack profiler: "
+                                  << lost_ownership_clause("does not own", ownership.foreign)
+                                  << "; keeping the syscall-based memory copy to avoid crashing. "
+                                  << "Handler owners: " << ownership.owners << std::endl;
                     }
                 }
             } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
@@ -472,16 +492,17 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
                 mark_fast_copy_syscall_fallback();
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing."
-                          << std::endl;
+                const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                std::cerr << "ddtrace stack profiler: " << lost_ownership_clause("no longer owns", ownership.foreign)
+                          << "; falling back to syscall-based memory copy to avoid crashing. "
+                          << "Handler owners: " << ownership.owners << std::endl;
                 if (!set_fast_copy_enabled(false)) {
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would
                     // crash - stop sampling instead.
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing."
-                              << std::endl;
+                                 "stopping stack sampling to avoid crashing. "
+                              << "Handler owners: " << ownership.owners << std::endl;
                     break;
                 }
             }
@@ -581,6 +602,33 @@ Sampler::set_interval(double new_interval_s)
     microsecond_t new_interval_us = static_cast<microsecond_t>(new_interval_s * 1e6);
     sample_interval_us.store(new_interval_us);
     Sample::profile_borrow().stats().set_sampling_interval_us(new_interval_us);
+}
+
+bool
+Sampler::set_max_frames(uint64_t value)
+{
+    // StackCollector configures this before start(). Updating the limit while
+    // the sampler thread is walking stacks would race with collection.
+    if (sampler_active_.load(std::memory_order_acquire) || thread_running.load(std::memory_order_acquire)) {
+        return false;
+    }
+
+    // Setting to 0 uses the default limit.
+    const size_t requested = value == 0 ? g_default_max_nframes : static_cast<size_t>(value);
+    echion->set_max_frames(requested);
+    return true;
+}
+
+size_t
+Sampler::max_frames() const
+{
+    return echion->stack_max_frames();
+}
+
+size_t
+Sampler::frame_cache_capacity() const
+{
+    return g_default_echion_frame_cache_size;
 }
 
 Sampler::Sampler()
@@ -696,8 +744,8 @@ stack_postfork_cleanup()
     // Update PID in Echion
     _set_pid(getpid());
 
-    // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
-    ThreadSpanLinks::postfork_child();
+    // Reset SpanLinks state (reset locks, clear span-thread mappings)
+    SpanLinks::postfork_child();
 
     // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
     OriginTaskLinks::postfork_child();
@@ -727,7 +775,7 @@ __attribute__((constructor)) void
 stack_init()
 {
     _set_pid(getpid());
-    ThreadSpanLinks::postfork_child();
+    SpanLinks::postfork_child();
     OriginTaskLinks::postfork_child();
 }
 

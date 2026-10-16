@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue where Symbol Database uploads could be disabled in
+    the first worker when multiple processes fork concurrently.

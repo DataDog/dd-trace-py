@@ -10,7 +10,6 @@ import azure.servicebus.amqp as azure_servicebus_amqp
 from azure.servicebus.amqp import AmqpAnnotatedMessage
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
@@ -23,7 +22,6 @@ from ddtrace.propagation.http import HTTPPropagator
 
 def create_context(
     context_name: str,
-    pin: Pin,
     operation_name: str,
     resource: Optional[str] = None,
     integration_config: Optional[dict] = None,
@@ -31,9 +29,8 @@ def create_context(
     return core.context_with_data(
         context_name,
         span_name=operation_name,
-        pin=pin,
         resource=resource,
-        service=ext_service(pin, config.azure_servicebus),
+        service=ext_service(None, config.azure_servicebus),
         span_type=SpanTypes.WORKER,
         integration_config=integration_config,
     )

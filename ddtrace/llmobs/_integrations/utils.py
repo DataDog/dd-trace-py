@@ -1,15 +1,14 @@
 import base64
+from collections.abc import Iterable
 from dataclasses import dataclass
 import inspect
 import json
 import re
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -49,6 +48,7 @@ from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime  # noqa
 from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
@@ -182,7 +182,9 @@ LITELLM_METADATA_COMPLETION_KEYS = (
     "custom_llm_provider",
 )
 
-REACT_AGENT_TOOL_CALL_REGEX = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+# ReAct "Action: <tool>" and "Action Input: <input>" markers.
+REACT_ACTION_REGEX = re.compile(r"Action\s*(?:\d+\s*)?:")
+REACT_ACTION_INPUT_REGEX = re.compile(r"Action\s*(?:\d+\s*)?Input\s*(?:\d+\s*)?:")
 
 
 def get_llmobs_metrics_tags(integration_name, span):
@@ -464,7 +466,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
-                Message(content="[Unsupported content type: {}]".format(content_type), role=role)
+                Message(content=f"[Unsupported content type: {content_type}]", role=role)
             )
     message: Message = Message()
     if tool_calls_info:
@@ -481,8 +483,21 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
     return messages
 
 
+def _openai_finish_reason_metadata(finish_reasons: list[Any]) -> dict[str, Any]:
+    """Build metadata for the response-side finish reasons (e.g. "stop", "length", "content_filter").
+
+    Always a single finish_reason string so the key keeps one type and stays a clean facet. A
+    request asking for multiple choices comma-joins its reasons in choice order, so an n=2
+    request that hit the token limit on its second choice reads as "stop,length".
+    """
+    reasons = [str(reason) for reason in finish_reasons if reason]
+    if not reasons:
+        return {}
+    return {"finish_reason": ",".join(reasons)}
+
+
 def openai_set_meta_tags_from_completion(
-    span: Span, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
+    span: _LLMObsSpan, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
@@ -493,6 +508,9 @@ def openai_set_meta_tags_from_completion(
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
         output_messages = [Message(content=str(_get_attr(choice, "text", ""))) for choice in choices]
+        parameters.update(
+            _openai_finish_reason_metadata([_get_attr(choice, "finish_reason", None) for choice in choices])
+        )
     _annotate_llmobs_span_data(
         span,
         input_messages=[Message(content=p) for p in prompt],
@@ -507,7 +525,7 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
-# AIDEV-NOTE: Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
+# Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
 # it, _truncate_span_event blanks the span's whole input AND output. Two gaps shared with the audio
 # guard, for the writer-side fix (MLOB-6408): bounds one image not their sum, and ignores
 # DD_LLMOBS_EVENT_SIZE_BYTES.
@@ -550,7 +568,7 @@ def format_image_part_with_guard(
     return format_image_part(data, mime_type)
 
 
-# AIDEV-NOTE: per-image, not cumulative. N images that each fit can still bust the event limit
+# per-image, not cumulative. N images that each fit can still bust the event limit
 # together; a shared per-request budget is tracked under MLOB-6408.
 # Distinct from LLMOBS_IMAGE_INLINE_MAX_BYTES above on purpose: this OpenAI data-URL path tracks the
 # configured limit, while the Anthropic guard keeps its fixed default. Unifying them would change
@@ -650,7 +668,7 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[Imag
 
 
 def openai_set_meta_tags_from_chat(
-    span: Span, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+    span: _LLMObsSpan, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
@@ -710,12 +728,14 @@ def openai_set_meta_tags_from_chat(
         return
 
     output_messages: list[Message] = []
+    finish_reasons: list[Any] = []
     if isinstance(messages, list):  # streamed response
         role = ""
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
             content = streamed_message.get("content", "")
+            finish_reasons.append(streamed_message.get("finish_reason", None))
 
             reasoning_content = streamed_message.get("reasoning_content", None)
             if reasoning_content:
@@ -738,6 +758,7 @@ def openai_set_meta_tags_from_chat(
             choice_message = _get_attr(choice, "message", {})
             role = _get_attr(choice_message, "role", "")
             content = _get_attr(choice_message, "content", "") or ""
+            finish_reasons.append(_get_attr(choice, "finish_reason", None))
 
             reasoning_content = _get_attr(choice_message, "reasoning_content", None)
             if reasoning_content:
@@ -769,11 +790,13 @@ def openai_set_meta_tags_from_chat(
                 message["tool_results"] = extracted_tool_results
                 message["content"] = ""  # set content empty to avoid duplication
             output_messages.append(message)
-    _annotate_llmobs_span_data(span, output_messages=output_messages)
+    _annotate_llmobs_span_data(
+        span, output_messages=output_messages, metadata=_openai_finish_reason_metadata(finish_reasons)
+    )
 
 
 def _openai_extract_tool_calls_and_results_chat(
-    message: dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+    message: dict[str, Any], llm_span: Optional[_LLMObsSpan] = None, dispatch_llm_choice: bool = False
 ) -> tuple[list[ToolCall], list[ToolResult]]:
     tool_calls = []
     tool_results = []
@@ -838,7 +861,7 @@ def _openai_extract_tool_calls_and_results_chat(
 
 
 def capture_plain_text_tool_usage(
-    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
+    tool_calls_info: Any, tool_results_info: Any, content: str, span: _LLMObsSpan, is_input: bool = False
 ) -> None:
     """
     Captures plain text tool calls and tool results from a content string.
@@ -855,10 +878,11 @@ def capture_plain_text_tool_usage(
         return
 
     try:
-        action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
-        if action_match and isinstance(tool_calls_info, list):
-            tool_name = action_match.group(1).strip().strip("*").strip()
-            tool_input_with_observation = action_match.group(2).split("\nObservation:")
+        action_match = REACT_ACTION_REGEX.search(content)
+        action_input_match = REACT_ACTION_INPUT_REGEX.search(content, action_match.end()) if action_match else None
+        if action_match and action_input_match and isinstance(tool_calls_info, list):
+            tool_name = content[action_match.end() : action_input_match.start()].strip().strip("*").strip()
+            tool_input_with_observation = content[action_input_match.end() :].lstrip().split("\nObservation:")
             tool_input = tool_input_with_observation[0].strip("`").strip().strip(' "')
             observation = ""
             if len(tool_input_with_observation) > 1:
@@ -1201,6 +1225,12 @@ def openai_get_metadata_from_response(
         if value is not None:
             metadata[field] = load_data_value(value)
 
+    # The responses API reports why generation stopped early ("content_filter", "max_output_tokens") under
+    # incomplete_details. Surface it under the same key the chat/completions paths use so both are queryable.
+    incomplete_reason = _get_attr(getattr(response, "incomplete_details", None) or {}, "reason", None)
+    if incomplete_reason:
+        metadata["finish_reason"] = str(incomplete_reason)
+
     return metadata
 
 
@@ -1321,7 +1351,7 @@ def _has_multimodal_inputs(variables: dict[str, Any]) -> bool:
     return False
 
 
-def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None:
+def set_prompt_tracking_tags(span: _LLMObsSpan, *, is_multimodal: bool = False) -> None:
     """Set prompt tracking telemetry tags on a span.
 
     Args:
@@ -1336,7 +1366,7 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
 
 
 def openai_set_meta_tags_from_response(
-    span: Span, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
+    span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
@@ -1399,6 +1429,33 @@ def openai_set_meta_tags_from_response(
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     tool_definitions = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
+
+
+def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+    """Extract input, questions, and answers from a decisions api call."""
+    metadata: dict[str, Any] = {}
+    questions = kwargs.get("questions")
+    if isinstance(questions, (list, tuple)):
+        metadata["questions"] = [load_data_value(q) for q in questions]
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
+        metadata=metadata,
+    )
+    if not response:
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        return
+
+    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(answers) or "")])
+
+
+def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
+    if hasattr(answer, "model_dump"):
+        return answer.model_dump(mode="json", exclude_none=True)
+    if isinstance(answer, dict):
+        return {k: v for k, v in answer.items() if v is not None}
+    return {}
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
@@ -1558,7 +1615,7 @@ class OaiSpanAdapter:
         """Get the span name."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
             return self._raw_oai_span.span_data.name
-        return "openai_agents.{}".format(self.span_type.lower())
+        return f"openai_agents.{self.span_type.lower()}"
 
     @property
     def span_type(self) -> str:

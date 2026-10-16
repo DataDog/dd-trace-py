@@ -52,16 +52,18 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
                 integration_config=event.integration_config,
                 method=method,
                 url=event.request_url,
-                # set_http_meta will check only integration_config to set or not query
-                # however, aiohttp support per-app trace_query_string config overrides
+                # set_http_meta checks only integration_config when deciding
+                # whether to trace the query string. aiohttp supports a
+                # per-application override instead.
                 query=event.query if event.trace_query_string is None else None,
                 status_code=status_code,
                 request_headers=event.request_headers,
                 response_headers=dict(res_headers) if res_headers is not None else None,
+                headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
             )
         except Exception:
-            log.debug("%s: error adding tags", event.integration_config.integration_name, exc_info=True)
+            log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
 
         # aiohttp supports per-app trace_query_string overrides that may differ from
         # integration_config.trace_query_string.
@@ -69,5 +71,5 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             span._set_attribute(http.QUERY_STRING, event.query)
 
         _set_inferred_proxy_tags(span, status_code)
-        for tk, tv in core.get_item("additional_tags", default=dict()).items():
+        for tk, tv in event.additional_tags.items():
             span._set_attribute(tk, tv)

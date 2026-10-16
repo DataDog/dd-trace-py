@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 from typing import Optional
 
@@ -33,13 +35,14 @@ def dsm_pubsub_send(args: tuple[Any, ...], kwargs: dict[str, Any], span: Optiona
     payload_size += _calculate_byte_size(attributes)
 
     edge_tags = ["direction:out", f"topic:{topic}", "type:google-pubsub"]
-    ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
-    # Pub/Sub message attributes are passed as **kwargs to Publisher.publish().
-    # Python's varkwargs accepts hyphenated keys like "dd-pathway-ctx-base64"
-    # when unpacked, so injecting into the kwargs dict propagates the pathway
-    # context to the broker. The existing distributed-tracing HTTPPropagator.inject
-    # call uses the same mechanism (see _on_pubsub_send_start in trace_handlers.py).
-    DsmPathwayCodec.encode(ctx, kwargs)
+    if (p := processor()) is not None:
+        ctx = p.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
+        # Pub/Sub message attributes are passed as **kwargs to Publisher.publish().
+        # Python's varkwargs accepts hyphenated keys like "dd-pathway-ctx-base64"
+        # when unpacked, so injecting into the kwargs dict propagates the pathway
+        # context to the broker. The existing distributed-tracing HTTPPropagator.inject
+        # call uses the same mechanism (see _on_pubsub_send_start in trace_handlers.py).
+        DsmPathwayCodec.encode(ctx, kwargs)
 
 
 def dsm_pubsub_receive(subscription: str, message: Any, span: Optional[Any]) -> None:
@@ -52,17 +55,18 @@ def dsm_pubsub_receive(subscription: str, message: Any, span: Optional[Any]) -> 
     payload_size += _calculate_byte_size(getattr(message, "ordering_key", "") or "")
     payload_size += _calculate_byte_size(attributes)
 
-    ctx = DsmPathwayCodec.decode(attributes, processor())
-    # AIDEV-NOTE: dd-trace-py uses the `topic:` tag key as the generic destination
-    # identifier for every messaging integration (Kafka, Kinesis, SQS, SNS, RabbitMQ).
-    # The *value* on the consumer side is the Pub/Sub subscription path, which
-    # preserves fan-out distinction (multiple subscriptions on the same topic each
-    # produce a distinct pathway node) while keeping the tag schema consistent with
-    # the rest of the Python DSM integrations. Note that dd-trace-java uses a
-    # dedicated `subscription:` tag key here instead; the wire-format pathway hash
-    # is unaffected by that difference.
-    edge_tags = ["direction:in", f"topic:{subscription}", "type:google-pubsub"]
-    ctx.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
+    if (p := processor()) is not None:
+        ctx = DsmPathwayCodec.decode(attributes, p)
+        # dd-trace-py uses the `topic:` tag key as the generic destination
+        # identifier for every messaging integration (Kafka, Kinesis, SQS, SNS, RabbitMQ).
+        # The *value* on the consumer side is the Pub/Sub subscription path, which
+        # preserves fan-out distinction (multiple subscriptions on the same topic each
+        # produce a distinct pathway node) while keeping the tag schema consistent with
+        # the rest of the Python DSM integrations. Note that dd-trace-java uses a
+        # dedicated `subscription:` tag key here instead; the wire-format pathway hash
+        # is unaffected by that difference.
+        edge_tags = ["direction:in", f"topic:{subscription}", "type:google-pubsub"]
+        ctx.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
 
 
 if config._data_streams_enabled:

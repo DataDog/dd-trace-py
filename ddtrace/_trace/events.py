@@ -1,9 +1,9 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING
 from typing import ClassVar
-from typing import Mapping
 from typing import Optional
 
 from ddtrace.internal.core.events import Event

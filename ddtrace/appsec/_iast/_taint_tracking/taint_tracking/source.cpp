@@ -1,6 +1,7 @@
+#include <pybind11/pybind11.h>
+
 #include <cstdlib>
 #include <cstring>
-#include <pybind11/pybind11.h>
 
 #include "source.h"
 

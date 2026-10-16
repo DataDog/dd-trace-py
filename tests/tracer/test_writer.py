@@ -8,14 +8,16 @@ import sys
 import tempfile
 import threading
 import time
+from typing import Any
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
+from ddtrace.internal import forksafe
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.http import HTTPConnection
@@ -23,6 +25,8 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import _opentelemetry
+from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.utils import _human_size
@@ -30,6 +34,7 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
+from ddtrace.internal.writer.writer import HTTPWriter
 from ddtrace.internal.writer.writer import compute_agentless_intake_url
 from ddtrace.trace import Span
 from tests.utils import AnyInt
@@ -899,7 +904,10 @@ def test_flush_queue_raise(writer_class):
 
 
 def test_racing_start():
-    with managed_writer(NativeWriter, "http://dne:1234") as writer:
+    writer = NativeWriter("http://dne:1234")
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(writer, "periodic"))
+        stack.callback(writer.stop, 3.0)
 
         def do_write(i):
             writer.write([Span(str(i))])
@@ -912,6 +920,82 @@ def test_racing_start():
             t.join()
 
         assert len(writer._encoder) == 100
+
+
+def test_native_exporter_shutdown_waits_for_send() -> None:
+    send_started = threading.Event()
+    release_send = threading.Event()
+    shutdown_called = threading.Event()
+    shutdown_waiting = threading.Event()
+    calls: list[str] = []
+
+    class Exporter:
+        def send(self, payload: bytes) -> None:
+            calls.append("send_enter")
+            send_started.set()
+            assert release_send.wait(timeout=2)
+            calls.append("send_exit")
+
+        def shutdown(self, timeout: int) -> None:
+            calls.append("shutdown")
+            shutdown_called.set()
+
+    class TrackingLock:
+        """Reports that the shutdown thread reached the lock before it blocks on it."""
+
+        def __init__(self, lock: Any) -> None:
+            self._lock = lock
+
+        def __enter__(self) -> Any:
+            # The sender takes the lock before it sets send_started, so any acquisition
+            # after that point belongs to the shutdown thread.
+            if send_started.is_set():
+                shutdown_waiting.set()
+            return self._lock.__enter__()
+
+        def __exit__(self, *exc_info: Any) -> Any:
+            return self._lock.__exit__(*exc_info)
+
+    writer = NativeWriter("http://localhost:9126")
+    original_exporter = writer._exporter
+    writer._exporter = Exporter()
+    writer._shutdown_exporter(original_exporter)
+    writer._exporter_lock = TrackingLock(writer._exporter_lock)
+
+    send_thread = threading.Thread(target=writer._send_payload, args=(b"payload", 1, writer._clients[0]))
+    send_thread.start()
+    assert send_started.wait(timeout=2)
+
+    shutdown_thread = threading.Thread(target=writer.shutdown_exporter)
+    shutdown_thread.start()
+    assert shutdown_waiting.wait(timeout=2)
+    assert not shutdown_called.wait(timeout=0.1)
+
+    release_send.set()
+    send_thread.join(timeout=2)
+    shutdown_thread.join(timeout=2)
+
+    assert not send_thread.is_alive()
+    assert not shutdown_thread.is_alive()
+    assert shutdown_called.is_set()
+    # The shutdown must land after the send completes, not interleaved with it.
+    assert calls == ["send_enter", "send_exit", "shutdown"]
+
+
+def test_native_exporter_lock_resets_after_fork() -> None:
+    """A child inheriting the lock held by a thread that no longer exists must not deadlock."""
+    writer = NativeWriter("http://localhost:9126")
+    assert isinstance(writer._exporter_lock, forksafe.ResetObject)
+
+    holder = threading.Thread(target=writer._exporter_lock.acquire)
+    holder.start()
+    holder.join(timeout=2)
+    assert not holder.is_alive()
+
+    # forksafe applies this to every resettable object in the child after a fork.
+    writer._exporter_lock._reset_object()
+    assert writer._exporter_lock.acquire(blocking=False)
+    writer._exporter_lock.release()
 
 
 def test_bad_encoding(monkeypatch):
@@ -1008,6 +1092,106 @@ def test_writer_recreate_keeps_response_callback():
     writer = writer.recreate()
     assert isinstance(writer, NativeWriter)
     assert writer._response_cb is response_callback
+
+
+def test_native_writer_closed_microvm_writer_rejects_writes_without_restarting(monkeypatch):
+    """A writer closed by the identity refresh drops later spans and is not restarted by them."""
+    from ddtrace.internal.service import ServiceStatus
+
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    try:
+        writer._clients[0].encoder.put([Span("buffered")])
+
+        writer._stop_accepting_writes()
+        writer.write([Span("late")])
+
+        # Spans buffered before the close stay for the final flush; the late span is dropped.
+        assert len(writer._clients[0].encoder) == 1
+        assert writer.status == ServiceStatus.STOPPED
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_native_writer_microvm_close_waits_for_in_flight_sync_flush(monkeypatch):
+    """Refresh shuts a sync writer's exporter down after closing it, so closing must wait out a flush."""
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    flush_entered = threading.Event()
+    release_flush = threading.Event()
+
+    def blocking_send(payload):
+        flush_entered.set()
+        release_flush.wait()
+        return "{}"
+
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock(send=mock.Mock(side_effect=blocking_send))
+    try:
+        write = threading.Thread(target=writer.write, args=([Span("in-flight")],), daemon=True)
+        write.start()
+        assert flush_entered.wait(5)
+
+        close = threading.Thread(target=writer._stop_accepting_writes, daemon=True)
+        close.start()
+        close.join(0.2)
+        assert close.is_alive()
+
+        release_flush.set()
+        write.join(5)
+        close.join(5)
+        assert not write.is_alive()
+        assert not close.is_alive()
+        assert exporter.send.call_count == 1
+        assert writer._accepting_writes is False
+
+        # Nothing is flushed through the closed writer.
+        writer.write([Span("late")])
+        assert exporter.send.call_count == 1
+    finally:
+        release_flush.set()
+        real_exporter.drop()
+
+
+def test_native_writer_stop_accepting_writes_is_noop_outside_microvm(monkeypatch):
+    monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
+    writer = NativeWriter("http://dne:1234")
+    try:
+        assert writer._writer_lock is None
+
+        writer._stop_accepting_writes()
+        with mock.patch.object(writer, "start"):
+            writer.write([Span("span")])
+
+        assert writer._accepting_writes is True
+        assert len(writer._clients[0].encoder) == 1
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_http_writer_closed_microvm_writer_rejects_writes(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+
+    class Writer(HTTPWriter):
+        def recreate(self):
+            return self
+
+    client = mock.Mock()
+    writer = Writer("http://dne:1234", [client])
+
+    writer._stop_accepting_writes()
+    writer.write([Span("late")])
+
+    assert writer._accepting_writes is False
+    client.encoder.put.assert_not_called()
+
+
+def test_log_writer_stop_accepting_writes_is_noop():
+    writer = LogWriter()
+
+    writer._stop_accepting_writes()
+
+    assert not hasattr(writer, "_accepting_writes")
 
 
 @pytest.mark.parametrize(
@@ -1136,7 +1320,7 @@ def test_trace_with_128bit_trace_ids():
         spans = TracerSpanContainer(tracer).pop()
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(parent.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == f"{parent.trace_id >> 64:016x}"
 
 
 @pytest.mark.parametrize(
@@ -1170,22 +1354,64 @@ def test_writer_telemetry_enabled_on_linux(
         "set_language_interpreter",
         "set_tracer_version",
         "set_git_commit_sha",
+        "set_runtime_id",
         "set_client_computed_top_level",
         "set_input_format",
         "set_output_format",
+        "set_stats_cardinality_limit",
         "enable_telemetry",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 
-    with mock_sys_platform(platform):
-        with override_global_config(dict(_telemetry_enabled=config_value)):
+    # override_global_config must enter under the real platform. Mocking sys.platform first
+    # can make a cold AppSec import fail, which recreates the tracer writer and double-counts
+    # builder.set_restart_after_fork on the patched TraceExporterBuilder.
+    with override_global_config(dict(_telemetry_enabled=config_value)):
+        with mock_sys_platform(platform):
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
-            if expected_enabled:
-                mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
-            else:
-                mock_builder.enable_telemetry.assert_not_called()
-            mock_builder.set_restart_after_fork.assert_called_once_with(False)
+        if expected_enabled:
+            mock_builder.enable_telemetry.assert_called_once_with(60000, config._debug_mode)
+        else:
+            mock_builder.enable_telemetry.assert_not_called()
+        mock_builder.set_restart_after_fork.assert_called_once_with(False)
+
+
+@pytest.mark.subprocess(err=None, env={"DD_APPSEC_ENABLED": "false"})
+def test_writer_telemetry_platform_mock_does_not_rebuild_exporter_on_import_cold():
+    """Import-cold: override_global_config must not construct NativeWriter before the test writer."""
+    import sys
+    from unittest import mock
+
+    from ddtrace.internal.writer import NativeWriter
+    from tests.utils import override_global_config
+
+    with mock.patch("ddtrace.internal.native.TraceExporterBuilder") as builder_class:
+        builder = mock.Mock()
+        builder_class.return_value = builder
+        builder.build.return_value = mock.Mock()
+        for method_name in (
+            "set_url",
+            "set_hostname",
+            "set_language",
+            "set_language_version",
+            "set_language_interpreter",
+            "set_tracer_version",
+            "set_git_commit_sha",
+            "set_runtime_id",
+            "set_client_computed_top_level",
+            "set_input_format",
+            "set_output_format",
+            "enable_telemetry",
+        ):
+            getattr(builder, method_name).return_value = builder
+
+        with override_global_config(dict(_telemetry_enabled=False)):
+            assert builder.set_restart_after_fork.call_count == 0
+            with mock.patch.object(sys, "platform", "darwin"):
+                NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+            builder.set_restart_after_fork.assert_called_once_with(False)
+            builder.enable_telemetry.assert_not_called()
 
 
 @pytest.mark.subprocess(
@@ -1208,7 +1434,9 @@ def test_otlp_metric_tags_configured():
         "set_language_interpreter",
         "set_tracer_version",
         "set_git_commit_sha",
+        "set_runtime_id",
         "set_client_computed_top_level",
+        "set_stats_cardinality_limit",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 
@@ -1217,6 +1445,55 @@ def test_otlp_metric_tags_configured():
 
     mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
     mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_STATS_CARDINALITY_LIMIT": "100",
+        "DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT": "50",
+    }
+)
+def test_stats_cardinality_limits_configured():
+    """Limits left unset fall back to the defaults libdatadog would have applied."""
+    from unittest import mock
+
+    from ddtrace.internal import native
+    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+
+    mock_builder = mock.Mock()
+    # The builder is used as a chain, so every setter has to hand back the same mock.
+    for method_name in [
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_runtime_id",
+        "set_client_computed_top_level",
+        "set_stats_cardinality_limit",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
+        _build_base_exporter_builder("http://localhost:8126", None, True, False)
+
+    mock_builder.set_stats_cardinality_limit.assert_called_once_with(
+        whole_key_limit=100,
+        resource_limit=50,
+        http_endpoint_limit=512,
+        peer_tags_limit=512,
+        additional_tags_limit=100,
+    )
+
+
+@pytest.mark.subprocess(
+    env={"DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT": "0"},
+    err=lambda err: "only positive values allowed" in err,
+)
+def test_stats_cardinality_limits_reject_non_positive_values():
+    from ddtrace.internal.settings._config import config
+
+    assert config._trace_stats_cardinality_limits["peer_tags_limit"] == 512
 
 
 class TestSafelog:
@@ -1358,22 +1635,45 @@ def test_agentless_writer_no_api_key():
 
 def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_case_insensitive():
     with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_by_default():
     with override_env({"OTEL_TRACES_EXPORTER": ""}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_when_trace_api_version_set():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_API_VERSION": "v0.4"}):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_semantics_override_agent_protocol_version():
+    with override_env(
+        {
+            "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+            "OTEL_TRACES_EXPORTER": "none",
+            "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+            "DD_TRACE_API_VERSION": "v0.4",
+        }
+    ):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_native_writer_stores_otlp_endpoint():
@@ -1762,7 +2062,7 @@ def test_native_writer_sets_otlp_trace_context_on_every_span():
     for span in (root, child):
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
-        assert "p:{:016x}".format(span.span_id) in span.get_tag("tracestate")
+        assert f"p:{span.span_id:016x}" in span.get_tag("tracestate")
 
 
 def test_native_writer_forwards_inherited_otel_trace_context():

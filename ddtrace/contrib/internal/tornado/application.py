@@ -1,11 +1,9 @@
 from urllib.parse import urlparse
 
-from tornado import template
 from tornado.routing import PathMatches
 import tornado.web
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
 from ddtrace.contrib.internal.tornado.handlers import _path_for_path_match
@@ -39,7 +37,7 @@ def _collect_endpoints(app):
         target = getattr(rule, "target", None)
 
         if path is not None and isinstance(target, type) and issubclass(target, tornado.web.RequestHandler):
-            resource_name = "{}.{}".format(target.__module__, target.__name__)
+            resource_name = f"{target.__module__}.{target.__name__}"
             for method_name in _HTTP_METHODS:
                 if _handler_has_method(target, method_name):
                     endpoint_collection.add_endpoint(
@@ -100,7 +98,7 @@ def tracer_config(__init__, app, args, kwargs):
     if tags:
         tracer.set_tags(tags)
 
-    pin = Pin(service=service)
-    pin.onto(template)
+    # Keep the integration default unchanged for service-source attribution.
+    config.tornado._template_service = service
 
     _collect_endpoints(app)

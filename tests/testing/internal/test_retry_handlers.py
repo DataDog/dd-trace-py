@@ -9,6 +9,7 @@ from ddtrace.testing.internal.dynamic_atr_retries import DYNAMIC_ATR_ENABLED_ENV
 from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
 from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
 from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
+from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
@@ -146,3 +147,32 @@ def test_dynamic_atr_ignores_normal_retry_count(retry_settings: Settings, monkey
 
     with patch.object(initial_test_run, "seconds_so_far", return_value=1):
         assert handler.should_retry(test) is True
+
+
+def test_atr_counts_external_retries_against_test_and_session_budgets(
+    retry_settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "2")
+    monkeypatch.setenv("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1")
+    handler = AutoTestRetriesHandler(retry_settings)
+    test = _make_failing_test()
+    _add_failed_run(test)
+
+    handler.set_external_retry_budget(test, retries=1, retry_limit=2, session_retries=1)
+
+    assert handler.should_apply(test) is True
+    assert handler.should_retry(test) is True
+    _add_failed_run(test)
+    assert handler.should_retry(test) is False
+    handler.get_final_status(test)
+    assert handler.max_tests_to_retry_per_session == 0
+
+
+def test_dynamic_atr_uses_external_retry_limit(retry_settings: Settings) -> None:
+    handler = DynamicATRRetriesHandler(retry_settings)
+    test = _make_failing_test()
+    _add_failed_run(test)
+
+    handler.set_external_retry_budget(test, retries=1, retry_limit=1, session_retries=1)
+
+    assert handler.should_retry(test) is False

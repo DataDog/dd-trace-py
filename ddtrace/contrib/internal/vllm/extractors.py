@@ -61,7 +61,7 @@ def get_embedding_shape(tensor) -> tuple[int, Optional[int]]:
     return first, last
 
 
-def extract_request_data(req_state: "RequestState", engine_core_output: "EngineCoreOutput") -> RequestData:
+def extract_request_data(req_state: RequestState, engine_core_output: EngineCoreOutput) -> RequestData:
     """Extract request data from engine-side structures.
 
     Args:
@@ -85,7 +85,7 @@ def extract_request_data(req_state: "RequestState", engine_core_output: "EngineC
         prompt=prompt_text,
         input_tokens=req_state.prompt_len or 0,
         lora_name=req_state.lora_name,
-        num_cached_tokens=engine_core_output.num_cached_tokens,
+        num_cached_tokens=get_num_cached_tokens(req_state, engine_core_output),
         temperature=req_state.temperature,
         top_p=req_state.top_p,
         n=req_state.n,
@@ -110,12 +110,37 @@ def extract_request_data(req_state: "RequestState", engine_core_output: "EngineC
     return data
 
 
+def get_num_cached_tokens(req_state: RequestState, engine_core_output: EngineCoreOutput) -> int:
+    """Extract the number of prefix-cached prompt tokens.
+
+    vLLM < 0.20 sets num_cached_tokens on every EngineCoreOutput. vLLM >= 0.20 sets it in
+    prefill_stats on the prefill step output only, and then copies it to req_state.
+    The prefill step can also be the final step (pooling, single-token generation), so read
+    prefill_stats first, because req_state is not updated yet at capture time.
+    With disaggregated prefill, vLLM >= 0.31 overrides the count with remote_prefill_cached_tokens,
+    the cache hits on the remote prefill worker. vLLM sets it when it creates the request state.
+    """
+    num_cached_tokens = getattr(engine_core_output, "num_cached_tokens", None)
+    if num_cached_tokens is not None:
+        return int(num_cached_tokens)
+
+    remote_prefill_cached_tokens = getattr(req_state, "remote_prefill_cached_tokens", None)
+    if remote_prefill_cached_tokens is not None:
+        return int(remote_prefill_cached_tokens)
+
+    prefill_stats = getattr(engine_core_output, "prefill_stats", None)
+    if prefill_stats is not None:
+        return int(prefill_stats.num_cached_tokens)
+
+    return int(getattr(req_state, "num_cached_tokens", 0) or 0)
+
+
 def get_model_name(instance) -> Optional[str]:
     """Extract injected model name (set by traced_engine_init)"""
     return getattr(instance, ATTR_MODEL_NAME, None)
 
 
-def extract_latency_metrics(stats: Optional["RequestStateStats"]) -> Optional[LatencyMetrics]:
+def extract_latency_metrics(stats: Optional[RequestStateStats]) -> Optional[LatencyMetrics]:
     """Extract latency metrics from vLLM RequestStateStats.
 
     Single source of truth for latency calculation logic.
