@@ -194,6 +194,17 @@ class ProfilingConfig(DDConfig):
         help="Whether to enable code provenance",
     )
 
+    install = DDConfig.v(
+        bool,
+        "install",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to install the profiler hooks (thread, asyncio, uvloop and gevent tracking) at import "
+            "time, so the stack profiler can be enabled at runtime even if it was disabled at startup"
+        ),
+    )
+
     endpoint_collection = DDConfig.v(
         bool,
         "endpoint_collection_enabled",
