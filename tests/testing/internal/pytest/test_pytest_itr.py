@@ -7,6 +7,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -324,6 +325,14 @@ class TestITR:
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
+
+        # File-level coverage is the default on Python 3.12+: every file reports only the line-0 sentinel.
+        file_level_bitmap = bytes(CoverageLines.from_list([0]).to_bytes())
+        bitmaps = {f["filename"]: bytes(f["bitmap"]) for f in coverage_events[0]["files"]}
+        if sys.version_info >= (3, 12):
+            assert all(bitmap == file_level_bitmap for bitmap in bitmaps.values())
+        else:
+            assert bitmaps["/test_foo.py"] != file_level_bitmap
 
     def test_itr_suite_level_emits_skip_events(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Suite-level ITR: ignored file gets a test_suite_end with status=skip, no test events inside."""

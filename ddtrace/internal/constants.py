@@ -134,6 +134,15 @@ MESSAGING_OPERATION = "messaging.operation"
 MESSAGING_SYSTEM = "messaging.system"
 
 USER_AGENT_HEADER = "user-agent"
+OTLP_HTTP_EXPORT_HEADER = "dd-otlp-export"
+OTLP_HTTP_EXPORT_HEADER_VALUE = "true"
+OTLP_GRPC_EXPORT_METHODS = frozenset(
+    {
+        "/opentelemetry.proto.collector.logs.v1.LogsService/Export",
+        "/opentelemetry.proto.collector.metrics.v1.MetricsService/Export",
+        "/opentelemetry.proto.collector.trace.v1.TraceService/Export",
+    }
+)
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
