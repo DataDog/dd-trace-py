@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
+from tests.contrib import shared_tests
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -36,6 +37,11 @@ class PsycopgCore(TracerTestCase):
     def _get_conn(self):
         conn = psycopg.connect(**POSTGRES_CONFIG)
         return conn
+
+    def test_byte_query_uses_connection_encoding(self):
+        for encoding, codec in (("UTF8", "utf-8"), ("WIN1252", "cp1252")):
+            with psycopg.connect(**POSTGRES_CONFIG, client_encoding=encoding) as connection:
+                shared_tests._test_byte_query_event(connection.cursor(), codec, "postgres")
 
     def test_patch_unpatch(self):
         # Test patch idempotence

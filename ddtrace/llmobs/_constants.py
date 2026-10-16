@@ -23,6 +23,12 @@ class LLMObsExportMode(str, Enum):
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
 LLMOBS_SAMPLING = "_llmobs.sampling"
+# Routing context captured at span start. Stamped on the span because a span may finish in a
+# different execution context than the one it started in, at which point the contextvar is gone.
+CACHED_LLMOBS_ROUTING_CTX_KEY = "_llmobs.routing"
+# LLMObs trace ID of a routed span. Its meta_struct is removed when the span finishes, so this keeps
+# the ID that the tenant intake received available to export_span().
+CACHED_LLMOBS_TRACE_ID_CTX_KEY = "_llmobs.trace_id"
 
 
 SESSION_ID = "_ml_obs.session_id"

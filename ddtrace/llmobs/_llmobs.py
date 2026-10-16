@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -8,6 +9,7 @@ import sys
 import time
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Literal
 from typing import Optional
 from typing import Union
@@ -54,6 +56,8 @@ from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_TRACE_ID_CTX_KEY
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -84,6 +88,7 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -154,6 +159,11 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
+from ddtrace.llmobs._routing import RoutingContextType
+from ddtrace.llmobs._routing import build_routing_context
+from ddtrace.llmobs._routing import get_routing_context
+from ddtrace.llmobs._routing import routing_targets
 from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._utils import AnnotationContext
@@ -641,6 +651,9 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
+            routing = get_routing_context()
+            if routing is not None:
+                span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -654,10 +667,15 @@ class LLMObs(Service):
         self._enrich_with_http_client_ip(span)
         self._sampling_resolver.resolve_if_root(span)
 
+        targets = routing_targets(span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY))
+        # Routed spans go straight to the LLMObs intake whatever the process export mode is, so
+        # they must be built for it: APM_AGENTLESS would drop the error fields and rewrite tag keys.
+        export_mode = LLMObsExportMode.LLMOBS_AGENTLESS if targets else self._export_mode
+
         span_event = None
         try:
-            if self._prepare_llmobs_span_data(span, span_kind):
-                span_event = self._llmobs_span_event(span)
+            if self._prepare_llmobs_span_data(span, span_kind, export_mode):
+                span_event = self._llmobs_span_event(span, export_mode)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -672,6 +690,28 @@ class LLMObs(Service):
 
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
+
+        if targets:
+            # Ship routed spans here rather than leaving them for LLMObsProcessor. A routed event
+            # never rides the APM trace anyway, and deferring means the event is lost if LLMObs is
+            # disabled before the enclosing trace is flushed -- while its payload would still be
+            # on the trace, headed for the default org. The APM span itself is not routed.
+            if self._sampling_resolver.resolves_late:
+                # LLMObsProcessor never sees this span, so resolve here. Like a partial flush,
+                # the span leaving the process freezes the decision for the whole trace.
+                sample_rate, sampling_decision = self._resolve_sampling(span)
+                event_dd = span_event.get(LLMOBS_STRUCT.DD)
+                if event_dd is not None and sample_rate is not None and sampling_decision is not None:
+                    event_dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
+                    event_dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
+            # Before removing the struct tag, which the telemetry tags are read from.
+            telemetry.record_span_created(span, export_mode)
+            # Keep the LLMObs trace ID for export_span(), so evaluations join to the routed span.
+            span._set_ctx_item(CACHED_LLMOBS_TRACE_ID_CTX_KEY, span_event.get("trace_id"))
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+            self._llmobs_span_writer.enqueue(span_event, targets)
+            return
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
@@ -720,7 +760,9 @@ class LLMObs(Service):
         finally:
             telemetry.record_llmobs_user_processor_called(error)
 
-    def _prepare_llmobs_span_data(self, span: Span, span_kind: Optional[str]) -> bool:
+    def _prepare_llmobs_span_data(
+        self, span: Span, span_kind: Optional[str], export_mode: Optional[LLMObsExportMode] = None
+    ) -> bool:
         """Commit final I/O and meta values to meta_struct before event assembly.
 
         Runs the user span processor and folds its mutations — plus parent-prompt
@@ -731,6 +773,7 @@ class LLMObs(Service):
         the span has no LLMObs data, the user processor dropped it, or finalization
         failed.
         """
+        export_mode = export_mode or self._export_mode
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data:
             log.error(
@@ -815,13 +858,13 @@ class LLMObs(Service):
             span_kind,
             input_type,
             output_type,
-            export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
+            export_to_llmobs=export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
         config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if config is not None:
             llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)
-        if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
+        if export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
             # replace them with underscores before encoding.
             tags = {k.replace(".", "_"): v for k, v in llmobs_data.get(LLMOBS_STRUCT.TAGS, {}).items()}
@@ -829,7 +872,9 @@ class LLMObs(Service):
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
 
-    def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
+    def _llmobs_span_event(
+        self, span: Span, export_mode: Optional[LLMObsExportMode] = None
+    ) -> Optional[LLMObsSpanEvent]:
         """Assemble the LLMObs span event from the finalized meta_struct contents.
 
         This function is a pure reader: all I/O mutations, user-processor hooks, and
@@ -856,7 +901,7 @@ class LLMObs(Service):
                 "pagent_span_id": agent_span_id,
             }
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
-        tags = self._llmobs_tags(span)
+        tags = self._llmobs_tags(span, export_mode or self._export_mode)
         _dd_attrs = {
             **(llmobs_data.get("_dd") or {}),
             "span_id": str(span.span_id),
@@ -890,10 +935,10 @@ class LLMObs(Service):
 
         return llmobs_span_event
 
-    def _llmobs_tags(self, span: Span) -> list[str]:
+    def _llmobs_tags(self, span: Span, export_mode: LLMObsExportMode) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
 
-        if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
+        if export_mode != LLMObsExportMode.APM_AGENTLESS:
             tags["error"] = str(span.error)
             err_type = span.get_tag(ERROR_TYPE)
             if err_type:
@@ -967,8 +1012,8 @@ class LLMObs(Service):
             self._activate_llmobs_distributed_context_soft_fail,
         )
         core.reset_listeners("elevenlabs.conversation.start", create_conversation_state)
-        core.reset_listeners("threading.submit", self._current_trace_context)
-        core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
+        core.reset_listeners("threading.submit", self._on_threading_submit)
+        core.reset_listeners("threading.execution", self._on_threading_execution)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
         core.reset_listeners("asyncio.execute_task", self._on_asyncio_execute_task)
 
@@ -1137,8 +1182,8 @@ class LLMObs(Service):
                 cls._activate_llmobs_distributed_context_soft_fail,
             )
             core.on("elevenlabs.conversation.start", create_conversation_state, "state")
-            core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
-            core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
+            core.on("threading.submit", cls._instance._on_threading_submit, "llmobs_ctx")
+            core.on("threading.execution", cls._instance._on_threading_execution)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
             core.on("asyncio.execute_task", cls._instance._on_asyncio_execute_task)
 
@@ -1978,6 +2023,58 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
+    @contextmanager
+    def routing_context(
+        cls,
+        dd_api_key: Optional[str] = None,
+        dd_site: Optional[str] = None,
+        targets: Optional[list[dict[str, Any]]] = None,
+    ) -> Iterator[None]:
+        """Send LLMObs data created in this context to other Datadog organizations.
+
+        Pass ``dd_api_key`` to route to a single organization: spans and evaluation metrics
+        created while the context is active go to that organization *instead of* the one this
+        process is otherwise configured for.
+
+        Only LLM Observability data is routed. APM spans, including the APM side of LLM
+        Observability spans, are still sent to the organization this process is configured for.
+
+        Pass ``targets`` to send the same data to several organizations (dual shipping), each
+        entry being a dict with ``dd_api_key`` and an optional ``dd_site``.
+
+        Routed data is sent directly to the LLM Observability intake even when the rest of the
+        process submits through the Datadog Agent, because the Agent stamps its own API key on
+        everything it forwards. The process must therefore be able to reach the intake.
+
+        The context follows ``asyncio`` tasks, and follows work submitted to a
+        ``ThreadPoolExecutor`` as long as the ``futures`` integration is patched, which it is by
+        default. It does **not** follow a bare ``threading.Thread``, an executor the integration
+        does not patch, or anything submitted with ``DD_TRACE_FUTURES_ENABLED=false``: in those
+        cases the resulting span belongs to an unrelated trace with no link back to this context,
+        so there is nothing to inherit from and it is sent to the default organization. Open the
+        routing context inside the worker when using one of those.
+
+        :param dd_api_key: API key of a single destination organization.
+        :param dd_site: Site of that organization, for example ``datadoghq.eu``. Defaults to
+                        the site the tracer is configured with.
+        :param targets: List of destinations for dual shipping. Mutually exclusive with
+                        dd_api_key.
+        :raises ValueError: If neither or both forms are supplied, if targets is empty, or if
+                            any destination is missing an API key.
+        """
+        context = build_routing_context(dd_api_key=dd_api_key, dd_site=dd_site, targets=targets)
+        if _ROUTING_CONTEXTVAR.get() is not None:
+            log.warning(
+                "Nested routing_context detected. The inner context takes precedence: data "
+                "created within it is sent only to the inner context's destinations."
+            )
+        token = _ROUTING_CONTEXTVAR.set(context)
+        try:
+            yield
+        finally:
+            _ROUTING_CONTEXTVAR.reset(token)
+
+    @classmethod
     def annotation_context(
         cls,
         tags: Optional[dict[str, Any]] = None,
@@ -2544,6 +2641,30 @@ class LLMObs(Service):
                 context._meta[PARENT_AGENT_VERSION] = parent_agent_version
             return context
         return None
+
+    def _on_threading_submit(self) -> tuple[Optional[Context], Optional[RoutingContextType]]:
+        """Capture what must cross into an executor worker: LLMObs context plus routing.
+
+        The futures integration only ferries this value from submit to execution without
+        inspecting it, so routing rides along here rather than needing a change to that shared
+        integration. Contextvars do not cross a thread boundary on their own, and routing that
+        failed to cross would send a tenant's spans to the default org.
+        """
+        context = self._current_trace_context()
+        routing = get_routing_context()
+        return context, routing
+
+    def _on_threading_execution(self, payload: Any) -> None:
+        """Re-establish the submitting thread's LLMObs context and routing in the worker."""
+        if isinstance(payload, tuple) and len(payload) == 2:
+            context, routing = payload
+            _ROUTING_CONTEXTVAR.set(routing)
+        else:
+            # Another dispatcher of this event (or an older payload shape) sends the context
+            # alone; there is simply no routing to restore in that case.
+            context, routing = payload, None
+        if context is not None:
+            self._llmobs_context_provider.activate(context)
 
     def _resolve_sampling(self, span: Span) -> tuple[Optional[str], Optional[str]]:
         """Force this span's LLMObs trace to have a sampling decision, and return it.

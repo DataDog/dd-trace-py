@@ -405,7 +405,7 @@ integrations:
   tested_versions_by_dependency:
     falcon:
       min: 3.0.1
-      max: 4.3.1
+      max: 4.4.0
 
 - integration_name: fastapi
   is_external_package: true
@@ -463,7 +463,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 2.9.0
+      max: 2.11.0
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
@@ -745,7 +745,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 3.26.0
+      max: 3.29.0
 
 - integration_name: openai_agents
   is_external_package: true

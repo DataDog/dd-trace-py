@@ -283,6 +283,27 @@ These environment variables modify aspects of the build process.
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
 
+Verifying the bundled libddwaf
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each libddwaf archive is checked against the SHA-256 checksum pinned for it in ``LIBDDWAF_CHECKSUMS`` in ``setup.py``,
+both right after a download and before an archive from the download cache is reused. A cached archive that does not
+match is downloaded again; a downloaded archive that does not match fails the build and is not cached. A library already
+extracted in the source tree is only reused if it was extracted from an archive with the pinned checksum.
+
+Bumping ``LIBDDWAF_VERSION`` therefore means replacing every entry of ``LIBDDWAF_CHECKSUMS`` with the checksum of the
+matching archive of the new release. This script does both:
+
+.. code-block:: bash
+
+    python scripts/update-libddwaf-checksums.py <version>
+
+It takes each checksum from the digest GitHub computed when the archive was uploaded, requires it to match the
+``.sha256`` asset published next to the archive, and only rewrites ``setup.py`` when every archive the build bundles
+checks out. Set ``GITHUB_TOKEN`` to avoid the GitHub API rate limit.
+
+A unit test fails if the table has no entry for an archive the build uses, or an entry for one it does not.
+
 Using a system-provided libddwaf
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
