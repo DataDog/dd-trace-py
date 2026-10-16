@@ -154,10 +154,6 @@ ddtrace/testing/                                      @DataDog/ci-app-libraries
 tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries
 tests/contrib/freezegun                               @DataDog/ci-app-libraries
-tests/contrib/pytest                                  @DataDog/ci-app-libraries
-tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
-tests/contrib/pytest_benchmark                        @DataDog/ci-app-libraries
-tests/contrib/pytest_flaky                            @DataDog/ci-app-libraries
 tests/contrib/selenium                                @DataDog/ci-app-libraries
 tests/contrib/unittest                                @DataDog/ci-app-libraries
 tests/coverage                                        @DataDog/ci-app-libraries
@@ -419,8 +415,9 @@ tests/standalone/                       @DataDog/python-guild
 docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
 
 # Supported versions
-supported_versions.json                         @DataDog/python-guild @DataDog/apm-idm-python
+supported_versions.json                         @DataDog/python-guild @DataDog/apm-idm-python @DataDog/ml-observability
 scripts/integration_registry/                   @DataDog/apm-idm-python
+scripts/integration_registry/registry.yaml      @DataDog/apm-idm-python @DataDog/ml-observability
 
 # Benchmarks CI setup
 /.gitlab/benchmarks             @DataDog/apm-ecosystems-performance @DataDog/apm-core-python
