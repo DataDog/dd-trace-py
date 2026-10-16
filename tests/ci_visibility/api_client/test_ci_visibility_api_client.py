@@ -282,7 +282,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                 _get_setting_api_response(status_code=504),
                 TimeoutError(),
                 RemoteDisconnected(),
-                socket.timeout(),
+                TimeoutError(),
                 _get_setting_api_response(),
             ],
         ) as mock_do_request:
