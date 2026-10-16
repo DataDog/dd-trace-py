@@ -1343,6 +1343,14 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
     )
 
 
+def test_tracer_set_tags_applied_to_llmobs_spans(llmobs, tracer, monkeypatch):
+    monkeypatch.setattr(tracer, "_tags", {})
+    tracer.set_tags({"airid": "air-123"})
+    with llmobs.workflow(name="test_workflow") as span:
+        pass
+    assert get_llmobs_tags(span)["airid"] == "air-123"
+
+
 @pytest.mark.subprocess(
     env={
         "DD_API_KEY": "<not-a-real-key>",
