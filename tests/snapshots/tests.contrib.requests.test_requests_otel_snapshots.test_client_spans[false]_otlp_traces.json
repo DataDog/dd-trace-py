@@ -4,15 +4,27 @@
       "resource": {
         "attributes": [
           {
+            "key": "_dd.sdk.otlp_export",
+            "value": {
+              "stringValue": "true"
+            }
+          },
+          {
+            "key": "datadog.sdk.semantics",
+            "value": {
+              "stringValue": "datadog"
+            }
+          },
+          {
             "key": "runtime-id",
             "value": {
-              "stringValue": "73961dbddd5e4a84b91f3b6de636fa8a"
+              "stringValue": "05b6619690034b0bb8f1f95a63700524"
             }
           },
           {
             "key": "service.name",
             "value": {
-              "stringValue": "ddtrace_subprocess_dir"
+              "stringValue": "otel-http-client-snapshots"
             }
           },
           {
@@ -42,12 +54,24 @@
             {
               "traceId": "00000000000000000000000000000001",
               "spanId": "0000000000000001",
-              "traceState": "dd=p:43793f5aed9f4a79;s:1;t.dm:-0,ot=rv:063798f45624ae;th:0",
-              "name": "http.request",
+              "traceState": "dd=p:dbba39ca2b95b190;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:508ceb89ec671e;th:0",
+              "name": "GET /status/200",
               "kind": 3,
-              "startTimeUnixNano": "1791886125580188923",
-              "endTimeUnixNano": "1791886125580578172",
+              "startTimeUnixNano": "1792156753863678391",
+              "endTimeUnixNano": "1792156753865576132",
               "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
                 {
                   "key": "_dd.p.dm",
                   "value": {
@@ -57,19 +81,19 @@
                 {
                   "key": "_dd.p.tid",
                   "value": {
-                    "stringValue": "6ace032d00000000"
+                    "stringValue": "6ad2245100000000"
                   }
                 },
                 {
                   "key": "_dd.svc_src",
                   "value": {
-                    "stringValue": "datadog"
+                    "stringValue": "requests"
                   }
                 },
                 {
                   "key": "_dd.tags.process",
                   "value": {
-                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir"
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmprty383u5,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
                   }
                 },
                 {
@@ -88,6 +112,12 @@
                   "key": "_sampling_priority_v1",
                   "value": {
                     "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -103,9 +133,21 @@
                   }
                 },
                 {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "OK"
+                  }
+                },
+                {
                   "key": "http.url",
                   "value": {
-                    "stringValue": "https://example.com/users/42?<redacted>&page=2"
+                    "stringValue": "http://localhost:8001/status/200?<redacted>&page=2"
+                  }
+                },
+                {
+                  "key": "http.useragent",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
                   }
                 },
                 {
@@ -117,31 +159,37 @@
                 {
                   "key": "operation.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "requests.request"
                   }
                 },
                 {
                   "key": "out.host",
                   "value": {
-                    "stringValue": "example.com"
+                    "stringValue": "localhost"
                   }
                 },
                 {
                   "key": "process_id",
                   "value": {
-                    "intValue": "14"
+                    "intValue": "158"
                   }
                 },
                 {
                   "key": "resource.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "GET /status/200"
                   }
                 },
                 {
                   "key": "runtime-id",
                   "value": {
-                    "stringValue": "73961dbddd5e4a84b91f3b6de636fa8a"
+                    "stringValue": "05b6619690034b0bb8f1f95a63700524"
+                  }
+                },
+                {
+                  "key": "service.name",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -159,7 +207,7 @@
                 {
                   "key": "tracestate",
                   "value": {
-                    "stringValue": "dd=p:43793f5aed9f4a79;s:1;t.dm:-0,ot=rv:063798f45624ae;th:0"
+                    "stringValue": "dd=p:dbba39ca2b95b190;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:508ceb89ec671e;th:0"
                   }
                 }
               ],
@@ -169,12 +217,24 @@
             {
               "traceId": "00000000000000000000000000000002",
               "spanId": "0000000000000002",
-              "traceState": "dd=p:058244c46081f1cc;s:1;t.dm:-0,ot=rv:cbe20a95fb901c;th:0",
-              "name": "http.request",
+              "traceState": "dd=p:9e884019f37a6dd6;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:7fda9704554abe;th:0",
+              "name": "PROPFIND /status/405",
               "kind": 3,
-              "startTimeUnixNano": "1791886125580896463",
-              "endTimeUnixNano": "1791886125580938796",
+              "startTimeUnixNano": "1792156753866111303",
+              "endTimeUnixNano": "1792156753867151479",
               "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
                 {
                   "key": "_dd.p.dm",
                   "value": {
@@ -184,19 +244,19 @@
                 {
                   "key": "_dd.p.tid",
                   "value": {
-                    "stringValue": "6ace032d00000000"
+                    "stringValue": "6ad2245100000000"
                   }
                 },
                 {
                   "key": "_dd.svc_src",
                   "value": {
-                    "stringValue": "datadog"
+                    "stringValue": "requests"
                   }
                 },
                 {
                   "key": "_dd.tags.process",
                   "value": {
-                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir"
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmprty383u5,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
                   }
                 },
                 {
@@ -215,6 +275,12 @@
                   "key": "_sampling_priority_v1",
                   "value": {
                     "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -226,13 +292,25 @@
                 {
                   "key": "http.status_code",
                   "value": {
-                    "stringValue": "200"
+                    "stringValue": "405"
+                  }
+                },
+                {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "METHOD NOT ALLOWED"
                   }
                 },
                 {
                   "key": "http.url",
                   "value": {
-                    "stringValue": "http://example.com/items/1"
+                    "stringValue": "http://localhost:8001/status/405"
+                  }
+                },
+                {
+                  "key": "http.useragent",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
                   }
                 },
                 {
@@ -244,31 +322,37 @@
                 {
                   "key": "operation.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "requests.request"
                   }
                 },
                 {
                   "key": "out.host",
                   "value": {
-                    "stringValue": "example.com"
+                    "stringValue": "localhost"
                   }
                 },
                 {
                   "key": "process_id",
                   "value": {
-                    "intValue": "14"
+                    "intValue": "158"
                   }
                 },
                 {
                   "key": "resource.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "PROPFIND /status/405"
                   }
                 },
                 {
                   "key": "runtime-id",
                   "value": {
-                    "stringValue": "73961dbddd5e4a84b91f3b6de636fa8a"
+                    "stringValue": "05b6619690034b0bb8f1f95a63700524"
+                  }
+                },
+                {
+                  "key": "service.name",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -286,7 +370,7 @@
                 {
                   "key": "tracestate",
                   "value": {
-                    "stringValue": "dd=p:058244c46081f1cc;s:1;t.dm:-0,ot=rv:cbe20a95fb901c;th:0"
+                    "stringValue": "dd=p:9e884019f37a6dd6;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:7fda9704554abe;th:0"
                   }
                 }
               ],
@@ -296,12 +380,24 @@
             {
               "traceId": "00000000000000000000000000000003",
               "spanId": "0000000000000003",
-              "traceState": "dd=p:1d2aba158e74ea7d;s:1;t.dm:-0,ot=rv:3fe6b96e2af288;th:0",
-              "name": "http.request",
+              "traceState": "dd=p:e2c4693488e71c93;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:16350ce32f5c96;th:0",
+              "name": "GET /status/302",
               "kind": 3,
-              "startTimeUnixNano": "1791886125581005754",
-              "endTimeUnixNano": "1791886125581033879",
+              "startTimeUnixNano": "1792156753867487372",
+              "endTimeUnixNano": "1792156753868521174",
               "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
                 {
                   "key": "_dd.p.dm",
                   "value": {
@@ -311,19 +407,19 @@
                 {
                   "key": "_dd.p.tid",
                   "value": {
-                    "stringValue": "6ace032d00000000"
+                    "stringValue": "6ad2245100000000"
                   }
                 },
                 {
                   "key": "_dd.svc_src",
                   "value": {
-                    "stringValue": "datadog"
+                    "stringValue": "requests"
                   }
                 },
                 {
                   "key": "_dd.tags.process",
                   "value": {
-                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir"
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmprty383u5,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
                   }
                 },
                 {
@@ -342,6 +438,12 @@
                   "key": "_sampling_priority_v1",
                   "value": {
                     "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -357,9 +459,21 @@
                   }
                 },
                 {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "FOUND"
+                  }
+                },
+                {
                   "key": "http.url",
                   "value": {
-                    "stringValue": "http://example.com/redirect"
+                    "stringValue": "http://localhost:8001/status/302"
+                  }
+                },
+                {
+                  "key": "http.useragent",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
                   }
                 },
                 {
@@ -371,31 +485,37 @@
                 {
                   "key": "operation.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "requests.request"
                   }
                 },
                 {
                   "key": "out.host",
                   "value": {
-                    "stringValue": "example.com"
+                    "stringValue": "localhost"
                   }
                 },
                 {
                   "key": "process_id",
                   "value": {
-                    "intValue": "14"
+                    "intValue": "158"
                   }
                 },
                 {
                   "key": "resource.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "GET /status/302"
                   }
                 },
                 {
                   "key": "runtime-id",
                   "value": {
-                    "stringValue": "73961dbddd5e4a84b91f3b6de636fa8a"
+                    "stringValue": "05b6619690034b0bb8f1f95a63700524"
+                  }
+                },
+                {
+                  "key": "service.name",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -413,7 +533,7 @@
                 {
                   "key": "tracestate",
                   "value": {
-                    "stringValue": "dd=p:1d2aba158e74ea7d;s:1;t.dm:-0,ot=rv:3fe6b96e2af288;th:0"
+                    "stringValue": "dd=p:e2c4693488e71c93;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:16350ce32f5c96;th:0"
                   }
                 }
               ],
@@ -423,12 +543,24 @@
             {
               "traceId": "00000000000000000000000000000004",
               "spanId": "0000000000000004",
-              "traceState": "dd=p:07cc7dbc3d402eb4;s:1;t.dm:-0,ot=rv:fb2b72d9881518;th:0",
-              "name": "http.request",
+              "traceState": "dd=p:fedb27f283c65511;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:560e578dd240fa;th:0",
+              "name": "GET /status/404",
               "kind": 3,
-              "startTimeUnixNano": "1791886125581132754",
-              "endTimeUnixNano": "1791886125581180795",
+              "startTimeUnixNano": "1792156753868844735",
+              "endTimeUnixNano": "1792156753869691175",
               "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
                 {
                   "key": "_dd.p.dm",
                   "value": {
@@ -438,19 +570,19 @@
                 {
                   "key": "_dd.p.tid",
                   "value": {
-                    "stringValue": "6ace032d00000000"
+                    "stringValue": "6ad2245100000000"
                   }
                 },
                 {
                   "key": "_dd.svc_src",
                   "value": {
-                    "stringValue": "datadog"
+                    "stringValue": "requests"
                   }
                 },
                 {
                   "key": "_dd.tags.process",
                   "value": {
-                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir"
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmprty383u5,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
                   }
                 },
                 {
@@ -469,6 +601,12 @@
                   "key": "_sampling_priority_v1",
                   "value": {
                     "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -484,9 +622,21 @@
                   }
                 },
                 {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "NOT FOUND"
+                  }
+                },
+                {
                   "key": "http.url",
                   "value": {
-                    "stringValue": "http://example.com/missing"
+                    "stringValue": "http://localhost:8001/status/404"
+                  }
+                },
+                {
+                  "key": "http.useragent",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
                   }
                 },
                 {
@@ -498,31 +648,37 @@
                 {
                   "key": "operation.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "requests.request"
                   }
                 },
                 {
                   "key": "out.host",
                   "value": {
-                    "stringValue": "example.com"
+                    "stringValue": "localhost"
                   }
                 },
                 {
                   "key": "process_id",
                   "value": {
-                    "intValue": "14"
+                    "intValue": "158"
                   }
                 },
                 {
                   "key": "resource.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "GET /status/404"
                   }
                 },
                 {
                   "key": "runtime-id",
                   "value": {
-                    "stringValue": "73961dbddd5e4a84b91f3b6de636fa8a"
+                    "stringValue": "05b6619690034b0bb8f1f95a63700524"
+                  }
+                },
+                {
+                  "key": "service.name",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -540,7 +696,7 @@
                 {
                   "key": "tracestate",
                   "value": {
-                    "stringValue": "dd=p:07cc7dbc3d402eb4;s:1;t.dm:-0,ot=rv:fb2b72d9881518;th:0"
+                    "stringValue": "dd=p:fedb27f283c65511;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:560e578dd240fa;th:0"
                   }
                 }
               ],
@@ -550,12 +706,24 @@
             {
               "traceId": "00000000000000000000000000000005",
               "spanId": "0000000000000005",
-              "traceState": "dd=p:38849168eb0cd388;s:1;t.dm:-0,ot=rv:89a4d240a93cb3;th:0",
-              "name": "http.request",
+              "traceState": "dd=p:e7f88c6e6627e76c;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:f72576522ffa35;th:0",
+              "name": "GET /status/500",
               "kind": 3,
-              "startTimeUnixNano": "1791886125581238753",
-              "endTimeUnixNano": "1791886125581261212",
+              "startTimeUnixNano": "1792156753870027651",
+              "endTimeUnixNano": "1792156753871014415",
               "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "stringValue": "otel-http-client-snapshots"
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
                 {
                   "key": "_dd.p.dm",
                   "value": {
@@ -565,19 +733,19 @@
                 {
                   "key": "_dd.p.tid",
                   "value": {
-                    "stringValue": "6ace032d00000000"
+                    "stringValue": "6ad2245100000000"
                   }
                 },
                 {
                   "key": "_dd.svc_src",
                   "value": {
-                    "stringValue": "datadog"
+                    "stringValue": "requests"
                   }
                 },
                 {
                   "key": "_dd.tags.process",
                   "value": {
-                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir"
+                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmprty383u5,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
                   }
                 },
                 {
@@ -596,6 +764,12 @@
                   "key": "_sampling_priority_v1",
                   "value": {
                     "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -611,9 +785,21 @@
                   }
                 },
                 {
+                  "key": "http.status_msg",
+                  "value": {
+                    "stringValue": "INTERNAL SERVER ERROR"
+                  }
+                },
+                {
                   "key": "http.url",
                   "value": {
-                    "stringValue": "http://example.com/broken"
+                    "stringValue": "http://localhost:8001/status/500"
+                  }
+                },
+                {
+                  "key": "http.useragent",
+                  "value": {
+                    "stringValue": "python-requests/2.34.2"
                   }
                 },
                 {
@@ -625,31 +811,37 @@
                 {
                   "key": "operation.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "requests.request"
                   }
                 },
                 {
                   "key": "out.host",
                   "value": {
-                    "stringValue": "example.com"
+                    "stringValue": "localhost"
                   }
                 },
                 {
                   "key": "process_id",
                   "value": {
-                    "intValue": "14"
+                    "intValue": "158"
                   }
                 },
                 {
                   "key": "resource.name",
                   "value": {
-                    "stringValue": "http.request"
+                    "stringValue": "GET /status/500"
                   }
                 },
                 {
                   "key": "runtime-id",
                   "value": {
-                    "stringValue": "73961dbddd5e4a84b91f3b6de636fa8a"
+                    "stringValue": "05b6619690034b0bb8f1f95a63700524"
+                  }
+                },
+                {
+                  "key": "service.name",
+                  "value": {
+                    "stringValue": "requests"
                   }
                 },
                 {
@@ -667,310 +859,13 @@
                 {
                   "key": "tracestate",
                   "value": {
-                    "stringValue": "dd=p:38849168eb0cd388;s:1;t.dm:-0,ot=rv:89a4d240a93cb3;th:0"
+                    "stringValue": "dd=p:e7f88c6e6627e76c;s:1;t.dm:-0;t.tid:6ad2245100000000,ot=rv:f72576522ffa35;th:0"
                   }
                 }
               ],
               "status": {
                 "code": 2
               },
-              "flags": 1
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "resource": {
-        "attributes": [
-          {
-            "key": "runtime-id",
-            "value": {
-              "stringValue": "7e66d6220cf748a8b50d7145995f7a1c"
-            }
-          },
-          {
-            "key": "service.name",
-            "value": {
-              "stringValue": "ddtrace_subprocess_dir"
-            }
-          },
-          {
-            "key": "telemetry.sdk.language",
-            "value": {
-              "stringValue": "python"
-            }
-          },
-          {
-            "key": "telemetry.sdk.name",
-            "value": {
-              "stringValue": "datadog"
-            }
-          },
-          {
-            "key": "telemetry.sdk.version",
-            "value": {
-              "stringValue": "4.16.0rc1"
-            }
-          }
-        ]
-      },
-      "scopeSpans": [
-        {
-          "scope": {},
-          "spans": [
-            {
-              "traceId": "00000000000000000000000000000006",
-              "spanId": "0000000000000006",
-              "traceState": "dd=p:b8853f29fa20ed29;s:1;t.dm:-0,ot=rv:9993f16cea04e2;th:0",
-              "name": "http.request",
-              "kind": 3,
-              "startTimeUnixNano": "1791886126122844318",
-              "endTimeUnixNano": "1791886126123213984",
-              "attributes": [
-                {
-                  "key": "_dd.p.dm",
-                  "value": {
-                    "stringValue": "-0"
-                  }
-                },
-                {
-                  "key": "_dd.p.tid",
-                  "value": {
-                    "stringValue": "6ace032e00000000"
-                  }
-                },
-                {
-                  "key": "_dd.svc_src",
-                  "value": {
-                    "stringValue": "datadog"
-                  }
-                },
-                {
-                  "key": "_dd.tags.process",
-                  "value": {
-                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir"
-                  }
-                },
-                {
-                  "key": "_dd.top_level",
-                  "value": {
-                    "intValue": "1"
-                  }
-                },
-                {
-                  "key": "_dd.tracer_kr",
-                  "value": {
-                    "intValue": "1"
-                  }
-                },
-                {
-                  "key": "_sampling_priority_v1",
-                  "value": {
-                    "intValue": "1"
-                  }
-                },
-                {
-                  "key": "http.method",
-                  "value": {
-                    "stringValue": "GET"
-                  }
-                },
-                {
-                  "key": "http.status_code",
-                  "value": {
-                    "stringValue": "200"
-                  }
-                },
-                {
-                  "key": "http.url",
-                  "value": {
-                    "stringValue": "http://example.com/ok"
-                  }
-                },
-                {
-                  "key": "language",
-                  "value": {
-                    "stringValue": "python"
-                  }
-                },
-                {
-                  "key": "operation.name",
-                  "value": {
-                    "stringValue": "http.request"
-                  }
-                },
-                {
-                  "key": "out.host",
-                  "value": {
-                    "stringValue": "example.com"
-                  }
-                },
-                {
-                  "key": "process_id",
-                  "value": {
-                    "intValue": "23"
-                  }
-                },
-                {
-                  "key": "resource.name",
-                  "value": {
-                    "stringValue": "http.request"
-                  }
-                },
-                {
-                  "key": "runtime-id",
-                  "value": {
-                    "stringValue": "7e66d6220cf748a8b50d7145995f7a1c"
-                  }
-                },
-                {
-                  "key": "span.kind",
-                  "value": {
-                    "stringValue": "client"
-                  }
-                },
-                {
-                  "key": "span.type",
-                  "value": {
-                    "stringValue": "http"
-                  }
-                },
-                {
-                  "key": "tracestate",
-                  "value": {
-                    "stringValue": "dd=p:b8853f29fa20ed29;s:1;t.dm:-0,ot=rv:9993f16cea04e2;th:0"
-                  }
-                }
-              ],
-              "status": {},
-              "flags": 1
-            },
-            {
-              "traceId": "00000000000000000000000000000007",
-              "spanId": "0000000000000007",
-              "traceState": "dd=p:2ca28d1f18398b0d;s:1;t.dm:-0,ot=rv:c93e4deedd31c7;th:0",
-              "name": "http.request",
-              "kind": 3,
-              "startTimeUnixNano": "1791886126123554483",
-              "endTimeUnixNano": "1791886126123597108",
-              "attributes": [
-                {
-                  "key": "_dd.p.dm",
-                  "value": {
-                    "stringValue": "-0"
-                  }
-                },
-                {
-                  "key": "_dd.p.tid",
-                  "value": {
-                    "stringValue": "6ace032e00000000"
-                  }
-                },
-                {
-                  "key": "_dd.svc_src",
-                  "value": {
-                    "stringValue": "datadog"
-                  }
-                },
-                {
-                  "key": "_dd.tags.process",
-                  "value": {
-                    "stringValue": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir"
-                  }
-                },
-                {
-                  "key": "_dd.top_level",
-                  "value": {
-                    "intValue": "1"
-                  }
-                },
-                {
-                  "key": "_dd.tracer_kr",
-                  "value": {
-                    "intValue": "1"
-                  }
-                },
-                {
-                  "key": "_sampling_priority_v1",
-                  "value": {
-                    "intValue": "1"
-                  }
-                },
-                {
-                  "key": "http.method",
-                  "value": {
-                    "stringValue": "GET"
-                  }
-                },
-                {
-                  "key": "http.status_code",
-                  "value": {
-                    "stringValue": "404"
-                  }
-                },
-                {
-                  "key": "http.url",
-                  "value": {
-                    "stringValue": "http://example.com/missing"
-                  }
-                },
-                {
-                  "key": "language",
-                  "value": {
-                    "stringValue": "python"
-                  }
-                },
-                {
-                  "key": "operation.name",
-                  "value": {
-                    "stringValue": "http.request"
-                  }
-                },
-                {
-                  "key": "out.host",
-                  "value": {
-                    "stringValue": "example.com"
-                  }
-                },
-                {
-                  "key": "process_id",
-                  "value": {
-                    "intValue": "23"
-                  }
-                },
-                {
-                  "key": "resource.name",
-                  "value": {
-                    "stringValue": "http.request"
-                  }
-                },
-                {
-                  "key": "runtime-id",
-                  "value": {
-                    "stringValue": "7e66d6220cf748a8b50d7145995f7a1c"
-                  }
-                },
-                {
-                  "key": "span.kind",
-                  "value": {
-                    "stringValue": "client"
-                  }
-                },
-                {
-                  "key": "span.type",
-                  "value": {
-                    "stringValue": "http"
-                  }
-                },
-                {
-                  "key": "tracestate",
-                  "value": {
-                    "stringValue": "dd=p:2ca28d1f18398b0d;s:1;t.dm:-0,ot=rv:c93e4deedd31c7;th:0"
-                  }
-                }
-              ],
-              "status": {},
               "flags": 1
             }
           ]
