@@ -319,6 +319,49 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     assert message.headers()[0][1] is not None
 
 
+@pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
+@pytest.mark.parametrize("headers", [[("app-header", b"app-value")], None], ids=["list", "none"])
+def test_data_streams_produce_with_list_or_none_headers(
+    dsm_processor, fresh_consumer, producer, empty_kafka_topic, headers, distributed_tracing_enabled
+):
+    """confluent-kafka accepts headers as a list of (key, value) tuples or None, not only a dict."""
+    original_headers = list(headers) if headers is not None else None
+    PAYLOAD = b"list or none headers"
+
+    with override_config("kafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
+        producer.produce(empty_kafka_topic, PAYLOAD, key="test_key", headers=headers)
+        producer.flush()
+
+    message = None
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        polled = fresh_consumer.poll(timeout=1.0)
+        if polled is not None and polled.error() is None:
+            message = polled
+            break
+    assert message is not None, "Consumer did not receive the produced message within 10s"
+
+    header_keys = [h[0] for h in (message.headers() or [])]
+    assert header_keys.count(PROPAGATION_KEY_BASE_64) == 1, f"DSM pathway header not injected: {header_keys}"
+    if original_headers is not None:
+        assert ("app-header", b"app-value") in message.headers()
+        assert headers == original_headers, "caller's headers list was mutated"
+
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
+    produce_key = PartitionKey(empty_kafka_topic, 0, cluster_id)
+    with dsm_processor._lock:
+        produce_tracked = any(
+            produce_key in bucket.latest_produce_offsets for bucket in dsm_processor._buckets.values()
+        )
+    assert produce_tracked, "DSM did not track the produce offset"
+
+    # The consume checkpoint must chain onto the produce checkpoint rather than start a new pathway.
+    stat_keys = all_pathway_stat_keys(dsm_processor)
+    produce_hashes = {k[1] for k in stat_keys if "direction:out" in k[0]}
+    consume_parents = {k[2] for k in stat_keys if "direction:in" in k[0]}
+    assert produce_hashes & consume_parents, "consume checkpoint is not linked to the produce checkpoint"
+
+
 def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
