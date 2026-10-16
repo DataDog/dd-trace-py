@@ -2,6 +2,7 @@
 Tests for the ExposureWriter class.
 """
 
+from functools import partial
 import json
 from unittest import mock
 
@@ -17,6 +18,7 @@ from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_global_config
 
 
@@ -66,8 +68,10 @@ def remote_config_transport():
         info_provider=info_provider,
     )
     writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=connection_factory)
-    with mock.patch("ddtrace.internal.utils.retry.sleep") as sleep:
-        yield writer, connection_factory, info_provider, sleep
+    sleep_intervals = []
+    local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep_intervals.append)
+    with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
+        yield writer, connection_factory, info_provider, sleep_intervals
 
 
 class TestExposureWriter:
@@ -200,7 +204,7 @@ class TestExposureWriter:
     def test_remote_config_retries_refusal_then_success(
         self, remote_config_transport, sample_exposure_event, failure, flush_method, failure_stage
     ):
-        writer, connection_factory, info_provider, sleep = remote_config_transport
+        writer, connection_factory, info_provider, sleep_intervals = remote_config_transport
         refused = mock.Mock()
         getattr(refused, failure_stage).side_effect = failure("connection refused")
         accepted = mock.Mock()
@@ -231,13 +235,13 @@ class TestExposureWriter:
         info_provider.assert_not_called()
         assert writer._buffer == []
         assert writer._buffer_size == 0
-        assert sleep.call_count == 2  # Initial zero wait, then one bounded backoff.
-        assert 0 <= sum(call.args[0] for call in sleep.call_args_list) <= writer._interval
+        assert len(sleep_intervals) == 2  # Initial zero wait, then one bounded backoff.
+        assert 0 <= sum(sleep_intervals) <= writer._interval
         writer.periodic()
         assert connection_factory.call_count == 2
 
     def test_remote_config_stops_after_three_refusals(self, remote_config_transport, sample_exposure_event):
-        writer, connection_factory, info_provider, sleep = remote_config_transport
+        writer, connection_factory, info_provider, sleep_intervals = remote_config_transport
         connections = [mock.Mock() for _ in range(3)]
         for connection in connections:
             connection.getresponse.side_effect = ConnectionFailedError("connection refused")
@@ -252,8 +256,8 @@ class TestExposureWriter:
             assert connection.request.call_args == connections[0].request.call_args
             connection.getresponse.assert_called_once()
             connection.close.assert_called_once()
-        assert sleep.call_count == 3  # No sleep after the final attempt.
-        assert 0 <= sum(call.args[0] for call in sleep.call_args_list) <= writer._interval
+        assert len(sleep_intervals) == 3  # No sleep after the final attempt.
+        assert 0 <= sum(sleep_intervals) <= writer._interval
         info_provider.assert_not_called()
         assert writer._buffer == []
 
@@ -264,7 +268,7 @@ class TestExposureWriter:
     def test_remote_config_never_retries_ambiguous_or_unknown_failure(
         self, remote_config_transport, sample_exposure_event, failure, refusal_first
     ):
-        writer, connection_factory, info_provider, sleep = remote_config_transport
+        writer, connection_factory, info_provider, sleep_intervals = remote_config_transport
         refused = mock.Mock()
         refused.request.side_effect = ConnectionFailedError("connection refused")
         ambiguous = mock.Mock()
@@ -279,7 +283,7 @@ class TestExposureWriter:
         for connection in connections:
             connection.request.assert_called_once()
             connection.close.assert_called_once()
-        assert sleep.call_count == len(connections)
+        assert len(sleep_intervals) == len(connections)
         info_provider.assert_not_called()
         assert writer._buffer == []
 
@@ -288,7 +292,7 @@ class TestExposureWriter:
     def test_remote_config_never_retries_http_response(
         self, remote_config_transport, sample_exposure_event, status, refusal_first
     ):
-        writer, connection_factory, info_provider, sleep = remote_config_transport
+        writer, connection_factory, info_provider, sleep_intervals = remote_config_transport
         refused = mock.Mock()
         refused.request.side_effect = ConnectionFailedError("connection refused")
         responded = mock.Mock()
@@ -304,7 +308,7 @@ class TestExposureWriter:
             connection.request.assert_called_once()
             connection.close.assert_called_once()
             assert "DD-API-KEY" not in connection.request.call_args.args[3]
-        assert sleep.call_count == len(connections)
+        assert len(sleep_intervals) == len(connections)
         info_provider.assert_not_called()
         assert writer._route_selector.select().direct is False
 
@@ -325,14 +329,16 @@ class TestExposureWriter:
         )
         writer.enqueue(sample_exposure_event)
 
-        with mock.patch("ddtrace.internal.utils.retry.sleep") as sleep:
+        sleep_intervals = []
+        local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep_intervals.append)
+        with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
             writer.periodic()
 
         assert connection_factory.call_count == expected_attempts
         for connection in connections:
             connection.request.assert_called_once()
             connection.close.assert_called_once()
-        sleep.assert_not_called()
+        assert sleep_intervals == []
 
     def test_agentless_direct_route_has_authentication_and_no_local_header(self, sample_exposure_event):
         mock_get_connection = mock.Mock()

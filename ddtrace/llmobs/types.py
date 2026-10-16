@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -29,11 +30,18 @@ class Document(TypedDict, total=False):
     score: float
 
 
+class ToolCallFunction(TypedDict):
+    name: str
+    arguments: str
+
+
 class ToolCall(TypedDict, total=False):
     name: str
     arguments: dict[str, Any]
     tool_id: str
     type: str
+    id: str
+    function: ToolCallFunction
 
 
 class ToolResult(TypedDict, total=False):
@@ -187,8 +195,21 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
+    tool_call_id: str
     audio_parts: list[AudioPart]
     image_parts: list[ImagePart]
+
+
+# TODO: Make MessagePlaceholder standalone in the next major release;
+# inheritance preserves the existing list[Message] template contract.
+class MessagePlaceholder(Message):
+    """A named insertion point for runtime messages in a chat prompt template."""
+
+    type: Literal["placeholder"]
+    name: str
+
+
+ChatTemplateItem = Union[ChatMessage, MessagePlaceholder]
 
 
 class _SpanField(TypedDict):
@@ -250,8 +271,9 @@ class Agent(TypedDict, total=False):
             extra_headers, since those can carry secrets.
         tools: list[AgentTool] - the tools the agent declares it can call.
 
-    ``version`` becomes an ``agent_version`` tag and the rest the agent's manifest, on agent spans
-    only. Declared through ``annotation_context``, both reach every agent span in the block.
+    ``version`` becomes an ``agent_version`` tag on the agent span and its child spans within the
+    same process. The rest becomes the agent's manifest, on agent spans only. Declared through
+    ``annotation_context``, both reach every agent span in the block.
     Unreportable values are dropped rather than raising, and a key whose value is unset (``None``
     or empty) declares nothing rather than erasing what an earlier annotation declared. Each
     annotation shallow-updates the manifest key by key, including one an integration already

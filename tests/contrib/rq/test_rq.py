@@ -116,7 +116,7 @@ def test_worker_failing_job(queue):
     worker.work(burst=True)
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, wait_for_num_traces=4)
 def test_worker_class_job(queue):
     queue.enqueue(JobClass().job_on_class, 2)
     queue.enqueue(JobClass(), 4)

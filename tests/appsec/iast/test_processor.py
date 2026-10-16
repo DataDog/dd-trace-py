@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_hash_object_tracking_len
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY

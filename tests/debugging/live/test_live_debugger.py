@@ -47,6 +47,7 @@ class SpanProbeTestCase(TracerTestCase):
                     func_qname="entrypoint",
                     session_id="test-session-id",
                     level=2,
+                    rate=float("inf"),
                 ),
                 create_snapshot_function_probe(
                     probe_id="snapshot-probe",

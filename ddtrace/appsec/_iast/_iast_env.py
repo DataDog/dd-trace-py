@@ -2,10 +2,10 @@ from typing import TYPE_CHECKING
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
-from ddtrace.internal.appsec.prototypes import SpanProtocol
+from ddtrace.internal.native._native import SpanData
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -22,7 +22,7 @@ class IASTEnvironment:
     cannot be reused while source overrides preserve their secure marks.
     """
 
-    def __init__(self, span: Optional[SpanProtocol] = None):
+    def __init__(self, span: Optional[SpanData] = None) -> None:
         self.span = span or span_bus.get_span()
 
         self.iast_reporter: Optional[IastSpanReporter] = None

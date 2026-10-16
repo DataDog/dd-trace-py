@@ -25,6 +25,8 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import _opentelemetry
+from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.utils import _human_size
@@ -32,6 +34,7 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
+from ddtrace.internal.writer.writer import HTTPWriter
 from ddtrace.internal.writer.writer import compute_agentless_intake_url
 from ddtrace.trace import Span
 from tests.utils import AnyInt
@@ -901,7 +904,10 @@ def test_flush_queue_raise(writer_class):
 
 
 def test_racing_start():
-    with managed_writer(NativeWriter, "http://dne:1234") as writer:
+    writer = NativeWriter("http://dne:1234")
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(writer, "periodic"))
+        stack.callback(writer.stop, 3.0)
 
         def do_write(i):
             writer.write([Span(str(i))])
@@ -1088,6 +1094,106 @@ def test_writer_recreate_keeps_response_callback():
     assert writer._response_cb is response_callback
 
 
+def test_native_writer_closed_microvm_writer_rejects_writes_without_restarting(monkeypatch):
+    """A writer closed by the identity refresh drops later spans and is not restarted by them."""
+    from ddtrace.internal.service import ServiceStatus
+
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    try:
+        writer._clients[0].encoder.put([Span("buffered")])
+
+        writer._stop_accepting_writes()
+        writer.write([Span("late")])
+
+        # Spans buffered before the close stay for the final flush; the late span is dropped.
+        assert len(writer._clients[0].encoder) == 1
+        assert writer.status == ServiceStatus.STOPPED
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_native_writer_microvm_close_waits_for_in_flight_sync_flush(monkeypatch):
+    """Refresh shuts a sync writer's exporter down after closing it, so closing must wait out a flush."""
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    flush_entered = threading.Event()
+    release_flush = threading.Event()
+
+    def blocking_send(payload):
+        flush_entered.set()
+        release_flush.wait()
+        return "{}"
+
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock(send=mock.Mock(side_effect=blocking_send))
+    try:
+        write = threading.Thread(target=writer.write, args=([Span("in-flight")],), daemon=True)
+        write.start()
+        assert flush_entered.wait(5)
+
+        close = threading.Thread(target=writer._stop_accepting_writes, daemon=True)
+        close.start()
+        close.join(0.2)
+        assert close.is_alive()
+
+        release_flush.set()
+        write.join(5)
+        close.join(5)
+        assert not write.is_alive()
+        assert not close.is_alive()
+        assert exporter.send.call_count == 1
+        assert writer._accepting_writes is False
+
+        # Nothing is flushed through the closed writer.
+        writer.write([Span("late")])
+        assert exporter.send.call_count == 1
+    finally:
+        release_flush.set()
+        real_exporter.drop()
+
+
+def test_native_writer_stop_accepting_writes_is_noop_outside_microvm(monkeypatch):
+    monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
+    writer = NativeWriter("http://dne:1234")
+    try:
+        assert writer._writer_lock is None
+
+        writer._stop_accepting_writes()
+        with mock.patch.object(writer, "start"):
+            writer.write([Span("span")])
+
+        assert writer._accepting_writes is True
+        assert len(writer._clients[0].encoder) == 1
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_http_writer_closed_microvm_writer_rejects_writes(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+
+    class Writer(HTTPWriter):
+        def recreate(self):
+            return self
+
+    client = mock.Mock()
+    writer = Writer("http://dne:1234", [client])
+
+    writer._stop_accepting_writes()
+    writer.write([Span("late")])
+
+    assert writer._accepting_writes is False
+    client.encoder.put.assert_not_called()
+
+
+def test_log_writer_stop_accepting_writes_is_noop():
+    writer = LogWriter()
+
+    writer._stop_accepting_writes()
+
+    assert not hasattr(writer, "_accepting_writes")
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
@@ -1265,7 +1371,7 @@ def test_writer_telemetry_enabled_on_linux(
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
         if expected_enabled:
-            mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
+            mock_builder.enable_telemetry.assert_called_once_with(60000, config._debug_mode)
         else:
             mock_builder.enable_telemetry.assert_not_called()
         mock_builder.set_restart_after_fork.assert_called_once_with(False)
@@ -1529,22 +1635,45 @@ def test_agentless_writer_no_api_key():
 
 def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_case_insensitive():
     with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_by_default():
     with override_env({"OTEL_TRACES_EXPORTER": ""}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_when_trace_api_version_set():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_API_VERSION": "v0.4"}):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_semantics_override_agent_protocol_version():
+    with override_env(
+        {
+            "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+            "OTEL_TRACES_EXPORTER": "none",
+            "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+            "DD_TRACE_API_VERSION": "v0.4",
+        }
+    ):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_native_writer_stores_otlp_endpoint():
