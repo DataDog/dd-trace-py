@@ -417,8 +417,6 @@ def set_http_meta(
         ``resolver_match.args``, Tornado ``path_args``).
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
-    if otel_http is not None and not otel_http.is_client:
-        otel_http = None
 
     if method is not None:
         if otel_http is not None:
@@ -430,6 +428,7 @@ def set_http_meta(
         otel_http.set_url(
             url,
             query=query,
+            raw_uri=raw_uri,
             server_address=server_address,
             fallback_server_address=target_host,
         )
@@ -494,11 +493,14 @@ def set_http_meta(
             # Not calculated: framework does not support IP blocking or testing env
             request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
 
-        if request_ip:
-            span._set_attribute(http.CLIENT_IP, request_ip)
-
-        if peer_ip:
-            span._set_attribute("network.client.ip", peer_ip)
+        if otel_http is None:
+            if request_ip:
+                span._set_attribute(http.CLIENT_IP, request_ip)
+            if peer_ip:
+                span._set_attribute("network.client.ip", peer_ip)
+        elif not otel_http.is_client:
+            # An outgoing request has no client address, so only server spans report one.
+            otel_http.set_client_addresses(request_ip, peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
