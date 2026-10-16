@@ -1,6 +1,5 @@
 import typing as t
 
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.settings._core import DDConfig
 
 
@@ -18,19 +17,6 @@ class ErrorTrackingConfig(DDConfig):
     _report_handled_errors = DDConfig.v(str, "handled.errors", default="")
     # Specify the modules (user and third party mixed) for which we report handled exceptions
     _modules_to_report = DDConfig.v(list, "handled.errors.include", parser=parse_modules, default=[])
-
-    if is_at_least_py(3, 12):
-        """
-        TOOL_ID must be in range 0 to 5 inclusive with
-        sys.monitoring.DEBUGGER_ID = 0
-        sys.monitoring.COVERAGE_ID = 1
-        sys.monitoring.PROFILER_ID = 2
-        sys.monitoring.OPTIMIZER_ID = 5
-
-        We cannot use an existing one, otherwise for instance we cannot debug our program
-        with the feature activate, therefore we take the first one available
-        """
-        HANDLED_EXCEPTIONS_MONITORING_ID = 3
 
     _configured_modules: list[str] = list()
     _instrument_user_code = False

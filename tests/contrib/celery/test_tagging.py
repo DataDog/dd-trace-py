@@ -107,8 +107,10 @@ def assert_traces(tracer, task_name, task, port):
     assert 2 == len(traces)
     assert 1 == len(traces[0])
     assert 1 == len(traces[1])
-    async_span = traces[0][0]
-    run_span = traces[1][0]
+    spans_by_name = {trace[0].name: trace[0] for trace in traces}
+    assert set(spans_by_name) == {"celery.apply", "celery.run"}
+    async_span = spans_by_name["celery.apply"]
+    run_span = spans_by_name["celery.run"]
 
     assert async_span.error == 0
     assert async_span.name == "celery.apply"

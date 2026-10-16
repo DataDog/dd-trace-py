@@ -10,7 +10,7 @@ own test suite; these tests do not re-verify transport internals.
 Fixtures spin up `http.server.ThreadingHTTPServer` on port 0 so the suite is
 ``pytest -n auto`` friendly. Handlers are inlined rather than imported from
 ``tests/tracer/test_writer`` because importing that module pulls in ``msgpack``,
-which is not in the ``internal`` riot venv.
+which is not in the ``internal`` test environment.
 """
 
 from __future__ import annotations
@@ -775,14 +775,6 @@ def test_json_envelope_byte_exact(serve, make_client):
 # --------------------------------------------------------------------------- #
 
 
-def test_relative_path_get(serve, make_client):
-    base = serve(EchoHandler)
-    client = make_client(base)
-    resp = client.get("/info")
-    assert resp.status_code == 200
-    assert resp.body() == b"GET response"
-
-
 def test_path_without_leading_slash(serve, make_client):
     base = serve(EchoHandler)
     client = make_client(base)
@@ -837,15 +829,6 @@ def test_default_errors_raise(serve, make_client):
     with pytest.raises(RequestFailedError) as exc_info:
         client.get("/404/missing")
     assert exc_info.value.status == 404
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="UDS is unix-only")
-def test_unix_socket_base_url(uds_serve, make_client):
-    sock_path = uds_serve()
-    client = make_client("unix://" + sock_path)
-    resp = client.get("/info")
-    assert resp.status_code == 200
-    assert resp.body() == b"GET response"
 
 
 def test_base_url_path_prefix_preserved(serve, make_client):

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from contextlib import asynccontextmanager
 import copy
@@ -1189,6 +1191,55 @@ async def test_wrapping_context_async_generator():
 
 
 @pytest.mark.asyncio
+async def test_wrapping_context_async_generator_exc():
+    # On Python 3.10 the context head must be placed after GEN_START, otherwise
+    # GEN_START pops the __exit__ method and the exception surfaces as a
+    # TypeError instead of the original one.
+    async def arange(count):
+        for i in range(count):
+            yield i
+            await asyncio.sleep(0.0)
+        raise ValueError("foo")
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    a = []
+    with pytest.raises(ValueError, match="foo"):
+        async for _ in arange(3):
+            a.append(_)
+
+    assert a == list(range(3))
+
+    assert wc.entered
+    assert wc.return_value is NOTSET
+    assert wc.exited
+
+    assert wc.exc_info is not None
+    _type, exc, _ = wc.exc_info
+    assert _type is ValueError
+    assert exc.args == ("foo",)
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_generator_aclose():
+    async def arange(count):
+        for i in range(count):
+            yield i
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    agen = arange(10)
+    assert await agen.__anext__() == 0
+    await agen.aclose()
+
+    assert wc.entered
+    assert wc.exited
+    assert wc.exc_info[0] is GeneratorExit
+
+
+@pytest.mark.asyncio
 async def test_wrapping_context_async_happy() -> None:
     async def coro():
         return 1
@@ -1510,6 +1561,48 @@ def test_wrapping_context_lazy_no_memory_leak_invoked():
     assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, invoked context(s) leaked"
 
 
+@pytest.mark.subprocess(err=None, timeout=60)
+def test_wrapping_context_gc_during_wrap_does_not_deadlock():
+    """A GC pass triggered while wrap() holds the registry lock can collect other
+    wrapped functions and run their finalizers on the same thread, which take the
+    same lock. Methods of local classes are only freed by the cyclic GC, so they
+    make reliable garbage for this.
+    """
+    import faulthandler
+    import gc
+
+    import ddtrace.internal.wrapping.context as context
+    from tests.internal.test_wrapping import DummyWrappingContext
+
+    # Dump the stack instead of hanging until the subprocess timeout.
+    faulthandler.dump_traceback_later(30, exit=True)
+
+    def make_garbage():
+        class App:
+            def method(self):
+                pass
+
+        DummyWrappingContext(App.method).wrap()
+
+    gc.disable()
+    for _ in range(5):
+        make_garbage()
+
+    link_function_to_code = context.link_function_to_code
+
+    def link_and_collect(*args, **kwargs):
+        gc.collect()
+        return link_function_to_code(*args, **kwargs)
+
+    context.link_function_to_code = link_and_collect
+
+    def target():
+        return 42
+
+    DummyWrappingContext(target).wrap()
+    assert target() == 42
+
+
 @pytest.mark.subprocess(err=None)
 def test_wrapping_context_storage_vars_are_recycled():
     """A ContextVar that has been set is retained by the running Context for the
@@ -1805,7 +1898,7 @@ def test_wrapping_context_thread_concurrent() -> None:
     errors: list[str] = []
 
     class ThreadIsolationContext(DummyWrappingContext):
-        def __enter__(self) -> "ThreadIsolationContext":
+        def __enter__(self) -> ThreadIsolationContext:
             super().__enter__()
             self.set("tid", threading.get_ident())
             return self
@@ -1853,7 +1946,7 @@ async def test_wrapping_context_async_recursive() -> None:
     values: list[tuple[str, int]] = []
 
     class AsyncRecursiveContext(DummyWrappingContext):
-        def __enter__(self) -> "AsyncRecursiveContext":
+        def __enter__(self) -> AsyncRecursiveContext:
             super().__enter__()
             n: int = self.__frame__.f_locals["n"]
             self.set("n", n)

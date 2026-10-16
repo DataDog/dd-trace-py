@@ -80,9 +80,10 @@ templates_path = ["_templates"]
 # source_suffix = ['.rst', '.md']
 source_suffix = ".rst"
 
-# Enable links to the python standard doc.
+# Enable links to the python standard doc. The checked-in inventory is a fallback for
+# when docs.python.org is unreachable; scripts/update-intersphinx-inventory.py refreshes it.
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
+    "python": ("https://docs.python.org/3", (None, "_intersphinx/python3.inv")),
 }
 
 # The encoding of source files.
@@ -314,7 +315,7 @@ htmlhelp_basename = "ddtracedoc"
 
 # -- Options for LaTeX output ---------------------------------------------
 
-latex_elements = {
+latex_elements: dict[str, str] = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
@@ -327,7 +328,7 @@ latex_elements = {
     # Latex figure (float) alignment
     #
     # 'figure_align': 'htbp',
-}  # type: dict[str, str]
+}
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,

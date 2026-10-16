@@ -45,11 +45,14 @@ won't have exception details. Always use `span.set_exc_info(*sys.exc_info())`
 in direct span-management except blocks.
 
 **Finishing LLM spans only from a generator finally** -- Client disconnect or
-an abandoned iterator can skip that finally, leaving the span in the aggregator
-so later requests nest under it. ASGI request teardown finishes leftover LLM
-descendants after the app callable returns (not when the last body chunk is
-sent). `TracedStream.__del__` finalizes dropped `next()` iteration. Still
-annotate on the happy path from generator finally.
+an abandoned iterator can skip that finally, leaving the span in the
+aggregator. Reclaim it from the object that owns the stream, not from request
+teardown: `TracedStream.__del__` finalizes dropped `next()` iteration, and
+`__exit__`/`__aexit__` finalize unexhausted context managers, including when
+wrapped async cleanup raises `CancelledError`. Do not sweep unfinished LLM
+spans at ASGI request teardown -- an agent can intentionally outlive the
+request, and truncating its span detaches later children into new root traces.
+Still annotate on the happy path from generator finally.
 
 **Setting items on context after it exits** -- `ctx.set_item()` calls after the
 `with core.context_with_data(...)` block exits are silently dropped.

@@ -137,6 +137,18 @@ scripts/lint typing -- ddtrace/tracer.py
 
 **When to use:** After adding type hints or modifying functions with type annotations.
 
+#### `type-comments-check` - Block new PEP 484 type comments
+Fails if the branch adds type comments (`# type: int`, `# type: (int) -> str`).
+Use inline annotations instead. Existing comments may stay. `# type: ignore` is allowed.
+
+**Usage:**
+```bash
+scripts/lint type-comments-check
+scripts/lint type-comments-check --base-ref origin/main
+```
+
+**When to use:** After adding type annotations, or before opening a PR.
+
 ### Security Checks
 
 #### `security` - Security audit with Bandit
@@ -170,16 +182,6 @@ scripts/lint spelling -- docs/ releasenotes/
 **When to use:** Before committing documentation or user-facing text.
 
 ### Test Infrastructure
-
-#### `riot` - Validate riotfile
-Doctests the riotfile to ensure test venv definitions are valid.
-
-**Usage:**
-```bash
-scripts/lint riot
-```
-
-**When to use:** After modifying `riotfile.py` to validate syntax and doctest examples.
 
 #### `suitespec-check` - Validate test suite specifications
 Checks that test suite patterns in `tests/suitespec.yml` cover all test files.
@@ -293,7 +295,6 @@ This runs:
 - style checks
 - typing checks
 - spelling checks
-- riot validation
 - security checks
 - suitespec validation
 - SLO ownership validation
@@ -378,4 +379,3 @@ scripts/lint fmt -- .
 
 - **run-tests skill**: For validating that changes don't break tests
 - **pyproject.toml** `[dependency-groups]`: Source of truth for all lint tool versions
-- **riotfile.py**: Defines test venvs and combinations

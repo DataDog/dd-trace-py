@@ -2,11 +2,11 @@ import time
 
 import pytest
 
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._constants import TELEMETRY_DEBUG_VERBOSITY
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
-from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import TELEMETRY_DEBUG_VERBOSITY
+from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_NAME
+from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_VERBOSITY
+from ddtrace.appsec._iast._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
@@ -240,6 +240,45 @@ def test_metric_instrumented_vulnerability(no_request_sampling, telemetry_writer
         patch_func()
 
     _assert_instrumented_sink(test_agent_session, telemetry_writer, vuln)
+
+
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="true"), err=None)
+def test_iast_listener_registered_before_sql_patch():
+    import sqlite3  # noqa: F401
+    from unittest import mock
+
+    from ddtrace.internal import telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+    with mock.patch.object(telemetry.telemetry_writer, "add_count_metric") as metric:
+        import ddtrace.auto  # noqa: F401
+
+        metric.assert_any_call(
+            TELEMETRY_NAMESPACE.IAST, "instrumented.sink", 1, (("vulnerability_type", "SQL_INJECTION"),)
+        )
+
+
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="true"), err=None)
+def test_sql_instrumentation_metric_in_uwsgi_master():
+    import sqlite3  # noqa: F401
+    from unittest import mock
+
+    from ddtrace.internal import products
+    from ddtrace.internal import telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.internal.uwsgi import uWSGIMasterProcess
+
+    with (
+        mock.patch.object(products, "check_uwsgi", side_effect=uWSGIMasterProcess),
+        mock.patch.object(products.manager, "start_products", wraps=products.manager.start_products) as start_products,
+        mock.patch.object(telemetry.telemetry_writer, "add_count_metric") as metric,
+    ):
+        import ddtrace.auto  # noqa: F401
+
+        start_products.assert_not_called()
+        metric.assert_any_call(
+            TELEMETRY_NAMESPACE.IAST, "instrumented.sink", 1, (("vulnerability_type", "SQL_INJECTION"),)
+        )
 
 
 def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer, test_agent_session):

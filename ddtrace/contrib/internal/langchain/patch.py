@@ -106,7 +106,9 @@ def traced_llm_generate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.llm.generate.before", (prompts,), allow_raise=True)
         completions = func(*args, **kwargs)
-        core.dispatch("langchain.llm.generate.after", (prompts, completions))
+        # allow_raise so a listener's block decision on the response propagates to the
+        # caller instead of the response being returned
+        core.dispatch("langchain.llm.generate.after", (prompts, completions), allow_raise=True)
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
@@ -139,7 +141,9 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.llm.agenerate.before", (prompts,), allow_raise=True)
         completions = await func(*args, **kwargs)
-        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
+        # allow_raise so a listener's block decision on the response propagates to the
+        # caller instead of the response being returned
+        core.dispatch("langchain.llm.agenerate.after", (prompts, completions), allow_raise=True)
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
@@ -171,7 +175,9 @@ def traced_chat_model_generate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.chatmodel.generate.before", (chat_messages,), allow_raise=True)
         chat_completions = func(*args, **kwargs)
-        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
+        # allow_raise so a listener's block decision on the response propagates to the
+        # caller instead of the response being returned
+        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions), allow_raise=True)
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
@@ -203,7 +209,9 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.chatmodel.agenerate.before", (chat_messages,), allow_raise=True)
         chat_completions = await func(*args, **kwargs)
-        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
+        # allow_raise so a listener's block decision on the response propagates to the
+        # caller instead of the response being returned
+        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions), allow_raise=True)
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
@@ -742,6 +750,9 @@ def unpatch():
 
     langchain_core._datadog_patch = False
 
+    # Listeners wrapped after this integration did, so they unwrap first and each layer comes off in order.
+    core.dispatch("langchain.unpatch", tuple())
+
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
     unwrap(langchain_core.language_models.llms.BaseLLM, "invoke")
@@ -770,5 +781,3 @@ def unpatch():
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
     unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")
     unwrap(langchain_core.vectorstores.VectorStore, "__init_subclass__")
-
-    core.dispatch("langchain.unpatch", tuple())

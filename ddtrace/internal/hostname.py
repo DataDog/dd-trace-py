@@ -3,17 +3,16 @@ import socket
 from ddtrace.internal.settings import env
 
 
-_hostname = env.get("DD_HOSTNAME", "")  # type: str
+_hostname = env.get("DD_HOSTNAME", "")
 
 
-def get_hostname():
-    # type: () -> str
+def get_hostname() -> str:
     global _hostname
     if not _hostname:
         _hostname = socket.gethostname()
     return _hostname
 
 
-def _reset():
+def _reset() -> None:
     global _hostname
     _hostname = ""

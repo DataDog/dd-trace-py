@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 import queue
 import subprocess
 import sys
@@ -49,8 +50,8 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
 
     if SHOULD_PROFILE:
         # viztracer won't create the missing directory itself
-        viztracer_output_dir = os.path.join(output_dir, "viztracer")
-        os.makedirs(viztracer_output_dir, exist_ok=True)
+        viztracer_output_dir = Path(output_dir) / "viztracer"
+        viztracer_output_dir.mkdir(parents=True, exist_ok=True)
 
         cmd += [
             "viztracer",
@@ -60,7 +61,7 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
             "--max_stack_depth",
             "200",
             "--output_file",
-            os.path.join(output_dir, "viztracer", f"{cname}.json"),
+            str(viztracer_output_dir / f"{cname}.json"),
             "--",
         ]
     else:
@@ -71,7 +72,7 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
         # necessary to copy PYTHONPATH for venvs
         "--copy-env",
         "--output",
-        os.path.join(output_dir, f"results.{cname}.json"),
+        str(Path(output_dir) / f"results.{cname}.json"),
         "--name",
         cname,
     ]

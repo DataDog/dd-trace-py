@@ -12,6 +12,8 @@ def _isolate_coverage_patch_state():
        pytest-cov pushes its own instance there for the whole session, which would
        make is_coverage_running() return True even before the test calls start_coverage.
        We clear that stack for the duration of each test and restore it afterwards.
+    3. Coverage.current() itself, because an outer plugin can start a collector after
+       fixture setup or between attempts when it retries the same test item.
     """
     from coverage import Coverage
 
@@ -34,7 +36,13 @@ def _isolate_coverage_patch_state():
     p._owns_coverage_instance = False
     p._cached_coverage_percentage = None
 
-    yield
+    # A test can be retried without rerunning fixture setup, and outer plugins can
+    # start coverage after this fixture clears Coverage._instances. Keep the
+    # integration's ambient lookup isolated for the entire test lifecycle so each
+    # retry still exercises only the instance created by the test itself.
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(p.Coverage, "current", staticmethod(lambda: None))
+        yield
 
     # If the test left an owned instance running, stop and erase it so it
     # doesn't write .coverage files that confuse the outer coverage combine step.

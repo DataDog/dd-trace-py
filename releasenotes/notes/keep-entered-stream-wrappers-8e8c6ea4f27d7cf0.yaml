@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where a traced stream opened as a context
+    manager through a stream manager could close before any chunks were read if
+    the caller omitted ``as``, and where errors raised while closing the
+    wrapped stream were missing from the span.
+  - |
+    langchain: Fixes an issue where discarding an unused traced stream could
+    end an enclosing AI Guard evaluation early.

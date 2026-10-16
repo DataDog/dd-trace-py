@@ -27,7 +27,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     // Asyncio stitching needs the root-side event-loop boundary and overlap
     // metadata, so preserve Echion's existing discovery depth for task-aware
     // stacks. Non-task thread stacks can stop at the configured reporting limit.
-    const size_t max_frames = asyncio_loop ? MAX_TASK_FRAMES : echion.stack_max_frames();
+    const size_t max_frames = asyncio_loop ? MAX_STACK_UNWIND_SAFETY_LIMIT : echion.stack_max_frames();
     python_stack_unwind_result = UnwindResult::Unknown();
     auto frame_unwind_result = unwind_python_stack(echion, tstate, python_stack, max_frames);
     if (!frame_unwind_result) {
@@ -156,6 +156,16 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
     auto all_tasks = std::move(*maybe_all_tasks);
     echion.add_asyncio_task_count(all_tasks.size());
+
+    // Build the set of live task origins outside the lock. all_tasks is a local
+    // that no other thread touches, so this is safe
+    std::unordered_set<PyObject*> all_task_origins;
+    all_task_origins.reserve(all_tasks.size());
+    std::transform(all_tasks.cbegin(),
+                   all_tasks.cend(),
+                   std::inserter(all_task_origins, all_task_origins.begin()),
+                   [](const TaskInfo::Ptr& task) { return task->origin; });
+
     {
         auto& previous_task_objects = echion.previous_task_objects();
         std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
@@ -165,12 +175,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
-        std::unordered_set<PyObject*> all_task_origins;
-        std::transform(all_tasks.cbegin(),
-                       all_tasks.cend(),
-                       std::inserter(all_task_origins, all_task_origins.begin()),
-                       [](const TaskInfo::Ptr& task) { return task->origin; });
-
         std::vector<PyObject*> to_remove;
         for (auto kv : task_link_map) {
             if (all_task_origins.find(kv.first) == all_task_origins.end())
@@ -190,14 +194,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                        std::inserter(parent_tasks, parent_tasks.begin()),
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
 
-        // Clean up the weak_task_link_map.
-        // Remove entries associated to tasks that no longer exist.
-        all_task_origins.clear();
-        std::transform(all_tasks.cbegin(),
-                       all_tasks.cend(),
-                       std::inserter(all_task_origins, all_task_origins.begin()),
-                       [](const TaskInfo::Ptr& task) { return task->origin; });
-
+        // Clean up the weak_task_link_map. Reuse the same all_task_origins set
         to_remove.clear();
         for (auto kv : weak_task_link_map) {
             if (all_task_origins.find(kv.first) == all_task_origins.end())
@@ -333,8 +330,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
                 task_stack = &it->second;
                 task_stack_size = task_stack->size();
-                if (stack.size() < MAX_TASK_FRAMES) {
-                    task_frames_to_push = std::min(task_stack_size, MAX_TASK_FRAMES - stack.size());
+                if (stack.size() < MAX_STACK_UNWIND_SAFETY_LIMIT) {
+                    task_frames_to_push = std::min(task_stack_size, MAX_STACK_UNWIND_SAFETY_LIMIT - stack.size());
                 }
             }
             if (task.is_on_cpu) {

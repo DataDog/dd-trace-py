@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 import json
-import typing  # noqa:F401
-from typing import Any  # noqa:F401
+from typing import Any
 from typing import Optional
 
 from ddtrace.internal.native._native import SpanData
