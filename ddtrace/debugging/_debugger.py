@@ -105,15 +105,6 @@ class DebuggerError(Exception):
 
 
 class DebuggerWrappingContext(WrappingContext):
-    """Wraps a function that carries probes, of either kind.
-
-    Every probe requires its enclosing function to be wrapped. Function probes
-    are triggered from here, on entry and on exit. Line probes are triggered by
-    hooks injected at their lines instead, but they still need the invocation
-    bracketed, because that is what gives them an execution unit to share a
-    sampling decision with. A line probe cannot bracket itself.
-    """
-
     __priority__ = 99  # Execute after all other contexts
 
     def __init__(
@@ -133,37 +124,22 @@ class DebuggerWrappingContext(WrappingContext):
         self._probe_meter = probe_meter
         self._sampler = sampler
 
-        # Kept apart because only the function probes are triggered from here.
-        # The line probes are held so that we know the wrapping is still needed.
-        self.function_probes: dict[str, Probe] = {}
-        self.line_probes: dict[str, Probe] = {}
-
-    def _probes_for(self, probe: Probe) -> dict[str, Probe]:
-        return self.line_probes if isinstance(probe, LineLocationMixin) else self.function_probes
+        self.probes: dict[str, Probe] = {}
 
     def add_probe(self, probe: Probe) -> None:
-        self._probes_for(probe)[probe.probe_id] = probe
+        self.probes[probe.probe_id] = probe
 
     def remove_probe(self, probe: Probe) -> None:
-        # Tolerant of probes that were never added, since ejection is best
-        # effort: a probe whose injection failed never made it onto the context.
-        self._probes_for(probe).pop(probe.probe_id, None)
+        del self.probes[probe.probe_id]
 
     def has_probes(self) -> bool:
-        return bool(self.function_probes or self.line_probes)
-
-    def _has_sampled_probes(self) -> bool:
-        # A unit of execution is only worth opening if something in it can
-        # actually be gated by the coordinated decision. A function wrapped
-        # only for non-snapshot probes (log messages, span probes, ...) has
-        # nothing to coordinate, so there is no point spending a decision on it.
-        return any(p.is_sampled() for p in chain(self.function_probes.values(), self.line_probes.values()))
+        return bool(self.probes)
 
     def _open_signals(self) -> None:
         # Group probes on the basis of whether they create new context.
         context_creators: list[Probe] = []
         context_consumers: list[Probe] = []
-        for p in self.function_probes.values():
+        for p in self.probes.values():
             (context_creators if p.__context_creator__ else context_consumers).append(p)
 
         signals: deque[Signal] = deque()
@@ -179,7 +155,7 @@ class DebuggerWrappingContext(WrappingContext):
                 # for each probe.
                 trace_context = self._tracer.current_trace_context()
 
-                decision = self._sampler.evaluate(probe, frame, trace_context)
+                decision = self._sampler.evaluate(probe)
                 if decision is not Decision.FIRE:
                     record_skipped(probe, decision)
                     continue
@@ -211,12 +187,9 @@ class DebuggerWrappingContext(WrappingContext):
         end_time = time.monotonic_ns()
 
         try:
-            signals = cast("deque[Signal]", self.get("signals"))
+            signals = cast(deque[Signal], self.get("signals"))
         except KeyError as e:
-            if self.function_probes:
-                telemetry_writer.add_error_log("Signal contexts were not opened for function probe", e)
-            # Otherwise this context is wrapped only to scope the line probes in
-            # the function body, so there was nothing to open.
+            telemetry_writer.add_error_log("Signal contexts were not opened for function probe", e)
             return
 
         while signals:
@@ -234,58 +207,32 @@ class DebuggerWrappingContext(WrappingContext):
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(signal.probe)
                 # The snapshot is on its way out, so account for it.
-                self._sampler.account_for(signal.probe, signal.frame, signal.trace_context)
-
-    def _close_scope(self) -> None:
-        # Closed only once every signal has exited, so that probes evaluated on
-        # exit still resolve against the same unit. The next invocation then gets
-        # a fresh unit and a fresh decision.
-        try:
-            self._sampler.close_scope(self.get("scope_token"))
-        except KeyError:
-            log.error("Sampling scope was not opened for %r", self)
+                self._sampler.account_for(signal.probe)
 
     def __enter__(self) -> "DebuggerWrappingContext":
         super().__enter__()
 
-        # Open the unit of execution before any probe fires, so that every probe
-        # within the invocation -- function probes here, and line probes in the
-        # body -- shares a single sampling decision. This is the whole reason a
-        # function with only line probes in it gets wrapped at all. Skipped
-        # when nothing here participates in coordination, so a function with
-        # only non-snapshot probes does not spend a decision for no reason.
-        self.set("scope_token", self._sampler.open_scope() if self._has_sampled_probes() else None)
-
-        # A function wrapped only to scope the line probes inside it has no
-        # signals to open, and opening them is far from free.
-        if self.function_probes:
-            try:
-                self._open_signals()
-            except Exception:
-                log.exception("Failed to open debugging contexts")
+        try:
+            self._open_signals()
+        except Exception:
+            log.exception("Failed to open debugging contexts")
 
         return self
 
     def __return__(self, value: T) -> T:
         try:
-            if self.function_probes:
-                self._close_signals(retval=value)
+            self._close_signals(retval=value)
         except Exception:
             log.exception("Failed to close debugging contexts from return")
-        finally:
-            self._close_scope()
         return super().__return__(value)
 
     def __exit__(
         self, exc_type: Optional[type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
         try:
-            if self.function_probes:
-                self._close_signals(exc_info=cast(ExcInfoType, (exc_type, exc_val, exc_tb)))
+            self._close_signals(exc_info=cast(ExcInfoType, (exc_type, exc_val, exc_tb)))
         except Exception:
             log.exception("Failed to close debugging contexts from exception block")
-        finally:
-            self._close_scope()
         super().__exit__(exc_type, exc_val, exc_tb)
 
 
@@ -444,7 +391,7 @@ class Debugger(Service):
 
             frame = sys._getframe(HOOK_FRAME_DEPTH)
 
-            decision = self._sampler.evaluate(probe, frame, trace_context)
+            decision = self._sampler.evaluate(probe)
             if decision is not Decision.FIRE:
                 record_skipped(probe, decision)
                 return
@@ -466,72 +413,16 @@ class Debugger(Service):
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
                 # The snapshot is on its way out, so account for it.
-                self._sampler.account_for(probe, frame, trace_context)
+                self._sampler.account_for(probe)
 
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
             if (collector := self.__uploader__.get_collector()) is None:
                 log.error("No collector available to push signal %s", signal)
                 return
-
             collector.push(signal)
 
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)
-
-    def _wrap(self, function: FunctionType, probe: Probe) -> bool:
-        """Attach a probe to its enclosing function, wrapping it if needed.
-
-        Every probe needs the function wrapped, whichever kind it is, so both
-        instrumentation hooks come through here. There is at most one context per
-        function, shared by the function probes on it and the line probes in it.
-
-        Returns whether the probe could be attached.
-        """
-        if DebuggerWrappingContext.is_wrapped(function):
-            context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
-        else:
-            collector = self.__uploader__.get_collector()
-            if collector is None:
-                log.error("No signal collector available")
-                self._probe_registry.set_error(probe, "NoCollector", "No signal collector available")
-                return False
-
-            context = DebuggerWrappingContext(
-                function,
-                collector=collector,
-                registry=self._probe_registry,
-                tracer=self._tracer,
-                probe_meter=self._probe_meter,
-                sampler=self._sampler,
-            )
-            try:
-                self._function_store.wrap(function, context)
-            except ObfuscatedCodeError:
-                message = f"Cannot wrap probe {probe.probe_id}: code object appears to be obfuscated"
-                self._probe_registry.set_error(probe, "ObfuscatedCode", message)
-                log.error(message, extra={"send_to_telemetry": False})
-                return False
-
-        context.add_probe(probe)
-
-        return True
-
-    def _unwrap(self, function: FunctionType, probes: Iterable[Probe]) -> bool:
-        """Detach probes from their enclosing function, unwrapping it if spent.
-
-        Returns whether the function was wrapped to begin with.
-        """
-        if not DebuggerWrappingContext.is_wrapped(function):
-            return False
-
-        context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
-        for probe in probes:
-            context.remove_probe(probe)
-
-        if not context.has_probes():
-            self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
-
-        return True
 
     def _probe_injection_hook(self, module: ModuleType) -> None:
         # This hook is invoked by the ModuleWatchdog or the post run module hook
@@ -574,7 +465,7 @@ class Debugger(Service):
             for probe in probes:
                 if probe.probe_id in failed:
                     self._probe_registry.set_error(probe, "InjectionFailure", "Failed to inject")
-                elif self._wrap(cast(FunctionType, function), probe):
+                else:
                     self._probe_registry.set_installed(probe)
 
             if failed:
@@ -656,8 +547,6 @@ class Debugger(Service):
                         else:
                             log.debug("Ejected %r from %r", probe, function)
 
-                    self._unwrap(cast(FunctionType, function), ps)
-
             if not self._probe_registry.has_probes(str(resolved_source)):
                 try:
                     self.__watchdog__.unregister_origin_hook(resolved_source, self._probe_injection_hook)
@@ -667,6 +556,7 @@ class Debugger(Service):
 
     def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)
+        collector = self.__uploader__.get_collector()
         for probe in probes:
             if not isinstance(probe, FunctionLocationMixin):
                 continue
@@ -683,19 +573,44 @@ class Debugger(Service):
                 log.error(message, extra={"send_to_telemetry": False})
                 continue
 
-            already_wrapped = DebuggerWrappingContext.is_wrapped(function)
-            if not self._wrap(function, probe):
-                continue
+            if DebuggerWrappingContext.is_wrapped(function):
+                context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
+                log.debug(
+                    "[%s][P: %s] Function probe %r added to already wrapped %r",
+                    os.getpid(),
+                    os.getppid(),
+                    probe.probe_id,
+                    function,
+                )
+            else:
+                if collector is None:
+                    log.error("No signal collector available")
+                    self._probe_registry.set_error(probe, "NoCollector", "No signal collector available")
+                    continue
+                context = DebuggerWrappingContext(
+                    function,
+                    collector=collector,
+                    registry=self._probe_registry,
+                    tracer=self._tracer,
+                    probe_meter=self._probe_meter,
+                    sampler=self._sampler,
+                )
+                try:
+                    self._function_store.wrap(cast(FunctionType, function), context)
+                except ObfuscatedCodeError:
+                    message = f"Cannot wrap {probe.func_qname!r}: code object appears to be obfuscated"
+                    self._probe_registry.set_error(probe, "ObfuscatedCode", message)
+                    log.error(message, extra={"send_to_telemetry": False})
+                    continue
+                log.debug(
+                    "[%s][P: %s] Function probe %r wrapped around %r",
+                    os.getpid(),
+                    os.getppid(),
+                    probe.probe_id,
+                    function,
+                )
 
-            log.debug(
-                "[%s][P: %s] Function probe %r %s %r",
-                os.getpid(),
-                os.getppid(),
-                probe.probe_id,
-                "added to already wrapped" if already_wrapped else "wrapped around",
-                function,
-            )
-
+            context.add_probe(probe)
             self._probe_registry.set_installed(probe)
 
     def _wrap_functions(self, probes: list[FunctionProbe]) -> None:
@@ -729,7 +644,11 @@ class Debugger(Service):
                 touched_modules.add(probe.module)
                 assert probe.func_qname is not None  # nosec
                 function = cast(FunctionType, FunctionDiscovery.from_module(module).by_name(probe.func_qname))
-                if self._unwrap(function, (probe,)):
+                if DebuggerWrappingContext.is_wrapped(function):
+                    context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
+                    context.remove_probe(probe)
+                    if not context.has_probes():
+                        self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
                     log.debug("Unwrapped %r", registered_probe)
                 else:
                     log.error("Attempted to unwrap %r, but no wrapper found", registered_probe)

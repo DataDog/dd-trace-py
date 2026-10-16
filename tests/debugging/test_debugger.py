@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
-from threading import current_thread
 from unittest import mock
 
 from mock.mock import call
@@ -24,13 +23,11 @@ from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER as REDACTED
 from ddtrace.debugging._redaction import dd_compile_redacted as dd_compile
-from ddtrace.debugging._signal.log import get_thread_generation
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import _EMPTY_CAPTURED_CONTEXT
 from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.debugging._signal.utils import redacted_value
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.inspection import linenos
@@ -101,33 +98,11 @@ def test_debugger_line_probe_on_instance_method(stuff):
     assert snapshot["debugger"]["snapshot"]["duration"] is None
 
 
-def test_debugger_snapshot_correlation_identifiers(stuff):
-    # Snapshots carry the process runtime ID and a thread generation token so
-    # that consumers can tell a restart within the same container, and a
-    # recycled thread ident, apart.
-    snapshots = simple_debugger_test(
-        create_snapshot_line_probe(
-            probe_id="probe-instance-method",
-            source_file="tests/submod/stuff.py",
-            line=36,
-            condition=None,
-        ),
-        stuff.Stuff().instancestuff,
-    )
-
-    (snapshot,) = snapshots
-    snapshot_data = snapshot["debugger"]["snapshot"]
-
-    assert snapshot_data["runtime_id"] == get_runtime_id()
-    assert snapshot_data["thread_generation"] == get_thread_generation(current_thread())
-
-
-def test_debugger_coordinated_sampling_caps_loop_probe_per_invocation(stuff):
+def test_debugger_coordinated_sampling_caps_loop_probe_per_trace(stuff):
     # A probe inside a high-iteration loop must not consume unbounded volume,
-    # and must not starve the probe on the enclosing function. Both probes share
-    # the invocation's execution unit, so each fires once per call: the loop
-    # runs for 10ms, well inside the default one-snapshot-per-second cap, so the
-    # first iteration fires and the rest of that call's iterations are capped.
+    # and must not starve the probe on the enclosing function. Each call runs in
+    # its own trace, and each probe emits at most once per trace, so the first
+    # iteration fires and the rest of that trace's iterations are capped.
     # Keep the global budget out of the way: the per-probe cap is what is under
     # test here, not the ingestion ceiling. The function probe keeps its own
     # unlimited rate since it only ever fires once per call either way.
@@ -148,46 +123,22 @@ def test_debugger_coordinated_sampling_caps_loop_probe_per_invocation(stuff):
 
         n_calls = 3
         for _ in range(n_calls):
-            stuff.durationstuff(10_000_000)  # 10ms of looping
+            with ddtrace.tracer.trace("job"):
+                stuff.durationstuff(10_000_000)  # 10ms of looping
 
         counts = Counter(s.probe.probe_id for s in d.test_queue)
 
         # The loop runs many thousands of iterations per call, but the probe is
-        # capped at its own rate -- one snapshot per second by default -- scoped
-        # to the execution unit, well above the 10ms a call takes here.
+        # capped at one snapshot per trace.
         assert counts["loop-probe"] == n_calls, counts
         # The function probe has its own headroom and is never in contention.
         assert counts["function-probe"] == n_calls, counts
 
 
-def test_debugger_coordinated_sampling_scopes_a_lone_line_probe(stuff):
-    # A line probe cannot bracket its own invocation, so the function enclosing
-    # it is wrapped to give it a scope. Without that, every firing would be its
-    # own execution unit and the loop would emit unbounded snapshots.
-    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
-        d.add_probes(
-            create_snapshot_line_probe(
-                probe_id="loop-probe",
-                source_file="tests/submod/stuff.py",
-                line=134,  # the loop body of durationstuff
-            ),
-        )
-
-        n_calls = 3
-        for _ in range(n_calls):
-            stuff.durationstuff(10_000_000)  # 10ms of looping
-
-        counts = Counter(s.probe.probe_id for s in d.test_queue)
-
-        # One per invocation, not one per iteration: the call takes 10ms, well
-        # inside the probe's default one-per-second cap for the unit.
-        assert counts["loop-probe"] == n_calls, counts
-
-
 def test_debugger_error_report_does_not_consume_sampling_budget(stuff):
     # A snapshot sent purely to report an evaluation error captures no values, so
     # it is cheap and must not be charged against the budget. With room for
-    # exactly one snapshot, a later unit of execution must still be able to emit.
+    # exactly one snapshot, a later firing must still be able to emit.
     with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -204,7 +155,7 @@ def test_debugger_error_report_does_not_consume_sampling_budget(stuff):
         )
 
         stuff.Stuff().instancestuff(1)  # reports the error, captures nothing
-        stuff.modulestuff(42)  # a later unit, with the budget still intact
+        stuff.modulestuff(42)  # a later call, with the budget still intact
 
         emitted = Counter(s.probe.probe_id for s in d.test_queue)
         assert emitted["broken-condition-probe"] == 1, emitted
@@ -243,10 +194,9 @@ def test_debugger_coordinated_sampling_shares_one_decision_across_a_trace(stuff)
         assert emitted["second-probe"] == 1, emitted
 
 
-def test_debugger_coordinated_sampling_caps_per_span_within_a_trace(stuff):
-    # The cap is scoped to the span the probe fired in, not to the trace, so the
-    # same probe gets fresh headroom in each span. Two calls in one span yield one
-    # snapshot; two calls in sibling spans yield one each.
+def test_debugger_coordinated_sampling_caps_per_trace(stuff):
+    # The cap is scoped to the trace, not to the span the probe fired in, so the
+    # same probe emits once per trace however many spans it fires in.
     with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -270,8 +220,8 @@ def test_debugger_coordinated_sampling_caps_per_span_within_a_trace(stuff):
             with ddtrace.tracer.trace("child-2"):
                 instance.instancestuff(4)
 
-        # One from the first trace, then one per child span.
-        assert Counter(s.probe.probe_id for s in d.test_queue)["probe"] == 3
+        # One from each trace.
+        assert Counter(s.probe.probe_id for s in d.test_queue)["probe"] == 2
 
 
 def test_debugger_coordinated_sampling_drops_a_whole_chain(stuff):
@@ -321,7 +271,7 @@ def test_debugger_unsampled_probe_does_not_consume_sampling_budget(stuff):
         )
 
         stuff.Stuff().instancestuff(1)  # emits a log, spends nothing
-        stuff.modulestuff(42)  # a later unit, with the budget still intact
+        stuff.modulestuff(42)  # a later call, with the budget still intact
 
         emitted = Counter(s.probe.probe_id for s in d.test_queue)
         assert emitted["log-probe"] == 1, emitted
@@ -330,7 +280,7 @@ def test_debugger_unsampled_probe_does_not_consume_sampling_budget(stuff):
 
 def test_debugger_captured_snapshot_consumes_sampling_budget(stuff):
     # The same shape, but the first probe captures. That spends the single
-    # snapshot the budget allows, so the later unit drops.
+    # snapshot the budget allows, so the later call drops.
     with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -765,7 +715,7 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         d.add_probes(*probes)
 
         wrapping_context = DebuggerWrappingContext.extract(stuff.Stuff.instancestuff)
-        assert wrapping_context.function_probes == {probe.probe_id: probe for probe in probes}
+        assert wrapping_context.probes == {probe.probe_id: probe for probe in probes}
         stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
@@ -781,7 +731,7 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
 
         d.remove_probes(probes[1])
 
-        assert "probe-instance-method-1" not in wrapping_context.function_probes
+        assert "probe-instance-method-1" not in wrapping_context.probes
 
         stuff.Stuff().instancestuff(42)
 
@@ -1118,16 +1068,17 @@ def test_debugger_condition_eval_then_rate_limit(stuff):
             ),
         )
 
-        # If the condition is evaluated before the rate limit, all the calls
-        # before 42 won't use any of the probe quota. However, all the calls
-        # after 42 won't be snapshotted because of the rate limiter.
+        # The rate limit is only charged once a snapshot is captured, so all the
+        # calls before 42 won't use any of the probe quota. However, all the
+        # calls after 42 are dropped by the rate limiter before their condition
+        # is even evaluated.
         for i in range(100):
             stuff.Stuff().instancestuff(i)
 
         (snapshot,) = d.uploader.wait_for_payloads()
 
         # We expect to see just the snapshot generated by the 42 call.
-        assert d.signal_state_counter[SignalState.SKIP_COND] == 99
+        assert d.signal_state_counter[SignalState.SKIP_COND] == 42
         assert d.signal_state_counter[SignalState.DONE] == 1
 
         assert "42" == snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], (
@@ -1231,6 +1182,8 @@ def test_debugger_lambda_fuction_access_locals(stuff):
                 probe_id="lambda-probe",
                 module="tests.submod.stuff",
                 func_qname="age_checker",
+                # Both calls must reach the condition, not the rate limiter.
+                rate=float("inf"),
                 condition=DDExpression(
                     dsl="any(people, @it.name == name)",
                     callable=dd_compile(

@@ -1,10 +1,10 @@
 import asyncio
-import sys
 from threading import Thread
 import time
 
 import pytest
 
+from ddtrace import tracer
 from ddtrace.debugging import _sampling
 from ddtrace.debugging._sampling import DebuggerSampler
 from ddtrace.debugging._sampling import Decision
@@ -32,9 +32,8 @@ def spent_budget():
 
 
 class _Limiter:
-    def __init__(self, allow, limit_rate=_sampling.DEFAULT_SCOPED_PROBE_RATE):
+    def __init__(self, allow):
         self._budget = 1.0 if allow else 0.0
-        self.limit_rate = limit_rate
 
     def has_budget(self):
         return self._budget >= 1.0
@@ -49,21 +48,14 @@ class _Limiter:
 class _Probe:
     """Stands in for a probe: sampling only needs an ID and a rate limiter."""
 
-    def __init__(
-        self, probe_id="probe", snapshot=True, allow=True, tags=None, cap_rate=_sampling.DEFAULT_SCOPED_PROBE_RATE
-    ):
+    def __init__(self, probe_id="probe", snapshot=True, allow=True, tags=None):
         self.probe_id = probe_id
-        self.limiter = _Limiter(allow, limit_rate=cap_rate)
+        self.limiter = _Limiter(allow)
         self.tags = tags or {}
         self._snapshot = snapshot
 
     def is_sampled(self):
         return self._snapshot
-
-
-def frame():
-    """A frame object of its own, kept alive by the caller's reference."""
-    return sys._getframe()
 
 
 @pytest.fixture
@@ -89,54 +81,45 @@ def in_session(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_scope_decides_upfront(roomy):
-    token = roomy.open_scope()
-    try:
-        # Exhausting the budget afterwards must not change a decision already
-        # made, or the probes in a chain would disagree with each other.
-        assert spent_budget().evaluate(_Probe(), frame(), None) is Decision.FIRE
-    finally:
-        roomy.close_scope(token)
+def test_trace_decides_upfront(roomy):
+    with tracer.trace("chain"):
+        assert roomy.evaluate(_Probe()) is Decision.FIRE
+        # The decision lives on the trace, not on the sampler, so a budget that
+        # is exhausted afterwards must not change it, or the probes in a chain
+        # would disagree with each other.
+        assert spent_budget().evaluate(_Probe("probe-b")) is Decision.FIRE
 
 
-def test_scope_drops_when_budget_already_spent(spent):
-    token = spent.open_scope()
-    try:
-        assert spent.evaluate(_Probe(), frame(), None) is Decision.DROP_SAMPLED
-    finally:
-        spent.close_scope(token)
+def test_trace_drops_when_budget_already_spent(spent):
+    with tracer.trace("chain"):
+        assert spent.evaluate(_Probe()) is Decision.DROP_SAMPLED
 
 
-def test_probes_in_a_scope_share_the_decision(spent):
-    token = spent.open_scope()
-    try:
-        # The first probe resolves the unit to DROP and the rest inherit it, so
-        # the chain arrives whole or not at all.
-        f = frame()
-        assert spent.evaluate(_Probe("probe-a"), f, None) is Decision.DROP_SAMPLED
-        assert spent.evaluate(_Probe("probe-b"), f, None) is Decision.DROP_SAMPLED
-    finally:
-        spent.close_scope(token)
+def test_probes_in_a_trace_share_the_decision(spent):
+    with tracer.trace("chain"):
+        # The first probe resolves the trace to DROP and the rest inherit it,
+        # even if budget turns up in between, so the chain arrives whole or not
+        # at all.
+        assert spent.evaluate(_Probe("probe-a")) is Decision.DROP_SAMPLED
+        spent.budget = 100.0
+        assert spent.evaluate(_Probe("probe-b")) is Decision.DROP_SAMPLED
 
 
-def test_nested_scopes_join_the_outer_one(roomy):
-    token = roomy.open_scope()
-    try:
-        # An inner probed invocation must not start a competing unit, or a
-        # callee's probe could disagree with its caller's.
-        assert roomy.open_scope() is None
-    finally:
-        roomy.close_scope(token)
+def test_without_a_trace_each_firing_decides_for_itself():
+    # There is no unit to share a decision with, so the first firing spending
+    # the budget leaves nothing for the next one.
+    budget = budget_of(1)
+
+    assert budget.evaluate(_Probe("probe-a")) is Decision.FIRE
+    budget.account_for(_Probe("probe-a"))
+    assert budget.evaluate(_Probe("probe-b")) is Decision.DROP_SAMPLED
 
 
-def test_snapshot_probe_ignores_its_own_rate_limit(roomy):
-    token = roomy.open_scope()
-    try:
+def test_snapshot_probe_ignores_its_own_rate_limit_in_a_trace(roomy):
+    with tracer.trace("chain"):
         # The per-probe rate no longer drives the decision, so one exhausted
-        # probe cannot starve the others sharing its unit.
-        assert roomy.evaluate(_Probe(allow=False), frame(), None) is Decision.FIRE
-    finally:
-        roomy.close_scope(token)
+        # probe cannot starve the others sharing its trace.
+        assert roomy.evaluate(_Probe(allow=False)) is Decision.FIRE
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +130,7 @@ def test_snapshot_probe_ignores_its_own_rate_limit(roomy):
 def test_non_snapshot_probes_do_not_participate(spent):
     # They are cheap and not held to the global budget, so an exhausted budget
     # must not suppress them.
-    assert spent.evaluate(_Probe(snapshot=False), frame(), None) is Decision.FIRE
+    assert spent.evaluate(_Probe(snapshot=False)) is Decision.FIRE
 
 
 def test_non_snapshot_probes_keep_their_own_rate_limit(roomy):
@@ -165,14 +148,14 @@ def test_non_snapshot_probes_keep_their_own_rate_limit(roomy):
     assert probe.is_sampled() is False
     assert probe.limiter.limit() is not RateLimitExceeded  # consume the one token
 
-    assert roomy.evaluate(probe, frame(), None) is Decision.DROP_RATE
+    assert roomy.evaluate(probe) is Decision.DROP_RATE
 
 
 def test_non_snapshot_probes_are_not_charged():
     # They are not held to the budget, so accounting for one must not spend it.
     budget = budget_of(1)
 
-    budget.account_for(_Probe(snapshot=False), frame(), None)
+    budget.account_for(_Probe(snapshot=False))
 
     assert budget.has_budget() is True
 
@@ -188,14 +171,13 @@ def test_non_snapshot_probes_are_not_charged_until_they_emit(roomy):
         segments=[],
         rate=0.0,
     )
-    f = frame()
 
-    assert roomy.evaluate(probe, f, None) is Decision.FIRE
-    assert roomy.evaluate(probe, f, None) is Decision.FIRE
+    assert roomy.evaluate(probe) is Decision.FIRE
+    assert roomy.evaluate(probe) is Decision.FIRE
 
-    roomy.account_for(probe, f, None)
+    roomy.account_for(probe)
 
-    assert roomy.evaluate(probe, f, None) is Decision.DROP_RATE
+    assert roomy.evaluate(probe) is Decision.DROP_RATE
 
 
 # ---------------------------------------------------------------------------
@@ -207,13 +189,13 @@ def test_session_probes_bypass_coordination(spent, in_session):
     # Sessions have their own per-probe budget, so coordinated sampling leaves
     # them alone rather than deciding the same thing twice.
     probe = _Probe("session-probe", tags={"session_id": "sid"})
-    assert spent.evaluate(probe, frame(), None) is Decision.FIRE
+    assert spent.evaluate(probe) is Decision.FIRE
 
 
 def test_session_probes_are_not_charged(in_session):
     budget = budget_of(1)
 
-    budget.account_for(_Probe("session-probe", tags={"session_id": "sid"}), frame(), None)
+    budget.account_for(_Probe("session-probe", tags={"session_id": "sid"}))
 
     assert budget.has_budget() is True
 
@@ -224,170 +206,120 @@ def test_session_probes_are_not_charged(in_session):
 
 
 def test_cap_is_recorded_not_reserved(roomy):
-    token = roomy.open_scope()
-    try:
+    with tracer.trace("chain"):
         probe = _Probe("loop-probe")
-        f = frame()
 
         # Evaluating does not claim, so a conditional probe that does not match
-        # keeps its chance to emit later in the same place.
+        # keeps its chance to emit later in the same trace.
         for _ in range(3):
-            assert roomy.evaluate(probe, f, None) is Decision.FIRE
+            assert roomy.evaluate(probe) is Decision.FIRE
 
-        roomy.account_for(probe, f, None)
-        assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
-    finally:
-        roomy.close_scope(token)
+        roomy.account_for(probe)
+        assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
 
 def test_cap_is_per_probe(roomy):
-    token = roomy.open_scope()
-    try:
-        f = frame()
-        roomy.account_for(_Probe("loop-probe"), f, None)
+    with tracer.trace("chain"):
+        roomy.account_for(_Probe("loop-probe"))
 
-        assert roomy.evaluate(_Probe("loop-probe"), f, None) is Decision.DROP_CAPPED
+        assert roomy.evaluate(_Probe("loop-probe")) is Decision.DROP_CAPPED
         # A sibling probe is never starved by the loop.
-        assert roomy.evaluate(_Probe("entry-probe"), f, None) is Decision.FIRE
-    finally:
-        roomy.close_scope(token)
+        assert roomy.evaluate(_Probe("entry-probe")) is Decision.FIRE
 
 
-def test_cap_is_per_frame_without_a_trace(roomy):
-    token = roomy.open_scope()
-    try:
+def test_cap_is_per_trace_not_per_span(roomy):
+    probe = _Probe("loop-probe")
+
+    with tracer.trace("parent"):
+        with tracer.trace("child-1"):
+            roomy.account_for(probe)
+
+        with tracer.trace("child-2"):
+            # A different span in the same trace shares the trace's cap.
+            assert roomy.evaluate(probe) is Decision.DROP_CAPPED
+
+
+def test_cap_is_one_snapshot_per_trace(roomy):
+    # The cap is a single shot, not a rate, so however much time passes the
+    # probe does not fire again within the same trace.
+    with tracer.trace("chain"):
         probe = _Probe("loop-probe")
-        # Both held alive, so their ids cannot coincide.
-        first, second = frame(), frame()
 
-        roomy.account_for(probe, first, None)
-
-        assert roomy.evaluate(probe, first, None) is Decision.DROP_CAPPED
-        # A different frame is a different invocation, so the probe gets a fresh
-        # slot.
-        assert roomy.evaluate(probe, second, None) is Decision.FIRE
-    finally:
-        roomy.close_scope(token)
-
-
-def test_cap_is_a_rate_not_a_single_shot(roomy):
-    # The cap is the probe's own rate, scoped to the unit of execution, so once
-    # enough time has passed the same place gets another chance to fire. A high
-    # cap rate and a short real sleep stand in for "enough time has passed",
-    # since the limiter's clock cannot be mocked without also faking the
-    # timestamp it was constructed with.
-    token = roomy.open_scope()
-    try:
-        probe = _Probe("loop-probe", cap_rate=1000.0)
-        f = frame()
-
-        roomy.account_for(probe, f, None)
-        assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
+        roomy.account_for(probe)
+        assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
         time.sleep(0.01)
 
-        assert roomy.evaluate(probe, f, None) is Decision.FIRE
-    finally:
-        roomy.close_scope(token)
+        assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
 
-def test_cap_guarantees_the_first_firing_even_at_zero_rate(roomy):
-    # A cap rate of zero would normally block everything, but the first firing
-    # in a place has no limiter yet, so every unit gets at least one snapshot.
-    token = roomy.open_scope()
-    try:
-        probe = _Probe("loop-probe", cap_rate=0.0)
-        f = frame()
+def test_recording_charges_the_budget():
+    budget = budget_of(2)
 
-        assert roomy.evaluate(probe, f, None) is Decision.FIRE
-        roomy.account_for(probe, f, None)
-        # From the second firing onwards the configured rate applies for real.
-        assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
-    finally:
-        roomy.close_scope(token)
-
-
-def test_recording_charges_the_budget(roomy):
-    token = roomy.open_scope()
-    try:
-        budget = budget_of(2)
-        f = frame()
-
-        budget.account_for(_Probe("probe-a"), f, None)
+    with tracer.trace("chain"):
+        budget.account_for(_Probe("probe-a"))
         assert budget.has_budget() is True
-        budget.account_for(_Probe("probe-b"), f, None)
+        budget.account_for(_Probe("probe-b"))
         assert budget.has_budget() is False
-    finally:
-        roomy.close_scope(token)
 
 
 # ---------------------------------------------------------------------------
-# Scope lifetime
+# Trace lifetime
 # ---------------------------------------------------------------------------
 
 
-def test_cap_resets_between_invocations(roomy):
+def test_cap_resets_between_traces(roomy):
     probe = _Probe("loop-probe")
-    f = frame()
 
     for _ in range(3):
-        token = roomy.open_scope()
-        try:
-            # Each invocation is its own unit, so the probe fires every time even
-            # though the frame is the same.
-            assert roomy.evaluate(probe, f, None) is Decision.FIRE
-            roomy.account_for(probe, f, None)
-            assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
-        finally:
-            roomy.close_scope(token)
+        with tracer.trace("chain"):
+            # Each trace is its own unit, so the probe fires every time.
+            assert roomy.evaluate(probe) is Decision.FIRE
+            roomy.account_for(probe)
+            assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
 
-def test_no_scope_falls_back_to_the_probes_own_rate_limiter(roomy):
-    # A line probe outside any probed function has nothing to close a scope, so
-    # there is nowhere to keep a place-scoped limiter. Rather than firing
-    # uncapped, it falls back to the probe's own rate limiter directly.
+def test_no_trace_falls_back_to_the_probes_own_rate_limiter(roomy):
+    # With no trace there is nowhere to remember what fired. Rather than firing
+    # uncapped, the probe falls back to its own rate limiter directly.
     probe = _Probe("probe")
-    f = frame()
 
-    assert roomy.evaluate(probe, f, None) is Decision.FIRE
-    roomy.account_for(probe, f, None)
-    assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
+    assert roomy.evaluate(probe) is Decision.FIRE
+    roomy.account_for(probe)
+    assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
     # Nothing was stranded in shared state; the cap lived entirely on the probe.
-    assert _sampling.SampleFingerprint._limiters() is None
+    assert _sampling._fired() is None
 
 
-def test_scopes_do_not_leak_across_threads(roomy):
-    token = roomy.open_scope()
-    try:
+def test_traces_do_not_leak_across_threads(roomy):
+    with tracer.trace("chain"):
         probe = _Probe("probe")
-        f = frame()
-        roomy.account_for(probe, f, None)
-        assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
+        roomy.account_for(probe)
+        assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
         outcomes = []
 
         def other_thread():
-            # Each thread has its own context, so it must not see the scope above.
-            outcomes.append(roomy.evaluate(probe, f, None))
+            # Each thread has its own active trace, so it must not see the one
+            # above.
+            with tracer.trace("other"):
+                outcomes.append(roomy.evaluate(probe))
 
         t = Thread(target=other_thread)
         t.start()
         t.join()
 
         assert outcomes == [Decision.FIRE]
-    finally:
-        roomy.close_scope(token)
 
 
-def test_overshooting_a_budget_leaves_a_deficit(roomy):
-    # A unit that has resolved to EMIT keeps emitting, so it can spend more than
+def test_overshooting_a_budget_leaves_a_deficit():
+    # A trace that has resolved to EMIT keeps emitting, so it can spend more than
     # the budget allowed. The overshoot has to be repaid, not forgiven.
     budget = budget_of(1)
-    f = frame()
 
     for i in range(3):
-        budget.account_for(_Probe(f"probe-{i}"), f, None)
+        budget.account_for(_Probe(f"probe-{i}"))
 
     assert budget.has_budget() is False
     # One token's worth of replenishment is not enough to clear a deficit of two.
@@ -395,40 +327,37 @@ def test_overshooting_a_budget_leaves_a_deficit(roomy):
     assert budget.has_budget() is False
 
 
-async def test_scopes_do_not_leak_across_tasks(roomy):
-    # Sibling tasks each get their own unit, and keep it even while both are open
-    # at once. The ordering matters: the second task opens its scope *before* the
-    # first one witnesses the probe, so state that is merely thread-local rather
-    # than context-local would have the first task writing into the second task's
-    # unit, and the second would find itself capped by its sibling.
+async def test_traces_do_not_leak_across_tasks(roomy):
+    # Sibling tasks each run their own trace, and keep it even while both are
+    # open at once. The second task starts its trace before the first one
+    # witnesses the probe, so state shared across tasks would have the second
+    # find itself capped by its sibling.
     probe = _Probe("probe")
-    f = frame()
     opened_first, opened_second = asyncio.Event(), asyncio.Event()
     witnessed, checked = asyncio.Event(), asyncio.Event()
     outcomes = []
 
     async def witness_first():
-        token = roomy.open_scope()
-        try:
+        with tracer.trace("first"):
             opened_first.set()
             await opened_second.wait()
-            roomy.account_for(probe, f, None)
+            roomy.account_for(probe)
             witnessed.set()
             await checked.wait()
-        finally:
-            roomy.close_scope(token)
 
     async def look_second():
         await opened_first.wait()
-        token = roomy.open_scope()
         try:
-            opened_second.set()
-            await witnessed.wait()
-            outcomes.append(roomy.evaluate(probe, f, None))
+            with tracer.trace("second"):
+                opened_second.set()
+                await witnessed.wait()
+                outcomes.append(roomy.evaluate(probe))
         finally:
-            roomy.close_scope(token)
             checked.set()
 
-    await asyncio.gather(witness_first(), look_second())
+    await asyncio.gather(
+        asyncio.ensure_future(witness_first()),
+        asyncio.ensure_future(look_second()),
+    )
 
     assert outcomes == [Decision.FIRE]
