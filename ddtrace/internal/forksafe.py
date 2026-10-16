@@ -113,16 +113,18 @@ def ddtrace_before_fork() -> None:
 
 
 def ddtrace_after_in_parent() -> None:
+    if not _fork_lock._is_owned():  # type: ignore[attr-defined]
+        # An exception (e.g. KeyboardInterrupt) can interrupt the blocking
+        # acquire in ddtrace_before_fork, and CPython reports it and forks
+        # anyway. Another thread may be in the middle of its own fork, so
+        # running the after-parent hooks here would undo its before-fork work
+        # (e.g. restart the threads it is stopping).
+        return
+
     try:
         run_hooks(_registry_after_parent)
     finally:
-        try:
-            _fork_lock.release()
-        except RuntimeError:
-            # This thread does not hold the lock. An exception (e.g.
-            # KeyboardInterrupt) can interrupt the blocking acquire in
-            # ddtrace_before_fork, and CPython reports it and forks anyway.
-            pass
+        _fork_lock.release()
 
 
 def run_child_hooks() -> None:

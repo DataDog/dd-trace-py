@@ -389,6 +389,9 @@ def test_fork_lock_released_after_exception_following_acquire():
         def release(self):
             self._lock.release()
 
+        def _is_owned(self):
+            return self._lock._is_owned()
+
     lock = forksafe._fork_lock
     forksafe._fork_lock = InterruptedAfterAcquire(lock)
     try:
@@ -418,6 +421,69 @@ def test_fork_lock_released_after_exception_following_acquire():
     t.join()
 
     assert acquired == [True], "fork lock leaked after an exception following acquire"
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_interrupted_fork_lock_acquire_skips_parent_hooks():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    class InterruptedAcquire:
+        # Simulates an asynchronous exception (e.g. KeyboardInterrupt from
+        # SIGINT) delivered while blocked waiting for the lock.
+        def __init__(self, lock):
+            self._lock = lock
+
+        def acquire(self):
+            raise KeyboardInterrupt
+
+        def release(self):
+            self._lock.release()
+
+        def _is_owned(self):
+            return self._lock._is_owned()
+
+    calls = []
+    hook = forksafe.register_after_parent(lambda: calls.append(threading.get_ident()))
+
+    lock = forksafe._fork_lock
+    held = threading.Event()
+    done = threading.Event()
+
+    def owner_fork():
+        # Another thread is in the middle of its fork and owns the lock.
+        forksafe.ddtrace_before_fork()
+        held.set()
+        done.wait()
+        forksafe.ddtrace_after_in_parent()
+
+    t = threading.Thread(target=owner_fork)
+    t.start()
+    assert held.wait(timeout=5)
+
+    forksafe._fork_lock = InterruptedAcquire(lock)
+    try:
+        try:
+            forksafe.ddtrace_before_fork()
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError("expected KeyboardInterrupt")
+
+        # CPython reports the exception, forks anyway and then runs the
+        # after-parent hooks, which must not run while the owner is forking.
+        forksafe.ddtrace_after_in_parent()
+    finally:
+        forksafe._fork_lock = lock
+
+    assert calls == []
+
+    done.set()
+    t.join()
+
+    assert calls == [t.ident]
+    forksafe._registry_after_parent.remove(hook)
 
 
 @pytest.mark.subprocess(timeout=120)
