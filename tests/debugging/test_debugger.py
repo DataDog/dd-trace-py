@@ -244,9 +244,9 @@ def test_debugger_coordinated_sampling_drops_a_whole_chain(stuff):
         )
 
         with ddtrace.tracer.trace("chain"):
-            d._sampler.budget = 0.0  # nothing to spend when the decision is taken
+            d._sampler._limiter.budget = 0.0  # nothing to spend when the decision is taken
             stuff.Stuff().instancestuff(1)
-            d._sampler.budget = 100.0  # budget turns up, too late to matter
+            d._sampler._limiter.budget = 100.0  # budget turns up, too late to matter
             stuff.modulestuff(42)
 
         assert Counter(s.probe.probe_id for s in d.test_queue) == Counter(), d.test_queue

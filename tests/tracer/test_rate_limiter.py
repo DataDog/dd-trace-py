@@ -282,40 +282,23 @@ def test_rate_limiter_with_jitter_not_raise():
     assert [limiter.limit(lambda: None) for _ in range(10)][1:] == [RateLimitExceeded] * 9
 
 
-def test_rate_limiter_reserve_spend():
-    limiter = BudgetRateLimiterWithJitter(limit_rate=100, tau=1.0)
+def test_rate_limiter_has_budget_does_not_consume():
+    limiter = BudgetRateLimiterWithJitter(limit_rate=1, raise_on_exceed=False)
 
-    assert limiter.reserve() is True
-    limiter.spend()  # Does not raise: matched by the reservation above.
-
-
-def test_rate_limiter_spend_without_reserve_raises():
-    limiter = BudgetRateLimiterWithJitter(limit_rate=100, tau=1.0)
-
-    with pytest.raises(RuntimeError):
-        limiter.spend()
+    assert limiter.has_budget() is True
+    assert limiter.has_budget() is True
+    assert limiter.limit() is not RateLimitExceeded
+    assert limiter.has_budget() is False
 
 
-def test_rate_limiter_spend_more_than_reserved_raises():
-    limiter = BudgetRateLimiterWithJitter(limit_rate=100, tau=1.0)
+def test_rate_limiter_consume_goes_into_deficit():
+    limiter = BudgetRateLimiterWithJitter(limit_rate=1, raise_on_exceed=False)
 
-    assert limiter.reserve() is True
-    limiter.spend()
+    # Spent whether or not there is budget left, and the overspend has to be
+    # repaid before the next call is allowed.
+    limiter.consume()
+    limiter.consume()
 
-    with pytest.raises(RuntimeError):
-        limiter.spend()
-
-
-def test_rate_limiter_reserve_can_go_unspent():
-    limiter = BudgetRateLimiterWithJitter(limit_rate=100, tau=1.0)
-
-    # A reservation that is never spent is a valid outcome: the caller decided
-    # not to follow through, for reasons unrelated to the rate limit itself.
-    assert limiter.reserve() is True
-    assert limiter.reserve() is True
-
-    limiter.spend()
-    limiter.spend()
-
-    with pytest.raises(RuntimeError):
-        limiter.spend()
+    assert limiter.has_budget() is False
+    limiter.budget += 1.0
+    assert limiter.has_budget() is False

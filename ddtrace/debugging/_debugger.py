@@ -173,7 +173,7 @@ class DebuggerWrappingContext(WrappingContext):
                     continue
 
                 try:
-                    signal.do_enter()
+                    signal.do_enter(self._sampler)
                 except Exception as e:
                     telemetry_writer.add_error_log("Failed to enter signal", e)
                     continue
@@ -198,7 +198,7 @@ class DebuggerWrappingContext(WrappingContext):
             # so we pop them from the end of the queue (LIFO).
             signal = signals.pop()
             try:
-                signal.do_exit(retval, exc_info, end_time - self.get("start_time"))
+                signal.do_exit(retval, exc_info, end_time - self.get("start_time"), self._sampler)
             except Exception as e:
                 telemetry_writer.add_error_log("Failed to exit signal", e)
                 continue
@@ -206,8 +206,6 @@ class DebuggerWrappingContext(WrappingContext):
             self._collector.push(signal)
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(signal.probe)
-                # The snapshot is on its way out, so account for it.
-                self._sampler.account_for(signal.probe)
 
     def __enter__(self) -> "DebuggerWrappingContext":
         super().__enter__()
@@ -332,8 +330,6 @@ class Debugger(Service):
         self._sampler = DebuggerSampler(
             limit_rate=di_config.global_rate_limit,
             on_exceed=lambda: log_limiter.limit(log.debug, "Global rate limit exceeded"),
-            call_once=True,
-            raise_on_exceed=False,
         )
 
         self.probe_file = di_config.probe_file
@@ -408,12 +404,10 @@ class Debugger(Service):
                 log.error("Unsupported probe type: %r", type(probe), exc_info=True)
                 return
 
-            signal.do_line()
+            signal.do_line(self._sampler)
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
-                # The snapshot is on its way out, so account for it.
-                self._sampler.account_for(probe)
 
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
             if (collector := self.__uploader__.get_collector()) is None:

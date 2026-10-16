@@ -7,6 +7,14 @@ probe that fires within it, so a chain either arrives whole or not at all.
 
 The decision belongs to the debugger, not to the signals it emits: a signal
 records what happened, it does not choose whether to happen.
+
+Each firing goes through two checks. The gate, before the condition is
+evaluated, is a cheap peek that turns away firings that clearly cannot capture.
+The global limiter, once the condition has matched and right before values are
+captured, is where a trace is admitted: atomically, against a global rate limit,
+so that concurrent traces cannot all be admitted on the same last token. Every
+capture in an admitted trace is charged, and the budget may go into deficit, so
+new traces are turned away until it has been repaid.
 """
 
 from enum import Enum
@@ -14,42 +22,36 @@ import typing as t
 
 from ddtrace import tracer
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._session import Session
-from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter
+from ddtrace.debugging._signal.model import SignalState
+from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
+from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
 class Decision(str, Enum):
     """Outcome of the sampling gate for a single probe firing."""
 
     FIRE = "FIRE"
-    #: The budget was spent when this trace made its decision.
+    #: The trace was not admitted, or there is no budget left to admit it.
     DROP_SAMPLED = "DROP_SAMPLED"
-    #: The trace is emitting, but this probe already emitted in it.
+    #: The probe already captured in this trace, or is over its own rate
+    #: outside of one.
     DROP_CAPPED = "DROP_CAPPED"
     #: The probe is not sampled and is over its own rate.
     DROP_RATE = "DROP_RATE"
 
 
 # Both the decision and the per-probe cap live on the local root span, so one
-# decision covers the whole trace and the state dies with it. With no trace
-# running there is no unit to coordinate, so each firing decides for itself
-# against the global budget and is capped by the probe's own rate limiter, as
-# probes always were.
+# decision covers the whole trace and the state dies with it. A trace runs on the
+# thread it started on, so this state is never contended. With no trace running
+# there is no unit to coordinate, so each firing is admitted on its own and is
+# capped by the probe's own rate limiter, as probes always were.
 _EMIT_CTX_KEY = "_dd.debugger.sampling.emit"
 _FIRED_CTX_KEY = "_dd.debugger.sampling.fired"
 
 
-def _fired() -> t.Optional[set[str]]:
-    """The IDs of the probes that have already emitted in the current trace.
-
-    None when no trace is running, in which case there is nowhere to remember
-    them and callers fall back to the probe's own rate limiter instead.
-    """
-    root = tracer.current_root_span()
-    if root is None:
-        return None
-
+def _fired(root: t.Any) -> set[str]:
+    """The IDs of the probes that have already captured in the trace."""
     fired = root._get_ctx_item(_FIRED_CTX_KEY)
     if fired is None:
         fired = set()
@@ -57,105 +59,110 @@ def _fired() -> t.Optional[set[str]]:
     return t.cast(set[str], fired)
 
 
-def _capped(probe: Probe) -> bool:
-    """Whether this probe has already had its one snapshot in the current trace.
-
-    With no trace, the probe's own rate limiter stands in, so a probe firing
-    outside any trace still gets rate-limited rather than firing unconditionally.
-    """
-    fired = _fired()
-    if fired is None:
-        probe_limiter = getattr(probe, "limiter", None)
-        return probe_limiter is not None and not probe_limiter.has_budget()
-
-    return probe.probe_id in fired
+def _over_rate(probe: Probe, peek: bool) -> bool:
+    """Whether the probe is over its own rate limit, charging it unless peeking."""
+    limiter = getattr(probe, "limiter", None)
+    if limiter is None:
+        return False
+    if peek:
+        return not limiter.has_budget()
+    return limiter.limit() is RateLimitExceeded
 
 
-def _witness(probe: Probe) -> None:
-    """Charge the cap for a probe that just emitted."""
-    fired = _fired()
-    if fired is None:
-        probe_limiter = getattr(probe, "limiter", None)
-        if probe_limiter is not None:
-            probe_limiter.limit()
-        return
+class DebuggerSampler:
+    """Decides which probe firings capture, and accounts for the ones that do.
 
-    fired.add(probe.probe_id)
-
-
-class DebuggerSampler(BudgetRateLimiterWithJitter):
-    """Decides which probe firings emit, and accounts for the ones that do.
-
-    A rate limiter at heart, because the ceiling it enforces *is* the sampling
-    decision: a trace emits if earlier ones have not already spent the budget.
-    What it adds on top is that the decision is taken once per trace and shared
-    by every probe firing within it, and a per-probe cap of one snapshot per
-    trace, so that one probe in a loop cannot crowd out the probes around it.
+    The decision is taken once per trace, by admitting it against a global rate
+    limit at its first capture, and shared by every probe firing within it. On
+    top of that, each probe captures at most once per trace, so that one probe in
+    a loop cannot crowd out the probes around it.
     """
 
-    def _emits(self) -> bool:
-        """Whether probes in the current trace should emit.
-
-        The first probe to fire in a trace makes the decision for it. With no
-        trace running, there is nothing to share a decision with, so the firing
-        decides for itself.
-        """
-        root = tracer.current_root_span()
-        if root is None:
-            return self.has_budget()
-
-        decision = root._get_ctx_item(_EMIT_CTX_KEY)
-        if decision is None:
-            decision = self.has_budget()
-            root._set_ctx_item(_EMIT_CTX_KEY, decision)
-        return bool(decision)
+    def __init__(self, limit_rate: float, on_exceed: t.Optional[t.Callable[[], t.Any]] = None) -> None:
+        self._limiter = RateLimiter(
+            limit_rate=limit_rate,
+            on_exceed=on_exceed,
+            call_once=True,
+            raise_on_exceed=False,
+        )
 
     def evaluate(self, probe: Probe) -> Decision:
-        """Decide whether a probe firing may proceed.
+        """Decide whether a probe firing may proceed to its condition.
 
-        Nothing is consumed here. Both the budget and the per-probe cap are
-        charged by account_for, once a snapshot has actually captured something,
-        so a probe whose condition does not match keeps its chance to emit later.
+        Only peeks, so a probe whose condition does not match keeps its chance to
+        capture later, and holds nothing back from other traces meanwhile. The
+        one thing recorded here is a drop for a trace that finds the budget
+        already spent, so that the trace is not admitted halfway through once the
+        budget is repaid.
         """
         if Session.is_active_for(probe):
             return Decision.FIRE
 
         if not probe.is_sampled():
-            if isinstance(probe, RateLimitMixin) and not probe.limiter.reserve():
-                return Decision.DROP_RATE
-            return Decision.FIRE
+            return Decision.DROP_RATE if _over_rate(probe, peek=True) else Decision.FIRE
 
-        if not self._emits():
+        root = tracer.current_root_span()
+        if root is None:
+            if not self._limiter.has_budget():
+                return Decision.DROP_SAMPLED
+            return Decision.DROP_CAPPED if _over_rate(probe, peek=True) else Decision.FIRE
+
+        decision = root._get_ctx_item(_EMIT_CTX_KEY)
+        if decision is None and not self._limiter.has_budget():
+            decision = False
+            root._set_ctx_item(_EMIT_CTX_KEY, decision)
+        if decision is False:
             return Decision.DROP_SAMPLED
 
-        if _capped(probe):
+        if probe.probe_id in _fired(root):
             return Decision.DROP_CAPPED
 
         return Decision.FIRE
 
-    def account_for(self, probe: Probe) -> None:
-        """Account for a snapshot that captured and is on its way out.
+    def limit(self, probe: Probe) -> t.Optional[SignalState]:
+        """Admit a probe firing whose condition has matched, right before capture.
 
-        Charged at the point of emission rather than at the gate, because what the
-        budget protects is the cost of capturing values, and only a snapshot that
-        got that far has paid it. The cost is already incurred by now, so it is
-        spent unconditionally: a trace that overshoots puts the budget into
-        deficit, and the overshoot is repaid before anything else is let through.
+        This is the global limiter the signals consult. The first capture in a
+        trace admits the trace, atomically, against the global rate limit. Every
+        later capture in an admitted trace is charged unconditionally, so a trace
+        that overshoots puts the budget into deficit, and new traces are turned
+        away until it is repaid. Returns the state to skip the signal with, or
+        None if it may capture.
 
         A probe that is not sampled is held to its own rate limit instead of the
-        budget, charged here rather than at the gate for the same reason: only a
-        snapshot that actually captured has paid the cost the limit protects.
-        One whose trace is being debugged is on the session's own accounting
-        instead.
+        global one. One whose trace is being debugged is on the session's own
+        accounting instead.
         """
         if Session.is_active_for(probe):
-            return
+            return None
 
         if not probe.is_sampled():
-            if isinstance(probe, RateLimitMixin):
-                probe.limiter.spend()
-            return
+            return SignalState.SKIP_RATE_PROBE if _over_rate(probe, peek=False) else None
 
-        _witness(probe)
+        root = tracer.current_root_span()
+        if root is None:
+            # Charge the probe's own rate first: it is the cheaper token to waste
+            # should the global limit then turn the firing away.
+            if _over_rate(probe, peek=False):
+                return SignalState.SKIP_RATE_PROBE
+            if self._limiter.limit() is RateLimitExceeded:
+                return SignalState.SKIP_RATE_GLOBAL
+            return None
 
-        self.consume()
+        fired = _fired(root)
+        if probe.probe_id in fired:
+            return SignalState.SKIP_BUDGET
+
+        decision = root._get_ctx_item(_EMIT_CTX_KEY)
+        if decision is None:
+            decision = self._limiter.limit() is not RateLimitExceeded
+            root._set_ctx_item(_EMIT_CTX_KEY, decision)
+        elif decision:
+            self._limiter.consume()
+
+        if not decision:
+            return SignalState.SKIP_RATE_GLOBAL
+
+        fired.add(probe.probe_id)
+
+        return None

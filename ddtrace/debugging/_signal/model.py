@@ -57,6 +57,14 @@ class SignalState(str, Enum):
     DONE = "DONE"
 
 
+class GlobalLimiter(Protocol):
+    """Consulted right before a signal captures, once its condition has matched."""
+
+    def limit(self, probe: Probe) -> Optional[SignalState]:
+        """Return the state to skip the signal with, or None if it may capture."""
+        ...
+
+
 class SignalTrack(str, Enum):
     DEFAULT = "default"
     LOGS = "logs"
@@ -179,6 +187,17 @@ class Signal(abc.ABC):
                 return True
         return False
 
+    def _global_limit_exceeded(self, global_limiter: Optional[GlobalLimiter]) -> bool:
+        if global_limiter is None:
+            return False
+
+        state = global_limiter.limit(self.probe)
+        if state is not None:
+            self.state = state
+            return True
+
+        return False
+
     @property
     def session(self) -> Optional[Session]:
         session_id = self.probe.tags.get("session_id")
@@ -200,7 +219,7 @@ class Signal(abc.ABC):
     def line(self, scope: Mapping[str, Any]) -> None:
         pass
 
-    def do_enter(self) -> None:
+    def do_enter(self, global_limiter: Optional[GlobalLimiter] = None) -> None:
         if not self._session_check():
             return
 
@@ -211,12 +230,17 @@ class Signal(abc.ABC):
         if not self._eval_condition(scope):
             return
 
+        if self._global_limit_exceeded(global_limiter):
+            return
+
         if self._budget_exceeded():
             return
 
         self.enter(scope)
 
-    def do_exit(self, retval: Any, exc_info: ExcInfoType, duration: int) -> None:
+    def do_exit(
+        self, retval: Any, exc_info: ExcInfoType, duration: int, global_limiter: Optional[GlobalLimiter] = None
+    ) -> None:
         if not self._session_check():
             return
 
@@ -240,6 +264,9 @@ class Signal(abc.ABC):
             if not self._eval_condition(scope):
                 return
 
+            if self._global_limit_exceeded(global_limiter):
+                return
+
             if self._budget_exceeded():
                 return
 
@@ -247,7 +274,7 @@ class Signal(abc.ABC):
 
         self.state = SignalState.DONE
 
-    def do_line(self) -> None:
+    def do_line(self, global_limiter: Optional[GlobalLimiter] = None) -> None:
         if not self._session_check():
             return
 
@@ -255,6 +282,9 @@ class Signal(abc.ABC):
         scope = ChainMap(frame.f_locals, frame.f_globals)
 
         if not self._eval_condition(scope):
+            return
+
+        if self._global_limit_exceeded(global_limiter):
             return
 
         if self._budget_exceeded():
