@@ -45,6 +45,6 @@ sortedcontainers==2.4.0
 typing-extensions==4.16.0
 urllib3==1.26.20
 werkzeug==3.1.9
-wrapt==2.5.1
+wrapt==2.5.0
 zope-event==6.2
 zope-interface==8.6
