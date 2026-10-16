@@ -24,6 +24,7 @@ from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
@@ -192,11 +193,11 @@ class BedrockIntegration(BaseLLMIntegration):
         """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
-        step_spans_by_step_id: dict[str, Span] = {}
+        step_spans_by_step_id: dict[str, _LLMObsSpan] = {}
         # Holds a span whose output event hasn't arrived yet (e.g. modelInvocationInput waiting
         # for its matching modelInvocationOutput).
-        pending_span_by_step_id: dict[str, Span] = {}
-        child_spans_by_step_id: dict[str, list[Span]] = {}
+        pending_span_by_step_id: dict[str, _LLMObsSpan] = {}
+        child_spans_by_step_id: dict[str, list[_LLMObsSpan]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
             if trace_step_id is None:

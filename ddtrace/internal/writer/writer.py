@@ -59,6 +59,7 @@ from ..gitmetadata import get_git_tags
 from ..logger import get_logger
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
+from ..serverless import in_aws_lambda_microvm
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
@@ -154,6 +155,14 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
+    def _stop_accepting_writes(self) -> None:
+        """Reject later writes. MicroVM identity refresh calls this on the writer it replaces."""
+        # Only MicroVM writers have a writer lock; elsewhere there is no refresh and nothing to close.
+        writer_lock = getattr(self, "_writer_lock", None)
+        if writer_lock is not None:
+            with writer_lock:
+                self._accepting_writes = False
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -243,6 +252,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck: RLock = RLock()
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
@@ -427,6 +438,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans=None):
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -864,7 +885,7 @@ def _configure_telemetry(builder: "native.TraceExporterBuilder", telemetry_share
         heartbeat_ms = int(
             config._telemetry_heartbeat_interval * 1000
         )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
-        builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
+        builder.enable_telemetry(heartbeat_ms, config._debug_mode)
     if config._health_metrics_enabled:
         builder.enable_health_metrics()
 
@@ -977,7 +998,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-
+        # Identity refresh closes this writer before stopping it; the replacement writer accepts writes.
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
@@ -1197,11 +1220,24 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        # Identity refresh can close this writer concurrently; only MicroVM writers need this lock.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
+            # Flush under the writer lock: once refresh closes this writer, recreate() shuts down
+            # a sync writer's exporter, so a flush after that would send through a dead exporter.
             self.flush_queue()
 
     @staticmethod
@@ -1369,7 +1405,6 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
     ) -> None:
         self.intake_url = intake_url
         self._api_version = _resolve_api_version(api_version)
-        _reject_v05_on_windows(self._api_version)
         if self._api_version not in WRITER_CLIENTS:
             # libdatadog's set_input_format raises on an unsupported version, which aborts tracer init.
             supported = sorted(WRITER_CLIENTS.keys())
@@ -1378,7 +1413,10 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
                 self._api_version,
                 ", ".join(supported),
             )
-            self._api_version = supported[-1]
+            # v0.5 does not work on Windows, so the fallback must not pick it there.
+            on_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+            self._api_version = "v0.4" if on_windows else supported[-1]
+        _reject_v05_on_windows(self._api_version)
         self._compute_stats_enabled = compute_stats_enabled
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
@@ -1447,6 +1485,15 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
         return buffer
 
+    def __del__(self) -> None:
+        # Dropping the native buffer leaves its workers registered on the process-wide runtime.
+        try:
+            buffer = getattr(self, "_buffer", None)
+            if buffer is not None:
+                self._discard_buffer(buffer)
+        except Exception:  # nosec B110 - destructors must not raise
+            pass
+
     def _install_buffer(self) -> "Optional[native.TraceBuffer]":
         """Build a buffer and make it the current one. Return the buffer it replaces."""
         buffer = self._create_buffer()
@@ -1480,7 +1527,8 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
 
         Only write() and flush_queue() call this method. If the export ends before the call returns,
         the sampler gets the new rates in that call. Otherwise, the sampler gets them on the next call.
-        A process that sends no traces keeps its old rates.
+        SpanAggregator samples a trace before it calls write(), so the first trace after an update
+        still uses the old rates. A process that sends no traces keeps its old rates.
         """
         if self._response_cb is None:
             return

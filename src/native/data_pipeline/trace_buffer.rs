@@ -22,6 +22,7 @@ use libdd_data_pipeline::trace_exporter::{
 use libdd_shared_runtime::{
     BlockOnTimeoutError, BlockingRuntime as _, ForkSafeRuntime, SharedRuntime as _, WorkerHandle,
 };
+use libdd_trace_utils::span::span_pool::PooledChunks;
 use libdd_trace_utils::span::v04::Span;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -66,6 +67,7 @@ impl Export<PySpan> for SpanExport {
     fn export_trace_chunks(
         &mut self,
         trace_chunks: Vec<TraceChunk<PySpan>>,
+        force_flush: bool,
     ) -> Pin<Box<dyn Future<Output = Result<AgentResponse, TraceExporterError>> + Send + '_>> {
         // Upgrade before the future, so the exporter cannot be reclaimed part way through a send.
         let exporter = self.exporter.upgrade();
@@ -77,7 +79,19 @@ impl Export<PySpan> for SpanExport {
                     ),
                 ));
             };
-            exporter.send_trace_chunks_async(trace_chunks).await
+            // A forced flush can arrive with no chunks. Sending an empty payload would reach the
+            // agent, so skip the send and only drain the buffered client-side stats.
+            let result = if trace_chunks.is_empty() {
+                Ok(AgentResponse::Unchanged)
+            } else {
+                exporter
+                    .send_trace_chunks_async(PooledChunks::unpooled(trace_chunks))
+                    .await
+            };
+            if force_flush {
+                exporter.flush_client_side_stats_async().await;
+            }
+            result
         })
     }
 }

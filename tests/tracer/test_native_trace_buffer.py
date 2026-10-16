@@ -808,6 +808,19 @@ def test_a_user_origin_tag_of_any_type_yields_to_the_trace_origin(value):
     assert "_dd.origin" not in wire_span.get("metrics", {})
 
 
+def test_an_integer_metric_past_the_exact_float_range_goes_to_meta_as_a_decimal_string():
+    # The wire metrics map holds f64 only, so an integer above 2**53 would round there. It goes to
+    # meta as an exact string, and the largest exact integer stays a metric.
+    span = _finished_span()
+    span.set_metric("exact", 2**53)  # ast-grep-ignore: span-set-metric
+    span.set_metric("inexact", 2**53 + 1)  # ast-grep-ignore: span-set-metric
+
+    wire_span = _encode_v04(span)
+    assert wire_span["metrics"]["exact"] == 2**53
+    assert "inexact" not in wire_span["metrics"]
+    assert wire_span["meta"]["inexact"] == str(2**53 + 1)
+
+
 @pytest.mark.parametrize(
     "wrap",
     [
@@ -1222,13 +1235,33 @@ def test_windows_rejects_the_v05_api_version(writer_class, monkeypatch):
         writer_class("http://%s:%s" % (_HOST, _BUFFER_PORT), api_version="v0.5")
 
 
-@pytest.mark.parametrize("make_writer", [_native_writer, _native_buffer], ids=["NativeWriter", "NativeTraceBuffer"])
-def test_an_unsupported_api_version_on_windows_does_not_stop_the_tracer(make_writer, monkeypatch):
-    # The fallback for an unsupported version runs after the Windows check, so one bad setting cannot
-    # abort tracer init.
+def test_an_unsupported_api_version_on_windows_falls_back_to_v04(monkeypatch):
+    # v0.5 does not work on Windows, so the fallback for an unsupported version must not pick it.
     monkeypatch.setattr(writer_module.sys, "platform", "win32")
-    with make_writer("http://%s:%s" % (_HOST, _BUFFER_PORT), api_version="v0.6") as writer:
-        assert writer._api_version in ("v0.4", "v0.5")
+    with buffer_writer(_BUFFER_PORT, api_version="v0.6") as writer:
+        assert writer._api_version == "v0.4"
+
+
+@pytest.mark.subprocess()
+def test_a_discarded_buffer_writer_reclaims_its_native_workers():
+    # CIVisibility replaces the writer of the tracer without stopping it. Dropping the writer must
+    # still shut its buffer down, or the buffer and exporter workers stay registered on the runtime.
+    # The worker count is process-wide, so the test runs in its own process.
+    import gc
+
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.writer import NativeTraceBuffer
+    from tests.tracer.test_native_trace_buffer import _BUFFER_PORT
+    from tests.tracer.test_native_trace_buffer import _registered_workers
+    from tests.tracer.test_writer import _HOST
+
+    runtime = get_native_runtime()
+    before = _registered_workers(runtime)
+    writer = NativeTraceBuffer("http://%s:%s" % (_HOST, _BUFFER_PORT), api_version="v0.4")
+    assert _registered_workers(runtime) > before, "the buffer registered no worker"
+    del writer
+    gc.collect()
+    assert _registered_workers(runtime) == before
 
 
 @pytest.mark.parametrize("setting", ["agent_timeout", "writer_interval"])
