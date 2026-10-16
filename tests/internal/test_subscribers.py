@@ -237,6 +237,73 @@ def test_base_tracing_subscriber(test_spans):
     assert span.resource == "/api/endpoint"
 
 
+@pytest.mark.parametrize("hooks", [(), ("parent",), ("child",), ("parent", "child")])
+def test_tracing_subscriber_starting_order(test_spans, monkeypatch, hooks):
+    @dataclass
+    class TestTracingEvent(TracingEvent):
+        event_name = "test.subscriber.starting"
+        span_type = "custom"
+        span_kind = "internal"
+
+        def __post_init__(self):
+            self.operation_name = "test.subscriber.span"
+
+    observations = []
+    start_span = tracer.start_span
+
+    def record_start_span(*args, **kwargs):
+        observations.append(("create_span", core.current, core.current.get_item("_inner_span")))
+        return start_span(*args, **kwargs)
+
+    monkeypatch.setattr(tracer, "start_span", record_start_span)
+
+    class ParentSubscriber(TracingSubscriber):
+        if "parent" in hooks:
+
+            @classmethod
+            def on_starting(cls, ctx):
+                observations.append(("parent_starting", ctx, ctx.get_item("_inner_span")))
+                ctx.event.resource += ".parent"
+
+        @classmethod
+        def on_started(cls, ctx):
+            observations.append(("parent_started", ctx, span_from_context(ctx)))
+
+    class ChildSubscriber(ParentSubscriber):
+        event_names = (TestTracingEvent.event_name,)
+
+        if "child" in hooks:
+
+            @classmethod
+            def on_starting(cls, ctx):
+                observations.append(("child_starting", ctx, ctx.get_item("_inner_span")))
+                ctx.event.resource += ".child"
+
+        @classmethod
+        def on_started(cls, ctx):
+            observations.append(("child_started", ctx, span_from_context(ctx)))
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            observations.append(("child_ended", ctx, span_from_context(ctx)))
+
+    with core.context_with_event(TestTracingEvent(component="test", resource="original", integration_config={})) as ctx:
+        span = span_from_context(ctx)
+        assert not span.finished
+
+    test_spans.assert_span_count(1)
+    assert test_spans.spans[0] is span
+    assert span.finished
+    assert span.resource == "original" + "".join(f".{hook}" for hook in hooks)
+    assert observations == [
+        *((f"{hook}_starting", ctx, None) for hook in hooks),
+        ("create_span", ctx, None),
+        ("parent_started", ctx, span),
+        ("child_started", ctx, span),
+        ("child_ended", ctx, span),
+    ]
+
+
 def test_span_context_event_missing_required_field(test_spans):
     """Test that missing required tracing attributes raises an AttributeError."""
 

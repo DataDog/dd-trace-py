@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from collections.abc import Sequence
 from types import TracebackType
 from typing import Any
@@ -114,7 +115,12 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
-    override on_started/on_ended for their specific logic.
+    define on_starting(ctx) to prepare the context before span creation,
+    on_started(ctx) to work with the created span, and on_ended(ctx, exc_info)
+    to run logic before the span is finished. Each hook is collected across the
+    inheritance chain and runs in parent-to-child order, without requiring super().
+    All on_starting handlers finish before the span is created and stored on the
+    context; all on_started handlers run afterwards.
 
     Example:
         class MySpanSubscriber(SpanTracingSubscriber):
@@ -133,8 +139,27 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     # Register here events that just create / finish spans
     event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
 
+    _starting_handlers: tuple[Callable[[core.ExecutionContext[TracingEventType]], None], ...] = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        cls._starting_handlers = tuple(
+            base_cls.on_starting
+            for base_cls in reversed(cls.__mro__[:-1])
+            if issubclass(base_cls, TracingSubscriber)
+            and "on_starting" in base_cls.__dict__
+            and base_cls is not TracingSubscriber
+        )
+        super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def on_starting(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
+        """Prepare the execution context before this subscriber creates its span."""
+        pass
+
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
+        for handler in cls._starting_handlers:
+            handler(ctx)
         _start_span(ctx)
         for handler in cls._started_handlers:
             handler(ctx)
