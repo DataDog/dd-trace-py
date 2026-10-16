@@ -167,3 +167,9 @@ def test_processor_reads_otel_client_span_attributes():
     span.set_tag(http.URL, "https://example.com/api/orders/456")
     processor.on_span_finish(span)
     assert span.get_tag(http.ENDPOINT) == "/api/orders/{param:int}"
+
+    # A relative http.url set by user code drops its query and fragment like an absolute one.
+    span = Span("test", span_type=SpanTypes.WEB)
+    span.set_tag(http.URL, "/api/orders/456?view=full#top")
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/orders/{param:int}"
