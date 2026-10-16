@@ -778,6 +778,8 @@ def test_tool_first_partial_turn_keeps_identity_and_boundary(next_speech):
     "reasons,expected",
     [
         (["PARTIAL_TURN"], "PARTIAL_TURN"),
+        (["TOOL_USE", "PARTIAL_TURN"], "TOOL_USE"),
+        (["PARTIAL_TURN", "TOOL_USE", "PARTIAL_TURN"], "TOOL_USE"),
         (["TOOL_USE", "PARTIAL_TURN", "END_TURN", "PARTIAL_TURN"], "END_TURN"),
         (["END_TURN", "INTERRUPTED", "END_TURN"], "INTERRUPTED"),
         ([None, "unknown", {}], None),
@@ -859,3 +861,102 @@ def test_tool_definitions_are_bounded_by_count_and_serialized_size(monkeypatch):
     assert 0 < len(sonic.tool_definitions) < 16
     assert all(tool["name"] == "weather" for tool in sonic.tool_definitions)
     assert sum(len(json.dumps(tool)) for tool in sonic.tool_definitions) <= 200
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("invalid", [None, -1, True, "20", 1.5, "absent"])
+@pytest.mark.parametrize("gap_turns", [1, 2])
+def test_aggregate_usage_gap_rebases_without_charging_later_turns(direction, invalid, gap_turns):
+    sonic, integration = state()
+    field = "totalInputTokens" if direction == "input" else "totalOutputTokens"
+    key = direction + "_tokens"
+    audio_key = direction + "_audio_tokens"
+    other = "output" if direction == "input" else "input"
+
+    def start(index):
+        sonic.pending.user_text = str(index)
+        sonic.received("contentStart", {"contentId": str(index), "role": "ASSISTANT", "type": "TEXT"}, index + 1)
+
+    start(0)
+    sonic.observe(usage_event(10, 10, 5, 5))
+    for i in range(gap_turns):
+        start(i + 1)
+        payload = {"totalInputTokens": 20, "totalOutputTokens": 20}
+        if invalid == "absent":
+            payload.pop(field)
+        else:
+            payload[field] = invalid
+        sonic.received("usageEvent", payload, i + 2)
+    start(gap_turns + 1)
+    sonic.observe(usage_event(30, 30, 15, 15))
+    # Later deltas in the recovery turn cannot turn its unknown total into a partial count.
+    sonic.observe(usage_event(35, 35, 17, 17))
+    start(gap_turns + 2)
+    sonic.observe(usage_event(40, 40, 20, 20))
+    sonic.observe(usage_event(40, 40, 20, 20))
+    sonic.finish()
+    metrics = [data(span)["metrics"] for span in llms(integration)]
+    assert metrics[0][key] == 10
+    for unknown in metrics[1:-1]:
+        assert key not in unknown
+        assert audio_key not in unknown
+        assert "total_tokens" not in unknown
+        assert other + "_tokens" in unknown
+    assert metrics[-1] == {
+        "input_tokens": 5,
+        "output_tokens": 5,
+        "total_tokens": 10,
+        "input_audio_tokens": 3,
+        "output_audio_tokens": 3,
+    }
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("recover", [False, True])
+def test_same_turn_usage_gap_recovers_complete_metrics_or_remains_unknown(direction, recover):
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.observe(usage_event(10, 10, 5, 5))
+    other_field = "totalOutputTokens" if direction == "input" else "totalInputTokens"
+    sonic.received(
+        "usageEvent",
+        {other_field: 10, "details": {"total": {"input": {"speechTokens": 5}, "output": {"speechTokens": 5}}}},
+        2,
+    )
+    if recover:
+        sonic.observe(usage_event(30, 30, 15, 15))
+    sonic.finish()
+    metrics = data(llms(integration)[0])["metrics"]
+    if recover:
+        assert metrics == {
+            "input_tokens": 30,
+            "output_tokens": 30,
+            "total_tokens": 60,
+            "input_audio_tokens": 15,
+            "output_audio_tokens": 15,
+        }
+    else:
+        assert direction + "_tokens" not in metrics
+        assert direction + "_audio_tokens" not in metrics
+        assert "total_tokens" not in metrics
+        other = "output" if direction == "input" else "input"
+        assert metrics[other + "_tokens"] == 10
+        assert metrics[other + "_audio_tokens"] == 5
+
+
+def test_input_gap_ownership_follows_pending_user_speech():
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.observe(usage_event(10, 10, 5, 5))
+    sonic.pending.user_text = "next question"
+    sonic.observe(usage_event(None, 15, None, 7))
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    sonic.observe(usage_event(20, 20, 10, 10))
+    sonic.finish()
+    first, second = [data(span)["metrics"] for span in llms(integration)]
+    assert first["input_tokens"] == 10
+    assert first["output_tokens"] == 15
+    assert second["input_tokens"] == 10
+    assert second["input_audio_tokens"] == 5
+    assert second["output_tokens"] == 5
+    assert second["total_tokens"] == 15

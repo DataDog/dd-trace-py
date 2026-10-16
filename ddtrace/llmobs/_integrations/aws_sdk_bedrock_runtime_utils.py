@@ -123,6 +123,7 @@ class Turn:
         self.started_ns: Optional[int] = None
         self.metrics: dict[str, int] = {}
         self.missing_audio_metrics: set[str] = set()
+        self.missing_metrics: set[str] = set()
         self.completion_id: Optional[str] = None
         self.partial = False
         self.emitted = False
@@ -218,6 +219,7 @@ class SonicState:
         self.closed = False
         self.turn_index = 0
         self.totals = {"input_tokens": 0, "output_tokens": 0}
+        self.usage_gaps: dict[str, Optional[Turn]] = {}
         self.audio_totals: dict[str, Optional[int]] = {"input": 0, "output": 0}
         self.completed_ids: deque[str] = deque(maxlen=MAX_BLOCKS)
 
@@ -476,7 +478,9 @@ class SonicState:
                         turn.interrupt(now)
                     elif turn.interrupted_ns is None and reason in ("END_TURN", "PARTIAL_TURN", "TOOL_USE"):
                         # Intermediate blocks cannot replace a terminal turn reason.
-                        if turn.finish_reason != "END_TURN":
+                        if turn.finish_reason != "END_TURN" and (
+                            reason != "PARTIAL_TURN" or turn.finish_reason is None
+                        ):
                             turn.finish_reason = reason
                     if block["data"].get("type") == "AUDIO" and reason == "END_TURN" and turn.interrupted_ns is None:
                         turn.generation_end_ns = now
@@ -493,17 +497,38 @@ class SonicState:
         breakdown = details.get("total") if isinstance(details, dict) else None
         for direction, field in (("input", "totalInputTokens"), ("output", "totalOutputTokens")):
             key = direction + "_tokens"
-            total = data.get(field)
-            if not isinstance(total, int) or isinstance(total, bool) or total < self.totals[key]:
-                continue
-            delta = total - self.totals[key]
-            self.totals[key] = total
             target = (
                 self.pending
                 if self.current is None or (key == "input_tokens" and self.pending.has_input)
                 else self.current
             )
-            target.metrics[key] = target.metrics.get(key, 0) + delta
+            total = data.get(field)
+            if not isinstance(total, int) or isinstance(total, bool) or total < 0:
+                if key not in self.usage_gaps:
+                    self.usage_gaps[key] = target
+                elif self.usage_gaps[key] is not target:
+                    previous = self.usage_gaps[key]
+                    if previous is not None:
+                        previous.missing_metrics.add(key)
+                    target.missing_metrics.add(key)
+                    self.usage_gaps[key] = None
+                continue
+            if total < self.totals[key]:
+                # A valid older cumulative counter is a stale event, not a reset.
+                continue
+            if key in self.usage_gaps:
+                previous = self.usage_gaps.pop(key)
+                if previous is not target:
+                    if previous is not None:
+                        previous.missing_metrics.add(key)
+                    target.missing_metrics.add(key)
+                    # Neither aggregate nor speech deltas can be attributed across
+                    # a gap spanning turns. Recover both baselines without charging it.
+                    self.audio_totals[direction] = None
+            delta = total - self.totals[key]
+            self.totals[key] = total
+            if key not in target.missing_metrics:
+                target.metrics[key] = target.metrics.get(key, 0) + delta
             # Missing counters are unknown, not zero. Derive a total only when both
             # directions have been reported for this turn, including explicit zeros.
             if "input_tokens" in target.metrics and "output_tokens" in target.metrics:
@@ -596,6 +621,11 @@ class SonicState:
                 self.context_provider.activate(previous_context)
 
     def _emit_turn(self, turn: Turn, now: int, error: Any = None) -> None:
+        unknown = turn.missing_metrics | {key for key, owner in self.usage_gaps.items() if owner is turn}
+        excluded = unknown | {key.replace("_tokens", "_audio_tokens") for key in unknown}
+        if unknown:
+            excluded.add("total_tokens")
+        metrics = {key: value for key, value in turn.metrics.items() if key not in excluded}
         self.turn_index += 1
         if turn.windows and not turn.input_pcm:
             turn.input_rate = self.audio.rate
@@ -639,13 +669,13 @@ class SonicState:
             if turn.output_audio_omitted_reason:
                 metadata["output_audio_omitted_reason"] = turn.output_audio_omitted_reason
             _annotate_llmobs_span_data(
-                response, input_messages=inputs, output_messages=outputs, metadata=metadata, metrics=turn.metrics
+                response, input_messages=inputs, output_messages=outputs, metadata=metadata, metrics=metrics
             )
             _annotate_llmobs_span_data(
                 root, input_value=turn.user_text, output_value=turn.final_text or turn.speculative_text
             )
             self.integration._apply_shadow_metrics(
-                response, turn.metrics, "llm", model_name=self.model, model_provider="amazon"
+                response, metrics, "llm", model_name=self.model, model_provider="amazon"
             )
             for name, begin, finish in (
                 ("user speech", turn.input_start_ns, turn.input_end_ns),
@@ -700,4 +730,5 @@ class SonicState:
             self.outbound.clear()
             self.history.clear()
             self.tool_definitions = []
+            self.usage_gaps.clear()
             self.audio.data.clear()
