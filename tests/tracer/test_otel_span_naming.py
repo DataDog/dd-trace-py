@@ -195,7 +195,7 @@ def test_a_sampling_rule_does_not_match_the_pre_rename_resource():
 
 
 def _server_name(method=None, route=None, resource=_INTEGRATION_RESOURCE, span_hook=None, kind="server"):
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         with tracer.start_span("django.request", span_type=SpanTypes.WEB, activate=False) as span:
             if resource is not None:
                 span.resource = resource
@@ -242,7 +242,7 @@ def test_server_resource_replaced_by_user_code_is_detected_and_kept():
 
 
 def test_server_method_and_route_attributes_are_still_written():
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
             span._set_attribute(SPAN_KIND, "server")
             trace_utils.set_http_meta(span, _integration_config(), method="get", route="/x")
@@ -252,7 +252,7 @@ def test_server_method_and_route_attributes_are_still_written():
 
 
 def test_server_span_is_named_at_start_not_left_as_the_integration_resource():
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         with tracer.start_span("aiohttp.request", span_type=SpanTypes.WEB, activate=False) as span:
             span.resource = "aiohttp.request"
             span._set_attribute(SPAN_KIND, "server")
@@ -264,7 +264,7 @@ def test_server_span_is_named_at_start_not_left_as_the_integration_resource():
 
 
 def test_a_later_call_refines_the_server_name_with_a_route():
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
             span.resource = _INTEGRATION_RESOURCE
             span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, _INTEGRATION_RESOURCE)
@@ -277,7 +277,7 @@ def test_a_later_call_refines_the_server_name_with_a_route():
 
 
 def test_a_user_resource_set_between_server_calls_stops_the_rename():
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
             span.resource = _INTEGRATION_RESOURCE
             span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, _INTEGRATION_RESOURCE)
