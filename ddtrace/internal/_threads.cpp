@@ -13,6 +13,22 @@
 #include <mutex>
 #include <thread>
 
+// glibc implements pthread_exit() as a forced stack unwind that
+// libstdc++ models as abi::__forced_unwind. CPython's take_gil() calls
+// PyThread_exit_thread() when it finds that the interpreter is finalizing, so
+// any thread of ours that blocks on the GIL can be unwound this way. Two rules
+// follow, and both are load-bearing:
+//   1. A destructor that calls into the GIL must be noexcept(false). A forced
+//      unwind that escapes an implicitly-noexcept function makes the personality
+//      routine call std::terminate, which aborts the process.
+//   2. A catch(...) must never swallow it. glibc aborts a forced unwind that is
+//      not re-thrown.
+// On musl, pthread_exit() uses longjmp instead, so the handler never fires and
+// the is_finalizing() checks are the only defence.
+#if defined(__GLIBCXX__)
+#include <cxxabi.h>
+#endif
+
 // Platform-specific includes for thread naming
 #if defined(__linux__)
 #include <pthread.h>
@@ -234,7 +250,8 @@ class GILGuard
             _acquired = true;
         }
     }
-    inline ~GILGuard()
+    // noexcept(false): see the abi::__forced_unwind note at the top of the file.
+    inline ~GILGuard() noexcept(false)
     {
         if (!_acquired || _mstate->is_finalizing() || !PyGILState_Check())
             return;
@@ -261,6 +278,11 @@ class GILGuard
         PyGILState_Release(_gil_state);
     }
 
+    // False when the constructor skipped PyGILState_Ensure because the
+    // interpreter was already finalizing. The caller then holds no GIL and must
+    // not touch the Python API at all.
+    inline bool acquired() const noexcept { return _acquired; }
+
     GILGuard(const GILGuard&) = delete;
     GILGuard& operator=(const GILGuard&) = delete;
     GILGuard(GILGuard&&) = delete;
@@ -285,7 +307,11 @@ class AllowThreads
         if (!_mstate->is_finalizing())
             _thread_state = PyEval_SaveThread();
     }
-    inline ~AllowThreads()
+    // noexcept(false) is what keeps a periodic thread from aborting the whole
+    // process at shutdown: PyEval_RestoreThread blocks in take_gil, and a
+    // finalizing interpreter kills the thread there with pthread_exit. See the
+    // abi::__forced_unwind note at the top of the file.
+    inline ~AllowThreads() noexcept(false)
     {
         // Only restore if we actually saved: _thread_state is non-null iff
         // is_finalizing() was false when the constructor ran.
@@ -656,6 +682,17 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
         if (self->_stopping)
             Py_RETURN_NONE;
 
+        // Never start a worker once shutdown has begun. The at-exit handler has
+        // already taken its snapshot of periodic_threads, so a thread created
+        // now would be neither stopped nor joined, and CPython would kill it in
+        // take_gil with a forced unwind. Report nothing rather than an error:
+        // the only callers left at this point are the post-fork restart hooks,
+        // and they have no way to act on a failure. Treated like the _stopping
+        // case above, since both mean "there is nothing left to run".
+        if (self->_state->is_finalizing()) {
+            Py_RETURN_NONE;
+        }
+
         if (reset_next_call_time)
             self->_next_call_time =
               std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
@@ -676,119 +713,154 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
             self->_thread = std::make_unique<std::thread>([self, stopped_event, ref = std::move(_self_ref)]() mutable {
                 module_state* state = self->_state;
 
-                // DEV: GILGuard and PyRef are in an inner scope that exits BEFORE
-                // stopped_event->set(). This ensures that all Python VM interactions
-                // (Py_DECREF, PyGILState_Release) complete before the join() caller is
-                // unblocked. The inner scope also allows PyRef::reset() to trigger
-                // PeriodicThread_dealloc (if this thread held the last reference),
-                // which is safe because stopped_event is a captured shared_ptr
-                // independent of self's lifetime.
-                {
-                    GILGuard _gil(state);
-
-                    // Move ref into this scope so PyRef::reset() can release it while
-                    // the GIL is still held, before stopped_event->set().
-                    PyRef _ref = std::move(ref);
-
-                    // Retrieve the thread ID
+                // Nothing may escape this lambda. std::thread calls std::terminate
+                // for any exception that leaves its callable, so the handlers
+                // below are what keep a shutdown race from aborting the whole
+                // process. See the abi::__forced_unwind note at the top of the
+                // file.
+                try {
+                    // DEV: GILGuard and PyRef are in an inner scope that exits BEFORE
+                    // stopped_event->set(). This ensures that all Python VM interactions
+                    // (Py_DECREF, PyGILState_Release) complete before the join() caller is
+                    // unblocked. The inner scope also allows PyRef::reset() to trigger
+                    // PeriodicThread_dealloc (if this thread held the last reference),
+                    // which is safe because stopped_event is a captured shared_ptr
+                    // independent of self's lifetime.
                     {
-                        Py_DECREF(self->ident);
-                        self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
+                        GILGuard _gil(state);
 
-                        // Map the PeriodicThread object to its thread ID
-                        if (PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self) < 0)
-                            PyErr_Print();
-                    }
+                        // Move ref into this scope so PyRef::reset() can release it while
+                        // the GIL is still held, before stopped_event->set().
+                        PyRef _ref = std::move(ref);
 
-                    // Set the native thread name for better debugging and profiling
-                    set_native_thread_name(self->name);
+                        if (!_gil.acquired()) {
+                            // Shutdown started between the check in
+                            // _PeriodicThread_do_start and this point, so we hold no
+                            // GIL and must not call the Python API. Publish both
+                            // events so start() and join() cannot block for ever,
+                            // then leave. self stays alive: PyRef::reset() skips the
+                            // Py_DECREF while the interpreter is finalizing.
+                            self->_started->set();
+                            stopped_event->set();
+                            return;
+                        }
 
-                    // Mark the thread as started from this point.
-                    self->_started->set();
-
-                    bool error = false;
-                    if (self->_no_wait_at_start)
-                        self->_request->set(REQUEST_REASON_AWAKE);
-
-                    while (!self->_stopping) {
+                        // Retrieve the thread ID
                         {
-                            AllowThreads _(state);
+                            Py_DECREF(self->ident);
+                            self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
 
-                            if (self->_request->wait(self->_next_call_time)) {
-                                if (self->_stopping) {
-                                    // _stopping can be set by:
-                                    // 1. pre-fork stop: preserve non-fork reasons (e.g. awake)
-                                    //    so they survive restart;
-                                    // 2. regular stop(): consume all pending reasons.
-                                    const unsigned char stop_reasons =
-                                      self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
-                                    const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
-                                    if (!has_fork_stop)
-                                        self->_request->consume_all();
+                            // Map the PeriodicThread object to its thread ID
+                            if (PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self) < 0)
+                                PyErr_Print();
+                        }
+
+                        // Set the native thread name for better debugging and profiling
+                        set_native_thread_name(self->name);
+
+                        // Mark the thread as started from this point.
+                        self->_started->set();
+
+                        bool error = false;
+                        if (self->_no_wait_at_start)
+                            self->_request->set(REQUEST_REASON_AWAKE);
+
+                        while (!self->_stopping) {
+                            {
+                                AllowThreads _(state);
+
+                                if (self->_request->wait(self->_next_call_time)) {
+                                    if (self->_stopping) {
+                                        // _stopping can be set by:
+                                        // 1. pre-fork stop: preserve non-fork reasons (e.g. awake)
+                                        //    so they survive restart;
+                                        // 2. regular stop(): consume all pending reasons.
+                                        const unsigned char stop_reasons =
+                                          self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
+                                        const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
+                                        if (!has_fork_stop)
+                                            self->_request->consume_all();
+                                        break;
+                                    }
+
+                                    // Request wakeup while running (awake/no_wait_at_start).
+                                    // Timer wakeups are the wait(...) == false branch.
+                                    self->_request->consume_all();
+                                }
+                            }
+
+                            if (state->is_finalizing())
+                                break;
+
+                            {
+                                PyObject* result = PeriodicThread__periodic(self);
+                                if (result == NULL) {
+                                    // Error: target raised an exception.
+                                    error = true;
                                     break;
                                 }
-
-                                // Request wakeup while running (awake/no_wait_at_start).
-                                // Timer wakeups are the wait(...) == false branch.
-                                self->_request->consume_all();
+                                // If the target returns PERIODIC_STOP, set _stopping so
+                                // the while condition exits after this iteration.
+                                if (self->_state->PERIODIC_STOP != nullptr && result == self->_state->PERIODIC_STOP)
+                                    self->_stopping = true;
+                                Py_DECREF(result);
                             }
+
+                            self->_next_call_time = std::chrono::steady_clock::now() +
+                                                    std::chrono::milliseconds((long long)(self->interval * 1000));
+
+                            // If this came from a request mark it as served
+                            self->_served->set();
                         }
 
-                        if (state->is_finalizing())
-                            break;
-
-                        {
-                            PyObject* result = PeriodicThread__periodic(self);
-                            if (result == NULL) {
-                                // Error: target raised an exception.
-                                error = true;
-                                break;
-                            }
-                            // If the target returns PERIODIC_STOP, set _stopping so
-                            // the while condition exits after this iteration.
-                            if (self->_state->PERIODIC_STOP != nullptr && result == self->_state->PERIODIC_STOP)
-                                self->_stopping = true;
-                            Py_DECREF(result);
-                        }
-
-                        self->_next_call_time = std::chrono::steady_clock::now() +
-                                                std::chrono::milliseconds((long long)(self->interval * 1000));
-
-                        // If this came from a request mark it as served
+                        // Set request served in case any threads are waiting while a thread is
+                        // stopping.
                         self->_served->set();
+
+                        if (!state->is_finalizing()) {
+                            // Run the shutdown callback if there was no error and we are not
+                            // at Python shutdown.
+                            if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
+                                PeriodicThread__on_shutdown(self);
+
+                            // Remove the thread from the mapping of active threads.
+                            if (PyDict_DelItem(state->periodic_threads, self->ident) < 0)
+                                PyErr_Print();
+                        }
+
+                        // Release the worker's Python reference before GILGuard
+                        // clears the thread state so values added by its deallocator
+                        // are included in that clear.
+                        _ref.reset();
+
+                        // Inner scope ends here. GILGuard::~GILGuard clears and deletes
+                        // the worker's thread state, then releases the GIL.
                     }
 
-                    // Set request served in case any threads are waiting while a thread is
-                    // stopping.
-                    self->_served->set();
-
-                    if (!state->is_finalizing()) {
-                        // Run the shutdown callback if there was no error and we are not
-                        // at Python shutdown.
-                        if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
-                            PeriodicThread__on_shutdown(self);
-
-                        // Remove the thread from the mapping of active threads.
-                        if (PyDict_DelItem(state->periodic_threads, self->ident) < 0)
-                            PyErr_Print();
-                    }
-
-                    // Release the worker's Python reference before GILGuard
-                    // clears the thread state so values added by its deallocator
-                    // are included in that clear.
-                    _ref.reset();
-
-                    // Inner scope ends here. GILGuard::~GILGuard clears and deletes
-                    // the worker's thread state, then releases the GIL.
+                    // All Python VM interactions are done. Signal that the thread has fully
+                    // stopped. join() waits on this event; since the thread is detached
+                    // (no OS join), this is the sole synchronisation point.
+                    // DEV: The thread might have been destructed at this point, so we have
+                    // to interact with the stopped_event directly instead of self->_stopped
+                    // to avoid potential use-after-free of self.
+                    stopped_event->set();
                 }
-
-                // All Python VM interactions are done. Signal that the thread has fully
-                // stopped. join() waits on this event; since the thread is detached
-                // (no OS join), this is the sole synchronisation point.
-                // DEV: The thread might have been destructed at this point, so we have
-                // to interact with the stopped_event directly instead of self->_stopped
-                // to avoid potential use-after-free of self.
-                stopped_event->set();
+#if defined(__GLIBCXX__)
+                catch (abi::__forced_unwind&) {
+                    // CPython killed this thread in take_gil because the
+                    // interpreter is finalizing. Unblock join() and let the
+                    // forced unwind continue: glibc aborts the process if it is
+                    // swallowed. Only stopped_event is safe to touch here — the
+                    // Python API is off limits, and self may already be gone.
+                    stopped_event->set();
+                    throw;
+                }
+#endif
+                catch (...) {
+                    // No other exception is expected. Unblock join() rather than
+                    // let std::terminate abort the process.
+                    stopped_event->set();
+                }
             });
         } catch (const std::system_error& e) {
             // pthread_create failed. Typical code is EAGAIN (insufficient resources
@@ -1153,9 +1225,25 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
     // Stop and join all running periodic threads. We snapshot the values first
     // to avoid mutation of the dict during iteration (threads remove themselves
     // from periodic_threads when they stop).
-    if (state != nullptr && state->periodic_threads != NULL) {
+    //
+    // The sweep repeats because join() releases the GIL, so another thread can
+    // register a new worker after the snapshot was taken. The post-fork restart
+    // hooks do exactly that. A worker that survives this handler is never
+    // stopped, and CPython later kills it inside take_gil, which crashes the
+    // process. The pass count is capped so a target that keeps starting threads
+    // cannot hold shutdown for ever.
+    for (unsigned pass = 0; state != nullptr && state->periodic_threads != NULL && pass < 8; pass++) {
+        if (PyDict_Size(state->periodic_threads) == 0) {
+            break;
+        }
+
         PyObject* threads = PyDict_Values(state->periodic_threads);
-        if (threads != NULL) {
+        if (threads == NULL) {
+            PyErr_Clear();
+            break;
+        }
+
+        {
             Py_ssize_t n = PyList_Size(threads);
 
             // Send the stop signal to all threads.
