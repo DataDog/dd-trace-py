@@ -85,7 +85,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("out.host") == HOST
 
     def test_resource_with_otel_semantics(self):
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
             resp = self.http.request("GET", URL_200)
 
         assert resp.status == 200
@@ -99,7 +99,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert span.get_tag("http.url") is None
 
     def _otel_pool_tags(self, pool):
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True), pytest.raises(Exception):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)), pytest.raises(Exception):
             pool.urlopen("GET", "/x", retries=False)
         span = self.pop_spans()[0]
         return {**span.get_tags(), **span.get_metrics()}

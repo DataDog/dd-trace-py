@@ -1,14 +1,13 @@
 import os
-from unittest import mock
 
 import aiohttp
 import pytest
 
-from ddtrace import config
 from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info_from_url
 from ddtrace.contrib.internal.aiohttp.patch import patch
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 from ..config import HTTPBIN_CONFIG
@@ -87,7 +86,7 @@ async def test_500_request(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_resource_with_otel_semantics(test_spans):
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_200) as resp:
                 assert resp.status == 200

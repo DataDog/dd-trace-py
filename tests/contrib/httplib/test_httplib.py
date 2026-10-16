@@ -145,7 +145,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
     def test_resource_with_otel_semantics(self):
         conn = self.get_http_connection(SOCKET)
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True), contextlib.closing(conn):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)), contextlib.closing(conn):
             conn.request("GET", "/status/200")
             resp = conn.getresponse()
             resp.read()
@@ -160,7 +160,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert span.get_tag("http.url") is None
 
     def _putrequest_tags(self, conn, target):
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
             conn.putrequest("GET", target)
         span = conn._datadog_span
         tags = {**span.get_tags(), **span.get_metrics()}
@@ -171,7 +171,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         seen = []
         conn = self.get_http_connection("localhost", 1)
         with (
-            mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+            self.override_global_config(dict(_otel_trace_semantics_enabled=True)),
             mock.patch(
                 "ddtrace.contrib.internal.httplib.patch.HTTPPropagator.inject",
                 side_effect=lambda ctx, headers: seen.append(conn._datadog_span.get_tag("http.request.method")),
