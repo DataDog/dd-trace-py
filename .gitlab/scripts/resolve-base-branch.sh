@@ -72,7 +72,7 @@ else
   fi
 
   API_URL="https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${GITHUB_OWNER}:${REF}&state=open"
-  RESPONSE="$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AUTH_HEADER[@]}" -H "Accept: application/vnd.github+json" "${API_URL}" 2>&1)" || RESPONSE=""
+  RESPONSE="$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AUTH_HEADER[@]}" -H "Accept: application/vnd.github+json" "${API_URL}")" || RESPONSE=""
   BASE_BRANCH="$(echo "${RESPONSE}" | jq -r '.[0].base.ref // empty' 2>/dev/null || true)"
 
   if [ -n "${BASE_BRANCH}" ]; then
