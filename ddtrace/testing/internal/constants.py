@@ -26,6 +26,12 @@ SKIPPABLE_ITR_CODE_COVERAGE_HEADER = {"X-Datadog-ITR-Code-Coverage": "false"}
 # Git metadata environment variables
 DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA = "DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"
 
+# Test environment sharding: when set, this id is included in the `configurations` mapping sent with
+# skippable-tests (and other) API requests so the backend can return only the tests relevant to this
+# specific pytest session / uv environment / Python version combination, instead of the whole repository.
+# This is an explicit override; auto-detection from VIRTUAL_ENV / sys.prefix is also performed.
+_DD_CIVISIBILITY_ITR_TEST_ENVIRONMENT_ID = "_DD_CIVISIBILITY_ITR_TEST_ENVIRONMENT_ID"
+
 # Bazel / offline mode environment variables
 DD_TEST_OPTIMIZATION_MANIFEST_FILE = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
 DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"

@@ -207,6 +207,12 @@ class CIVisibility(Service, CIVisibilityProtocol):
         custom_configurations = _get_custom_configurations()
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
+        # Auto-detect or read the test environment id for sharding skippable-tests requests.
+        from ddtrace.testing.internal.platform import detect_test_environment_id
+
+        _test_environment_id = detect_test_environment_id()
+        if _test_environment_id:
+            self._configurations["test.environment.id"] = _test_environment_id
 
         self._api_key = env.get("_CI_DD_API_KEY", env.get("DD_API_KEY"))
 

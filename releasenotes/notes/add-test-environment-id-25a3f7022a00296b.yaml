@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    CI Visibility: the ``configurations`` mapping sent with skippable-tests
+    and other API requests now includes a ``test.environment.id`` entry so
+    the backend can shard responses by pytest session / virtual environment /
+    Python version. The id is auto-detected from ``VIRTUAL_ENV`` (whose
+    basename is the venv hash in riot/tox setups) or ``sys.prefix`` when
+    running inside a virtual environment. An explicit override is available
+    via the ``_DD_CIVISIBILITY_ITR_TEST_ENVIRONMENT_ID`` environment variable
+    for environments where the venv path is not stable (e.g. ``uv run``
+    ephemeral environments).
