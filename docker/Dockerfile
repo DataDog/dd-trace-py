@@ -20,7 +20,7 @@ RUN useradd -ms /bin/bash -u 1000 bits
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
-    && curl --proto '=https' --tlsv1.2 -sSf https://mariadb.org/mariadb_release_signing_key.pgp -o /tmp/mariadb_key.pgp \
+    && curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused https://mariadb.org/mariadb_release_signing_key.pgp -o /tmp/mariadb_key.pgp \
     && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --import /tmp/mariadb_key.pgp 2>/dev/null \
     && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --with-colons --fingerprint 2>/dev/null \
        | grep -qi "^fpr:.*:177F4010FE56CA3336300305F1656F24C74CD1D8:$" \
@@ -69,7 +69,7 @@ RUN apt-get update \
     # Note: Using bookworm repo as trixie is not yet available
     && if [ "$TARGETARCH" = "amd64" ]; \
     then \
-      curl --proto '=https' --tlsv1.2 -sSf https://packages.microsoft.com/keys/microsoft.asc -o /tmp/microsoft_key.asc \
+      curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused https://packages.microsoft.com/keys/microsoft.asc -o /tmp/microsoft_key.asc \
       && gpg --no-default-keyring --keyring /tmp/ms_keyring.gpg --import /tmp/microsoft_key.asc 2>/dev/null \
       && gpg --no-default-keyring --keyring /tmp/ms_keyring.gpg --with-colons --fingerprint 2>/dev/null \
          | grep -qi "^fpr:.*:BC528686B50D79E339D3721CEB3E94ADBE1229CF:$" \
@@ -82,7 +82,7 @@ RUN apt-get update \
     # Google Chrome is needed for selenium contrib tests but is currently only available on amd64
     && if [ "$TARGETARCH" = "amd64" ]; \
     then \
-      curl --proto '=https' --tlsv1.2 -sSf https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google_key.pub \
+      curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google_key.pub \
       && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --import /tmp/google_key.pub 2>/dev/null \
       && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --with-colons --fingerprint 2>/dev/null \
          | grep -qi "^fpr:.*:EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796:$" \
@@ -97,7 +97,7 @@ RUN apt-get update \
 
 # Install ddtest before switching to the unprivileged user because /usr/local/bin is root-owned.
 ARG DDTEST_VERSION=1.7.0
-RUN curl -fsSL "https://github.com/DataDog/ddtest/releases/download/v${DDTEST_VERSION}/ddtest-linux-${TARGETARCH}" -o /usr/local/bin/ddtest \
+RUN curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "https://github.com/DataDog/ddtest/releases/download/v${DDTEST_VERSION}/ddtest-linux-${TARGETARCH}" -o /usr/local/bin/ddtest \
   && chmod +x /usr/local/bin/ddtest
 
 USER 1000
@@ -113,8 +113,9 @@ ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 # Install Rust toolchain
 # TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- --default-toolchain stable -y
+RUN curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused -o /tmp/rustup-init.sh https://sh.rustup.rs && \
+    sh /tmp/rustup-init.sh --default-toolchain stable -y && \
+    rm /tmp/rustup-init.sh
 
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /home/bits/
