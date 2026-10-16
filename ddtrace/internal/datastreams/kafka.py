@@ -23,6 +23,16 @@ disable_header_injection = False
 log = get_logger(__name__)
 
 
+def _headers_byte_size(headers: Any) -> int:
+    # confluent-kafka also accepts headers as a list of (key, value) tuples.
+    if isinstance(headers, (list, tuple)):
+        try:
+            headers = dict(headers)
+        except (TypeError, ValueError):
+            return 0
+    return _calculate_byte_size(headers)
+
+
 def dsm_kafka_message_produce(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any], is_serializing: bool, span: Any
 ) -> None:
@@ -32,12 +42,14 @@ def dsm_kafka_message_produce(
     cluster_id = core.find_item("kafka_cluster_id")
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
     key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
-    headers = kwargs.get("headers", {})
+    headers = kwargs.get("headers")
+    if headers is None:
+        headers = {}
 
     payload_size = 0
     payload_size += _calculate_byte_size(message)
     payload_size += _calculate_byte_size(key)
-    payload_size += _calculate_byte_size(headers)
+    payload_size += _headers_byte_size(headers)
 
     edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
     if cluster_id:
@@ -46,8 +58,15 @@ def dsm_kafka_message_produce(
     if (p := processor()) is not None:
         ctx = p.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
         if not disable_header_injection:
-            DsmPathwayCodec.encode(ctx, headers)
-            kwargs["headers"] = headers
+            if isinstance(headers, dict):
+                DsmPathwayCodec.encode(ctx, headers)
+                kwargs["headers"] = headers
+            elif isinstance(headers, (list, tuple)):
+                # A new list, so a caller reusing one headers list across produce() calls
+                # does not accumulate a pathway header per call.
+                dsm_headers: dict[str, str] = {}
+                DsmPathwayCodec.encode(ctx, dsm_headers)
+                kwargs["headers"] = list(headers) + list(dsm_headers.items())
 
     on_delivery_kwarg = "on_delivery"
     on_delivery_arg = 5
