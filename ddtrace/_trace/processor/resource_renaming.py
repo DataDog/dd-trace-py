@@ -52,8 +52,9 @@ class SimplifiedEndpointComputer:
             return "/"
 
         if config._otel_trace_semantics_enabled and url.startswith("/"):
-            # url.path is already a path; urlparse would read a leading "//" as an authority.
-            path = url
+            # url.path is already a path; urlparse would read a leading "//" as an authority. A relative
+            # http.url fallback may still carry a query or fragment, which url.path never contains.
+            path = url.split("?", 1)[0].split("#", 1)[0]
         else:
             try:
                 parsed_url = urlparse(url)
