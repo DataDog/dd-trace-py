@@ -1386,6 +1386,7 @@ class MetricNamespace:
     civisibility: MetricNamespace
     mlobs: MetricNamespace
     ddtraceapi: MetricNamespace
+    ai_guard: MetricNamespace
     debugger: MetricNamespace
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
@@ -1457,6 +1458,8 @@ class RemoteConfigProduct:
     FfeFlags: RemoteConfigProduct
     LiveDebugging: RemoteConfigProduct
     LiveDebuggingSymbolDb: RemoteConfigProduct
+    Debug: RemoteConfigProduct
+    ApmProfiling: RemoteConfigProduct
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
