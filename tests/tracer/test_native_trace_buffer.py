@@ -476,35 +476,63 @@ def test_a_timed_out_shutdown_leaves_the_exporter_workers_to_the_runtime():
 def test_a_timed_out_shutdown_reclaims_the_exporter_when_the_export_ends_in_time():
     # The export in flight holds the exporter after the worker stop times out. When that export ends
     # inside the slice reserved for the exporter, the shutdown must still reclaim the exporter
-    # workers, rather than leave them to the runtime for the rest of the process. The worker count is
-    # process-wide, so the test runs in its own process.
+    # workers, rather than leave them to the runtime for the rest of the process. With a 1 second
+    # budget the worker stop gets 0.25 seconds, and the exporter slice waits up to 0.25 seconds more,
+    # so an export of 0.6 seconds ends after the stop gives up and inside the slice. The worker count
+    # is process-wide, so the test runs in its own process.
     import threading
     import time
 
     from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.writer import NativeTraceBuffer
     from tests.tracer.test_native_trace_buffer import _CaptureHandler
+    from tests.tracer.test_native_trace_buffer import _finished_span
     from tests.tracer.test_native_trace_buffer import _registered_workers
     from tests.tracer.test_native_trace_buffer import _start_capture_server
-    from tests.tracer.test_native_trace_buffer import _stop_with_an_export_held
+    from tests.tracer.test_writer import _HOST
 
     started = threading.Event()
 
     class _SlowHandler(_CaptureHandler):
         def _capture(self):
             started.set()
-            time.sleep(0.2)
+            time.sleep(0.6)
             super()._capture()
 
     runtime = get_native_runtime()
     server, server_thread = _start_capture_server(_SlowHandler)
     try:
         before = _registered_workers(runtime)
-        _stop_with_an_export_held(server.port, started)
+        writer = NativeTraceBuffer("http://%s:%s" % (_HOST, server.port), api_version="v0.4")
+        writer.write([_finished_span(name="held")])
+        writer._buffer.force_flush()
+        assert started.wait(10.0), "the agent never received the export"
+        writer.stop(1.0)
         after = _registered_workers(runtime)
         assert after == before, (before, after, runtime.debug())
     finally:
         server.shutdown()
         server_thread.join()
+
+
+def test_a_shutdown_with_a_small_timeout_stays_within_it():
+    # The exporter keeps a slice of the budget for its own shutdown. That slice must not grow past
+    # the budget of the caller, or tracer.shutdown(timeout=...) overruns its deadline.
+    started, release = threading.Event(), threading.Event()
+    server, server_thread = _start_capture_server(_held_handler(started, release))
+    try:
+        writer = NativeTraceBuffer("http://%s:%s" % (_HOST, server.port), api_version="v0.4")
+        writer.write([_finished_span(name="held")])
+        writer._buffer.force_flush()
+        assert started.wait(10.0), "the agent never received the export"
+        start = time.monotonic()
+        writer.stop(0.1)
+        elapsed = time.monotonic() - start
+    finally:
+        release.set()
+        server.shutdown()
+        server_thread.join()
+    assert elapsed < 0.2, elapsed
 
 
 # Python 3.12 warns on stderr when a multi-threaded process forks.

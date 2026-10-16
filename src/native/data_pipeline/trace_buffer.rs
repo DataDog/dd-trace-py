@@ -397,8 +397,9 @@ impl TraceBufferPy {
         // worker stop cannot starve it. Only this call reclaims the four workers of the exporter
         // before the runtime shuts down, and an abandoned wait there can leave them running until
         // then.
-        let exporter_reserve =
-            (total / 5).clamp(Duration::from_millis(500), Duration::from_secs(2));
+        let exporter_reserve = (total / 5)
+            .clamp(Duration::from_millis(500), Duration::from_secs(2))
+            .min(total);
         let remaining = total.saturating_sub(exporter_reserve);
         let flush_budget = remaining / 2;
 

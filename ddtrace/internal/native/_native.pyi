@@ -932,7 +932,8 @@ class TraceBuffer:
         """Export the buffered chunks, then stop the worker and the exporter within about timeout_ns.
 
         Call this method before you discard the buffer. If you do not, the exporter workers run
-        until the runtime shuts down. The exporter shutdown always gets at least 0.5 seconds.
+        until the runtime shuts down. The exporter shutdown gets 20% of timeout_ns, between 0.5 and
+        2 seconds and never more than timeout_ns.
         """
         ...
     def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
