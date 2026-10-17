@@ -14,6 +14,7 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 from collections import namedtuple
 import os
 import random
+import re
 import socket
 import threading
 import time
@@ -58,6 +59,10 @@ FIRST_POLL_JITTER_MAX_S = 5.0
 SHUTDOWN_POLL_INTERVAL_S = 0.2
 _WAIT_EPSILON_S = 1e-6
 
+# Remove the entire URL: credentials can occur in userinfo, paths and queries.
+# Include embedded quotes; only trailing message punctuation is preserved.
+_URL_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
+
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
 _PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
@@ -65,6 +70,16 @@ _PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
+
+
+def _describe_error(error: BaseException) -> str:
+    """Keep transport diagnostics without quoting endpoint URLs or exception chains."""
+    name = type(error).__name__
+    try:
+        message = _URL_RE.sub("<endpoint>", str(error))
+    except Exception:
+        return name
+    return f"{name}: {message}" if message else name
 
 
 def _is_retryable_status(status: Optional[int]) -> bool:
@@ -83,6 +98,7 @@ class AgentlessConfigurationSource(PeriodicService):
         api_key: Optional[str] = None,
         poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        env: Optional[str] = None,
     ) -> None:
         # A non-positive interval would make PeriodicThread schedule the next run
         # immediately, turning polling into a tight loop against the CDN, so fall
@@ -112,6 +128,9 @@ class AgentlessConfigurationSource(PeriodicService):
 
         self._apply_configuration = apply_configuration
         self._api_key = api_key
+        # Only reported in debug logs, to diagnose an SDK env that does not match
+        # the environment the flags were configured for.
+        self._env = env
         self._request_timeout = request_timeout
 
         # Split the endpoint into an origin (for the connection) and a request
@@ -208,13 +227,23 @@ class AgentlessConfigurationSource(PeriodicService):
             return
 
         after = [self._retry_delay(1), self._retry_delay(2)]
+        attempts = 0
+
+        def attempt() -> _PollResponse:
+            nonlocal attempts
+            attempts += 1
+            log.debug("Feature Flags: agentless configuration poll attempt %d/%d", attempts, MAX_ATTEMPTS)
+            response = self._request()
+            self._log_attempt_outcome(response, attempts)
+            return response
+
         poll = retry(
             after=after,
             # Stop retrying on a decisive response, or as soon as a shutdown is
             # requested (the backoff wait below returns early in that case).
             until=lambda r: self._stopping or not _is_retryable_status(r.status),
             sleep_func=self._wait,
-        )(self._request)
+        )(attempt)
         try:
             response = poll()
         except RetryError as e:
@@ -305,6 +334,29 @@ class AgentlessConfigurationSource(PeriodicService):
 
     # -- response handling --------------------------------------------------
 
+    def _log_attempt_outcome(self, response: _PollResponse, attempt: int) -> None:
+        if response.status == 304:
+            # The held configuration is still current; this is not a failure.
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d returned HTTP 304 (unchanged)",
+                attempt,
+                MAX_ATTEMPTS,
+            )
+        elif response.status is not None:
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d returned HTTP %d",
+                attempt,
+                MAX_ATTEMPTS,
+                response.status,
+            )
+        elif response.error is not None:
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d failed: %s",
+                attempt,
+                MAX_ATTEMPTS,
+                _describe_error(response.error),
+            )
+
     def _apply(self, response: _PollResponse) -> None:
         status = response.status
 
@@ -339,6 +391,12 @@ class AgentlessConfigurationSource(PeriodicService):
         etag = (response.etag or "").strip()
         self._etag = etag or None
 
+        log.debug(
+            "Feature Flags: agentless configuration applied successfully (%d flag(s), env=%s)",
+            len(attributes["flags"]),
+            self._env or "unset",
+        )
+
     def _warn_failure(self, response: _PollResponse, attempts: int) -> None:
         status = response.status
         if status in (401, 403):
@@ -357,6 +415,10 @@ class AgentlessConfigurationSource(PeriodicService):
         elif status:
             log.warning("Feature Flagging agentless endpoint returned HTTP %d after %d attempts", status, attempts)
         elif attempts > 1:
-            log.warning("Feature Flagging agentless request failed after %d attempts: %s", attempts, response.error)
+            log.warning(
+                "Feature Flagging agentless request failed after %d attempts: %s",
+                attempts,
+                _describe_error(response.error),
+            )
         else:
-            log.warning("Feature Flagging agentless request failed: %s", response.error)
+            log.warning("Feature Flagging agentless request failed: %s", _describe_error(response.error))

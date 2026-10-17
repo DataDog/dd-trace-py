@@ -5,6 +5,7 @@ Tests the FlagEvalMetrics class and FlagEvalMetricsHook that emit
 feature_flag.evaluations OTel metrics on every flag evaluation.
 """
 
+import logging
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -41,6 +42,14 @@ class TestFlagEvalMetrics:
 
         assert metrics._enabled is False
         assert metrics._counter is None
+
+    def test_initialization_disabled_logs_how_to_enable(self, caplog):
+        with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._flageval_metrics"):
+            FlagEvalMetrics()
+
+        assert "Feature Flags: evaluation metrics disabled; set DD_METRICS_OTEL_ENABLED=true to enable" in (
+            caplog.messages
+        )
 
     def test_initialization_without_otel(self):
         """Metrics should initialize gracefully when OTel is not available."""

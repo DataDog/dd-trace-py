@@ -8,6 +8,7 @@ Tests that the provider properly implements ProviderStatus:
 - Bounded initialization wait, ERROR on timeout, and READY after late delivery
 """
 
+import logging
 import threading
 import time
 
@@ -285,6 +286,49 @@ class TestProviderInitializationAsync:
                 assert provider._status == ProviderStatus.NOT_READY
             finally:
                 api.clear_providers()
+
+    def test_initialize_debug_logs_start_and_success(self, caplog):
+        provider = DataDogProvider()
+        process_ffe_configuration(create_config(create_boolean_flag("test-flag", enabled=True)))
+        try:
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                provider.initialize(EvaluationContext())
+        finally:
+            provider.shutdown()
+
+        assert "Feature Flags: waiting for provider initialization..." in caplog.messages
+        assert "Feature Flags: provider initialized successfully" in caplog.messages
+
+    def test_initialize_debug_logs_success_after_waiting(self, caplog):
+        provider = DataDogProvider(initialization_timeout=5.0)
+        timer = threading.Timer(
+            0.05, process_ffe_configuration, args=(create_config(create_boolean_flag("late-flag", enabled=True)),)
+        )
+        timer.start()
+        try:
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                provider.initialize(EvaluationContext())
+        finally:
+            timer.join()
+            provider.shutdown()
+
+        assert "Feature Flags: provider initialized successfully" in caplog.messages
+
+    def test_initialize_timeout_is_not_reported_as_success(self, caplog):
+        provider = DataDogProvider(initialization_timeout=0)
+        try:
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                with pytest.raises(ProviderNotReadyError):
+                    provider.initialize(EvaluationContext())
+        finally:
+            provider.shutdown()
+
+        assert "Feature Flags: waiting for provider initialization..." in caplog.messages
+        assert "Feature Flags: provider initialized successfully" not in caplog.messages
+        assert any(
+            m.startswith("Feature Flags: provider failed to initialize: no configuration received after")
+            for m in caplog.messages
+        ), caplog.messages
 
     @pytest.mark.skipif(not hasattr(api, "set_provider_and_wait"), reason="Blocking registration requires SDK 0.10+")
     def test_set_provider_and_wait_propagates_the_initialization_error(self):

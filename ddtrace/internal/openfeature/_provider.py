@@ -30,6 +30,8 @@ from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _register_provider
 from ddtrace.internal.openfeature._config import _unregister_provider
+from ddtrace.internal.openfeature._debug_logging_hook import DebugLoggingHook
+from ddtrace.internal.openfeature._debug_logging_hook import debug_logging_enabled
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
@@ -203,6 +205,12 @@ class DataDogProvider(AbstractProvider):
         if self._active and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
             self._span_enrichment_hook = SpanEnrichmentHook()
 
+        # Evaluation-detail logging for self-diagnosis. Registered only when debug
+        # logs would actually be emitted, so it costs nothing otherwise.
+        self._debug_logging_hook: typing.Optional[DebugLoggingHook] = None
+        if self._active and debug_logging_enabled():
+            self._debug_logging_hook = DebugLoggingHook()
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -229,6 +237,8 @@ class DataDogProvider(AbstractProvider):
         3. SpanEnrichmentHook (_span_enrichment.py) — registered only when
            DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED is enabled (default off);
            accumulates feature-flag metadata onto the local-root APM span.
+        4. DebugLoggingHook (_debug_logging_hook.py) — registered only when debug logging is
+           enabled (DD_TRACE_DEBUG=true); logs the details of every evaluation.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
@@ -237,6 +247,8 @@ class DataDogProvider(AbstractProvider):
             hooks.append(self._flag_eval_evp_hook)
         if self._span_enrichment_hook is not None:
             hooks.append(self._span_enrichment_hook)
+        if self._debug_logging_hook is not None:
+            hooks.append(self._debug_logging_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -261,6 +273,7 @@ class DataDogProvider(AbstractProvider):
         if not self._active:
             return
 
+        logger.debug("Feature Flags: waiting for provider initialization...")
         self._initialization_timed_out = False
 
         # Register for RC config callbacks (in initialize, not __init__, so
@@ -292,12 +305,14 @@ class DataDogProvider(AbstractProvider):
             logger.debug("FFE configuration already available, provider is READY")
             self._config_received.set()
             self._status = ProviderStatus.READY
+            logger.debug("Feature Flags: provider initialized successfully")
             return  # SDK will dispatch PROVIDER_READY
 
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
         if self._config_received.wait(timeout=self._initialization_timeout):
             self._status = ProviderStatus.READY
+            logger.debug("Feature Flags: provider initialized successfully")
             return  # SDK will dispatch PROVIDER_READY
 
         # the wait above must stay bounded. A blocked initialize() blocks
@@ -305,9 +320,11 @@ class DataDogProvider(AbstractProvider):
         # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
         # non-blocking registration and propagates it for blocking registration.
+        # Warning rather than error: errors are forwarded to telemetry, and a routine
+        # initialization timeout should not inflate its volume.
         logger.warning(
-            "openfeature: no Feature Flagging configuration received after %.1fs; evaluations will return "
-            "default values until configuration arrives",
+            "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
+            "evaluations will return default values until configuration arrives",
             self._initialization_timeout,
         )
         self._initialization_timed_out = True
