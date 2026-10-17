@@ -166,6 +166,12 @@ After running this skill, you should have:
 3. Impact assessment for each change
 4. Files in our codebase that need updates
 
+## Profiling bring-up
+
+If this diff is for Continuous Profiler, hand off to
+`migrate-profiling-new-cpython` rather than inventing a parallel plan.
+
 ## Related
 
 - **find-cpython-usage skill**: Use to identify what to compare
+- **migrate-profiling-new-cpython skill**: Orchestrates profiling bring-up by phase (alpha/beta/RC/final)
