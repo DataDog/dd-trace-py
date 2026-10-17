@@ -65,21 +65,13 @@ def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, s
 class AnthropicIntegration(BaseLLMIntegration):
     _integration_name = "anthropic"
 
-    def _set_base_span_tags(
-        self,
-        span: Span,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        **kwargs: dict[str, Any],
-    ) -> None:
-        """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Record the request base_url on the span; the contrib sets the APM model tag itself."""
         # Store base_url per-span rather than on the singleton integration so a streaming
         # span that finalizes after concurrent requests still resolves the right provider.
         base_url = self._get_base_url(**kwargs)
         if base_url is not None:
             span._set_ctx_item(REQUEST_BASE_URL, base_url)
-        if model is not None:
-            span._set_attribute(MODEL, model)
 
     def _llmobs_set_tags(
         self,
@@ -120,7 +112,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
-            model_name=span.get_tag("anthropic.request.model") or "",
+            model_name=span.get_tag(MODEL) or "",
             model_provider=self._get_model_provider(span),
             input_messages=input_messages,
             metadata=parameters,
@@ -133,7 +125,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
-        model_name = span.get_tag("anthropic.request.model")
+        model_name = span.get_tag(MODEL)
         self._apply_shadow_metrics(
             span,
             metrics,
