@@ -36,6 +36,8 @@ from ddtrace.debugging._probe.remoteconfig import DebuggerRCCallback
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._sampling import DebuggerSampler
+from ddtrace.debugging._sampling import Decision
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
@@ -74,6 +76,25 @@ class TracerProtocol(Protocol):
 _probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
 _probe_metrics.enable()
 
+_sampling_meter = metrics.get_meter("sampling")
+
+#: Guardrail metric reasons for firings the sampler turned away, using the same
+#: vocabulary the signal collector reports for the drops it sees.
+_SKIP_REASONS = {
+    Decision.DROP_SAMPLED: "rateLimitGlobal",
+    Decision.DROP_CAPPED: "budgetExceededInvocation",
+    Decision.DROP_RATE: "rateLimitProbe",
+}
+
+
+def record_skipped(probe: Probe, decision: Decision) -> None:
+    """Report a firing that the sampler turned away."""
+    _sampling_meter.increment(
+        "dynamic_instrumentation.guardrails.events.skipped",
+        tags={"reason": _SKIP_REASONS[decision], "probe_type": type(probe).__name__},
+    )
+
+
 T = TypeVar("T")
 
 
@@ -93,6 +114,7 @@ class DebuggerWrappingContext(WrappingContext):
         registry: ProbeRegistry,
         tracer: TracerProtocol,
         probe_meter: Metrics.Meter,
+        sampler: DebuggerSampler,
     ) -> None:
         super().__init__(f)
 
@@ -100,6 +122,7 @@ class DebuggerWrappingContext(WrappingContext):
         self._probe_registry = registry
         self._tracer = tracer
         self._probe_meter = probe_meter
+        self._sampler = sampler
 
         self.probes: dict[str, Probe] = {}
 
@@ -128,14 +151,21 @@ class DebuggerWrappingContext(WrappingContext):
             # Trigger the context creators first, so that the new context can be
             # consumed by the consumers.
             for probe in chain(context_creators, context_consumers):
+                # Because new context might be created, we need to recompute it
+                # for each probe.
+                trace_context = self._tracer.current_trace_context()
+
+                decision = self._sampler.evaluate(probe)
+                if decision is not Decision.FIRE:
+                    record_skipped(probe, decision)
+                    continue
+
                 try:
                     signal = Signal.from_probe(
                         probe,
                         frame=frame,
                         thread=thread,
-                        # Because new context might be created, we need to
-                        # recompute it for each probe.
-                        trace_context=self._tracer.current_trace_context(),
+                        trace_context=trace_context,
                         meter=self._probe_meter,
                     )
                 except TypeError:
@@ -143,7 +173,7 @@ class DebuggerWrappingContext(WrappingContext):
                     continue
 
                 try:
-                    signal.do_enter()
+                    signal.do_enter(self._sampler)
                 except Exception as e:
                     telemetry_writer.add_error_log("Failed to enter signal", e)
                     continue
@@ -168,7 +198,7 @@ class DebuggerWrappingContext(WrappingContext):
             # so we pop them from the end of the queue (LIFO).
             signal = signals.pop()
             try:
-                signal.do_exit(retval, exc_info, end_time - self.get("start_time"))
+                signal.do_exit(retval, exc_info, end_time - self.get("start_time"), self._sampler)
             except Exception as e:
                 telemetry_writer.add_error_log("Failed to exit signal", e)
                 continue
@@ -294,12 +324,12 @@ class Debugger(Service):
 
         self._function_store = FunctionStore()
 
+        # The ceiling the coordinated sampling decision is made against. Built
+        # here, rather than at import, so that it reads the current config.
         log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
-        self._global_rate_limiter = RateLimiter(
-            limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
+        self._sampler = DebuggerSampler(
+            limit_rate=di_config.global_rate_limit,
             on_exceed=lambda: log_limiter.limit(log.debug, "Global rate limit exceeded"),
-            call_once=True,
-            raise_on_exceed=False,
         )
 
         self.probe_file = di_config.probe_file
@@ -353,19 +383,28 @@ class Debugger(Service):
         instrumented code is running.
         """
         try:
+            trace_context = self._tracer.current_trace_context()
+
+            frame = sys._getframe(HOOK_FRAME_DEPTH)
+
+            decision = self._sampler.evaluate(probe)
+            if decision is not Decision.FIRE:
+                record_skipped(probe, decision)
+                return
+
             try:
                 signal = Signal.from_probe(
                     probe,
-                    frame=sys._getframe(HOOK_FRAME_DEPTH),
+                    frame=frame,
                     thread=threading.current_thread(),
-                    trace_context=self._tracer.current_trace_context(),
+                    trace_context=trace_context,
                     meter=self._probe_meter,
                 )
             except TypeError:
                 log.error("Unsupported probe type: %r", type(probe), exc_info=True)
                 return
 
-            signal.do_line(self._global_rate_limiter if probe.is_global_rate_limited() else None)
+            signal.do_line(self._sampler)
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
@@ -548,6 +587,7 @@ class Debugger(Service):
                     registry=self._probe_registry,
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
+                    sampler=self._sampler,
                 )
                 try:
                     self._function_store.wrap(cast(FunctionType, function), context)

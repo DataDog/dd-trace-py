@@ -280,3 +280,25 @@ def test_rate_limiter_with_jitter_not_raise():
     limiter = BudgetRateLimiterWithJitter(limit_rate=1, raise_on_exceed=False)
 
     assert [limiter.limit(lambda: None) for _ in range(10)][1:] == [RateLimitExceeded] * 9
+
+
+def test_rate_limiter_has_budget_does_not_consume():
+    limiter = BudgetRateLimiterWithJitter(limit_rate=1, raise_on_exceed=False)
+
+    assert limiter.has_budget() is True
+    assert limiter.has_budget() is True
+    assert limiter.limit() is not RateLimitExceeded
+    assert limiter.has_budget() is False
+
+
+def test_rate_limiter_consume_goes_into_deficit():
+    limiter = BudgetRateLimiterWithJitter(limit_rate=1, raise_on_exceed=False)
+
+    # Spent whether or not there is budget left, and the overspend has to be
+    # repaid before the next call is allowed.
+    limiter.consume()
+    limiter.consume()
+
+    assert limiter.has_budget() is False
+    limiter.budget += 1.0
+    assert limiter.has_budget() is False
