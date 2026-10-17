@@ -136,6 +136,14 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
     usage = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
 
+    # `tool_use_prompt_token_count` is the count of tool-execution results that Gemini feeds
+    # back to the model as input. `total_token_count` is documented as the sum of the prompt,
+    # candidates, tool-use and thoughts counts, so fold it into input_tokens to keep
+    # input + output equal to total.
+    tool_use_tokens = _get_attr(usage_metadata, "tool_use_prompt_token_count", None)
+    if input_tokens is not None or tool_use_tokens is not None:
+        input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
+
     candidates_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
     thought_tokens = _get_attr(usage_metadata, "thoughts_token_count", None)
     if candidates_tokens is not None or thought_tokens is not None:
