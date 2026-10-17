@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    botocore: Data Streams Monitoring now keeps the upstream pathway start time when a Kinesis ``GetRecords``
+    call consumes a record that carries DSM context. Previously the record's ``ApproximateArrivalTimestamp``
+    replaced the upstream start, so full pathway latency at the Kinesis consumer and every later hop counted
+    only from the record's arrival in Kinesis. Records without DSM context still use the arrival time.
