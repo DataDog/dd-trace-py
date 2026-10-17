@@ -254,6 +254,7 @@ ddtrace/contrib/internal/google_generativeai                  @DataDog/ml-observ
 ddtrace/contrib/internal/google_genai                         @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                             @DataDog/ml-observability
 ddtrace/contrib/internal/mistralai                            @DataDog/ml-observability
+ddtrace/contrib/internal/typesafe                             @DataDog/ml-observability
 ddtrace/contrib/internal/langgraph                            @DataDog/ml-observability
 ddtrace/contrib/internal/crewai                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai_agents                        @DataDog/ml-observability
@@ -281,6 +282,7 @@ tests/contrib/google_generativeai                             @DataDog/ml-observ
 tests/contrib/google_genai                                    @DataDog/ml-observability
 tests/contrib/vertexai                                        @DataDog/ml-observability
 tests/contrib/mistralai                                       @DataDog/ml-observability
+tests/contrib/typesafe                                        @DataDog/ml-observability
 tests/contrib/langgraph                                       @DataDog/ml-observability
 tests/contrib/crewai                                          @DataDog/ml-observability
 tests/contrib/openai_agents                                   @DataDog/ml-observability

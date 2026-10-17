@@ -22,6 +22,7 @@ _INTEGRATION_MODULES = {
     "MistralAIIntegration": ".mistralai",
     "OpenAIIntegration": ".openai",
     "PydanticAIIntegration": ".pydantic_ai",
+    "TypeSafeIntegration": ".typesafe",
     "VertexAIIntegration": ".vertexai",
 }
 

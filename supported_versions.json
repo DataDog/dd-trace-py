@@ -4272,6 +4272,36 @@
         ]
     },
     {
+        "dependencyName": "typesafe-sdk",
+        "integrationName": "typesafe",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=0.6.0",
+                "tested": [
+                    "0.6.0",
+                    "0.7.4"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.13"
+                    ]
+                },
+                "supportedRange": ">=0.6.0",
+                "tested": [
+                    "0.7.4"
+                ]
+            }
+        ]
+    },
+    {
         "dependencyName": "stdlib.unittest",
         "integrationName": "unittest",
         "autoInstrumented": true,
