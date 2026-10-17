@@ -1,9 +1,8 @@
 """Streaming response-evaluation AI Guard tests for the OpenAI SDK.
 
 All "buffered" cases run with ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true``
-(via the ``*_buffered`` fixtures). The flag-off contract pins live alongside the
-non-streaming tests in ``test_openai.py`` / ``test_responses.py`` and are kept
-unchanged.
+(via the *_buffered fixtures). Flag-off cases assert request inputs are evaluated and
+the stream is not buffered.
 """
 
 from unittest.mock import patch
@@ -231,14 +230,83 @@ async def test_responses_stream_async_buffered_allow(
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_responses_stream_flag_off_not_buffered(mock_execute_request, openai_responses_stream_client):
-    """Flag off: streaming Responses are skipped entirely (no wrapper, no eval)."""
+    """Flag off: streaming Responses are not buffered; only the request inputs are evaluated."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     stream = openai_responses_stream_client.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
     assert not isinstance(stream, BufferedAIGuardStream)
     list(stream)
 
-    mock_execute_request.assert_not_called()
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_responses_stream_async_flag_off_evaluates_input(
+    mock_execute_request, async_openai_responses_stream_client
+):
+    """Flag off: async streaming Responses are not buffered; only the request inputs are evaluated."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = await async_openai_responses_stream_client.responses.create(
+        model=RESPONSES_MODEL, input="Hello", stream=True
+    )
+    assert not isinstance(stream, BufferedAIGuardAsyncStream)
+    assert [event async for event in stream]
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_responses_stream_async_flag_off_blocks_on_deny(
+    mock_execute_request, async_openai_responses_stream_client, decision
+):
+    """Flag off: a blocking verdict on async streaming request inputs raises before the stream is returned."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        await async_openai_responses_stream_client.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
+
+    assert isinstance(exc_info.value, AIGuardAbortError)
+    mock_execute_request.assert_called_once()
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_raw_response_stream_flag_off_evaluates_input(mock_execute_request, openai_responses_stream_client):
+    """Flag off: with_raw_response.create(stream=True) evaluates the request inputs once, unbuffered."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    raw = openai_responses_stream_client.responses.with_raw_response.create(
+        model=RESPONSES_MODEL, input="Hello", stream=True
+    )
+    stream = raw.parse()
+    assert not isinstance(stream, BufferedAIGuardStream)
+    assert list(stream)
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_raw_response_stream_flag_off_blocks_on_deny(
+    mock_execute_request, openai_responses_stream_client, decision
+):
+    """Flag off: a blocking verdict on with_raw_response.create(stream=True) inputs raises AIGuardAbortError."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        openai_responses_stream_client.responses.with_raw_response.create(
+            model=RESPONSES_MODEL, input="Hello", stream=True
+        )
+
+    assert isinstance(exc_info.value, AIGuardAbortError)
+    mock_execute_request.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

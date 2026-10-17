@@ -35,7 +35,6 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = ddlogger.get_logger(__name__)
@@ -414,15 +413,10 @@ def _convert_openai_response_output(resp: Any) -> list[Message]:
 
 
 def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
-    """Listener for ``openai.responses.create.before``.
+    """Listener for openai.responses.create.before; evaluates request inputs, streaming included.
 
-    Streaming requests are evaluated only when the flag is on (the response is then buffered
-    and evaluated at stream end); otherwise they are skipped.
+    Streamed response evaluation is gated separately by _install_openai_wrappers.
     """
-    if kwargs.get("stream") and not aiguard_config._ai_guard_analyze_stream_responses_enabled:
-        logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
-        return None
-
     if is_aiguard_context_active():
         logger.debug("AI Guard openai responses before-hook skipped: framework context active")
         return None
