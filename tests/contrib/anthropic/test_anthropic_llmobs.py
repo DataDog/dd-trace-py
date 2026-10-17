@@ -4,6 +4,14 @@ from unittest import mock
 from unittest.mock import patch
 
 import pytest
+from anthropic.types import CacheCreation
+from anthropic.types import Message
+from anthropic.types import MessageDeltaUsage
+from anthropic.types import RawMessageDeltaEvent
+from anthropic.types import RawMessageStartEvent
+from anthropic.types import TextBlock
+from anthropic.types import Usage
+from anthropic.types.raw_message_delta_event import Delta
 
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
@@ -2084,3 +2092,66 @@ def test_get_model_provider_is_per_span(tracer):
 
     # The first span still resolves independently after the second request.
     assert integration._get_model_provider(bedrock_span) == "amazon"
+
+
+@pytest.mark.parametrize(
+    "cache_creation,expected_1h,expected_5m",
+    [
+        (CacheCreation(ephemeral_1h_input_tokens=3000, ephemeral_5m_input_tokens=0), 3000, 0),
+        (CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=3000), 0, 3000),
+        (CacheCreation(ephemeral_1h_input_tokens=1000, ephemeral_5m_input_tokens=2000), 1000, 2000),
+    ],
+)
+def test_streamed_cache_creation_ttl_breakdown(cache_creation, expected_1h, expected_5m):
+    """A streamed cache write is reported with the TTL class that the API reported.
+
+    ``message_start`` carries the split in ``usage.cache_creation``, so the stream builder must keep it.
+    Otherwise every write falls back to the default 5m TTL and 1h writes are under-reported.
+    """
+    from unittest.mock import MagicMock
+
+    from ddtrace.contrib.internal.anthropic._streaming import _construct_message
+    from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+    usage = Usage(
+        input_tokens=12,
+        output_tokens=0,
+        cache_creation_input_tokens=3000,
+        cache_read_input_tokens=0,
+        cache_creation=cache_creation,
+    )
+    message = Message(
+        id="msg_1",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-5",
+        content=[TextBlock(type="text", text="hi")],
+        stop_reason="end_turn",
+        stop_sequence=None,
+        usage=usage,
+    )
+    chunks = [
+        RawMessageStartEvent(
+            type="message_start",
+            message=message.model_copy(update={"content": [], "usage": usage}),
+        ),
+        RawMessageDeltaEvent(
+            type="message_delta",
+            delta=Delta(stop_reason="end_turn", stop_sequence=None),
+            usage=MessageDeltaUsage(
+                output_tokens=5,
+                input_tokens=12,
+                cache_creation_input_tokens=3000,
+                cache_read_input_tokens=0,
+            ),
+        ),
+    ]
+
+    integration = AnthropicIntegration(MagicMock())
+    streamed_metrics = integration._extract_usage(None, _construct_message(chunks)["usage"])
+    non_streamed_metrics = integration._extract_usage(None, usage.model_copy(update={"output_tokens": 5}))
+
+    assert streamed_metrics == non_streamed_metrics
+    assert streamed_metrics["cache_write_input_tokens"] == 3000
+    assert streamed_metrics["ephemeral_1h_input_tokens"] == expected_1h
+    assert streamed_metrics["ephemeral_5m_input_tokens"] == expected_5m
