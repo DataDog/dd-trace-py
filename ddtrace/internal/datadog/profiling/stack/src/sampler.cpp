@@ -56,8 +56,8 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_foreign_takeover(fast_copy_foreign_takeover.load(std::memory_order_relaxed));
 }
 
-static void
-mark_fast_copy_foreign_takeover()
+void
+Datadog::mark_fast_copy_foreign_takeover()
 {
     fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
     mark_fast_copy_syscall_fallback();

@@ -248,6 +248,52 @@ def test_fast_copy_fork_during_warmup() -> None:
 @pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
 @pytest.mark.subprocess(
     env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_faulthandler_after_foreign_warmup",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_faulthandler_enable_after_foreign_during_warmup() -> None:
+    """Foreign handler then faulthandler.enable during warmup must not reclaim (PROF-15342).
+
+    If a foreign handler sits on top of ours, uninstall is a no-op. Reclaiming after
+    faulthandler.enable would loop (us -> faulthandler -> foreign -> us) and the
+    warmup deadline would upgrade to safe_memcpy over that chain.
+    """
+    import faulthandler
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    _stack._set_fast_copy_warmup_seconds(3.0)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    assert wait_for_fast_copy_state(_stack, False), "sampler never dropped to the syscall copy"
+
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    faulthandler.enable()
+    assert _stack.segv_handler_installed() is False, (
+        "reclaimed over foreign handler after faulthandler.enable during warmup"
+    )
+
+    # Past the warmup deadline: must stay on syscall copy, not upgrade.
+    time.sleep(4)
+    assert _stack.fast_copy_memory_active() is False, "upgraded to safe_memcpy after foreign+faulthandler during warmup"
+    p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_foreign_takeover",
         DD_PROFILING_UPLOAD_INTERVAL="1",
         _DD_PROFILING_STACK_FAST_COPY="1",

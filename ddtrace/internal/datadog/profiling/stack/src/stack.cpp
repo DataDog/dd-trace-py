@@ -1040,9 +1040,20 @@ static PyObject*
 stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     // Step out before a coordinated install (e.g. faulthandler) so it doesn't chain to us.
-    if (fast_copy_handler_ops_enabled()) {
-        uninstall_segv_handler();
+    if (!fast_copy_handler_ops_enabled()) {
+        Py_RETURN_NONE;
     }
+    // Foreign already on top (e.g. X during warmup): uninstall is a no-op. Reclaiming
+    // after faulthandler.enable would set g_old_* to faulthandler while X still points
+    // at us — a loop — and the warmup deadline would then upgrade to safe_memcpy.
+    // Sticky takeover instead so reinstall becomes a no-op (PROF-15342).
+    if (!segv_handler_installed()) {
+        mark_fast_copy_foreign_takeover();
+        (void)set_fast_copy_enabled(false);
+        seed_fast_copy_profiler_stats();
+        Py_RETURN_NONE;
+    }
+    uninstall_segv_handler();
     Py_RETURN_NONE;
 }
 
