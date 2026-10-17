@@ -244,6 +244,67 @@ def mock_response_mcp_tool_call():
     )
 
 
+def mock_response_web_and_file_search():
+    """Responses payload calling both server-side search tools.
+
+    Items are in the observed real-world order (web_search_call, message, file_search_call,
+    message), plus a failed search and a completed open_page action, neither of which is billed.
+    """
+    from openai.types.responses import Response
+
+    return Response.model_construct(
+        model="gpt-4.1-2025-04-14",
+        output=[
+            {
+                "id": "ws_1",
+                "type": "web_search_call",
+                "status": "completed",
+                "action": {"type": "search", "query": "positive news story today"},
+            },
+            {
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": "Here is a positive news story.", "annotations": []}],
+            },
+            {
+                "id": "fs_1",
+                "type": "file_search_call",
+                "status": "completed",
+                "queries": ["company holiday policy", "holiday schedule", "PTO"],
+                "results": None,
+            },
+            {"id": "ws_2", "type": "web_search_call", "status": "failed", "action": {"type": "search"}},
+            {
+                "id": "ws_3",
+                "type": "web_search_call",
+                "status": "completed",
+                "action": {"type": "open_page", "url": "https://example.com/news"},
+            },
+            {
+                "id": "msg_2",
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": "The holiday policy is 20 days.", "annotations": []}],
+            },
+        ],
+        temperature=1.0,
+        top_p=1.0,
+        tool_choice="auto",
+        truncation="disabled",
+        text={"format": {"type": "text"}},
+        usage={
+            "input_tokens": 120,
+            "input_tokens_details": {"cached_tokens": 0},
+            "output_tokens": 40,
+            "output_tokens_details": {"reasoning_tokens": 0},
+            "total_tokens": 160,
+        },
+    )
+
+
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
