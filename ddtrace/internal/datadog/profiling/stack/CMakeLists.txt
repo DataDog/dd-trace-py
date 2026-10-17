@@ -57,6 +57,7 @@ endif()
 # Specify the target C-extension that we want to build
 add_library(
     ${EXTENSION_NAME} SHARED
+    src/echion/asyncio_debug.cc
     src/echion/danger.cc
     src/echion/frame.cc
     src/echion/greenlets.cc
