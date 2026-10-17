@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    kafka: Fixes an issue where Data Streams Monitoring did not inject the pathway context header or track
+    produce offsets when ``confluent_kafka`` ``Producer.produce()`` was called with ``headers`` as a list of
+    ``(key, value)`` tuples or as ``None``. Consumers of those messages now continue the producer's pathway
+    instead of starting a new one.
