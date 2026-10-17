@@ -563,6 +563,37 @@ def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
     mock_llmobs_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
 
 
+@pytest.mark.parametrize("kind", ["llm", "embedding", "tool", "task", "workflow", "agent", "retrieval"])
+def test_manual_span_sets_apm_shadow_tags(llmobs, kind):
+    with getattr(llmobs, kind)() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == kind
+    assert span.get_metric("_dd.llmobs.enabled") == 1
+
+
+def test_manual_llm_span_sets_apm_shadow_model_tags(llmobs):
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_tag("_dd.llmobs.model_provider") == "test_provider"
+
+
+def test_manual_llm_span_skips_unknown_apm_shadow_model_tags(llmobs):
+    with llmobs.llm() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") is None
+    assert span.get_tag("_dd.llmobs.model_provider") is None
+
+
+def test_manual_span_sets_apm_shadow_tags_while_disabled(llmobs):
+    llmobs.disable()
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+
+
 def test_start_span_uses_kind_as_default_name(llmobs):
     with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
         assert span.name == "llm"
@@ -1993,16 +2024,37 @@ def test_agent_span_sets_agent_version_tag(llmobs):
     assert get_llmobs_tags(span)["agent_version"] == "v3"
 
 
-def test_agent_span_version_not_set_on_children(llmobs):
-    """The version identifies the agent, so it stays on the agent span."""
+def test_agent_span_version_set_on_descendants(llmobs):
     with llmobs.agent(name="test_agent", version="v3"):
         with llmobs.workflow(name="test_workflow") as workflow_span:
             with llmobs.llm(name="test_llm", model_name="test") as llm_span:
                 pass
-            with llmobs.tool(name="test_tool") as tool_span:
-                pass
+        with llmobs.tool(name="test_tool") as tool_span:
+            pass
     for span in (workflow_span, llm_span, tool_span):
+        assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+def test_agent_version_not_set_outside_the_agent(llmobs):
+    with llmobs.workflow(name="root") as root_span:
+        with llmobs.agent(name="test_agent", version="v3"):
+            pass
+        with llmobs.tool(name="sibling") as sibling_span:
+            pass
+    for span in (root_span, sibling_span):
         assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_sibling_agents_version_their_own_subtrees(llmobs):
+    with llmobs.workflow(name="root"):
+        with llmobs.agent(name="flight_agent", version="v1"):
+            with llmobs.tool(name="flight_tool") as flight_tool:
+                pass
+        with llmobs.agent(name="hotel_agent", version="v2"):
+            with llmobs.tool(name="hotel_tool") as hotel_tool:
+                pass
+    assert get_llmobs_tags(flight_tool)["agent_version"] == "v1"
+    assert get_llmobs_tags(hotel_tool)["agent_version"] == "v2"
 
 
 def test_agent_span_without_version_sets_no_tag(llmobs):
@@ -2019,25 +2071,57 @@ def test_nested_agent_spans_each_carry_their_own_version(llmobs):
     assert get_llmobs_tags(inner_span)["agent_version"] == "v3"
 
 
-def test_nested_agent_span_does_not_inherit_ancestor_version(llmobs):
-    """An unversioned sub-agent stays unversioned rather than claiming its parent's version."""
+def test_nested_agent_without_version_inherits_ancestor_version(llmobs):
     with llmobs.agent(name="outer_agent", version="v1"):
         with llmobs.agent(name="inner_agent") as inner_span:
-            pass
-    assert "agent_version" not in get_llmobs_tags(inner_span)
-
-
-def test_annotation_context_sets_agent_tags_on_agent_span_only(llmobs):
-    with llmobs.annotation_context(agent={"version": "v3"}):
-        with llmobs.agent(name="test_agent") as agent_span:
-            with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+            with llmobs.llm(name="inner_llm", model_name="test") as inner_llm:
                 pass
+    assert get_llmobs_tags(inner_span)["agent_version"] == "v1"
+    assert get_llmobs_tags(inner_llm)["agent_version"] == "v1"
+
+
+def test_nested_agent_version_scoped_to_its_subtree(llmobs):
+    with llmobs.agent(name="outer_agent", version="v1"):
+        with llmobs.agent(name="inner_agent", version="v2"):
+            with llmobs.llm(name="inner_llm", model_name="test") as inner_llm:
+                pass
+        with llmobs.llm(name="outer_llm", model_name="test") as outer_llm:
+            pass
+    assert get_llmobs_tags(inner_llm)["agent_version"] == "v2"
+    assert get_llmobs_tags(outer_llm)["agent_version"] == "v1"
+
+
+def test_inherited_agent_version_wins_over_explicit_tag(llmobs):
+    with llmobs.agent(name="test_agent", version="v3"):
+        with llmobs.tool(name="test_tool") as tool_span:
+            llmobs.annotate(span=tool_span, tags={"agent_version": "from_tags"})
+    assert get_llmobs_tags(tool_span)["agent_version"] == "v3"
+
+
+def test_annotation_context_agent_version_reaches_agent_subtrees_only(llmobs):
+    with llmobs.annotation_context(agent={"version": "v3"}):
+        with llmobs.workflow(name="test_workflow") as workflow_span:
+            with llmobs.agent(name="test_agent") as agent_span:
+                with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                    pass
     assert get_llmobs_tags(agent_span)["agent_version"] == "v3"
-    assert "agent_version" not in get_llmobs_tags(llm_span)
+    assert get_llmobs_tags(llm_span)["agent_version"] == "v3"
+    assert "agent_version" not in get_llmobs_tags(workflow_span)
+
+
+def test_agent_version_option_wins_over_annotation_context(llmobs):
+    with llmobs.annotation_context(agent={"version": "from_context"}):
+        with llmobs.agent(name="test_agent", version="from_option") as agent_span:
+            with llmobs.tool(name="test_tool") as tool_span:
+                pass
+    for span in (agent_span, tool_span):
+        assert get_llmobs_tags(span)["agent_version"] == "from_option"
 
 
 def test_user_supplied_agent_version_tag_is_left_alone(llmobs):
-    """`tags` is an arbitrary user namespace, so an app already using this key keeps it."""
+    """`tags` is an arbitrary user namespace, so an app already using this key keeps it when no
+    versioned agent is above the span.
+    """
     with llmobs.annotation_context(tags={"agent_version": "mine-v1"}):
         with llmobs.workflow(name="test_workflow") as workflow_span:
             pass
@@ -2584,25 +2668,33 @@ def test_service_enable_starts_evaluator_runner_when_evaluators_exist(tracer):
     pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
-            llmobs_service.enable(_tracer=tracer)
-            llmobs_instance = llmobs_service._instance
-            assert llmobs_instance is not None
-            assert llmobs_service.enabled
-            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-            assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            # Guard against leaked enabled=True from a prior failed test
             llmobs_service.disable()
+            llmobs_service.enable(_tracer=tracer)
+            try:
+                llmobs_instance = llmobs_service._instance
+                assert llmobs_instance is not None
+                assert llmobs_service.enabled
+                assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+                assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            finally:
+                llmobs_service.disable()
 
 
 def test_service_enable_does_not_start_evaluator_runner(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        # Guard against leaked enabled=True from a prior failed test
         llmobs_service.disable()
+        llmobs_service.enable(_tracer=tracer)
+        try:
+            llmobs_instance = llmobs_service._instance
+            assert llmobs_instance is not None
+            assert llmobs_service.enabled
+            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+            assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
+            assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        finally:
+            llmobs_service.disable()
 
 
 def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):

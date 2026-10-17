@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 import ddtrace.internal.coverage.installer
+from ddtrace.internal.utils.paths import relative_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
 
@@ -44,10 +45,10 @@ def uninstall_coverage() -> None:
 
 @functools.lru_cache(maxsize=65536)
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
-    try:
-        return f"/{Path(absolute_path).relative_to(relative_to)}"
-    except ValueError:
+    relative = relative_path(Path(absolute_path), Path(relative_to))
+    if relative is None:
         return None  # covered file does not belong to current repo
+    return f"/{relative}"
 
 
 _FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())

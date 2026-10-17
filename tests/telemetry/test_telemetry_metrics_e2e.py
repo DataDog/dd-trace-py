@@ -158,11 +158,13 @@ def agent_that_never_answers_telemetry():
     agent behaves: it accepts the connection and then answers late or never.
     """
     release = threading.Event()
+    request_received = threading.Event()
 
     class Handler(BaseHTTPRequestHandler):
         def _serve(self):
             self.rfile.read(int(self.headers.get("Content-Length") or 0))
             if "telemetry" in self.path:
+                request_received.set()
                 release.wait()
             body = b"{}"
             try:
@@ -186,7 +188,7 @@ def agent_that_never_answers_telemetry():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield "http://127.0.0.1:%d" % server.server_address[1]
+        yield "http://127.0.0.1:%d" % server.server_address[1], request_received
     finally:
         release.set()
         server.shutdown()
@@ -221,10 +223,64 @@ print(longest)
     env = os.environ.copy()
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
     env.pop("DD_API_KEY", None)
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
-    with agent_that_never_answers_telemetry() as agent_url:
+    with agent_that_never_answers_telemetry() as (agent_url, request_received):
         env["DD_TRACE_AGENT_URL"] = agent_url
         stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
+    assert request_received.is_set(), "the telemetry worker did not contact the agent"
     longest = float(stdout.decode().strip().splitlines()[-1])
     assert longest < 1.0, "recording 5000 telemetry metric points took %.1f seconds" % longest
+
+
+def test_metric_points_do_not_block_on_full_debug_log():
+    """Metric drops must not block on a full debug log pipe."""
+    code = """
+import os
+import time
+from ddtrace.internal.native._native import logger
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+telemetry_writer.enable()
+input()
+logger.set_log_level("debug")
+deadline = time.monotonic() + 5
+while time.monotonic() < deadline:
+    for _ in range(2500):
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "test_metric", 1)
+        telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE.TRACERS, "test_metric", 1, tags=(("integration_name", "test"),)
+        )
+    time.sleep(0.05)
+os._exit(0)
+"""
+    env = os.environ.copy()
+    env.pop("DD_API_KEY", None)
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    env["_DD_NATIVE_LOGGING_BACKEND"] = "stderr"
+    env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = "warning"
+    with agent_that_never_answers_telemetry() as (agent_url, request_received):
+        env["DD_TRACE_AGENT_URL"] = agent_url
+        process = subprocess.Popen(
+            [sys.executable, "-c", code],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        try:
+            assert request_received.wait(15), "the telemetry worker did not contact the agent"
+            process.stdin.write(b"\n")
+            process.stdin.flush()
+            try:
+                status = process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                pytest.fail("recording telemetry metric points blocked while stderr was not being read")
+            assert status == 0, process.stderr.read().decode(errors="replace")
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate(timeout=5)

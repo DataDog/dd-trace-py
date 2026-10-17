@@ -22,6 +22,7 @@ from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.inspection import linenos
 
 
 if TYPE_CHECKING:
@@ -65,14 +66,27 @@ elif sys.version_info < (3, 14):
         return code.co_firstlineno
 
 
-else:
+elif sys.version_info < (3, 15):
 
     def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first instruction line on Python 3.14 and later."""
+        """Return the first instruction line on Python 3.14."""
         import dis
 
         for instr in dis.get_instructions(code):
             if instr.line_number is not None:
+                return instr.line_number
+        return code.co_firstlineno
+
+
+else:
+
+    def _first_instr_line(code: types.CodeType) -> int:
+        """Return the first body line on Python 3.15+, since sys.monitoring never reports the def line."""
+        import dis
+
+        valid_lines = linenos(code)
+        for instr in dis.get_instructions(code):
+            if instr.line_number in valid_lines:
                 return instr.line_number
         return code.co_firstlineno
 
@@ -202,8 +216,8 @@ class Instrumenter:
                 original_code = func.__code__
                 # co_firstlineno is the `def` line, but on
                 # Python <3.11 the bytecode instructions start on the first
-                # body line (the line after `def`).  Use the first real
-                # instruction line so inject_hook can find a matching line.
+                # body line (the line after `def`), and on 3.15+ the def line
+                # cannot be hooked. Use the first hookable instruction line.
                 first_line = _first_instr_line(original_code)
 
                 inject_hook(func, sca_detection_hook, first_line, qualified_name)
