@@ -6,6 +6,8 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -19,6 +21,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
@@ -120,6 +123,14 @@ def _wrap_request(func, instance, args, kwargs):
 
         instance._datadog_span = span
 
+        if config._otel_trace_semantics_enabled:
+            # Name the span before injection: the sampling decision made there must see the
+            # OTel resource.
+            method = get_argument_value(args, kwargs, 0, "method")
+            if isinstance(method, str):
+                set_method_tag(span, method)
+                set_otel_resource_for_method(span, method)
+
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
             if len(args) > 3:
@@ -167,7 +178,18 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         if (scheme == "http" and instance.port == 80) or (scheme == "https" and instance.port == 443):
             port = ""
-        url = f"{scheme}://{instance.host}{port}{path}"
+        if config._otel_trace_semantics_enabled:
+            if path[:8].lower().startswith(("http://", "https://")):
+                # Absolute-form target (plain HTTP proxy): already a full URL.
+                url = path
+            else:
+                host = instance.host
+                if ":" in host and not host.startswith("["):
+                    host = f"[{host}]"
+                # Asterisk-form ("*") and authority-form ("host:port") targets are not paths.
+                url = f"{scheme}://{host}{port}{path if path.startswith('/') else ''}"
+        else:
+            url = f"{scheme}://{instance.host}{port}{path}"
 
         # sanitize url
         parsed = parse.urlparse(url)
@@ -177,8 +199,6 @@ def _wrap_putrequest(func, instance, args, kwargs):
         trace_utils.set_http_meta(
             span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
         )
-        if config._otel_trace_semantics_enabled:
-            span.resource = method.upper()
 
     except Exception:
         log.debug("error applying request tags", exc_info=True)
