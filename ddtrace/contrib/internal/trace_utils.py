@@ -389,7 +389,7 @@ def set_http_meta(
     response_headers: Optional[Mapping[str, str]] = None,
     retries_remain: Optional[Union[int, str]] = None,
     raw_uri: Optional[str] = None,
-    request_cookies: Optional[dict[str, str]] = None,
+    request_cookies: Optional[Mapping[str, Union[str, list[str]]]] = None,
     request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]] = None,
     request_body: Optional[Union[str, dict[str, list[str]]]] = None,
     peer_ip: Optional[str] = None,
