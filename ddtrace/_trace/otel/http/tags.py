@@ -186,6 +186,19 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
             span._set_attribute(otel_http.SERVER_PORT, port)
 
 
+def is_otel_server_error_status(status_code: int) -> bool:
+    """Whether a server response with this status marks the span as an error under OTel semantics."""
+    setting = _SERVER_ERROR_STATUSES
+    if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
+        # OTel treats any code at or above 500 as an error.
+        return status_code >= 500
+    return bool(config._http_server.is_error_code(status_code))
+
+
+def is_otel_non_error_status(status_code: int) -> bool:
+    return config._otel_trace_semantics_enabled and not is_otel_server_error_status(status_code)
+
+
 # This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
@@ -281,11 +294,7 @@ class OTelHTTPSpanAttributes:
             if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
                 return status_code >= 400
             return bool(config._http_client.is_error_code(status_code))
-        setting = _SERVER_ERROR_STATUSES
-        if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
-            # OTel treats any code at or above 500 as an error.
-            return status_code >= 500
-        return bool(config._http_server.is_error_code(status_code))
+        return is_otel_server_error_status(status_code)
 
     def set_user_agent(self, user_agent: Optional[str]) -> None:
         if user_agent:
@@ -321,3 +330,92 @@ def set_method_tag(span: Span, method: str) -> None:
         span._set_attribute(otel_http.REQUEST_METHOD_ORIGINAL, original_method)
     else:
         span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)
+
+
+def copy_server_url_tags(source: Span, destination: Span) -> None:
+    if not config._otel_trace_semantics_enabled:
+        destination.set_tag(http.URL, source.get_tag(http.URL))
+        return
+
+    for key in (
+        otel_http.URL_SCHEME,
+        otel_http.URL_PATH,
+        otel_http.URL_QUERY,
+        net.SERVER_ADDRESS,
+        otel_http.SERVER_PORT,
+    ):
+        value = source._get_attribute(key)
+        if value is not None:
+            destination._set_attribute(key, value)
+
+
+def http_block_metadata(
+    method: Optional[str],
+    status_code: Union[int, str],
+    query: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    if not config._otel_trace_semantics_enabled:
+        metadata[http.STATUS_CODE] = str(status_code)
+        if method is not None:
+            metadata[http.METHOD] = method
+        if query:
+            metadata[http.QUERY_STRING] = query
+        if user_agent:
+            metadata[http.USER_AGENT] = user_agent
+        return metadata
+
+    metadata[otel_http.RESPONSE_STATUS_CODE] = int(status_code)
+    if method is not None:
+        normalized_method, original_method = normalize_http_method(method)
+        metadata[otel_http.REQUEST_METHOD] = normalized_method
+        if original_method is not None:
+            metadata[otel_http.REQUEST_METHOD_ORIGINAL] = original_method
+    if query:
+        obfuscated = _obfuscated_query(query)
+        if obfuscated:
+            metadata[otel_http.URL_QUERY] = cast(Any, obfuscated)
+    if user_agent:
+        metadata[otel_http.USER_AGENT_ORIGINAL] = user_agent
+    return metadata
+
+
+def set_client_address_tags(span: Span, client_address: str, network_peer_address: Optional[str] = None) -> None:
+    if config._otel_trace_semantics_enabled:
+        span._set_attribute(otel_http.CLIENT_ADDRESS, client_address)
+        if network_peer_address:
+            span._set_attribute(otel_http.NETWORK_PEER_ADDRESS, network_peer_address)
+    else:
+        span._set_attribute(http.CLIENT_IP, client_address)
+        if network_peer_address:
+            span._set_attribute("network.client.ip", network_peer_address)
+
+
+def set_query_string_tag(span: Span, query: str) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.QUERY_STRING, query)
+        return
+    _set_otel_query(span, query)
+
+
+def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
+    if config._otel_trace_semantics_enabled:
+        set_url_tags_otel_server(integration_config, span, url, query)
+    else:
+        span._set_attribute(
+            http.URL,
+            cast(Any, _sanitized_url(url, query, integration_config.http_tag_query_string)),
+        )
+
+
+def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.STATUS_CODE, str(status_code))
+        return
+    try:
+        int_status_code = int(status_code)
+    except (TypeError, ValueError):
+        log.debug("failed to convert http status code %r to int", status_code)
+        return
+    span._set_attribute(otel_http.RESPONSE_STATUS_CODE, int_status_code)

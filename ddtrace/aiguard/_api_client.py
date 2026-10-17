@@ -30,6 +30,7 @@ from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -464,6 +465,7 @@ class AIGuardClient:
                 self._add_request_to_telemetry(tuple(telemetry_tags))
                 root_span = span_bus.get_root_span()
                 if root_span:
+                    otel_semantics = config._otel_trace_semantics_enabled
                     _aiguard_manual_keep(root_span)
                     root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
                     # Populate client IPs on the service-entry span only when an ai_guard span
@@ -475,14 +477,19 @@ class AIGuardClient:
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     if client_ips:
                         client_ip, peer_ip = client_ips
-                        root_span._set_attribute(http.CLIENT_IP, client_ip)
-                        if peer_ip:
-                            root_span._set_attribute("network.client.ip", peer_ip)
+                        core.dispatch("http.set_client_address", (root_span, client_ip, peer_ip))
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
                     # even when the root span arrives in a later trace chunk.
                     for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
-                        tag_value = root_span.get_tag(tag_name)
+                        source_tag = tag_name
+                        if otel_semantics:
+                            source_tag = {
+                                http.USER_AGENT: otel_http.USER_AGENT_ORIGINAL,
+                                http.CLIENT_IP: otel_http.CLIENT_ADDRESS,
+                                "network.client.ip": otel_http.NETWORK_PEER_ADDRESS,
+                            }.get(tag_name, tag_name)
+                        tag_value = root_span.get_tag(source_tag)
                         if tag_value is not None:
                             span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
                 if should_block:

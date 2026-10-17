@@ -20,6 +20,8 @@ from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_client_address_tags
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
@@ -75,6 +77,7 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -263,7 +266,7 @@ def _on_web_framework_finish_request(
             status_code = int(status_code)
         except ValueError:
             pass
-        span.resource = f"{method} {status_code}"
+        set_instrumentation_resource(span, f"{method} {status_code}")
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -287,7 +290,10 @@ def _on_web_framework_finish_request(
 def _set_inferred_proxy_tags(span: Span, status_code):
     if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
         inferred_span = span._parent
-        status_code = status_code or span._get_attribute("http.status_code")
+        # Proxy spans keep Datadog status attributes; only the source lookup follows active semantics.
+        status_code = status_code or span._get_attribute(
+            otel_http.RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
+        )
         if status_code:
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
@@ -744,6 +750,10 @@ def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str
     for tk, tv in metadata.items():
         span_from_context(ctx)._set_attribute(tk, tv)
     _set_url_tag(django_config, span_from_context(ctx), url, query)
+
+
+def _on_http_set_client_address(span: Span, client_address: str, network_peer_address: Optional[str] = None) -> None:
+    set_client_address_tags(span, client_address, network_peer_address)
 
 
 def _on_django_after_request_headers_post(
@@ -1812,6 +1822,7 @@ def listen():
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
+    core.on("http.set_client_address", _on_http_set_client_address)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.patched_api_call.success", _on_botocore_patched_api_call_success)
     core.on("botocore.patched_kinesis_api_call.success", _on_botocore_patched_api_call_success)
