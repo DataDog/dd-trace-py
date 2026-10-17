@@ -99,7 +99,7 @@ def test_fast_copy_memory_disabled() -> None:
     err=None,
 )
 def test_fast_copy_memory_enabled() -> None:
-    """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy (PROF-15342)."""
+    """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy."""
     import json
     import os
     import time
@@ -176,7 +176,7 @@ def test_fast_copy_memory_enabled() -> None:
     err=None,
 )
 def test_fast_copy_faulthandler_enable_during_warmup() -> None:
-    """faulthandler.enable() inside the warmup window must not cost us the handler (PROF-15342)."""
+    """faulthandler.enable() inside the warmup window must not cost us the handler."""
     import faulthandler
 
     from ddtrace.internal.datadog.profiling.stack import _stack
@@ -212,7 +212,7 @@ def test_fast_copy_faulthandler_enable_during_warmup() -> None:
     err=None,
 )
 def test_fast_copy_fork_during_warmup() -> None:
-    """A child forked mid-warmup re-runs the warmup decision rather than inheriting it (PROF-16020)."""
+    """A child forked mid-warmup re-runs the warmup decision rather than inheriting it."""
     import os
 
     from ddtrace.internal.datadog.profiling.stack import _stack
@@ -255,7 +255,7 @@ def test_fast_copy_fork_during_warmup() -> None:
     err=None,
 )
 def test_fast_copy_faulthandler_enable_after_foreign_during_warmup() -> None:
-    """Foreign handler then faulthandler.enable during warmup must not reclaim (PROF-15342).
+    """Foreign handler then faulthandler.enable during warmup must not reclaim.
 
     If a foreign handler sits on top of ours, uninstall is a no-op. Reclaiming after
     faulthandler.enable would loop (us -> faulthandler -> foreign -> us) and the
@@ -291,6 +291,49 @@ def test_fast_copy_faulthandler_enable_after_foreign_during_warmup() -> None:
     p.stop()
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_faulthandler_no_syscall",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_faulthandler_enable_stops_when_no_syscall_fallback() -> None:
+    """Foreign takeover + faulthandler.enable with no process_vm_readv must stop sampling.
+
+    Uninstall marks sticky takeover; if dropping to the syscall copy fails, resume must
+    not continue with leftover safe_memcpy under a foreign handler (handler checks are
+    skipped once sticky is set).
+    """
+    import faulthandler
+    import signal
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    # No process_vm_readv: skip warmup, stay on safe_memcpy, leave no syscall fallback.
+    _stack._set_process_vm_readv_available(False)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    faulthandler.enable()
+
+    assert _stack.is_safe_copy_failed(), "expected failed_safe_copy when uninstall cannot fall back"
+    # pause_sampling returns False when the sampler is not running (stopped in uninstall).
+    assert _stack.pause_sampling() is False, "sampler should have stopped instead of resuming into memcpy"
+    p.stop()
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
 @pytest.mark.subprocess(
     env=dict(
@@ -301,7 +344,7 @@ def test_fast_copy_faulthandler_enable_after_foreign_during_warmup() -> None:
     err=None,
 )
 def test_fast_copy_foreign_handler_takeover_metadata() -> None:
-    """Foreign SIGSEGV takeover sticks across stop/set_fast_copy/restart (PROF-15342)."""
+    """Foreign SIGSEGV takeover sticks across stop/set_fast_copy/restart."""
     import json
     import os
     import signal

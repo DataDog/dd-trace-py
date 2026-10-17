@@ -442,7 +442,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     // (Re)install once only if we still own both handlers. Coordinated chains
     // (faulthandler/crashtracker) are fine; foreign owners (abseil/vLLM, PyTorch/CUDA)
-    // must not be overwritten -- leave them and use the syscall copy (PROF-15342).
+    // must not be overwritten -- leave them and use the syscall copy.
     static std::once_flag segv_handler_once;
     if (fast_copy_handler_ops_enabled()) {
         std::call_once(segv_handler_once, []() {
@@ -456,9 +456,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
-    // Warm up on syscall copy; upgrade only if we still own both handlers (PROF-15342).
-    // Fork mid-warmup must re-decide (PROF-16020); foreign-takeover parents must
-    // not reclaim in the child.
+    // Warm up on syscall copy; upgrade only if we still own both handlers.
+    // Fork mid-warmup must re-decide; foreign-takeover parents must not reclaim in the child.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else

@@ -17,6 +17,7 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <iostream>
 #include <string_view>
 #include <utility>
 
@@ -1025,7 +1026,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     fast_copy_desired = want && safe_memcpy_initialized;
     // Sticky foreign takeover: never reselect safe_memcpy across stop/set_fast_copy/restart
     // while the flag is set, or the next sampling thread skips warmup with memcpy active
-    // under a foreign SIGSEGV/SIGBUS handler (PROF-15342).
+    // under a foreign SIGSEGV/SIGBUS handler.
     const bool enable_fast_copy = want && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
     if (want && !enable_fast_copy) {
         mark_fast_copy_syscall_fallback();
@@ -1046,10 +1047,18 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // Foreign already on top (e.g. X during warmup): uninstall is a no-op. Reclaiming
     // after faulthandler.enable would set g_old_* to faulthandler while X still points
     // at us — a loop — and the warmup deadline would then upgrade to safe_memcpy.
-    // Sticky takeover instead so reinstall becomes a no-op (PROF-15342).
+    // Sticky takeover instead so reinstall becomes a no-op.
     if (!segv_handler_installed()) {
         mark_fast_copy_foreign_takeover();
-        (void)set_fast_copy_enabled(false);
+        // Same as the sampling-thread takeover path: if syscall fallback is unavailable,
+        // stop rather than let resume_sampling continue with leftover safe_memcpy while
+        // sticky takeover has disabled the handler-ownership checks.
+        if (!set_fast_copy_enabled(false)) {
+            std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                         "stopping stack sampling to avoid crashing."
+                      << std::endl;
+            Sampler::get().stop();
+        }
         seed_fast_copy_profiler_stats();
         Py_RETURN_NONE;
     }
