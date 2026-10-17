@@ -973,6 +973,7 @@ suites:
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
+      POSTGRES_IMAGE: registry.ddbuild.io/images/mirror/postgres:16-alpine
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
@@ -1055,10 +1056,14 @@ suites:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
-          command: >-
-            pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
-            -k 'not test_user_name_included and not test_user_name_excluded and not
-            test_cached_view' tests/contrib/django
+          runs:
+            - command: >-
+                pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
+                -k 'not test_user_name_included and not test_user_name_excluded' tests/contrib/django
+            - command: >-
+                pytest {cmdargs}
+                tests/contrib/django/test_django_dbm.py::test_django_postgres_dbm_propagation_enabled
+                tests/contrib/django/test_django_snapshots.py::test_psycopg3_query_default
         - name: django:celery
           python: ['3.9']
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, 'sqlalchemy~=1.2.18', 'django~=2.2.0']
