@@ -23,7 +23,6 @@ from typing import Optional
 
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 
@@ -61,7 +60,10 @@ _MULTIPLEXER_TOOL_NAME = "ddtrace"
 _CANDIDATE_TOOL_IDS = (3,)
 
 _tool_id: Optional[int] = None
-_tool_lock = Lock()
+# Reentrant because _release_tool_if_unused takes it from unregister(), which
+# weakref.finalize callbacks call (e.g. when a wrapped function is collected),
+# and a GC pass can run those on the same thread while _setup() holds the lock.
+_tool_lock = RLock()
 
 _registry_lock = RLock()
 

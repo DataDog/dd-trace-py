@@ -14,7 +14,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange

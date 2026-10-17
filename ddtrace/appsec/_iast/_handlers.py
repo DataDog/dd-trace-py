@@ -3,7 +3,7 @@ import functools
 from types import ModuleType
 from typing import Any
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_endpoint
