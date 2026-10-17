@@ -338,6 +338,18 @@ def traced_chain_stream(func, instance, args, kwargs):
     )
 
 
+def _join_chat_stream_chunks(chunks):
+    # Adding AIMessageChunks pairwise re-parses the accumulated tool call args on every step, which is
+    # quadratic in the stream length. Merge them in a single pass when supported (langchain_core>=0.2.13).
+    add_ai_message_chunks = getattr(langchain_core.messages.ai, "add_ai_message_chunks", None)
+    if add_ai_message_chunks and all(isinstance(chunk, langchain_core.messages.ai.AIMessageChunk) for chunk in chunks):
+        return add_ai_message_chunks(chunks[0], *chunks[1:])
+    joined_chunks = chunks[0]
+    for chunk in chunks[1:]:
+        joined_chunks += chunk  # base message types support __add__ for concatenation
+    return joined_chunks
+
+
 def traced_chat_stream(func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
     llm_provider = instance._llm_type
@@ -348,12 +360,7 @@ def traced_chat_stream(func, instance, args, kwargs):
 
     def _on_span_finished(span: Span, streamed_chunks):
         kwargs["_dd.identifying_params"] = instance._identifying_params
-        if len(streamed_chunks):
-            joined_chunks = streamed_chunks[0]
-            for chunk in streamed_chunks[1:]:
-                joined_chunks += chunk  # base message types support __add__ for concatenation
-        else:
-            joined_chunks = []
+        joined_chunks = _join_chat_stream_chunks(streamed_chunks) if streamed_chunks else []
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
 
     return shared_stream(
