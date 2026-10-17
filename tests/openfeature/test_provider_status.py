@@ -174,7 +174,8 @@ class TestProviderStatus:
         """Test that provider returns to NOT_READY after shutdown."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             provider = DataDogProvider()
-            api.set_provider(provider)
+            # A background initialize() that finishes after shutdown() would set READY again.
+            _set_provider(provider)
 
             try:
                 # Process a configuration
