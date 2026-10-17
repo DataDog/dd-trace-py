@@ -8,11 +8,10 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
+from ddtrace.llmobs._integrations.agent_manifest import build_agent_manifest
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
-from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
+from ddtrace.llmobs._integrations.agent_manifest import filter_model_settings
 from ddtrace.llmobs._integrations.agent_manifest import is_number
-from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import type_name
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -270,28 +269,25 @@ class PydanticAIIntegration(BaseLLMIntegration):
         declared configuration is read, so the manifest is identical run to run, and a field
         pydantic-ai does not expose is omitted rather than invented.
         """
-        manifest: AgentManifest = {}
-        for name, section in (
-            ("labels", self._manifest_labels),
-            ("instructions", self._manifest_instructions),
-            ("model", self._manifest_model),
-            ("capabilities", self._manifest_capabilities),
-            ("data_contracts", self._manifest_data_contracts),
-            ("memory_policies", self._manifest_memory_policies),
-            ("guardrails", self._manifest_guardrails),
-            ("agent_settings", self._manifest_agent_settings),
-        ):
-            try:
-                manifest.update(section(agent))
-            except Exception:
-                log.debug("failed to build pydantic_ai agent manifest section %s", name, exc_info=True)
-        # Sections assign unconditionally so mypy can check every key name against the type; one
-        # prune here is what drops the fields that mean "not configured".
-        return prune_empty(manifest)
+        return build_agent_manifest(
+            FRAMEWORK_NAME,
+            agent,
+            (
+                ("labels", self._manifest_labels),
+                ("instructions", self._manifest_instructions),
+                ("model", self._manifest_model),
+                ("capabilities", self._manifest_capabilities),
+                ("data_contracts", self._manifest_data_contracts),
+                ("memory_policies", self._manifest_memory_policies),
+                ("guardrails", self._manifest_guardrails),
+                ("agent_settings", self._manifest_agent_settings),
+            ),
+            self._integration_name,
+        )
 
     def _manifest_labels(self, agent: Any) -> AgentManifest:
         """Labels that name the agent. Grouped for failure isolation only; the manifest is flat."""
-        fields: AgentManifest = {"framework": FRAMEWORK_NAME}
+        fields: AgentManifest = {}
         # placeholder per review, matching the span name fallback. Two unnamed agents
         # therefore share it, so name is not an identity.
         agent_name = getattr(agent, "name", None)
@@ -336,15 +332,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # reprs what it cannot encode, which can carry a connection string.
             if isinstance(model_name, str):
                 fields["model"] = model_name
-        settings = getattr(agent, "model_settings", None)
-        if isinstance(settings, dict):
-            allowed: dict[str, Any] = {}
-            for key, value in settings.items():
-                if key not in ALLOWED_MODEL_SETTINGS_KEYS or not is_flat_scalar_value(value):
-                    continue
-                # prune_empty drops what wire_value could not encode, so assign it either way.
-                allowed[key] = wire_value(value)
-            fields["model_settings"] = allowed
+        fields["model_settings"] = filter_model_settings(getattr(agent, "model_settings", None))
         return fields
 
     def _manifest_capabilities(self, agent: Any) -> AgentManifest:
