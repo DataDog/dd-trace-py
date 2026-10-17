@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: On Python 3.14, prevents stack samples from being attributed to stale Python frames after code objects are replaced.

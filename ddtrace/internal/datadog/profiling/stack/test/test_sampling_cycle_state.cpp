@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 
@@ -37,6 +38,25 @@ capture_stack(PyObject* capsule, PyObject* Py_UNUSED(args))
 }
 
 } // namespace
+
+#if PY_VERSION_HEX >= 0x030e0000
+namespace {
+InterpreterInfo
+interpreter(int64_t id, uint64_t generation)
+{
+    InterpreterInfo info;
+    info.id = id;
+    info.code_object_generation = generation;
+    return info;
+}
+
+struct InterpreterWithAlternateGeneration
+{
+    PyInterpreterState interpreter{};
+    uint64_t generation = 0;
+};
+} // namespace
+#endif
 
 #if defined PL_LINUX
 TEST(ThreadInfoCreate, IgnoresNonPthreadPythonThreadId)
@@ -96,6 +116,94 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
     EXPECT_TRUE(thread.current_tasks.empty());
     EXPECT_TRUE(thread.current_greenlets.empty());
 }
+
+#if PY_VERSION_HEX >= 0x030e0000
+TEST(SamplingCycleState, ReadsCodeObjectGenerationFromRuntimeOffset)
+{
+    _PyRuntimeState runtime{};
+    InterpreterWithAlternateGeneration node;
+    node.interpreter.id = 1;
+    node.generation = 42;
+    runtime.interpreters.head = &node.interpreter;
+    runtime.debug_offsets.interpreter_state.code_object_generation =
+      offsetof(InterpreterWithAlternateGeneration, generation);
+
+    InterpreterInfo result;
+    ASSERT_TRUE(for_each_interp(&runtime, [&](InterpreterInfo& info) { result = info; }));
+    EXPECT_EQ(result.interp, &node.interpreter);
+    EXPECT_EQ(result.code_object_generation, 42);
+}
+
+TEST(SamplingCycleState, InterpreterLimitPreservesSamplingAndCacheInvalidation)
+{
+    _PyRuntimeState runtime{};
+    std::vector<InterpreterWithAlternateGeneration> nodes(257);
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        nodes[i].interpreter.id = static_cast<int64_t>(i);
+        nodes[i].interpreter.next = i + 1 < nodes.size() ? &nodes[i + 1].interpreter : nullptr;
+        nodes[i].generation = 1;
+    }
+    runtime.interpreters.head = &nodes[0].interpreter;
+    runtime.debug_offsets.interpreter_state.code_object_generation =
+      offsetof(InterpreterWithAlternateGeneration, generation);
+
+    EchionSampler echion(2);
+    constexpr Frame::Key key = 42;
+    std::vector<InterpreterInfo> captured;
+    auto capture = [&]() {
+        captured.clear();
+        bool success = for_each_interp(&runtime, [&](InterpreterInfo& info) { captured.push_back(info); });
+        EXPECT_TRUE(success);
+        EXPECT_EQ(captured.size(), 256);
+        return echion.update_code_object_generations(captured, success);
+    };
+
+    ASSERT_TRUE(capture());
+    EXPECT_EQ(captured.back().interp, &nodes[255].interpreter);
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    ASSERT_TRUE(capture());
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    nodes[255].generation++;
+    ASSERT_TRUE(capture());
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    // The omitted interpreter's generation is not part of the captured snapshot.
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    nodes[256].generation++;
+    ASSERT_TRUE(capture());
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    // Changing the captured interpreter IDs invalidates the cache even though the count is unchanged.
+    runtime.interpreters.head = &nodes[1].interpreter;
+    ASSERT_TRUE(capture());
+    EXPECT_EQ(captured.back().interp, &nodes[256].interpreter);
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+}
+
+TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
+{
+    EchionSampler echion(2);
+    constexpr Frame::Key key = 42;
+
+    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(2, 1) }, true));
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+
+    EXPECT_TRUE(echion.update_code_object_generations({ interpreter(2, 1), interpreter(1, 1) }, true));
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    EXPECT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(2, 2) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_FALSE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, false));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+}
+#endif
 
 TEST(StackUnwind, ReportsFramesAndTruncationAtLimit)
 {
