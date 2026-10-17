@@ -66,17 +66,52 @@ def test_stop_disables_dynamic_instrumentation():
         mock_di.disable.assert_called_once_with(join=True)
 
 
-def test_apm_tracing_rc_none_value_is_noop():
-    with patch.object(di_product, "start") as mock_start, patch.object(di_product, "stop") as mock_stop:
+def test_apm_tracing_rc_none_value_falls_back_to_local_default(monkeypatch):
+    """An explicit null value is treated like a removed config: fall back to the local value."""
+    from ddtrace.internal.settings.dynamic_instrumentation import config
+
+    monkeypatch.delenv(config.spec.enabled.full_name, raising=False)
+
+    with (
+        patch.object(di_product, "start") as mock_start,
+        patch.object(di_product, "stop") as mock_stop,
+        patch.object(config.parsed, "enabled", False),
+    ):
         apm_tracing_rc({"dynamic_instrumentation_enabled": None}, None)
         mock_start.assert_not_called()
-        mock_stop.assert_not_called()
+        mock_stop.assert_called_once()
 
 
-def test_apm_tracing_rc_missing_key_is_noop():
-    with patch.object(di_product, "start") as mock_start, patch.object(di_product, "stop") as mock_stop:
+def test_apm_tracing_rc_missing_key_falls_back_to_local_default(monkeypatch):
+    """A removed config (missing key) is treated like an explicit false: fall back to the local value."""
+    from ddtrace.internal.settings.dynamic_instrumentation import config
+
+    monkeypatch.delenv(config.spec.enabled.full_name, raising=False)
+
+    with (
+        patch.object(di_product, "start") as mock_start,
+        patch.object(di_product, "stop") as mock_stop,
+        patch.object(config.parsed, "enabled", False),
+    ):
         apm_tracing_rc({}, None)
         mock_start.assert_not_called()
+        mock_stop.assert_called_once()
+
+
+def test_apm_tracing_rc_missing_key_preserves_local_enable(monkeypatch):
+    """A removed config falls back to the local value, so a locally-enabled feature stays enabled."""
+    from ddtrace.internal.settings.dynamic_instrumentation import config
+
+    full_name = config.spec.enabled.full_name
+    monkeypatch.setenv(full_name, "true")
+
+    with (
+        patch.object(di_product, "start") as mock_start,
+        patch.object(di_product, "stop") as mock_stop,
+        patch.object(config.parsed, "enabled", True),
+    ):
+        apm_tracing_rc({}, None)
+        mock_start.assert_called_once()
         mock_stop.assert_not_called()
 
 
