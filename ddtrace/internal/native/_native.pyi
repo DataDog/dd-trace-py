@@ -901,6 +901,48 @@ class TraceExporterBuilder:
         """
         ...
 
+class TraceBuffer:
+    """Buffer finished trace chunks and export them from a libdatadog worker."""
+
+    def __init__(
+        self,
+        builder: TraceExporterBuilder,
+        shared_runtime: SharedRuntime,
+        max_buffered_bytes: Optional[int] = None,
+        flush_threshold_bytes: Optional[int] = None,
+        max_flush_interval_ns: Optional[int] = None,
+        synchronous_export: bool = False,
+        synchronous_export_timeout_ns: Optional[int] = None,
+    ) -> None:
+        """Consume builder and start the export worker. None keeps the libdatadog default."""
+        ...
+    def write(self, spans: Iterable[SpanData], dd_origin: Optional[str] = None) -> Optional[str]:
+        """Add one trace chunk. Return None if the buffer took every span, or else the reason.
+
+        This method never raises, because Span.finish() calls it inside application code.
+        """
+        ...
+    def force_flush(self) -> None:
+        """Tell the worker to export the buffered chunks, and do not wait."""
+        ...
+    def flush(self, timeout_ns: int) -> None:
+        """Export the buffered chunks and wait up to timeout_ns. A timeout_ns of 0 does not wait."""
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Export the buffered chunks, then stop the worker and the exporter within about timeout_ns.
+
+        Call this method before you discard the buffer. If you do not, the exporter workers run
+        until the runtime shuts down. The exporter shutdown gets 20% of timeout_ns, between 0.5 and
+        2 seconds and never more than timeout_ns.
+        """
+        ...
+    def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
+        """Send the exporter health metrics through worker. None stops the metrics."""
+        ...
+    def take_agent_response(self) -> Optional[str]:
+        """Return and clear the body of the most recent changed agent response."""
+        ...
+
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""
 
@@ -1162,7 +1204,7 @@ class SpanData:
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
-    _parent_context: Optional[Any]  # parent Context, or None
+    _parent_context: Optional[Context]  # parent Context, or None
     context: Context  # this span's trace context, built lazily on first read
 
     def __new__(
