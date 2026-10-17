@@ -57,6 +57,7 @@ class DependencyTracker:
 
     def __init__(self) -> None:
         self._imported_dependencies: dict[str, DependencyEntry] = {}
+        self._report_all = False
         self._modules_already_imported: set[str] = set()
         self._lock = Lock()
 
@@ -77,15 +78,12 @@ class DependencyTracker:
             new_keys = {_normalize_dep_name(d["name"]) for d in new_deps}
             self._mark_sent(new_keys)
 
-            # Skip the re-report scan when SCA is disabled.
-            # Without SCA, no entry will ever have unsent metadata, so the
-            # scan over all _imported_dependencies is pure overhead (~887us
-            # at 10K deps).  Only entries created by the SCA hook or with
-            # metadata attached can trigger needs_report() after initial send.
-            if not appsec_telemetry_config.SCA_ENABLED:
+            # Skip re-report scanning when SCA is disabled, except after identity refresh.
+            if not appsec_telemetry_config.SCA_ENABLED and not self._report_all:
                 return new_deps if new_deps else None
 
             re_report_deps = self._collect_rereports(new_keys)
+            self._report_all = False
             all_deps = new_deps + re_report_deps
             return all_deps if all_deps else None
 
@@ -187,11 +185,19 @@ class DependencyTracker:
                 if entry.metadata is None:
                     entry.metadata = []
 
+    def refresh(self) -> None:
+        """Preserve dependency metadata while scheduling a full report for a new worker."""
+        with self._lock:
+            for dependency in self._imported_dependencies.values():
+                dependency.reset_for_refresh()
+            self._report_all = True
+
     def reset(self) -> None:
         """Reset all state (used on fork / queue reset)."""
         with self._lock:
             self._imported_dependencies = {}
             self._modules_already_imported = set()
+            self._report_all = False
 
 
 def update_imported_dependencies(
