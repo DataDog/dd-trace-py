@@ -226,4 +226,8 @@ class Sampler
 void
 seed_fast_copy_profiler_stats();
 
+// Sticky foreign-handler takeover: disable coordinated reclaim and prefer syscall copy.
+void
+mark_fast_copy_foreign_takeover();
+
 } // namespace Datadog

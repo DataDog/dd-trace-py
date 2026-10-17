@@ -54,11 +54,17 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 // Whether safe_copy is currently set to the memcpy-based wrapper.
 inline bool fast_copy_active = false;
 
+// Persistent intent (!= fast_copy_active): warmup does not clear this; fork child re-runs warmup.
+inline bool fast_copy_desired = false;
+
 // User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
 inline bool fast_copy_user_disabled = false;
 
 // Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
 inline bool fast_copy_syscall_fallback = false;
+
+// Sticky foreign-takeover: sampling thread writes; uninstall/reinstall reads.
+inline std::atomic<bool> fast_copy_foreign_takeover{ false };
 
 inline void
 mark_fast_copy_syscall_fallback()
@@ -66,11 +72,20 @@ mark_fast_copy_syscall_fallback()
     fast_copy_syscall_fallback = true;
 }
 
+// Install/reclaim while we still want memcpy recovery, or while memcpy is still
+// the active copy method after a failed disable (no process_vm_readv), and no
+// foreign takeover. Warmup keeps desired set with active cleared.
+inline bool
+fast_copy_handler_ops_enabled()
+{
+    return (fast_copy_desired || fast_copy_active) && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
+}
+
 // Set at init; survives toggling fast_copy_active.
 inline bool safe_memcpy_initialized = false;
 
 #if defined PL_LINUX
-// Whether the process_vm_readv probe succeeded at constructor time.
+// Set by the constructor probe. Tests may override before the sampler starts.
 inline bool process_vm_readv_available = false;
 
 // True when neither safe_memcpy nor process_vm_readv could be initialized.
@@ -96,8 +111,9 @@ init_safe_copy();
 
 // Switch the active copy method at runtime.  Must be called before the
 // sampling thread is started.
-// Returns true on success, false if the requested method (and its fallback) are unavailable
-// (in which case failed_safe_copy is set and stack profiling should be disabled).
+// Returns true on success (and clears failed_safe_copy), false if the requested
+// method and its fallback are unavailable (sets failed_safe_copy; stack profiling
+// should be disabled until a later successful switch).
 bool
 set_fast_copy_enabled(bool enabled);
 

@@ -42,9 +42,10 @@ def _(faulthandler: ModuleType) -> None:
             #   True  — sampler paused (safe to swap handlers)
             #   False — sampler not running (safe to swap; no racing thread)
             #   None  — timed out: sampler IS running but didn't pause in time;
-            #           skip the uninstall process to avoid racing with safe_memcpy
-            #           (This means there will be a fault handler cycle, but this is about
-            #           the only thing we can do.)
+            #           skip uninstall/reinstall so we do not chain ddtrace on top
+            #           of a faulthandler that already saved us as previous (cycle).
+            #           Faulthandler may sit on top until the sampling thread sees
+            #           foreign ownership and falls back.
             pause_result: bool | None = stack.pause_sampling()
             safe_to_swap: bool = pause_result is not None
             try:
@@ -75,10 +76,14 @@ def _(faulthandler: ModuleType) -> None:
                     # Re-raise so callers see the same exception as without our wrapper.
                     raise
 
-                try:
-                    stack.reinstall_segv_handler()
-                except Exception:  # nosec: B110
-                    pass
+                # Only reclaim when we stepped out first. Reinstall after a skipped
+                # uninstall (pause timeout) saves faulthandler as previous while it
+                # still points at us — a handler cycle.
+                if safe_to_swap:
+                    try:
+                        stack.reinstall_segv_handler()
+                    except Exception:  # nosec: B110
+                        pass
             finally:
                 if pause_result is True:
                     stack.resume_sampling()
