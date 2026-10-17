@@ -477,3 +477,42 @@ def test_fast_copy_fork_after_takeover_without_syscall() -> None:
 
     assert os.WIFEXITED(status), f"child did not exit normally: {status}"
     assert os.WEXITSTATUS(status) == 0, "child sampled leftover safe_memcpy after no-syscall takeover"
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_reenable_clears_failed_safe_copy",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_reenable_clears_failed_safe_copy() -> None:
+    """set_fast_copy(True) must clear failed_safe_copy so start() can recover.
+
+    With no process_vm_readv, set_fast_copy(False) latches failed_safe_copy. A later
+    set_fast_copy(True) that restores safe_memcpy must clear that latch; otherwise
+    Sampler::start() keeps returning False even though a valid copy method is active.
+    """
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    _stack._set_process_vm_readv_available(False)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    p.stop()
+
+    _stack.set_fast_copy(False)
+    assert _stack.is_safe_copy_failed(), "expected failed_safe_copy after disable with no process_vm_readv"
+
+    _stack.set_fast_copy(True)
+    assert not _stack.is_safe_copy_failed(), "re-enable must clear failed_safe_copy when safe_memcpy is usable"
+
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after re-enable"
+    p.stop()

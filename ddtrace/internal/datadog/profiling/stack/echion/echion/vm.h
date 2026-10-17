@@ -109,8 +109,9 @@ init_safe_copy();
 
 // Switch the active copy method at runtime.  Must be called before the
 // sampling thread is started.
-// Returns true on success, false if the requested method (and its fallback) are unavailable
-// (in which case failed_safe_copy is set and stack profiling should be disabled).
+// Returns true on success (and clears failed_safe_copy), false if the requested
+// method and its fallback are unavailable (sets failed_safe_copy; stack profiling
+// should be disabled until a later successful switch).
 bool
 set_fast_copy_enabled(bool enabled);
 
