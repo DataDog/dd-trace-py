@@ -4,6 +4,34 @@ import pytest
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "grpc",
+        "DD_TRACE_SAMPLE_RATE": "1",
+    }
+)
+def test_otlp_traces_sent_via_grpc():
+    from tests.opentelemetry.utils import capture_otlp_traces
+
+    with capture_otlp_traces("grpc") as requests:
+        from ddtrace.trace import tracer
+
+        with tracer.trace("test-span", service="test-svc"):
+            with tracer.trace("test-child", service="test-svc"):
+                pass
+        tracer.flush()
+
+    spans = [
+        span
+        for request in requests
+        for resource_spans in request.resource_spans
+        for scope_spans in resource_spans.scope_spans
+        for span in scope_spans.spans
+    ]
+    assert {span.name for span in spans} == {"test-span", "test-child"}
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
         "DD_TRACE_SAMPLE_RATE": "1",
@@ -90,6 +118,7 @@ def test_otlp_traces_sent_via_http():
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
         # Note: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL is intentionally NOT set. The native
         # trace-metrics exporter is HTTP/JSON only and derives an HTTP /v1/metrics endpoint

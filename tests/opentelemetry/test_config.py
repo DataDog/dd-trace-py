@@ -133,7 +133,7 @@ def test_empty_otel_configuration_uses_defaults():
     assert config._otel_stats_computation_enabled is None
     assert otel_config.exporter.TIMEOUT == 10000
     assert otel_config.exporter.PROTOCOL == "grpc"
-    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
     assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 7500
 
 
