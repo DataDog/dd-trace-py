@@ -41,8 +41,14 @@ def isolated_database(tmp_path_factory):
 class _Test_Django_Base:
     """Django-specific interface, response accessors, and argument parsing."""
 
+    @pytest.fixture
+    def interface_tracer(self):
+        # Capture Django setup spans without flushing them to a real agent.
+        with scoped_tracer() as tracer:
+            yield tracer
+
     @pytest.fixture(params=[_FLAT_URLCONF, _SUBAPP_URLCONF], ids=["flat", "subapp"])
-    def interface(self, printer, request):
+    def interface(self, printer, request, interface_tracer):
         os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
         settings.DEBUG = False
         django.setup()
@@ -111,10 +117,9 @@ class _Test_Django_Base:
         interface = utils.Interface("django", django, client)
         interface.SERVER_PORT = self.SERVER_PORT
         interface.version = django.VERSION
-        with scoped_tracer() as tracer:
-            interface.tracer = tracer
-            interface.printer = printer
-            yield interface
+        interface.tracer = interface_tracer
+        interface.printer = printer
+        yield interface
 
     def status(self, response):
         return response.status_code
