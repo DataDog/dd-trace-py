@@ -72,11 +72,13 @@ mark_fast_copy_syscall_fallback()
     fast_copy_syscall_fallback = true;
 }
 
-// Install/reclaim while desired and no foreign takeover (warmup still reclaimable).
+// Install/reclaim while we still want memcpy recovery, or while memcpy is still
+// the active copy method after a failed disable (no process_vm_readv), and no
+// foreign takeover. Warmup keeps desired set with active cleared.
 inline bool
 fast_copy_handler_ops_enabled()
 {
-    return fast_copy_desired && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
+    return (fast_copy_desired || fast_copy_active) && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
 }
 
 // Set at init; survives toggling fast_copy_active.
