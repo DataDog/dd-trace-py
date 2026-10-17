@@ -89,6 +89,102 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+HTTP request-data contract
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This experimental internal API exposes HTTP observations without requiring tracing
+configuration. Register for phase-specific events such as ``HttpRouteResolvedEvent``
+and ``HttpRequestCompletedEvent`` from ``ddtrace.contrib._events.http`` using
+``core.on(EventClass.event_name, listener)``. Read ``event.request``, ``event.response``,
+``event.phase``, and ``event.request_id`` directly; there is no snapshot wrapper.
+The shared ``HttpRequestDataEvent`` base supplies fields, not a subscription name.
+Events carry no span, resource, service, operation name, or integration configuration.
+Bottle's integration-owned ``BottleRequestEvent`` provides its tracing context;
+its tracing subscriber consumes the HTTP observations separately.
+See ``examples/http-events/contract.py`` for consumer registration and blocking.
+
+The application-installed Bottle plugin publishes this contract at these boundaries:
+
+* ``REQUEST_STARTED``: request entry, before Bottle's request hooks and routing.
+* ``ROUTE_RESOLVED``: successful routing, with the mounted route template available.
+* ``BEFORE_HANDLER``: immediately before the wrapped route callback is invoked.
+  ``handler_started`` is still false at this boundary and becomes true when that
+  callback begins. The callback includes any plugins wrapped inside the trace plugin.
+* ``RESPONSE_READY``: Bottle has prepared status and headers, before calling the
+  server's ``start_response``.
+* ``RESPONSE_COMMITTED``: ``start_response`` has returned successfully. This is
+  the integration's conservative commitment boundary, not proof of bytes sent on
+  the network.
+* ``COMPLETED``: response exhaustion, failure, or explicit close, exactly once.
+
+These are observations, not a required sequence for every request. Routing failures
+have no resolved-route or handler phase. Framework retries can repeat routing or
+response preparation. A failed ``start_response`` does not produce a committed
+phase. Streaming responses produce completion only when iteration finishes or the
+server closes them.
+
+Availability and lifetime
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+``None`` means a field is unavailable, whereas an empty string or tuple is a known
+empty value. In particular, ``response=None`` means no response has been prepared;
+``request.route=None`` means no route template is available. Empty query strings
+and empty parsed query pairs are available values. Bottle exposes the query pairs
+as parsed by the framework, preserving repeated keys. The raw query string is also
+available when exact wire ordering or encoding matters.
+
+Events are ordinary dataclasses and consumers must treat them as read-only.
+Their request, response, and error values are frozen dataclasses. Header and
+query values are tuples of pairs; response headers retain duplicates, including
+multiple ``Set-Cookie`` values. Header names must be compared case-insensitively.
+Consumers may retain events after dispatch; each phase creates a fresh envelope,
+so later lifecycle updates do not change earlier observations. Mutation is not a
+decision channel and can affect other listeners receiving the same event.
+
+``request_id`` is an opaque token with identity shared by all events of one
+request in this process. It is independent of span IDs and distinct for nested or
+interleaved requests. It is not a serializable or cross-process correlation ID.
+
+``errors`` contains the most recently observed failure, or an empty tuple when no
+failure has been observed. Errors contain a qualified type name and a message, with
+``message=None`` if the exception cannot be converted to text. They retain neither
+exception objects nor tracebacks. A failure after response commitment does not
+rewrite the prepared response status.
+
+Request and response bodies remain unavailable in Bottle. Producing these events
+must not consume request bodies, buffer responses, or advance response streams.
+
+Blocking and consumers
+^^^^^^^^^^^^^^^^^^^^^^
+
+Observation events are one-way: listener return values are ignored. A separate
+``HttpRequestBlockCheckEvent`` dispatch follows observation at request entry,
+route resolution, before the wrapped handler, and response preparation. Its fields
+are the same HTTP observations. A consumer can raise ``HttpRequestBlock`` with
+``status_code``, ``headers``, and a bytes ``body`` to request a replacement response.
+Returning normally allows the next listener to run.
+
+The first block interrupts the check, skipping remaining block-check listeners.
+An invalid blocking response is ignored, but skipped listeners are not resumed.
+Bottle validates status, headers, and body and owns transport framing. After a valid
+block it skips subsequent block checks, including checks of its replacement response.
+Ordinary listener exceptions retain core's normal isolation behavior; the testing
+raise setting still propagates them. ``HttpRequestBlock`` inherits ``BaseException``
+to use the hub's existing control-flow propagation. Raise it only from a block-check
+listener, never an observation listener. Process-control exceptions still propagate.
+
+Block checks are synchronous and run only before response commitment. Retaining an
+event or raising from a different thread cannot control the request. There is no
+acceptance callback, capability set, or post-commit stream termination API. Blocking
+is not an application error; response and completion observations still report the
+outcome, including delivery failures. See :doc:`http-contract-api-changes` for history.
+
+Bottle emits events when a consumer is registered even if tracing is disabled,
+without creating a request span. Consumers should register before request entry to
+observe the complete lifecycle. With no tracing, observation, or block-check listeners,
+the WSGI wrapper delegates directly to Bottle. Route-local plugins publish only route
+resolution and callback completion; they have no WSGI boundary and emit no block checks.
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 

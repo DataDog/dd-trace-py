@@ -1,3 +1,5 @@
+from asyncio import CancelledError
+
 import bottle
 import webtest
 
@@ -6,6 +8,7 @@ from ddtrace import config
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
@@ -78,6 +81,7 @@ class TraceBottleTest(TracerTestCase):
     def test_app_root(self):
         @self.app.route("/hi/<name>")
         def hi(name):
+            assert self.tracer.current_span().resource == "GET /hi/<name>"
             return "hi %s" % name
 
         self._trace_app(self.tracer)
@@ -86,6 +90,7 @@ class TraceBottleTest(TracerTestCase):
         spans = self.pop_spans()
         span = spans[0]
         assert span.get_tag("http.route") == "/api/v1/hi/<name>"
+        assert span.resource == "GET /hi/<name>"
 
     def test_query_string(self):
         return self.test_200("foo=bar")
@@ -565,3 +570,391 @@ class TraceBottleTest(TracerTestCase):
                     web_span = traces[0][0]
                     assert web_span.name == "bottle.request"
                     assert web_span._parent is None
+
+
+class TestRequestLifecycle(TracerTestCase):
+    def setUp(self):
+        super().setUp()
+        self.app = bottle.Bottle()
+        self.app.install(TracePlugin(service=SERVICE))
+
+    def request(self, path="/stream", method="GET", start_response=None):
+        environ = webtest.TestRequest.blank(path, method=method).environ
+        return self.app(environ, start_response or (lambda status, headers, exc_info=None: None))
+
+    def test_stream_context_and_completion(self):
+        spans = []
+        contexts = []
+
+        @self.app.route("/stream")
+        def stream():
+            for chunk in (b"one", b"two"):
+                spans.append(self.tracer.current_span())
+                contexts.append(core.current)
+                yield chunk
+
+        parent_context = core.current
+        with self.tracer.trace("parent") as parent:
+            body = self.request()
+            span = spans[0]  # Bottle peeks at the first chunk before start_response.
+            assert not span.finished
+            assert span.parent_id == parent.span_id
+            assert span.resource == "GET /stream"
+            assert self.tracer.current_span() is parent
+            assert core.current is parent_context
+            assert next(body) == b"one"
+            assert next(body) == b"two"
+            assert spans == [span, span]
+            assert contexts[0] is contexts[1]
+            assert self.tracer.current_span() is parent
+            assert list(body) == []
+            assert span.finished
+            body.close()
+            body.close()
+        assert len(self.pop_spans()) == 2
+
+    def test_close_before_iteration(self):
+        spans = []
+        closed = []
+
+        @self.app.route("/stream")
+        def stream():
+            spans.append(self.tracer.current_span())
+            try:
+                yield b"one"
+                yield b"two"
+            finally:
+                closed.append(True)
+
+        body = self.request()
+        assert not spans[0].finished
+        body.close()
+        body.close()
+        assert closed == [True]
+        assert spans[0].finished
+        assert len(self.pop_spans()) == 1
+        assert self.tracer.current_span() is None
+
+    def test_stream_error_after_commit(self):
+        @self.app.route("/stream")
+        def stream():
+            yield b"one"
+            raise ValueError("stream failed")
+
+        body = self.request()
+        assert next(body) == b"one"
+        with self.assertRaisesRegex(ValueError, "stream failed"):
+            next(body)
+        body.close()
+        (span,) = self.pop_spans()
+        assert span.error == 1
+        assert span.get_tag("error.message") == "stream failed"
+        assert_span_http_status_code(span, 200)
+        assert self.tracer.current_span() is None
+
+    def test_first_chunk_error(self):
+        @self.app.route("/stream")
+        def stream():
+            raise ValueError("first chunk failed")
+            yield b"unreachable"
+
+        body = self.request()
+        list(body)
+        body.close()
+        (span,) = self.pop_spans()
+        assert span.error == 1
+        assert span.get_tag("error.message") == "first chunk failed"
+        assert_span_http_status_code(span, 500)
+
+    def test_route_miss(self):
+        body = self.request("/missing")
+        list(body)
+        body.close()
+        (span,) = self.pop_spans()
+        assert span.resource == "GET 404"
+        assert_span_http_status_code(span, 404)
+        assert span.error == 0
+
+    def test_hooks_and_final_response(self):
+        active = []
+
+        @self.app.hook("before_request")
+        def before():
+            active.append(self.tracer.current_span())
+
+        @self.app.hook("after_request")
+        def after():
+            active.append(self.tracer.current_span())
+            bottle.response.status = 202
+
+        @self.app.route("/stream")
+        def handler():
+            return "done"
+
+        body = self.request()
+        list(body)
+        body.close()
+        (span,) = self.pop_spans()
+        assert active == [span, span]
+        assert_span_http_status_code(span, 202)
+
+    def test_hook_error(self):
+        @self.app.hook("before_request")
+        def before():
+            raise ValueError("hook failed")
+
+        body = self.request()
+        list(body)
+        body.close()
+        (span,) = self.pop_spans()
+        assert span.resource == "GET 500"
+        assert span.get_tag("error.message") == "hook failed"
+        assert_span_http_status_code(span, 500)
+
+    def test_uninstall_reinstall(self):
+        @self.app.route("/stream")
+        def handler():
+            return "done"
+
+        self.app.uninstall("trace")
+        list(self.request())
+        assert self.pop_spans() == []
+        self.app.install(TracePlugin(service=SERVICE))
+        list(self.request())
+        assert len(self.pop_spans()) == 1
+
+    def test_head_closes_stream(self):
+        spans = []
+        closed = []
+
+        @self.app.route("/stream")
+        def stream():
+            spans.append(self.tracer.current_span())
+            try:
+                yield b"one"
+            finally:
+                closed.append(True)
+
+        body = self.request(method="HEAD")
+        assert list(body) == []
+        body.close()
+        assert closed == [True]
+        assert spans[0].finished
+        assert len(self.pop_spans()) == 1
+
+    def test_close_failure(self):
+        @self.app.route("/stream")
+        def stream():
+            try:
+                yield b"one"
+                yield b"two"
+            finally:
+                raise ValueError("close failed")
+
+        body = self.request()
+        with self.assertRaisesRegex(ValueError, "close failed"):
+            body.close()
+        body.close()
+        (span,) = self.pop_spans()
+        assert span.get_tag("error.message") == "close failed"
+        assert_span_http_status_code(span, 200)
+        assert self.tracer.current_span() is None
+
+    def test_cancellation(self):
+        @self.app.route("/stream")
+        def stream():
+            yield b"one"
+            raise CancelledError()
+
+        body = self.request()
+        next(body)
+        with self.assertRaises(CancelledError):
+            next(body)
+        body.close()
+        (span,) = self.pop_spans()
+        assert span.finished
+        assert span.error == 1
+        assert self.tracer.current_span() is None
+
+    def test_uncaught_handler_error(self):
+        self.app.catchall = False
+
+        @self.app.route("/stream")
+        def stream():
+            raise ValueError("uncaught")
+
+        with self.assertRaisesRegex(ValueError, "uncaught"):
+            self.request()
+        (span,) = self.pop_spans()
+        assert span.resource == "GET /stream"
+        assert span.get_tag("error.message") == "uncaught"
+        assert_span_http_status_code(span, 500)
+        assert self.tracer.current_span() is None
+
+    def test_interleaved_streams(self):
+        active = {}
+
+        @self.app.route("/stream/<name>")
+        def stream(name):
+            active[name] = [self.tracer.current_span()]
+            yield b"one"
+            active[name].append(self.tracer.current_span())
+            yield b"two"
+
+        first = self.request("/stream/first")
+        second = self.request("/stream/second")
+        assert active["first"][0] is not active["second"][0]
+        assert self.tracer.current_span() is None
+        assert list(first) == [b"one", b"two"]
+        assert not active["second"][0].finished
+        assert list(second) == [b"one", b"two"]
+        first.close()
+        second.close()
+        assert active["first"][0] is active["first"][1]
+        assert active["second"][0] is active["second"][1]
+        assert len(self.pop_spans()) == 2
+
+    def test_response_headers_and_status(self):
+        @self.app.route("/stream")
+        def stream():
+            return bottle.HTTPResponse("done", status=201, headers={"X-Result": "created"})
+
+        with self.override_http_config("bottle", {"trace_headers": ["x-result"]}):
+            received = []
+            body = self.request(start_response=lambda status, headers, exc_info: received.append((status, headers)))
+            assert list(body) == [b"done"]
+            body.close()
+        (span,) = self.pop_spans()
+        assert_span_http_status_code(span, 201)
+        assert received[0][0].startswith("201")
+        assert span.get_tag("http.response.headers.x-result") == "created"
+
+    def test_completion_publishes_final_resource_once(self):
+        completed = []
+
+        def on_finish(span):
+            if span.name == "bottle.request":
+                completed.append((span.resource, span.get_tag("http.status_code")))
+
+        @self.app.route("/stream")
+        def stream():
+            yield b"one"
+
+        core.on("trace.span_finish", on_finish)
+        try:
+            body = self.request()
+            assert completed == []
+            assert list(body) == [b"one"]
+            body.close()
+            body.close()
+            assert completed == [("GET /stream", "200")]
+        finally:
+            core.reset_listeners("trace.span_finish", on_finish)
+
+    def test_start_response_failure(self):
+        self.app.catchall = False
+
+        @self.app.route("/stream")
+        def stream():
+            return b"one"
+
+        def start_response(status, headers, exc_info=None):
+            raise OSError("connection closed")
+
+        with self.assertRaisesRegex(OSError, "connection closed"):
+            self.request(start_response=start_response)
+        (span,) = self.pop_spans()
+        assert span.get_tag("error.message") == "connection closed"
+        assert self.tracer.current_span() is None
+
+    def test_route_local_plugin(self):
+        self.app.uninstall("trace")
+
+        @self.app.route("/stream", apply=[TracePlugin(service="route-service")])
+        def stream():
+            return b"one"
+
+        body = self.request()
+        assert list(body) == [b"one"]
+        (span,) = self.pop_spans()
+        assert span.resource == "GET /stream"
+        assert span.service == "route-service"
+
+    def test_resource_available_to_outer_route_plugin(self):
+        seen = []
+
+        class ShortCircuitPlugin:
+            name = "short-circuit"
+            api = 2
+
+            def apply(self, callback, route):
+                def wrapped(*args, **kwargs):
+                    seen.append(self_tracer.current_span().resource)
+                    return bottle.HTTPResponse("blocked", status=403)
+
+                return wrapped
+
+        self_tracer = self.tracer
+        self.app.install(ShortCircuitPlugin())
+
+        @self.app.route("/stream")
+        def handler():
+            raise AssertionError("handler must not run")
+
+        body = self.request()
+        assert list(body) == [b"blocked"]
+        body.close()
+        (span,) = self.pop_spans()
+        assert seen == ["GET /stream"]
+        assert span.resource == "GET /stream"
+        assert_span_http_status_code(span, 403)
+
+    def test_nested_wsgi_application(self):
+        child = bottle.Bottle()
+        child.install(TracePlugin(service="child"))
+
+        @child.route("/stream")
+        def stream():
+            yield b"one"
+            yield b"two"
+
+        # A callable forces the WSGI mount path instead of Bottle's route merging.
+        self.app.mount("/child/", lambda environ, start_response: child(environ, start_response))
+        body = self.request("/child/stream")
+        assert list(body) == [b"one", b"two"]
+        body.close()
+        spans = self.pop_spans()
+        assert len(spans) == 2
+        parent_span, child_span = sorted(spans, key=lambda span: span.start_ns)
+        assert child_span.parent_id == parent_span.span_id
+        assert child_span.resource == "GET /stream"
+        assert child_span.get_tag("http.route") == "/child/stream"
+        assert parent_span.resource != child_span.resource
+        assert self.tracer.current_span() is None
+
+    def test_activation_listeners_follow_stream_context(self):
+        activated = []
+
+        def on_activate(provider, span):
+            if provider is self.tracer.context_provider:
+                activated.append(span)
+
+        @self.app.route("/stream")
+        def stream():
+            for chunk in (b"one", b"two"):
+                assert activated[-1] is self.tracer.current_span()
+                yield chunk
+
+        with self.tracer.trace("parent") as parent:
+            core.on("ddtrace.context_provider.activate", on_activate)
+            try:
+                body = self.request()
+                assert activated[-1] is parent
+                assert next(body) == b"one"
+                assert activated[-1] is parent
+                assert next(body) == b"two"
+                assert activated[-1] is parent
+                body.close()
+                assert activated[-1] is parent
+            finally:
+                core.reset_listeners("ddtrace.context_provider.activate", on_activate)

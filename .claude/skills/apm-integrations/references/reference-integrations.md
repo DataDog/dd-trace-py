@@ -28,3 +28,45 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+## Bottle HTTP event boundary
+
+Bottle builds its own `METHOD rule` span resource and passes it as
+`WebFrameworkRequestEvent.resource`. `request_route` stays separate and carries the
+`script_name` prefix, so mounted applications report the full `http.route` without
+changing their historical span resource.
+
+An application-installed plugin wraps Bottle's WSGI boundary and owns a request
+lifecycle through response exhaustion, failure, or explicit close. Its router
+wrapper supplies the resource as soon as routing succeeds, before handler
+invocation. The WSGI start_response callback supplies the final status and headers; HTTPError conversion preserves
+exceptions that Bottle handles internally. Unmatched requests use METHOD STATUS
+resources. Route-local plugins retain their callback-scoped behavior.
+
+IDM owns HTTP semantics and the completion decision. The shared HTTP tracing
+subscriber applies those semantics; core supplies context and span lifecycle
+mechanisms. The lifecycle finalizes the resource before ending its context, so
+completed-span consumers see the endpoint. Each WSGI call and body operation runs
+in the request's copied context, preventing suspended streams from becoming the
+active parent of unrelated requests. Exhaustion and close share an idempotent
+completion path. A WSGI server must consume or close the response iterable.
+
+
+Bottle also publishes `HttpRequestDataEvent` from `contrib/_events/http.py` at
+request entry, route resolution, before the wrapped handler, response preparation,
+response commitment, and completion. Its phase-specific events expose HTTP values directly,
+availability, lifecycle flags, and an opaque request token independently of
+`BottleRequestEvent` tracing settings. Consumers treat event envelopes as read-only
+and may retain their frozen request, response, and error values. `None` means unavailable; empty strings
+and tuples mean known empty. Bodies are not read for this contract.
+
+A registered data consumer keeps the application lifecycle active when tracing is
+disabled, without creating a request span. A block-check subscriber also activates
+this lifecycle. `HttpRequestBlockCheckEvent` lets a synchronous listener raise
+`HttpRequestBlock(status_code=403, headers=(), body=b"")`. The exception derives from
+BaseException so the hub propagates it while isolating ordinary listener failures.
+The first block skips remaining check listeners. Bottle validates the response and
+uses normal response and completion handling; invalid blocks are ignored. A valid
+block suppresses subsequent checks. There are no checks after commitment and no
+stream termination API. Never implement security policy in the integration or import
+AppSec here. See `docs/contributing-integrations.rst` for timing and ownership rules.

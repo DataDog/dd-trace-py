@@ -12,6 +12,18 @@ plugin to your app::
 
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
+Request lifecycle
+~~~~~~~~~~~~~~~~~
+
+When installed on an application, the plugin traces the request from WSGI entry
+through response iteration. The span finishes when the response is exhausted,
+raises an error, or is explicitly closed. WSGI servers must close response
+iterables when a request is interrupted. The final response status and headers
+are recorded after Bottle processes the handler result and response hooks.
+Unmatched requests use a resource such as ``GET 404``.
+
+Plugins applied only to an individual route retain callback-scoped tracing.
+
 Configuration
 ~~~~~~~~~~~~~
 
