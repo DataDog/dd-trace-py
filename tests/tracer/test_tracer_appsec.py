@@ -12,6 +12,7 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.writer import NativeWriter
@@ -223,6 +224,34 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
         finally:
             with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+
+
+@pytest.mark.parametrize("initial_compute_stats", [True, False])
+@pytest.mark.parametrize("compute_stats_enabled", [None, True, False])
+@pytest.mark.parametrize("apm_tracing_disabled", [True, False])
+def test_standalone_restores_compute_stats(tracer, initial_compute_stats, compute_stats_enabled, apm_tracing_disabled):
+    with mock.patch.object(config, "_trace_compute_stats", initial_compute_stats):
+        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
+            try:
+                tracer.configure(appsec_enabled=True, iast_enabled=False, apm_tracing_disabled=True)
+                assert config._trace_compute_stats is False
+                tracer.configure(appsec_enabled=True)
+                assert config._trace_compute_stats is False
+
+                tracer.configure(
+                    appsec_enabled=False,
+                    apm_tracing_disabled=apm_tracing_disabled,
+                    compute_stats_enabled=compute_stats_enabled,
+                )
+                expected_stats = initial_compute_stats
+                if compute_stats_enabled is not None:
+                    expected_stats = compute_stats_enabled
+                assert config._trace_compute_stats is expected_stats
+
+                tracer.configure(trace_processors=[])
+                assert config._trace_compute_stats is expected_stats
+            finally:
+                tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
