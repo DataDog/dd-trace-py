@@ -92,3 +92,10 @@ build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v45.0.1",
 name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
+
+[replace]
+"git+https://github.com/DataDog/libdatadog?rev=v45.0.1#libdd-telemetry@10.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "51925a34e8887eaa029289faa9b86219394e6150" }
+"git+https://github.com/DataDog/libdatadog?rev=51925a34e8887eaa029289faa9b86219394e6150#libdd-capabilities@4.0.1" = { git = "https://github.com/DataDog/libdatadog", rev = "v45.0.1" }
+"git+https://github.com/DataDog/libdatadog?rev=51925a34e8887eaa029289faa9b86219394e6150#libdd-common@8.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v45.0.1" }
+"git+https://github.com/DataDog/libdatadog?rev=51925a34e8887eaa029289faa9b86219394e6150#libdd-ddsketch@1.1.3" = { git = "https://github.com/DataDog/libdatadog", rev = "v45.0.1" }
+"git+https://github.com/DataDog/libdatadog?rev=51925a34e8887eaa029289faa9b86219394e6150#libdd-shared-runtime@6.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v45.0.1" }
