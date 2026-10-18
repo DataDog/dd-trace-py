@@ -1327,6 +1327,52 @@ class TestOpenAIConstructToolCallFromStreamedChunk:
         assert stored[0]["function"]["arguments"] == '{"city": "NYC"}'
 
 
+def _tool_call_choice(index, call_id, name, arguments):
+    function = SimpleNamespace(name=name, arguments=arguments)
+    tool_call = SimpleNamespace(
+        index=index, id=call_id, type="function" if call_id else None, function=function, custom=None
+    )
+    delta = SimpleNamespace(role="assistant", content=None, tool_calls=[tool_call], function_call=None)
+    return SimpleNamespace(index=0, delta=delta, finish_reason=None)
+
+
+class TestOpenAIConstructMessageWithUnindexedToolCalls:
+    """Gemini's OpenAI-compatible endpoint streams each parallel tool call whole in its own chunk and
+    leaves ``tool_calls[].index`` unset, so every call arrives with ``index=None``.
+    """
+
+    def test_parallel_calls_without_index_stay_separate(self):
+        chunks = [
+            _tool_call_choice(None, "call_1", "get_weather", '{"city":"Paris"}'),
+            _tool_call_choice(None, "call_2", "get_weather", '{"city":"Tokyo"}'),
+            SimpleNamespace(index=0, delta=SimpleNamespace(role=None, content=None), finish_reason="stop"),
+        ]
+        message = openai_construct_message_from_streamed_chunks(chunks)
+        assert [(tc["id"], tc["function"]["arguments"]) for tc in message["tool_calls"]] == [
+            ("call_1", '{"city":"Paris"}'),
+            ("call_2", '{"city":"Tokyo"}'),
+        ]
+
+    def test_unindexed_fragment_without_id_or_name_continues_latest_call(self):
+        chunks = [
+            _tool_call_choice(None, "call_1", "get_weather", '{"city":'),
+            _tool_call_choice(None, None, None, '"Paris"}'),
+        ]
+        message = openai_construct_message_from_streamed_chunks(chunks)
+        assert len(message["tool_calls"]) == 1
+        assert message["tool_calls"][0]["function"]["arguments"] == '{"city":"Paris"}'
+
+    def test_unindexed_fragments_repeating_the_same_id_continue_the_call(self):
+        chunks = [
+            _tool_call_choice(None, "call_1", "get_weather", '{"city":'),
+            _tool_call_choice(None, "call_1", None, '"Paris"}'),
+        ]
+        message = openai_construct_message_from_streamed_chunks(chunks)
+        assert len(message["tool_calls"]) == 1
+        assert message["tool_calls"][0]["id"] == "call_1"
+        assert message["tool_calls"][0]["function"]["arguments"] == '{"city":"Paris"}'
+
+
 class TestAgentManifestPrimitives:
     """The coercion every integration's manifest needs on the way out.
 

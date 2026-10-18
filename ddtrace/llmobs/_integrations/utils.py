@@ -1525,11 +1525,19 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     function_call = getattr(tool_call_chunk, "function", None)
     custom_call = getattr(tool_call_chunk, "custom", None)
     function_name = getattr(function_call, "name", "") or getattr(custom_call, "name", "")
-    # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
-    list_idx = next(
-        (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
-        None,
-    )
+    if tool_call_idx is None:
+        # Some OpenAI-compatible backends (e.g. Gemini) omit the index and stream each parallel call whole in its
+        # own chunk: a new id, or a name without an id, starts a new call; any other delta continues the latest one.
+        starts_call = not stored_tool_calls or (
+            tool_id != stored_tool_calls[-1].get("id") if tool_id else bool(function_name)
+        )
+        list_idx = None if starts_call else -1
+    else:
+        # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
+        list_idx = next(
+            (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
+            None,
+        )
     if list_idx is None:
         call_dict = {
             "index": tool_call_idx,
@@ -1581,7 +1589,8 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
         for tool_call in tool_calls:
             openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
     if message["tool_calls"]:
-        message["tool_calls"].sort(key=lambda x: x.get("index", 0))
+        # Unindexed calls (index None) can't be compared with each other; keep them in arrival order.
+        message["tool_calls"].sort(key=lambda x: x["index"] if x.get("index") is not None else float("inf"))
     else:
         message.pop("tool_calls", None)
     if not message["reasoning_content"]:
