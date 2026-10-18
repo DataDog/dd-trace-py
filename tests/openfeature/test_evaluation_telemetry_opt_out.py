@@ -2,8 +2,9 @@
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from importlib.metadata import version
+import hashlib
 import json
+import logging
 from threading import Barrier
 from threading import Lock
 
@@ -11,11 +12,13 @@ from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationOptions
+from openfeature.flag_evaluation import Reason
 from openfeature.hook import Hook
 from openfeature.transaction_context import ContextVarsTransactionContextPropagator
 from openfeature.transaction_context.no_op_transaction_context_propagator import NoOpTransactionContextPropagator
 import pytest
 
+from ddtrace.internal import logger
 from ddtrace.internal.openfeature import _provider
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
@@ -154,6 +157,65 @@ def test_parameter_requires_provider_activation(emission_factory, options):
     assert emissions.counts() == {"evaluations": 1, "metrics": 1, "annotated_spans": 1, "exposures": 1}
 
 
+def configure_attribute_targeting(observe_full=False):
+    flag = create_boolean_flag(FLAG)
+    flag["allocations"][0]["splits"][0]["serialId"] = 340132
+    flag["allocations"][0]["rules"] = [
+        {"conditions": [{"attribute": PARAMETER, "operator": "ONE_OF", "value": ["true"]}]}
+    ]
+    flag["allocations"].append(
+        {
+            "key": "fallback",
+            "splits": [{"variationKey": "false", "shards": [], "serialId": 340133}],
+            "doLog": True,
+        }
+    )
+    config = create_config(flag)
+    config["observeFullEvaluationData"] = observe_full
+    assert process_ffe_configuration(config)
+
+
+@pytest.mark.parametrize("activation", [False, True])
+@pytest.mark.parametrize("observe_full", [False, True])
+@pytest.mark.parametrize("value", [False, True, "true"])
+def test_ordinary_attribute_retains_targeting_and_exposure_input(emission_factory, activation, observe_full, value):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=activation, observe_full=observe_full)
+    configure_attribute_targeting(observe_full)
+    for _ in range(2):
+        details = emissions.evaluate(context("subject", value))
+        assert details.value is (value is not False)
+        assert details.variant == ("false" if value is False else "true")
+        assert details.reason == (Reason.STATIC if value is False else Reason.TARGETING_MATCH)
+        assert details.error_code is None
+
+    count = 0 if activation and value is True else 2
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+    exposures = json.loads(emissions.exposures._encode(emissions.exposures._buffer))["exposures"]
+    assert exposures[0]["subject"] == {"id": "subject", "attributes": {PARAMETER: value}}
+    for row in emissions.rows:
+        if observe_full:
+            assert row["context"]["evaluation"] == {PARAMETER: value}
+            assert row["targeting_key"] == "subject"
+        else:
+            assert "context" not in row
+            assert row["targeting_key"] == "sha256_" + hashlib.sha256(b"subject").hexdigest()
+
+
+@pytest.mark.parametrize("activation", [False, True])
+def test_ordinary_attribute_changes_follow_exposure_deduplication(emission_factory, activation):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=activation)
+    configure_attribute_targeting()
+    for value in [False, True, False]:
+        assert emissions.evaluate(context("same-subject", value)).value is value
+
+    count = 2 if activation else 3
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 3}
+    exposures = json.loads(emissions.exposures._encode(emissions.exposures._buffer))["exposures"]
+    assert [exposure["subject"]["attributes"] for exposure in exposures] == [
+        {PARAMETER: value} for value in [False, True, False]
+    ]
+
+
 @pytest.mark.parametrize("env_value,enabled", [(None, False), ("true", True), ("false", False), ("invalid", False)])
 def test_environment_controls_activation(emission_factory, monkeypatch, env_value, enabled):
     if env_value is not None:
@@ -251,14 +313,39 @@ class ReturnContext(Hook):
 @pytest.mark.parametrize("returned", [False, True])
 def test_before_returned_context_controls_final_decision(emission_factory, returned):
     emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
-    # No invocation attribute: this also checks 0.8.0, which gives invocation
-    # attributes precedence over before-hook returns.
     api.set_evaluation_context(EvaluationContext(attributes={PARAMETER: not returned}))
     options = FlagEvaluationOptions(hooks=[ReturnContext(returned)])
     details = emissions.evaluate(EvaluationContext(targeting_key="before-return"), options=options)
     assert details.value is True
     count = int(not returned)
     assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+
+
+@pytest.mark.parametrize("returned", [False, True])
+def test_before_returned_context_controls_resolver_error_path(emission_factory, returned):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    api.set_evaluation_context(EvaluationContext(attributes={PARAMETER: not returned}))
+    options = FlagEvaluationOptions(hooks=[ReturnContext(returned)])
+    details = emissions.evaluate(EvaluationContext(targeting_key="before-error"), flag_key="missing", options=options)
+    assert details.error_code == ErrorCode.FLAG_NOT_FOUND
+    count = int(not returned)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 0}
+
+
+class ReturnNonContext(Hook):
+    def before(self, hook_context, hints):
+        # The SDK fails while merging this, after the gate's before stage ran.
+        return {"unrelated": "value"}
+
+
+@pytest.mark.parametrize("opted_out", [False, True])
+def test_failure_after_gate_before_releases_handoff(emission_factory, opted_out):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    details = emissions.evaluate(context("bad", opted_out), options=FlagEvaluationOptions(hooks=[ReturnNonContext()]))
+    assert (details.value, details.error_code) == (False, ErrorCode.GENERAL)
+    assert emissions.provider._evaluation_telemetry.get() is None
+    count = int(not opted_out)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 0}
 
 
 class MutateAfter(Hook):
@@ -379,10 +466,7 @@ def test_before_and_invocation_precedence_matches_sdk(emission_factory):
     emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
     options = FlagEvaluationOptions(hooks=[ReturnContext(False)])
     assert emissions.evaluate(context("precedence", True), options=options).value is True
-    # 0.8.0 merges invocation attributes after before-hook returns. Later SDKs
-    # give the before-hook return precedence. Use the actual final context.
-    count = int(version("openfeature-sdk") != "0.8.0")
-    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+    assert emissions.counts() == {"evaluations": 1, "metrics": 1, "annotated_spans": 1, "exposures": 1}
 
 
 def test_randomization_and_exposure_cache_are_unchanged(emission_factory):
@@ -441,11 +525,63 @@ def test_async_evaluations_have_independent_decisions(emission_factory):
     assert emissions.counts() == {"evaluations": 4, "metrics": 4, "annotated_spans": 4, "exposures": 8}
 
 
+@pytest.mark.parametrize("opted_out", [False, True])
+def test_resolver_in_copied_context_keeps_flag_result(emission_factory, monkeypatch, opted_out):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    provider = emissions.provider
+
+    async def resolve_boolean_details_async(flag_key, default_value, evaluation_context=None):
+        # asyncio.to_thread runs the resolver in a copy of the caller's context.
+        return await asyncio.to_thread(provider.resolve_boolean_details, flag_key, default_value, evaluation_context)
+
+    async def evaluate():
+        with tracer.trace("copied-context") as span:
+            details = await emissions.client.get_boolean_details_async(FLAG, False, context("off-loop", opted_out))
+        emissions.spans.append(span)
+        assert (details.value, details.error_code) == (True, None)
+        assert provider._evaluation_telemetry.get() is None
+        return details
+
+    monkeypatch.setattr(provider, "resolve_boolean_details_async", resolve_boolean_details_async)
+    details = asyncio.run(evaluate())
+    assert (details.value, details.error_code) == (True, None)
+    count = int(not opted_out)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+
+
+def test_wrapped_hooks_only_implement_finally_after(emission_factory):
+    # The gate forwards only finally_after; other stages would be dropped.
+    (gate,) = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True).provider.get_provider_hooks()
+    assert len(gate._hooks) == 3
+    for hook in gate._hooks:
+        for stage in ("before", "after", "error", "supports_flag_value_type"):
+            assert getattr(type(hook), stage) is getattr(Hook, stage), (type(hook).__name__, stage)
+
+
+def test_sdk_creates_one_gate_per_evaluation(emission_factory, monkeypatch):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    original = emissions.provider.get_provider_hooks
+    gates = []
+
+    def get_provider_hooks():
+        hooks = original()
+        gates.extend(hooks)
+        return hooks
+
+    monkeypatch.setattr(emissions.provider, "get_provider_hooks", get_provider_hooks)
+    for i in range(5):
+        assert emissions.evaluate(context(str(i), True)).value is True
+    assert len(gates) == len({id(gate) for gate in gates}) == 5
+    assert emissions.counts() == {"evaluations": 0, "metrics": 0, "annotated_spans": 0, "exposures": 5}
+
+
 @pytest.mark.parametrize("enabled", [False, True])
 @pytest.mark.parametrize("failing", [None, "span", "evp", "metrics"])
-def test_hook_order_and_exception_isolation_are_unchanged(emission_factory, monkeypatch, enabled, failing):
+def test_hook_order_and_exception_isolation_are_unchanged(emission_factory, monkeypatch, caplog, enabled, failing):
     emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=enabled)
     calls = []
+    # Each parametrized case must observe the warning from this shared call site.
+    monkeypatch.setitem(logger._RATE_LIMITS, "OpenFeature evaluation telemetry hook failed", 0)
 
     def record(name, original):
         def finally_after(hook_context, details, hints):
@@ -462,7 +598,8 @@ def test_hook_order_and_exception_isolation_are_unchanged(emission_factory, monk
         ("metrics", emissions.provider._flag_eval_metrics_hook),
     ]:
         monkeypatch.setattr(hook, "finally_after", record(name, hook.finally_after))
-    assert emissions.evaluate(context("hook-order")).value is True
+    with caplog.at_level(logging.WARNING):
+        assert emissions.evaluate(context("hook-order")).value is True
     assert calls == ["span", "evp", "metrics"]
     assert emissions.counts() == {
         "evaluations": int(failing != "evp"),
@@ -470,3 +607,10 @@ def test_hook_order_and_exception_isolation_are_unchanged(emission_factory, monk
         "annotated_spans": int(failing != "span"),
         "exposures": 1,
     }
+    if enabled and failing is not None:
+        assert any(
+            record.name == "ddtrace.internal.openfeature._evaluation_telemetry"
+            and record.levelno == logging.WARNING
+            and record.exc_info is not None
+            for record in caplog.records
+        )

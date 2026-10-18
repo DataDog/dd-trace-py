@@ -2,8 +2,14 @@
 End-to-end tests for DataDogProvider using OpenFeature client.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from threading import Event
+
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ProviderNotReadyError
+from openfeature.provider import ProviderStatus
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -26,20 +32,62 @@ def clear_config():
     _set_ffe_config(None)
 
 
+def _set_provider_and_wait(provider):
+    # set_provider is blocking before OpenFeature 0.10, but asynchronous afterward.
+    set_provider = getattr(api, "set_provider_and_wait", api.set_provider)
+    set_provider(provider)
+
+
+def test_provider_registration_waits_for_initialization(monkeypatch):
+    """Evaluation setup must wait until the registered provider can resolve flags."""
+    entered = Event()
+    release = Event()
+    with override_global_config({"experimental_flagging_provider_enabled": True}):
+        provider = DataDogProvider()
+    assert process_ffe_configuration(create_config(create_boolean_flag("ready-flag", default_value=True)))
+    initialize = provider.initialize
+
+    def blocked_initialize(evaluation_context):
+        entered.set()
+        assert release.wait(timeout=5), "Test did not release provider initialization"
+        initialize(evaluation_context)
+
+    monkeypatch.setattr(provider, "initialize", blocked_initialize)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            registration = executor.submit(_set_provider_and_wait, provider)
+            try:
+                assert entered.wait(timeout=5), "Provider initialization did not start"
+                with pytest.raises(FutureTimeoutError):
+                    registration.result(timeout=0.1)
+                assert api.get_client().get_provider_status() == ProviderStatus.NOT_READY
+            finally:
+                release.set()
+            registration.result(timeout=5)
+        assert api.get_client().get_provider_status() == ProviderStatus.READY
+        assert api.get_client().get_boolean_value("ready-flag", False) is True
+    finally:
+        api.shutdown()
+
+
 @pytest.fixture
 def setup_openfeature():
     """Set up OpenFeature API with DataDogProvider."""
     with override_global_config({"experimental_flagging_provider_enabled": True}):
-        # Set the provider
-        api.set_provider(DataDogProvider())
-
-        # Get a client
-        client = api.get_client()
-
-        yield client
-
-        # Cleanup
-        api.shutdown()
+        provider = DataDogProvider()
+        try:
+            # No configuration is available yet. Complete the zero-timeout initialization
+            # before tests deliver configuration, so late initialization cannot race delivery.
+            try:
+                _set_provider_and_wait(provider)
+            except ProviderNotReadyError:
+                # OpenFeature 0.10 propagates the error from blocking registration.
+                pass
+            client = api.get_client()
+            assert client.get_provider_status() == ProviderStatus.ERROR
+            yield client
+        finally:
+            api.shutdown()
 
 
 class TestOpenFeatureE2EBooleanFlags:
@@ -241,13 +289,12 @@ class TestOpenFeatureE2EProviderLifecycle:
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             # Set provider
             provider = DataDogProvider()
-        api.set_provider(provider)
-
-        # Get client and use it
-        client = api.get_client()
-
         config = create_config(create_boolean_flag("lifecycle-flag", enabled=True, default_value=True))
-        process_ffe_configuration(config)
+        assert process_ffe_configuration(config)
+        _set_provider_and_wait(provider)
+
+        client = api.get_client()
+        assert client.get_provider_status() == ProviderStatus.READY
 
         result = client.get_boolean_value("lifecycle-flag", False)
         assert result is True
@@ -258,10 +305,11 @@ class TestOpenFeatureE2EProviderLifecycle:
     def test_multiple_clients_same_provider(self):
         """Test multiple clients using the same provider."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
-            api.set_provider(DataDogProvider())
+            provider = DataDogProvider()
 
         config = create_config(create_string_flag("shared-flag", "shared-value", enabled=True))
-        process_ffe_configuration(config)
+        assert process_ffe_configuration(config)
+        _set_provider_and_wait(provider)
 
         # Get multiple clients
         client1 = api.get_client("client1")

@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    OpenFeature: Adds per-subject evaluation telemetry opt-out through
+    openfeature: Adds per-subject evaluation telemetry opt-out through
     ``DataDogProvider(enable_evaluation_telemetry_opt_out_parameter=True)`` or
     ``DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED=true``
     (disabled by default), with explicit constructor values taking precedence.

@@ -55,8 +55,9 @@ class EvaluationTelemetryHook(Hook):
         if self._hook_context is not None:
             self._hook_context_was_opted_out = _opted_out(self._hook_context.evaluation_context)
         # The handoff ends at resolver entry, before native evaluation or any
-        # nested calls. No subject decision remains in task-local state.
-        self._release()
+        # nested calls. A copied context cannot reset the caller's token.
+        # finally_after restores that token in the caller's context.
+        self._active.set(None)
 
     def error(self, hook_context: HookContext, exception: Exception, hints: HookHints) -> None:
         # Application before hooks can fail before our before stage runs.
@@ -85,7 +86,7 @@ class EvaluationTelemetryHook(Hook):
                     hook.finally_after(hook_context, details, hints)
                 except Exception:
                     # Preserve the SDK's isolation between individual hooks.
-                    logger.debug("OpenFeature evaluation telemetry hook failed", exc_info=True)
+                    logger.warning("OpenFeature evaluation telemetry hook failed", exc_info=True)
         finally:
             self._release()
 

@@ -250,6 +250,11 @@ class DataDogProvider(AbstractProvider):
         3. SpanEnrichmentHook (_span_enrichment.py) — registered only when
            DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED is enabled (default off);
            accumulates feature-flag metadata onto the local-root APM span.
+
+        When per-subject telemetry opt-out is enabled, these hooks are returned
+        inside one new EvaluationTelemetryHook per call. This relies on the SDK
+        calling get_provider_hooks once per evaluation. The wrapper forwards
+        only finally_after, so the wrapped hooks must stay finally-only.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
