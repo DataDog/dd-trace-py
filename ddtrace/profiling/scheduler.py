@@ -40,9 +40,9 @@ class Scheduler(periodic.PeriodicService):
         LOG.debug("Scheduler started")
 
     def _stop_service(self, *args: Any, **kwargs: Any) -> None:
-        if self._worker is not None and not self._worker.is_started():
-            # The worker never started (e.g. its start was deferred by a fork and then failed), so
-            # there is nothing to stop or join.
+        if self._worker is not None and self._worker.cancel_if_not_started():
+            # The worker never started: its start was deferred by a fork and either
+            # failed or was just cancelled. There is nothing to stop or join.
             self._worker = None
             return
 

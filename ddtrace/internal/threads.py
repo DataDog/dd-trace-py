@@ -83,6 +83,19 @@ class PeriodicThread(_PeriodicThread):
             else:
                 _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
 
+    def cancel_if_not_started(self) -> bool:
+        """Return True if the thread is not running, cancelling any start deferred by a fork so it never runs.
+
+        ThreadRestartTimer runs deferred starts under _forking_lock, so holding it here makes the check and the
+        cancellation atomic: the thread cannot start in between.
+        """
+        with _forking_lock:
+            if self.is_started():
+                return False
+
+            _threads_to_start_after_fork[:] = [s for s in _threads_to_start_after_fork if s.__self__ is not self]
+            return True
+
 
 class Thread(PeriodicThread):
     """A fork-safe thread."""
