@@ -1427,6 +1427,19 @@ Feature Flagging
          Stable kill switch for Feature Flagging. When ``False``, the provider is
          disabled regardless of the configured source.
 
+   DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         Enables support for the ``dd_evaluation_telemetry_opt_out`` evaluation
+         context attribute. Only boolean ``True`` suppresses new evaluation
+         events, evaluation metrics, and automatic flag span annotations.
+         This setting does not globally disable telemetry or change flag results
+         and experiment exposures. Absent or invalid values leave support disabled.
+         The provider captures this setting at construction. Explicit ``True`` or
+         ``False`` in ``DataDogProvider(enable_evaluation_telemetry_opt_out_parameter=...)``
+         overrides the environment; an omitted option or ``None`` uses this setting.
+
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE:
      type: String
      default: agentless

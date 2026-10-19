@@ -7,6 +7,7 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
+from contextvars import ContextVar
 import threading
 import time
 import typing
@@ -30,6 +31,7 @@ from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _register_provider
 from ddtrace.internal.openfeature._config import _unregister_provider
+from ddtrace.internal.openfeature._evaluation_telemetry import EvaluationTelemetryHook
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
@@ -111,17 +113,31 @@ class DataDogProvider(AbstractProvider):
 
     Implements the OpenFeature provider interface for Datadog's
     Feature Flags and Experimentation (FFE) product.
+
+    :param enable_evaluation_telemetry_opt_out_parameter:
+        Enable per-evaluation telemetry opt-out. When omitted or ``None``, use
+        ``DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED``
+        (default ``False``). Explicit ``True`` or ``False`` overrides the environment.
+        When enabled, only boolean ``True`` in the final evaluation context's
+        ``dd_evaluation_telemetry_opt_out`` attribute suppresses evaluation events,
+        evaluation metrics, and automatic flag span annotations. Flag results,
+        experiment exposures, and application hooks remain unchanged.
+    :type enable_evaluation_telemetry_opt_out_parameter: bool or None
     """
 
     def __init__(
         self,
         *args: typing.Any,
         initialization_timeout: typing.Optional[float] = None,
+        enable_evaluation_telemetry_opt_out_parameter: typing.Optional[bool] = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
+        self._evaluation_telemetry: ContextVar[typing.Optional[EvaluationTelemetryHook]] = ContextVar(
+            "ddtrace.openfeature.evaluation_telemetry", default=None
+        )
 
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
@@ -132,6 +148,11 @@ class DataDogProvider(AbstractProvider):
         # provider-construction time rather than at import time (see the killswitch
         # note below for the same reasoning).
         instance_config = OpenFeatureConfig()
+        self._enable_evaluation_telemetry_opt_out_parameter = (
+            instance_config.evaluation_telemetry_per_subject_opt_out_enabled
+            if enable_evaluation_telemetry_opt_out_parameter is None
+            else enable_evaluation_telemetry_opt_out_parameter
+        )
 
         # How long initialize() waits for that first config, in seconds. The
         # constructor argument wins so embedders and tests can override the
@@ -229,6 +250,11 @@ class DataDogProvider(AbstractProvider):
         3. SpanEnrichmentHook (_span_enrichment.py) — registered only when
            DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED is enabled (default off);
            accumulates feature-flag metadata onto the local-root APM span.
+
+        When per-subject telemetry opt-out is enabled, these hooks are returned
+        inside one new EvaluationTelemetryHook per call. This relies on the SDK
+        calling get_provider_hooks once per evaluation. The wrapper forwards
+        only finally_after, so the wrapped hooks must stay finally-only.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
@@ -237,6 +263,10 @@ class DataDogProvider(AbstractProvider):
             hooks.append(self._flag_eval_evp_hook)
         if self._span_enrichment_hook is not None:
             hooks.append(self._span_enrichment_hook)
+        if self._enable_evaluation_telemetry_opt_out_parameter and hooks:
+            # Fresh per-invocation state avoids requiring a hook-data API
+            # from older OpenFeature versions.
+            return [EvaluationTelemetryHook(hooks, self._evaluation_telemetry)]
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -455,6 +485,10 @@ class DataDogProvider(AbstractProvider):
           flag is not found in the configuration
         - Returns error with error_code and error_message on other errors
         """
+        telemetry = self._evaluation_telemetry.get()
+        if telemetry is not None:
+            telemetry.capture_resolution_context(evaluation_context)
+
         # Capture one snapshot at provider entry. Every exit path
         # carries consent from the exact configuration used for resolution;
         # downstream code must never reread live configuration.
