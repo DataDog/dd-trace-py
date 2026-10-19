@@ -202,6 +202,11 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[tup
 
 
 class SpanExceptionProbe(LogLineProbe):
+    def is_sampled(self) -> bool:
+        # Exception replay snapshots are not coordinated with Live Debugger
+        # probes. They have their own rate limiting.
+        return False
+
     @classmethod
     def build(cls, exc_id: uuid.UUID, frame: FrameType) -> "SpanExceptionProbe":
         _exc_id = str(exc_id)

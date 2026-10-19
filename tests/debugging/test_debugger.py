@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
+import time
 from unittest import mock
 
 from mock.mock import call
@@ -23,6 +24,8 @@ from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER as REDACTED
 from ddtrace.debugging._redaction import dd_compile_redacted as dd_compile
+from ddtrace.debugging._sampling import DebuggerSampler
+from ddtrace.debugging._sampling import TraceContext
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import _EMPTY_CAPTURED_CONTEXT
 from ddtrace.debugging._signal.tracing import SPAN_NAME
@@ -244,12 +247,70 @@ def test_debugger_coordinated_sampling_drops_a_whole_chain(stuff):
         )
 
         with ddtrace.tracer.trace("chain"):
-            d._sampler._limiter.budget = 0.0  # nothing to spend when the decision is taken
+            DebuggerSampler._limiter.budget = 0.0  # nothing to spend when the decision is taken
             stuff.Stuff().instancestuff(1)
-            d._sampler._limiter.budget = 100.0  # budget turns up, too late to matter
+            DebuggerSampler._limiter.budget = 100.0  # budget turns up, too late to matter
             stuff.modulestuff(42)
 
         assert Counter(s.probe.probe_id for s in d.test_queue) == Counter(), d.test_queue
+
+
+def test_debugger_starts_and_stops_the_sampler():
+    with debugger(global_rate_limit=42.0):
+        assert DebuggerSampler._limiter is not None
+        assert DebuggerSampler._limiter.limit_rate == 42.0
+
+    assert DebuggerSampler._limiter is None
+
+
+def test_debugger_inactive_session_probe_does_not_decide_for_the_trace(stuff):
+    # A probe whose session is not active is turned away by the signal before it
+    # reaches the sampler, so it must not stamp a decision on the trace, even
+    # with the budget spent.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="session-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+                tags={"session_id": "inactive-session"},
+            ),
+        )
+
+        limiter = DebuggerSampler._limiter
+        with ddtrace.tracer.trace("chain") as span:
+            limiter.budget, limiter.last_time = 0.0, time.monotonic()
+            stuff.modulestuff(42)
+
+            assert not TraceContext(span).decided
+
+        assert d.test_queue == []
+
+
+def test_debugger_exit_probe_is_gated_on_exit(stuff):
+    # A probe evaluated on exit captures nothing on entry, so it must not be
+    # turned away on entry: budget that turns up during the call still lets it
+    # capture on exit, and the trace is not stamped as dropped on entry.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="exit-probe",
+                module="tests.submod.stuff",
+                func_qname="caller",
+                evaluate_at=ProbeEvalTiming.EXIT,
+            ),
+        )
+
+        limiter = DebuggerSampler._limiter
+
+        def refill():
+            limiter.budget = 1.0
+
+        with ddtrace.tracer.trace("chain"):
+            limiter.budget, limiter.last_time = 0.0, time.monotonic()  # nothing on entry
+            stuff.caller(refill)
+
+        assert Counter(s.probe.probe_id for s in d.test_queue) == Counter({"exit-probe": 1}), d.test_queue
 
 
 def test_debugger_unsampled_probe_does_not_consume_sampling_budget(stuff):

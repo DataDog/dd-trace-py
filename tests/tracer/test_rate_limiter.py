@@ -302,3 +302,41 @@ def test_rate_limiter_consume_goes_into_deficit():
     assert limiter.has_budget() is False
     limiter.budget += 1.0
     assert limiter.has_budget() is False
+
+
+@pytest.mark.parametrize(
+    "limit_rate,tau",
+    [
+        # limit_rate * tau rounds to 0.9999999999999999
+        (49.0, 1.0 / 49.0),
+        # A rate below one per tau
+        (0.5, 1.0),
+    ],
+)
+def test_rate_limiter_has_budget_with_max_budget_below_one(limit_rate, tau):
+    limiter = BudgetRateLimiterWithJitter(limit_rate=limit_rate, tau=tau, raise_on_exceed=False)
+    assert limiter.max_budget < 1.0
+
+    limiter.consume()
+    assert limiter.has_budget() is False
+
+    # Enough time for the budget to replenish, even with the minimum jitter.
+    limiter.last_time -= 10.0 / limit_rate
+
+    # The peek agrees with what limit() would do.
+    assert limiter.has_budget() is True
+    assert limiter.limit() is not RateLimitExceeded
+
+
+def test_rate_limiter_infinite_rate_with_no_elapsed_time():
+    # inf * 0 is NaN, so with a coarse clock an infinite rate used to turn the
+    # budget into NaN and reject every call from then on.
+    limiter = BudgetRateLimiterWithJitter(limit_rate=float("inf"), raise_on_exceed=False)
+
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic", return_value=limiter.last_time):
+        for _ in range(3):
+            assert limiter.has_budget() is True
+            assert limiter.limit() is not RateLimitExceeded
+        limiter.consume()
+        assert limiter.has_budget() is True
+        assert limiter.limit() is not RateLimitExceeded

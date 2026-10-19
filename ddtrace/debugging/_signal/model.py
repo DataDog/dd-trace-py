@@ -22,6 +22,8 @@ from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
+from ddtrace.debugging._sampling import DebuggerSampler
+from ddtrace.debugging._sampling import Decision
 from ddtrace.debugging._session import Session
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
@@ -57,12 +59,13 @@ class SignalState(str, Enum):
     DONE = "DONE"
 
 
-class GlobalLimiter(Protocol):
-    """Consulted right before a signal captures, once its condition has matched."""
-
-    def limit(self, probe: Probe) -> Optional[SignalState]:
-        """Return the state to skip the signal with, or None if it may capture."""
-        ...
+# How a firing the sampler turned away, at the gate or at admission, is recorded
+# on its signal, so that the collector reports why it was skipped.
+_SAMPLING_SKIP_STATES = {
+    Decision.DROP_SAMPLED: SignalState.SKIP_RATE_GLOBAL,
+    Decision.DROP_CAPPED: SignalState.SKIP_BUDGET,
+    Decision.DROP_RATE: SignalState.SKIP_RATE_PROBE,
+}
 
 
 class SignalTrack(str, Enum):
@@ -81,10 +84,10 @@ class Signal(abc.ABC):
     Probes with an evaluation timing will trigger the following logic:
 
     - If the timing is on ENTRY, the probe will trigger on entry and on exit,
-      but the condition and rate limiter will only be evaluated on entry.
+      but the sampling checks and the condition will only be evaluated on entry.
 
     - If the timing is on EXIT, the probe will trigger on exit only, and the
-      condition and rate limiter will be evaluated on exit.
+      sampling checks and the condition will be evaluated on exit.
 
     - IF the timing is DEFAULT, the probe will trigger on the default timing for
       the signal.
@@ -187,16 +190,20 @@ class Signal(abc.ABC):
                 return True
         return False
 
-    def _global_limit_exceeded(self, global_limiter: Optional[GlobalLimiter]) -> bool:
-        if global_limiter is None:
+    def _skipped_by(self, decision: Decision) -> bool:
+        if decision is Decision.FIRE:
             return False
 
-        state = global_limiter.limit(self.probe)
-        if state is not None:
-            self.state = state
-            return True
+        self.state = _SAMPLING_SKIP_STATES[decision]
+        return True
 
-        return False
+    def _gated_out(self) -> bool:
+        """Ask the sampler's gate, before any work towards evaluating the probe."""
+        return self._skipped_by(DebuggerSampler.evaluate(self.probe))
+
+    def _sampled_out(self) -> bool:
+        """Ask the sampler for admission, right before capturing."""
+        return self._skipped_by(DebuggerSampler.admit(self.probe))
 
     @property
     def session(self) -> Optional[Session]:
@@ -219,18 +226,21 @@ class Signal(abc.ABC):
     def line(self, scope: Mapping[str, Any]) -> None:
         pass
 
-    def do_enter(self, global_limiter: Optional[GlobalLimiter] = None) -> None:
+    def do_enter(self) -> None:
         if not self._session_check():
             return
 
         if self._timing is not ProbeEvalTiming.ENTRY:
             return
 
+        if self._gated_out():
+            return
+
         scope = ChainMap(self.args, self.frame.f_globals)
         if not self._eval_condition(scope):
             return
 
-        if self._global_limit_exceeded(global_limiter):
+        if self._sampled_out():
             return
 
         if self._budget_exceeded():
@@ -238,14 +248,15 @@ class Signal(abc.ABC):
 
         self.enter(scope)
 
-    def do_exit(
-        self, retval: Any, exc_info: ExcInfoType, duration: int, global_limiter: Optional[GlobalLimiter] = None
-    ) -> None:
+    def do_exit(self, retval: Any, exc_info: ExcInfoType, duration: int) -> None:
         if not self._session_check():
             return
 
         if self.state is not SignalState.NONE:
             # The signal has already been handled and move to a final state
+            return
+
+        if self._timing is ProbeEvalTiming.EXIT and self._gated_out():
             return
 
         frame = self.frame
@@ -259,12 +270,12 @@ class Signal(abc.ABC):
         scope = ChainMap(extra, frame.f_locals, frame.f_globals)
 
         if self._timing is ProbeEvalTiming.EXIT:
-            # We only evaluate the condition and the rate limiter on exit if it
+            # We only evaluate the condition and admit the capture on exit if it
             # is a probe with timing on exit
             if not self._eval_condition(scope):
                 return
 
-            if self._global_limit_exceeded(global_limiter):
+            if self._sampled_out():
                 return
 
             if self._budget_exceeded():
@@ -274,8 +285,11 @@ class Signal(abc.ABC):
 
         self.state = SignalState.DONE
 
-    def do_line(self, global_limiter: Optional[GlobalLimiter] = None) -> None:
+    def do_line(self) -> None:
         if not self._session_check():
+            return
+
+        if self._gated_out():
             return
 
         frame = self.frame
@@ -284,7 +298,7 @@ class Signal(abc.ABC):
         if not self._eval_condition(scope):
             return
 
-        if self._global_limit_exceeded(global_limiter):
+        if self._sampled_out():
             return
 
         if self._budget_exceeded():

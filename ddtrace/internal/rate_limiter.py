@@ -220,7 +220,10 @@ class BudgetRateLimiterWithJitter:
         The caller is expected to hold the lock.
         """
         now = time.monotonic()
-        self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+        # An infinite budget never needs replenishing, and inf * 0 would turn it
+        # into NaN when no time has elapsed (e.g. with a coarse clock).
+        if self.limit_rate != float("inf"):
+            self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
         self.last_time = now
 
     def _cap(self) -> None:
@@ -236,11 +239,17 @@ class BudgetRateLimiterWithJitter:
         untouched, so a peek does not shrink the window a later :meth:`consume`
         or :meth:`limit` accrues over: whatever elapsed since the last real
         accrual still counts, whether that was another peek or a commit.
+
+        Compares before capping, as :meth:`limit` does, so that a maximum budget
+        below one token (a rate below one per ``tau``, or a rate whose
+        ``limit_rate * tau`` rounds just under one) does not reject forever.
         """
+        if self.limit_rate == float("inf"):
+            return True
+
         with self._lock:
             elapsed = time.monotonic() - self.last_time
-            projected = self.budget + self.limit_rate * elapsed * (0.5 + random.random())
-            return min(self.max_budget, projected) >= 1.0
+            return self.budget + self.limit_rate * elapsed * (0.5 + random.random()) >= 1.0
 
     def consume(self, amount: float = 1.0) -> None:
         """Spend budget whether or not there is any left.
