@@ -1,0 +1,455 @@
+// ELF discovery of the AsyncioDebug table. See asyncio_debug.cc for the overall design.
+//
+// find_asyncio_debug_offsets runs in two phases so that no file I/O happens under the dynamic loader lock:
+//   1. snapshot_asyncio_binary: inside dl_iterate_phdr, which holds the loader lock, copy the path, load bias, and
+//      program headers of each binary that may contain _asyncio.
+//   2. After iteration, open each snapshot's file and call read_asyncio_debug_offsets_from_elf:
+//      a. read_and_validate_elf_header: check the ELF header and bound the program and section header tables.
+//      b. identify_loaded_binary: the file may have been replaced since it was loaded, so prove it matches the
+//         loaded binary. Program headers must be identical, and a GNU build ID must match when the binary has one.
+//      c. read_elf_section_table: locate the section headers and the section-name string table.
+//      d. find_asyncio_debug_offsets_in_sections: find .AsyncioDebug inside a loaded, readable segment and read the
+//         table from memory. Build-ID-free binaries also require the table's file bytes to equal its loaded bytes.
+//
+// File reads use bounded pread calls into owned buffers, so a file truncated during discovery cannot fault.
+
+#if defined(__linux__)
+
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
+#include "asyncio_debug_bounds.h"
+
+#include <echion/cpython/asyncio_debug.h>
+
+#include <array>
+#include <bit>
+#include <cerrno>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <new>
+
+#include <elf.h>
+#include <fcntl.h>
+#include <link.h>
+#include <sys/stat.h>
+#include <sys/uio.h>
+#include <unistd.h>
+
+namespace {
+
+using asyncio_debug::contains_span;
+
+bool
+read_loaded_memory(const void* address, void* buffer, size_t size)
+{
+    // Discovery runs without the GIL on an initialization thread. Use process_vm_readv directly, not copy_memory: the
+    // sampler can change its copy strategy concurrently, and signal-handler swaps pause only the sampler, not this
+    // thread. Fail closed if the syscall is unavailable or fails; falling back to signal-based memcpy would
+    // reintroduce those races.
+    const iovec local{ buffer, size };
+    const iovec remote{ const_cast<void*>(address), size };
+    return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
+}
+
+bool
+is_asyncio_binary(const char* path)
+{
+    if (path == nullptr || path[0] == '\0') {
+        return true;
+    }
+    const char* filename = std::strrchr(path, '/');
+    filename = filename == nullptr ? path : filename + 1;
+    return std::strstr(filename, "_asyncio") != nullptr || std::strncmp(filename, "libpython", 9) == 0 ||
+           std::strncmp(filename, "python", 6) == 0 || std::strncmp(filename, "Python", 6) == 0;
+}
+
+constexpr size_t max_program_headers = 256;
+
+bool
+read_at(int fd, uint64_t file_size, uint64_t offset, void* buffer, size_t size)
+{
+    if (!contains_span(file_size, offset, size)) {
+        return false;
+    }
+    // Reads into owned memory cannot SIGBUS if the file is truncated. Bound EINTR retries as well as read sizes.
+    for (unsigned int attempt = 0; attempt < 3; ++attempt) {
+        const ssize_t count = pread(fd, buffer, size, static_cast<off_t>(offset));
+        if (count >= 0) {
+            return static_cast<size_t>(count) == size;
+        }
+        if (errno != EINTR) {
+            break;
+        }
+    }
+    return false;
+}
+
+std::optional<ElfW(Ehdr)>
+read_and_validate_elf_header(int fd, uint64_t file_size)
+{
+    ElfW(Ehdr) header;
+    if (!read_at(fd, file_size, 0, &header, sizeof(header))) {
+        return std::nullopt;
+    }
+
+    // e_ident starts with the ELF magic bytes and records the file's word size, byte order, and format version. The
+    // loaded binary has the same word size and byte order as this process, so no cross-architecture decoding is needed.
+    if (std::memcmp(header.e_ident, ELFMAG, SELFMAG) != 0 || header.e_ident[EI_VERSION] != EV_CURRENT ||
+        header.e_ident[EI_CLASS] != (sizeof(void*) == 8 ? ELFCLASS64 : ELFCLASS32) ||
+        header.e_ident[EI_DATA] != (std::endian::native == std::endian::little ? ELFDATA2LSB : ELFDATA2MSB)) {
+        return std::nullopt;
+    }
+
+    // ET_EXEC covers traditional executables. ET_DYN covers shared libraries and position-independent executables.
+    if (header.e_version != EV_CURRENT || (header.e_type != ET_DYN && header.e_type != ET_EXEC) ||
+        header.e_ehsize != sizeof(header)) {
+        return std::nullopt;
+    }
+
+    // Program headers describe the segments mapped by the dynamic loader. We later compare this table with
+    // dl_iterate_phdr's in-memory table to ensure that the file still represents the loaded binary.
+    if (header.e_phentsize != sizeof(ElfW(Phdr)) || header.e_phnum == 0 || header.e_phnum > max_program_headers ||
+        !contains_span(file_size, header.e_phoff, header.e_phnum * sizeof(ElfW(Phdr)))) {
+        return std::nullopt;
+    }
+
+    // Section headers locate named sections such as .AsyncioDebug. At least the first header must be readable because
+    // ELF stores extended section counts and string-table indexes there when they do not fit in the main header.
+    if (header.e_shentsize != sizeof(ElfW(Shdr)) || !contains_span(file_size, header.e_shoff, sizeof(ElfW(Shdr)))) {
+        return std::nullopt;
+    }
+    return header;
+}
+
+struct ElfSectionTable
+{
+    uint64_t section_headers_offset;
+    uint64_t section_count;
+    ElfW(Shdr) names_section;
+};
+
+std::optional<ElfSectionTable>
+read_elf_section_table(int fd, uint64_t file_size, const ElfW(Ehdr) & header)
+{
+    ElfW(Shdr) first_section;
+    if (!read_at(fd, file_size, header.e_shoff, &first_section, sizeof(first_section))) {
+        return std::nullopt;
+    }
+
+    const uint64_t section_count = header.e_shnum == 0 ? first_section.sh_size : header.e_shnum;
+    const uint64_t names_index = header.e_shstrndx == SHN_XINDEX ? first_section.sh_link : header.e_shstrndx;
+    // Bound initialization work independently of file size, including extended ELF section counts.
+    if (section_count == 0 || section_count > 4096 || names_index >= section_count ||
+        !contains_span(file_size, header.e_shoff, section_count * sizeof(ElfW(Shdr)))) {
+        return std::nullopt;
+    }
+
+    ElfW(Shdr) names_section;
+    if (!read_at(
+          fd, file_size, header.e_shoff + names_index * sizeof(names_section), &names_section, sizeof(names_section)) ||
+        names_section.sh_type != SHT_STRTAB ||
+        !contains_span(file_size, names_section.sh_offset, names_section.sh_size)) {
+        return std::nullopt;
+    }
+    return ElfSectionTable{ header.e_shoff, section_count, names_section };
+}
+
+bool
+section_is_loaded(const dl_phdr_info& binary, uint64_t address, uint64_t size)
+{
+    if (address > std::numeric_limits<uintptr_t>::max() - binary.dlpi_addr ||
+        size > std::numeric_limits<uintptr_t>::max() - (binary.dlpi_addr + address)) {
+        return false;
+    }
+    for (ElfW(Half) i = 0; i < binary.dlpi_phnum; ++i) {
+        const auto& segment = binary.dlpi_phdr[i];
+        if (segment.p_type == PT_LOAD && (segment.p_flags & PF_R) != 0 && address >= segment.p_vaddr &&
+            contains_span(segment.p_memsz, address - segment.p_vaddr, size)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+enum class BuildIdNote : uint8_t
+{
+    Found,
+    Missing,
+    Malformed,
+};
+
+BuildIdNote
+find_gnu_build_id(const unsigned char* notes, size_t size)
+{
+    size_t offset = 0;
+    while (contains_span(size, offset, sizeof(ElfW(Nhdr)))) {
+        ElfW(Nhdr) note;
+        std::memcpy(&note, notes + offset, sizeof(note));
+        offset += sizeof(note);
+        const uint64_t name_size = (static_cast<uint64_t>(note.n_namesz) + 3) & ~uint64_t{ 3 };
+        const uint64_t data_size = (static_cast<uint64_t>(note.n_descsz) + 3) & ~uint64_t{ 3 };
+        if (!contains_span(size, offset, name_size + data_size)) {
+            return BuildIdNote::Malformed;
+        }
+        if (note.n_type == NT_GNU_BUILD_ID && note.n_namesz == 4 && note.n_descsz != 0 &&
+            std::memcmp(notes + offset, "GNU", 4) == 0) {
+            return BuildIdNote::Found;
+        }
+        offset += static_cast<size_t>(name_size + data_size);
+    }
+    return BuildIdNote::Missing;
+}
+
+// Build-ID-free objects cannot be identified by file metadata alone. Device and inode numbers are not portable: on
+// overlayfs before Linux 6.8, /proc/self/maps reports the backing layer's device while fstat() reports the overlay's.
+// Instead, require the table's file bytes to equal the loaded bytes at the address derived from that file.
+enum class BinaryIdentity : uint8_t
+{
+    Mismatch,
+    BuildIdMatched,
+    RequiresMatchingTable,
+};
+
+// Section addresses come from the open file, but the load bias and section contents come from the loaded binary. The
+// library path may have been replaced since the loader mapped it, so combining metadata from different files could
+// produce a valid-looking address into unrelated memory. Match the file against loader-owned metadata before using it.
+BinaryIdentity
+identify_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, const dl_phdr_info& binary)
+{
+    // Program headers define the loaded segment layout. Require the file's complete table to equal the table retained
+    // by the dynamic loader before comparing identity metadata within those segments.
+    if (header.e_phnum != binary.dlpi_phnum) {
+        return BinaryIdentity::Mismatch;
+    }
+
+    bool loaded_has_build_id = false;
+    bool matched_build_id = false;
+    bool inspected_all_notes = true;
+    for (ElfW(Half) i = 0; i < header.e_phnum; ++i) {
+        ElfW(Phdr) segment;
+        if (!read_at(fd, file_size, header.e_phoff + i * sizeof(segment), &segment, sizeof(segment)) ||
+            std::memcmp(&segment, &binary.dlpi_phdr[i], sizeof(segment)) != 0) {
+            return BinaryIdentity::Mismatch;
+        }
+        // Matching layouts alone do not prove file identity because two builds can have identical program headers.
+        // Compare the GNU build ID note from the file with the copy mapped in memory. ELF notes are small, immutable
+        // metadata, so cap scratch space and avoid allocating while inspecting them.
+        if (segment.p_type != PT_NOTE) {
+            continue;
+        }
+
+        std::array<unsigned char, 4096> file_notes;
+        std::array<unsigned char, 4096> loaded_notes;
+        if (segment.p_filesz > file_notes.size() || !section_is_loaded(binary, segment.p_vaddr, segment.p_filesz)) {
+            inspected_all_notes = false;
+            continue;
+        }
+        const size_t size = static_cast<size_t>(segment.p_filesz);
+        // The loader exposes virtual addresses as integers.
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        const auto* address = reinterpret_cast<const void*>(binary.dlpi_addr + segment.p_vaddr);
+        if (!read_loaded_memory(address, loaded_notes.data(), size)) {
+            inspected_all_notes = false;
+            continue;
+        }
+        const auto build_id = find_gnu_build_id(loaded_notes.data(), size);
+        if (build_id == BuildIdNote::Malformed) {
+            // Notes after a malformed entry are unreachable, so a build ID could be hidden there.
+            inspected_all_notes = false;
+            continue;
+        }
+        if (build_id == BuildIdNote::Missing) {
+            continue;
+        }
+
+        loaded_has_build_id = true;
+        if (read_at(fd, file_size, segment.p_offset, file_notes.data(), size) &&
+            std::memcmp(file_notes.data(), loaded_notes.data(), size) == 0) {
+            matched_build_id = true;
+        }
+    }
+
+    if (loaded_has_build_id) {
+        return matched_build_id ? BinaryIdentity::BuildIdMatched : BinaryIdentity::Mismatch;
+    }
+    // An uninspected note segment might hold a build ID that would have rejected this file.
+    return inspected_all_notes ? BinaryIdentity::RequiresMatchingTable : BinaryIdentity::Mismatch;
+}
+
+std::optional<AsyncioOffsets>
+find_asyncio_debug_offsets_in_sections(int fd,
+                                       uint64_t file_size,
+                                       const ElfSectionTable& table,
+                                       const dl_phdr_info& binary,
+                                       BinaryIdentity identity)
+{
+    constexpr char section_name[] = ".AsyncioDebug";
+    for (uint64_t i = 0; i < table.section_count; ++i) {
+        ElfW(Shdr) section;
+        if (!read_at(fd, file_size, table.section_headers_offset + i * sizeof(section), &section, sizeof(section))) {
+            return std::nullopt;
+        }
+        if (section.sh_type != SHT_PROGBITS || (section.sh_flags & SHF_ALLOC) == 0 ||
+            section.sh_size < sizeof(PyAsyncioDebugOffsets)) {
+            continue;
+        }
+
+        char name[sizeof(section_name)];
+        if (!contains_span(table.names_section.sh_size, section.sh_name, sizeof(name)) ||
+            !read_at(fd, file_size, table.names_section.sh_offset + section.sh_name, name, sizeof(name)) ||
+            std::memcmp(name, section_name, sizeof(name)) != 0 ||
+            !section_is_loaded(binary, section.sh_addr, section.sh_size)) {
+            continue;
+        }
+        // The loader exposes the load bias and section address as integers.
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        const auto* debug_table = reinterpret_cast<const PyAsyncioDebugOffsets*>(binary.dlpi_addr + section.sh_addr);
+        PyAsyncioDebugOffsets loaded_table;
+        if (!read_loaded_memory(debug_table, &loaded_table, sizeof(loaded_table))) {
+            continue;
+        }
+        if (identity == BinaryIdentity::RequiresMatchingTable) {
+            // The table holds unrelocated constants, so the loaded bytes equal the file bytes for the same binary.
+            // A different build with identical program headers would need byte-identical contents at this address.
+            PyAsyncioDebugOffsets file_table;
+            if (!read_at(fd, file_size, section.sh_offset, &file_table, sizeof(file_table))) {
+                return std::nullopt;
+            }
+            if (std::memcmp(&file_table, &loaded_table, sizeof(file_table)) != 0) {
+                continue;
+            }
+        }
+        if (auto offsets = parse_asyncio_debug_offsets(loaded_table)) {
+            return offsets;
+        }
+    }
+    return std::nullopt;
+}
+
+constexpr size_t max_asyncio_binaries = 16;
+constexpr size_t max_binary_path = 4096;
+
+struct LoadedBinarySnapshot
+{
+    ElfW(Addr) load_bias = 0;
+    ElfW(Half) program_header_count = 0;
+    bool is_process_executable = false;
+    std::array<char, max_binary_path> path{};
+    std::array<ElfW(Phdr), max_program_headers> program_headers{};
+
+    dl_phdr_info binary() const
+    {
+        dl_phdr_info result{};
+        result.dlpi_addr = load_bias;
+        result.dlpi_name = is_process_executable ? "" : path.data();
+        result.dlpi_phdr = program_headers.data();
+        result.dlpi_phnum = program_header_count;
+        return result;
+    }
+
+    const char* file_path() const { return is_process_executable ? "/proc/self/exe" : path.data(); }
+};
+
+struct LoadedBinarySnapshots
+{
+    std::array<LoadedBinarySnapshot, max_asyncio_binaries> binaries{};
+    size_t count = 0;
+};
+
+int
+snapshot_asyncio_binary(dl_phdr_info* binary, size_t, void* data)
+{
+    if (!is_asyncio_binary(binary->dlpi_name)) {
+        return 0;
+    }
+
+    auto* snapshots = static_cast<LoadedBinarySnapshots*>(data);
+    if (snapshots->count == snapshots->binaries.size()) {
+        return 1;
+    }
+    if (binary->dlpi_phdr == nullptr || binary->dlpi_phnum == 0 || binary->dlpi_phnum > max_program_headers) {
+        return 0;
+    }
+
+    const bool is_process_executable = binary->dlpi_name == nullptr || binary->dlpi_name[0] == '\0';
+    size_t path_length = 0;
+    if (!is_process_executable) {
+        const auto* path_end = static_cast<const char*>(std::memchr(binary->dlpi_name, '\0', max_binary_path));
+        if (path_end == nullptr) {
+            return 0;
+        }
+        path_length = static_cast<size_t>(path_end - binary->dlpi_name);
+    }
+
+    auto& snapshot = snapshots->binaries[snapshots->count++];
+    snapshot.load_bias = binary->dlpi_addr;
+    snapshot.program_header_count = binary->dlpi_phnum;
+    snapshot.is_process_executable = is_process_executable;
+    if (!is_process_executable) {
+        std::memcpy(snapshot.path.data(), binary->dlpi_name, path_length + 1);
+    }
+    std::memcpy(snapshot.program_headers.data(), binary->dlpi_phdr, binary->dlpi_phnum * sizeof(ElfW(Phdr)));
+    return 0;
+}
+
+} // namespace
+
+std::optional<AsyncioOffsets>
+read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary)
+{
+    struct stat file_info;
+    if (fstat(fd, &file_info) != 0 || !S_ISREG(file_info.st_mode) || file_info.st_size < 0) {
+        return std::nullopt;
+    }
+    const auto file_size = static_cast<uint64_t>(file_info.st_size);
+
+    auto header = read_and_validate_elf_header(fd, file_size);
+    if (!header) {
+        return std::nullopt;
+    }
+    const auto identity = identify_loaded_binary(fd, file_size, *header, binary);
+    if (identity == BinaryIdentity::Mismatch) {
+        return std::nullopt;
+    }
+
+    auto section_table = read_elf_section_table(fd, file_size, *header);
+    if (!section_table) {
+        return std::nullopt;
+    }
+
+    return find_asyncio_debug_offsets_in_sections(fd, file_size, *section_table, binary, identity);
+}
+
+std::optional<AsyncioOffsets>
+find_asyncio_debug_offsets()
+{
+    // glibc invokes dl_iterate_phdr callbacks while holding the dynamic loader lock. Copy the candidate metadata in the
+    // callbacks, then perform all filesystem and guarded-memory reads after iteration releases that lock.
+    auto snapshots = std::unique_ptr<LoadedBinarySnapshots>(new (std::nothrow) LoadedBinarySnapshots{});
+    if (!snapshots) {
+        return std::nullopt;
+    }
+    dl_iterate_phdr(snapshot_asyncio_binary, snapshots.get());
+
+    for (size_t i = 0; i < snapshots->count; ++i) {
+        const auto& snapshot = snapshots->binaries[i];
+        // O_NONBLOCK avoids hanging on a FIFO substituted for a previously loaded library. Regular files can still
+        // block, but no dynamic loader lock is held while opening or reading them.
+        const int fd = open(snapshot.file_path(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+        if (fd < 0) {
+            continue;
+        }
+        auto binary = snapshot.binary();
+        auto offsets = read_asyncio_debug_offsets_from_elf(fd, binary);
+        close(fd);
+        if (offsets) {
+            return offsets;
+        }
+    }
+    return std::nullopt;
+}
+
+#endif // defined(__linux__)

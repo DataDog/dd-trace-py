@@ -115,6 +115,28 @@ configure_stack_internal_test(test_sampling_cycle_state)
 dd_wrapper_add_test(test_asyncio_debug test_asyncio_debug.cpp)
 configure_stack_internal_test(test_asyncio_debug)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Link the reader into the test executable so --wrap can observe direct memory reads and inject syscall failures
+    # without changing the extension.
+    dd_wrapper_add_test(test_asyncio_debug_linux test_asyncio_debug_linux.cpp ../src/echion/asyncio_debug.cc
+                        ../src/echion/asyncio_debug_linux.cc)
+    configure_stack_internal_test(test_asyncio_debug_linux)
+    # Exercise build-ID-free identity validation against the real executable.
+    target_link_options(
+        test_asyncio_debug_linux
+        PRIVATE
+        -Wl,--wrap=pread
+        -Wl,--wrap=pread64
+        -Wl,--wrap=__pread_chk
+        -Wl,--wrap=__pread64_chk
+        -Wl,--wrap=process_vm_readv
+        -Wl,--build-id=none
+        -Wl,--undefined=process_asyncio_debug_offsets)
+    if(DO_VALGRIND)
+        target_compile_definitions(test_asyncio_debug_linux PRIVATE TEST_RUNNING_ON_VALGRIND)
+    endif()
+endif()
+
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
 
