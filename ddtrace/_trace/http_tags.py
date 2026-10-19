@@ -10,6 +10,7 @@ from ddtrace._trace.otel.http.resource import RESOURCE_SET_BY_USER
 from ddtrace._trace.otel.http.tags import _obfuscated_query
 from ddtrace._trace.otel.http.tags import _sanitized_url
 from ddtrace._trace.otel.http.tags import _set_otel_query
+from ddtrace._trace.otel.http.tags import is_otel_server_error_status
 from ddtrace._trace.otel.http.tags import normalize_http_method
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.otel.http.tags import set_url_tags_otel_server
@@ -61,6 +62,10 @@ def set_instrumentation_resource(span: Span, resource: str) -> None:
     span.resource = resource
     if config._otel_trace_semantics_enabled:
         span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
+
+
+def is_otel_non_error_status(status_code: int) -> bool:
+    return config._otel_trace_semantics_enabled and not is_otel_server_error_status(status_code)
 
 
 def copy_server_url_tags(source: Span, destination: Span) -> None:
