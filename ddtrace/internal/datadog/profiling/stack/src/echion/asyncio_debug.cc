@@ -207,7 +207,7 @@ section_is_loaded(const dl_phdr_info& binary, uint64_t address, uint64_t size)
     return false;
 }
 
-enum class BuildIdNote
+enum class BuildIdNote : uint8_t
 {
     Found,
     Missing,
@@ -239,7 +239,7 @@ find_gnu_build_id(const unsigned char* notes, size_t size)
 // Build-ID-free objects cannot be identified by file metadata alone. Device and inode numbers are not portable: on
 // overlayfs before Linux 6.8, /proc/self/maps reports the backing layer's device while fstat() reports the overlay's.
 // Instead, require the table's file bytes to equal the loaded bytes at the address derived from that file.
-enum class BinaryIdentity
+enum class BinaryIdentity : uint8_t
 {
     Mismatch,
     BuildIdMatched,
