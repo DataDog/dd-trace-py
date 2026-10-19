@@ -1093,6 +1093,32 @@ def test_failed_request_is_charged_its_billed_guardrails(logger, writer, guardra
     assert request["estimated_cost_usd"] == pytest.approx(expected)
 
 
+@pytest.mark.subprocess()
+def test_the_settings_come_from_stable_configuration():
+    import os
+    import tempfile
+
+    path = os.path.join(tempfile.mkdtemp(), "application_monitoring.yaml")
+    with open(path, "w") as f:
+        f.write(
+            "apm_configuration_default:\n"
+            "  DD_LITELLM_USAGE_METRICS_ENABLED: true\n"
+            "  DD_LITELLM_USAGE_METRICS_EXPORTER: dogstatsd\n"
+            "  DD_LITELLM_USAGE_METRICS_TAGS: user,team\n"
+        )
+    os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = path
+    for name in ("ENABLED", "EXPORTER", "TAGS", "CLIENT_SOURCE"):
+        os.environ.pop(f"DD_LITELLM_USAGE_METRICS_{name}", None)
+
+    from ddtrace import config
+    import ddtrace.contrib.internal.litellm.patch  # noqa: F401
+
+    assert config.litellm.usage_metrics_enabled is True
+    assert config.litellm.usage_metrics_exporter == "dogstatsd"
+    assert config.litellm.usage_metrics_tags == "user,team"
+    assert config.litellm.usage_metrics_client_source is None
+
+
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
 @pytest.mark.subprocess()
 def test_a_fork_does_not_inherit_the_logger_lock_or_requests():

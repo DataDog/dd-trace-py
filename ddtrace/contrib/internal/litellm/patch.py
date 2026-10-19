@@ -19,8 +19,8 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import otel_config
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
@@ -32,10 +32,10 @@ log = get_logger(__name__)
 config._add(
     "litellm",
     {
-        "usage_metrics_enabled": asbool(env.get("DD_LITELLM_USAGE_METRICS_ENABLED", default=False)),
-        "usage_metrics_tags": env.get("DD_LITELLM_USAGE_METRICS_TAGS"),
-        "usage_metrics_exporter": env.get("DD_LITELLM_USAGE_METRICS_EXPORTER", default="otlp"),
-        "usage_metrics_client_source": env.get("DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE"),
+        "usage_metrics_enabled": _get_config("DD_LITELLM_USAGE_METRICS_ENABLED", default=False, modifier=asbool),
+        "usage_metrics_tags": _get_config("DD_LITELLM_USAGE_METRICS_TAGS"),
+        "usage_metrics_exporter": _get_config("DD_LITELLM_USAGE_METRICS_EXPORTER", default="otlp"),
+        "usage_metrics_client_source": _get_config("DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE"),
     },
 )
 

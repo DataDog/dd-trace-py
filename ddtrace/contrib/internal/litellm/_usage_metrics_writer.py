@@ -23,7 +23,6 @@ from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import get_config
@@ -67,14 +66,22 @@ def _wait(stopping: Any, seconds: float) -> bool:
     return bool(stopping.wait(seconds))
 
 
+def _setting(name: str) -> Optional[str]:
+    """A setting from fleet or local stable configuration or the environment, in their usual precedence. Each name is
+    looked up on its own, so a metrics setting from any source wins over the global one.
+    """
+    value = get_config(name, None, report_telemetry=False)
+    return str(value) if value else None
+
+
 def otlp_endpoint_is_grpc() -> bool:
     """Whether the configured OTLP metrics endpoint is a gRPC one: its protocol, the metrics one or else the global
     one, is gRPC. The usage metrics are sent over OTLP/HTTP only, which a gRPC endpoint does not accept. Without a
     configured endpoint they go to an OTLP/HTTP default.
     """
-    if not (env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or env.get("OTEL_EXPORTER_OTLP_ENDPOINT")):
+    if not (_setting("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") or _setting("OTEL_EXPORTER_OTLP_ENDPOINT")):
         return False
-    protocol = env.get("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL") or env.get("OTEL_EXPORTER_OTLP_PROTOCOL") or ""
+    protocol = _setting("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL") or _setting("OTEL_EXPORTER_OTLP_PROTOCOL") or ""
     return protocol.strip().lower() == "grpc"
 
 
@@ -125,11 +132,14 @@ class _OtlpSender:
         # OTEL_EXPORTER_OTLP_METRICS_ENDPOINT is used exactly as given, path and query included; otherwise
         # this is OTEL_EXPORTER_OTLP_ENDPOINT with /v1/metrics appended to its path (its query kept), the agentless
         # intake, or the local Agent.
-        endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
-        base = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-        if base and not env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
-            parts = parse.urlsplit(base)
-            endpoint = parse.urlunsplit(parts._replace(path=parts.path.rstrip("/") + "/v1/metrics"))
+        endpoint = _setting("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+        if endpoint is None:
+            base = _setting("OTEL_EXPORTER_OTLP_ENDPOINT")
+            if base:
+                parts = parse.urlsplit(base)
+                endpoint = parse.urlunsplit(parts._replace(path=parts.path.rstrip("/") + "/v1/metrics"))
+            else:
+                endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
         url = parse.urlsplit(endpoint)
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = _redacted(endpoint)

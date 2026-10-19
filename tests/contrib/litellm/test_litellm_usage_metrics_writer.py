@@ -394,6 +394,39 @@ def test_a_grpc_otlp_endpoint_is_recognized(monkeypatch, variables, grpc):
     assert _usage_metrics_writer.otlp_endpoint_is_grpc() is grpc
 
 
+@pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
+def test_a_grpc_protocol_from_stable_configuration_is_recognized(monkeypatch, source_name):
+    for name in (
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_PROTOCOL",
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317")
+    assert _usage_metrics_writer.otlp_endpoint_is_grpc() is False
+    monkeypatch.setitem(getattr(settings_core, source_name), "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "grpc")
+    assert _usage_metrics_writer.otlp_endpoint_is_grpc() is True
+
+
+@pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
+def test_the_endpoints_come_from_stable_configuration(collector, monkeypatch, source_name):
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    source = getattr(settings_core, source_name)
+    port = collector.server_address[1]
+    # The global endpoint gets the metrics path; a metrics endpoint, even set in the environment, wins over it.
+    monkeypatch.setitem(source, "OTEL_EXPORTER_OTLP_ENDPOINT", f"http://127.0.0.1:{port}/global")
+    for expected in ("/global/v1/metrics", "/metrics-only"):
+        if expected == "/metrics-only":
+            monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", f"http://127.0.0.1:{port}/metrics-only")
+        Collector.requests.clear()
+        writer = UsageMetricsWriter("otlp", interval=60)
+        writer.record(PROVIDER_ATTEMPT, *observation())
+        writer.flush()
+        [(sent_path, _, _)] = Collector.requests
+        assert sent_path == expected
+
+
 def test_the_logged_endpoint_has_no_secrets(collector, monkeypatch):
     port = collector.server_address[1]
     url = f"http://user:hunter2@127.0.0.1:{port}/token-123/v1/metrics?api_key=secret123"
@@ -458,8 +491,7 @@ def test_the_global_endpoint_keeps_its_query(collector, monkeypatch):
 
 @pytest.mark.parametrize("path", ["/custom?tenant=a%20b", ""])
 def test_the_metrics_endpoint_is_used_as_given(collector, monkeypatch, path):
-    url = f"http://127.0.0.1:{collector.server_address[1]}{path}"
-    monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", url)
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", f"http://127.0.0.1:{collector.server_address[1]}{path}")
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
     writer.flush()
