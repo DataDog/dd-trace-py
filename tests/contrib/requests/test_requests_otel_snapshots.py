@@ -53,6 +53,6 @@ def test_client_spans_custom_error_statuses():
     from tests.contrib.config import HTTPBIN_CONFIG
 
     authority = f"{HTTPBIN_CONFIG['host']}:{HTTPBIN_CONFIG['port']}"
-    # A configured range replaces the default: 200 becomes an error and 404 does not.
+    # With OTel semantics the configured range replaces the default: 200 becomes an error and 404 does not.
     requests.get(f"http://{authority}/status/200")
     requests.get(f"http://{authority}/status/404")
