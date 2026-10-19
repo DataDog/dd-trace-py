@@ -67,7 +67,6 @@ class _DDWSGIMiddlewareBase:
     def __init__(
         self,
         application: Iterable,
-        tracer: Optional[Tracer],
         int_config: Config,
         app_is_iterator: bool = False,
     ) -> None:
@@ -364,7 +363,6 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def __init__(
         self,
         application: Iterable,
-        tracer: Optional[Tracer] = None,
         span_modifier: Callable[[Span, dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,
     ) -> None:
