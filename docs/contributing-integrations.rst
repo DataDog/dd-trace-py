@@ -99,8 +99,9 @@ and ``HttpRequestCompletedEvent`` from ``ddtrace.contrib._events.http`` using
 ``event.phase``, and ``event.request_id`` directly; there is no snapshot wrapper.
 The shared ``HttpRequestDataEvent`` base supplies fields, not a subscription name.
 Events carry no span, resource, service, operation name, or integration configuration.
-Bottle's integration-owned ``BottleRequestEvent`` provides its tracing context;
-its tracing subscriber consumes the HTTP observations separately.
+The shared ``HttpServerRequestEvent`` opens the tracing context. Its subscriber
+correlates HTTP observations by ``request_id`` and selects framework conventions
+using the ``framework`` field.
 See ``examples/http-events/contract.py`` for consumer registration and blocking.
 
 The application-installed Bottle plugin publishes this contract at these boundaries:
@@ -184,6 +185,33 @@ without creating a request span. Consumers should register before request entry 
 observe the complete lifecycle. With no tracing, observation, or block-check listeners,
 the WSGI wrapper delegates directly to Bottle. Route-local plugins publish only route
 resolution and callback completion; they have no WSGI boundary and emit no block checks.
+
+
+Testing HTTP contract adapters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Integrations adopting the HTTP server request-data contract should inherit
+``HttpContractTests`` from ``tests.contrib.http_contract`` in a pytest class
+whose name starts with ``Test``. Import ``observe_http_requests`` and
+``register_http_block_checker`` into that test module to expose the shared
+``observations`` and ``block_checker`` fixtures, and provide an
+``http_adapter`` fixture implementing ``HttpContractAdapter``. See
+``tests/contrib/bottle/test_http_contract.py`` for the first implementation.
+
+The adapter registers a parameterized route, constructs a native response, and
+sends a request through the real instrumented application. It returns the consumed
+response bytes even for error statuses and closes the response. It must not emit
+synthetic events or provide expected phase sequences. The shared suite owns the
+assertions for lifecycle ordering, field availability, immutable values, blocking,
+and operation without tracing. Framework route syntax is supplied through
+``route_pattern``. Async integrations can drive their test client behind the
+synchronous adapter interface; transport-level async behavior needs separate tests.
+
+Keep framework tracing conventions and transport-specific cases, including WSGI
+``start_response`` failures and streaming cleanup, in the integration's own tests.
+When adopting the shared suite, add ``tests/contrib/http_contract.py`` to that
+integration's suite paths so changes to the contract tests select its CI jobs.
+
 
 Are there norms for integrating with database libraries?
 --------------------------------------------------------

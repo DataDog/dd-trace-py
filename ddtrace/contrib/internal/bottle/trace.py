@@ -16,7 +16,6 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace.contrib._events.bottle import BottleRequestEvent
 from ddtrace.contrib._events.http import HTTP_REQUEST_DATA_EVENTS
 from ddtrace.contrib._events.http import HttpBlockingResponse
 from ddtrace.contrib._events.http import HttpRequestBlock
@@ -25,6 +24,7 @@ from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib._events.http import HttpRequestError
 from ddtrace.contrib._events.http import HttpRequestPhase
 from ddtrace.contrib._events.http import HttpResponseData
+from ddtrace.contrib._events.http import HttpServerRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -36,7 +36,7 @@ _REQUEST_SCOPE = "datadog.bottle.request"
 # Every name a consumer can subscribe to for a Bottle request. Nothing listening means
 # nothing to produce; whether tracing is enabled is a subscriber's concern, not ours.
 _LIFECYCLE_EVENTS = (
-    f"context.started.{BottleRequestEvent.event_name}",
+    f"context.started.{HttpServerRequestEvent.event_name}",
     HttpRequestBlockCheckEvent.event_name,
     *(event.event_name for event in HTTP_REQUEST_DATA_EVENTS.values()),
 )
@@ -128,9 +128,11 @@ class _RequestLifecycle:
         self.context = copy_context()
         self.provider = tracer.context_provider
         self.ctx = core.context_with_event(
-            BottleRequestEvent(
+            HttpServerRequestEvent(
                 service=service,
                 component=config.bottle.integration_name,
+                request_id=self.request_id,
+                framework="bottle",
                 request_headers=dict(self.request_data.headers or ()),
                 integration_config=config.bottle,
                 activate_distributed_headers=True,
@@ -409,9 +411,11 @@ class TracePlugin:
                 )
 
             with core.context_with_event(
-                BottleRequestEvent(
+                HttpServerRequestEvent(
                     service=self.service,
                     component=config.bottle.integration_name,
+                    request_id=request_id,
+                    framework="bottle",
                     request_headers=dict(request_data.headers or ()),
                     integration_config=config.bottle,
                     activate_distributed_headers=True,

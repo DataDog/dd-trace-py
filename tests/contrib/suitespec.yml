@@ -44,6 +44,7 @@ components:
     - ddtrace/contrib/internal/boto/*
     - ddtrace/contrib/internal/aiobotocore/*
   bottle:
+    - tests/contrib/http_contract.py
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
   celery:

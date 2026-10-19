@@ -7,8 +7,13 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
+from ddtrace._trace.events import TracingEvent
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
+from ddtrace.internal.schema import SpanDirection
+from ddtrace.internal.schema import schematize_url_operation
 
 
 JsonType = Union[None, bool, int, float, str, Sequence["JsonType"], Mapping[str, "JsonType"]]
@@ -116,6 +121,38 @@ class HttpRequestError:
 
     type: str
     message: Optional[str]
+
+
+@dataclass
+class HttpServerRequestEvent(TracingEvent):
+    """Opens the context that a server request span is scoped to.
+
+    Every HTTP server integration dispatches this same event; framework identifies
+    which one, so a consumer that needs framework-specific conventions selects on
+    that field rather than on a per-framework event name.
+
+    Carries only what is knowable before the handler runs; nothing writes to it
+    afterwards. Everything learned later reaches consumers as its own
+    HttpRequestDataEvent, tied back to this context by request_id rather than by
+    whichever context happens to be active when that event is dispatched.
+    """
+
+    event_name = "http.server.request"
+
+    span_type = SpanTypes.WEB
+    span_kind = SpanKind.SERVER
+
+    # Shared with every HttpRequestDataEvent for this request. Opaque and
+    # process-local: identity is the only thing a consumer may rely on.
+    request_id: object = event_field()
+    framework: str = event_field()
+    request_headers: Mapping[str, str] = event_field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # The schema implementation is selected from a heterogeneous function table.
+        self.operation_name = schematize_url_operation(  # type: ignore[operator]
+            f"{self.framework}.request", protocol="http", direction=SpanDirection.INBOUND
+        )
 
 
 @dataclass

@@ -1,20 +1,23 @@
-from dataclasses import FrozenInstanceError
-from dataclasses import fields
 from io import BytesIO
-from typing import Any
-from typing import cast
+import threading
 
 import bottle
 import pytest
 import webtest
 
 from ddtrace import config
-from ddtrace.contrib._events.http import HTTP_REQUEST_DATA_EVENTS
-from ddtrace.contrib._events.http import HttpRequestBlock
-from ddtrace.contrib._events.http import HttpRequestBlockCheckEvent
+from ddtrace._trace.subscribers.http_server import _CONVENTIONS
+from ddtrace._trace.subscribers.http_server import _REQUEST_CONTEXTS
+from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib._events.http import HttpRequestPhase
+from ddtrace.contrib._events.http import HttpRouteResolvedEvent
+from ddtrace.contrib._events.http import HttpServerRequestEvent
 from ddtrace.contrib.internal.bottle.trace import TracePlugin
 from ddtrace.internal import core
+from tests.contrib.http_contract import HttpContractTests
+from tests.contrib.http_contract import block_response
+from tests.contrib.http_contract import observe_http_requests as observe_http_requests
+from tests.contrib.http_contract import register_http_block_checker as register_http_block_checker
 
 
 @pytest.fixture
@@ -22,23 +25,6 @@ def app(tracer):
     application = bottle.Bottle()
     application.install(TracePlugin(service="bottle-contract"))
     return application
-
-
-@pytest.fixture
-def observations():
-    observed = []
-
-    def observe(event):
-        observed.append(event)
-
-    names = [event.event_name for event in HTTP_REQUEST_DATA_EVENTS.values()]
-    for name in names:
-        core.on(name, observe)
-    try:
-        yield observed
-    finally:
-        for name in names:
-            core.reset_listeners(name, observe)
 
 
 def request(app, path="/items/one", start_response=None, **environ):
@@ -54,38 +40,18 @@ def consume(body):
         body.close()
 
 
-def test_phase_order_and_field_availability(app, observations, test_spans):
+def test_contract_sets_span_resource_and_status(app, test_spans):
     @app.route("/items/<name>")
     def handler(name):
-        assert observations[-1].phase == HttpRequestPhase.BEFORE_HANDLER
-        assert not observations[-1].handler_started
         return bottle.HTTPResponse("done", status=201)
 
     assert consume(request(app, "/items/one?tag=a&tag=b&empty=")) == b"done"
-    assert [observation.phase for observation in observations] == list(HttpRequestPhase)
-    first, route, before, ready, committed, completed = observations
-    assert all(observation.request_id is first.request_id for observation in observations)
-    assert first.request.route is None
-    assert first.response is None
-    assert first.request.method == "GET"
-    assert first.request.query_string == "tag=a&tag=b&empty="
-    assert first.request.query_parameters == (("tag", "a"), ("tag", "b"), ("empty", ""))
-    assert first.request.body is None
-    assert route.request.route == "/items/<name>"
-    assert not route.handler_started
-    assert ready.handler_started
-    assert ready.response.status_code == 201
-    assert not ready.response_committed
-    assert committed.response_committed
-    assert completed.response_committed
-    assert completed.errors == ()
     (span,) = test_spans.pop()
     assert span.resource == "GET /items/<name>"
     assert span.get_tag("http.status_code") == "201"
-    assert not {"resource", "service", "integration_config", "operation_name"} & {f.name for f in fields(first)}
 
 
-def test_retained_observations_keep_frozen_values_and_duplicate_headers(app, observations):
+def test_response_headers_are_copied_before_wsgi_delivery(app, observations):
     @app.route("/items/<name>")
     def handler(name):
         result = bottle.HTTPResponse("done")
@@ -97,41 +63,9 @@ def test_retained_observations_keep_frozen_values_and_duplicate_headers(app, obs
         headers.append(("X-Later", "not-in-observation"))
 
     consume(request(app, start_response=start_response))
-    first = observations[0]
     ready = next(observation for observation in observations if observation.phase == HttpRequestPhase.RESPONSE_READY)
-    assert first.request.route is None
-    assert first.response is None
     assert [value for name, value in ready.response.headers if name.lower() == "set-cookie"] == ["a=1", "b=2"]
     assert ("X-Later", "not-in-observation") not in ready.response.headers
-    with pytest.raises(FrozenInstanceError):
-        first.request.method = "DELETE"
-    with pytest.raises(FrozenInstanceError):
-        ready.response.status_code = 500
-
-
-def test_empty_query_is_available(app, observations):
-    @app.route("/items/<name>")
-    def handler(name):
-        return "done"
-
-    consume(request(app))
-    assert observations[0].request.query_string == ""
-    assert observations[0].request.query_parameters == ()
-    assert observations[0].request.body is None
-
-
-def test_data_consumer_without_tracing(app, observations, tracer, test_spans, monkeypatch):
-    monkeypatch.setattr(tracer, "enabled", False)
-
-    @app.route("/items/<name>")
-    def handler(name):
-        assert tracer.current_span() is None
-        return "done"
-
-    assert consume(request(app)) == b"done"
-    assert [observation.phase for observation in observations] == list(HttpRequestPhase)
-    assert observations[-1].request.route == "/items/<name>"
-    assert test_spans.pop() == []
 
 
 def test_request_body_is_not_consumed(app, observations):
@@ -192,19 +126,6 @@ def test_stream_failure_preserves_committed_response(app, observations):
     assert not hasattr(completed.errors[0], "__traceback__")
 
 
-def test_route_miss_has_no_handler_phase(app, observations):
-    consume(request(app, "/missing"))
-    assert [observation.phase for observation in observations] == [
-        HttpRequestPhase.REQUEST_STARTED,
-        HttpRequestPhase.RESPONSE_READY,
-        HttpRequestPhase.RESPONSE_COMMITTED,
-        HttpRequestPhase.COMPLETED,
-    ]
-    assert observations[-1].request.route is None
-    assert not observations[-1].handler_started
-    assert observations[-1].response.status_code == 404
-
-
 def test_start_response_failure_is_not_committed(app, observations):
     app.catchall = False
 
@@ -241,23 +162,6 @@ def test_interleaved_requests_have_distinct_tokens(app, observations):
     assert observations[-1].request_id is second_token
 
 
-@pytest.fixture
-def block_checker():
-    listeners = []
-
-    def register(listener):
-        listeners.append(listener)
-        core.on(HttpRequestBlockCheckEvent.event_name, listener)
-
-    yield register
-    for listener in listeners:
-        core.reset_listeners(HttpRequestBlockCheckEvent.event_name, listener)
-
-
-def block_response(body=b"blocked", status=403):
-    return HttpRequestBlock(status, (("Content-Type", "text/plain"),), body)
-
-
 @pytest.mark.parametrize(
     "phase",
     [
@@ -267,7 +171,7 @@ def block_response(body=b"blocked", status=403):
         HttpRequestPhase.RESPONSE_READY,
     ],
 )
-def test_block_at_supported_boundary(app, observations, block_checker, test_spans, phase):
+def test_block_sets_span_resource_and_status(app, block_checker, test_spans, phase):
     calls = []
 
     @app.route("/items/<name>")
@@ -282,67 +186,10 @@ def test_block_at_supported_boundary(app, observations, block_checker, test_span
     block_checker(inspect)
     assert consume(request(app)) == b"blocked"
     assert calls == (["one"] if phase == HttpRequestPhase.RESPONSE_READY else [])
-    assert observations[-1].response.status_code == 403
-    assert observations[-1].errors == ()
     (span,) = test_spans.pop()
     assert span.get_tag("http.status_code") == "403"
     assert span.error == 0
     assert span.resource == ("GET 403" if phase == HttpRequestPhase.REQUEST_STARTED else "GET /items/<name>")
-
-
-def test_block_check_without_tracing_or_data_listener(app, block_checker, tracer, monkeypatch, test_spans):
-    monkeypatch.setattr(tracer, "enabled", False)
-
-    @app.route("/items/<name>")
-    def handler(name):
-        pytest.fail("blocked handler was invoked")
-
-    def block(event):
-        raise block_response()
-
-    block_checker(block)
-    assert consume(request(app)) == b"blocked"
-    assert test_spans.pop() == []
-
-
-@pytest.mark.parametrize("failure", [RuntimeError, TimeoutError])
-def test_block_check_failure_allows_request(app, block_checker, failure, monkeypatch):
-    # The suite enables DD_TESTING_RAISE; exercise production listener isolation.
-    monkeypatch.setattr(config, "_raise", False)
-
-    @app.route("/items/<name>")
-    def handler(name):
-        return "original"
-
-    def inspect(event):
-        raise failure("block_check failed")
-
-    block_checker(inspect)
-    assert consume(request(app)) == b"original"
-
-
-@pytest.mark.parametrize(
-    "candidate",
-    [
-        HttpRequestBlock(99),
-        HttpRequestBlock(204, body=b"bad"),
-        HttpRequestBlock(headers=(("X-Test", "bad\r\n"),)),
-        HttpRequestBlock(headers=(("Content-Length", "99"),)),
-        HttpRequestBlock(headers=(("Transfer-Encoding", "chunked"),)),
-        HttpRequestBlock(body=cast(Any, "not bytes")),
-    ],
-)
-def test_invalid_blocks_allow_request(app, block_checker, candidate):
-    @app.route("/items/<name>")
-    def handler(name):
-        return "original"
-
-    def check(event):
-        if event.phase == HttpRequestPhase.BEFORE_HANDLER:
-            raise candidate
-
-    block_checker(check)
-    assert consume(request(app)) == b"original"
 
 
 def test_checks_stop_before_commit_and_retained_events_have_no_control(app, block_checker):
@@ -360,29 +207,6 @@ def test_checks_stop_before_commit_and_retained_events_have_no_control(app, bloc
     assert all(not hasattr(event, "submit") for event in retained)
     assert consume(body) == b"second"
     assert len(retained) == 4
-
-
-def test_first_block_skips_remaining_checks_and_preserves_observations(app, block_checker, observations):
-    calls = []
-
-    def first(event):
-        calls.append("first")
-        raise block_response()
-
-    def second(event):
-        calls.append("second")
-        raise block_response(b"second")
-
-    block_checker(first)
-    block_checker(second)
-    assert consume(request(app)) == b"blocked"
-    assert calls == ["first"]
-    assert [event.phase for event in observations] == [
-        HttpRequestPhase.REQUEST_STARTED,
-        HttpRequestPhase.RESPONSE_READY,
-        HttpRequestPhase.RESPONSE_COMMITTED,
-        HttpRequestPhase.COMPLETED,
-    ]
 
 
 def test_stream_replacement_closes_original(app, observations, block_checker):
@@ -407,59 +231,6 @@ def test_stream_replacement_closes_original(app, observations, block_checker):
     assert progress == ["first", "closed"]
     assert observations[-1].response.status_code == 403
     assert sum(s.phase == HttpRequestPhase.COMPLETED for s in observations) == 1
-
-
-@pytest.mark.parametrize("phase", [HttpRequestPhase.REQUEST_STARTED, HttpRequestPhase.RESPONSE_READY])
-def test_head_block_has_no_body(app, observations, block_checker, phase):
-    @app.route("/items/<name>")
-    def handler(name):
-        return "original"
-
-    def inspect(event):
-        if event.phase == phase:
-            raise block_response()
-
-    block_checker(inspect)
-    assert consume(request(app, REQUEST_METHOD="HEAD")) == b""
-    assert observations[-1].response.status_code == 403
-    assert dict(observations[-1].response.headers)["Content-Length"] == "7"
-
-
-def test_listener_failure_does_not_skip_later_blocker(app, block_checker, monkeypatch):
-    monkeypatch.setattr(config, "_raise", False)
-    calls = []
-
-    def failed(event):
-        calls.append("failed")
-        raise TimeoutError("consumer failed")
-
-    def following(event):
-        calls.append("following")
-        raise block_response()
-
-    block_checker(failed)
-    block_checker(following)
-    assert consume(request(app)) == b"blocked"
-    assert calls == ["failed", "following"]
-
-
-def test_process_control_exception_propagates_and_completes(app, block_checker, observations):
-    def check(event):
-        raise KeyboardInterrupt()
-
-    block_checker(check)
-    with pytest.raises(KeyboardInterrupt):
-        request(app)
-    assert observations[-1].phase == HttpRequestPhase.COMPLETED
-
-
-def test_blocked_response_keeps_duplicate_headers(app, block_checker, observations):
-    def check(event):
-        raise HttpRequestBlock(headers=(("Set-Cookie", "a=1"), ("Set-Cookie", "b=2")), body=b"blocked")
-
-    block_checker(check)
-    assert consume(request(app)) == b"blocked"
-    assert [v for k, v in observations[-1].response.headers if k.lower() == "set-cookie"] == ["a=1", "b=2"]
 
 
 def test_failed_replacement_does_not_leak_into_framework_retry(app, block_checker, observations):
@@ -510,15 +281,116 @@ def test_replacement_close_failure_completes_request(app, block_checker, observa
     assert sum(s.phase == HttpRequestPhase.COMPLETED for s in observations) == 1
 
 
-def test_observation_mutation_does_not_change_request_state(app, observations):
+def _start_event(request_id, framework="bottle"):
+    return HttpServerRequestEvent(
+        service="bottle-contract",
+        component=config.bottle.integration_name,
+        request_id=request_id,
+        framework=framework,
+        request_headers={},
+        integration_config=config.bottle,
+        activate_distributed_headers=False,
+    )
+
+
+def _route_resolved(request_id, route="/items/<name>"):
+    return HttpRouteResolvedEvent(
+        request_id=request_id,
+        framework="bottle",
+        phase=HttpRequestPhase.ROUTE_RESOLVED,
+        request=HttpRequestData(
+            method="GET",
+            url="http://localhost" + route,
+            route=route,
+            route_pattern=route,
+        ),
+    )
+
+
+def test_events_reach_their_span_from_another_thread(tracer, test_spans):
+    # Correlation is by request_id, so a consumer may dispatch from a thread that
+    # never entered the request context. A framework that reports a response from
+    # somewhere other than the code that opened the context depends on this.
+    request_id = object()
+    with core.context_with_event(_start_event(request_id)) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+
+        worker = threading.Thread(target=lambda: core.dispatch_event(_route_resolved(request_id)))
+        worker.start()
+        worker.join()
+
+        assert span.resource == "GET /items/<name>"
+
+
+def test_event_for_another_request_leaves_the_active_span_alone(tracer, test_spans):
+    # An unrecognized request_id must tag nothing, rather than falling back to
+    # whichever span happens to be active.
+    with core.context_with_event(_start_event(object())) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        resource = span.resource
+
+        core.dispatch_event(_route_resolved(object(), route="/other/<name>"))
+
+        assert span.resource == resource
+
+
+def test_unported_framework_is_not_traced(tracer, test_spans):
+    # _CONVENTIONS membership is how an integration opts in. A framework that is absent
+    # gets no span rather than one assembled from guessed conventions, so a half-ported
+    # integration cannot emit misnamed spans just by dispatching the shared event.
+    assert "not-a-ported-framework" not in _CONVENTIONS
+    event = _start_event(object(), framework="not-a-ported-framework")
+
+    with core.context_with_event(event) as ctx:
+        assert ctx.get_item("_inner_span") is None
+        assert event.request_id not in _REQUEST_CONTEXTS
+
+    assert test_spans.get_spans() == []
+
+
+def test_finished_requests_leave_no_correlation_entry(app, tracer, test_spans):
+    # Correlation state is keyed per request, so a request that ends -- cleanly or not --
+    # must take its entry with it.
     @app.route("/items/<name>")
     def handler(name):
-        observations[0].handler_started = True
-        observations[0].request = None
         return "done"
 
+    @app.route("/boom")
+    def boom():
+        raise Exception("oh no")
+
+    # Other tests may hold entries for streams they have not closed yet.
+    before = len(_REQUEST_CONTEXTS)
+
     assert consume(request(app)) == b"done"
-    assert observations[-1].request.method == "GET"
-    assert observations[1].request.route == "/items/<name>"
-    assert not observations[1].handler_started
-    assert len({id(event) for event in observations}) == len(observations)
+    assert len(_REQUEST_CONTEXTS) == before
+
+    consume(request(app, "/boom"))
+    assert len(_REQUEST_CONTEXTS) == before
+
+
+class BottleContractAdapter:
+    route_pattern = "/items/<name>"
+
+    def __init__(self, app):
+        self.app = app
+
+    def route(self):
+        return self.app.route(self.route_pattern)
+
+    def response(self, body, status=200):
+        return bottle.HTTPResponse(body, status=status)
+
+    def request(self, path="/items/one", method="GET"):
+        return consume(request(self.app, path, REQUEST_METHOD=method))
+
+
+@pytest.fixture
+def http_adapter(app):
+    return BottleContractAdapter(app)
+
+
+class TestBottleHttpContract(HttpContractTests):
+    pass

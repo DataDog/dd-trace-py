@@ -56,7 +56,8 @@ Bottle also publishes `HttpRequestDataEvent` from `contrib/_events/http.py` at
 request entry, route resolution, before the wrapped handler, response preparation,
 response commitment, and completion. Its phase-specific events expose HTTP values directly,
 availability, lifecycle flags, and an opaque request token independently of
-`BottleRequestEvent` tracing settings. Consumers treat event envelopes as read-only
+`HttpServerRequestEvent` tracing settings. The shared HTTP server subscriber
+correlates observations by request_id and selects conventions by framework. Consumers treat event envelopes as read-only
 and may retain their frozen request, response, and error values. `None` means unavailable; empty strings
 and tuples mean known empty. Bodies are not read for this contract.
 
