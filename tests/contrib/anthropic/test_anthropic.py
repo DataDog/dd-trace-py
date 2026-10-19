@@ -6,6 +6,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.utils import override_global_config
 
+from .utils import get_temperature_kwargs
 from .utils import tools
 
 
@@ -99,7 +100,7 @@ def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
-            temperature=0.8,
+            **get_temperature_kwargs(0.8),
             messages=[
                 {
                     "role": "user",
@@ -336,7 +337,7 @@ async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snap
                 model="claude-3-opus-20240229",
                 max_tokens=15,
                 system="Respond only in all caps.",
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",

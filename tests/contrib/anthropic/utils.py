@@ -1,9 +1,19 @@
 import os
 
+import anthropic
 from anthropic.types import Message
 from anthropic.types import TextBlock
 from anthropic.types import Usage
 import vcr
+
+from ddtrace.internal.utils.version import parse_version
+
+
+def get_temperature_kwargs(temperature: float) -> dict[str, float]:
+    # Anthropic 1.0 removed temperature; keep exercising its metadata on older versions.
+    if parse_version(anthropic.__version__) < (1, 0):
+        return {"temperature": temperature}
+    return {}
 
 
 # VCR is used to capture and store network requests made to Anthropic.
