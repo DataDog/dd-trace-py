@@ -1020,6 +1020,11 @@ def openai_contrib():
 def _responses_stream_chat(langchain_openai, is_async: bool):
     import httpx
 
+    # Older langchain-openai forwards unknown kwargs like use_responses_api to chat.completions.create.
+    chat_fields = getattr(langchain_openai.ChatOpenAI, "model_fields", None) or langchain_openai.ChatOpenAI.__fields__
+    if "use_responses_api" not in chat_fields:
+        pytest.skip("ChatOpenAI(use_responses_api=...) requires langchain-openai>=0.3.9")
+
     def _handler(request):
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_responses_stream_body())
 
