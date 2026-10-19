@@ -4,6 +4,7 @@ from ddtrace._trace import http_tags
 from ddtrace._trace.http_tags import http_block_metadata
 from ddtrace._trace.http_tags import set_client_address_tags
 from ddtrace._trace.http_tags import set_query_string_tag
+from ddtrace._trace.http_tags import set_status_code_tag
 from ddtrace._trace.http_tags import set_url_tags_server
 from ddtrace._trace.otel.http import tags
 from ddtrace._trace.otel.http.tags import set_method_tag
@@ -100,3 +101,16 @@ def test_http_block_metadata_uses_active_semantics():
                 otel_http.URL_QUERY: "token=redacted",
                 otel_http.USER_AGENT_ORIGINAL: "agent",
             }
+
+
+def test_set_status_code_tag_uses_active_semantics():
+    with override_global_config(dict(_otel_trace_semantics_enabled=False)):
+        with tracer.trace("web.request") as datadog_span:
+            set_status_code_tag(datadog_span, 204)
+
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        with tracer.trace("web.request") as otel_span:
+            set_status_code_tag(otel_span, 204)
+
+    assert datadog_span.get_tag(http.STATUS_CODE) == "204"
+    assert otel_span.get_metric(otel_http.RESPONSE_STATUS_CODE) == 204

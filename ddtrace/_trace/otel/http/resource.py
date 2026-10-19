@@ -13,6 +13,9 @@ _UNKNOWN_METHOD_SPAN_NAME = "HTTP"
 # These markers distinguish instrumentation-owned resources from user replacements.
 RESOURCE_SET_BY_USER = "_dd.resource_set_by_user"
 INSTRUMENTATION_HTTP_RESOURCE = "_dd.instrumentation_http_resource"
+# Route behind an instrumentation resource on a server span that does not carry http.route
+# (a mounted Starlette app's inner span), so later renames keep it.
+INSTRUMENTATION_HTTP_ROUTE = "_dd.instrumentation_http_route"
 
 
 def otel_http_resource(method: str, target: Optional[str]) -> str:

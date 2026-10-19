@@ -16,9 +16,13 @@ from ddtrace._trace.otel.http.tags import set_url_tags_otel_server
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import IntegrationConfig
+
+
+log = get_logger(__name__)
 
 
 def set_client_address_tags(
@@ -59,6 +63,23 @@ def set_instrumentation_resource(span: Span, resource: str) -> None:
         span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
 
 
+def copy_server_url_tags(source: Span, destination: Span) -> None:
+    if not config._otel_trace_semantics_enabled:
+        destination.set_tag(http.URL, source.get_tag(http.URL))
+        return
+
+    for key in (
+        otel_http.URL_SCHEME,
+        otel_http.URL_PATH,
+        otel_http.URL_QUERY,
+        net.SERVER_ADDRESS,
+        otel_http.SERVER_PORT,
+    ):
+        value = source._get_attribute(key)
+        if value is not None:
+            destination._set_attribute(key, value)
+
+
 def http_block_metadata(
     method: Optional[str],
     status_code: Union[int, str],
@@ -97,11 +118,23 @@ def name_blocked_request_span(span: Span, method: Optional[str]) -> None:
         set_otel_resource_for_method(span, method)
 
 
-def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
+def set_url_tags_server(
+    integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str], raw_uri: Optional[str] = None
+) -> None:
     if config._otel_trace_semantics_enabled:
-        set_url_tags_otel_server(integration_config, span, url, query)
+        set_url_tags_otel_server(integration_config, span, url, query, raw_uri)
     else:
         span._set_attribute(
             http.URL,
             cast(Any, _sanitized_url(url, query, integration_config.http_tag_query_string)),
         )
+
+
+def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.STATUS_CODE, str(status_code))
+        return
+    try:
+        span._set_attribute(otel_http.RESPONSE_STATUS_CODE, int(status_code))
+    except (TypeError, ValueError):
+        log.debug("failed to convert http status code %r to int", status_code)
