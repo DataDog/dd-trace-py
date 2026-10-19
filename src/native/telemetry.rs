@@ -448,7 +448,10 @@ impl TelemetryWorkerPy {
         if self.ensure_runtime_after_fork().is_err() {
             return;
         }
-        let _ = self.handle.add_point(value, &context.0, Vec::new());
+        drop_on_err(
+            "metric point",
+            self.handle.add_point(value, &context.0, Vec::new()),
+        );
     }
 
     /// Like [`add_point`], but allowing for explicit tags as well. To be used when the
@@ -457,9 +460,11 @@ impl TelemetryWorkerPy {
         if self.ensure_runtime_after_fork().is_err() {
             return;
         }
-        let _ = self
-            .handle
-            .add_point(value, &context.0, parse_tag_list(&tags));
+        drop_on_err(
+            "metric point",
+            self.handle
+                .add_point(value, &context.0, parse_tag_list(&tags)),
+        );
     }
 
     #[pyo3(signature = (product, enabled, version))]
