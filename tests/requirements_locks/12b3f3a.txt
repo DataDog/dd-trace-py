@@ -13,7 +13,7 @@ markupsafe==2.1.5
 mock==5.2.0
 mysql-connector-python==26.7.0
 mysqlclient==2.1.1
-numpy==2.5.3
+numpy==2.5.4
 opentracing==2.4.0
 packaging==26.3
 pluggy==1.6.0
@@ -21,7 +21,7 @@ protobuf==7.36.2
 psycopg==3.3.6
 psycopg2-binary==2.9.13
 pygments==2.21.0
-pymysql==1.1.3
+pymysql==1.2.3
 pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
