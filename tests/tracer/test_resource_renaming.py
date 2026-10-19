@@ -1,5 +1,3 @@
-from unittest import mock
-
 import pytest
 
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
@@ -7,7 +5,6 @@ from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointCompute
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.otel_semantics import http as otel_http
-from ddtrace.internal.settings._config import config
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import override_global_config
@@ -146,13 +143,13 @@ class TestResourceRenaming:
     def test_processor_reads_semantics_flag_per_call(self):
         processor = ResourceRenamingProcessor()
 
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
+        with override_global_config(dict(_otel_trace_semantics_enabled=False)):
             span = Span("test", context=Context(), span_type=SpanTypes.WEB)
             span.set_tag(http.URL, "https://example.com/datadog/123")
             processor.on_span_finish(span)
             assert span.get_tag(http.ENDPOINT) == "/datadog/{param:int}"
 
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        with override_global_config(dict(_otel_trace_semantics_enabled=True)):
             span = Span("test", context=Context(), span_type=SpanTypes.WEB)
             span.set_tag(otel_http.URL_PATH, "/otel/123")
             processor.on_span_finish(span)

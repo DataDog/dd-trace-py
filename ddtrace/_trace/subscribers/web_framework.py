@@ -29,12 +29,12 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: WebFrameworkRequestEvent = ctx.event
-        span: Span = span_from_context(ctx)
 
         if event.allow_default_resource:
             event.set_resource = True
 
         if config._otel_trace_semantics_enabled and event.request_method:
+            span: Span = span_from_context(ctx)
             set_method_tag(span, event.request_method)
             # Set the currently known resource before sampling; preserve span-start callback replacements.
             record_initial_instrumentation_resource(span, event.resource)

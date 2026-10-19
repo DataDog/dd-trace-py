@@ -459,16 +459,11 @@ def test_otel_span_attributes_success_preserves_exception(tracer, integration_co
     assert span.get_tag(ERROR_TYPE) == "builtins.ValueError"
 
 
-def test_otel_span_attributes_sets_user_agent_and_client_addresses(tracer, integration_config):
+def test_otel_span_attributes_sets_user_agent(tracer, integration_config):
     with tracer.trace("request") as span:
-        attributes = OTelHTTPSpanAttributes(span, integration_config)
-
-        attributes.set_user_agent("test-agent")
-        attributes.set_client_addresses("203.0.113.10", "10.0.0.5")
+        OTelHTTPSpanAttributes(span, integration_config).set_user_agent("test-agent")
 
     assert span.get_tag(otel_http.USER_AGENT_ORIGINAL) == "test-agent"
-    assert span.get_tag(otel_http.CLIENT_ADDRESS) == "203.0.113.10"
-    assert span.get_tag(otel_http.NETWORK_PEER_ADDRESS) == "10.0.0.5"
 
 
 def test_otel_span_attributes_refines_server_resource_with_route(tracer, integration_config):

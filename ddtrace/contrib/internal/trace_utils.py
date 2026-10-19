@@ -22,6 +22,7 @@ from urllib import parse
 import wrapt
 
 from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
+from ddtrace._trace.otel.http.tags import set_client_address_tags
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
@@ -417,21 +418,6 @@ def set_http_meta(
         ``resolver_match.args``, Tornado ``path_args``).
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
-    request_ip = peer_ip
-    client_ip = network_peer_ip = None
-    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-    if asm_config._asm_enabled or config._retrieve_client_ip:
-        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-        request_ip = core.find_item("http.request.remote_ip")
-
-        if not request_ip:
-            # Not calculated: framework does not support IP blocking or testing env
-            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-
-        client_ip = request_ip
-        network_peer_ip = peer_ip
-
     if otel_http is not None:
         _set_http_meta_otel(
             otel_http,
@@ -444,8 +430,6 @@ def set_http_meta(
             query=query,
             request_headers=request_headers,
             headers_are_case_sensitive=headers_are_case_sensitive,
-            client_ip=client_ip,
-            network_peer_ip=network_peer_ip,
             route=route,
         )
     else:
@@ -460,13 +444,12 @@ def set_http_meta(
             query=query,
             request_headers=request_headers,
             headers_are_case_sensitive=headers_are_case_sensitive,
-            client_ip=client_ip,
-            network_peer_ip=network_peer_ip,
         )
 
     if status_msg is not None:
         span._set_attribute(http.STATUS_MSG, status_msg)
 
+    request_ip = peer_ip
     if request_headers:
         # Extract referrer host if referer header is present
         referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
@@ -480,6 +463,20 @@ def set_http_meta(
             http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
+
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    if asm_config._asm_enabled or config._retrieve_client_ip:
+        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+        request_ip = core.find_item("http.request.remote_ip")
+
+        if not request_ip:
+            # Not calculated: framework does not support IP blocking or testing env
+            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+
+        if otel_http is None or not otel_http.is_client:
+            # Under OTel semantics an outgoing request has no client address, so client spans report none.
+            set_client_address_tags(span, request_ip, peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
@@ -523,8 +520,6 @@ def _set_http_meta(
     query: Optional[str],
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
-    client_ip: Optional[str],
-    network_peer_ip: Optional[str],
 ) -> None:
     """Set the tags whose names or semantics differ from OTel's, using the Datadog conventions."""
     if method is not None:
@@ -558,12 +553,6 @@ def _set_http_meta(
         if user_agent:
             span._set_attribute(http.USER_AGENT, user_agent)
 
-    if client_ip:
-        span._set_attribute(http.CLIENT_IP, client_ip)
-
-    if network_peer_ip:
-        span._set_attribute("network.client.ip", network_peer_ip)
-
 
 def _set_http_meta_otel(
     otel_http: OTelHTTPSpanAttributes,
@@ -576,8 +565,6 @@ def _set_http_meta_otel(
     query: Optional[str],
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
-    client_ip: Optional[str],
-    network_peer_ip: Optional[str],
     route: Optional[str],
 ) -> None:
     """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
@@ -588,9 +575,6 @@ def _set_http_meta_otel(
     otel_http.set_status_code(status_code)
     if request_headers:
         otel_http.set_user_agent(_get_request_header_user_agent(request_headers, headers_are_case_sensitive))
-    if not otel_http.is_client:
-        # An outgoing request has no client address, so only server spans report one.
-        otel_http.set_client_addresses(client_ip, network_peer_ip)
     otel_http.set_resource(route)
 
 
