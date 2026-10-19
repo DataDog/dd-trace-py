@@ -59,6 +59,7 @@ add_library(
     ${EXTENSION_NAME} SHARED
     src/echion/asyncio_debug.cc
     src/echion/asyncio_debug_linux.cc
+    src/echion/asyncio_debug_macos.cc
     src/echion/danger.cc
     src/echion/frame.cc
     src/echion/greenlets.cc

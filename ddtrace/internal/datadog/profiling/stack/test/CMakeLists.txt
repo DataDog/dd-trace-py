@@ -137,6 +137,29 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+if(APPLE)
+    dd_wrapper_add_test(test_asyncio_debug_macos test_asyncio_debug_macos.cpp ../src/echion/asyncio_debug.cc
+                        ../src/echion/asyncio_debug_macos.cc)
+    configure_stack_internal_test(test_asyncio_debug_macos)
+    # Isolate fixture discovery from the host's Python images. Metadata parsing and guarded reads stay real.
+    target_compile_definitions(
+        test_asyncio_debug_macos
+        PRIVATE _dyld_image_count=test_asyncio_dyld_image_count
+                _dyld_get_image_header=test_asyncio_dyld_get_image_header
+                mach_vm_read_overwrite=test_asyncio_mach_vm_read_overwrite)
+    foreach(kind missing undersized invalid valid)
+        set(fixture "_asyncio_debug_${kind}")
+        string(TOUPPER "${kind}" upper_kind)
+        add_library(${fixture} SHARED asyncio_debug_macos_fixture.cpp)
+        target_include_directories(${fixture} PRIVATE ../echion)
+        target_compile_definitions(${fixture} PRIVATE "ASYNCIO_FIXTURE_${upper_kind}")
+        add_ddup_config(${fixture})
+        target_compile_definitions(test_asyncio_debug_macos
+                                   PRIVATE "ASYNCIO_${upper_kind}_FIXTURE_PATH=\"$<TARGET_FILE:${fixture}>\"")
+        add_dependencies(test_asyncio_debug_macos ${fixture})
+    endforeach()
+endif()
+
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
 
