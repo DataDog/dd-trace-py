@@ -613,7 +613,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
     )
-    @pytest.mark.xfail_interface("tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", "aiohttp", skip=True)
     def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
         # RFC-1103: when API Security is active, every request span carrying http.route also carries
         # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
@@ -629,7 +629,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", "aiohttp", skip=True)
     def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
         # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
         # feature is independently disabled — in that configuration the normalized route tag must still be absent.
@@ -640,7 +640,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
             assert tag is None, f"normalized_route should be unset when API Security is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("django", "flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("django", "flask", "tornado", "aiohttp", skip=True)
     def test_normalized_route_survives_request_span_name_override(
         self, interface: Interface, entry_span, get_entry_span_tag
     ):
@@ -733,6 +733,19 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 )
             else:
                 assert get_entry_span_tag(http.CLIENT_IP) is None
+
+    @pytest.mark.parametrize("ip_header", ["X-Use-This", "x-use-this"])
+    def test_request_ipblock_client_ip_header_set_by_env_var(
+        self, interface: Interface, get_entry_span_tag, entry_span, ip_header
+    ):
+        with override_global_config(
+            dict(_asm_enabled=True, _client_ip_header=ip_header, _asm_static_rule_file=rules.RULES_GOOD_PATH)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={"X-Use-This": rules._IP.BLOCKED})
+            assert (st := self.status(response)) == 403, f"status mismatch {st}"
+            assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
+            self.check_single_rule_triggered("blk-001-001", entry_span)
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -1551,8 +1564,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
-                # all tornado path params are always strings
-                if interface.name == "tornado" and name == "_dd.appsec.s.req.params":
+                # all tornado and aiohttp path params are always strings
+                if interface.name in ("tornado", "aiohttp") and name == "_dd.appsec.s.req.params":
                     expected_value = [[{"param_int": [8], "param_str": [8]}], [[[8]], {"len": 2}]]
                 if expected_value is not None:
                     if name == "_dd.appsec.s.res.body" and blocked:
@@ -2030,7 +2043,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                         == str(user == "testuuid").lower()
                     )
                     # check for manual instrumentation tag in manual instrumented frameworks
-                    if interface.name in ["flask", "fastapi", "tornado"]:
+                    if interface.name in ["flask", "fastapi", "tornado", "aiohttp"]:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
                     else:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") is None
@@ -2045,7 +2058,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     if mode == "identification":
                         assert get_entry_span_tag("_dd.appsec.usr.login") == user
                     # check for manual instrumentation tag in manual instrumented frameworks
-                    if interface.name in ["flask", "fastapi", "tornado"]:
+                    if interface.name in ["flask", "fastapi", "tornado", "aiohttp"]:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") == "true"
                     else:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") is None
