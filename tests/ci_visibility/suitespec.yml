@@ -146,7 +146,7 @@ suites:
           integration: pytest
           dependencies: [flaky, pytest-randomly]
   testing:
-    venvs_per_job: 4
+    venvs_per_job: 6
     retry: 2
     paths:
       - '@bootstrap'
@@ -220,7 +220,6 @@ suites:
           dependencies: ['selenium~=4.0', webdriver-manager]
           python: ['3.10', '3.12']
   unittest:
-    venvs_per_job: 5
     paths:
       - '@contrib'
       - '@unittest'

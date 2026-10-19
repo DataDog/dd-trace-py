@@ -26,7 +26,7 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
-MAX_TOTAL_TEST_JOBS = 600
+MAX_TOTAL_TEST_JOBS = 425
 # Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
 NO_PROXY_ADDITIONS = (
     "icanhazdadjoke.com",
