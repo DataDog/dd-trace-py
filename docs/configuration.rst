@@ -244,7 +244,7 @@ Traces
         client request. Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
         This setting is applied when ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` is enabled, where it sets the span
         error status and the ``error.type`` attribute. With ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` enabled and this
-        setting not set, any status code of 400 or above is an error.
+        setting not set, status codes from 400 to 499 is an error.
 
    DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
