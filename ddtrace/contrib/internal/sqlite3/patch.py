@@ -88,7 +88,7 @@ class TracedSQLite(TracedConnection):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedSQLiteFetchCursor if config.sqlite.trace_fetch_methods else TracedSQLiteCursor
-            super().__init__(conn, cfg=config.sqlite, cursor_cls=cursor_cls, db_tags={db.SYSTEM: "sqlite"})
+        super().__init__(conn, cfg=config.sqlite, cursor_cls=cursor_cls, db_tags={db.SYSTEM: "sqlite"})
 
     def execute(self, *args, **kwargs):
         # sqlite has a few extra sugar functions

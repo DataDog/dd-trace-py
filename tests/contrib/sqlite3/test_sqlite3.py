@@ -20,6 +20,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.sqlite3.patch import TracedSQLite
 from ddtrace.contrib.internal.sqlite3.patch import TracedSQLiteCursor
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch
@@ -476,6 +477,28 @@ def test_executescript_preserves_argument_errors(patched_conn, script, owner):
     with pytest.raises(type(native_error.value)) as traced_error:
         traced_target.executescript(script)
     assert str(traced_error.value) == str(native_error.value)
+
+
+@pytest.mark.parametrize("trace_fetch_methods", [False, True])
+def test_custom_cursor_wrapper(tracer, test_spans, trace_fetch_methods):
+    class CustomCursor(TracedSQLiteCursor):
+        pass
+
+    with closing(sqlite3.Connection(":memory:")) as raw:
+        with override_config("sqlite", {"trace_fetch_methods": trace_fetch_methods}):
+            connection = TracedSQLite(raw, cursor_cls=CustomCursor)
+        assert connection.__wrapped__ is raw
+        cursor = connection.execute("SELECT 1")
+        assert isinstance(cursor, CustomCursor)
+        assert cursor.connection is raw
+        assert cursor.fetchone() == (1,)
+
+    assert len(test_spans.spans) == 1
+    span = test_spans.spans[0]
+    assert span.name == "sqlite.query"
+    assert span.resource == "SELECT 1"
+    assert span.get_tag("component") == "sqlite"
+    assert span.get_tag("db.system") == "sqlite"
 
 
 def test_cursor_factory_and_connection(patched_conn):
