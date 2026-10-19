@@ -3931,6 +3931,32 @@ class TestExperimentScope:
             assert "scope" not in data.get("_dd", {})
 
 
+class TestExperimentMLApp:
+    """Experiment spans default their ml_app to the project name unless one is configured explicitly."""
+
+    def test_defaults_to_project_name(self, llmobs_no_ml_app):
+        with llmobs_no_ml_app._experiment(name="root_exp", project_name="my-project") as span:
+            assert get_llmobs_ml_app(span) == "my-project"
+            assert get_llmobs_tags(span)["ml_app"] == "my-project"
+
+    def test_child_span_inherits_project_name(self, llmobs_no_ml_app):
+        with llmobs_no_ml_app._experiment(name="root_exp", project_name="my-project"):
+            with llmobs_no_ml_app.task(name="child_task") as child:
+                assert get_llmobs_ml_app(child) == "my-project"
+
+    def test_configured_ml_app_takes_precedence(self, llmobs):
+        with llmobs._experiment(name="root_exp", project_name="my-project") as span:
+            assert get_llmobs_ml_app(span) == "unnamed-ml-app"
+
+    def test_explicit_agent_service_takes_precedence(self, llmobs_no_ml_app):
+        with llmobs_no_ml_app._experiment(name="root_exp", project_name="my-project", agent_service="my-agent") as span:
+            assert get_llmobs_ml_app(span) == "my-agent"
+
+    def test_no_project_name_falls_back_to_service(self, llmobs_no_ml_app):
+        with llmobs_no_ml_app._experiment(name="root_exp") as span:
+            assert get_llmobs_ml_app(span) == "tests.llmobs"
+
+
 @pytest.mark.subprocess(
     env={
         "DD_API_KEY": "<not-a-real-key>",

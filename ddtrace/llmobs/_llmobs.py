@@ -3110,16 +3110,19 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to
+                           ``DD_LLMOBS_ML_APP`` when set, otherwise to ``project_name``.
         :param str experiment_id: The ID of the experiment to associate with this span and its children.
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        span = cls._instance._start_span(
-            "experiment", name=name, session_id=session_id, agent_service=_resolve_agent_service(agent_service, ml_app)
-        )
+        agent_service = _resolve_agent_service(agent_service, ml_app)
+        # Experiment spans belong to their project, so fall back to the project name rather than the
+        # service name when no ml_app was configured explicitly.
+        if not agent_service and not config._llmobs_ml_app:
+            agent_service = project_name
+        span = cls._instance._start_span("experiment", name=name, session_id=session_id, agent_service=agent_service)
 
         # root experiment span needs each baggage value mirrored into llmobs tags explicitly.
         # child spans automatically pick these up from baggage on activation.
