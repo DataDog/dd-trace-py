@@ -2,7 +2,7 @@
 import dataclasses
 import json
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
