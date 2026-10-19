@@ -20,7 +20,6 @@ def _on_asm_tracer_reconfigure(appsec_enabled: bool, origin: str) -> None:
     tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=origin)
     on_runtime_identity_refresh(tracer._refresh_runtime_identity)
 
-    
 
 core.on("asm.tracer.reconfigure", _on_asm_tracer_reconfigure)
 
