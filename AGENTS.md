@@ -104,7 +104,7 @@ Every `curl` that runs in CI (`.gitlab-ci.yml`, `.gitlab/`, GitHub Actions, the 
 
 Example: `curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o out.tar.gz "$url"`
 
-Exceptions are fine when justified, e.g. a polling loop that checks the HTTP status itself (e.g. `scripts/download-s3-wheels.sh`) may skip `--retry`, and a best-effort lookup must fall back visibly (e.g. `.gitlab/scripts/resolve-base-branch.sh`).
+Exceptions are fine when justified, e.g. a polling loop that checks the HTTP status itself (`scripts/download-s3-wheels.sh`) may skip `--retry`, and a best-effort lookup must fall back visibly (`.gitlab/scripts/resolve-base-branch.sh`).
 
 ## Troubleshooting
 
