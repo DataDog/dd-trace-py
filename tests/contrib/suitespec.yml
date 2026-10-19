@@ -973,6 +973,7 @@ suites:
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
+      POSTGRES_IMAGE: registry.ddbuild.io/images/mirror/postgres:16-alpine
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
@@ -1055,10 +1056,14 @@ suites:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
-          command: >-
-            pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
-            -k 'not test_user_name_included and not test_user_name_excluded and not
-            test_cached_view' tests/contrib/django
+          runs:
+            - command: >-
+                pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
+                -k 'not test_user_name_included and not test_user_name_excluded' tests/contrib/django
+            - command: >-
+                pytest {cmdargs}
+                tests/contrib/django/test_django_dbm.py::test_django_postgres_dbm_propagation_enabled
+                tests/contrib/django/test_django_snapshots.py::test_psycopg3_query_default
         - name: django:celery
           python: ['3.9']
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, 'sqlalchemy~=1.2.18', 'django~=2.2.0']
@@ -1700,10 +1705,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/httpx2
       variants:
         - name: httpx2
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, 'httpx2~=2.0.0']
         - name: httpx2
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, httpx2]
   integration_registry:
     paths:
@@ -2028,7 +2033,7 @@ suites:
           env:
             SDK_EXPORTER_INSTALLED: '1'
         - name: opentelemetry
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, markupsafe, flask, gevent, 'requests==2.28.1', opentelemetry-exporter-otlp]
           env:
             SDK_EXPORTER_INSTALLED: '1'
@@ -2434,6 +2439,7 @@ suites:
       - '@tracing'
       - '@requests'
       - tests/contrib/requests/*
+      - tests/snapshots/tests.contrib.requests.*
     services:
       - httpbin
     snapshot: true
