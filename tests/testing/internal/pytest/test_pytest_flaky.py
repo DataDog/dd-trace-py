@@ -266,10 +266,15 @@ def test_excluded_quarantined_failure_retains_outcome(pytester: Pytester) -> Non
     pytester.makepyfile(
         test_foo="""
         from flaky import flaky
+        from pathlib import Path
         from ddtrace.testing import no_auto_retry
+        count = 0
         @flaky(max_runs=2)
         @no_auto_retry
         def test_quarantined():
+            global count
+            count += 1
+            Path(__file__).with_suffix(".count").write_text(str(count))
             assert False
     """
     )
@@ -292,6 +297,7 @@ def test_excluded_quarantined_failure_retains_outcome(pytester: Pytester) -> Non
     ):
         result = pytester.inline_run("--ddtrace", "-p", "flaky", "-q")
     assert result.ret == 0
+    assert (pytester.path / "test_foo.count").read_text() == "2"
     [event] = capture.events_by_test_name("test_quarantined")
     meta = event["content"]["meta"]
     assert meta["test.status"] == "fail"

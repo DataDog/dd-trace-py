@@ -801,7 +801,11 @@ class TestOptPlugin(TestOptPluginProtocol):
         elif test.should_attempt_to_fix():
             return
         elif test.should_quarantine():
-            # Use xfail so failures don't break the pipeline. Works regardless of who drives test execution.
+            if test.no_auto_retry and any(
+                item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS
+            ):
+                # Let native plugins decide retries from real failures, then mask their final logged report.
+                return
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
 
     def pytest_runtest_protocol_wrapper(
@@ -1250,6 +1254,13 @@ class TestOptPlugin(TestOptPluginProtocol):
             # We need to extract pytest-benchmark data _before_ the fixture teardown.
             if benchmark_data := get_benchmark_tags_and_metrics(item):
                 self.benchmark_data_by_nodeid[item.nodeid] = benchmark_data
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
+        if (test := self.tests_by_nodeid.get(report.nodeid)) is not None and test.no_auto_retry:
+            # Native rerun plugins change intermediate failures to "rerun" before publishing them here.
+            # Mask only final failures, after their retry decision and our raw outcome bookkeeping.
+            self._apply_quarantine_masking_to_report(test, report)
 
     def pytest_report_teststatus(self, report: pytest.TestReport) -> t.Optional[_ReportTestStatus]:
         if retry_outcome := _get_user_property(report, "dd_retry_outcome"):

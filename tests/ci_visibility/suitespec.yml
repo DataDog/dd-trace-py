@@ -119,6 +119,33 @@ suites:
           python: ['3.9']
           integration: pytest
           dependencies: ['pytest==6.2.5', 'pluggy<1.0', 'pytest-cov<6.2', flaky, pytest-randomly]
+  pytest_rerunfailures:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/testing/internal/pytest/test_pytest_rerunfailures.py
+    snapshot: true
+    pattern: 'pytest:rerunfailures'
+    matrix:
+      command: pytest {cmdargs} --no-cov -p no:rerunfailures tests/testing/internal/pytest/test_pytest_rerunfailures.py
+      env:
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
+      variants:
+        - name: pytest:rerunfailures
+          python: ['3.13']
+          integration: pytest
+          dependencies: [pytest-rerunfailures, pytest-randomly]
+        - name: pytest:rerunfailures:legacy
+          python: ['3.9']
+          integration: pytest
+          dependencies: ['pytest==6.2.5', 'pluggy<1.0', 'pytest-cov<6.2', 'pytest-rerunfailures<13', pytest-randomly]
   testing:
     venvs_per_job: 6
     retry: 2
