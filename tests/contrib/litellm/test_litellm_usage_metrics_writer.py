@@ -274,6 +274,27 @@ def test_a_redirect_is_not_taken_for_delivery(otlp_endpoint, collector, monkeypa
     assert [args[2] for args in warnings] == [307]
 
 
+@pytest.mark.parametrize("configured", [False, True])
+def test_a_failing_export_warns(monkeypatch, sleeps, configured):
+    # Only the default destination, the local Agent's OTLP receiver, gets the hint about enabling it.
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", raising=False)
+    monkeypatch.setattr(agentless_config, "enabled", False)
+    if configured:
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://127.0.0.1:9/v1/metrics")
+    else:
+        monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", "http://127.0.0.1:9/v1/metrics")
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    [args] = warnings
+    assert ("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT" in args[0]) is not configured
+    assert args[2] == "ConnectionFailedError"
+    assert len(writer._pending) == 1
+
+
 def test_retry_after_is_honored_up_to_a_bound(otlp_endpoint, sleeps):
     writer = UsageMetricsWriter("otlp", interval=60)
     Collector.statuses, Collector.retry_after = [503], "0.25"

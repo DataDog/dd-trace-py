@@ -143,6 +143,8 @@ class _OtlpSender:
         # this is OTEL_EXPORTER_OTLP_ENDPOINT with /v1/metrics appended to its path (its query kept), the agentless
         # intake, or the local Agent.
         endpoint = _setting("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+        # Whether the export goes to the local Agent's OTLP receiver, which the Agent does not enable by default.
+        self._to_agent = False
         headers = _parse_headers(
             _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
         )
@@ -153,6 +155,7 @@ class _OtlpSender:
                 endpoint = parse.urlunsplit(parts._replace(path=parts.path.rstrip("/") + "/v1/metrics"))
             else:
                 endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
+                self._to_agent = not agentless_config.enabled
                 # The API key goes only to the Datadog intake, the default when no endpoint is configured anywhere.
                 api_key = agentless_config.api_key
                 if agentless_config.enabled and api_key and all(name.lower() != "dd-api-key" for name, _ in headers):
@@ -205,9 +208,20 @@ class _OtlpSender:
                 delay = requested if requested is not None else delays[attempt] * random.uniform(0.5, 1.0)  # nosec B311
                 if _wait(stopping, min(delay, _MAX_RETRY_DELAY_SECONDS)):
                     break
-        log.debug(
-            "LiteLLM usage metrics: OTLP export to %s failed (%s), kept for the next flush", self.endpoint, failure
-        )
+        # Warnings are rate-limited per call site. Without them, an Agent whose OTLP receiver is off loses every metric
+        # silently.
+        if self._to_agent:
+            log.warning(
+                "LiteLLM usage metrics: OTLP export to the Datadog Agent at %s failed (%s), kept for the next flush. "
+                "Enable the Agent's OTLP receiver (DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318) or "
+                "set DD_LITELLM_USAGE_METRICS_EXPORTER=dogstatsd",
+                self.endpoint,
+                failure,
+            )
+        else:
+            log.warning(
+                "LiteLLM usage metrics: OTLP export to %s failed (%s), kept for the next flush", self.endpoint, failure
+            )
         return False
 
 
