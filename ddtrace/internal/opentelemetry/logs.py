@@ -100,8 +100,8 @@ def _build_resource() -> Optional[Any]:
         return Resource.create(resource_attributes)
     except ImportError:
         log.warning(
-            "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
-            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support."
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP logs export."
         )
         return None
 
@@ -159,13 +159,10 @@ def _import_exporter(protocol):
 
         return _dd_logs_exporter(OTLPLogExporter, protocol.split("/")[0], "protobuf")
 
-    except ImportError as e:
+    except ImportError:
         log.warning(
-            "OpenTelemetry Logs exporter for %s is not available. "
-            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
-            protocol,
-            "grpc" if protocol == "grpc" else "http",
-            str(e),
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP logs export."
         )
         return None
 
