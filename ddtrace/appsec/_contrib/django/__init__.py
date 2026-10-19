@@ -64,7 +64,7 @@ def _on_django_login(
                 user_login,
                 django_config.include_user_login,
             )
-            with core.context_with_data(  # type: ignore[no-untyped-call]
+            with core.context_with_data(
                 "django.contrib.auth.login", span_name="django.contrib.auth.login", span_type=SpanTypes.AUTH
             ):
                 session_key = getattr(getattr(request, "session", None), "session_key", None)
@@ -109,7 +109,7 @@ def _on_django_auth(
             break
 
     if not result_user:
-        with core.context_with_data(  # type: ignore[no-untyped-call]
+        with core.context_with_data(
             "django.contrib.auth.login", span_name="django.contrib.auth.login", span_type=SpanTypes.AUTH
         ):
             exists = info_retriever.user_exists()
