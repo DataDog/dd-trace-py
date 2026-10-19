@@ -82,6 +82,10 @@ def _wrap_tool_dispatcher(module_path, name, traced_fn):
             get_version(),
         )
         return
+    # A module that copies the dispatcher with `from ... import` after another copy was wrapped
+    # already holds the wrapper; wrapping it again would trace each tool call twice.
+    if iswrapped(module, name):
+        return
     wrap(module, name, traced_fn)
 
 

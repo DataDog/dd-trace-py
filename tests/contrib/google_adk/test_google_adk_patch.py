@@ -1,4 +1,5 @@
 import importlib
+import sys
 
 import pytest
 
@@ -119,3 +120,25 @@ def test_patch_skips_a_missing_tool_dispatcher(monkeypatch):
     finally:
         unpatch()
     assert not iswrapped(adk.runners.Runner, "run_async")
+
+
+@pytest.mark.skipif(_live_tool_dispatch_target(GOOGLE_ADK_VERSION) is None, reason="no live-mode dispatcher copy")
+def test_live_dispatcher_imported_after_patch_is_not_double_wrapped(monkeypatch):
+    """If _live_caller is first imported after _caller was wrapped, its `from ._caller import` copies the
+    wrapper. Wrapping that copy again would trace every run_live tool call twice.
+    """
+    import google.adk.flows.llm_flows.tools as tools_package
+
+    unpatch()  # patch() is a no-op if an earlier test left the integration patched
+    live_module_path, live_name = _live_tool_dispatch_target(GOOGLE_ADK_VERSION)
+    live_module_name = f"google.adk.{live_module_path}"
+    monkeypatch.delitem(sys.modules, live_module_name)
+    monkeypatch.delattr(tools_package, live_module_name.rsplit(".", 1)[1])
+    try:
+        patch()
+        live_dispatcher = getattr(sys.modules[live_module_name], live_name)
+        assert iswrapped(live_dispatcher)
+        assert not iswrapped(live_dispatcher.__wrapped__)
+    finally:
+        unpatch()
+    assert not iswrapped(getattr(sys.modules[live_module_name], live_name))

@@ -471,6 +471,6 @@ async def test_run_live_tool_call_is_traced(adk, test_spans):
 
     assert tool_calls == ["Paris"]
     spans = [s for t in test_spans.pop_traces() for s in t]
-    tool_spans = [s for s in spans if s.resource == "FunctionTool._call_tool_async"]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     assert len(tool_spans) == 1
     assert any(s.resource.endswith("run_live") for s in spans)
