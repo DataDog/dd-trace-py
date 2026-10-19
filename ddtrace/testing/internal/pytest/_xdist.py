@@ -23,6 +23,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 
 _CRASH_RETRY_REASON = "xdist_worker_crash"
 _CRASH_RETRY_STATE_WORKER_INPUT = "dd_atr_crash_retry_state"
+_CRASH_RETRY_READY_WORKER_INPUT = "dd_atr_crash_collection_ready"
 _DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT = "dd_coverage_upload_delegated"
 
 
@@ -71,6 +72,7 @@ class XdistTestOptPlugin:
         self._published_crash_retry_budgets: dict[str, CrashRetryBudget] = {}
         self._crash_retry_state_dir: t.Optional[tempfile.TemporaryDirectory[str]] = None
         self._crash_retry_state_path: t.Optional[Path] = None
+        self._crash_retry_ready_paths: list[Path] = []
 
         manager = main_plugin.manager
         settings = manager.settings
@@ -110,6 +112,11 @@ class XdistTestOptPlugin:
         node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
         if self._crash_retry_state_path is not None:
             node.workerinput[_CRASH_RETRY_STATE_WORKER_INPUT] = str(self._crash_retry_state_path)
+            ready_path = self._crash_retry_state_path.with_name(
+                f"collection-ready-{len(self._crash_retry_ready_paths)}"
+            )
+            self._crash_retry_ready_paths.append(ready_path)
+            node.workerinput[_CRASH_RETRY_READY_WORKER_INPUT] = str(ready_path)
         # Workers may only delegate their coverage report upload when the
         # controller will actually be able to report their data: either
         # pytest-cov merges the workers' data itself, or the controller owns a
@@ -181,6 +188,16 @@ class XdistTestOptPlugin:
         # ATR applies uniformly and its last result is authoritative. Only consumed ATR counts and limits cross the
         # process boundary through the crash retry ledger; test identity and event lifecycle remain worker-owned.
         if not self._enabled:
+            return
+
+        # A missing acknowledgement means a worker could not publish its exclusions, or has not finished
+        # collection. Leave crashes final rather than guessing whether the crashed test permits ATR.
+        try:
+            exclusions_published = all(path.is_file() for path in self._crash_retry_ready_paths)
+        except OSError:
+            exclusions_published = False
+        if not exclusions_published:
+            self._clear_test_state(crashitem)
             return
 
         if (
@@ -271,3 +288,4 @@ class XdistTestOptPlugin:
             self._crash_retry_state_dir.cleanup()
             self._crash_retry_state_dir = None
         self._crash_retry_state_path = None
+        self._crash_retry_ready_paths.clear()
