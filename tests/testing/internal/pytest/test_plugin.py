@@ -2556,3 +2556,20 @@ def test_automation_exclusions_legacy_external_lifecycle(monkeypatch: pytest.Mon
     with pytest.raises(StopIteration):
         next(wrapper)
     assert lifecycle == (["start", "finish"] if excluded else [])
+
+
+def test_automation_exclusions_unshared_crash_ledger(tmp_path: Path) -> None:
+    from ddtrace.testing import no_auto_retry
+
+    manager = session_manager_mock().build_mock()
+    manager.collected_tests = set()
+    plugin = TestOptPlugin(session_manager=manager)
+    plugin.xdist_atr_crash_state_path = tmp_path / "controller-only" / "crash_retries.json"
+    item = pytest_item_mock("test_suite.py::test_excluded").build()
+    item.obj = no_auto_retry(lambda: None)
+    session = Mock(items=[item])
+
+    plugin.pytest_collection_finish(session)
+
+    manager.finish_collection.assert_called_once()
+    assert item_to_test_ref(item) in manager.collected_tests

@@ -651,7 +651,11 @@ class TestOptPlugin(TestOptPluginProtocol):
                 self.xdist_atr_crash_state_path is not None
                 and getattr(getattr(item, "obj", None), "_dd_no_auto_retry", False) is True
             ):
-                no_auto_retry_path(self.xdist_atr_crash_state_path, item.nodeid).touch()
+                try:
+                    no_auto_retry_path(self.xdist_atr_crash_state_path, item.nodeid).touch()
+                except OSError:
+                    # Remote xdist workers may not share the controller's temporary directory.
+                    log.debug("Unable to publish test retry exclusion to the controller", exc_info=True)
             if (
                 self.manager.itr_skipping_level == ITRSkippingLevel.SUITE
                 and self.manager.is_skippable_test(test_ref)
