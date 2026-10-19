@@ -854,7 +854,6 @@ suites:
       - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
-    retry: 2
     matrix:
       command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_aiohttp.py::Test_Aiohttp {cmdargs}
       env:
@@ -880,7 +879,6 @@ suites:
       - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
-    retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_aiohttp.py::Test_Aiohttp_RC
         {cmdargs}
