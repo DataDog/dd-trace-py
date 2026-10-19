@@ -3,7 +3,6 @@ from types import TracebackType
 from typing import Optional
 from typing import cast
 
-from ddtrace import config
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
@@ -13,6 +12,7 @@ from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 

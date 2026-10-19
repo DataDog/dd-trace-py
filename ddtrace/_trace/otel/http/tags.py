@@ -230,14 +230,8 @@ class OTelHTTPSpanAttributes:
         if method is None:
             return
 
-        normalized_method, original_method = normalize_http_method(method)
-        self._normalized_method = normalized_method
-        self._original_method = original_method
-        self._span._set_attribute(otel_http.REQUEST_METHOD, normalized_method)
-        if original_method is not None:
-            self._span._set_attribute(otel_http.REQUEST_METHOD_ORIGINAL, original_method)
-        else:
-            self._span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)
+        self._normalized_method, self._original_method = normalize_http_method(method)
+        set_method_tag(self._span, method)
 
     def set_url(
         self,

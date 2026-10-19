@@ -167,22 +167,6 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span.finish()
         return tags
 
-    def test_otel_semantics_sets_method_before_header_injection(self):
-        seen = []
-        conn = self.get_http_connection("localhost", 1)
-        with (
-            self.override_global_config(dict(_otel_trace_semantics_enabled=True)),
-            mock.patch(
-                "ddtrace.contrib.internal.httplib.patch.HTTPPropagator.inject",
-                side_effect=lambda ctx, headers: seen.append(conn._datadog_span.get_tag("http.request.method")),
-            ),
-            contextlib.closing(conn),
-            pytest.raises(OSError),
-        ):
-            conn.request("GET", "/")
-
-        assert seen == ["GET"]
-
     def test_otel_semantics_ipv6_host(self):
         tags = self._putrequest_tags(self.get_http_connection("[::1]"), "/x")
         assert tags["url.full"] == "http://[::1]/x"

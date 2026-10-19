@@ -110,25 +110,12 @@ def _emit_client_span_through_the_subscriber():
 
 @pytest.mark.subprocess(env=_OTEL_SUBPROCESS_ENV, err=None)
 def test_event_supplied_resource_is_replaced_not_treated_as_user_owned():
-    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
     from ddtrace.internal import core
-    from ddtrace.internal.settings._config import config
     from ddtrace.internal.span_bus import span_from_context
+    from tests.tracer.test_otel_span_naming import _client_event
 
     for method, expected in (("GET", "GET"), ("PROPFIND", "HTTP"), ("get", "GET")):
-        with core.context_with_event(
-            HttpClientRequestEvent(
-                http_operation="requests.request",
-                service="svc",
-                component="requests",
-                resource=f"{method} /actual/path/42",
-                integration_config=config.requests,
-                request_method=method,
-                request_headers={},
-                query="",
-                request_url="http://host/actual/path/42",
-            ),
-        ) as ctx:
+        with core.context_with_event(_client_event(method)) as ctx:
             span = span_from_context(ctx)
             assert span.resource == expected
             assert "/actual/path/42" not in span.resource
@@ -136,25 +123,13 @@ def test_event_supplied_resource_is_replaced_not_treated_as_user_owned():
 
 @pytest.mark.subprocess(env=_OTEL_SUBPROCESS_ENV, err=None)
 def test_a_user_replacing_the_resource_after_start_still_wins():
-    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
     from ddtrace.contrib.internal import trace_utils
     from ddtrace.internal import core
     from ddtrace.internal.settings._config import config
     from ddtrace.internal.span_bus import span_from_context
+    from tests.tracer.test_otel_span_naming import _client_event
 
-    with core.context_with_event(
-        HttpClientRequestEvent(
-            http_operation="requests.request",
-            service="svc",
-            component="requests",
-            resource="GET /actual/path/42",
-            integration_config=config.requests,
-            request_method="GET",
-            request_headers={},
-            query="",
-            request_url="http://host/actual/path/42",
-        ),
-    ) as ctx:
+    with core.context_with_event(_client_event()) as ctx:
         span = span_from_context(ctx)
         assert span.resource == "GET"
         span.resource = "my custom name"
@@ -165,10 +140,9 @@ def test_a_user_replacing_the_resource_after_start_still_wins():
 @pytest.mark.subprocess(env=_OTEL_SUBPROCESS_ENV, err=None)
 def test_span_start_processor_resource_is_preserved():
     from ddtrace._trace.processor import SpanProcessor
-    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
     from ddtrace.internal import core
-    from ddtrace.internal.settings._config import config
     from ddtrace.internal.span_bus import span_from_context
+    from tests.tracer.test_otel_span_naming import _client_event
 
     class SetResourceAtStart(SpanProcessor):
         def on_span_start(self, span):
@@ -180,19 +154,7 @@ def test_span_start_processor_resource_is_preserved():
     processor = SetResourceAtStart()
     processor.register()
     try:
-        with core.context_with_event(
-            HttpClientRequestEvent(
-                http_operation="requests.request",
-                service="svc",
-                component="requests",
-                resource="GET /actual/path/42",
-                integration_config=config.requests,
-                request_method="GET",
-                request_headers={},
-                query="",
-                request_url="http://host/actual/path/42",
-            ),
-        ) as ctx:
+        with core.context_with_event(_client_event()) as ctx:
             span = span_from_context(ctx)
             assert span.resource == "processor-owned"
         assert span.resource == "processor-owned"

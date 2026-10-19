@@ -174,8 +174,7 @@ Every new integration must complete ALL applicable items:
 ## OpenTelemetry HTTP semantics
 
 Shared HTTP span attributes live in ddtrace/_trace/otel/http/tags.py; resource
-naming and ownership live in ddtrace/_trace/otel/http/resource.py. Keep span
-mutations in the tracing layer. Use OTelHTTPSpanAttributes from set_http_meta
-when the semantics flag is enabled, and preserve user resource replacements
-with the resource helpers. Add dispatch helpers in the first layer that calls
-them rather than introducing unused helpers in the foundation.
+naming and ownership live in ddtrace/_trace/otel/http/resource.py.
+set_http_meta writes the OTel attributes through _set_http_meta_otel when the
+semantics flag is enabled, and the Datadog ones through _set_http_meta
+otherwise. Preserve user resource replacements with the resource helpers.

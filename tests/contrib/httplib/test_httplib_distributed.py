@@ -73,7 +73,8 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
         seen = []
 
         def record_inject(span_context, headers, *args, **kwargs):
-            seen.append(self.tracer.current_span().resource)
+            span = self.tracer.current_span()
+            seen.append((span.resource, span.get_tag("http.request.method")))
 
         with (
             self.override_global_config(dict(_otel_trace_semantics_enabled=True)),
@@ -86,4 +87,4 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
                 with contextlib.closing(conn):
                     conn.request(method, "/status/200")
 
-        assert seen == ["GET", "HTTP"]
+        assert seen == [("GET", "GET"), ("HTTP", "_OTHER")]
