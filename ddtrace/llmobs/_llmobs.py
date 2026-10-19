@@ -3110,8 +3110,10 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to
-                           ``DD_LLMOBS_ML_APP`` when set, otherwise to ``project_name``.
+        :param str agent_service: The agent service that this span belongs to. If not provided and
+                           ``DD_LLMOBS_ML_APP`` is set, defaults to the propagated value from a parent span/context
+                           or ``DD_LLMOBS_ML_APP``. Otherwise defaults to ``project_name``, falling back to
+                           ``DD_SERVICE`` if no project name is given.
         :param str experiment_id: The ID of the experiment to associate with this span and its children.
         :returns: The Span object representing the traced operation.
         """
