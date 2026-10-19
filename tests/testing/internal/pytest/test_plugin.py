@@ -2558,13 +2558,16 @@ def test_automation_exclusions_legacy_external_lifecycle(monkeypatch: pytest.Mon
     assert lifecycle == (["start", "finish"] if excluded else [])
 
 
-def test_automation_exclusions_unshared_crash_ledger(tmp_path: Path) -> None:
+@pytest.mark.parametrize("shared", [False, True])
+def test_automation_exclusions_unshared_crash_ledger(tmp_path: Path, shared: bool) -> None:
     from ddtrace.testing import no_auto_retry
 
     manager = session_manager_mock().build_mock()
     manager.collected_tests = set()
     plugin = TestOptPlugin(session_manager=manager)
-    plugin.xdist_atr_crash_state_path = tmp_path / "controller-only" / "crash_retries.json"
+    ledger_dir = tmp_path if shared else tmp_path / "controller-only"
+    plugin.xdist_atr_crash_state_path = ledger_dir / "crash_retries.json"
+    plugin.xdist_atr_collection_ready_path = tmp_path / "worker-ready"
     item = pytest_item_mock("test_suite.py::test_excluded").build()
     item.obj = no_auto_retry(lambda: None)
     session = Mock(items=[item])
@@ -2573,3 +2576,28 @@ def test_automation_exclusions_unshared_crash_ledger(tmp_path: Path) -> None:
 
     manager.finish_collection.assert_called_once()
     assert item_to_test_ref(item) in manager.collected_tests
+    assert plugin.xdist_atr_collection_ready_path.is_file() is shared
+
+
+@pytest.mark.parametrize("popen,via,shared", [(True, None, True), (False, None, False), (True, "ssh-gateway", False)])
+def test_automation_exclusions_remote_crash_fallback(popen: bool, via: t.Optional[str], shared: bool) -> None:
+    from types import SimpleNamespace
+
+    plugin = TestXdistCrashRequeue._build_plugin(atr=True)
+    node = Mock(workerinput={})
+    node.gateway.spec = SimpleNamespace(popen=popen, via=via)
+    plugin.pytest_configure_node(node)
+    if shared and (ready_path := node.workerinput.get("dd_atr_crash_collection_ready")):
+        Path(ready_path).touch()
+    report = TestXdistCrashRequeue._make_report("test_remote.py::test_excluded")
+    sched = Mock()
+    budget = plugin._remaining_session_retries
+    try:
+        # No shared marker can reach the controller when the worker's filesystem is isolated.
+        plugin.pytest_handlecrashitem(report.nodeid, report, sched)
+
+        assert sched.mark_test_pending.call_count == int(shared)
+        assert report.outcome == ("rerun" if shared else "failed")
+        assert plugin._remaining_session_retries == budget - int(shared)
+    finally:
+        plugin.pytest_sessionfinish()

@@ -45,6 +45,7 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_READY_WORKER_INPUT
 from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_STATE_WORKER_INPUT
 from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest._xdist import no_auto_retry_path
@@ -400,6 +401,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         self.session = self.manager.session
         self.xdist_manifest: t.Optional[XdistManifest] = None
         self.xdist_atr_crash_state_path: t.Optional[Path] = None
+        self.xdist_atr_collection_ready_path: t.Optional[Path] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -420,6 +422,8 @@ class TestOptPlugin(TestOptPluginProtocol):
                 self._coverage_upload_delegated = bool(xdist_worker_input.get("dd_coverage_upload_delegated"))
             if crash_state_path := xdist_worker_input.get(_CRASH_RETRY_STATE_WORKER_INPUT):
                 self.xdist_atr_crash_state_path = Path(crash_state_path)
+            if ready_path := xdist_worker_input.get(_CRASH_RETRY_READY_WORKER_INPUT):
+                self.xdist_atr_collection_ready_path = Path(ready_path)
         else:
             self.session.itr_suite_reporting_enabled = True
 
@@ -644,6 +648,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
+        exclusions_published = True
         for item in session.items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
@@ -654,6 +659,7 @@ class TestOptPlugin(TestOptPluginProtocol):
                 try:
                     no_auto_retry_path(self.xdist_atr_crash_state_path, item.nodeid).touch()
                 except OSError:
+                    exclusions_published = False
                     # Remote xdist workers may not share the controller's temporary directory.
                     log.debug("Unable to publish test retry exclusion to the controller", exc_info=True)
             if (
@@ -662,6 +668,12 @@ class TestOptPlugin(TestOptPluginProtocol):
                 and _is_test_unskippable(item)
             ):
                 self._itr_unskippable_suites.add(test_ref.suite)
+
+        if exclusions_published and self.xdist_atr_collection_ready_path is not None:
+            try:
+                self.xdist_atr_collection_ready_path.touch()
+            except OSError:
+                log.debug("Unable to acknowledge test retry exclusions to the controller", exc_info=True)
 
         async_flush_events = _get_async_flush_events(len(session.items))
         self.manager.writer.set_async_flush_events(async_flush_events)

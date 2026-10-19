@@ -1327,6 +1327,55 @@ class TestXdistAtrCrashRequeue:
         settings["flaky_test_retries_enabled"] = True
         settings["known_tests_enabled"] = True
 
+    def test_excluded_crash_with_unshared_ledger_is_not_requeued(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+        attempt_file = test_project / "attempts.txt"
+        (test_project / "conftest.py").write_text(
+            textwrap.dedent("""\
+                from pathlib import Path
+                import pytest
+
+                @pytest.hookimpl(tryfirst=True)
+                def pytest_configure(config):
+                    if hasattr(config, "workerinput"):
+                        config.workerinput["dd_atr_crash_retry_state"] = str(
+                            Path(__file__).with_name("controller-only") / "crash_retries.json"
+                        )
+            """)
+        )
+        (test_project / "test_excluded_crash.py").write_text(
+            textwrap.dedent("""\
+                import os
+                from pathlib import Path
+                from ddtrace.testing import no_auto_retry
+
+                @no_auto_retry
+                def test_excluded_crash():
+                    attempts = Path(__file__).with_name("attempts.txt")
+                    count = int(attempts.read_text()) if attempts.exists() else 0
+                    attempts.write_text(str(count + 1))
+                    os._exit(1)
+            """)
+        )
+        _git_commit(test_project)
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "1",
+            "--max-worker-restart=5",
+            env=_make_env(mock_server.url, extra={"DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "2"}),
+            timeout=90,
+        )
+
+        assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        assert attempt_file.read_text() == "1"
+        assert "xdist_worker_crash" not in result.stdout
+
     def test_thread_timeout_crash_is_requeued(self, mock_server: MockCIVisibilityServer, test_project: Path) -> None:
         pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
 
