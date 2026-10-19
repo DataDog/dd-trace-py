@@ -71,3 +71,11 @@ uses normal response and completion handling; invalid blocks are ignored. A vali
 block suppresses subsequent checks. There are no checks after commitment and no
 stream termination API. Never implement security policy in the integration or import
 AppSec here. See `docs/contributing-integrations.rst` for timing and ownership rules.
+
+
+Handler checks wrap the resolved route's callback factory outside its complete
+plugin chain. Trace-plugin skip settings must not disable HTTP observations or
+blocking; wrapping the factory preserves this boundary across route cache resets.
+An accepted block is kept as immutable HTTP data until the first start_response
+attempt so application hooks cannot replace its status, headers, or body. Clear
+that pending response before delivery so a framework error retry cannot reuse it.

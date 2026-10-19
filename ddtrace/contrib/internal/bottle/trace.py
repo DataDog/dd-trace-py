@@ -2,6 +2,7 @@ from collections.abc import Callable
 from collections.abc import Iterable
 from contextvars import copy_context
 from dataclasses import replace
+from functools import wraps
 import sys
 from types import TracebackType
 from typing import Any
@@ -125,6 +126,7 @@ class _RequestLifecycle:
         self.response_committed = False
         self.completed = False
         self.blocked = False
+        self.pending_block: Optional[HttpBlockingResponse] = None
         self.context = copy_context()
         self.provider = tracer.context_provider
         self.ctx = core.context_with_event(
@@ -163,6 +165,7 @@ class _RequestLifecycle:
         except HttpRequestBlock as block:
             if _valid_blocking_response(block.response):
                 self.blocked = True
+                self.pending_block = block.response
                 return _blocking_response(block.response)
         return None
 
@@ -227,6 +230,12 @@ class _RequestLifecycle:
                 self.record_exception(exc_info)
             self.publish(HttpRequestPhase.RESPONSE_READY)
             replacement = self.check_block(HttpRequestPhase.RESPONSE_READY)
+            if replacement is None and self.pending_block is not None:
+                # Hooks can replace or mutate the framework response after an early block.
+                replacement = _blocking_response(self.pending_block)
+            # Consume the decision on the first delivery attempt. A failed start_response
+            # may make Bottle retry with an error response; do not replay the old body.
+            self.pending_block = None
             if replacement is not None:
                 status, headers = replacement.status, replacement.headerlist
                 self.response_data = HttpResponseData(status_code=replacement.status_code, headers=tuple(headers))
@@ -310,6 +319,37 @@ class _ResponseIterator:
             self.lifecycle.finish()
 
 
+def _instrument_handler(route: Any, app: Any) -> None:
+    if route.__dict__.get("_datadog_handler_installed"):
+        return
+    make_callback = route._make_callback
+
+    def traced_make_callback() -> Callable[..., Any]:
+        callback = make_callback()
+
+        @wraps(callback)
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            lifecycle = request.environ.get(_REQUEST_SCOPE)
+            if lifecycle is None or lifecycle.app is not app:
+                return callback(*args, **kwargs)
+            try:
+                blocked = lifecycle.before_handler()
+                if blocked is not None:
+                    return blocked
+                return callback(*args, **kwargs)
+            except BaseException:
+                lifecycle.record_exception(sys.exc_info())
+                raise
+
+        return wrapped
+
+    # Wrap outside the plugin chain so skip settings cannot disable HTTP checks.
+    # Wrapping the factory also preserves checks when Bottle resets its call cache.
+    route._make_callback = traced_make_callback
+    route.__dict__["_datadog_handler_installed"] = True
+    route.reset()
+
+
 class TracePlugin:
     name = "trace"
     api = 2
@@ -347,6 +387,7 @@ class TracePlugin:
             lifecycle = environ.get(_REQUEST_SCOPE)
             if lifecycle is not None and lifecycle.app is app:
                 lifecycle.resolve_route(route)
+                _instrument_handler(route, app)
             return route, arguments
 
         def traced_cast(out: Any, *args: Any, **kwargs: Any) -> Any:
@@ -380,11 +421,10 @@ class TracePlugin:
             lifecycle = request.environ.get(_REQUEST_SCOPE)
             if lifecycle is not None:
                 try:
-                    blocked = lifecycle.before_handler()
-                    if blocked is not None:
-                        return blocked
                     return callback(*args, **kwargs)
                 except BaseException:
+                    # Outer Bottle plugins may turn raised HTTP responses into values.
+                    # Preserve error capture before that conversion as well as at entry.
                     lifecycle.record_exception(sys.exc_info())
                     raise
 

@@ -9,6 +9,19 @@ tracing events remain compatible. The shared types live in
 ``ddtrace.contrib._events.http`` and Bottle's adapter lives in
 ``ddtrace.contrib.internal.bottle.trace``.
 
+Revision 6: block preservation and independent handler checks
+-------------------------------------------------------------
+
+Bottle retains an accepted blocking response through application hooks and enforces
+its status, headers, and body at the first delivery attempt. A failed delivery may
+still trigger Bottle's error-response retry without replaying the blocking body.
+
+The before-handler observation and block check now wrap the resolved callback's
+complete plugin chain, independently of trace-plugin selection. Routes that skip
+plugins still publish handler activity and allow blocking with tracing disabled.
+Route cache resets preserve this boundary. Route-local tracing without an
+application-installed plugin retains its existing callback-scoped behavior.
+
 Revision 5: synchronous block checks
 -----------------------------------
 

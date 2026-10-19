@@ -108,9 +108,10 @@ The application-installed Bottle plugin publishes this contract at these boundar
 
 * ``REQUEST_STARTED``: request entry, before Bottle's request hooks and routing.
 * ``ROUTE_RESOLVED``: successful routing, with the mounted route template available.
-* ``BEFORE_HANDLER``: immediately before the wrapped route callback is invoked.
+* ``BEFORE_HANDLER``: immediately before the resolved route callback is invoked.
   ``handler_started`` is still false at this boundary and becomes true when that
-  callback begins. The callback includes any plugins wrapped inside the trace plugin.
+  callback begins. The callback includes the complete plugin chain. This boundary
+  remains active when a route skips the trace plugin or all plugins.
 * ``RESPONSE_READY``: Bottle has prepared status and headers, before calling the
   server's ``start_response``.
 * ``RESPONSE_COMMITTED``: ``start_response`` has returned successfully. This is
@@ -169,6 +170,9 @@ The first block interrupts the check, skipping remaining block-check listeners.
 An invalid blocking response is ignored, but skipped listeners are not resumed.
 Bottle validates status, headers, and body and owns transport framing. After a valid
 block it skips subsequent block checks, including checks of its replacement response.
+The accepted status, headers, and body are retained through application hooks and
+reapplied before the first ``start_response`` attempt. If delivery fails and Bottle
+retries with an error response, that attempt does not reuse the blocking body.
 Ordinary listener exceptions retain core's normal isolation behavior; the testing
 raise setting still propagates them. ``HttpRequestBlock`` inherits ``BaseException``
 to use the hub's existing control-flow propagation. Raise it only from a block-check

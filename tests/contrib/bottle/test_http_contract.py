@@ -233,7 +233,10 @@ def test_stream_replacement_closes_original(app, observations, block_checker):
     assert sum(s.phase == HttpRequestPhase.COMPLETED for s in observations) == 1
 
 
-def test_failed_replacement_does_not_leak_into_framework_retry(app, block_checker, observations):
+@pytest.mark.parametrize(
+    "phase", [HttpRequestPhase.ROUTE_RESOLVED, HttpRequestPhase.BEFORE_HANDLER, HttpRequestPhase.RESPONSE_READY]
+)
+def test_failed_replacement_does_not_leak_into_framework_retry(app, block_checker, observations, phase):
     statuses = []
 
     @app.route("/items/<name>")
@@ -241,7 +244,7 @@ def test_failed_replacement_does_not_leak_into_framework_retry(app, block_checke
         return "original"
 
     def inspect(event):
-        if event.phase == HttpRequestPhase.RESPONSE_READY and event.response.status_code == 200:
+        if event.phase == phase:
             raise block_response()
 
     def start_response(status, headers, exc_info):
@@ -394,3 +397,112 @@ def http_adapter(app):
 
 class TestBottleHttpContract(HttpContractTests):
     pass
+
+
+@pytest.mark.parametrize("phase", [HttpRequestPhase.ROUTE_RESOLVED, HttpRequestPhase.BEFORE_HANDLER])
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+@pytest.mark.parametrize("hook_action", ["replace", "mutate"])
+def test_accepted_block_survives_after_request(app, observations, block_checker, phase, method, hook_action):
+    checks = []
+    delivered = []
+
+    @app.route("/items/<name>")
+    def handler(name):
+        pytest.fail("blocked handler was invoked")
+
+    @app.hook("after_request")
+    def overwrite_response():
+        if hook_action == "replace":
+            raise bottle.HTTPResponse("hook response", status=200, headers={"X-Hook": "yes"})
+        bottle.response.status = 200
+        bottle.response.set_header("Content-Length", "999")
+        bottle.response.set_header("X-Hook", "yes")
+
+    def check(event):
+        checks.append(event.phase)
+        if event.phase == phase:
+            raise block_response()
+
+    def start_response(status, headers, exc_info):
+        delivered.append((status, dict(headers)))
+
+    block_checker(check)
+    assert consume(request(app, start_response=start_response, REQUEST_METHOD=method)) == (
+        b"" if method == "HEAD" else b"blocked"
+    )
+    assert delivered == [("403 Forbidden", {"Content-Type": "text/plain", "Content-Length": "7"})]
+    assert checks == list(HttpRequestPhase)[: list(HttpRequestPhase).index(phase) + 1]
+    assert observations[-1].response.status_code == 403
+    assert not observations[-1].handler_started
+    assert sum(event.phase == HttpRequestPhase.COMPLETED for event in observations) == 1
+
+
+@pytest.mark.parametrize("skip", [True, "trace", TracePlugin, "instance", None])
+@pytest.mark.parametrize("tracing_enabled", [True, False])
+@pytest.mark.parametrize("blocked", [True, False])
+def test_handler_checks_ignore_trace_plugin_skips(
+    app, observations, block_checker, tracer, monkeypatch, skip, tracing_enabled, blocked
+):
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
+    if skip == "instance":
+        skip = next(plugin for plugin in app.plugins if isinstance(plugin, TracePlugin))
+    calls = []
+    checks = []
+
+    @app.route("/items/<name>", skip=skip)
+    def handler(name):
+        calls.append(name)
+        assert bottle.request.route is app.routes[0]
+        return "done"
+
+    def check(event):
+        checks.append(event.phase)
+        if event.phase == HttpRequestPhase.BEFORE_HANDLER and blocked:
+            raise block_response()
+
+    block_checker(check)
+    # Resetting a route rebuilds the plugin chain and must retain the outer check.
+    for reset in [False, True]:
+        if reset:
+            app.routes[0].reset()
+        observations.clear()
+        checks.clear()
+        calls.clear()
+        assert consume(request(app)) == (b"blocked" if blocked else b"done")
+        assert calls == ([] if blocked else ["one"])
+        assert checks.count(HttpRequestPhase.BEFORE_HANDLER) == 1
+        assert sum(event.phase == HttpRequestPhase.BEFORE_HANDLER for event in observations) == 1
+        assert observations[-1].handler_started is (not blocked)
+        assert observations[-1].response.status_code == (403 if blocked else 200)
+
+
+@pytest.mark.parametrize("phase", [HttpRequestPhase.ROUTE_RESOLVED, HttpRequestPhase.BEFORE_HANDLER])
+def test_early_block_closes_hook_replacement_stream(app, observations, block_checker, phase):
+    progress = []
+
+    @app.route("/items/<name>")
+    def handler(name):
+        pytest.fail("blocked handler was invoked")
+
+    def stream():
+        try:
+            progress.append("first")
+            yield b"first"
+            progress.append("second")
+            yield b"second"
+        finally:
+            progress.append("closed")
+
+    @app.hook("after_request")
+    def replace_response():
+        raise bottle.HTTPResponse(stream(), status=200)
+
+    def check(event):
+        if event.phase == phase:
+            raise block_response()
+
+    block_checker(check)
+    assert consume(request(app)) == b"blocked"
+    assert progress == ["first", "closed"]
+    assert observations[-1].response.status_code == 403
+    assert sum(event.phase == HttpRequestPhase.COMPLETED for event in observations) == 1
