@@ -901,10 +901,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             return []
         headers = []
         for item in raw.split(","):
-            item = item.strip()
-            if "=" in item:
-                key, _, value = item.partition("=")
-                headers.append((key.strip(), value.strip()))
+            key, sep, value = item.partition("=")
+            key = key.strip()
+            if sep and key:
+                headers.append((key, value.strip()))
         return headers
 
     @property
