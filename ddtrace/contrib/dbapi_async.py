@@ -1,6 +1,7 @@
 import inspect
 
 from ddtrace import config
+from ddtrace.contrib._events.dbapi import DbQueryEvent as DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger

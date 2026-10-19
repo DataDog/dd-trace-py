@@ -501,6 +501,89 @@ def test_custom_cursor_wrapper(tracer, test_spans, trace_fetch_methods):
     assert span.get_tag("db.system") == "sqlite"
 
 
+@pytest.mark.parametrize("method", ["executemany", "executescript"])
+@pytest.mark.parametrize("result_kind", ["cursor", "wrapped_cursor", "sentinel"])
+def test_connection_shortcuts_preserve_overrides(patched_conn, tracer, test_spans, method, result_kind):
+    calls = []
+    returned = []
+    sentinel = object()
+
+    def result_value(cursor):
+        if result_kind == "sentinel":
+            cursor = sentinel
+        elif result_kind == "wrapped_cursor":
+            cursor = TracedSQLiteCursor(cursor, cfg=ddtrace.config.sqlite)
+        returned.append(cursor)
+        return cursor
+
+    class CustomConnection(sqlite3.Connection):
+        def executemany(self, query, parameters):
+            calls.append(("executemany", query, parameters))
+            return result_value(super().executemany(query, parameters))
+
+        def executescript(self, script):
+            calls.append(("executescript", script))
+            return result_value(super().executescript(script))
+
+    with closing(sqlite3.connect(":memory:", factory=CustomConnection)) as connection:
+        raw = connection.__wrapped__
+        raw.execute("CREATE TABLE items (value)")
+        query = "INSERT INTO items VALUES (1)"
+        parameters = iter([(), ()])
+        args = (query, parameters) if method == "executemany" else (query,)
+        events = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            result = getattr(connection, method)(*args)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+        assert calls == [(method, *args)]
+        assert len(events) == 1
+        assert events[0].query is query
+        assert raw.execute("SELECT COUNT(*) FROM items").fetchone() == (2 if method == "executemany" else 1,)
+        if result_kind == "sentinel":
+            assert result is sentinel
+        else:
+            assert isinstance(result, TracedSQLiteCursor)
+            assert isinstance(result.__wrapped__, sqlite3.Cursor)
+            assert not isinstance(result.__wrapped__, TracedSQLiteCursor)
+            assert result.connection is raw
+            assert result.fetchone() is None
+            if result_kind == "wrapped_cursor":
+                assert result is returned[0]
+    assert len(test_spans.spans) == 1
+    span = test_spans.spans[0]
+    assert span.name == "sqlite.query"
+    assert span.resource == query
+    assert span.get_tag("component") == "sqlite"
+    assert span.get_tag("db.system") == "sqlite"
+    assert (span.get_tag("sql.executemany") == "true") is (method == "executemany")
+
+
+@pytest.mark.parametrize("owner", ["connection", "cursor"])
+@pytest.mark.parametrize(
+    "args,kwargs",
+    [((), {}), ((), {"sql_script": "SELECT 1"}), (("SELECT 1", "SELECT 2"), {}), (("SELECT 1",), {"extra": True})],
+)
+def test_executescript_preserves_binding_errors(patched_conn, owner, args, kwargs):
+    raw = patched_conn.__wrapped__
+    native = raw if owner == "connection" else raw.cursor()
+    traced = patched_conn if owner == "connection" else patched_conn.cursor()
+    events = []
+    listener = events.append
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        with pytest.raises(TypeError) as native_error:
+            native.executescript(*args, **kwargs)
+        with pytest.raises(type(native_error.value)) as traced_error:
+            traced.executescript(*args, **kwargs)
+        assert str(traced_error.value) == str(native_error.value)
+        assert not events
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+
+
 def test_cursor_factory_and_connection(patched_conn):
     class CustomCursor(sqlite3.Cursor):
         pass

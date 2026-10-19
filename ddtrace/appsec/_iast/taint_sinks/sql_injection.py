@@ -8,6 +8,7 @@ from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_utils import DBAPI_PREFIXES
 from ddtrace.appsec._iast.constants import DBAPI_INTEGRATIONS
+from ddtrace.appsec._iast.constants import DBAPI_SQLITE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.settings.asm import config as asm_config
@@ -44,7 +45,7 @@ def _on_report_sqli(*args, **kwargs) -> bool:
             # Bulk and script reporting is SQLite-only until other drivers have integration tests.
             if supported_dbapi_integration(integration_name) and (
                 method.__name__ == "execute"
-                or (integration_name == "sqlite" and method.__name__ in ("executemany", "executescript"))
+                or (integration_name == DBAPI_SQLITE and method.__name__ in ("executemany", "executescript"))
             ):
                 if (
                     len(query_args)

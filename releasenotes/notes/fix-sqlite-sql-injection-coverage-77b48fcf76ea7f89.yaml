@@ -1,10 +1,12 @@
 fixes:
   - |
     App and API Protection: Fixes missing SQL injection checks for SQLite scripts,
-    connection-level bulk queries, and queries made through returned cursors.
+    connection-level bulk queries, and execution methods on cursors returned by
+    connection shortcuts.
   - |
     Code Security: Fixes missing SQL injection reports for tainted SQL passed to
     SQLite ``executemany()`` and ``executescript()`` methods.
   - |
     sqlite3: Fixes missing query spans for ``Connection.executemany()``,
-    ``Connection.executescript()``, and ``Cursor.executescript()``.
+    ``Connection.executescript()``, and ``Cursor.executescript()``. The connection
+    shortcuts now return instrumented cursor proxies, matching ``Connection.execute()``.

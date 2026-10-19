@@ -2,8 +2,12 @@
 The sqlite integration instruments the built-in sqlite module to trace SQLite queries.
 
 The ``execute()``, ``executemany()``, and ``executescript()`` methods are instrumented
-on both connections and cursors. Returned cursors remain instrumented. Each script
-is traced as a single query operation.
+on both connections and cursors. Connection shortcuts preserve custom connection
+methods and return instrumented cursor proxies, matching ``Connection.execute()``.
+Each script is traced as a single query operation. Proxies support the cursor
+interface but cannot be passed to APIs that require an exact native cursor type.
+The ``cursor.connection`` attribute retains the native connection; calls through
+that connection are not instrumented.
 
 
 Enabling
