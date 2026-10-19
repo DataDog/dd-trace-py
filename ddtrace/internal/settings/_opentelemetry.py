@@ -122,14 +122,16 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     # Signal-specific endpoint takes precedence (full URL, no path appended).
     if traces_endpoint := env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
         return traces_endpoint
-    protocol = config.TRACES_PROTOCOL
+    protocol = config.TRACES_PROTOCOL.strip().lower()
+    if protocol not in ("grpc", "http/json", "http/protobuf"):
+        protocol = "http/protobuf"
     # A global HTTP endpoint is a base URL; gRPC uses it as-is.
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
-        if protocol.lower() == "grpc":
+        if protocol == "grpc":
             return global_endpoint.rstrip("/")
         return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
-    return _default_endpoint(config, protocol, ExporterConfig.TRACES_PATH)
+    return ExporterConfig._get_default_endpoint(protocol, ExporterConfig.TRACES_PATH)
 
 
 def _derive_trace_metrics_endpoint(config: "ExporterConfig"):

@@ -163,8 +163,11 @@ The following environment variables are supported:
   The default value in the Datadog SDKs is ``delta``, which differs from the OpenTelemetry specified default of ``cumulative``.
   Tracking this configuration helps understand how many customers prefer Cumulative Temporality and why.
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_ENDPOINT``
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_ENDPOINT``
   Defines the target endpoint for the corresponding OTLP signal (default: ``http://<agent_hostname>:4317``).
+
+- ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``
+  Defines the target endpoint for OTLP traces (default: ``http://<agent_hostname>:4318/v1/traces``).
 
 - ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_HEADERS``
   Optional comma-separated key-value pairs for OTLP export (default: empty).

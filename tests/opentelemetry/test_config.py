@@ -137,6 +137,35 @@ def test_empty_otel_configuration_uses_defaults():
     assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 7500
 
 
+@pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "unsupported"})
+def test_unsupported_trace_protocol_uses_http_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
+
+
+@pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": " HTTP/PROTOBUF "})
+def test_whitespace_padded_trace_protocol_uses_http_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "false",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+    }
+)
+def test_apm_agentless_opt_out_keeps_local_otlp_trace_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
+    assert "otlp.datadoghq.com" not in otel_config.exporter.TRACES_ENDPOINT
+
+
 @pytest.mark.subprocess(env={"OTEL_LOG_LEVEL": "debug"})
 def test_otel_log_level_configuration_debug():
     from ddtrace import config
