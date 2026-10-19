@@ -1088,7 +1088,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
     span = span_from_context(ctx)
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
-    span.resource = f"{req.method} {path}"
+    set_instrumentation_resource(span, f"{req.method} {path}")
     trace_utils.set_http_meta(
         span,
         azure_functions_config,
@@ -1822,6 +1822,9 @@ def _on_proxy_request_end(
             span._set_attribute("ray.serve.request.type", request_type)
 
         if request_type == "http":
+            if config._otel_trace_semantics_enabled:
+                # Ray omits span.kind for inbound HTTP; OTLP export needs it to report a server span.
+                span._set_attribute(SPAN_KIND, SpanKind.SERVER)
             trace_utils.set_http_meta(
                 span,
                 config.ray,
