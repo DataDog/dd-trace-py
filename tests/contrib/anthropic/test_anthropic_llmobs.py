@@ -16,6 +16,7 @@ from ddtrace.llmobs._utils import safe_json
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.test_anthropic import BETA_SKIP_REASON
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
+from tests.contrib.anthropic.utils import get_temperature_kwargs
 from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import aiterate_stream
@@ -301,7 +302,7 @@ class TestLLMObsAnthropic:
             stream = llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **get_temperature_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
                 stream=True,
@@ -328,7 +329,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     },
                 ],
-                metadata={"temperature": 1, "max_tokens": 16000.0},
+                metadata={**get_temperature_kwargs(1), "max_tokens": 16000.0},
                 metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -357,7 +358,7 @@ class TestLLMObsAnthropic:
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
-            temperature=0.8,
+            **get_temperature_kwargs(0.8),
             messages=messages,
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -376,7 +377,7 @@ class TestLLMObsAnthropic:
             output_value=safe_json(
                 [{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}], ensure_ascii=False
             ),
-            metadata={"temperature": 0.8, "max_tokens": 15.0},
+            metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
 
@@ -386,7 +387,7 @@ class TestLLMObsAnthropic:
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
-            temperature=0.8,
+            **get_temperature_kwargs(0.8),
             messages=messages,
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -434,7 +435,7 @@ class TestLLMObsAnthropic:
                 model="claude-3-opus-20240229",
                 max_tokens=15,
                 system="Respond only in all caps.",
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -458,7 +459,7 @@ class TestLLMObsAnthropic:
                 {"content": "What is the best selling book?", "role": "user"},
             ],
             output_messages=[{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}],
-            metadata={"temperature": 0.8, "max_tokens": 15.0},
+            metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
             metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
@@ -473,7 +474,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 system=[
                     {
                         "type": "text",
@@ -508,7 +509,7 @@ class TestLLMObsAnthropic:
                 {"content": "What is the best selling book?", "role": "user"},
             ],
             output_messages=[{"content": "HELLO THERE! ACCORDING TO VARIOUS SOURCES, THE", "role": "assistant"}],
-            metadata={"temperature": 0.8, "max_tokens": 15.0},
+            metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
             metrics={
                 "input_tokens": 43,
                 "output_tokens": 15,
@@ -533,7 +534,7 @@ class TestLLMObsAnthropic:
                     model="claude-3-opus-20240229",
                     max_tokens=15,
                     system="Respond only in all caps.",
-                    temperature=0.8,
+                    **get_temperature_kwargs(0.8),
                     messages=[
                         {
                             "role": "user",
@@ -563,7 +564,7 @@ class TestLLMObsAnthropic:
                         "message": spans[0].get_tag("error.message"),
                         "stack": spans[0].get_tag("error.stack"),
                     },
-                    metadata={"temperature": 0.8, "max_tokens": 15.0},
+                    metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
                     tags={
                         "ml_app": "<ml-app-name>",
                         "service": "tests.contrib.anthropic",
@@ -582,7 +583,7 @@ class TestLLMObsAnthropic:
             stream = llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -617,7 +618,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -633,7 +634,7 @@ class TestLLMObsAnthropic:
             with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -673,7 +674,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -687,7 +688,7 @@ class TestLLMObsAnthropic:
             with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -715,7 +716,7 @@ class TestLLMObsAnthropic:
             async with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -742,7 +743,7 @@ class TestLLMObsAnthropic:
             async with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -772,7 +773,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -811,7 +812,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -823,7 +824,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
-                temperature=0.8,
+                **get_temperature_kwargs(0.8),
                 messages=[
                     {
                         "role": "user",
@@ -858,7 +859,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     }
                 ],
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                metadata={**get_temperature_kwargs(0.8), "max_tokens": 15.0},
                 metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
@@ -1418,7 +1419,7 @@ class TestLLMObsAnthropic:
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 100,
             "system": large_system_prompt,
-            "temperature": 0.1,
+            **get_temperature_kwargs(0.1),
             "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
         }
         with request_vcr.use_cassette("anthropic_completion_cache_write.yaml"):
@@ -1448,7 +1449,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **get_temperature_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1483,7 +1484,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **get_temperature_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1518,7 +1519,7 @@ class TestLLMObsAnthropic:
                 model="claude-sonnet-4-20250514",
                 max_tokens=100,
                 system=large_system_prompt,
-                temperature=0.1,
+                **get_temperature_kwargs(0.1),
                 messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -1541,7 +1542,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **get_temperature_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1569,7 +1570,7 @@ class TestLLMObsAnthropic:
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 100,
             "system": large_system_prompt,
-            "temperature": 0.1,
+            **get_temperature_kwargs(0.1),
             "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
             "stream": True,
         }
@@ -1606,7 +1607,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **get_temperature_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1641,7 +1642,7 @@ class TestLLMObsAnthropic:
             ],
             output_messages=[{"content": mock.ANY, "role": "assistant"}],
             metadata={
-                "temperature": 0.1,
+                **get_temperature_kwargs(0.1),
                 "max_tokens": 100.0,
             },
             metrics={
@@ -1701,7 +1702,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **get_temperature_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
             )
@@ -1720,7 +1721,7 @@ class TestLLMObsAnthropic:
                 },
                 {"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON QUIXOTE"', "role": "assistant"},
             ],
-            metadata={"temperature": 1, "max_tokens": 16000.0},
+            metadata={**get_temperature_kwargs(1), "max_tokens": 16000.0},
             metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
@@ -1739,7 +1740,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **get_temperature_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
@@ -1770,7 +1771,7 @@ class TestLLMObsAnthropic:
                     ],
                 },
             ],
-            metadata={"max_tokens": 16000.0, "temperature": 1},
+            metadata={"max_tokens": 16000.0, **get_temperature_kwargs(1)},
             metrics={"input_tokens": 100, "output_tokens": 150, "total_tokens": 250},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             tool_definitions=EXPECTED_TOOL_DEFINITIONS,
@@ -1790,7 +1791,7 @@ class TestLLMObsAnthropic:
             llm.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=16000,
-                temperature=1,
+                **get_temperature_kwargs(1),
                 thinking={"type": "enabled", "budget_tokens": 1024},
                 messages=[
                     {"role": "user", "content": WEATHER_PROMPT},
@@ -1859,7 +1860,7 @@ class TestLLMObsAnthropic:
                     "role": "assistant",
                 },
             ],
-            metadata={"max_tokens": 16000.0, "temperature": 1},
+            metadata={"max_tokens": 16000.0, **get_temperature_kwargs(1)},
             metrics={"input_tokens": 200, "output_tokens": 30, "total_tokens": 230},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             tool_definitions=EXPECTED_TOOL_DEFINITIONS,

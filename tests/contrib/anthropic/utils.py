@@ -1,9 +1,18 @@
+from inspect import signature
 import os
 
+from anthropic.resources.messages import Messages
 from anthropic.types import Message
 from anthropic.types import TextBlock
 from anthropic.types import Usage
 import vcr
+
+
+def get_temperature_kwargs(temperature: float) -> dict[str, float]:
+    # Newer SDKs removed temperature; keep exercising its metadata on older versions.
+    if "temperature" in signature(Messages.create).parameters:
+        return {"temperature": temperature}
+    return {}
 
 
 # VCR is used to capture and store network requests made to Anthropic.
