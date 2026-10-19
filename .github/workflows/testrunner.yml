@@ -16,8 +16,7 @@ jobs:
       packages: write
     with:
       tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
-      # No "/v8": buildx publishes the arm64 image without a variant, and the
-      # numeric-USER check looks each platform up by this exact string.
+      # No "/v8": buildx publishes arm64 without a variant, so the USER check can't find it.
       platforms: 'linux/amd64,linux/arm64'
       build-args: ''
       context: ./docker
