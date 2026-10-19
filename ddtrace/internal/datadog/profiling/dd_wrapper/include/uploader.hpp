@@ -44,18 +44,16 @@ class Uploader
     Uploader(const Uploader&) = delete;
     Uploader& operator=(const Uploader&) = delete;
 
-    // In move constructor and move assignment operator, we clear inner pointer
-    // of ddog_exporter in other to avoid double-free from the destructor.
-    // These were added as we started to calling ddog_prof_Exporter_drop()
+    // In the move constructor, we clear inner pointer of ddog_exporter in other
+    // to avoid double-free from the destructor.
+    // This was added as we started to calling ddog_prof_Exporter_drop()
     // function in the destructor.
     // We initially observed the double free error as we created a temporary
     // object which then moved to std::variant. A simplified example and possible
     // solution using std::variant constructor is here:
     // https://gist.github.com/taegyunkim/9191e643e315be55e78e383ccc498713
-    // We also update the move constructor and move assignment operator to set
-    // the inner pointer to nullptr to avoid double-free. At the time of writing,
-    // we don't have code that uses move constructor and move assignment operator,
-    // but we add them to avoid any potential issues.
+    // At the time of writing, we don't have code that uses the move constructor,
+    // but we add it to avoid any potential issues.
     Uploader(Uploader&& other) noexcept
     {
         ddog_exporter = other.ddog_exporter;
@@ -68,22 +66,9 @@ class Uploader
         process_tags = std::move(other.process_tags);
     }
 
-    Uploader& operator=(Uploader&& other) noexcept
-    {
-        if (this != &other) {
-            drop_exporter();
-            ddog_prof_EncodedProfile_drop(&encoded_profile);
-            ddog_exporter = other.ddog_exporter;
-            other.ddog_exporter = { .inner = nullptr };
-            encoded_profile = other.encoded_profile;
-            other.encoded_profile = { .inner = nullptr };
-            profiler_stats = other.profiler_stats;
-            output_filename = std::move(other.output_filename);
-            errmsg = std::move(other.errmsg);
-            process_tags = std::move(other.process_tags);
-        }
-        return *this;
-    }
+    // Uploaders are use-once-and-destroy. Replacing one would drop its exporter, which also
+    // cancels whatever upload is in flight process-wide.
+    Uploader& operator=(Uploader&&) = delete;
 };
 
 } // namespace Datadog

@@ -29,8 +29,6 @@ void
 Datadog::Uploader::drop_exporter()
 {
     auto& state = ProfilerState::get();
-    // Cancellation wakes the Tokio runtime. Keep it serialized with exporter destruction,
-    // which closes the runtime's wake file descriptor.
     const std::lock_guard<std::mutex> cancel_guard(state.upload_cancel_lock);
     auto current_cancel = state.upload_cancel.exchange({ .inner = nullptr });
     cancel_and_drop(current_cancel);
