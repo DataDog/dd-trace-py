@@ -41,10 +41,10 @@ def _on_report_sqli(*args, **kwargs) -> bool:
         if asm_config._iast_enabled:
             query_args, kwargs, integration_name, method = args
 
+            # Bulk and script reporting is SQLite-only until other drivers have integration tests.
             if supported_dbapi_integration(integration_name) and (
                 method.__name__ == "execute"
-                or integration_name == "sqlite"
-                and method.__name__ in ("executemany", "executescript")
+                or (integration_name == "sqlite" and method.__name__ in ("executemany", "executescript"))
             ):
                 if (
                     len(query_args)
