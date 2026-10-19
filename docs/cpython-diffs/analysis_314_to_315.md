@@ -133,14 +133,24 @@ Key changes:
   `Py_TAGGED_SHIFT` (= `2`) is now the canonical spelling for that shift.
 
 **Echion impact:**
-- The `PyStackRef_AsPyObjectBorrow(f->f_executable)` call to recover a `PyObject*`
-  from a frame's executable field **still works** — no change to that internal
-  helper in `Include/internal/pycore_stackref.h` (not a public compatibility API).
-- If echion directly manipulates `.bits` (e.g., checking `(bits & 1)`), update to
-  use the new named constants.
-- If echion uses `PyStackRef_FromPyObjectImmortal()`, rename to
-  `PyStackRef_FromPyObjectBorrow()` under a `#if PY_VERSION_HEX >= 0x030f0000` guard.
-- Free-threaded builds: `Py_TAG_DEFERRED` no longer exists; use `Py_TAG_REFCNT`.
+Echion does not call `PyStackRef_AsPyObjectBorrow`. It strips tag bits itself, in
+two ways, and both depend on which low bits CPython uses for tags:
+
+- Frame walking: `get_code_from_frame()` in
+  `ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h` clears the
+  low 3 bits of `f_executable.bits` (`& ~7`). That covers `Py_TAG_BITS` (3) on 3.15.
+- asyncio `PyGen_yf()` in
+  `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` uses
+  CPython's `BITS_TO_PTR_MASKED`, which clears only `Py_TAG_REFCNT` (bit 0), for both
+  `f_executable` and the awaited stack slot. The macro is the same in `v3.14.0` and
+  `v3.15.0`. It does not clear the new `Py_TAG_INVALID` (bit 1), so an error
+  reference decodes to a small non-null value rather than `nullptr`. For
+  `f_executable` the `copy_type()` right after it rejects that; the awaited pointer
+  is returned as-is, so its callers must rely on their own guarded reads.
+
+When a new minor changes the tag layout, audit both masks. Echion does not use
+`PyStackRef_FromPyObjectImmortal`, `PyStackRef_FromPyObjectBorrow`, or
+`Py_TAG_DEFERRED`, so those renames need no change here.
 
 ---
 
