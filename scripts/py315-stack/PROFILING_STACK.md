@@ -6,10 +6,12 @@
 CPython `v3.15.0` final was tagged 2026-10-09. Native ABI, asyncio, collector,
 and cp315 wheel work is on `main` via the merged PRs below. Official packaging
 support is still pending (`requires-python` excludes 3.15; #19996 is the widen
-draft). On `main`, `docker/.python-version` asks for `3.15.0`, but
-`.gitlab/testrunner.yml` still pins an older `TESTRUNNER_IMAGE` digest and runs
-`pyenv global … 3.15-dev`, so CI keeps using that image's `3.15-dev` build until
-the pin moves (tracked in #21031). Docs closeout is the
+draft). On `main`, the testrunner Dockerfile installs CPython 3.15.0 final
+(`docker/.python-version`, pyenv 2.8.9; #20947). GitLab CI does not use that build
+yet: `.gitlab/testrunner.yml` still pins a `TESTRUNNER_IMAGE` digest built before
+3.15.0 shipped and runs `pyenv global … 3.15-dev`. Moving CI to 3.15.0 needs both
+the digest bump and the `pyenv global` change (the follow-up named in #21031).
+Docs closeout is the
 thin Q3 PR (catalog + stack map + pointers). Suitespec 3.15 opt-in, version
 registry, and verify tooling (`verify_profiler_compatibility.py`,
 `run-profiling-tests`, baselines) live on #19273 (Q4). #19272 is **not** the
