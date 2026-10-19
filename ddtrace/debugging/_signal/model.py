@@ -55,6 +55,7 @@ class SignalState(str, Enum):
     SKIP_RATE_GLOBAL = "SKIP_RATE_GLOBAL"
     SKIP_RATE_PROBE = "SKIP_RATE_PROBE"
     SKIP_BUDGET = "SKIP_BUDGET"
+    SKIP_CAPPED = "SKIP_CAPPED"
     COND_ERROR = "COND_ERROR"
     DONE = "DONE"
 
@@ -63,7 +64,7 @@ class SignalState(str, Enum):
 # on its signal, so that the collector reports why it was skipped.
 _SAMPLING_SKIP_STATES = {
     Decision.DROP_SAMPLED: SignalState.SKIP_RATE_GLOBAL,
-    Decision.DROP_CAPPED: SignalState.SKIP_BUDGET,
+    Decision.DROP_CAPPED: SignalState.SKIP_CAPPED,
     Decision.DROP_RATE: SignalState.SKIP_RATE_PROBE,
 }
 

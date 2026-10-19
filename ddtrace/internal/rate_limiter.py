@@ -235,21 +235,19 @@ class BudgetRateLimiterWithJitter:
         """Whether a call would be allowed, without consuming any budget.
 
         For a caller that wants a cheap early answer and commits separately
-        later, once it knows the call is worth it. Leaves ``last_time``
-        untouched, so a peek does not shrink the window a later :meth:`consume`
-        or :meth:`limit` accrues over: whatever elapsed since the last real
-        accrual still counts, whether that was another peek or a commit.
+        later, once it knows the call is worth it. The budget is brought up to
+        date first, as :meth:`limit` does, so the jitter for the time elapsed
+        is drawn once: a :meth:`limit` right after agrees with the answer, and
+        a caller can act on it (e.g. remember a negative one).
 
-        Compares before capping, as :meth:`limit` does, so that a maximum budget
-        below one token (a rate below one per ``tau``, or a rate whose
-        ``limit_rate * tau`` rounds just under one) does not reject forever.
+        Neither caps nor consumes the budget, so that, as with :meth:`limit`,
+        a maximum budget below one token (a rate below one per ``tau``, or a
+        rate whose ``limit_rate * tau`` rounds just under one) does not reject
+        forever.
         """
-        if self.limit_rate == float("inf"):
-            return True
-
         with self._lock:
-            elapsed = time.monotonic() - self.last_time
-            return self.budget + self.limit_rate * elapsed * (0.5 + random.random()) >= 1.0
+            self._accrue()
+            return self.budget >= 1.0
 
     def consume(self, amount: float = 1.0) -> None:
         """Spend budget whether or not there is any left.

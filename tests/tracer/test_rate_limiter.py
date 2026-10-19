@@ -340,3 +340,21 @@ def test_rate_limiter_infinite_rate_with_no_elapsed_time():
         limiter.consume()
         assert limiter.has_budget() is True
         assert limiter.limit() is not RateLimitExceeded
+
+
+@pytest.mark.parametrize("jitter,expected", [(0.1, False), (0.95, True)])
+def test_rate_limiter_has_budget_agrees_with_limit(jitter, expected):
+    # Looking at the budget brings it up to date, so the jitter for the time
+    # elapsed is drawn once. A limit() right after must agree with the peek,
+    # rather than drawing a more generous jitter for the same interval.
+    limiter = BudgetRateLimiterWithJitter(limit_rate=1.0, raise_on_exceed=False)
+    limiter.budget = 0.0
+    now = limiter.last_time = time.monotonic()
+
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic", return_value=now + 0.7):
+        with mock.patch("ddtrace.internal.rate_limiter.random.random", return_value=jitter):
+            assert limiter.has_budget() is expected
+
+        with mock.patch("ddtrace.internal.rate_limiter.random.random", return_value=0.999999):
+            assert limiter.has_budget() is expected
+            assert (limiter.limit() is not RateLimitExceeded) is expected
