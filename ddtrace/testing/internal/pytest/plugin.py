@@ -25,9 +25,15 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace.internal.settings._telemetry import config as telemetry_config
+from ddtrace.internal.utils import deprecations as deprecation_utils
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.internal.utils.paths import relative_parts
+from ddtrace.internal.utils.paths import relative_path
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -76,7 +82,6 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
-import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import _get_async_flush_events
@@ -215,10 +220,7 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
 @lru_cache(maxsize=512)
 def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[str]:
     """Return item_path relative to workspace_path as a string, or None if not under workspace."""
-    try:
-        return str(item_path.relative_to(workspace_path))
-    except ValueError:
-        return None
+    return relative_path(item_path, workspace_path)
 
 
 def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
@@ -420,7 +422,11 @@ class TestOptPlugin(TestOptPluginProtocol):
         else:
             self.session.itr_suite_reporting_enabled = True
 
-        if session.config.getoption("ddtrace-patch-all"):
+        if session.config.getoption("ddtrace-patch-all") or session.config.getini("ddtrace-patch-all"):
+            # TODO: honor patch-all even when Test Optimization is not enabled. The legacy
+            # plugin applied it via a session-scoped autouse fixture without requiring
+            # `--ddtrace`; this hook only runs when the plugin is enabled, so standalone
+            # `--ddtrace-patch-all` / `ddtrace-patch-all` ini usage is currently ignored.
             self.enable_all_ddtrace_integrations = True
 
         self.session.start()
@@ -474,19 +480,21 @@ class TestOptPlugin(TestOptPluginProtocol):
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        original_exitstatus = session.exitstatus
         # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
         # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
-        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+        if original_exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
             session.exitstatus = pytest.ExitCode.OK
 
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
-        # based on the exit status reported by pytest.
-        self.session.set_status(
-            TestStatus.FAIL
-            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
-            else TestStatus.PASS
-        )
+        # based on the exit status reported by pytest, before the ITR override above.
+        if original_exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
+            self.session.set_status(TestStatus.SKIP)
+        elif original_exitstatus == pytest.ExitCode.OK:
+            self.session.set_status(TestStatus.PASS)
+        else:
+            self.session.set_status(TestStatus.FAIL)
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
@@ -673,11 +681,10 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         ignored_by_module: dict[str, list[Path]] = defaultdict(list)
         for path in self._itr_ignored_suite_paths:
-            try:
-                relative = path.relative_to(root_path)
-            except ValueError:
+            relative = relative_parts(path, root_path)
+            if relative is None:
                 continue
-            module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
+            module_name = ".".join(relative[:-1])
             ignored_by_module[module_name].append(path)
 
         for module_name, paths in ignored_by_module.items():
@@ -690,8 +697,7 @@ class TestOptPlugin(TestOptPluginProtocol):
                 TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
 
             for path in paths:
-                relative = path.relative_to(root_path)
-                suite_name = relative.name
+                suite_name = path.name
                 test_suite, _ = test_module.get_or_create_child(suite_name)
                 if not test_suite.is_started():
                     test_suite.start()
@@ -1340,6 +1346,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         if not terminalreporter.stats["failed"]:
             del terminalreporter.stats["failed"]
 
+        # TODO: report list of attempt-to-fix results.
         print_test_report_links(terminalreporter, self.manager)
 
 
@@ -1607,7 +1614,20 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
-    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_addoption(parser)
+    # Compatibility: the legacy plugin accepted --ddtrace-include-class-name (and the
+    # ddtrace-include-class-name ini) to prepend class names to test names. The new plugin
+    # always includes the class name in test names, so the option is a no-op, but it stays
+    # accepted so existing commands do not fail with "unrecognized arguments".
+    group.addoption(
+        "--ddtrace-include-class-name",
+        action="store_true",
+        dest="ddtrace-include-class-name",
+        default=False,
+        help="Deprecated no-op: class names are always included in test names",
+    )
+    parser.addini(
+        "ddtrace-include-class-name", "Deprecated no-op: class names are always included in test names", type="bool"
+    )
 
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
@@ -1699,10 +1719,55 @@ def pytest_unconfigure() -> t.Generator[None, None, None]:
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
+    install_coverage(workspace_path, file_level_coverage=is_file_level_coverage_enabled())
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # The legacy pytest plugin (ddtrace/contrib/internal/pytest) has been removed. The
+    # DD_PYTEST_USE_NEW_PLUGIN* environment variables no longer select a plugin: surface stale
+    # configuration with a deprecation warning, but do nothing else. This runs before the kill
+    # switch check because the notice is about plugin selection, not test tracing.
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "DD_PYTEST_USE_NEW_PLUGIN is deprecated",
+                    message=(
+                        "the legacy pytest plugin has been removed. The environment variable no longer has any "
+                        "effect; this pytest plugin is always used. Remove the environment variable from your "
+                        "configuration."
+                    ),
+                )
+            ),
+            stacklevel=2,
+        )
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "DD_PYTEST_USE_NEW_PLUGIN_BETA is deprecated",
+                    message=(
+                        "the legacy pytest plugin has been removed. The environment variable no longer has any "
+                        "effect and can be removed from your configuration."
+                    ),
+                )
+            ),
+            stacklevel=2,
+        )
+    if config.getoption("ddtrace-include-class-name", False) or config.getini("ddtrace-include-class-name"):
+        config.issue_config_time_warning(
+            DDTraceDeprecationWarning(
+                deprecation_utils.generate_message(
+                    "--ddtrace-include-class-name / ddtrace-include-class-name are deprecated",
+                    message=(
+                        "the legacy pytest plugin that supported them has been removed. Class names are always "
+                        "included in test names; remove the option from your command line or configuration."
+                    ),
+                )
+            ),
+            stacklevel=2,
+        )
+
     # We register the marker even if the kill switch is on, to avoid "Unknown pytest.mark.dd_tags" warnings in tests
     # when the plugin is disabled. This is similar to command line arguments, which are also registered in
     # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
@@ -1779,7 +1844,10 @@ def pytest_configure(config: pytest.Config) -> None:
         except Exception:
             log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
 
-    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
+    # Disable telemetry dependency collection for test sessions. This used to live in
+    # tracer_api/pytest_hooks.py alongside the IAST integration that was removed from the
+    # plugin; it is not IAST-related, so it is kept here.
+    telemetry_config.DEPENDENCY_COLLECTION = False
 
     # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
