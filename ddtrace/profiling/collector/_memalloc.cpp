@@ -486,14 +486,11 @@ memalloc_module_free(void* Py_UNUSED(module))
     g_saved_alloc_pub.store(nullptr, std::memory_order_release);
 
 #ifdef _PY312_AND_LATER
-    if (memalloc_mem_installed) {
-        const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
-        if (saved_mem) {
-            PyMemAllocatorEx restore_mem = *saved_mem;
-            PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
-        }
+    const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
+    if (saved_mem) {
+        PyMemAllocatorEx restore_mem = *saved_mem;
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
         g_saved_alloc_mem_pub.store(nullptr, std::memory_order_release);
-        memalloc_mem_installed = false;
     }
 #endif // _PY312_AND_LATER
 
