@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -7,6 +8,7 @@ from ddtrace.internal.native._native import Context
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime_utils import SonicState
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._routing import get_routing_context
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 
 
@@ -54,4 +56,5 @@ def on_bidirectional_stream(
         if context is not None:
             # Propagated contexts can be shared with the caller; never retain mutable metadata.
             context = Context(trace_id=context.trace_id, span_id=context.span_id, meta=dict(context._meta))
-        event.observer = SonicState(integration, event.model, event.parent, context_provider, context)
+        routing_context = deepcopy(get_routing_context())
+        event.observer = SonicState(integration, event.model, event.parent, context_provider, context, routing_context)

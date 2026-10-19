@@ -17,6 +17,8 @@ from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES
 from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
+from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
+from ddtrace.llmobs._routing import RoutingContextType
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs.types import ToolDefinition
@@ -199,12 +201,14 @@ class SonicState:
         parent: Any,
         context_provider: Optional[LLMObsContextProvider] = None,
         llmobs_context: Optional[Context] = None,
+        routing_context: Optional[RoutingContextType] = None,
     ) -> None:
         self.integration = integration
         self.model = model
         self.parent = parent
         self.context_provider = context_provider
         self.llmobs_context = llmobs_context
+        self.routing_context = routing_context
         self.session_id = str(uuid.uuid4())
         self.audio = InputAudio()
         self.pending = Turn()
@@ -610,6 +614,8 @@ class SonicState:
             return
         turn.emitted = True
         previous_context = self.context_provider.active() if self.context_provider is not None else None
+        # An unrouted invocation must not inherit the receiver's destination either.
+        routing_token = _ROUTING_CONTEXTVAR.set(self.routing_context)
         try:
             if self.context_provider is not None:
                 self.context_provider.activate(self.llmobs_context)
@@ -617,6 +623,7 @@ class SonicState:
         except Exception:
             log.debug("Cannot emit Nova Sonic turn", exc_info=True)
         finally:
+            _ROUTING_CONTEXTVAR.reset(routing_token)
             if self.context_provider is not None:
                 self.context_provider.activate(previous_context)
 

@@ -21,6 +21,10 @@ source of LLMObs identity: export can scrub its metadata. Activate the snapshot
 only during turn emission, activate the turn root for each direct child, and
 restore the receiver's prior context in a finally block. Audio span creation
 and annotations live in AwsSdkBedrockRuntimeIntegration.
+Snapshot the separate routing context too, including the absence of a route.
+Use a ContextVar token to scope routing to emission and reset it even on error,
+so deferred output cannot inherit another tenant's destination. Keep routing
+credentials out of span metadata and propagation headers.
 
 Keep audio retention separate from timing validity. Dropping an oversized WAV
 must not remove a valid speech phase or its TTFA boundary. Never shorten gaps

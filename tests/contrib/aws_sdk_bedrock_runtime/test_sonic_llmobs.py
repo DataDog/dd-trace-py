@@ -1,6 +1,7 @@
 import asyncio
 import base64
 from contextlib import ExitStack
+from contextlib import nullcontext
 import gzip
 import json
 from pathlib import Path
@@ -34,6 +35,8 @@ from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._integrations import aws_sdk_bedrock_runtime_utils as sonic_module
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import AwsSdkBedrockRuntimeIntegration
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime_utils import SonicState
+from ddtrace.llmobs._routing import RoutingTarget
+from ddtrace.llmobs._routing import get_routing_context
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Context
@@ -958,3 +961,125 @@ def test_audio_placeholder_requires_observed_unrepresented_audio(monkeypatch, ll
     if kind == "tool" or input_audio:
         assert assistant["tool_calls"][0]["tool_id"] == "call"
     assert response["metrics"] == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "caller_targets",
+    [
+        None,
+        [{"dd_api_key": "caller-a-key", "dd_site": "datadoghq.eu"}],
+        [
+            {"dd_api_key": "caller-a-key", "dd_site": "datadoghq.eu"},
+            {"dd_api_key": "caller-b-key"},
+        ],
+    ],
+    ids=["default", "single", "dual"],
+)
+@pytest.mark.parametrize("receiver_routed", [False, True], ids=["receiver-default", "receiver-routed"])
+@pytest.mark.parametrize("fail_emission", [False, True], ids=["success", "emission-error"])
+async def test_deferred_turn_preserves_caller_routing(
+    monkeypatch, llmobs, caller_targets, receiver_routed, fail_emission
+):
+    clock = SimpleNamespace(now=1_000_000_000)
+    monkeypatch.setattr(sonic_module, "time", SimpleNamespace(time_ns=lambda: clock.now))
+    timeline = [
+        (1_100_000_000, event("userSpeechStart", {"inputAudioOffsetMs": 100, "sessionId": "routing-session"})),
+        (2_500_000_000, event("userSpeechEnd", {"inputAudioOffsetMs": 500})),
+        (
+            2_700_000_000,
+            event(
+                "contentStart",
+                {
+                    "contentId": "output",
+                    "role": "ASSISTANT",
+                    "type": "AUDIO",
+                    "audioOutputConfiguration": OUTPUT,
+                },
+            ),
+        ),
+        (
+            3_000_000_000,
+            event("audioOutput", {"contentId": "output", "content": base64.b64encode(bytes(4800)).decode()}),
+        ),
+        (3_100_000_000, event("contentEnd", {"contentId": "output", "stopReason": "END_TURN"})),
+    ]
+    await mock_stream(monkeypatch, [item for _, item in timeline])
+    # Exercise real span serialization and writer routing; intercept before anything is sent.
+    queued = MagicMock()
+    monkeypatch.setattr(llmobs, "_enqueue", queued)
+    monkeypatch.setattr(llmobs, "enqueue", LLMObsSpanWriter.enqueue.__get__(llmobs))
+    if fail_emission:
+        original = AwsSdkBedrockRuntimeIntegration.start_span
+
+        def start_span(self, name, *args):
+            if name == "agent speech":
+                raise RuntimeError("synthetic emission failure")
+            return original(self, name, *args)
+
+        monkeypatch.setattr(AwsSdkBedrockRuntimeIntegration, "start_span", start_span)
+    async with AsyncBedrockRuntimeClient() as client:
+        with LLMObs.routing_context(targets=caller_targets) if caller_targets else nullcontext():
+            caller_routing = get_routing_context()
+            stream = await client.invoke_model_with_bidirectional_stream(
+                InvokeModelWithBidirectionalStreamOperationInput(model_id=MODEL)
+            )
+        if caller_routing is not None:
+            # A retained caller dictionary must not be able to change an open stream's destination.
+            caller_routing["targets"][0]["api_key"] = "mutated-key"
+        await stream.input_stream.send(
+            event(
+                "contentStart",
+                {"contentName": "mic", "role": "USER", "type": "AUDIO", "audioInputConfiguration": INPUT},
+            )
+        )
+        await stream.input_stream.send(
+            event("audioInput", {"contentName": "mic", "content": base64.b64encode(bytes(32000)).decode()})
+        )
+        await stream.input_stream.close()
+        with LLMObs.routing_context(dd_api_key="receiver-key") if receiver_routed else nullcontext():
+            receiver_routing = get_routing_context()
+            with LLMObs.workflow(name="receiver") as receiver:
+                _, output = await stream.await_output()
+                for now, item in timeline:
+                    clock.now = now
+                    assert await output.receive() is item
+                assert await output.receive() is None
+                await stream.close()
+                assert get_routing_context() is receiver_routing
+                assert LLMObs._instance._llmobs_context_provider.active() is receiver
+                with LLMObs.task(name="after"):
+                    pass
+            assert get_routing_context() is receiver_routing
+    assert get_routing_context() is None
+    emitted = {call.args[0]["name"]: (call.args[0], call.args[2] or []) for call in queued.call_args_list}
+    expected_targets = [RoutingTarget(t["dd_api_key"], t.get("dd_site")) for t in caller_targets or []]
+    nova_names = {"nova sonic audio turn", "nova sonic response", "user speech"}
+    if not fail_emission:
+        nova_names.add("agent speech")
+    assert set(emitted) == nova_names | {"receiver", "after"}
+    root = emitted["nova sonic audio turn"][0]
+    assert root["parent_id"] == "undefined"
+    assert root["meta"]["span"]["kind"] == "workflow"
+    for name in nova_names:
+        span, targets = emitted[name]
+        assert targets == expected_targets
+        assert span["trace_id"] == root["trace_id"]
+        assert span["session_id"] == "routing-session"
+        if name != "nova sonic audio turn":
+            assert span["parent_id"] == root["span_id"]
+        if name != "nova sonic response":
+            assert "audio_parts" not in json.dumps(span["meta"])
+    response = emitted["nova sonic response"][0]
+    assert response["meta"]["span"]["kind"] == "llm"
+    assert audio(response["meta"]["input"]["messages"][-1]) == (16000, bytes(12800))
+    assert audio(response["meta"]["output"]["messages"][0]) == (24000, bytes(4800))
+    assert response["meta"]["metadata"]["ttfa_boundary"] == "speech_end_event_receipt"
+    if not fail_emission:
+        user, agent = emitted["user speech"][0], emitted["agent speech"][0]
+        assert agent["start_ns"] - (user["start_ns"] + user["duration"]) == 500_000_000
+    for name in ("receiver", "after"):
+        assert emitted[name][1] == ([RoutingTarget("receiver-key")] if receiver_routed else [])
+    assert emitted["after"][0]["parent_id"] == emitted["receiver"][0]["span_id"]
+    serialized = json.dumps([span for span, _ in emitted.values()])
+    assert all(key not in serialized for key in ("caller-a-key", "caller-b-key", "receiver-key", "mutated-key"))
