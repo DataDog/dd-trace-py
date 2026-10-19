@@ -26,6 +26,7 @@ from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._opentelemetry import otel_config
+from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.version import __version__
@@ -106,10 +107,17 @@ def _retry_after(value: Optional[str]) -> Optional[float]:
 
 
 def _timeout_ms() -> int:
-    """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do."""
-    if env.get("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT"):
-        return int(otel_config.exporter.METRICS_TIMEOUT)
-    return int(otel_config.exporter.TIMEOUT)
+    """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do,
+    from any configuration source. ddtrace's own settings already report both to telemetry.
+    """
+    return int(
+        get_config(
+            ["OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "OTEL_EXPORTER_OTLP_TIMEOUT"],
+            otel_config.exporter.DEFAULT_TIMEOUT,
+            int,
+            report_telemetry=False,
+        )
+    )
 
 
 class _OtlpSender:

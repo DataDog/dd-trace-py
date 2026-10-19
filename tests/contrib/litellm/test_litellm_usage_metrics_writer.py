@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
 from ddtrace.contrib.internal.litellm._usage_metrics_writer import UsageMetricsWriter
 from ddtrace.contrib.internal.litellm._usage_metrics_writer import _parse_headers
 from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
+from ddtrace.internal.settings import _core as settings_core
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._opentelemetry import otel_config
 
@@ -95,12 +96,21 @@ def sleeps(monkeypatch):
 
 
 def test_the_metrics_timeout_falls_back_to_the_global_one(monkeypatch):
-    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
-    monkeypatch.setattr(otel_config.exporter, "TIMEOUT", 2_500)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", raising=False)
-    assert _usage_metrics_writer._timeout_ms() == 2_500
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "10000")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TIMEOUT", raising=False)
     assert _usage_metrics_writer._timeout_ms() == 10_000
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TIMEOUT", "2500")
+    assert _usage_metrics_writer._timeout_ms() == 2_500
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "4000")
+    assert _usage_metrics_writer._timeout_ms() == 4_000
+
+
+@pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
+def test_the_metrics_timeout_comes_from_stable_configuration(monkeypatch, source_name):
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TIMEOUT", raising=False)
+    monkeypatch.setitem(getattr(settings_core, source_name), "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "4000")
+    assert _usage_metrics_writer._timeout_ms() == 4_000
 
 
 def test_parse_headers():
