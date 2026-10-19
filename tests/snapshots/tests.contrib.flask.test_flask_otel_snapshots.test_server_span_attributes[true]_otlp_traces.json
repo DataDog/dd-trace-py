@@ -273,18 +273,6 @@
                   }
                 },
                 {
-                  "key": "http.request.method",
-                  "value": {
-                    "stringValue": "GET"
-                  }
-                },
-                {
-                  "key": "http.route",
-                  "value": {
-                    "stringValue": "/checkuser/<user_id>"
-                  }
-                },
-                {
                   "key": "tracestate",
                   "value": {
                     "stringValue": "dd=p:6283621db574677b;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
@@ -1221,7 +1209,7 @@
               "spanId": "0000000000000015",
               "traceState": "dd=p:fa2579af0c6b2275;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
               "parentSpanId": "0000000000000014",
-              "name": "HTTP /items",
+              "name": "PROPFIND /items",
               "kind": 1,
               "startTimeUnixNano": "1792161065946071415",
               "endTimeUnixNano": "1792161065946358432",
@@ -1252,24 +1240,6 @@
                 },
                 {
                   "key": "flask.url_rule",
-                  "value": {
-                    "stringValue": "/items"
-                  }
-                },
-                {
-                  "key": "http.request.method",
-                  "value": {
-                    "stringValue": "_OTHER"
-                  }
-                },
-                {
-                  "key": "http.request.method_original",
-                  "value": {
-                    "stringValue": "PROPFIND"
-                  }
-                },
-                {
-                  "key": "http.route",
                   "value": {
                     "stringValue": "/items"
                   }
