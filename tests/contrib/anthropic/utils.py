@@ -1,16 +1,17 @@
-from inspect import signature
 import os
 
-from anthropic.resources.messages import Messages
+import anthropic
 from anthropic.types import Message
 from anthropic.types import TextBlock
 from anthropic.types import Usage
 import vcr
 
+from ddtrace.internal.utils.version import parse_version
+
 
 def get_temperature_kwargs(temperature: float) -> dict[str, float]:
-    # Newer SDKs removed temperature; keep exercising its metadata on older versions.
-    if "temperature" in signature(Messages.create).parameters:
+    # Anthropic 1.0 removed temperature; keep exercising its metadata on older versions.
+    if parse_version(anthropic.__version__) < (1, 0):
         return {"temperature": temperature}
     return {}
 
