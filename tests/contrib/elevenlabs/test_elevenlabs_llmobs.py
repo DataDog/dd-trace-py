@@ -478,6 +478,72 @@ def test_typed_input_without_echoed_transcript(state, test_spans):
     assert data["meta"]["input"]["messages"][0]["content"] == "Typed question"
 
 
+@pytest.mark.parametrize("streamed", [False, True])
+def test_multiple_agent_responses_share_a_turn_without_overwriting_text(state, test_spans, streamed):
+    value, clock = state
+    input_audio(value)
+    receive(value, event("user_transcript", 37, user_transcript="Question"))
+    for response_id, text in (("before-tool", "Let me check."), ("after-tool", "The answer is 42.")):
+        if streamed:
+            for part_type, part in (("start", ""), ("delta", text), ("stop", "")):
+                receive(
+                    value, event("agent_chat_response_part", 37, response_id=response_id, type=part_type, text=part)
+                )
+        else:
+            receive(value, event("agent_response", 37, response_id=response_id, agent_response=text))
+        receive(value, event("audio", 37, audio_base_64=B64))
+        clock.advance()
+        if response_id == "before-tool":
+            receive(value, event("client_tool_call", 37, tool_call_id="lookup", tool_name="lookup", parameters={}))
+            value.on_send(json.dumps({"type": "client_tool_result", "tool_call_id": "lookup", "result": "42"}))
+    # A final response can be resent, and a correction can target an earlier utterance.
+    for _ in range(2):
+        receive(value, event("agent_response", 37, response_id="after-tool", agent_response="The answer is 42."))
+    receive(
+        value,
+        event("agent_response_correction", 37, response_id="before-tool", corrected_agent_response="I checked."),
+    )
+    value.close()
+    captured = rows(test_spans)
+    data = next(row for _, row in captured if row["name"] == "elevenlabs response")
+    assert data["meta"]["output"]["messages"][0]["content"] == "I checked.\nThe answer is 42."
+    assert decoded_frames(data["meta"]["output"]["messages"][0]) == PCM * 2
+    assert data["meta"]["output"]["messages"][0]["tool_calls"][0]["tool_id"] == "lookup"
+    assert data["meta"]["input"]["messages"][0]["tool_results"][0]["result"] == "42"
+    assert next(row for _, row in captured if row["name"] == "elevenlabs audio turn")["meta"]["output"]["value"] == (
+        "I checked.\nThe answer is 42."
+    )
+
+
+def test_streamed_responses_preserve_repeated_utterances(state, test_spans):
+    value, _ = state
+    for response_id in ("first", "second"):
+        for part_type, text in (("start", ""), ("delta", "Same phrase"), ("stop", "")):
+            receive(value, event("agent_chat_response_part", 37, response_id=response_id, type=part_type, text=text))
+    value.close()
+    assert llm_rows(test_spans)[0][1]["meta"]["output"]["messages"][0]["content"] == "Same phrase\nSame phrase"
+
+
+@pytest.mark.parametrize("final_text", ["Final answer", ""])
+def test_final_response_replaces_its_stream_and_ignores_late_parts(state, test_spans, final_text):
+    value, _ = state
+    receive(value, event("agent_chat_response_part", 37, response_id="first", type="delta", text="Draft"))
+    receive(value, event("agent_response", 37, response_id="first", agent_response=final_text))
+    receive(value, event("agent_chat_response_part", 37, response_id="first", type="start", text="Late"))
+    receive(value, event("agent_chat_response_part", 37, response_id="first", type="delta", text=" part"))
+    value.close()
+    assert llm_rows(test_spans)[0][1]["meta"]["output"]["messages"][0]["content"] == final_text
+
+
+def test_response_events_without_response_ids_retain_legacy_replacement(state, test_spans):
+    value, _ = state
+    receive(value, event("agent_chat_response_part", 37, type="start", text="Draft"))
+    receive(value, event("agent_response", 37, agent_response="Original"))
+    receive(value, event("agent_response_correction", 37, corrected_agent_response="Corrected"))
+    value.close()
+    assert llm_rows(test_spans)[0][1]["meta"]["output"]["messages"][0]["content"] == "Corrected"
+
+
 def test_input_before_metadata_is_retained(monkeypatch, test_spans):
     clock = Clock()
     monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
@@ -1039,6 +1105,92 @@ async def test_redundant_start_failure_preserves_ongoing_state(state, asynchrono
     assert instance._dd_elevenlabs_state is value
     assert not value.closed
     assert not value.error
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["sync_error", "async_error", "async_cancel"])
+@pytest.mark.parametrize("already_closing", [False, True])
+async def test_aborted_external_shutdown_restores_observation(state, test_spans, monkeypatch, mode, already_closing):
+    value, _ = state
+    asynchronous = mode != "sync_error"
+    audio = AsyncScriptAudio() if asynchronous else ScriptAudio()
+    cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
+    instance = cls(ElevenLabs(api_key="test-key"), "test-agent", requires_auth=False, audio_interface=audio)
+    instance._dd_elevenlabs_state = value
+    value.closing = already_closing
+    failure = RuntimeError("Synthetic audio cleanup failure")
+    waiting = asyncio.Event()
+
+    def fail_stop():
+        raise failure
+
+    async def async_stop():
+        if mode == "async_cancel":
+            waiting.set()
+            await asyncio.Event().wait()
+        raise failure
+
+    monkeypatch.setattr(audio, "stop", async_stop if asynchronous else fail_stop)
+    try:
+        if mode == "async_cancel":
+            task = asyncio.create_task(instance.end_session())
+            await asyncio.wait_for(waiting.wait(), 3)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            with pytest.raises(RuntimeError) as raised:
+                if asynchronous:
+                    await instance.end_session()
+                else:
+                    instance.end_session()
+            assert raised.value is failure
+        assert not instance._should_stop.is_set()
+        assert value.closing is already_closing
+        assert not value.closed
+        if not already_closing:
+            input_audio(value)
+            receive(value, event("agent_response", 37, agent_response="Still observed"))
+            value.close()
+            data = llm_rows(test_spans)[0][1]
+            assert data["meta"]["output"]["messages"][0]["content"] == "Still observed"
+            assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM
+    finally:
+        instance.client_tools.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True])
+async def test_shutdown_callback_error_after_stop_keeps_closing(state, asynchronous):
+    value, _ = state
+    failure = RuntimeError("Synthetic end callback failure")
+
+    def fail_callback():
+        raise failure
+
+    async def async_callback():
+        raise failure
+
+    cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
+    instance = cls(
+        ElevenLabs(api_key="test-key"),
+        "test-agent",
+        requires_auth=False,
+        audio_interface=AsyncScriptAudio() if asynchronous else ScriptAudio(),
+        callback_end_session=async_callback if asynchronous else fail_callback,
+    )
+    instance._dd_elevenlabs_state = value
+    try:
+        with pytest.raises(RuntimeError) as raised:
+            if asynchronous:
+                await instance.end_session()
+            else:
+                instance.end_session()
+        assert raised.value is failure
+        assert instance._should_stop.is_set()
+        assert value.closing
+    finally:
+        instance.client_tools.stop()
 
 
 def test_zero_event_id_is_valid_before_first_interruption(state, test_spans):

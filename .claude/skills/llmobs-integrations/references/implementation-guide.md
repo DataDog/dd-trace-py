@@ -228,8 +228,14 @@ The ElevenLabs integration instruments the synchronous and asynchronous Agents
 WebSocket loops. Its conversation-local socket proxies observe successful sends
 and received messages without changing the audio interface or event subscriptions.
 Provider event IDs identify turns; text equality and optional completion events do
-not. Keep a bounded window of open turns for late interrupted transcripts and flush
-it on worker exit. Unknown event IDs at or below the interruption boundary cannot
+not. A turn can contain multiple agent utterances around tools. Reconcile final
+text, streaming parts, resends, and corrections by response_id, preserving their
+first-observed order, and join their text for the turn. Ignore late parts after
+an identified response completes. Events without response_id retain the legacy
+single-response fallback. Retain at most 64 response IDs per turn and cap each
+response and the combined exported text at 100,000 characters.
+Keep a bounded window of open turns for late interrupted transcripts and flush it
+on worker exit. Unknown event IDs at or below the interruption boundary cannot
 open turns or consume pending input; known interrupted turns still accept late text.
 Capture APM and LLMObs parent contexts at startup, including explicit absence.
 Create spans under a scoped LLMObs context so both caller contexts remain unchanged;
@@ -243,6 +249,8 @@ Regression fixtures preserve event order and shapes with synthetic audio and tex
 Cover default/custom audio interfaces, both SDK loops, ordinary event subscriptions,
 typed messages, interruption, errors, parent context, concurrent conversations,
 missing completion events, and audio limits.
+Cover failed or cancelled external shutdown before the SDK stop signal, plus end
+callback failures after that signal; only the former may restore observation.
 
 Optional ElevenLabs vad_score events produce user_speech_activity metadata only
 on the matching user speech phase. Version 1 carries source=elevenlabs_vad,

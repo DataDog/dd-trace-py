@@ -233,9 +233,16 @@ async def traced_async_run(
 
 def traced_end(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     state = _state(instance)
-    if state is not None:
-        state.closing = True
-    return func(*args, **kwargs)
+    if state is None:
+        return func(*args, **kwargs)
+    was_closing = state.closing
+    state.closing = True
+    try:
+        return func(*args, **kwargs)
+    except BaseException:
+        if not state.closed and not instance._should_stop.is_set():
+            state.closing = was_closing
+        raise
 
 
 async def traced_async_end(
@@ -245,9 +252,16 @@ async def traced_async_end(
     kwargs: dict[str, Any],
 ) -> Any:
     state = _state(instance)
-    if state is not None:
-        state.closing = True
-    return await func(*args, **kwargs)
+    if state is None:
+        return await func(*args, **kwargs)
+    was_closing = state.closing
+    state.closing = True
+    try:
+        return await func(*args, **kwargs)
+    except BaseException:
+        if not state.closed and not instance._should_stop.is_set():
+            state.closing = was_closing
+        raise
 
 
 async def traced_tool(

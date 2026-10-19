@@ -38,6 +38,10 @@ The SDK's audio interfaces and application callbacks are preserved. Startup fail
 or cancellation finalizes only newly created state; retry captures its own caller
 context, while redundant startup cannot close an ongoing session. See the LLMObs
 implementation guide for per-turn span layout and audio timing eligibility.
+If external shutdown fails or is cancelled before the SDK sets its stop signal,
+restore the previous closing state so the running worker remains observable.
+Keep closing set after the stop signal or worker finalization, even if an end
+callback fails.
 
 Optional raw vad_score events are observed by the same connection-local proxies
 before SDK filtering. They do not require new callbacks, patch points, or event

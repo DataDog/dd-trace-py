@@ -24,6 +24,7 @@ log = get_logger(__name__)
 _RAW_LIMIT = LLMOBS_AUDIO_INLINE_MAX_BYTES * 3 // 4 - 128
 _MAX_OPEN_TURNS = 2
 _MAX_TOOLS = 64
+_MAX_RESPONSES = 64
 _MAX_ACTIVITY_INTERVALS = 128
 _VAD_HOLD_NS = 500_000_000
 _EVENT_FIELDS = {
@@ -228,8 +229,8 @@ class Turn:
         self.input_audio = input_audio
         self.output_audio = AudioBuffer()
         self.user_text = ""
-        self.agent_text = ""
-        self.text_parts = ""
+        self.responses: OrderedDict[str, str] = OrderedDict()
+        self.completed_responses: set[str] = set()
         self.tool_end_ns = 0
         self.tool_execution_incomplete = False
         self.response_ns = now
@@ -238,6 +239,28 @@ class Turn:
         self.llm: Optional[Any] = None
         self.tool_calls: OrderedDict[str, ToolCall] = OrderedDict()
         self.tool_results: OrderedDict[str, ToolResult] = OrderedDict()
+
+    def update_response(self, kind: str, data: dict[str, Any]) -> None:
+        response_id = data.get("response_id")
+        key = response_id if isinstance(response_id, str) else ""
+        if key not in self.responses:
+            if len(self.responses) >= _MAX_RESPONSES:
+                return
+            self.responses[key] = ""
+        if kind == "agent_chat_response_part":
+            if key in self.completed_responses:
+                return
+            part = str(data.get("text") or "")
+            self.responses[key] = (part if data.get("type") == "start" else self.responses[key] + part)[:100_000]
+            if key and data.get("type") == "stop":
+                self.completed_responses.add(key)
+        else:
+            field = "corrected_agent_response" if kind == "agent_response_correction" else "agent_response"
+            self.responses[key] = str(data.get(field) or "")[:100_000]
+            self.completed_responses.add(key)
+
+    def response_text(self) -> str:
+        return "\n".join(text for text in self.responses.values() if text)[:100_000]
 
 
 class ConversationState:
@@ -413,15 +436,10 @@ class ConversationState:
             elif kind == "audio":
                 turn.output_audio.append(data.get("audio_base_64"), now, self.output_rate)
                 self._bound_audio(turn)
-            elif kind == "agent_response":
-                turn.agent_text = str(data.get("agent_response") or "")
-                turn.response_ns = now
-            elif kind == "agent_response_correction":
-                turn.agent_text = str(data.get("corrected_agent_response") or "")
-                turn.response_ns = now
-            elif kind == "agent_chat_response_part":
-                part = str(data.get("text") or "")
-                turn.text_parts = part if data.get("type") == "start" else (turn.text_parts + part)[:100_000]
+            elif kind in ("agent_response", "agent_response_correction", "agent_chat_response_part"):
+                turn.update_response(kind, data)
+                if kind != "agent_chat_response_part":
+                    turn.response_ns = now
             elif kind == "agent_response_complete":
                 turn.response_ns = now
             elif kind == "client_tool_call":
@@ -546,7 +564,7 @@ class ConversationState:
             return
         if self.closing:
             turn.output_audio.trim(now, self.output_rate)
-        text = turn.agent_text or turn.text_parts
+        text = turn.response_text()
         input_message, budget = self._message(
             "user",
             turn.user_text,
