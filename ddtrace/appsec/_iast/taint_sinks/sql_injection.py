@@ -28,7 +28,7 @@ def _on_report_sqli(*args, **kwargs) -> bool:
 
     This function analyzes database operation arguments for potential SQL injection
     vulnerabilities. It checks if the operation is from a supported DBAPI integration,
-    if the method is 'execute', and if the first argument contains tainted data that
+    if the method executes SQL, and if the first argument contains tainted data that
     hasn't been marked as secure.
 
     Note:
@@ -41,7 +41,11 @@ def _on_report_sqli(*args, **kwargs) -> bool:
         if asm_config._iast_enabled:
             query_args, kwargs, integration_name, method = args
 
-            if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
+            if supported_dbapi_integration(integration_name) and (
+                method.__name__ == "execute"
+                or integration_name == "sqlite"
+                and method.__name__ in ("executemany", "executescript")
+            ):
                 if (
                     len(query_args)
                     and query_args[0]

@@ -12,7 +12,7 @@ from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
 def test_checked_tainted_args(iast_context_deduplication_enabled):
     cursor = mock.Mock()
     cursor.execute.__name__ = "execute"
-    cursor.executemany.__name__ = "executemany"
+    cursor.callproc.__name__ = "callproc"
 
     arg = "nobody expects the spanish inquisition"
 
@@ -29,7 +29,7 @@ def test_checked_tainted_args(iast_context_deduplication_enabled):
     assert not _on_report_sqli((tainted_arg,), None, "nosqlite", cursor.execute)
 
     # Returns False: Wrong function name
-    assert not _on_report_sqli((tainted_arg,), None, "sqlite", cursor.executemany)
+    assert not _on_report_sqli((tainted_arg,), None, "sqlite", cursor.callproc)
 
     # Returns True:
     assert _on_report_sqli((tainted_arg, untainted_arg), None, "sqlite", cursor.execute)

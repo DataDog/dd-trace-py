@@ -5,7 +5,6 @@ from typing import Any
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -62,10 +61,6 @@ def traced_connect(func, _, args, kwargs):
 
 
 class TracedSQLiteCursor(TracedCursor):
-    @property
-    def connection(self) -> Any:
-        return getattr(self, "_self_connection", self.__wrapped__.connection)
-
     def executemany(self, *args, **kwargs):
         # DEV: SQLite3 Cursor.execute always returns back the cursor instance
         super().executemany(*args, **kwargs)
@@ -78,9 +73,8 @@ class TracedSQLiteCursor(TracedCursor):
 
     def executescript(self, sql_script: str, /) -> "TracedSQLiteCursor":
         self._self_last_execute_operation = sql_script
-        if isinstance(sql_script, str) and core.has_listeners(DbQueryEvent.event_name):
-            # Inspect the entire script before SQLite can commit or execute its first statement.
-            core.dispatch_event(DbQueryEvent(query=sql_script, span_name_prefix=self._self_dbapi_span_name_prefix))
+        # Inspect the entire script before SQLite can commit or execute its first statement.
+        self._dispatch_query_event(sql_script)
         self._trace_method(self.__wrapped__.executescript, self._self_datadog_name, sql_script, {}, None, sql_script)
         return self
 
@@ -94,12 +88,7 @@ class TracedSQLite(TracedConnection):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedSQLiteFetchCursor if config.sqlite.trace_fetch_methods else TracedSQLiteCursor
-        super().__init__(conn, cfg=config.sqlite, cursor_cls=cursor_cls, db_tags={db.SYSTEM: "sqlite"})
-
-    def cursor(self, *args: Any, **kwargs: Any) -> TracedSQLiteCursor:
-        cursor = super().cursor(*args, **kwargs)
-        cursor._self_connection = self
-        return cursor
+            super().__init__(conn, cfg=config.sqlite, cursor_cls=cursor_cls, db_tags={db.SYSTEM: "sqlite"})
 
     def execute(self, *args, **kwargs):
         # sqlite has a few extra sugar functions

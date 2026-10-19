@@ -23,10 +23,6 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
-SQLite's `sqlite3/patch.py` also covers connection shortcuts and scripts. Each shortcut
-delegates to an instrumented cursor; scripts emit one query event before any statement
-or implicit commit. Returned cursors retain their instrumented connection.
-
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable

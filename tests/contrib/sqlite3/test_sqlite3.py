@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sys
 
 
@@ -36,10 +37,15 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @pytest.fixture
 def patched_conn() -> Generator[sqlite3.Connection, None, None]:
+    was_patched = getattr(sqlite3, "_datadog_patch", False)
     patch()
     conn = sqlite3.connect(":memory:")
-    yield conn
-    unpatch()
+    try:
+        yield conn
+    finally:
+        conn.close()
+        if not was_patched:
+            unpatch()
 
 
 class TestSQLite(TracerTestCase):
@@ -393,6 +399,7 @@ def test_backup(patched_conn):
 @pytest.mark.parametrize("owner", ["connection", "cursor"])
 @pytest.mark.parametrize("method", ["execute", "executemany", "executescript"])
 def test_execution_entrypoints(tracer, test_spans, trace_fetch_methods, owner, method):
+    was_patched = getattr(sqlite3, "_datadog_patch", False)
     with override_config("sqlite", {"trace_fetch_methods": trace_fetch_methods}):
         patch()
         connection = sqlite3.connect(":memory:")
@@ -412,7 +419,7 @@ def test_execution_entrypoints(tracer, test_spans, trace_fetch_methods, owner, m
             args = (query, parameters)
         cursor = getattr(target, method)(*args)
         assert isinstance(cursor, TracedSQLiteCursor)
-        assert cursor.connection is connection
+        assert cursor.connection is raw
         if owner == "cursor":
             assert cursor is target
         assert len(events) == 1
@@ -435,7 +442,8 @@ def test_execution_entrypoints(tracer, test_spans, trace_fetch_methods, owner, m
     finally:
         core.reset_listeners(DbQueryEvent.event_name, listener)
         connection.close()
-        unpatch()
+        if not was_patched:
+            unpatch()
 
 
 @pytest.mark.parametrize("owner", ["connection", "cursor"])
@@ -469,5 +477,16 @@ def test_cursor_factory_and_connection(patched_conn):
 
     cursor = patched_conn.cursor(factory=CustomCursor)
     assert isinstance(cursor.__wrapped__, CustomCursor)
-    assert cursor.connection is patched_conn
+    assert cursor.connection is patched_conn.__wrapped__
     assert cursor.executescript("SELECT 1;") is cursor
+
+
+def test_cursor_connection_preserves_native_type(patched_conn):
+    connection = patched_conn.cursor().connection
+    assert connection is patched_conn.__wrapped__
+    with closing(sqlite3.Cursor(connection)) as cursor:
+        assert cursor.execute("SELECT 1").fetchone() == (1,)
+    with closing(sqlite3.Connection(":memory:")) as source:
+        source.execute("CREATE TABLE copied (value)")
+        source.backup(connection)
+    assert connection.execute("SELECT COUNT(*) FROM copied").fetchone() == (0,)

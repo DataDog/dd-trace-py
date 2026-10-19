@@ -3,6 +3,7 @@ Generic dbapi tracing code.
 """
 
 from collections.abc import Mapping
+from typing import Any
 from typing import Optional
 
 import wrapt
@@ -143,9 +144,7 @@ class TracedCursor(wrapt.ObjectProxy):
         """Return the connection's Python codec, or None when it is unknown."""
         return None
 
-    def executemany(self, query, *args, **kwargs):
-        """Wraps the cursor.executemany method"""
-        self._self_last_execute_operation = query
+    def _dispatch_query_event(self, query: Any) -> None:
         if isinstance(query, (str, bytes, bytearray, memoryview)):
             core.dispatch_event(
                 DbQueryEvent(
@@ -154,6 +153,11 @@ class TracedCursor(wrapt.ObjectProxy):
                     get_encoding=self._dbapi_query_encoding,
                 )
             )
+
+    def executemany(self, query, *args, **kwargs):
+        """Wraps the cursor.executemany method"""
+        self._self_last_execute_operation = query
+        self._dispatch_query_event(query)
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -173,14 +177,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        if isinstance(query, (str, bytes, bytearray, memoryview)):
-            core.dispatch_event(
-                DbQueryEvent(
-                    query=query,
-                    span_name_prefix=self._self_dbapi_span_name_prefix,
-                    get_encoding=self._dbapi_query_encoding,
-                )
-            )
+        self._dispatch_query_event(query)
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects

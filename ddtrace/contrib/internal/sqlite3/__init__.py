@@ -2,8 +2,8 @@
 The sqlite integration instruments the built-in sqlite module to trace SQLite queries.
 
 The ``execute()``, ``executemany()``, and ``executescript()`` methods are instrumented
-on both connections and cursors. Returned cursors and their ``connection`` attribute
-remain instrumented.
+on both connections and cursors. Returned cursors remain instrumented. Each script
+is traced as a single query operation.
 
 
 Enabling
