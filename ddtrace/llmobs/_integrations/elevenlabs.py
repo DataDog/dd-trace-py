@@ -11,6 +11,8 @@ from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.elevenlabs_agents import ConversationState
+from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
+from ddtrace.llmobs._routing import RoutingContextType
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 
@@ -30,15 +32,20 @@ class ElevenLabsIntegration(BaseLLMIntegration):
         # LLMObs activates every new LLM span even when APM activate=False. Scope
         # both its parent and activation to this call, preserving caller context.
         token = _DD_LLMOBS_CONTEXTVAR.set(kwargs.pop("llmobs_parent"))
+        routing_token = _ROUTING_CONTEXTVAR.set(kwargs.pop("routing_context", None))
         try:
             return super().trace(operation_id, submit_to_llmobs=submit_to_llmobs, **kwargs)
         finally:
+            _ROUTING_CONTEXTVAR.reset(routing_token)
             _DD_LLMOBS_CONTEXTVAR.reset(token)
 
     @contextmanager
-    def activate_tool(self, span: Any, context_provider: Any) -> Iterator[None]:
+    def activate_tool(
+        self, span: Any, context_provider: Any, routing_context: Optional[RoutingContextType] = None
+    ) -> Iterator[None]:
         previous = context_provider.active()
         token = _DD_LLMOBS_CONTEXTVAR.set(span)
+        routing_token = _ROUTING_CONTEXTVAR.set(routing_context)
         try:
             context_provider.activate(span)
             yield
@@ -46,6 +53,7 @@ class ElevenLabsIntegration(BaseLLMIntegration):
             try:
                 context_provider.activate(previous)
             finally:
+                _ROUTING_CONTEXTVAR.reset(routing_token)
                 _DD_LLMOBS_CONTEXTVAR.reset(token)
 
     def _set_base_span_tags(self, span: Any, **kwargs: Any) -> None:

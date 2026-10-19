@@ -55,3 +55,12 @@ its service lifecycle. Client-tool handler bodies scope both APM and LLMObs cont
 restoring caller contexts on success, failure, and cancellation. Synthetic replay
 fixtures are stored as deterministic gzip JSON to preserve exact event/audio data
 within the added-file size limit.
+
+ElevenLabs captures explicit routing (including no routing) at conversation startup
+and scopes it around span creation and client-tool handlers. Raw SDK threads must
+not pick up another conversation's or worker's destination. Completion state is
+separate from retained turns: later failures affect only unfinished responses,
+and interruptions affect unfinished generation or audio still playing. A newer
+turn also retires older generation when optional completion events are absent.
+Pre-metadata audio overflow discards the whole buffered prefix and carries the
+omission flag into the next input buffer; it must not export a truncated WAV.

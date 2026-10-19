@@ -19,9 +19,11 @@ from ddtrace.contrib.internal.elevenlabs._state import _CURRENT_STATE
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
 from ddtrace.llmobs._integrations import elevenlabs_agents as _state
 from ddtrace.llmobs._integrations.elevenlabs import ElevenLabsIntegration
 from ddtrace.llmobs._integrations.elevenlabs_agents import ConversationState
+from ddtrace.llmobs._routing import get_routing_context
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -462,6 +464,7 @@ def test_sanitized_capture_replay(state, test_spans, normal_events_only):
         by_id["37"]["meta"]["input"]["messages"][0]["content"]
         == by_id["117"]["meta"]["input"]["messages"][0]["content"]
     )
+    assert by_id["117"]["meta"]["metadata"]["interrupted"] is False
     assert by_id["236"]["meta"]["metadata"]["interrupted"] is True
     assert by_id["236"]["meta"]["output"]["messages"][0]["content"] == "Synthetic response 236"
     assert all(row["meta"]["metadata"]["ttfa_eligible"] is False for row in by_id.values())
@@ -1255,3 +1258,239 @@ async def test_nested_tool_spans_and_caller_context_restoration(state, tracer, t
     assert nested_row["parent_id"] == str(tool.span_id)
     assert nested_row["trace_id"] == tool_row["trace_id"]
     assert tool_row["status"] == ("ok" if outcome == "success" else "error")
+
+
+@pytest.mark.parametrize("limit", ["bytes", "chunks"])
+def test_pre_metadata_overflow_omits_audio_and_recovers(monkeypatch, test_spans, limit):
+    value = ConversationState(ElevenLabsIntegration(config.elevenlabs), SimpleNamespace(agent_id="test-agent"))
+    if limit == "bytes":
+        monkeypatch.setattr(_state, "_RAW_LIMIT", 96)
+        input_audio(value, base64.b64encode(PCM[:48]).decode())
+        input_audio(value, base64.b64encode(PCM[:96]).decode())
+    else:
+        for _ in range(257):
+            input_audio(value, base64.b64encode(PCM[:2]).decode())
+    assert not value.early_audio
+    receive(value, metadata())
+    input_audio(value, base64.b64encode(PCM[:2]).decode())
+    receive(value, event("user_transcript", 37, user_transcript="Preserved text"))
+    input_audio(value, base64.b64encode(PCM[:2]).decode())
+    receive(value, event("user_transcript", 117, user_transcript="Next turn"))
+    value.close()
+    by_id = {row["meta"]["metadata"]["event_id"]: row for _, row in llm_rows(test_spans)}
+    first = by_id["37"]
+    assert first["meta"]["metadata"]["audio_omitted"] is True
+    assert first["meta"]["input"]["messages"][0] == {"role": "user", "content": "Preserved text"}
+    assert decoded_frames(by_id["117"]["meta"]["input"]["messages"][0]) == PCM[:2]
+    assert "audio_omitted" not in by_id["117"]["meta"]["metadata"]
+
+
+@pytest.mark.parametrize("completion_event", [False, True])
+@pytest.mark.parametrize("direction", ["send", "recv"])
+def test_later_transport_error_preserves_completed_turn(state, test_spans, completion_event, direction):
+    value, clock = state
+    receive(value, event("agent_response", 37, agent_response="Completed answer"))
+    if completion_event:
+        receive(value, event("agent_response_complete", 37))
+    clock.advance()
+    receive(value, event("agent_response", 117, agent_response="Partial answer"))
+
+    class FailingSocket:
+        def send(self, *args):
+            raise RuntimeError("Later transport failure")
+
+        def recv(self):
+            raise RuntimeError("Later transport failure")
+
+    socket = patch_module._Socket(FailingSocket(), value)
+    with pytest.raises(RuntimeError, match="Later transport failure"):
+        if direction == "send":
+            socket.send("{}")
+        else:
+            socket.recv()
+    value.close()
+    by_id = {row["meta"]["metadata"]["event_id"]: row for _, row in llm_rows(test_spans)}
+    assert by_id["37"]["status"] == "ok"
+    assert by_id["117"]["status"] == "error"
+
+
+@pytest.mark.parametrize("closing", [False, True])
+async def test_worker_cancellation_preserves_completed_turn(state, test_spans, closing):
+    value, clock = state
+    receive(value, event("agent_response", 37, agent_response="Completed answer"))
+    receive(value, event("agent_response_complete", 37))
+    clock.advance()
+    receive(value, event("agent_response", 117, agent_response="Partial answer"))
+    started = asyncio.Event()
+
+    async def run():
+        started.set()
+        await asyncio.Event().wait()
+
+    instance = SimpleNamespace(_dd_elevenlabs_state=value)
+    task = asyncio.create_task(patch_module.traced_async_run(run, instance, (), {}))
+    await started.wait()
+    value.closing = closing
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert value.closed
+    by_id = {row["meta"]["metadata"]["event_id"]: row for _, row in llm_rows(test_spans)}
+    assert by_id["37"]["status"] == "ok"
+    assert by_id["117"]["status"] == ("ok" if closing else "error")
+
+
+@pytest.mark.parametrize("completion_event", [False, True])
+@pytest.mark.parametrize("still_playing", [False, True])
+def test_interruption_only_marks_active_response_or_playback(state, test_spans, completion_event, still_playing):
+    value, clock = state
+    receive(value, event("audio", 37, audio_base_64=base64.b64encode(PCM * 20).decode()))
+    receive(value, event("agent_response", 37, agent_response="Complete text"))
+    if completion_event:
+        receive(value, event("agent_response_complete", 37))
+    clock.advance(0.1 if still_playing else 3)
+    receive(value, event("audio", 117, audio_base_64=base64.b64encode(PCM * 20).decode()))
+    clock.advance(0.1)
+    receive(value, {"type": "interruption", "interruption_event": {"event_id": 150}})
+    receive(value, event("agent_response_correction", 37, corrected_agent_response="Late correction"))
+    value.close()
+    by_id = {row["meta"]["metadata"]["event_id"]: row for _, row in llm_rows(test_spans)}
+    assert by_id["37"]["meta"]["metadata"]["interrupted"] is still_playing
+    assert by_id["37"]["meta"]["output"]["messages"][0]["content"] == "Late correction"
+    assert by_id["117"]["meta"]["metadata"]["interrupted"] is True
+    assert len(decoded_frames(by_id["117"]["meta"]["output"]["messages"][0])) < len(PCM * 20)
+
+
+@pytest.mark.parametrize("outcome", ["success", "error", "cancel"])
+def test_routing_survives_worker_and_tool_scope(monkeypatch, test_spans, outcome):
+    instances = []
+    expected = {}
+    for name in ("tenant-a", "tenant-b", "default"):
+        instance = SimpleNamespace(agent_id=name)
+        if name == "default":
+            patch_module.traced_start(lambda: None, instance, (), {})
+            expected[name] = None
+        else:
+            with LLMObs.routing_context(dd_api_key="test-" + name, dd_site="datadoghq.eu"):
+                expected[name] = get_routing_context()
+                patch_module.traced_start(lambda: None, instance, (), {})
+        instances.append(instance)
+    captured = []
+    failures = []
+
+    def worker():
+        try:
+            # A reused worker's ambient route must not override startup routing,
+            # including a conversation started without an explicit destination.
+            with LLMObs.routing_context(dd_api_key="test-worker-ambient"):
+                ambient = get_routing_context()
+                for instance in instances:
+                    value = instance._dd_elevenlabs_state
+
+                    def run():
+                        receive(value, metadata(session=value.agent_id))
+                        input_audio(value)
+                        receive(value, event("audio", 37, audio_base_64=B64))
+                        receive(
+                            value, event("client_tool_call", 37, tool_name="nested", tool_call_id="call", parameters={})
+                        )
+                        captured.extend((value.agent_id, span) for span in (value.turns[37].root, value.turns[37].llm))
+                        assert get_routing_context() is ambient
+
+                        async def handler(*args, **kwargs):
+                            captured.append((value.agent_id, value.tool_spans["call"]))
+                            with LLMObs.llm(name="nested-" + value.agent_id) as nested:
+                                captured.append((value.agent_id, nested))
+                                assert get_routing_context() == expected[value.agent_id]
+                            if outcome == "error":
+                                raise ValueError("Synthetic tool failure")
+                            if outcome == "cancel":
+                                raise asyncio.CancelledError()
+                            return "done"
+
+                        invocation = patch_module.traced_tool(
+                            handler, None, (), {"tool_name": "nested", "parameters": {"tool_call_id": "call"}}
+                        )
+                        if outcome == "success":
+                            assert asyncio.run(invocation) == "done"
+                        else:
+                            with pytest.raises(ValueError if outcome == "error" else asyncio.CancelledError):
+                                asyncio.run(invocation)
+                        assert get_routing_context() is ambient
+
+                    patch_module.traced_run(run, instance, (), {})
+                    assert get_routing_context() is ambient
+            assert get_routing_context() is None
+        except BaseException as exc:
+            failures.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert not failures
+    assert len(captured) == 12
+    for name, span in captured:
+        assert span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY) == expected[name]
+    routed_events = [
+        call.args for call in LLMObs._instance._llmobs_span_writer.enqueue.call_args_list if len(call.args) == 2
+    ]
+    for name in ("tenant-a", "tenant-b"):
+        events = [(row, targets) for row, targets in routed_events if row.get("session_id") == name]
+        assert {row["name"] for row, _ in events} >= {"elevenlabs response", "user speech", "agent speech"}
+        assert all(targets[0].api_key == "test-" + name for _, targets in events)
+
+
+def test_configured_models_belong_only_to_matching_retained_turns(state, test_spans):
+    value, clock = state
+    receive(value, event("agent_response", 37, agent_response="First"))
+    receive(value, event("context_usage", 37, model="model-a"))
+    receive(value, event("agent_response", 117, agent_response="Second"))
+    receive(value, event("context_usage", 117, model="model-b"))
+    receive(value, event("context_usage", 999, model="unknown-turn"))
+    receive(value, event("context_usage", None, model="missing-id"))
+    receive(value, event("agent_response", 236, agent_response="Third"))
+    receive(value, event("context_usage", 37, model="late-finalized-turn"))
+    assert list(value.turns) == [117, 236]
+    value.close()
+    by_id = {row["meta"]["metadata"]["event_id"]: row for _, row in llm_rows(test_spans)}
+    assert by_id["37"]["meta"]["metadata"]["configured_llm"] == "model-a"
+    assert by_id["117"]["meta"]["metadata"]["configured_llm"] == "model-b"
+    assert "configured_llm" not in by_id["236"]["meta"]["metadata"]
+
+
+@pytest.mark.parametrize("source", ["handler", "send", "server"])
+def test_tool_result_budget_preserves_conversation_content(state, test_spans, source):
+    value, clock = state
+    input_audio(value)
+    receive(value, event("user_transcript", 37, user_transcript="Keep this question"))
+    receive(value, event("agent_response", 37, agent_response="Keep this answer"))
+    oversized = "document " * _state._MAX_TOOL_RESULT_CHARS
+    for index in range(2):
+        call_id = str(index)
+        receive(value, event("client_tool_call", 37, tool_name="lookup", tool_call_id=call_id, parameters={}))
+        if source == "handler":
+            value.begin_tool(call_id, "lookup", {})
+            value.end_tool(call_id, oversized)
+        elif source == "send":
+            value.on_send(json.dumps({"type": "client_tool_result", "tool_call_id": call_id, "result": oversized}))
+        else:
+            receive(
+                value, event("agent_tool_response_full_payload", 37, tool_call_id=call_id, full_tool_result=oversized)
+            )
+    # Replacing a result reclaims its share without increasing the aggregate cap.
+    value.on_send(json.dumps({"type": "client_tool_result", "tool_call_id": "0", "result": oversized}))
+    clock.advance()
+    value.close()
+    captured = rows(test_spans)
+    response = next(row for _, row in captured if row["meta"]["span"]["kind"] == "llm")
+    incoming = response["meta"]["input"]["messages"][0]
+    assert incoming["content"] == "Keep this question"
+    assert decoded_frames(incoming) == PCM
+    assert response["meta"]["output"]["messages"][0]["content"] == "Keep this answer"
+    assert sum(len(item["result"]) for item in incoming["tool_results"]) <= _state._MAX_TOOL_RESULT_CHARS
+    assert response["meta"]["metadata"]["tool_results_truncated"] is True
+    for _, row in captured:
+        assert len(json.dumps(row)) < config._llmobs_event_size_limit
+        if row["meta"]["span"]["kind"] == "tool":
+            assert len(row["meta"]["output"]["value"]) <= _state._MAX_TOOL_RESULT_CHARS

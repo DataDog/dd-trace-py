@@ -1,3 +1,4 @@
+from asyncio import CancelledError
 from contextlib import ExitStack
 from typing import Any
 from typing import Callable
@@ -223,7 +224,7 @@ async def traced_async_run(
     token = _CURRENT_STATE.set(state)
     try:
         return await func(*args, **kwargs)
-    except Exception:
+    except (Exception, CancelledError):
         state.error = not state.closing
         raise
     finally:
