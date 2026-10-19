@@ -6,6 +6,7 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import otel_client_url
 from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.pin import Pin
@@ -178,18 +179,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         if (scheme == "http" and instance.port == 80) or (scheme == "https" and instance.port == 443):
             port = ""
-        if config._otel_trace_semantics_enabled:
-            if path[:8].lower().startswith(("http://", "https://")):
-                # Absolute-form target (plain HTTP proxy): already a full URL.
-                url = path
-            else:
-                host = instance.host
-                if ":" in host and not host.startswith("["):
-                    host = f"[{host}]"
-                # Asterisk-form ("*") and authority-form ("host:port") targets are not paths.
-                url = f"{scheme}://{host}{port}{path if path.startswith('/') else ''}"
-        else:
-            url = f"{scheme}://{instance.host}{port}{path}"
+        url = otel_client_url(f"{scheme}://{instance.host}{port}{path}", scheme, instance.host, instance.port, path)
 
         # sanitize url
         parsed = parse.urlparse(url)

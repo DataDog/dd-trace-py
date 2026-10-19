@@ -13,6 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
@@ -182,6 +183,32 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
             span._set_attribute(otel_http.SERVER_PORT, port)
+
+
+def otel_client_url(
+    datadog_url: str,
+    scheme: Union[str, bytes],
+    host: Union[str, bytes],
+    port: Optional[int],
+    target: Union[str, bytes],
+) -> str:
+    """Build the client URL that url.full and server.* are derived from.
+
+    datadog_url is the URL the integration builds for the Datadog conventions; it is returned unchanged unless OTel
+    semantics are enabled.
+    """
+    if not config._otel_trace_semantics_enabled:
+        return datadog_url
+    scheme, host, target = ensure_text(scheme), ensure_text(host), ensure_text(target)
+    if target[:8].lower().startswith(("http://", "https://")):
+        # Absolute-form target (plain HTTP proxy): already a full URL.
+        return target
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    if port and port != DEFAULT_SCHEME_PORTS.get(scheme):
+        host = f"{host}:{port}"
+    # Asterisk-form ("*") and authority-form ("host:port") targets are not paths.
+    return f"{scheme}://{host}{target if target.startswith('/') else ''}"
 
 
 # This writer deliberately does not read the OTel semantics feature flag. Callers
