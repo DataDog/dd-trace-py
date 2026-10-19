@@ -186,15 +186,21 @@ def test_psycopg3_query_default():
     setup_django()
 
     from django.db import connections
+    from django.test import override_settings
     from psycopg.sql import SQL
 
-    query = SQL("""select 'one' as x""")
-    conn = connections["postgres"]
-    with conn.cursor() as cur:
-        cur.execute(query)
-        rows = cur.fetchall()
-        assert len(rows) == 1, rows
-        assert rows[0][0] == "one"
+    # Keep the timezone initialization query independent of Django defaults.
+    with override_settings(USE_TZ=False, TIME_ZONE="America/Chicago"):
+        query = SQL("""select 'one' as x""")
+        conn = connections["postgres"]
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
+
+        # Close before restoring settings to avoid tracing a timezone reset query.
+        conn.close()
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")

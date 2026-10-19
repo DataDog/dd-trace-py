@@ -195,6 +195,7 @@ def override_global_config(values: dict[str, Any]):
         "_raise",
         "_trace_compute_stats",
         "_trace_resource_renaming_always_simplified_endpoint",
+        "_otel_trace_semantics_enabled",
         "_obfuscation_query_string_pattern",
         "_query_string_obfuscation_preserve_delimiter",
         "_global_query_string_obfuscation_disabled",

@@ -14,7 +14,7 @@ import pytest
 import requests.utils
 from starlette.responses import PlainTextResponse
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state

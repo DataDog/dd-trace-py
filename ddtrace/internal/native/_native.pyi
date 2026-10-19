@@ -786,13 +786,11 @@ class TraceExporterBuilder:
     def enable_telemetry(
         self,
         heartbeat_ms: int,
-        runtime_id: str,
         debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
-        :param runtime_id: The runtime id to use for telemetry.
         :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
@@ -1380,6 +1378,8 @@ class MetricNamespace:
     civisibility: MetricNamespace
     mlobs: MetricNamespace
     ddtraceapi: MetricNamespace
+    ai_guard: MetricNamespace
+    debugger: MetricNamespace
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1450,6 +1450,8 @@ class RemoteConfigProduct:
     FfeFlags: RemoteConfigProduct
     LiveDebugging: RemoteConfigProduct
     LiveDebuggingSymbolDb: RemoteConfigProduct
+    Debug: RemoteConfigProduct
+    ApmProfiling: RemoteConfigProduct
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...

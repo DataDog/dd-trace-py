@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
+from _pytest.pytester import Pytester
 import pytest
 
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -29,18 +30,22 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
 from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
+from ddtrace.testing.internal.pytest.plugin import setup_coverage_collection
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
+from tests.testing.mocks import EventCapture
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import TestDataFactory
+from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import mock_test
 from tests.testing.mocks import mock_test_session
 from tests.testing.mocks import pytest_item_mock
 from tests.testing.mocks import session_manager_mock
+from tests.testing.mocks import setup_standard_mocks
 from tests.testing.mocks import test_report
 
 
@@ -520,6 +525,7 @@ class TestSkippingAndITRFeatures:
             plugin.pytest_sessionfinish(mock_session)
 
         assert mock_session.exitstatus == pytest.ExitCode.OK
+        plugin.session.set_status.assert_called_once_with(TestStatus.SKIP)
         if coverage_pct is not None:
             assert plugin.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] == coverage_pct
 
@@ -675,6 +681,23 @@ class TestSkippingAndITRFeatures:
         expected = 1 if coverage_enabled else 0
         assert mock_telemetry.record_coverage_started.call_count == expected
         assert mock_telemetry.record_coverage_finished.call_count == expected
+
+
+class TestSetupCoverageCollection:
+    @pytest.mark.parametrize("file_level_coverage", [True, False])
+    def test_installs_coverage_in_the_mode_used_for_skippable_requests(self, file_level_coverage: bool) -> None:
+        """The collector mode and the skippable-tests coverage header must come from the same decision."""
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.get_workspace_path", return_value=Path("/repo")),
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.is_file_level_coverage_enabled",
+                return_value=file_level_coverage,
+            ),
+            patch("ddtrace.testing.internal.pytest.plugin.install_coverage") as mock_install_coverage,
+        ):
+            setup_coverage_collection()
+
+        mock_install_coverage.assert_called_once_with(Path("/repo"), file_level_coverage=file_level_coverage)
 
 
 class TestFinalStatusFeatures:
@@ -1636,6 +1659,56 @@ class TestResetPytestTimeout:
 class TestSessionLifecycleMethods:
     """Test session lifecycle methods that need coverage."""
 
+    @pytest.mark.parametrize(
+        "source,extra_args,exit_code,test_count,session_status",
+        [
+            pytest.param("", [], 5, 0, "skip", id="empty-file"),
+            pytest.param(
+                "import pytest\npytest.skip('Unavailable on this worker', allow_module_level=True)",
+                [],
+                5,
+                0,
+                "skip",
+                id="module-skip",
+            ),
+            pytest.param("def test_pass(): pass", ["-k", "not test_pass"], 5, 0, "skip", id="deselected"),
+            pytest.param("def test_pass(): pass", [], 0, 1, "pass", id="passing-test"),
+            pytest.param(
+                "import pytest\n@pytest.mark.skip(reason='Unavailable')\ndef test_skip(): pass",
+                [],
+                0,
+                1,
+                "pass",
+                id="skipped-test-event",
+            ),
+            pytest.param("raise RuntimeError('Collection failed')", [], 2, 0, "fail", id="collection-error"),
+        ],
+    )
+    def test_pytest_collection_session_status(
+        self,
+        pytester: Pytester,
+        source: str,
+        extra_args: list[str],
+        exit_code: int,
+        test_count: int,
+        session_status: str,
+    ) -> None:
+        pytester.makepyfile(test_example=source)
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api_client_settings()),
+            setup_standard_mocks(),
+            EventCapture.capture() as event_capture,
+        ):
+            result = pytester.inline_run("--ddtrace", "-p", "no:xdist", "test_example.py", *extra_args)
+
+        assert result.ret == exit_code
+        tests = list(event_capture.events_by_type("test"))
+        assert len(tests) == test_count
+        [session] = event_capture.events_by_type("test_session_end")
+        for test_event in tests:
+            assert test_event["content"]["test_session_id"] == session["content"]["test_session_id"]
+        assert session["content"]["meta"]["test.status"] == session_status, session
+
     def test_pytest_sessionfinish_normal_completion(self) -> None:
         """Test pytest_sessionfinish with normal exit status."""
         mock_manager = session_manager_mock().build_mock()
@@ -1746,7 +1819,7 @@ class TestSessionLifecycleMethods:
         """Test pytest_sessionfinish with NO_TESTS_COLLECTED exit code (no ITR skips).
 
         When no tests are collected and ITR did not skip anything, the session
-        should be marked as PASS (nothing failed).
+        should be marked as SKIP because no tests ran.
         """
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
@@ -1761,7 +1834,7 @@ class TestSessionLifecycleMethods:
 
         plugin.pytest_sessionfinish(mock_session)
 
-        plugin.session.set_status.assert_called_once_with(TestStatus.PASS)
+        plugin.session.set_status.assert_called_once_with(TestStatus.SKIP)
 
     def test_pytest_sessionfinish_xdist_worker(self) -> None:
         """Test pytest_sessionfinish as xdist worker."""

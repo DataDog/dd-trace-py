@@ -433,7 +433,10 @@ if is_at_least_py(3, 15):
     # wrapping metadata and deepcopy of decorated functions does not traverse a
     # context holding unpicklable state (locks, ContextVars). See issue #16443.
     _fn_registry: "weakref.WeakKeyDictionary[FunctionType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
-    _ctx_registry_lock = Lock()
+    # Reentrant because _finalize_monitoring_wrap takes it from a weakref.finalize
+    # callback: a GC pass triggered by any allocation made while the lock is held
+    # (e.g. in wrap()) runs that callback on the same thread.
+    _ctx_registry_lock = RLock()
 
 
 # This is abstract and should not be used directly
@@ -896,6 +899,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         def wrap(self) -> None:
             f: FunctionType = self.__wrapped__
             original_code: CodeType = get_function_code(f)
+            if is_obfuscated_code(original_code):
+                raise ObfuscatedCodeError(
+                    f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                )
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
                     existing: _UniversalWrappingContext = _ctx_registry[original_code]
@@ -911,11 +918,6 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                         _monitoring.unregister(original_code, existing)
                     else:
                         raise ValueError("Function already wrapped")
-
-                if is_obfuscated_code(original_code):
-                    raise ObfuscatedCodeError(
-                        f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
-                    )
 
                 # sys.monitoring dispatches per code object. Clone the code so
                 # unwrapped siblings that share the same CodeType are not affected.

@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.iast_packages import clonevirtualenv
 from tests.utils import DDTRACE_PATH
@@ -1142,7 +1142,7 @@ def test_packages_patched(package):
     if package.test_import:
         # TODO: create fixtures with exported patched code and compare it with the generated in the test
         # (only for non-latest versions)
-        with override_env({IAST.ENV: "true"}):
+        with override_env({"DD_IAST_ENABLED": "true"}):
             # 1. Try with the specified version
             cmdlist = [
                 python_bin,

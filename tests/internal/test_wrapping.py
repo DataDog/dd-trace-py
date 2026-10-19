@@ -1561,6 +1561,48 @@ def test_wrapping_context_lazy_no_memory_leak_invoked():
     assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, invoked context(s) leaked"
 
 
+@pytest.mark.subprocess(err=None, timeout=60)
+def test_wrapping_context_gc_during_wrap_does_not_deadlock():
+    """A GC pass triggered while wrap() holds the registry lock can collect other
+    wrapped functions and run their finalizers on the same thread, which take the
+    same lock. Methods of local classes are only freed by the cyclic GC, so they
+    make reliable garbage for this.
+    """
+    import faulthandler
+    import gc
+
+    import ddtrace.internal.wrapping.context as context
+    from tests.internal.test_wrapping import DummyWrappingContext
+
+    # Dump the stack instead of hanging until the subprocess timeout.
+    faulthandler.dump_traceback_later(30, exit=True)
+
+    def make_garbage():
+        class App:
+            def method(self):
+                pass
+
+        DummyWrappingContext(App.method).wrap()
+
+    gc.disable()
+    for _ in range(5):
+        make_garbage()
+
+    link_function_to_code = context.link_function_to_code
+
+    def link_and_collect(*args, **kwargs):
+        gc.collect()
+        return link_function_to_code(*args, **kwargs)
+
+    context.link_function_to_code = link_and_collect
+
+    def target():
+        return 42
+
+    DummyWrappingContext(target).wrap()
+    assert target() == 42
+
+
 @pytest.mark.subprocess(err=None)
 def test_wrapping_context_storage_vars_are_recycled():
     """A ContextVar that has been set is retained by the running Context for the

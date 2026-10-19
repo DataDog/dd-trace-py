@@ -428,9 +428,8 @@ download_dependency_wheels:
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   rules:
-    # TODO(py-315): 3.15 cell skipped — registry.ddbuild.io/images/mirror/python has
-    # no 3.15 tag. When DataDog/images dest-tags rc2 or GA, bump PYTHON_IMAGE_TAG
-    # off 3.15.0rc1 and remove this never-rule.
+    # TODO(py-315): pip refuses the local ddtrace wheel on 3.15 while
+    # requires-python is <3.15. Remove this rule when requires-python allows 3.15.
     - if: '$PYTHON_VERSION == "3.15"'
       when: never
     - when: on_success
@@ -446,7 +445,7 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.13"
       - PYTHON_IMAGE_TAG: "3.14.0"
         PYTHON_VERSION: "3.14"
-      - PYTHON_IMAGE_TAG: "3.15.0rc1"
+      - PYTHON_IMAGE_TAG: "3.15.0"
         PYTHON_VERSION: "3.15"
   script:
     - .gitlab/download-dependency-wheels.sh
