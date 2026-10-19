@@ -31,17 +31,22 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
 ## Bottle HTTP event boundary
 
-Bottle builds its own `METHOD rule` span resource and passes it as
-`WebFrameworkRequestEvent.resource`. `request_route` stays separate and carries the
-`script_name` prefix, so mounted applications report the full `http.route` without
-changing their historical span resource.
+Bottle supplies request and route values to the shared HTTP controller. The HTTP
+tracing subscriber selects Bottle conventions and builds the historical METHOD rule
+resource; route data retains the script_name prefix for http.route.
 
-An application-installed plugin wraps Bottle's WSGI boundary and owns a request
-lifecycle through response exhaustion, failure, or explicit close. Its router
-wrapper supplies the resource as soon as routing succeeds, before handler
-invocation. The WSGI start_response callback supplies the final status and headers; HTTPError conversion preserves
-exceptions that Bottle handles internally. Unmatched requests use METHOD STATUS
-resources. Route-local plugins retain their callback-scoped behavior.
+TracePlugin delegates framework hook installation to BottleHooks in
+bottle/lifecycle.py. HttpLifecycle in contrib/internal/http_server.py owns identity,
+observations, block checks and preservation, and completion. WsgiLifecycleDriver in
+contrib/internal/http_wsgi.py owns activation, response delivery, iteration and
+close. Other WSGI integrations reuse both shared layers and supply request extraction,
+framework response conversion, routing/handler hooks, and handled-error capture.
+The shared driver has no Bottle dependency. Hook lookup is scoped to its driver so
+nested applications do not use another application's controller.
+
+Route-local plugins retain _trace_route_callback and use create_http_server_context
+because they cannot observe the WSGI boundary. The normal WSGI path uses the same
+factory through HttpLifecycle. Both preserve tracing and propagation settings.
 
 IDM owns HTTP semantics and the completion decision. The shared HTTP tracing
 subscriber applies those semantics; core supplies context and span lifecycle

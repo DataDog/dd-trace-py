@@ -104,6 +104,39 @@ correlates HTTP observations by ``request_id`` and selects framework conventions
 using the ``framework`` field.
 See ``examples/http-events/contract.py`` for consumer registration and blocking.
 
+Shared producer lifecycle
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ddtrace.contrib.internal.http_server.HttpLifecycle`` owns request identity,
+HTTP observations, phase publication, block checks, accepted block preservation,
+and idempotent completion. Construct it with ``HttpLifecycleConfig`` and owned
+``HttpRequestData``. It uses ``create_http_server_context`` to open the tracing
+context and publishes completion before exiting it. Consumers continue to receive
+push-only events; lifecycle methods are for instrumentation producers.
+
+For WSGI integrations, ``ddtrace.contrib.internal.http_wsgi.WsgiLifecycleDriver``
+creates the controller and manages context activation, ``start_response``, body
+replacement, HEAD suppression, iteration, errors, and close. Pass framework hooks
+and a ``get_config`` callback, then wrap the application's WSGI callable with
+``driver.wrap``. Returning ``None`` from ``get_config`` disables the wrapper for
+that request, supporting plugin uninstall/reinstall without replacing hooks.
+
+Framework hooks extract request data and convert validated blocking data into a
+response exposing ``status``, ``status_code``, ``headerlist``, and byte ``body``.
+Conversion preserves framework defaults and supplies Content-Length when allowed;
+the driver rejects caller-supplied framing and hop-by-hop headers. Framework
+routing/handler hooks use ``driver.current(environ)`` to find their controller,
+call ``route_resolved`` and ``before_handler``, and enforce returned blocks using
+the framework's response mechanism. Handled errors are recorded before the
+framework converts them to ordinary response values. These hooks must survive
+plugin skip settings and callback-cache resets.
+
+Bottle implements these hooks in ``ddtrace.contrib.internal.bottle.lifecycle``;
+its public ``TracePlugin`` retains configuration and plugin setup. Route-local
+plugins retain their callback-only fallback because they cannot observe the WSGI
+boundary. See ``examples/http-events/lifecycle.py`` for wiring. ASGI requires a
+separate async transport driver; this migration supplies only the WSGI driver.
+
 The application-installed Bottle plugin publishes this contract at these boundaries:
 
 * ``REQUEST_STARTED``: request entry, before Bottle's request hooks and routing.

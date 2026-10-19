@@ -47,6 +47,8 @@ components:
     - tests/contrib/http_contract.py
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
+    - ddtrace/contrib/internal/http_server.py
+    - ddtrace/contrib/internal/http_wsgi.py
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
