@@ -116,16 +116,27 @@ def _retry_after(value: Optional[str]) -> Optional[float]:
 
 def _timeout_ms() -> int:
     """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do,
-    from any configuration source. ddtrace's own settings already report both to telemetry.
+    from any configuration source. ddtrace's own settings already report both to telemetry. A value that is not a
+    positive whole number of milliseconds gives the default.
     """
-    return int(
-        get_config(
-            ["OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "OTEL_EXPORTER_OTLP_TIMEOUT"],
-            otel_config.exporter.DEFAULT_TIMEOUT,
-            int,
-            report_telemetry=False,
-        )
+    default_ms = int(otel_config.exporter.DEFAULT_TIMEOUT)
+    value = get_config(
+        ["OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "OTEL_EXPORTER_OTLP_TIMEOUT"], None, report_telemetry=False
     )
+    if value is None:
+        return default_ms
+    try:
+        timeout_ms = int(value)
+    except (TypeError, ValueError):
+        timeout_ms = 0
+    if timeout_ms <= 0:
+        log.warning(
+            "Ignoring the OTLP metrics timeout %r, which is not a positive number of milliseconds; using %s ms",
+            value,
+            default_ms,
+        )
+        return default_ms
+    return timeout_ms
 
 
 class _OtlpSender:
@@ -134,7 +145,9 @@ class _OtlpSender:
         # this is OTEL_EXPORTER_OTLP_ENDPOINT with /v1/metrics appended to its path (its query kept), the agentless
         # intake, or the local Agent.
         endpoint = _setting("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
-        headers = _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
+        headers = _parse_headers(
+            _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
+        )
         if endpoint is None:
             base = _setting("OTEL_EXPORTER_OTLP_ENDPOINT")
             if base:
@@ -143,8 +156,9 @@ class _OtlpSender:
             else:
                 endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
                 # The API key goes only to the Datadog intake, the default when no endpoint is configured anywhere.
-                if agentless_config.enabled and agentless_config.api_key and "dd-api-key" not in headers.lower():
-                    headers = ",".join(filter(None, (headers, f"dd-api-key={agentless_config.api_key}")))
+                api_key = agentless_config.api_key
+                if agentless_config.enabled and api_key and all(name.lower() != "dd-api-key" for name, _ in headers):
+                    headers.append(("dd-api-key", api_key))
         url = parse.urlsplit(endpoint)
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = _redacted(endpoint)
@@ -152,7 +166,7 @@ class _OtlpSender:
         self._client = HTTPClient(
             f"{url.scheme}://{url.netloc}",
             timeout_ms=self._timeout_ms,
-            headers=_parse_headers(headers),
+            headers=headers,
             treat_http_errors_as_errors=False,
         )
 

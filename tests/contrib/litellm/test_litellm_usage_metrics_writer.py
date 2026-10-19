@@ -111,6 +111,15 @@ def test_the_metrics_timeout_falls_back_to_the_global_one(monkeypatch):
     assert _usage_metrics_writer._timeout_ms() == 4_000
 
 
+@pytest.mark.parametrize("value", ["0", "-5", "2.5", "soon"])
+def test_a_metrics_timeout_that_is_not_positive_gives_the_default(monkeypatch, value):
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", value)
+    assert _usage_metrics_writer._timeout_ms() == 10_000
+    assert [args[1] for args in warnings] == [value]
+
+
 @pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
 def test_the_metrics_timeout_comes_from_stable_configuration(monkeypatch, source_name):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", raising=False)
@@ -457,6 +466,20 @@ def test_agentless_sends_the_api_key_to_the_intake(client_arguments, monkeypatch
     _usage_metrics_writer._OtlpSender()
     assert client_arguments["base_url"] == "https://otlp.datadoghq.com"
     assert client_arguments["headers"] == [("x-team", "a"), ("dd-api-key", "secret-api-key")]
+
+
+@pytest.mark.parametrize(
+    "configured, sent",
+    [
+        # Only a header named dd-api-key, in any case, is the API key.
+        ("x-dd-api-key=metadata", [("x-dd-api-key", "metadata"), ("dd-api-key", "secret-api-key")]),
+        ("DD-API-KEY=mine", [("DD-API-KEY", "mine")]),
+    ],
+)
+def test_agentless_matches_the_api_key_header_by_name(client_arguments, monkeypatch, configured, sent):
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_HEADERS", configured)
+    _usage_metrics_writer._OtlpSender()
+    assert client_arguments["headers"] == sent
 
 
 @pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
