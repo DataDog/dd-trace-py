@@ -11,9 +11,9 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
@@ -45,6 +45,11 @@ def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
     if upper in _DEFAULT_KNOWN_HTTP_METHODS:
         return upper, (None if upper == method else method)
     return OTHER_HTTP_METHOD, method
+
+
+def set_otel_resource_for_method(span: Span, method: str, route: Optional[str] = None) -> None:
+    normalized_method, original_method = normalize_http_method(method)
+    set_otel_http_resource(span, normalized_method, original_method, route)
 
 
 def _credentials_redacted_url(url: str) -> str:
@@ -180,6 +185,32 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
             span._set_attribute(otel_http.SERVER_PORT, port)
 
 
+def otel_client_url(
+    datadog_url: str,
+    scheme: Union[str, bytes],
+    host: Union[str, bytes],
+    port: Optional[int],
+    target: Union[str, bytes],
+) -> str:
+    """Build the client URL that url.full and server.* are derived from.
+
+    datadog_url is the URL the integration builds for the Datadog conventions; it is returned unchanged unless OTel
+    semantics are enabled.
+    """
+    if not config._otel_trace_semantics_enabled:
+        return datadog_url
+    scheme, host, target = ensure_text(scheme), ensure_text(host), ensure_text(target)
+    if target[:8].lower().startswith(("http://", "https://")):
+        # Absolute-form target (plain HTTP proxy): already a full URL.
+        return target
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    if port and port != DEFAULT_SCHEME_PORTS.get(scheme):
+        host = f"{host}:{port}"
+    # Asterisk-form ("*") and authority-form ("host:port") targets are not paths.
+    return f"{scheme}://{host}{target if target.startswith('/') else ''}"
+
+
 # This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
@@ -191,21 +222,16 @@ class OTelHTTPSpanAttributes:
         self._normalized_method = span.get_tag(otel_http.REQUEST_METHOD)
         self._original_method = span.get_tag(otel_http.REQUEST_METHOD_ORIGINAL)
 
-        kind = span.get_tag(SPAN_KIND)
-        self.is_client = kind == SpanKind.CLIENT if kind is not None else span.span_type == SpanTypes.HTTP
+        # Direction must be explicit: span_type HTTP is also used by integrations that
+        # create server spans (e.g. Ray Serve proxy requests), so it cannot imply a client.
+        self.is_client = span.get_tag(SPAN_KIND) == SpanKind.CLIENT
 
     def set_method(self, method: Optional[str]) -> None:
         if method is None:
             return
 
-        normalized_method, original_method = normalize_http_method(method)
-        self._normalized_method = normalized_method
-        self._original_method = original_method
-        self._span._set_attribute(otel_http.REQUEST_METHOD, normalized_method)
-        if original_method is not None:
-            self._span._set_attribute(otel_http.REQUEST_METHOD_ORIGINAL, original_method)
-        else:
-            self._span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)
+        self._normalized_method, self._original_method = normalize_http_method(method)
+        set_method_tag(self._span, method)
 
     def set_url(
         self,
@@ -221,9 +247,10 @@ class OTelHTTPSpanAttributes:
                     set_url_tags_otel_client(self._integration_config, self._span, url, query)
                 else:
                     set_url_tags_otel_server(self._integration_config, self._span, url, query, raw_uri)
-            except ValueError:
+            except ValueError as e:
                 # A malformed optional URL must not suppress metadata supplied separately.
-                log.debug("failed to parse http url %r", url)
+                # The URL is not logged because it may carry credentials or a sensitive query.
+                log.debug("failed to parse http url: %s", type(e).__name__)
         elif query is not None and (
             self._integration_config.http_tag_query_string or self._integration_config.trace_query_string
         ):
@@ -301,3 +328,12 @@ class OTelHTTPSpanAttributes:
             self._original_method,
             None if self.is_client else route,
         )
+
+
+def set_method_tag(span: Span, method: str) -> None:
+    normalized_method, original_method = normalize_http_method(method)
+    span._set_attribute(otel_http.REQUEST_METHOD, normalized_method)
+    if original_method is not None:
+        span._set_attribute(otel_http.REQUEST_METHOD_ORIGINAL, original_method)
+    else:
+        span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)

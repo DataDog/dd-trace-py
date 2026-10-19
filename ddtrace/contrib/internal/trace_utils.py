@@ -21,6 +21,7 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
@@ -415,41 +416,39 @@ def set_http_meta(
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
         ``resolver_match.args``, Tornado ``path_args``).
     """
-    if method is not None:
-        span._set_attribute(http.METHOD, method)
-
-    if url is not None:
-        url = _sanitized_url(url)
-        _set_url_tag(integration_config, span, url, query)
-
-    if target_host is not None:
-        span._set_attribute(net.TARGET_HOST, target_host)
-
-    if server_address is not None:
-        span._set_attribute(net.SERVER_ADDRESS, server_address)
-
-    if status_code is not None:
-        try:
-            int_status_code = int(status_code)
-        except (TypeError, ValueError):
-            log.debug("failed to convert http status code %r to int", status_code)
-        else:
-            span._set_attribute(http.STATUS_CODE, str(status_code))
-            if config._http_server.is_error_code(int_status_code):
-                span.error = 1
+    otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
+    if otel_http is not None and otel_http.is_client:
+        _set_http_meta_otel(
+            otel_http,
+            method,
+            url,
+            target_host,
+            server_address,
+            status_code,
+            query,
+            request_headers,
+            headers_are_case_sensitive,
+            route,
+        )
+    else:
+        _set_http_meta(
+            span,
+            integration_config,
+            method,
+            url,
+            target_host,
+            server_address,
+            status_code,
+            query,
+            request_headers,
+            headers_are_case_sensitive,
+        )
 
     if status_msg is not None:
         span._set_attribute(http.STATUS_MSG, status_msg)
 
-    if query is not None and integration_config.trace_query_string:
-        span._set_attribute(http.QUERY_STRING, query)
-
     request_ip = peer_ip
     if request_headers:
-        user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
-        if user_agent:
-            span._set_attribute(http.USER_AGENT, user_agent)
-
         # Extract referrer host if referer header is present
         referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
         if referrer_host:
@@ -508,6 +507,72 @@ def set_http_meta(
 
     if route is not None:
         span._set_attribute(http.ROUTE, route)
+
+
+def _set_http_meta(
+    span: Span,
+    integration_config: IntegrationConfig,
+    method: Optional[str],
+    url: Optional[str],
+    target_host: Optional[str],
+    server_address: Optional[str],
+    status_code: Optional[Union[int, str]],
+    query: Optional[str],
+    request_headers: Optional[Mapping[str, str]],
+    headers_are_case_sensitive: bool,
+) -> None:
+    """Set the tags whose names or semantics differ from OTel's, using the Datadog conventions."""
+    if method is not None:
+        span._set_attribute(http.METHOD, method)
+
+    if url is not None:
+        url = _sanitized_url(url)
+        _set_url_tag(integration_config, span, url, query)
+
+    if target_host is not None:
+        span._set_attribute(net.TARGET_HOST, target_host)
+
+    if server_address is not None:
+        span._set_attribute(net.SERVER_ADDRESS, server_address)
+
+    if status_code is not None:
+        try:
+            int_status_code = int(status_code)
+        except (TypeError, ValueError):
+            log.debug("failed to convert http status code %r to int", status_code)
+        else:
+            span._set_attribute(http.STATUS_CODE, str(status_code))
+            if config._http_server.is_error_code(int_status_code):
+                span.error = 1
+
+    if query is not None and integration_config.trace_query_string:
+        span._set_attribute(http.QUERY_STRING, query)
+
+    if request_headers:
+        user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
+        if user_agent:
+            span._set_attribute(http.USER_AGENT, user_agent)
+
+
+def _set_http_meta_otel(
+    otel_http: OTelHTTPSpanAttributes,
+    method: Optional[str],
+    url: Optional[str],
+    target_host: Optional[str],
+    server_address: Optional[str],
+    status_code: Optional[Union[int, str]],
+    query: Optional[str],
+    request_headers: Optional[Mapping[str, str]],
+    headers_are_case_sensitive: bool,
+    route: Optional[str],
+) -> None:
+    """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
+    otel_http.set_method(method)
+    otel_http.set_url(url, query=query, server_address=server_address, fallback_server_address=target_host)
+    otel_http.set_status_code(status_code)
+    if request_headers:
+        otel_http.set_user_agent(_get_request_header_user_agent(request_headers, headers_are_case_sensitive))
+    otel_http.set_resource(route)
 
 
 def activate_distributed_headers(
