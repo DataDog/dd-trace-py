@@ -128,6 +128,14 @@ def test_copy_keeps_collector_selection() -> None:
     assert c._collectors == []
 
 
+def test_shallow_copy_of_profiler() -> None:
+    import copy
+
+    p = profiler.Profiler()
+    c = copy.copy(p)
+    assert c._profiler is p._profiler
+
+
 def test_profiler_does_not_mutate_custom_tags() -> None:
     class TestProfiler(profiler._ProfilerInstance):
         def _start_exporter(self) -> None:
