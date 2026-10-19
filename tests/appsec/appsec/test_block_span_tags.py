@@ -4,6 +4,7 @@ from unittest import mock
 import pytest
 
 from ddtrace import config
+from ddtrace.appsec._contrib.fastapi import _asgi_make_block_content
 from ddtrace.appsec._contrib.flask import _on_flask_blocked_request
 from ddtrace.appsec._contrib.flask import _wsgi_make_block_content
 from ddtrace.ext import SpanTypes
@@ -154,6 +155,22 @@ def test_wsgi_block_content_tags(otel_enabled):
         override_http_config("flask", {"trace_query_string": True}),
     ):
         status, _, _ = _wsgi_make_block_content(ctx, lambda environ: _URL)
+
+    assert status == 403
+    _assert_block_tags(span, otel_enabled)
+
+
+@pytest.mark.parametrize("otel_enabled", [False, True])
+def test_asgi_block_content_tags(otel_enabled):
+    span = _new_span()
+    middleware = SimpleNamespace(_config=config.fastapi, integration_config=config.fastapi)
+    items = {"middleware": middleware, "req_span": span, "headers": _HEADERS, "environ": _ENVIRON}
+    ctx = mock.Mock(get_item=items.get)
+    with (
+        override_global_config(dict(_otel_trace_semantics_enabled=otel_enabled)),
+        override_http_config("fastapi", {"trace_query_string": True}),
+    ):
+        status, _, _ = _asgi_make_block_content(ctx, _URL)
 
     assert status == 403
     _assert_block_tags(span, otel_enabled)

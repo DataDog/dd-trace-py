@@ -6,6 +6,7 @@ from typing import Union
 from typing import cast
 from urllib import parse
 
+from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_ROUTE
 from ddtrace._trace.otel.http.resource import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
@@ -324,7 +325,7 @@ class OTelHTTPSpanAttributes:
         if self._normalized_method is None:
             return
         if not self.is_client and route is None:
-            route = self._span.get_tag(http.ROUTE)
+            route = self._span.get_tag(http.ROUTE) or self._span._get_ctx_item(INSTRUMENTATION_HTTP_ROUTE)
         set_otel_http_resource(
             self._span,
             self._normalized_method,
