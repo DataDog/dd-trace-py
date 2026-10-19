@@ -1,0 +1,58 @@
+# AI Guard through the Agent EVP proxy, see README.md.
+# Credentials come from .env next to this file and are only given to the Agents.
+x-app: &app
+  image: ddtrace-aiguard-poc:dev
+  build:
+    context: ../..
+    dockerfile: docker/aiguard-agent-poc/Dockerfile
+  volumes:
+    - ./poc.py:/poc/poc.py:ro
+    # Overlay the pure-Python files under test so edits need no image rebuild.
+    - ../../ddtrace/aiguard:/usr/local/lib/python3.12/site-packages/ddtrace/aiguard:ro
+    - ../../ddtrace/internal/settings/aiguard.py:/usr/local/lib/python3.12/site-packages/ddtrace/internal/settings/aiguard.py:ro
+    - ../../ddtrace/internal/settings/_supported_configurations.py:/usr/local/lib/python3.12/site-packages/ddtrace/internal/settings/_supported_configurations.py:ro
+  environment: &app-env
+    DD_SERVICE: aiguard-agent-poc
+    DD_ENV: poc
+    DD_AI_GUARD_ENABLED: "true"
+    DD_TRACE_DEBUG: ${DD_TRACE_DEBUG:-false}
+
+x-agent-env: &agent-env
+  DD_API_KEY: ${DD_API_KEY:?set DD_API_KEY in .env}
+  DD_SITE: ${DD_SITE:-datadoghq.com}
+  DD_HOSTNAME: aiguard-agent-poc
+  DD_APM_ENABLED: "true"
+  DD_APM_NON_LOCAL_TRAFFIC: "true"
+  DD_LOGS_ENABLED: "false"
+  DD_PROCESS_AGENT_ENABLED: "false"
+  DD_LOG_LEVEL: ${DD_AGENT_LOG_LEVEL:-info}
+
+services:
+  # Path 1: the Agent only holds an API key and forwards to api.<site>/api/v2/ai-guard/evaluate.
+  agent:
+    image: datadog/agent:${DD_AGENT_VERSION:-7}
+    environment:
+      <<: *agent-env
+
+  app:
+    <<: *app
+    depends_on: [agent]
+    environment:
+      <<: *app-env
+      DD_AGENT_HOST: agent
+
+  # Path 2: Agent 7.80 is the last version that attaches its own app key when the tracer
+  # sends X-Datadog-NeedsAppKey: true (removed in 7.81).
+  agent-app-key:
+    image: datadog/agent:7.80.0
+    environment:
+      <<: *agent-env
+      DD_APP_KEY: ${DD_APP_KEY:-}
+
+  app-app-key:
+    <<: *app
+    depends_on: [agent-app-key]
+    environment:
+      <<: *app-env
+      DD_AGENT_HOST: agent-app-key
+      _DD_AI_GUARD_AGENT_NEEDS_APP_KEY: "true"

@@ -19,10 +19,17 @@ from ddtrace.aiguard._types import ImageURL  # noqa:F401
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
 from ddtrace.ext import http
+from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.native import ConnectionFailedError
@@ -30,6 +37,7 @@ from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -162,23 +170,34 @@ def _scrub_urls(text: str) -> str:
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
-    def __init__(self, endpoint: str, api_key: str, app_key: str):
+    def __init__(
+        self,
+        endpoint: str,
+        api_key: Optional[str],
+        app_key: Optional[str],
+        extra_headers: Optional[dict[str, str]] = None,
+    ):
         """Initialize AI Guard client.
 
         Args:
             endpoint: AI Guard service endpoint URL
-            api_key: Datadog API key
-            app_key: Datadog application key
+            api_key: Datadog API key, None when the Agent EVP proxy adds it
+            app_key: Datadog application key, None when calling through the Agent
+            extra_headers: Additional request headers, e.g. the EVP proxy routing headers
         """
         self._endpoint = endpoint
         self._headers = {
             "Content-Type": "application/json",
-            "DD-API-KEY": api_key,
-            "DD-APPLICATION-KEY": app_key,
             "DD-AI-GUARD-VERSION": __version__,
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
+        if api_key:
+            self._headers["DD-API-KEY"] = api_key
+        if app_key:
+            self._headers["DD-APPLICATION-KEY"] = app_key
+        if extra_headers:
+            self._headers.update(extra_headers)
 
         self._meta = {"service": config.service, "env": config.env}
 
@@ -562,13 +581,51 @@ class AIGuardClient:
             conn.close()
 
 
+def _agent_evp_proxy_base_path() -> Optional[str]:
+    """Return the EVP proxy base path advertised by the Agent /info endpoint, if any."""
+    try:
+        info = agent.info()
+    except Exception:
+        logger.debug("AI Guard could not query the Agent /info endpoint", exc_info=True)
+        return None
+    endpoints = (info or {}).get("endpoints", [])
+    for base_path in (EVP_PROXY_AGENT_BASE_PATH_V4, EVP_PROXY_AGENT_BASE_PATH):
+        if any(base_path in endpoint for endpoint in endpoints):
+            return base_path
+    return None
+
+
+def _new_agent_ai_guard_client() -> Optional[AIGuardClient]:
+    """Build a client that reaches AI Guard through the Agent EVP proxy.
+
+    The Agent adds its own API key, so the service holds no Datadog credential. The EVP proxy
+    forwards the request to api.<site> and streams the backend response back.
+    """
+    base_path = _agent_evp_proxy_base_path()
+    if base_path is None:
+        return None
+    agent_url = agent_config.trace_agent_url.rstrip("/")
+    headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+    if aiguard_config._ai_guard_agent_needs_app_key:
+        # Asks the Agent to attach its own application key (removed in Agent 7.81).
+        headers[EVP_NEEDS_APP_KEY_HEADER_NAME] = EVP_NEEDS_APP_KEY_HEADER_VALUE
+    logger.debug("AI Guard uses the Agent EVP proxy transport (%s)", base_path)
+    return AIGuardClient(f"{agent_url}{base_path}/api/v2/ai-guard", None, None, extra_headers=headers)
+
+
 def new_ai_guard_client(
     endpoint: Optional[str] = None,
 ) -> AIGuardClient:
     api_key = config._dd_api_key
     app_key = config._dd_app_key
     if not api_key or not app_key:
-        raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
+        agent_client = _new_agent_ai_guard_client()
+        if agent_client is not None:
+            return agent_client
+        raise ValueError(
+            "Authentication credentials required: provide DD_API_KEY and DD_APP_KEY, "
+            "or run a Datadog Agent with the EVP proxy enabled"
+        )
 
     if not endpoint:
         endpoint = aiguard_config._ai_guard_endpoint

@@ -5842,6 +5842,14 @@
         "internal": true
       }
     ],
+    "_DD_AI_GUARD_AGENT_NEEDS_APP_KEY": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_APPSEC_DEDUPLICATION_ENABLED": [
       {
         "implementation": "A",
