@@ -45,6 +45,7 @@ class Scheduler(periodic.PeriodicService):
             # there is nothing to stop or join.
             self._worker = None
             return
+
         super()._stop_service(*args, **kwargs)
 
     def _rollback_start(self) -> None:

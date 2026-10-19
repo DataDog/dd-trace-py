@@ -490,8 +490,7 @@ class _ProfilerInstance(service.Service):
                 LOG.debug("Failed to clean up partially started scheduler", exc_info=True)
 
         for col in reversed(self._collectors):
-            # MemoryCollector has no status; its rollback checks the native state itself.
-            if getattr(col, "status", None) != service.ServiceStatus.STOPPED:
+            if col.status != service.ServiceStatus.STOPPED:
                 self._rollback_collector_start(col)
 
     def _start_service(self) -> None:

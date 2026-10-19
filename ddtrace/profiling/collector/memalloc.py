@@ -20,6 +20,7 @@ except ImportError:
     logging.getLogger(__name__).debug("failed to import memalloc", exc_info=True)
     _memalloc = None  # type: ignore[assignment]
 
+from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
@@ -46,6 +47,13 @@ class MemoryCollector:
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
         mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
+
+    @property
+    def status(self) -> service.ServiceStatus:
+        if _memalloc is not None and _memalloc.is_started():
+            return service.ServiceStatus.RUNNING
+
+        return service.ServiceStatus.STOPPED
 
     def start(self) -> None:
         """Start collecting memory profiles."""
