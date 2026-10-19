@@ -47,7 +47,7 @@ PERIODIC_THREAD_NOT_STARTED_ERROR = "Periodic thread not started"
 # from being started while forking, or to allow a thread to be started
 # completely if a fork comes in the middle of it.
 _forking = False
-_forking_lock = forksafe.Lock()
+_forking_lock = Lock()
 
 
 class BoundMethod(t.Protocol):

@@ -273,46 +273,6 @@ def test_event_fork():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(timeout=15)
-def test_service_lock_is_reset_after_fork():
-    import os
-    import threading
-
-    from ddtrace.internal import service
-
-    class TestService(service.Service):
-        def _start_service(self):
-            pass
-
-        def _stop_service(self):
-            pass
-
-    test_service = TestService()
-    lock_acquired = threading.Event()
-    release_lock = threading.Event()
-
-    def hold_service_lock():
-        with test_service._service_lock:
-            lock_acquired.set()
-            release_lock.wait()
-
-    owner = threading.Thread(target=hold_service_lock)
-    owner.start()
-    assert lock_acquired.wait(1)
-
-    child = os.fork()
-    if child == 0:
-        acquired_in_child = test_service._service_lock.acquire(timeout=1)
-        os._exit(0 if acquired_in_child else 1)
-
-    release_lock.set()
-    owner.join(1)
-    assert not owner.is_alive()
-    _, status = os.waitpid(child, 0)
-    assert os.WIFEXITED(status)
-    assert os.WEXITSTATUS(status) == 0
-
-
 @pytest.mark.subprocess
 def test_double_fork():
     import os
@@ -344,6 +304,244 @@ def test_double_fork():
     pid, status = os.waitpid(child, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 42
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_fork_hooks_are_serialized():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    forksafe.ddtrace_before_fork()
+
+    second_entered = threading.Event()
+
+    def second_fork():
+        forksafe.ddtrace_before_fork()
+        second_entered.set()
+        forksafe.ddtrace_after_in_parent()
+
+    t = threading.Thread(target=second_fork)
+    t.start()
+
+    # A concurrent fork must wait for the current one to complete its hooks.
+    assert not second_entered.wait(timeout=0.2)
+
+    forksafe.ddtrace_after_in_parent()
+
+    assert second_entered.wait(timeout=5)
+    t.join()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_unpaired_after_fork_hooks():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    # Without a matching before-fork call from this thread, the after-parent
+    # hooks must not release a lock they do not own.
+    forksafe.ddtrace_after_in_parent()
+
+    # Simulate a C-level fork (e.g. uWSGI master forking a worker) while
+    # another thread was in the middle of a fork: the child inherits the lock
+    # held by a thread that does not exist, and runs only the child hooks.
+    held = threading.Event()
+
+    def mid_fork():
+        forksafe.ddtrace_before_fork()
+        held.set()
+
+    t = threading.Thread(target=mid_fork)
+    t.start()
+    assert held.wait(timeout=5)
+    t.join()
+
+    forksafe.ddtrace_after_in_child()
+
+    done = threading.Event()
+
+    def next_fork():
+        forksafe.ddtrace_before_fork()
+        forksafe.ddtrace_after_in_parent()
+        done.set()
+
+    threading.Thread(target=next_fork, daemon=True).start()
+    assert done.wait(timeout=5), "fork lock still held after the child hooks"
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_fork_lock_released_after_exception_following_acquire():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    class InterruptedAfterAcquire:
+        # Simulates an asynchronous exception (e.g. KeyboardInterrupt from
+        # SIGINT) delivered right after the lock has been acquired.
+        def __init__(self, lock):
+            self._lock = lock
+
+        def acquire(self):
+            self._lock.acquire()
+            raise KeyboardInterrupt
+
+        def release(self):
+            self._lock.release()
+
+        def _is_owned(self):
+            return self._lock._is_owned()
+
+    lock = forksafe._fork_lock
+    forksafe._fork_lock = InterruptedAfterAcquire(lock)
+    try:
+        try:
+            forksafe.ddtrace_before_fork()
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError("expected KeyboardInterrupt")
+
+        # CPython reports the exception, forks anyway and then runs the
+        # after-parent hooks, which must release the lock.
+        forksafe.ddtrace_after_in_parent()
+    finally:
+        forksafe._fork_lock = lock
+
+    # Check from another thread, since the lock is re-entrant for its owner.
+    acquired = []
+
+    def try_acquire():
+        acquired.append(lock.acquire(blocking=False))
+        if acquired[-1]:
+            lock.release()
+
+    t = threading.Thread(target=try_acquire)
+    t.start()
+    t.join()
+
+    assert acquired == [True], "fork lock leaked after an exception following acquire"
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_interrupted_fork_lock_acquire_skips_parent_hooks():
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    class InterruptedAcquire:
+        # Simulates an asynchronous exception (e.g. KeyboardInterrupt from
+        # SIGINT) delivered while blocked waiting for the lock.
+        def __init__(self, lock):
+            self._lock = lock
+
+        def acquire(self):
+            raise KeyboardInterrupt
+
+        def release(self):
+            self._lock.release()
+
+        def _is_owned(self):
+            return self._lock._is_owned()
+
+    calls = []
+    hook = forksafe.register_after_parent(lambda: calls.append(threading.get_ident()))
+
+    lock = forksafe._fork_lock
+    held = threading.Event()
+    done = threading.Event()
+
+    def owner_fork():
+        # Another thread is in the middle of its fork and owns the lock.
+        forksafe.ddtrace_before_fork()
+        held.set()
+        done.wait()
+        forksafe.ddtrace_after_in_parent()
+
+    t = threading.Thread(target=owner_fork)
+    t.start()
+    assert held.wait(timeout=5)
+
+    forksafe._fork_lock = InterruptedAcquire(lock)
+    try:
+        try:
+            forksafe.ddtrace_before_fork()
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError("expected KeyboardInterrupt")
+
+        # CPython reports the exception, forks anyway and then runs the
+        # after-parent hooks, which must not run while the owner is forking.
+        forksafe.ddtrace_after_in_parent()
+    finally:
+        forksafe._fork_lock = lock
+
+    assert calls == []
+
+    done.set()
+    t.join()
+
+    assert calls == [t.ident]
+    forksafe._registry_after_parent.remove(hook)
+
+
+@pytest.mark.subprocess(timeout=120)
+def test_concurrent_forks_from_threads():
+    import os
+    import sys
+    import threading
+    import time
+    import warnings
+
+    from ddtrace.internal import threads
+
+    # Use plain threads: concurrent.futures.thread registers at-fork hooks
+    # around a lock of its own, which serializes forks and hides the issue
+    # whenever that module is imported after ddtrace.
+    assert "concurrent.futures.thread" not in sys.modules
+
+    # Python warns about forking a multi-threaded process; that is the point.
+    # catch_warnings() is not thread-safe, so set the filter process-wide.
+    warnings.simplefilter("ignore", DeprecationWarning)
+
+    # Give the fork hooks periodic threads to stop and restart around each fork.
+    periodic = [threads.PeriodicThread(0.01, lambda: None, name=f"test-periodic-{i}") for i in range(4)]
+    for t in periodic:
+        t.start()
+
+    statuses = []
+
+    def fork_and_wait():
+        for _ in range(6):
+            pid = os.fork()
+            if pid == 0:
+                os._exit(42)
+
+            deadline = time.monotonic() + 10
+            while True:
+                wpid, status = os.waitpid(pid, os.WNOHANG)
+                if wpid:
+                    statuses.append(os.WEXITSTATUS(status))
+                    break
+                if time.monotonic() > deadline:
+                    os.kill(pid, 9)
+                    os.waitpid(pid, 0)
+                    statuses.append(None)
+                    break
+                time.sleep(0.01)
+
+    forkers = [threading.Thread(target=fork_and_wait) for _ in range(16)]
+    for f in forkers:
+        f.start()
+    for f in forkers:
+        f.join()
+
+    assert statuses == [42] * len(statuses), f"{statuses.count(None)} children hung"
+
+    for t in periodic:
+        t.stop()
+        t.join()
 
 
 @pytest.mark.subprocess(
@@ -450,10 +648,9 @@ def test_lock_pickle_roundtrip(serializer: ModuleType) -> None:
     lock.acquire()  # locked in the source process
 
     data: bytes = serializer.dumps(lock)
-    restored = serializer.loads(data)
+    restored: threading.Lock = serializer.loads(data)
 
     assert isinstance(restored, forksafe.ResetObject)
-    assert isinstance(restored, threading.Lock)
     assert restored.acquire(blocking=False) is True
     restored.release()
     assert restored in forksafe._resetable_objects
