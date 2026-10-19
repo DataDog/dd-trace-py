@@ -18,13 +18,16 @@ import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.sqlite3.patch import TracedSQLiteCursor
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+from tests.utils import override_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -384,3 +387,87 @@ def test_backup(patched_conn):
 
     with destination:
         patched_conn.backup(destination, pages=1)
+
+
+@pytest.mark.parametrize("trace_fetch_methods", [False, True])
+@pytest.mark.parametrize("owner", ["connection", "cursor"])
+@pytest.mark.parametrize("method", ["execute", "executemany", "executescript"])
+def test_execution_entrypoints(tracer, test_spans, trace_fetch_methods, owner, method):
+    with override_config("sqlite", {"trace_fetch_methods": trace_fetch_methods}):
+        patch()
+        connection = sqlite3.connect(":memory:")
+    raw = connection.__wrapped__
+    raw.execute("CREATE TABLE items (name TEXT)")
+    target = connection if owner == "connection" else connection.cursor()
+    events = []
+    listener = events.append
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        if method == "executescript":
+            query = "INSERT INTO items VALUES ('alice'); INSERT INTO items VALUES ('bob');"
+            args = (query,)
+        else:
+            query = "INSERT INTO items VALUES (?)"
+            parameters = ("alice",) if method == "execute" else iter([("alice",), ("bob",)])
+            args = (query, parameters)
+        cursor = getattr(target, method)(*args)
+        assert isinstance(cursor, TracedSQLiteCursor)
+        assert cursor.connection is connection
+        if owner == "cursor":
+            assert cursor is target
+        assert len(events) == 1
+        assert events[0].query is query
+        assert events[0].span_name_prefix == "sqlite"
+        spans = test_spans.spans
+        assert len(spans) == 1
+        assert spans[0].resource == query
+        assert spans[0].name == "sqlite.query"
+        assert spans[0].get_tag("db.system") == "sqlite"
+        assert cursor.fetchall() == []
+        assert len(test_spans.spans) == (2 if trace_fetch_methods else 1)
+        if trace_fetch_methods:
+            assert test_spans.spans[-1].name == "sqlite.query.fetchall"
+            assert test_spans.spans[-1].resource == query
+        assert len(events) == 1
+        assert raw.execute("SELECT name FROM items ORDER BY name").fetchall() == (
+            [("alice",)] if method == "execute" else [("alice",), ("bob",)]
+        )
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+        connection.close()
+        unpatch()
+
+
+@pytest.mark.parametrize("owner", ["connection", "cursor"])
+def test_executescript_preserves_errors_and_partial_execution(patched_conn, owner):
+    target = patched_conn if owner == "connection" else patched_conn.cursor()
+    with pytest.raises(sqlite3.OperationalError):
+        target.executescript("CREATE TABLE created (value); INSERT INTO missing VALUES (1);")
+    assert patched_conn.__wrapped__.execute("SELECT COUNT(*) FROM created").fetchone() == (0,)
+
+
+def test_executescript_preserves_implicit_commit(patched_conn):
+    raw = patched_conn.__wrapped__
+    raw.execute("CREATE TABLE items (value)")
+    raw.execute("INSERT INTO items VALUES (1)")
+    assert raw.in_transaction
+    patched_conn.executescript("INSERT INTO items VALUES (2);")
+    assert not raw.in_transaction
+    raw.rollback()
+    assert raw.execute("SELECT value FROM items ORDER BY value").fetchall() == [(1,), (2,)]
+
+
+@pytest.mark.parametrize("script", [None, 1, b"SELECT 1;"])
+def test_executescript_preserves_argument_errors(patched_conn, script):
+    with pytest.raises(TypeError):
+        patched_conn.executescript(script)
+
+
+def test_cursor_factory_and_connection(patched_conn):
+    class CustomCursor(sqlite3.Cursor):
+        pass
+
+    cursor = patched_conn.cursor(factory=CustomCursor)
+    assert isinstance(cursor.__wrapped__, CustomCursor)
+    assert cursor.connection is patched_conn
+    assert cursor.executescript("SELECT 1;") is cursor

@@ -26,6 +26,7 @@ suites:
       - '@tracing'
       - '@appsec'
       - '@remoteconfig'
+      - '@sqlite3'
       - tests/appsec/*
     pattern: appsec$
     retry: 2

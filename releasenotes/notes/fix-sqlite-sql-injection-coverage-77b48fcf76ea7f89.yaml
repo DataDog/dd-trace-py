@@ -1,0 +1,5 @@
+fixes:
+  - |
+    App and API Protection: Fixes missing SQL injection checks for SQLite scripts,
+    connection-level bulk queries, and queries made through returned cursors or
+    their connection attribute.
