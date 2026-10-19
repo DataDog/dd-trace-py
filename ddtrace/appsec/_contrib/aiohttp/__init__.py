@@ -63,9 +63,39 @@ def _unquote_cookie(value: str) -> str:
     return _COOKIE_ESCAPE.sub(lambda m: chr(int(m[1], 8)) if m[1] else m[2], value[1:-1])
 
 
+def _closing_quote(raw: str, index: int) -> Optional[int]:
+    while index < len(raw):
+        if raw[index] == "\\":
+            index += 2
+        elif raw[index] == '"':
+            return index
+        else:
+            index += 1
+    return None
+
+
+def _split_cookies(raw: str) -> list[str]:
+    chunks: list[str] = []
+    start = 0
+    while start <= len(raw):
+        end = raw.find(";", start)
+        end = len(raw) if end < 0 else end
+        equal = raw.find("=", start, end)
+        if equal >= 0:
+            value = equal + 1
+            while value < end and raw[value] in " \t":
+                value += 1
+            if raw.startswith('"', value) and (closing := _closing_quote(raw, value + 1)) is not None:
+                end = raw.find(";", closing)
+                end = len(raw) if end < 0 else end
+        chunks.append(raw[start:end])
+        start = end + 1
+    return chunks
+
+
 def _parse_cookies(headers: Any) -> dict[str, Union[str, list[str]]]:
     cookies: dict[str, list[str]] = {}
-    for chunk in "; ".join(headers.getall("Cookie", ())).split(";"):
+    for chunk in _split_cookies("; ".join(headers.getall("Cookie", ()))):
         key, separator, value = chunk.partition("=")
         if not separator:
             key, value = "", key

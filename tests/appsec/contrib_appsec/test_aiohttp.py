@@ -272,6 +272,8 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             (("first=1", "second=2"), {"first": "1", "second": "2"}),
             (("session=' OR 1=1 --", "session=x"), {"session": ["' OR 1=1 --", "x"]}),
             (("a=1; a=2",), {"a": ["1", "2"]}),
+            (('session="safe;\\152dfoSDGFkivRG_234"; other=1',), {"session": "safe;jdfoSDGFkivRG_234", "other": "1"}),
+            (('a=x"y; b=z',), {"a": 'x"y', "b": "z"}),
         ],
     )
     def test_request_cookies_raw_header(self, interface, cookie_headers, expected):
