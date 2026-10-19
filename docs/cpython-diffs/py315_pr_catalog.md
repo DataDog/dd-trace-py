@@ -1,6 +1,8 @@
 # Python 3.15 profiling PR catalog
 
-**Vintage:** 2026-09-30. **Scope:** profiling-only bring-up for CPython 3.15.
+**Vintage:** rows written 2026-09-30. The State column for public PRs was re-checked
+with `gh pr view` on 2026-10-19. Internal rows keep their 2026-09-30 state.
+**Scope:** profiling-only bring-up for CPython 3.15.
 **Author filter:** `vlad-scherbich`, created ≥ 2026-03-01 (plus reference #17849).
 **Location:** `docs/cpython-diffs/py315_pr_catalog.md` (feeds the profiling CPython-upgrade runbook).
 
@@ -82,7 +84,7 @@
 | [#20003](https://github.com/DataDog/dd-trace-py/pull/20003) | closed/draft | asyncio hook | PY_UNWIND rejected as local event on some 3.15 builds | dead_end | skill_checklist | Local-event fallback; closed — may still be needed; track as lesson. |
 | [#20005](https://github.com/DataDog/dd-trace-py/pull/20005) | closed/draft | collectors | optional Cython collectors ImportError on 3.15 | dead_end | skill_checklist | CollectorUnavailable stubs; closed without merge. |
 | [#20006](https://github.com/DataDog/dd-trace-py/pull/20006) | closed/draft | asyncio hook | current_task() RuntimeError when no running loop | dead_end | skill_checklist | Narrow asyncio wrapper fix; closed. |
-| [#20671](https://github.com/DataDog/dd-trace-py/pull/20671) | open/draft | collectors | 3.15 shutdown clears registry lock; memalloc bytearray domain change | status | human | STATUS: fix profiling::profile / profile-memalloc on 3.15. |
+| [#20671](https://github.com/DataDog/dd-trace-py/pull/20671) | merged | collectors | 3.15 shutdown clears registry lock; memalloc bytearray domain change | status | human | STATUS: fix profiling::profile / profile-memalloc on 3.15. |
 
 **Automate for 3.16:**
 - Probe wrap() on create_task; if fail, register sys.monitoring on new minor only
@@ -178,7 +180,7 @@
 | [pc#202](https://github.com/DataDog/prof-correctness/pull/202) | closed/draft | correctness scenarios | 314v315 gate iteration | dead_end | skill_checklist | closed after pin landed elsewhere / superseded |
 | [pc#183](https://github.com/DataDog/prof-correctness/pull/183) | merged | test gating | CI runner flake on ddprof jobs | expected | human | stabilize ddprof_julia and ddprof_live_heap (adjacent CI). |
 | [#20444](https://github.com/DataDog/dd-trace-py/pull/20444) | merged | test gating | S3 wheel poll timeout too short for prof-correctness | surprise | script_template | Raise S3 wheel poll timeout to 60m. |
-| [#20585](https://github.com/DataDog/dd-trace-py/pull/20585) | open | test gating | poll earliest S3 install script | status | script_template | STATUS: poll earliest S3 install script for prof-correctness. |
+| [#20585](https://github.com/DataDog/dd-trace-py/pull/20585) | merged | test gating | poll earliest S3 install script | status | script_template | STATUS: poll earliest S3 install script for prof-correctness. |
 
 **Automate for 3.16:**
 - prof-correctness python_*_3.X jobs + 3.X-1 vs 3.X compare gate
@@ -208,10 +210,10 @@
 | [#17792](https://github.com/DataDog/dd-trace-py/pull/17792) | closed | docs | repo-wide tracker doc | dead_end | none | Volunteer tracker doc; parent issue #17809 is source of truth. |
 | [#19253](https://github.com/DataDog/dd-trace-py/pull/19253) | closed/draft | build/CI matrix | gated riot suites for 3.15 | dead_end | script_template | Gated suites draft; closed. |
 | [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | open/draft | docs | need durable runbook/registry/skill for next minor | status | skill_checklist | STATUS: Q4 verify/registry/suitespec follow-up. Docs/catalog closeout is #20814. |
-| [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | open/draft | docs | ADR: functional readiness; memory parity NOT claimed | status | skill_checklist | STATUS: ADR. Local AB ~+15% RSS (53% runtime / 47% profiler); don't gate on memory parity. |
+| [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | closed/draft | docs | ADR: functional readiness; memory parity NOT claimed | status | skill_checklist | STATUS: ADR. Local AB ~+15% RSS (53% runtime / 47% profiler); don't gate on memory parity. |
 | [#20565](https://github.com/DataDog/dd-trace-py/pull/20565) | open/draft | docs | automate CPython delta→worklist for 3.16 | status | cpython_delta | STATUS: cpython_delta inventory/diff pipeline (stacked on #19273). |
 | [#20631](https://github.com/DataDog/dd-trace-py/pull/20631) | open/draft | docs | list CI suites still off 3.15 | status | script_template | STATUS: DO NOT MERGE inventory of suites still off 3.15. |
-| [#20636](https://github.com/DataDog/dd-trace-py/pull/20636) | open/draft | build/CI matrix | PyPI lookup failure treated as missing coverage | status | script_template | STATUS: don't treat failed PyPI lookup as missing major coverage. |
+| [#20636](https://github.com/DataDog/dd-trace-py/pull/20636) | merged | build/CI matrix | PyPI lookup failure treated as missing coverage | status | script_template | STATUS: don't treat failed PyPI lookup as missing major coverage. |
 
 **Automate for 3.16:**
 - Copy runbook checklist; run migrate-profiling-new-cpython skill

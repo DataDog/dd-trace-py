@@ -1,12 +1,12 @@
 # CPython 3.14 → 3.15 Change Analysis (for echion)
 
-**Generated from:** `git diff v3.14.0 v3.15.0rc3` on `python/cpython` over the compared paths below (first drafted against `v3.15.0a7`; re-checked through `v3.15.0rc3`).
-**Final tag:** `v3.15.0` makes no changes to these paths (or to `Python/bytecodes.c` /
-`Objects/genobject.c`) relative to `v3.15.0rc3`, so this analysis also holds for 3.15.0.
+**Checked against:** the `v3.14.0` and `v3.15.0` tags of `python/cpython` on 2026-10-19,
+over the paths below. Every struct, enum, macro, and signature quoted here was read
+from those two tags. "Echion impact" notes describe this repo's sources.
 **Compared paths** (reproduce the header/ABI slice with these exact args):
 
 ```bash
-git diff v3.14.0 v3.15.0rc3 -- \
+git diff v3.14.0 v3.15.0 -- \
   Include/cpython/genobject.h \
   Include/internal/pycore_frame.h \
   Include/internal/pycore_interpframe.h \
@@ -20,16 +20,14 @@ git diff v3.14.0 v3.15.0rc3 -- \
 
 The a8 await-stack layout change (§4) also depends on `Python/bytecodes.c` /
 `Objects/genobject.c`, which are outside that header-only set.
-**Raw diff (local research artifact, not committed):** regenerate with the `git diff`
-above into e.g. `/tmp/cpython_314_to_315_headers.diff`; the 3.13→3.14 committed
-reference lives in `DataDog/echion` at
-`docs/cpython-diffs/cpython_313_to_314_headers.diff`.
+The raw diff is not committed; regenerate it with the command above.
 
-Files with **no changes** relevant to echion (stable between 3.14 and 3.15):
+Files with **no changes** relevant to echion between `v3.14.0` and `v3.15.0`:
 
-- `Include/cpython/genobject.h` — generator object layout unchanged
-- `Include/internal/pycore_llist.h` — llist API unchanged
-- `Include/internal/pycore_runtime.h` — runtime struct unchanged
+- `Include/cpython/genobject.h` — byte-identical
+- `Include/internal/pycore_llist.h` — byte-identical
+- `Include/internal/pycore_runtime.h` — only adds atomic
+  `_PyRuntimeState_{Get,Set}{Core,}Initialized` accessors; no struct change in this header
 
 ---
 
@@ -113,7 +111,7 @@ wrap in `#if PY_VERSION_HEX < 0x030f0000`.
 
 Key changes:
 
-- Tag constants moved to top-level (no longer split between GIL/nogil paths):
+- Tag constants are defined once near the top of the header in 3.15:
   ```c
   #define Py_INT_TAG    3
   #define Py_TAG_INVALID 2   // new: marks ERROR sentinel
@@ -121,9 +119,12 @@ Key changes:
   #define Py_TAG_BITS   3
   #define Py_TAGGED_SHIFT 2  // new
   ```
-- `Py_TAG_DEFERRED` (free-threaded) is **gone** — merged with `Py_TAG_REFCNT`.
-- `PyStackRef_FromPyObjectImmortal()` **renamed** to `PyStackRef_FromPyObjectBorrow()`.
-- New `PyStackRef_ERROR` sentinel (`bits == Py_TAG_INVALID`).
+- `Py_TAG_DEFERRED` is **gone**. In 3.14 it was already just an alias for
+  `Py_TAG_REFCNT` under `Py_GIL_DISABLED`.
+- `PyStackRef_FromPyObjectImmortal()` is gone and `PyStackRef_FromPyObjectBorrow()`
+  is new. Treat it as a replacement, not a pure rename, and check semantics before
+  swapping call sites.
+- New `PyStackRef_ERROR` sentinel (`bits == Py_TAG_INVALID` in the default build).
 - New predicates: `PyStackRef_IsError()`, `PyStackRef_IsMalformed()`,
   `PyStackRef_IsValid()`.
 - New `PyStackRef_Wrap()` / `PyStackRef_Unwrap()` for raw pointer wrapping.
@@ -147,8 +148,8 @@ Key changes:
 
 **Priority: HIGH** (asyncio / `PyGen_yf` await-chain walks)
 
-Landed in **3.15.0a8**, after the original a7 header pass. `_SEND_GEN_FRAME` gained
-a `null` operand (`Python/bytecodes.c`), so a frame suspended in `YIELD_FROM` holds
+Landed in **3.15.0a8** (`v3.15.0a7` still has the one-argument `_PyFrame_StackPeek`).
+`_SEND_GEN_FRAME` gained a `null` operand (`Python/bytecodes.c`), so a frame suspended in `YIELD_FROM` holds
 `PyStackRef_NULL` at `stackpointer[-1]` and the awaited object at `stackpointer[-2]`.
 `_PyFrame_StackPeek` grew a `depth` argument; CPython reads the awaited object as
 `_PyFrame_StackPeek(&gen->gi_iframe, 2)` in `gen_getyieldfrom` (`Objects/genobject.c`).
@@ -176,9 +177,11 @@ static inline _PyStackRef _PyFrame_StackPeek(_PyInterpreterFrame *f, int depth);
 
 ### 5. `_PyFrame_SafeGetCode()` and `_PyFrame_SafeGetLasti()` — `pycore_interpframe.h`
 
-Not new in 3.15. Both helpers exist on CPython 3.14 (`Include/internal/pycore_interpframe.h`;
-[gh-140815](https://github.com/python/cpython/issues/140815) / [GH-140921](https://github.com/python/cpython/pull/140921)
-3.14 backport). CPython documents them as heuristic helpers for `dump_frame()` in
+Not new in 3.15, but not in `v3.14.0` either: both helpers first appear in `v3.14.1`
+(`Include/internal/pycore_interpframe.h`). They come from the fix for
+[gh-140815](https://github.com/python/cpython/issues/140815)
+([GH-140921](https://github.com/python/cpython/pull/140921) on `main`, backported to
+3.14). CPython documents them as heuristic helpers for `dump_frame()` in
 `Python/traceback.c` (faulthandler): return NULL / `-1` if the frame looks invalid or
 freed; **not 100% reliable**.
 
@@ -201,8 +204,8 @@ from addresses whose lifetime it does not control and must go through guarded co
 `ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h` notes that
 `PyCode_Check()` is only safe when the code object is known to be alive, and
 `ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc` avoids
-`_PyInterpreterFrame_LASTI` for the same reason. Keep the guarded reads. Not a
-3.15-only API either way (available since 3.14).
+`_PyInterpreterFrame_LASTI` for the same reason. Keep the guarded reads. If anything
+does use them, the guard is `PY_VERSION_HEX >= 0x030e0100` (3.14.1), not `0x030e0000`.
 
 ---
 
@@ -222,11 +225,10 @@ typedef struct _PyThreadStateImpl {
     Py_ssize_t refcount;
 ```
 
-**Recommendation:** Use `&tstate_impl->base_frame` as the termination sentinel when
-walking the frame chain under 3.15. Previously echion checked for NULL
-`previous_instr` or similar; this explicit sentinel is cleaner.
-
-Guard: `#if PY_VERSION_HEX >= 0x030f0000`
+**Option, not adopted:** `&tstate_impl->base_frame` could serve as the end-of-chain
+sentinel on 3.15. Echion does not use it today (no `base_frame` reference in
+`ddtrace/internal/datadog/profiling/stack/`). Guard would be `#if PY_VERSION_HEX >= 0x030f0000`.
+Its position also moves later fields; see §8.
 
 ---
 
@@ -244,25 +246,28 @@ GENERATE_DEBUG_SECTION(AsyncioDebug, Py_AsyncioModuleDebugOffsets _Py_AsyncioDeb
 process (e.g., via `/proc/pid/maps` or DWARF). Update the symbol name lookup to
 `_Py_AsyncioDebug` under a `#if PY_VERSION_HEX >= 0x030f0000` guard.
 
-The `TaskObj` struct layout (fields: `task_name`, `task_awaited_by`, `task_coro`,
-`task_node`, `task_is_task`, `task_awaited_by_is_set`) is **unchanged** from 3.14 —
-the `cpython/tasks.h` mirror in echion does not need layout changes.
+The `TaskObj` struct and the `FutureObj_HEAD` macro it starts with (which holds
+`awaited_by`, `awaited_by_is_set`, `is_task`) are **identical** in `v3.14.0` and
+`v3.15.0`, so the `cpython/tasks.h` mirror in echion does not need layout changes.
 
 ---
 
 ### 8. Other `_PyThreadStateImpl` additions — `pycore_tstate.h`
 
-New fields (low echion impact):
+New fields (none of them in `v3.14.0`):
 
-- `c_stack_init_base` / `c_stack_init_top` — stack protection reset values
-- `generator_return_kind` enum — distinguishes yield vs return in `gen_send_ex2()`
-- `pystats_struct` (under `Py_STATS`)
+- `base_frame` (§6) and `c_stack_init_base` / `c_stack_init_top` — these sit
+  **before** `asyncio_running_loop` and `asyncio_tasks_head`, so those offsets move
+- `generator_return_kind` enum — yield vs return from `PyEval_EvalFrame()`
+  (see `gen_send_ex2()`)
+- `pystats_struct` (under `Py_GIL_DISABLED` + `Py_STATS`)
 - `jit_tracer_state` (under `_Py_TIER2`)
-- `__padding[64]` (GIL-disabled, cache-line alignment)
+- `__padding[64]` (under `Py_GIL_DISABLED`)
 
-These add fields **after** `asyncio_running_loop` / `asyncio_tasks_head`, so if
-echion accesses those by name (not by offset), no change needed. If accessing by
-raw offset, regenerate offsets.
+Echion takes `offsetof(_PyThreadStateImpl, asyncio_tasks_head)` from the headers it
+is built against (`ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc`),
+so a 3.15 build picks up the new offset. Anything that hardcodes raw offsets must be
+regenerated.
 
 ABI fixes that landed from this analysis are in #19269 / #19272. Packaging /
 official-support follow-ups are not this file.
