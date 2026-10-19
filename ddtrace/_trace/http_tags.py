@@ -11,6 +11,7 @@ from ddtrace._trace.otel.http.tags import _obfuscated_query
 from ddtrace._trace.otel.http.tags import _sanitized_url
 from ddtrace._trace.otel.http.tags import _set_otel_query
 from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.otel.http.tags import set_url_tags_otel_server
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
@@ -88,6 +89,12 @@ def http_block_metadata(
     if user_agent:
         metadata[otel_http.USER_AGENT_ORIGINAL] = user_agent
     return metadata
+
+
+def name_blocked_request_span(span: Span, method: Optional[str]) -> None:
+    """Give a request blocked before its integration named the span the OTel method-based name."""
+    if config._otel_trace_semantics_enabled and method and span.resource == span.name:
+        set_otel_resource_for_method(span, method)
 
 
 def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
