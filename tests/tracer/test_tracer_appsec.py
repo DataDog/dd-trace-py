@@ -247,6 +247,8 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
         assert tracer._sampler.limiter.rate_limit == 1
         assert tracer._sampler.limiter.time_window == 60e9
 
+        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
+
     # reset tracer values
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
         tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
