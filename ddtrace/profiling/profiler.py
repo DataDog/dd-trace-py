@@ -13,7 +13,6 @@ from ddtrace import config
 from ddtrace.internal import atexit
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
-from ddtrace.internal import threads as internal_threads
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.forksafe import Lock
@@ -527,14 +526,7 @@ class _ProfilerInstance(service.Service):
         if self._scheduler is not None:
             scheduler_stopped: bool = True
             try:
-                try:
-                    self._scheduler.stop()
-                except RuntimeError as error:
-                    if str(error) != internal_threads.THREAD_NOT_STARTED_ERROR:
-                        raise
-                    # The worker never started (e.g. its deferred start failed after a fork). Roll the
-                    # scheduler back so that it does not stay running and block the next start.
-                    self._scheduler._rollback_start()
+                self._scheduler.stop()
             except service.ServiceStatusError:
                 pass
             except Exception:
