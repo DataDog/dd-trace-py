@@ -792,11 +792,11 @@ class TestOptPlugin(TestOptPluginProtocol):
         """
         if not self.manager.settings.test_management.enabled:
             return
-        if test.is_disabled() and not test.is_attempt_to_fix():
+        if test.should_disable() and not test.should_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_attempt_to_fix():
+        elif test.should_attempt_to_fix():
             return
-        elif test.is_quarantined():
+        elif test.should_quarantine():
             # Use xfail so failures don't break the pipeline. Works regardless of who drives test execution.
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
 
@@ -1060,7 +1060,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
     def _apply_quarantine_masking_to_report(self, test: Test, report: pytest.TestReport) -> None:
         """Apply quarantine masking to a single report (e.g. the final retry report)."""
-        if not test.is_quarantined() or test.is_attempt_to_fix():
+        if not test.should_quarantine() or test.should_attempt_to_fix():
             return
 
         if report.outcome == "failed":
@@ -1114,7 +1114,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         are tests owned by another retry policy (Early Flake Detection, attempt-to-fix), which is why the handler must
         be ATR. (ATR being the applicable handler already implies the test is not new/EFD-eligible.)
         """
-        if (test.get_status() != TestStatus.FAIL) or test.is_quarantined() or test.is_disabled():
+        if (test.get_status() != TestStatus.FAIL) or test.should_quarantine() or test.should_disable():
             return False
         if not isinstance(retry_handler, AutoTestRetriesHandler):
             return False
@@ -1333,7 +1333,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             test.mark_forced_run()
             return
 
-        if test.is_attempt_to_fix():
+        if test.should_attempt_to_fix():
             return
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
@@ -1414,11 +1414,11 @@ class TestOptPluginWithProtocol(TestOptPlugin):
             return super()._apply_test_management_markers(item, test)
         if not self.manager.settings.test_management.enabled:
             return
-        if test.is_disabled() and not test.is_attempt_to_fix():
+        if test.should_disable() and not test.should_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_attempt_to_fix():
+        elif test.should_attempt_to_fix():
             return
-        elif test.is_quarantined():
+        elif test.should_quarantine():
             # Quarantine masking is deferred to _apply_quarantine_masking so ATR can see real FAIL status.
             return
 
@@ -1622,7 +1622,7 @@ class RetryReports:
         one returned by this function), even if the test failed multiple times. This is to avoid spamming the test
         output with multiple copies of the same error.
         """
-        suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
+        suppress_errors = (test.should_quarantine() or test.should_disable()) and not test.should_attempt_to_fix()
         if suppress_errors:
             return None
 
