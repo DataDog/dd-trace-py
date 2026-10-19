@@ -646,22 +646,25 @@ class Receiver:
 
 def test_dogstatsd_over_udp_splits_packets(monkeypatch):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # UDP drops what does not fit the receive buffer. Few enough series that one flush fits Linux's default buffer
+    # even when the receiving thread falls behind on a busy host, and a larger buffer where the system allows it.
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 22)
     sock.bind(("127.0.0.1", 0))
     monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{sock.getsockname()[1]}")
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
-    for i in range(50):
+    for i in range(10):
         writer.record(PROVIDER_ATTEMPT, *observation(user=f"user-{i:03d}"))
     writer.flush()
     packets = receiver.stop()
     assert len(packets) > 1
     assert all(len(packet) <= _usage_metrics_writer._UDP_MAX_PACKET for packet in packets)
     lines = [line for packet in packets for line in packet.decode().split("\n")]
-    # 50 series of each counter and the two companions of the duration, plus 50 duration samples.
+    # 10 series of each counter and the two companions of the duration, plus 10 duration samples.
     costs = [line for line in lines if line.startswith("trajectory.gen_ai.client.inference.usage.cost:")]
-    assert len(costs) == 50
+    assert len(costs) == 10
     assert all(line.startswith("trajectory.gen_ai.client.inference.usage.cost:0.0000057|c|#") for line in costs)
-    assert len([line for line in lines if line.startswith("gen_ai.client.inference.duration:1.5|d|#")]) == 50
+    assert len([line for line in lines if line.startswith("gen_ai.client.inference.duration:1.5|d|#")]) == 10
     assert all("trajectory.profile:gen_ai.client.provider_attempt/0.1.0" in line for line in lines)
     assert all("user.id:user-" in line for line in lines)
 
