@@ -1,4 +1,4 @@
-// Platform-independent AsyncioDebug tests: table validation.
+// Platform-independent AsyncioDebug tests: table validation, and discovery of the real CPython runtime table.
 // Platform readers have their own tests in test_asyncio_debug_linux.cpp and test_asyncio_debug_macos.cpp.
 
 #include "asyncio_debug_test_table.h"
@@ -80,3 +80,24 @@ TEST(AsyncioDebugOffsets, RejectsMisalignedThreadHead)
     ++table.thread.asyncio_tasks_head;
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
 }
+
+// ----------------------------------------------------------------------------
+// Discovery of the real runtime table.
+// ----------------------------------------------------------------------------
+
+#if PY_VERSION_HEX >= 0x030e0000
+TEST(AsyncioDebugOffsets, DiscoversRuntimeTableAfterAnEarlierAttempt)
+{
+    Py_Initialize();
+    // Shared _asyncio builds have no table yet. Built-in _asyncio may already expose it before import.
+    (void)find_asyncio_debug_offsets();
+    PyObject* module = PyImport_ImportModule("asyncio");
+    ASSERT_NE(module, nullptr);
+    auto offsets = find_asyncio_debug_offsets();
+    Py_DECREF(module);
+    ASSERT_TRUE(offsets);
+    // Native tests use the same interpreter and headers, unlike wheels running on a different patch release.
+    EXPECT_EQ(offsets->interpreter_tasks_head, offsetof(PyInterpreterState, asyncio_tasks_head));
+    EXPECT_EQ(offsets->thread_tasks_head, offsetof(_PyThreadStateImpl, asyncio_tasks_head));
+}
+#endif
