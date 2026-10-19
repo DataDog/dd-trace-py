@@ -466,9 +466,16 @@ def test_executescript_preserves_implicit_commit(patched_conn):
 
 
 @pytest.mark.parametrize("script", [None, 1, b"SELECT 1;"])
-def test_executescript_preserves_argument_errors(patched_conn, script):
-    with pytest.raises(TypeError):
-        patched_conn.executescript(script)
+@pytest.mark.parametrize("owner", ["connection", "cursor"])
+def test_executescript_preserves_argument_errors(patched_conn, script, owner):
+    raw = patched_conn.__wrapped__
+    native_target = raw if owner == "connection" else raw.cursor()
+    traced_target = patched_conn if owner == "connection" else patched_conn.cursor()
+    with pytest.raises((TypeError, ValueError)) as native_error:
+        native_target.executescript(script)
+    with pytest.raises(type(native_error.value)) as traced_error:
+        traced_target.executescript(script)
+    assert str(traced_error.value) == str(native_error.value)
 
 
 def test_cursor_factory_and_connection(patched_conn):
