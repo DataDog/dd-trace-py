@@ -3122,7 +3122,7 @@ class LLMObs(Service):
         agent_service = _resolve_agent_service(agent_service, ml_app)
         # Experiment spans belong to their project, so fall back to the project name rather than the
         # service name when no ml_app was configured explicitly.
-        if not agent_service and not config._llmobs_ml_app:
+        if not agent_service and not config._llmobs_ml_app and project_name:
             agent_service = project_name
         span = cls._instance._start_span("experiment", name=name, session_id=session_id, agent_service=agent_service)
 

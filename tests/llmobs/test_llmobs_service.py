@@ -3952,8 +3952,9 @@ class TestExperimentMLApp:
         with llmobs_no_ml_app._experiment(name="root_exp", project_name="my-project", agent_service="my-agent") as span:
             assert get_llmobs_ml_app(span) == "my-agent"
 
-    def test_no_project_name_falls_back_to_service(self, llmobs_no_ml_app):
-        with llmobs_no_ml_app._experiment(name="root_exp") as span:
+    @pytest.mark.parametrize("project_name", [None, ""])
+    def test_no_project_name_falls_back_to_service(self, llmobs_no_ml_app, project_name):
+        with llmobs_no_ml_app._experiment(name="root_exp", project_name=project_name) as span:
             assert get_llmobs_ml_app(span) == "tests.llmobs"
 
 
