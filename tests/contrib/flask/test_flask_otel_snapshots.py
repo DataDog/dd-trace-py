@@ -1,12 +1,13 @@
 """OTLP snapshots of Flask server spans with Datadog and OpenTelemetry semantics."""
 
-import os
+import functools
 
 import pytest
 
 from ddtrace.contrib.internal.flask.patch import flask_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_command  # noqa:F401
+from tests.contrib.flask.test_flask_snapshot import flask_default_env
 from tests.contrib.flask.test_flask_snapshot import flask_port  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_wsgi_application  # noqa:F401
 from tests.webclient import Client
@@ -28,35 +29,30 @@ _UNSET = (
 )
 
 
-def _env(otel_semantics, **settings):
-    def build(wsgi_application):
-        env = os.environ.copy()
-        for name in _UNSET:
-            env.pop(name, None)
-        env.update(
-            {
-                "DD_SERVICE": "otel-http-server-snapshots",
-                # Avoid noisy database spans being output on app startup/teardown.
-                "DD_TRACE_SQLITE3_ENABLED": "0",
-                "FLASK_APP": wsgi_application,
-                "OTEL_TRACES_EXPORTER": "otlp",
-                "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
-                "DD_TRACE_OTEL_SEMANTICS_ENABLED": otel_semantics,
-                **settings,
-            }
-        )
-        return env
-
-    return build
+def _env(wsgi_application: str, otel_semantics: str, **settings: str) -> dict[str, str]:
+    env = flask_default_env(wsgi_application)
+    for name in _UNSET:
+        env.pop(name, None)
+    env.update(
+        {
+            "DD_SERVICE": "otel-http-server-snapshots",
+            "OTEL_TRACES_EXPORTER": "otlp",
+            "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+            "DD_TRACE_OTEL_SEMANTICS_ENABLED": otel_semantics,
+            **settings,
+        }
+    )
+    return env
 
 
-def _semantics(**settings):
+def _semantics(**settings: str):
+    modes = ("false", "true")
     return pytest.mark.parametrize(
-        "flask_env_arg",
-        [pytest.param(_env(mode, **settings), id=mode) for mode in ("false", "true")],
+        "flask_env_arg", [functools.partial(_env, otel_semantics=mode, **settings) for mode in modes], ids=modes
     )
 
 
+# The Flask version differs across test environments and stack traces carry line numbers.
 _SNAPSHOT = pytest.mark.snapshot(
     ignores=["meta.tracestate", "meta.telemetry.sdk.version", "meta.flask.version", "meta.error.stack"],
 )

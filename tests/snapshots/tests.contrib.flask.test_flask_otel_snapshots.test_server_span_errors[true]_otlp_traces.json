@@ -243,18 +243,6 @@
                   }
                 },
                 {
-                  "key": "http.request.method",
-                  "value": {
-                    "stringValue": "GET"
-                  }
-                },
-                {
-                  "key": "http.route",
-                  "value": {
-                    "stringValue": "/redirect"
-                  }
-                },
-                {
                   "key": "tracestate",
                   "value": {
                     "stringValue": "dd=p:090d2f7d9ce4aab9;s:1;t.dm:-0,ot=rv:4c3f464b1095da;th:0"
@@ -717,18 +705,6 @@
                 },
                 {
                   "key": "flask.url_rule",
-                  "value": {
-                    "stringValue": "/missing"
-                  }
-                },
-                {
-                  "key": "http.request.method",
-                  "value": {
-                    "stringValue": "GET"
-                  }
-                },
-                {
-                  "key": "http.route",
                   "value": {
                     "stringValue": "/missing"
                   }
@@ -1209,18 +1185,6 @@
                   }
                 },
                 {
-                  "key": "http.request.method",
-                  "value": {
-                    "stringValue": "GET"
-                  }
-                },
-                {
-                  "key": "http.route",
-                  "value": {
-                    "stringValue": "/broken"
-                  }
-                },
-                {
                   "key": "tracestate",
                   "value": {
                     "stringValue": "dd=p:a85593d15e354e1e;s:1;t.dm:-0,ot=rv:8c9293f7aabdfe;th:0"
@@ -1691,18 +1655,6 @@
                 },
                 {
                   "key": "flask.url_rule",
-                  "value": {
-                    "stringValue": "/boom"
-                  }
-                },
-                {
-                  "key": "http.request.method",
-                  "value": {
-                    "stringValue": "GET"
-                  }
-                },
-                {
-                  "key": "http.route",
                   "value": {
                     "stringValue": "/boom"
                   }
