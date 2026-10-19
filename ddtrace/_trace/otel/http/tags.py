@@ -339,6 +339,23 @@ def set_method_tag(span: Span, method: str) -> None:
         span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)
 
 
+def copy_server_url_tags(source: Span, destination: Span) -> None:
+    if not config._otel_trace_semantics_enabled:
+        destination.set_tag(http.URL, source.get_tag(http.URL))
+        return
+
+    for key in (
+        otel_http.URL_SCHEME,
+        otel_http.URL_PATH,
+        otel_http.URL_QUERY,
+        net.SERVER_ADDRESS,
+        otel_http.SERVER_PORT,
+    ):
+        value = source._get_attribute(key)
+        if value is not None:
+            destination._set_attribute(key, value)
+
+
 def http_block_metadata(
     method: Optional[str],
     status_code: Union[int, str],
@@ -401,3 +418,15 @@ def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: 
             http.URL,
             cast(Any, _sanitized_url(url, query, integration_config.http_tag_query_string)),
         )
+
+
+def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.STATUS_CODE, str(status_code))
+        return
+    try:
+        int_status_code = int(status_code)
+    except (TypeError, ValueError):
+        log.debug("failed to convert http status code %r to int", status_code)
+        return
+    span._set_attribute(otel_http.RESPONSE_STATUS_CODE, int_status_code)
