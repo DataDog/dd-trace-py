@@ -4,8 +4,8 @@ import textwrap
 from types import ModuleType
 from typing import Optional
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._logs import iast_ast_debug_log
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log

@@ -4,6 +4,7 @@ stages:
   - exploration
 
 variables:
+  POSTGRES_IMAGE: registry.ddbuild.io/images/mirror/postgres:12-alpine
   REPO_LANG: python # "python" is used everywhere rather than "py"
   # CI_DEBUG_SERVICES: "true"
 
