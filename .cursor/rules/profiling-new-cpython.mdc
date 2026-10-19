@@ -21,5 +21,6 @@ When editing profiling natives, collectors, or `setup.py` version gates:
    local verify, `run-profiling-tests`, and suitespec matrix opt-in live on
    #19273 (Q4 tooling), not this docs closeout.
 
-3. **Hard stops** — never enable SSI/OCI before final; never claim memory parity
+3. **Hard stops** — never enable SSI/OCI before final *and* before
+   `requires-python` admits the minor with functional gates green; never claim memory parity
    without an A/B; never skip staging auth preflight; never mix prerelease ABIs.

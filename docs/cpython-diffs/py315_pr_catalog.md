@@ -71,7 +71,7 @@
 | [#18389](https://github.com/DataDog/dd-trace-py/pull/18389) | closed/draft | asyncio hook | wrap() bytecode patching broken on 3.15 for create_task | dead_end | human | First sys.monitoring asyncio attempt; revived as #19256/#19272. |
 | [#19247](https://github.com/DataDog/dd-trace-py/pull/19247) | merged | wrapping | shared sys.monitoring multiplexer needed before asyncio hooks | surprise | skill_checklist | UNTITLED gotcha: multiplexer required before profiling can register PY_RETURN. Expected once wrap failed; not predicted by header-only ABI diff. |
 | [#19256](https://github.com/DataDog/dd-trace-py/pull/19256) | merged/draft | asyncio hook | asyncio create_task wrap broken on 3.15 | rework | human | Interim merged draft; final form is #19272. |
-| [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) | merged | asyncio hook | wrap() unavailable for create_task on 3.15+; sys.monitoring since 3.12 | surprise | skill_checklist | TOP GOTCHA: keep wrap() below 3.15; sys.monitoring PY_RETURN on 3.15+. Fail-closed gate needed fix. Backtest ground truth with #19269. |
+| [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) | merged | asyncio hook | wrap() unavailable for create_task on 3.15+; sys.monitoring since 3.12 | surprise | skill_checklist | TOP GOTCHA: sys.monitoring PY_RETURN on 3.15+, with wrap() below 3.15 and as the fallback if registration fails. Fail-closed gate needed fix. Backtest ground truth with #19269. |
 | [#19724](https://github.com/DataDog/dd-trace-py/pull/19724) | merged | wrapping | ModuleWatchdog/WrappingContext raise at import on 3.15 before natives built | surprise | skill_checklist | Import degrade: don't crash apps when wrap/natives unavailable on 3.15. |
 | [#19910](https://github.com/DataDog/dd-trace-py/pull/19910) | merged | wrapping | after #17849, wrap() still gated on NEXT_PY=3.15 so raised on 3.15 | surprise | script_template | Bump NEXT_PY to 3.16 so wrap trampoline runs on 3.15; profiling asyncio still uses monitoring. |
 | [#19903](https://github.com/DataDog/dd-trace-py/pull/19903) | merged | native ABI | limited-API builds need local PyContextVar_* decls | surprise | script_template | Native limited-API declaration gap surfaced during 3.15 bring-up. |
@@ -141,7 +141,7 @@
 | [#19267](https://github.com/DataDog/dd-trace-py/pull/19267) | merged | docs | logging version warning for unsupported | expected | script_template | Logging contrib version warning (adjacent packaging signal). |
 
 **Automate for 3.16:**
-- SSI/OCI stays when:never until final; exclusive-max bump only
+- SSI/OCI stays when:never until final *and* `requires-python` admits the minor; exclusive-max bump only
 - Classifier + reno + ADR after functional gates green
 - Do not publish SSI from the wheel PR (#17977 lesson)
 
@@ -241,7 +241,7 @@
 
 ## Top unexpected gotchas
 
-1. **`wrap()` broke for asyncio `create_task` on 3.15** → `#19272` `sys.monitoring` on 3.15+ while keeping `wrap` below; wrong fail-closed gate had to be fixed. Multiplexer `#19247` was a prerequisite.
+1. **`wrap()` broke for asyncio `create_task` on 3.15** → `#19272` `sys.monitoring` on 3.15+, `wrap` below 3.15 and as the fallback; wrong fail-closed gate had to be fixed. Multiplexer `#19247` was a prerequisite.
 2. **Prerelease ABI mismatch (a2 vs rc2)** → CrashLoop / `_native` import errors that look like profiler bugs. Pin hermetic + prof-correctness images to the exact tag.
 3. **Cython ≥3.3 on 3.15** → pin `<3.3`; start cp3XX wheels **optional** (`#19861`) then require (`#20450`).
 4. **Rapid bake `whl_installer` PYTHONPATH** → vendored pip 24.0 lacks `locate_file` on 3.15 (internal build fix). Engraver image digests required for true `@python_3_15_*` bases.

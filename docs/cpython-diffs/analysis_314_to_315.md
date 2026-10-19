@@ -1,7 +1,8 @@
 # CPython 3.14 → 3.15 Change Analysis (for echion)
 
 **Generated from:** `git diff v3.14.0 v3.15.0rc3` on `python/cpython` over the compared paths below (first drafted against `v3.15.0a7`; re-checked through `v3.15.0rc3`).
-**Latest 3.15 tag used:** `v3.15.0rc3` (pre-release; verify against final tag when available)
+**Final tag:** `v3.15.0` makes no changes to these paths (or to `Python/bytecodes.c` /
+`Objects/genobject.c`) relative to `v3.15.0rc3`, so this analysis also holds for 3.15.0.
 **Compared paths** (reproduce the header/ABI slice with these exact args):
 
 ```bash
@@ -67,10 +68,15 @@ Changed macros:
   misclassifies frames (e.g., `FRAME_EXECUTING = 0` in 3.14 now means
   `FRAME_CREATED` in 3.15).
 - `FRAME_COMPLETED` is gone — code checking `>= FRAME_COMPLETED` will break.
-- New `FRAME_SUSPENDED_YIELD_FROM_LOCKED` needs to be included in suspended checks.
-- **Use the `FRAME_STATE_SUSPENDED` / `FRAME_STATE_FINISHED` macros** instead of
-  hardcoding values, so the `#if PY_VERSION_HEX` guard only needs to cover the
-  macro definitions, not every use site.
+- New `FRAME_SUSPENDED_YIELD_FROM_LOCKED` needs a decision at every state check.
+- **Do not use `FRAME_STATE_SUSPENDED` for await-chain reads.** It also accepts plain
+  `FRAME_SUSPENDED`, which has no awaited object on the stack. `PyGen_yf` in
+  `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` accepts only
+  `FRAME_SUSPENDED_YIELD_FROM`, plus `FRAME_SUSPENDED_YIELD_FROM_LOCKED` under
+  `Py_GIL_DISABLED`. The `LockedStateIgnored` test in
+`ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp` checks
+  that GIL builds reject the locked state without reading memory.
+- `FRAME_STATE_FINISHED` is fine where "finished" is the question being asked.
 
 **Files to update:** `ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc`,
 `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` (and any other
@@ -189,10 +195,14 @@ static inline int _Py_NO_SANITIZE_THREAD
 _PyFrame_SafeGetLasti(struct _PyInterpreterFrame *f);
 ```
 
-**Recommendation:** Available since 3.14 (`#if PY_VERSION_HEX >= 0x030e0000`).
-Optional for echion's frame-reading path instead of `_PyFrame_GetCode()`. It checks
-for freed memory (globals/builtins NULL, `_PyMem_IsPtrFreed`, `_PyObject_IsFreed`,
-`PyCode_Check`) before dereferencing. Not a 3.15-only profiler API.
+**Recommendation:** Do not use these in Echion's sampling path. They dereference the
+frame's object pointers in-process (for example `PyCode_Check`), but Echion reads frames
+from addresses whose lifetime it does not control and must go through guarded copies.
+`ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h` notes that
+`PyCode_Check()` is only safe when the code object is known to be alive, and
+`ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc` avoids
+`_PyInterpreterFrame_LASTI` for the same reason. Keep the guarded reads. Not a
+3.15-only API either way (available since 3.14).
 
 ---
 

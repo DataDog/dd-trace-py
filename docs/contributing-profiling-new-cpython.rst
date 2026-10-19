@@ -44,8 +44,10 @@ __ https://peps.python.org/pep-0790/
 |          | tools → optional then required   | prerelease tag                           |
 |          | wheels                           |                                          |
 +----------+----------------------------------+------------------------------------------+
-| **Final**| SSI/OCI allow-list; classifiers; | Catalog §4; reno; ADR without memory-    |
-|          | reno; ADR                        | parity claim                             |
+| **Final**| Only once ``requires-python``    | Catalog §4; reno; ADR without memory-    |
+|          | admits the minor and functional  | parity claim. The upstream final tag     |
+|          | gates pass: SSI/OCI allow-list;  | alone is not enough.                     |
+|          | classifiers; reno; ADR           |                                          |
 +----------+----------------------------------+------------------------------------------+
 
 Out of scope here
