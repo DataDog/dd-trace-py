@@ -4,6 +4,7 @@ from urllib import parse
 
 import pytest
 
+from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
@@ -75,7 +76,25 @@ def test_redact_url_not_redacts_with_param(url):
         ("://?x", re.compile(b"x"), None, b"://?<redacted>"),
         ("://x", re.compile(b"x"), "x", b"://x?<redacted>"),
         ("://y", re.compile(b"x"), "x", b"://y?<redacted>"),
+        (
+            "://?jwt=eyJa.eyJb&eyJa.eyJb&x=%22eyJa.eyJb",
+            None,
+            None,
+            b"://?jwt=<redacted>&<redacted>&x=%22<redacted>",
+        ),
+        ("://x", None, "eyJa.eyJb", b"://x?<redacted>"),
+        ("://?x=%3DeyJa%3D.eyJb%3D.signature", None, None, b"://?x=%3D<redacted>"),
+        (
+            "://?x=abceyJa.eyJb&x=-eyJa.eyJb&heyJude.eyJoe",
+            None,
+            None,
+            b"://?x=abceyJa.eyJb&x=-eyJa.eyJb&heyJude.eyJoe",
+        ),
+        ("://?password=secret&b=2", re.compile(rb"(password)=([^&]+)"), None, b"://?<redacted>&b=2"),
+        ("://?password=secret&b=2", re.compile(rb"(?P<secret>password=[^&]+)"), None, b"://?<redacted>&b=2"),
     ),
 )
 def test_redact_url_does_redact(url, regex, query_string, expected):
-    assert redact_url(url, regex, query_string) == expected
+    preserve_delimiter = regex is None
+    regex = regex or re.compile(DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode("ascii"))
+    assert redact_url(url, regex, query_string, preserve_delimiter=preserve_delimiter) == expected
