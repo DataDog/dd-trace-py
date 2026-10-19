@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -47,6 +48,12 @@ def read_atr_crash_retry_state(path: Path) -> dict[str, CrashRetryBudget]:
             raise ValueError("Invalid ATR crash retry state entry")
         state[nodeid] = CrashRetryBudget(*raw_budget)
     return state
+
+
+def no_auto_retry_path(crash_state_path: Path, nodeid: str) -> Path:
+    """Share discovered exclusions with the controller using its session-scoped crash ledger directory."""
+    digest = hashlib.sha256(nodeid.encode()).hexdigest()
+    return crash_state_path.with_name(digest + ".no_auto_retry")
 
 
 class XdistTestOptPlugin:
@@ -174,6 +181,13 @@ class XdistTestOptPlugin:
         # ATR applies uniformly and its last result is authoritative. Only consumed ATR counts and limits cross the
         # process boundary through the crash retry ledger; test identity and event lifecycle remain worker-owned.
         if not self._enabled:
+            return
+
+        if (
+            self._crash_retry_state_path is not None
+            and no_auto_retry_path(self._crash_retry_state_path, crashitem).exists()
+        ):
+            self._clear_test_state(crashitem)
             return
 
         # A worker can emit some ATR attempt reports and then die on a later attempt. Requeueing would restart the

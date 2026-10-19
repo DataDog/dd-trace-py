@@ -162,7 +162,7 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = False
 
-        test = mock.MagicMock()
+        test = mock.MagicMock(no_auto_retry=False)
         test.is_quarantined.return_value = is_quarantined
         test.is_disabled.return_value = is_disabled
         test.is_attempt_to_fix.return_value = False
@@ -181,7 +181,7 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
+        test = mock.MagicMock(no_auto_retry=False)
         test.is_quarantined.return_value = is_quarantined
         test.is_disabled.return_value = is_disabled
         test.is_attempt_to_fix.return_value = False
@@ -204,7 +204,7 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
+        test = mock.MagicMock(no_auto_retry=False)
         test.is_quarantined.return_value = is_quarantined
         test.is_disabled.return_value = is_disabled
         test.is_attempt_to_fix.return_value = is_attempt_to_fix
@@ -237,7 +237,7 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
+        test = mock.MagicMock(no_auto_retry=False)
         test.is_quarantined.return_value = is_quarantined
         test.is_disabled.return_value = is_disabled
         test.is_attempt_to_fix.return_value = is_attempt_to_fix
@@ -259,7 +259,7 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
+        test = mock.MagicMock(no_auto_retry=False)
         test.is_quarantined.return_value = True
         test.is_disabled.return_value = False
         test.is_attempt_to_fix.return_value = False
@@ -280,7 +280,7 @@ class TestPluginClassSelection:
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
-        test = mock.MagicMock()
+        test = mock.MagicMock(no_auto_retry=False)
         test.is_quarantined.return_value = False
         test.is_disabled.return_value = False
         test.is_attempt_to_fix.return_value = True

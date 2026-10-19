@@ -145,6 +145,10 @@ suites:
         - name: pytest:flaky
           integration: pytest
           dependencies: [flaky, pytest-randomly]
+        - name: pytest:flaky:legacy
+          python: ['3.9']
+          integration: pytest
+          dependencies: ['pytest==6.2.5', 'pluggy<1.0', 'pytest-cov<6.2', flaky, pytest-randomly]
   testing:
     venvs_per_job: 6
     retry: 2
