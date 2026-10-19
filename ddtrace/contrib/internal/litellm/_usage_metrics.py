@@ -631,7 +631,9 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 return
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
-                self._record_attempt(request, attempt, kwargs, datetime.datetime.now(), error_type(exception), None)
+                self._record_attempt(
+                    request, attempt, kwargs, datetime.datetime.now(), error_type(exception) or "error", None
+                )
                 self._forget_if_done(call_id, request)
         except Exception:
             log.debug("LiteLLM usage metrics: attempt_failed failed", exc_info=True)
@@ -852,7 +854,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
                 self._record_attempt(
-                    request, attempt, request_data, datetime.datetime.now(), error_type(exception), None
+                    request, attempt, request_data, datetime.datetime.now(), error_type(exception) or "error", None
                 )
                 self._forget_if_done(call_id, request)
         except Exception:

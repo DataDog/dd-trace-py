@@ -94,6 +94,15 @@ def sleeps(monkeypatch):
     return delays
 
 
+def test_the_metrics_timeout_falls_back_to_the_global_one(monkeypatch):
+    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    monkeypatch.setattr(otel_config.exporter, "TIMEOUT", 2_500)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", raising=False)
+    assert _usage_metrics_writer._timeout_ms() == 2_500
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "10000")
+    assert _usage_metrics_writer._timeout_ms() == 10_000
+
+
 def test_parse_headers():
     assert _parse_headers("a=1, b = two ,bad,=x,c=a%2Cb") == [("a", "1"), ("b", "two"), ("c", "a,b")]
     assert _parse_headers("") == []
@@ -154,7 +163,7 @@ def test_a_wall_clock_set_back_does_not_invert_the_window(otlp_endpoint):
 def test_the_shutdown_deadline_is_capped(otlp_endpoint, monkeypatch):
     # A caller's deadline later than the shutdown time does not extend it.
     monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0.5)
-    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    monkeypatch.setattr(_usage_metrics_writer, "_timeout_ms", lambda: 10_000)
     Collector.delay = 3
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
@@ -308,7 +317,7 @@ def test_shutdown_time_is_bounded(otlp_endpoint, monkeypatch, sleeps):
 
 def test_shutdown_time_is_bounded_behind_a_collector_that_does_not_answer(otlp_endpoint, monkeypatch):
     monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0.5)
-    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    monkeypatch.setattr(_usage_metrics_writer, "_timeout_ms", lambda: 10_000)
     Collector.delay = 3
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
@@ -396,7 +405,7 @@ def test_the_logged_endpoint_has_no_secrets(collector, monkeypatch):
 def test_close_spends_one_shutdown_budget(otlp_endpoint, monkeypatch):
     # Unpatching while a flush waits on a collector that does not answer.
     monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 1.5)
-    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    monkeypatch.setattr(_usage_metrics_writer, "_timeout_ms", lambda: 10_000)
     Collector.delay = 3
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.start()
@@ -412,7 +421,7 @@ def test_close_spends_one_shutdown_budget(otlp_endpoint, monkeypatch):
 
 def test_the_worker_shutdown_flush_keeps_the_close_deadline(otlp_endpoint, monkeypatch):
     monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0.5)
-    monkeypatch.setattr(otel_config.exporter, "METRICS_TIMEOUT", 10_000)
+    monkeypatch.setattr(_usage_metrics_writer, "_timeout_ms", lambda: 10_000)
     Collector.delay = 3
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.start()

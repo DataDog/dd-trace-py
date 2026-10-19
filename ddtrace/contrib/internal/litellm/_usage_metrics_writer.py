@@ -105,6 +105,13 @@ def _retry_after(value: Optional[str]) -> Optional[float]:
         return None
 
 
+def _timeout_ms() -> int:
+    """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do."""
+    if env.get("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT"):
+        return int(otel_config.exporter.METRICS_TIMEOUT)
+    return int(otel_config.exporter.TIMEOUT)
+
+
 class _OtlpSender:
     def __init__(self) -> None:
         # OTEL_EXPORTER_OTLP_METRICS_ENDPOINT is used exactly as given, path and query included; otherwise
@@ -118,9 +125,10 @@ class _OtlpSender:
         url = parse.urlsplit(endpoint)
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = _redacted(endpoint)
+        self._timeout_ms = _timeout_ms()
         self._client = HTTPClient(
             f"{url.scheme}://{url.netloc}",
-            timeout_ms=otel_config.exporter.METRICS_TIMEOUT,
+            timeout_ms=self._timeout_ms,
             headers=_parse_headers(otel_config.exporter.METRICS_HEADERS),
             treat_http_errors_as_errors=False,
         )
@@ -139,7 +147,7 @@ class _OtlpSender:
             timeout_ms = None
             if deadline is not None:
                 remaining_ms = int((deadline - time.monotonic()) * 1000)
-                timeout_ms = max(min(remaining_ms, otel_config.exporter.METRICS_TIMEOUT), 1)
+                timeout_ms = max(min(remaining_ms, self._timeout_ms), 1)
             try:
                 response = self._client.post(
                     self.path,

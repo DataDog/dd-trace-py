@@ -407,6 +407,27 @@ def test_total_failure(logger, writer):
     assert logger._requests == {}
 
 
+class _ProviderError(Exception):
+    pass
+
+
+def test_an_attempt_that_fails_without_a_usable_error_name_is_still_an_error(logger, writer):
+    # A leading underscore makes no identifier, and the deployment hook can get no exception at all.
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0)
+    proxy.attempt_failed(_ProviderError())
+    proxy.attempt(0.1)
+    proxy.attempt_failed(None)
+    proxy.attempt(0.2)
+    logger.attempt_failed({"litellm_call_id": "call-1"}, _ProviderError())
+    proxy.failed(_ProviderError())
+    assert [observation["error_type"] for observation, _ in writer.of(PROVIDER_ATTEMPT)] == ["error"] * 3
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["error_type"] == "error"
+    assert request["provider_operations"] == 3
+
+
 def test_client_disconnect(logger, writer):
     proxy = Proxy(logger, stream=True)
     proxy.start()
