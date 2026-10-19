@@ -462,14 +462,15 @@ def test_fast_copy_fork_after_takeover_without_syscall() -> None:
 
     pid: int = os.fork()
     if pid == 0:
-        # atfork must not restart memcpy sampling under the foreign handler.
+        # Parent already stopped (failed_safe_copy), so restart_after_fork is a no-op and
+        # origin-task linking stays off. Assert memcpy independently: an `and restarted`
+        # check would miss leftover fast_copy_active after a failed disable.
         try:
-            restarted: bool = _stack.is_origin_task_linking_enabled()
             memcpy_on: bool = _stack.fast_copy_memory_active()
             time.sleep(0.5)
         except BaseException:
             os._exit(2)
-        os._exit(1 if memcpy_on and restarted else 0)
+        os._exit(1 if memcpy_on else 0)
 
     status: int
     _, status = os.waitpid(pid, 0)
