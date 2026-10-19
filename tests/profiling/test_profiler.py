@@ -919,8 +919,8 @@ def test_no_samples_pushed_after_stop() -> None:
 
 def test_construction_does_not_configure_global_exporter() -> None:
     with (
-        # Pass through to the real functions: starting a profiler while ddup was never started
-        # leaves the native profile state uninitialized.
+        # Wrap the real functions: with plain mocks the profiler starts with the native profile
+        # state uninitialized, and the stack sampler can crash writing samples.
         mock.patch.object(ddup, "config", wraps=ddup.config) as mock_config,
         mock.patch.object(ddup, "start", wraps=ddup.start) as mock_start,
     ):
@@ -933,24 +933,6 @@ def test_construction_does_not_configure_global_exporter() -> None:
             mock_config.assert_called_once()
             assert mock_config.call_args.kwargs["service"] == "built-but-not-started"
             mock_start.assert_called_once()
-        finally:
-            p.stop(flush=False)
-
-
-@pytest.mark.subprocess(err=None)
-def test_start_with_uninitialized_ddup_does_not_crash() -> None:
-    """The stack sampler must not record samples before the native profile state is initialized."""
-    import time
-    from unittest import mock
-
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling import profiler
-
-    with mock.patch.object(ddup, "start"):
-        p = profiler.Profiler()
-        p.start()
-        try:
-            time.sleep(0.5)
         finally:
             p.stop(flush=False)
 

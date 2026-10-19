@@ -508,15 +508,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
-        // Sampling requires an initialized ProfilerState. Skip cycles until it is.
-        if (!ProfilerState::get().is_initialized()) {
-            if (seq_num != thread_seq_num.load()) {
-                break;
-            }
-            std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
-            continue;
-        }
-
         // Reset per-cycle asyncio task accumulator before iterating sampled threads
         echion->reset_asyncio_task_count();
 

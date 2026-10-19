@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    profiling: Fixes a potential segmentation fault in the stack profiler when the profiler starts
-    sampling before its native state is fully initialized, for example in a forked child process
-    where profiler re-initialization failed.
