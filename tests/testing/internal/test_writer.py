@@ -74,7 +74,14 @@ class _ConcreteWriter(BaseWriter):
 class TestBaseWriterStartup:
     @pytest.mark.parametrize("scheme", ["http", "https"])
     def test_first_upload_uses_connection_initialized_before_http_client_patching(self, scheme: str) -> None:
-        connector = BackendConnector(f"{scheme}://api.example.com")
+        initialized_connections: list[http.client.HTTPConnection] = []
+
+        class _RecordingConnector(BackendConnector):
+            def __init__(self, url: str) -> None:
+                super().__init__(url)
+                initialized_connections.append(self.conn)
+
+        connector = _RecordingConnector(f"{scheme}://api.example.com")
         results: list[BackendResult] = []
 
         class _SendingWriter(_ConcreteWriter):
@@ -86,13 +93,15 @@ class TestBaseWriterStartup:
         writer._connectors = [connector]
         with patch("socket.create_connection", side_effect=AssertionError("startup must not open a socket")):
             writer.start()
+        assert len(initialized_connections) == 2
+        writer_connection = initialized_connections[-1]
         response = Mock(status=200, headers={"Content-Length": "2"})
         response.read.return_value = b"ok"
         try:
             # Simulate a cassette replacing both connection classes during the first background upload.
             with (
-                patch.object(http.client.HTTPConnection, "request") as request,
-                patch.object(http.client.HTTPConnection, "getresponse", return_value=response),
+                patch.object(writer_connection, "request") as request,
+                patch.object(writer_connection, "getresponse", return_value=response),
                 patch(
                     "http.client.HTTPConnection", side_effect=AssertionError("patched HTTP constructor")
                 ) as http_constructor,

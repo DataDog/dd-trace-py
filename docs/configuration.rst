@@ -772,7 +772,7 @@ AI Guard
      description: |
        Timeout of each request to the AI Guard service. The value is currently applied with
        whole-second granularity: it is rounded down to the nearest second, so set it to at least
-       ``1000``.
+       ``1000``. A value below ``1000`` logs a warning at startup and the default is used instead.
 
    DD_AI_GUARD_MAX_CONTENT_SIZE:
      type: Integer
@@ -794,7 +794,10 @@ AI Guard
      description: |
        When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
        OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
-       are fully buffered before any chunk is returned to the caller. The complete response is
+       are fully buffered before any chunk is returned to the caller. LangChain chat model and LLM
+       streams (``stream()`` and ``astream()``) from any provider are buffered too, and the tokens
+       LangChain reports to callbacks (for example ``astream_events()`` or LangGraph
+       ``stream_mode="messages"``) are held until the response is evaluated. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
        are evaluated and streamed chunks are forwarded live.
@@ -1072,13 +1075,10 @@ Test Visibility
      default: True
 
      description: |
-        Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
-        independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
-        also contains performance and memory usage improvements.
-
-        Setting this option to ``false`` selects the legacy ``pytest`` plugin
-        (``ddtrace/contrib/internal/pytest``), which is deprecated and will be removed in ddtrace 5.0.0. Remove this
-        environment variable, or set it to ``true``, to use the supported default plugin.
+        Deprecated: this option no longer has any effect. The legacy ``pytest`` plugin
+        (``ddtrace/contrib/internal/pytest``) has been removed, and the ``pytest`` plugin at
+        ``ddtrace/testing/internal/pytest`` is always used. Setting this option emits a ``DDTraceDeprecationWarning``;
+        remove the environment variable from your configuration.
 
      version_added:
         v4.3.0:
