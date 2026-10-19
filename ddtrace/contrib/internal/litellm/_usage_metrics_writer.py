@@ -115,14 +115,12 @@ def _retry_after(value: Optional[str]) -> Optional[float]:
 
 
 def _timeout_ms() -> int:
-    """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do,
-    from any configuration source. ddtrace's own settings already report both to telemetry. A value that is not a
-    positive whole number of milliseconds gives the default.
+    """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do.
+    ddtrace's own settings already report both to telemetry. A value that is not a positive whole number of
+    milliseconds gives the default.
     """
     default_ms = int(otel_config.exporter.DEFAULT_TIMEOUT)
-    value = get_config(
-        ["OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "OTEL_EXPORTER_OTLP_TIMEOUT"], None, report_telemetry=False
-    )
+    value = _setting("OTEL_EXPORTER_OTLP_METRICS_TIMEOUT") or _setting("OTEL_EXPORTER_OTLP_TIMEOUT")
     if value is None:
         return default_ms
     try:

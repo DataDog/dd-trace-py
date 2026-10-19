@@ -126,6 +126,9 @@ def test_the_metrics_timeout_comes_from_stable_configuration(monkeypatch, source
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_TIMEOUT", raising=False)
     monkeypatch.setitem(getattr(settings_core, source_name), "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", "4000")
     assert _usage_metrics_writer._timeout_ms() == 4_000
+    # The metrics timeout from any source wins over the global one, wherever that comes from.
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TIMEOUT", "2500")
+    assert _usage_metrics_writer._timeout_ms() == 4_000
 
 
 def test_parse_headers():
