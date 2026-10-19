@@ -5,6 +5,7 @@ import re
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import parse_qsl
 
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -27,7 +28,6 @@ from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import _get_blocked_template
 from ddtrace.internal.utils.http import classify_media_type
 from ddtrace.internal.utils.http import parse_form_multipart
-from ddtrace.internal.utils.http import parse_form_params
 import ddtrace.vendor.xmltodict as xmltodict
 
 
@@ -130,16 +130,20 @@ async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
         logger.debug("aiohttp::failed to read request body", exc_info=True)
         return None
     body: Any = None
+    charset = request.charset or "utf-8"
     try:
         with iast_disabled_taint_sources():
             if media_type is MediaType.JSON:
-                body = json.loads(raw_body) if raw_body else None
+                body = json.loads(raw_body.decode(charset)) if raw_body else None
             elif media_type is MediaType.XML:
                 body = xmltodict.parse(raw_body)
             else:
-                text_body = raw_body.decode(request.charset or "utf-8", errors="replace")
+                text_body = raw_body.decode(charset, errors="replace")
                 if media_type is MediaType.FORM_URLENCODED:
-                    body = parse_form_params(text_body)
+                    form: dict[str, list[str]] = {}
+                    for key, value in parse_qsl(text_body.rstrip(), keep_blank_values=True, encoding=charset):
+                        form.setdefault(key, []).append(value)
+                    body = {key: values[0] if len(values) == 1 else values for key, values in form.items()}
                 else:
                     body = parse_form_multipart(text_body, request.headers)
     except Exception:

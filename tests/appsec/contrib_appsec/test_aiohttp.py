@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from http.cookies import SimpleCookie
 import json
 import time
@@ -159,6 +160,20 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             response = interface.client.post(
                 "/asm/", data="attack=yqrweytqwreasldhkuqwgervflnmlnli", content_type="application/x-url-encoded"
             )
+            self.assert_blocked(response, entry_span, get_entry_span_tag, "tst-037-003")
+
+    @pytest.mark.parametrize("encoding", ["json", "form"])
+    def test_request_body_charset(self, interface, entry_span, get_entry_span_tag, encoding):
+        attack = "yqrweytqwreasldhkuqwgervflnmlnli"
+        utf7_attack = "+" + base64.b64encode(attack.encode("utf-16-be")).decode().rstrip("=") + "-"
+        if encoding == "json":
+            body, content_type = json.dumps({"attack": utf7_attack}), "application/json; charset=utf-7"
+        else:
+            body = "attack=" + urllib.parse.quote(utf7_attack, safe="")
+            content_type = "application/x-www-form-urlencoded; charset=utf-7"
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
+            self.update_tracer(interface)
+            response = interface.client.post("/asm/", data=body, content_type=content_type)
             self.assert_blocked(response, entry_span, get_entry_span_tag, "tst-037-003")
 
     def test_block_after_response_started(self, interface, entry_span, get_entry_span_tag):
