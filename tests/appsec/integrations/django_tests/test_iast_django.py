@@ -3,10 +3,10 @@ from urllib.parse import urlencode
 from django import VERSION as DJANGO_VERSION
 import pytest
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
