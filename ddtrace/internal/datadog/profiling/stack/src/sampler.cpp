@@ -508,6 +508,18 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
+        // Samples are sized from the sample types registered by ProfilerState::start(). If it
+        // has not run (or postfork_child failed to rebuild the profiles dictionary), samples
+        // have no value slots and recording into them writes out of bounds. Skip this cycle
+        // instead of stopping, so sampling resumes once the profiler state is initialized.
+        if (!ProfilerState::get().is_initialized()) {
+            if (seq_num != thread_seq_num.load()) {
+                break;
+            }
+            std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
+            continue;
+        }
+
         // Reset per-cycle asyncio task accumulator before iterating sampled threads
         echion->reset_asyncio_task_count();
 
