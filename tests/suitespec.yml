@@ -363,6 +363,10 @@ suites:
         - name: wrapping
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-xdist, 'wrapt<2.0.0']
+        - name: wrapping
+          python: ['3.15']
+          command: pytest -v {cmdargs} tests/wrapping/test_obfuscation.py
+          dependencies: [pytest-xdist, wrapt]
   lib_injection:
     venvs_per_job: 3
     paths:
@@ -406,10 +410,10 @@ suites:
       command: pytest {cmdargs} tests/openfeature
       variants:
         - name: openfeature
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'openfeature-sdk~=0.8.0']
         - name: openfeature
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, openfeature-sdk]
   telemetry:
     env:

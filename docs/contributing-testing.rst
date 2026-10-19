@@ -94,6 +94,18 @@ refreshes the editable ddtrace build.
 An ``-s`` after ``--`` still belongs to the test command and disables output capture.
 The legacy runner option ``-s`` before ``--`` is a no-op; use ``-r`` to refresh the installation.
 
+Nightly coverage report upload
+------------------------------
+
+Nightly test environments enable coverage report upload by default only on Python 3.15. This focuses reports on
+new Python support without paying the collection and reporting cost on every Python version. Other nightly
+Python versions explicitly disable report upload; suites without a Python 3.15 environment do not fall back to
+another version. The full test matrix and the separate ITR coverage policy are unchanged.
+
+The version selection is defined by ``NIGHTLY_COVERAGE_PYTHON_VERSIONS`` in ``tests/suitespec.py``. Add versions
+there when expanding nightly report coverage. Explicit matrix, variant, and run environment overrides retain
+their existing precedence, including suites that disable report upload. Non-nightly defaults are unchanged.
+
 OpenFeature fixtures
 --------------------
 
