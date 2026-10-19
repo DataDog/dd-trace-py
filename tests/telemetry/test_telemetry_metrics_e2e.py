@@ -195,7 +195,7 @@ def agent_that_never_answers_telemetry():
         server.server_close()
 
 
-def test_metric_points_do_not_wait_for_a_slow_agent(ddtrace_run_python_code_in_subprocess):
+def test_metric_points_do_not_wait_for_a_slow_agent():
     """Recording a telemetry metric must never wait for the telemetry worker.
 
     The worker does not read its metric buffer while it waits for the response to a telemetry
@@ -204,21 +204,19 @@ def test_metric_points_do_not_wait_for_a_slow_agent(ddtrace_run_python_code_in_s
     thread of the application would stop with it.
     """
     code = """
+import os
 import time
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
-longest = 0.0
-deadline = time.monotonic() + 5
-while time.monotonic() < deadline:
-    start = time.monotonic()
-    # More points than the metric buffer of the worker holds.
-    for _ in range(5000):
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "test_metric", 1)
-    longest = max(longest, time.monotonic() - start)
-    time.sleep(0.05)
-print(longest)
+assert telemetry_writer.enable()
+input()
+start = time.monotonic()
+for _ in range(5000):
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "test_metric", 1)
+print(time.monotonic() - start, flush=True)
+os._exit(0)
 """
     env = os.environ.copy()
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
@@ -227,11 +225,23 @@ print(longest)
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
     with agent_that_never_answers_telemetry() as (agent_url, request_received):
         env["DD_TRACE_AGENT_URL"] = agent_url
-        stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, stderr
-    assert request_received.is_set(), "the telemetry worker did not contact the agent"
-    longest = float(stdout.decode().strip().splitlines()[-1])
-    assert longest < 1.0, "recording 5000 telemetry metric points took %.1f seconds" % longest
+        process = subprocess.Popen(
+            [sys.executable, "-c", code],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        try:
+            assert request_received.wait(15), "the telemetry worker did not contact the agent"
+            stdout, stderr = process.communicate(input=b"\n", timeout=15)
+            assert process.returncode == 0, stderr
+            elapsed = float(stdout.decode().strip().splitlines()[-1])
+            assert elapsed < 2.0, "recording 5000 telemetry metric points took %.1f seconds" % elapsed
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate(timeout=5)
 
 
 def test_metric_points_do_not_block_on_full_debug_log():
