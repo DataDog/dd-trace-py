@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.litellm._usage_metrics_writer import _parse_header
 from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
 from ddtrace.internal.settings import _core as settings_core
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
 
 
@@ -42,6 +43,8 @@ class Collector(http.server.BaseHTTPRequestHandler):
     # Statuses for the next requests, before status applies again.
     statuses = []
     retry_after = None
+    # Where a 3xx response points.
+    location = None
     # Seconds the collector waits before it answers.
     delay = 0
 
@@ -53,6 +56,8 @@ class Collector(http.server.BaseHTTPRequestHandler):
         self.send_response(status)
         if Collector.retry_after is not None and status >= 400:
             self.send_header("Retry-After", Collector.retry_after)
+        if Collector.location is not None and 300 <= status < 400:
+            self.send_header("Location", Collector.location)
         self.end_headers()
 
     def log_message(self, *args):
@@ -65,6 +70,7 @@ def collector():
     Collector.status = 200
     Collector.statuses = []
     Collector.retry_after = None
+    Collector.location = None
     Collector.delay = 0
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Collector)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -78,7 +84,7 @@ def collector():
 def otlp_endpoint(collector, monkeypatch):
     url = f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
     monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", url)
-    monkeypatch.setattr(otel_config.exporter, "METRICS_HEADERS", "dd-api-key=abc,x-team=a%2Cb")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_HEADERS", "dd-api-key=abc,x-team=a%2Cb")
     return url
 
 
@@ -242,11 +248,13 @@ def test_a_rejected_export_is_not_retried(otlp_endpoint, sleeps):
     assert sleeps == []
 
 
-def test_a_redirect_is_not_taken_for_delivery(otlp_endpoint, monkeypatch, sleeps):
-    # The native client does not follow redirects: a 3xx response is not the collector accepting the export.
+def test_a_redirect_is_not_taken_for_delivery(otlp_endpoint, collector, monkeypatch, sleeps):
+    # The native client does not follow redirects, so the export and its headers go nowhere else, and a 3xx response
+    # is not the collector accepting the export.
     warnings = []
     monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
     Collector.status = 307
+    Collector.location = f"http://127.0.0.1:{collector.server_address[1]}/elsewhere"
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
     writer.flush()
@@ -425,6 +433,40 @@ def test_the_endpoints_come_from_stable_configuration(collector, monkeypatch, so
         writer.flush()
         [(sent_path, _, _)] = Collector.requests
         assert sent_path == expected
+
+
+@pytest.fixture
+def client_arguments(monkeypatch):
+    """The arguments the OTLP sender builds its HTTP client with."""
+    arguments = {}
+
+    def client(base_url, **kwargs):
+        arguments.update(kwargs, base_url=base_url)
+
+    monkeypatch.setattr(_usage_metrics_writer, "HTTPClient", client)
+    for name in ("ENDPOINT", "METRICS_ENDPOINT", "HEADERS", "METRICS_HEADERS"):
+        monkeypatch.delenv(f"OTEL_EXPORTER_OTLP_{name}", raising=False)
+    monkeypatch.setattr(agentless_config, "enabled", True)
+    monkeypatch.setattr(agentless_config, "api_key", "secret-api-key")
+    monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", "https://otlp.datadoghq.com/v1/metrics")
+    return arguments
+
+
+def test_agentless_sends_the_api_key_to_the_intake(client_arguments, monkeypatch):
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_HEADERS", "x-team=a")
+    _usage_metrics_writer._OtlpSender()
+    assert client_arguments["base_url"] == "https://otlp.datadoghq.com"
+    assert client_arguments["headers"] == [("x-team", "a"), ("dd-api-key", "secret-api-key")]
+
+
+@pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
+@pytest.mark.parametrize("name", ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"))
+def test_agentless_withholds_the_api_key_from_a_configured_endpoint(client_arguments, monkeypatch, source_name, name):
+    monkeypatch.setitem(getattr(settings_core, source_name), name, "http://collector.example:4318")
+    monkeypatch.setitem(getattr(settings_core, source_name), "OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer t")
+    _usage_metrics_writer._OtlpSender()
+    assert client_arguments["base_url"] == "http://collector.example:4318"
+    assert client_arguments["headers"] == [("authorization", "Bearer t")]
 
 
 def test_the_logged_endpoint_has_no_secrets(collector, monkeypatch):

@@ -24,6 +24,7 @@ from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -133,6 +134,7 @@ class _OtlpSender:
         # this is OTEL_EXPORTER_OTLP_ENDPOINT with /v1/metrics appended to its path (its query kept), the agentless
         # intake, or the local Agent.
         endpoint = _setting("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+        headers = _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
         if endpoint is None:
             base = _setting("OTEL_EXPORTER_OTLP_ENDPOINT")
             if base:
@@ -140,6 +142,9 @@ class _OtlpSender:
                 endpoint = parse.urlunsplit(parts._replace(path=parts.path.rstrip("/") + "/v1/metrics"))
             else:
                 endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
+                # The API key goes only to the Datadog intake, the default when no endpoint is configured anywhere.
+                if agentless_config.enabled and agentless_config.api_key and "dd-api-key" not in headers.lower():
+                    headers = ",".join(filter(None, (headers, f"dd-api-key={agentless_config.api_key}")))
         url = parse.urlsplit(endpoint)
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = _redacted(endpoint)
@@ -147,7 +152,7 @@ class _OtlpSender:
         self._client = HTTPClient(
             f"{url.scheme}://{url.netloc}",
             timeout_ms=self._timeout_ms,
-            headers=_parse_headers(otel_config.exporter.METRICS_HEADERS),
+            headers=_parse_headers(headers),
             treat_http_errors_as_errors=False,
         )
 
