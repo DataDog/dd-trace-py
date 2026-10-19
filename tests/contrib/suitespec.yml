@@ -2439,6 +2439,7 @@ suites:
       - '@tracing'
       - '@requests'
       - tests/contrib/requests/*
+      - tests/snapshots/tests.contrib.requests.*
     services:
       - httpbin
     snapshot: true
