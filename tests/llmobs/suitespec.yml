@@ -122,7 +122,6 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, 'google-adk~=1.0.0', vcrpy, deprecated]
         - name: google_adk
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
     venvs_per_job: 3
@@ -481,13 +480,16 @@ suites:
       - tests/snapshots/tests.contrib.vllm.*
     gpu: true
     snapshot: true
-    skip: true # Temporarily disabled
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
+      env:
+        # vLLM 0.27 samples with FlashInfer, which JIT-compiles a kernel with nvcc.
+        # The CI image has no CUDA toolkit, so use the PyTorch sampler.
+        VLLM_USE_FLASHINFER_SAMPLER: '0'
       variants:
         - name: vllm
           python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2']
+          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
