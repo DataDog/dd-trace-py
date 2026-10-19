@@ -234,6 +234,46 @@ def test_failed_start_collector_cleans_up_partial_resources() -> None:
     p.stop(flush=False)
 
 
+class _FailingFirstStopCollector(collector.Collector):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
+        self.stop_failed: bool = False
+        self.resource_active: bool = False
+
+    def _start_service(self) -> None:
+        self.resource_active = True
+
+    def _stop_service(self) -> None:
+        if not self.stop_failed:
+            self.stop_failed = True
+            raise RuntimeError("stop failed")
+        self.resource_active = False
+
+
+def test_restart_after_failed_collector_stop_keeps_collector() -> None:
+    p = _bare_profiler_instance()
+    col = _FailingFirstStopCollector()
+    p._collectors = [col]
+    p._scheduler = None
+
+    p.start()
+    p.stop(flush=False)
+
+    assert p.status == service.ServiceStatus.STOPPED
+    assert col.status == service.ServiceStatus.RUNNING
+
+    p.start()
+    try:
+        assert col.status == service.ServiceStatus.RUNNING
+        assert col.resource_active is True
+        assert p._collectors == [col]
+    finally:
+        p.stop(flush=False)
+
+    assert col.status == service.ServiceStatus.STOPPED
+    assert col.resource_active is False
+
+
 @pytest.mark.parametrize(
     "module_name,collector_module,collector_name",
     [

@@ -460,6 +460,11 @@ class _ProfilerInstance(service.Service):
     def _start_collectors(self) -> None:
         started_collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         for col in self._collectors:
+            # A collector whose stop failed during a previous shutdown stays RUNNING. Retry its
+            # cleanup so it can be started again instead of being dropped.
+            if col.status != service.ServiceStatus.STOPPED:
+                self._rollback_collector_start(col)
+
             try:
                 col.start()
             except collector.CollectorUnavailable:
