@@ -930,6 +930,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         def wrap(self) -> None:
             f: FunctionType = self.__wrapped__
             original_code: CodeType = get_function_code(f)
+            if is_obfuscated_code(original_code):
+                raise ObfuscatedCodeError(
+                    f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                )
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
                     existing: _UniversalWrappingContext = _ctx_registry[original_code]
