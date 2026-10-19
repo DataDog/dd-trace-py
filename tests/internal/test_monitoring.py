@@ -543,6 +543,24 @@ def test_last_collected_code_releases_tool_and_callbacks() -> None:
     assert sys_monitoring.get_events(tool_id) == 0
 
 
+@pytest.mark.subprocess()
+def test_code_collected_during_shutdown_is_silent() -> None:
+    """asyncio code objects are freed after shutdown clears the monitoring module globals."""
+    import asyncio
+    import asyncio.taskgroups
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_return(self, code: CodeType, instruction_offset: int, retval: object) -> None:
+            pass
+
+    handler = Handler()
+    monitoring.register(asyncio.tasks.create_task.__code__, handler)
+    monitoring.register(asyncio.taskgroups.TaskGroup.create_task.__code__, handler)
+
+
 @pytest.mark.subprocess(out=None, err=None)
 def test_last_unregister_releases_tool_and_callbacks() -> None:
     import sys
@@ -693,6 +711,53 @@ def test_weak_cleanup_can_reenter_registry_lock_during_gc() -> None:
     monitoring._set_local_events = original_set_local_events
     monitoring.unregister(second_code, second_handler)
     gc.enable()
+
+
+@pytest.mark.subprocess()
+def test_weak_cleanup_tolerates_registry_lock_cleared_at_shutdown() -> None:
+    """Shutdown sets _registry_lock to None before the weakref callback runs.
+
+    The callback must not write "Exception ignored" to stderr. That string fails
+    the profiling suite's empty-stderr check on Python 3.15.
+    """
+    import gc
+    from types import CodeType
+    from typing import Any
+    from typing import Callable
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    code: CodeType = compile("pass", "<cleared-lock>", "exec")
+    handler: Handler = Handler()
+    monitoring.register(code, handler)
+
+    calls: list[bool] = []
+    original_on_remove: Callable[[], None] | None = monitoring._registry._on_remove
+
+    def wrapped() -> None:
+        calls.append(True)
+        if original_on_remove is not None:
+            original_on_remove()
+
+    saved_lock: Any = monitoring._registry_lock
+    monitoring._registry._on_remove = wrapped
+    # The attribute is typed as RLock. Shutdown replaces it with None, which is
+    # the state this test reproduces.
+    setattr(monitoring, "_registry_lock", None)
+    try:
+        del code
+        gc.collect()
+    finally:
+        setattr(monitoring, "_registry_lock", saved_lock)
+        monitoring._registry._on_remove = original_on_remove
+        with saved_lock:
+            monitoring._release_tool_if_unused()
+
+    assert calls, "weakref callback did not run"
 
 
 @pytest.mark.subprocess(out=None, err=None)

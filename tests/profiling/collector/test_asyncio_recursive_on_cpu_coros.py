@@ -8,7 +8,7 @@ import pytest
     err=None,
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
-def test_asyncio_recursive_on_cpu_coros():
+def test_asyncio_recursive_on_cpu_coros() -> None:
     import os
     from sys import version_info as PYVERSION
     import time
@@ -44,13 +44,13 @@ def test_asyncio_recursive_on_cpu_coros():
     async def inner1() -> int:
         return await inner2()
 
-    async def outer():
+    async def outer() -> int:
         return await inner1()
 
-    async def async_main():
+    async def async_main() -> int:
         return await outer()
 
-    def main_sync():
+    def main_sync() -> None:
         async_run(async_main())
 
     resource = str(uuid.uuid4())
