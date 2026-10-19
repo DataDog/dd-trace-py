@@ -265,13 +265,22 @@ class Test(TestItem["TestSuite", "TestRun"]):
         return self.tags.get(TestTag.IS_NEW) == TAG_TRUE
 
     def is_quarantined(self) -> bool:
-        return not self.prevent_failure_suppression and self.tags.get(TestTag.IS_QUARANTINED) == TAG_TRUE
+        return self.tags.get(TestTag.IS_QUARANTINED) == TAG_TRUE
 
     def is_disabled(self) -> bool:
-        return not self.prevent_failure_suppression and self.tags.get(TestTag.IS_DISABLED) == TAG_TRUE
+        return self.tags.get(TestTag.IS_DISABLED) == TAG_TRUE
 
     def is_attempt_to_fix(self) -> bool:
-        return not self.no_auto_retry and self.tags.get(TestTag.IS_ATTEMPT_TO_FIX) == TAG_TRUE
+        return self.tags.get(TestTag.IS_ATTEMPT_TO_FIX) == TAG_TRUE
+
+    def should_quarantine(self) -> bool:
+        return not self.prevent_failure_suppression and self.is_quarantined()
+
+    def should_disable(self) -> bool:
+        return not self.prevent_failure_suppression and self.is_disabled()
+
+    def should_attempt_to_fix(self) -> bool:
+        return not self.no_auto_retry and self.is_attempt_to_fix()
 
     def has_parameters(self) -> bool:
         return TestTag.PARAMETERS in self.tags
