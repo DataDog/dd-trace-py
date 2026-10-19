@@ -1,5 +1,6 @@
 import sys
 import time
+import weakref
 
 import litellm
 
@@ -214,6 +215,8 @@ def traced_chunk_creator(func, instance, args, kwargs):
                 output_reported = bool(_field(choices[0], "finish_reason"))
             reasoning = _field(_field(usage, "completion_tokens_details"), "reasoning_tokens")
             model = _field(chunk, "model")
+            if not isinstance(model, str) or not model:
+                model = _served_model(getattr(instance, "completion_stream", None))
             logger.observe_stream(
                 getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None),
                 input_reported,
@@ -223,6 +226,32 @@ def traced_chunk_creator(func, instance, args, kwargs):
             )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
+    return func(*args, **kwargs)
+
+
+# The model each Anthropic chat stream's message_start event names, by LiteLLM's stream iterator. LiteLLM before 1.10x
+# builds that stream's chunks without it.
+_anthropic_served_models: "weakref.WeakKeyDictionary[object, str]" = weakref.WeakKeyDictionary()
+
+
+def _served_model(stream):
+    try:
+        return _anthropic_served_models.get(stream)
+    except TypeError:
+        # A stream that takes no weak reference (a string, a list) is not an Anthropic stream iterator.
+        return None
+
+
+def traced_anthropic_chunk_parser(func, instance, args, kwargs):
+    """Note the model an Anthropic chat stream's message_start event names."""
+    try:
+        chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
+        if _field(chunk, "type") == "message_start":
+            model = _field(_field(chunk, "message"), "model")
+            if isinstance(model, str) and model:
+                _anthropic_served_models[instance] = model
+    except Exception:
+        log.debug("LiteLLM usage metrics: failed to inspect an Anthropic stream event", exc_info=True)
     return func(*args, **kwargs)
 
 
@@ -266,6 +295,7 @@ _ANTHROPIC_PASSTHROUGH_MODULE = (
     "litellm.proxy.pass_through_endpoints.llm_provider_handlers.anthropic_passthrough_logging_handler"
 )
 _RESPONSES_STREAM_MODULE = "litellm.responses.streaming_iterator"
+_ANTHROPIC_CHAT_MODULE = "litellm.llms.anthropic.chat.handler"
 
 
 # The original class attributes of the stream methods wrapped below. Unpatching restores them as they were: a static
@@ -297,6 +327,13 @@ def _wrap_anthropic_stream(module):
         log.debug("LiteLLM usage metrics: cannot observe Anthropic Messages streams", exc_info=True)
 
 
+def _wrap_anthropic_chat_stream(module):
+    try:
+        _wrap_stream_method(module.ModelResponseIterator, "chunk_parser", traced_anthropic_chunk_parser)
+    except Exception:
+        log.debug("LiteLLM usage metrics: cannot observe Anthropic chat streams", exc_info=True)
+
+
 def _wrap_responses_stream(module):
     try:
         _wrap_stream_method(module.BaseResponsesAPIStreamingIterator, "_process_chunk", traced_responses_stream_event)
@@ -304,10 +341,11 @@ def _wrap_responses_stream(module):
         log.debug("LiteLLM usage metrics: cannot observe Responses streams", exc_info=True)
 
 
-# Both are wrapped when LiteLLM imports them: the proxy's pass-through module is imported only when the proxy serves.
+# Each is wrapped when LiteLLM imports it: the proxy's pass-through module is imported only when the proxy serves.
 _STREAM_MODULE_HOOKS = (
     (_ANTHROPIC_PASSTHROUGH_MODULE, _wrap_anthropic_stream),
     (_RESPONSES_STREAM_MODULE, _wrap_responses_stream),
+    (_ANTHROPIC_CHAT_MODULE, _wrap_anthropic_chat_stream),
 )
 
 

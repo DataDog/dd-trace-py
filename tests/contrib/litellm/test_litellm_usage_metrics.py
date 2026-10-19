@@ -803,6 +803,41 @@ def test_anthropic_chat_stream_reports_each_side(installed, writer, chunks, inpu
     assert attempt["response_model"] == "claude-haiku-4-5-20251001"
 
 
+# The message_start event as LiteLLM's Anthropic chat stream iterator parses it.
+MESSAGE_START_EVENT = {
+    "type": "message_start",
+    "message": {"model": "claude-haiku-4-5-20251001", "usage": {"input_tokens": 60, "output_tokens": 1}},
+}
+
+
+def test_anthropic_chat_stream_model_from_message_start(installed, writer):
+    # LiteLLM before 1.10x builds an Anthropic chat stream's chunks without the model its message_start event names.
+    iterator = type("ModelResponseIterator", (), {})()
+    litellm_patch.traced_anthropic_chunk_parser(lambda chunk: None, iterator, (MESSAGE_START_EVENT,), {})
+    wrapper = StreamWrapper("anthropic")
+    wrapper.completion_stream = iterator
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    feed(wrapper, chunk(60, 1), chunk(60, 5, "end_turn"))
+    proxy.succeeded(0.5, usage=ANTHROPIC_USAGE, first_chunk=0.1, model="claude-haiku-4-5")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["response_model"] == "claude-haiku-4-5-20251001"
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_the_anthropic_chat_stream_parser_is_wrapped(enabled):
+    from litellm.llms.anthropic.chat.handler import ModelResponseIterator
+
+    original = vars(ModelResponseIterator)["chunk_parser"]
+    patch()
+    iterator = ModelResponseIterator(streaming_response=iter(()), sync_stream=True)
+    iterator.chunk_parser(MESSAGE_START_EVENT)
+    assert litellm_patch._served_model(iterator) == "claude-haiku-4-5-20251001"
+    unpatch()
+    assert vars(ModelResponseIterator)["chunk_parser"] is original
+
+
 def test_openai_chat_stream_usage_chunk(installed, writer):
     proxy = Proxy(installed, stream=True)
     proxy.start()
