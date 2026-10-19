@@ -8,8 +8,8 @@ re-exports, they are what tied this module to its low-level consumers in the fir
 
 from typing import Optional
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
