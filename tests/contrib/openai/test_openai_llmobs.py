@@ -1,6 +1,7 @@
+import asyncio
 import json
+from unittest import mock
 
-import mock
 import openai as openai_module
 import pytest
 
@@ -57,6 +58,35 @@ EXPECTED_TOOL_DEFINITIONS = [
         },
     }
 ]
+
+
+DECISION_INPUT = "I was charged twice for my subscription this month."
+DECISION_QUESTIONS = [
+    {
+        "type": "choice",
+        "name": "department",
+        "instructions": "Which team should handle this request?",
+        "choices": [{"value": "billing"}, {"value": "technical"}, {"value": "sales"}],
+    },
+    {
+        "type": "score",
+        "name": "severity",
+        "instructions": "How severe is the issue?",
+        "levels": [{"label": "Minor"}, {"label": "Workaround available"}, {"label": "Blocking"}],
+    },
+    {"type": "predicate", "name": "needs_refund", "instructions": "Is the customer asking for a refund?"},
+    {"type": "predicate", "name": "legal_threat", "instructions": "Is the customer threatening legal action?"},
+]
+
+DECISION_EXPECTED_OUTPUT = (
+    '[{"choice": "billing", "confidence": 1.0, "name": "department", "probabilities": [{"probability": 1.'
+    '0, "value": "billing"}, {"probability": 0.0, "value": "technical"}, {"probability": 0.0, "value": "s'
+    'ales"}], "type": "choice"}, {"confidence": 0.19, "name": "severity", "probabilities": [{"label": "Mi'
+    'nor", "probability": 0.42, "value": 0}, {"label": "Workaround available", "probability": 0.46, "valu'
+    'e": 1}, {"label": "Blocking", "probability": 0.12, "value": 2}], "score": 0.7, "type": "score"}, {"n'
+    'ame": "needs_refund", "probability": 0.29, "type": "predicate"}, {"name": "legal_threat", "probabili'
+    'ty": 0.0, "type": "predicate"}]'
+)
 
 
 class TestLLMObsOpenaiV1:
@@ -1998,6 +2028,128 @@ MUL: "*"
         )
 
     @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    def test_chat_completion_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A stream that errors part-way still reports the chunks it did receive.
+
+        Throwing into the traced stream's generator reproduces a consumer-side abort (a client
+        disconnect or cancellation surfacing at the `yield`). The span must be tagged as an error
+        *and* carry the input messages plus whatever output arrived before the abort.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = iter(resp)
+            partial = ""
+            for _ in range(3):
+                chunk = next(stream)
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == input_messages
+        # The partial text survives the abort rather than being discarded wholesale.
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        # Token counts fall back to the estimate computed from the partial text.
+        metrics = get_llmobs_metrics(span)
+        assert metrics["output_tokens"] == _est_tokens(partial)
+        assert metrics["input_tokens"] > 0
+        # The abort is still recorded as an error on the span.
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    async def test_chat_completion_async_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """Async mirror of the sync partial-response-on-abort case."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                await stream.athrow(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert span.error == 1
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    async def test_chat_completion_async_stream_cancelled_keeps_partial_response(
+        self, openai, openai_llmobs, test_spans
+    ):
+        """A cancelled async stream is recorded as an error and keeps whatever output arrived.
+
+        `asyncio.CancelledError` derives from `BaseException`, so it is handled separately from
+        ordinary exceptions in the shared stream handler.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(asyncio.CancelledError):
+                await stream.athrow(asyncio.CancelledError())
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert get_llmobs_metrics(span)["output_tokens"] == _est_tokens(partial)
+        assert span.error == 1
+
+    @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
     def test_response(self, openai, openai_llmobs, test_spans):
@@ -2118,6 +2270,35 @@ MUL: "*"
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A Responses API stream that errors part-way still produces an annotated LLM span.
+
+        The Responses path salvages the most recent whole `response` snapshot rather than
+        accumulating `output_text.delta` events, so a mid-stream abort recovers the request input
+        but not the partial output text. Before this was fixed the span had no annotations at all:
+        the token-estimation fallback tried to iterate the pydantic snapshot and raised, taking
+        every tag with it.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(model="gpt-4.1", input="Hello world", stream=True)
+            stream = iter(resp)
+            for _ in range(5):
+                next(stream)
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == [{"content": "Hello world", "role": "user"}]
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
@@ -2292,6 +2473,103 @@ MUL: "*"
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_INPUT, "role": "user"}],
+            output_messages=[
+                {
+                    "role": "assistant",
+                    "content": DECISION_EXPECTED_OUTPUT,
+                }
+            ],
+            metadata={"questions": DECISION_QUESTIONS},
+            metrics={
+                "input_tokens": 534,
+                "output_tokens": 0,
+                "total_tokens": 534,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert "decisions" not in get_llmobs_metadata(spans[0])
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_generator_args(self, openai, openai_llmobs, test_spans):
+        """Generator questions and input are consumed by the SDK, so they must be captured before the request."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(
+                model="gpt-6-luna",
+                input=(m for m in [{"role": "user", "content": DECISION_INPUT}]),
+                questions=(q for q in DECISION_QUESTIONS),
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_metadata(spans[0])["questions"] == DECISION_QUESTIONS
+        assert get_llmobs_input_messages(spans[0]) == [{"content": DECISION_INPUT, "role": "user"}]
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    async def test_decision_async(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.AsyncOpenAI()
+            await client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_INPUT, "role": "user"}],
+            metadata={"questions": DECISION_QUESTIONS},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_error(self, openai, openai_llmobs, test_spans):
+        with pytest.raises(openai.AuthenticationError):
+            with get_openai_vcr(subdirectory_name="v1").use_cassette("decision_error.yaml"):
+                client = openai.OpenAI()
+                client.decisions.create(model="gpt-6-luna", input=DECISION_INPUT, questions=DECISION_QUESTIONS)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_data = _get_llmobs_data_metastruct(spans[0])
+        assert_llmobs_span_data(
+            span_data,
+            span_kind="llm",
+            name="OpenAI.createDecision",
+            model_name="gpt-6-luna",
+            model_provider="openai",
+            input_messages=[{"content": DECISION_INPUT, "role": "user"}],
+            output_messages=[{"content": ""}],
+            metadata={"questions": DECISION_QUESTIONS},
+            error=mock.ANY,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert spans[0].error == 1
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"

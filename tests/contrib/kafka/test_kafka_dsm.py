@@ -32,8 +32,8 @@ def dsm_processor():
     processor.shutdown(timeout=5)
 
 
-@pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
-@pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
+@pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode(), 3), (b"test2", 5)])
+@pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode(), 3), (b"t2", 2)])
 def test_data_streams_payload_size(
     dsm_processor, fresh_consumer, producer, empty_kafka_topic, payload_and_length, key_and_length
 ):
@@ -103,9 +103,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, grou
         message = consumer.poll()
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
     parent_hash = ctx._compute_hash(
-        sorted(
-            ["direction:out", "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw", "type:kafka", "topic:{}".format(kafka_topic)]
-        ),
+        sorted(["direction:out", "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw", "type:kafka", f"topic:{kafka_topic}"]),
         0,
     )
     child_hash = ctx._compute_hash(
@@ -114,8 +112,8 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, grou
                 "direction:in",
                 "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw",
                 "type:kafka",
-                "group:{}".format(group_id),
-                "topic:{}".format(kafka_topic),
+                f"group:{group_id}",
+                f"topic:{kafka_topic}",
             ]
         ),
         parent_hash,
@@ -296,7 +294,7 @@ def test_data_streams_kafka_offset_backlog_has_cluster_id(
     assert len(produce_backlogs) >= 1, "Expected at least one kafka_produce backlog entry"
     # Fixture setup commits offset=0 before the producer runs, so that entry lacks cluster_id.
     assert any("kafka_cluster_id:" + cluster_id in cb["Tags"] for cb in commit_backlogs), (
-        "No kafka_commit backlog entry has kafka_cluster_id:{}".format(cluster_id)
+        f"No kafka_commit backlog entry has kafka_cluster_id:{cluster_id}"
     )
     for pb in produce_backlogs:
         assert "kafka_cluster_id:" + cluster_id in pb["Tags"]

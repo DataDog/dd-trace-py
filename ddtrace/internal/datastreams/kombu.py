@@ -37,8 +37,9 @@ def handle_kombu_produce(args, kwargs, span):
             if value is not None:
                 pathway_tags.append(f"{prefix}:{value}")
 
-    ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
-    DsmPathwayCodec.encode(ctx, args[HEADER_POS])
+    if (p := processor()) is not None:
+        ctx = p.set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
+        DsmPathwayCodec.encode(ctx, args[HEADER_POS])
 
 
 def handle_kombu_consume(instance, message, span):
@@ -48,9 +49,10 @@ def handle_kombu_consume(instance, message, span):
     payload_size += _calculate_byte_size(message.body)
     payload_size += _calculate_byte_size(message.headers)
 
-    ctx = DsmPathwayCodec.decode(message.headers, processor())
-    queue = instance.queues[0].name if len(instance.queues) > 0 else ""
-    ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
+    if (p := processor()) is not None:
+        ctx = DsmPathwayCodec.decode(message.headers, p)
+        queue = instance.queues[0].name if len(instance.queues) > 0 else ""
+        ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
 
 
 if config._data_streams_enabled:

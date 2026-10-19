@@ -30,6 +30,9 @@ suites:
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # The suite has more environments than jobs, so some jobs build two.
+        UV_NO_CACHE: '1'
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
@@ -49,9 +52,9 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
   profile-uwsgi:
+    venvs_per_job: 1
     env:
       DD_TRACE_AGENT_URL: ''
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -77,9 +80,9 @@ suites:
         - name: profile-uwsgi
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, 'uwsgi<2.0.30', protobuf]
   profile-memalloc:
+    venvs_per_job: 1
     env:
       DD_TRACE_AGENT_URL: ''
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'

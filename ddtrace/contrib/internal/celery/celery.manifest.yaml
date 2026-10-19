@@ -1,0 +1,12 @@
+_v: 1
+name: celery
+display_name: Celery
+description: Instruments Celery task publication, worker execution, and beat scheduling, with task metadata, errors, and optional
+  distributed trace propagation.
+packages:
+- name: celery
+category:
+- messaging.consumer
+- messaging.producer
+systems: []
+creation_date: '2017-02-15'

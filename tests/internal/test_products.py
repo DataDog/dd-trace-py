@@ -18,7 +18,7 @@ class BaseProduct(Product):
     requires = []
 
     def __init__(self) -> None:
-        self.started = self.restarted = self.stopped = self.exited = self.post_preloaded = False
+        self.started = self.post_started = self.restarted = self.stopped = self.exited = self.post_preloaded = False
 
     def post_preload(self) -> None:
         self.post_preloaded = True
@@ -28,6 +28,9 @@ class BaseProduct(Product):
 
     def start(self) -> None:
         self.started = True
+
+    def post_start(self) -> None:
+        self.post_started = True
 
     def restart(self, join: bool = False) -> None:
         self.restarted = True
@@ -94,9 +97,11 @@ def test_product_manager_start_fail():
 
     # a will start
     assert a.started
+    assert a.post_started
 
     # b fails to start, so c won't start because it depends on b
     assert not b.started and not c.started
+    assert not b.post_started and not c.post_started
 
 
 def test_product_manager_start():
@@ -104,6 +109,32 @@ def test_product_manager_start():
     manager = ProductManagerTest({"a": a})
     manager.run_protocol()
     assert a.started
+    assert a.post_started
+
+
+def test_product_manager_post_start_runs_after_all_products_start():
+    events = []
+
+    class A(BaseProduct):
+        def start(self) -> None:
+            events.append("a-start")
+
+        def post_start(self) -> None:
+            events.append("a-post-start")
+
+    class B(BaseProduct):
+        requires = ["a"]
+
+        def start(self) -> None:
+            events.append("b-start")
+
+        def post_start(self) -> None:
+            events.append("b-post-start")
+
+    manager = ProductManagerTest({"a": A(), "b": B()})
+    manager.run_protocol()
+
+    assert events == ["a-start", "b-start", "a-post-start", "b-post-start"]
 
 
 @pytest.mark.subprocess
@@ -289,3 +320,42 @@ def test_product_manager_is_enabled():
     disabled_product = DisabledProduct()
     manager = ProductManagerTest({"disabled": disabled_product})
     assert not manager.is_enabled("disabled")
+
+
+def test_product_manager_reports_activated_state():
+    class Inactive(BaseProduct):
+        def activated(self) -> bool:
+            return False
+
+    class Active(BaseProduct):
+        def activated(self) -> bool:
+            return self.started
+
+    manager = ProductManagerTest({"plain": BaseProduct(), "inactive": Inactive(), "active": Active()})
+    with patch("ddtrace.internal.products.telemetry_writer") as telemetry_writer:
+        manager.start_products()
+
+    assert sorted(c.args for c in telemetry_writer.product_activated.call_args_list) == [
+        ("active", True),
+        ("inactive", False),
+        ("plain", True),
+    ]
+
+
+def test_product_manager_activated_failure_does_not_fail_product():
+    class Broken(BaseProduct):
+        def activated(self) -> bool:
+            raise RuntimeError()
+
+    class Dependent(BaseProduct):
+        requires = ["broken"]
+
+    broken = Broken()
+    dependent = Dependent()
+    manager = ProductManagerTest({"broken": broken, "dependent": dependent})
+    with patch("ddtrace.internal.products.telemetry_writer") as telemetry_writer:
+        manager.start_products()
+
+    assert broken.started and broken.post_started
+    assert dependent.started and dependent.post_started
+    telemetry_writer.product_activated.assert_called_once_with("dependent", True)

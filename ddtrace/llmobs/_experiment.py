@@ -1,5 +1,8 @@
 from abc import ABC
 from abc import abstractmethod
+from collections.abc import Awaitable
+from collections.abc import Iterator
+from collections.abc import Sequence
 from copy import copy
 from copy import deepcopy
 from dataclasses import dataclass
@@ -11,13 +14,10 @@ import time
 import traceback
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Awaitable
 from typing import Callable
-from typing import Iterator
 from typing import Literal
 from typing import Optional
 from typing import Protocol
-from typing import Sequence
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -1740,17 +1740,13 @@ class Dataset:
     ) -> bool:
         if not self._id:
             raise ValueError(
-                (
-                    "Dataset ID is required to push data to Experiments. "
-                    "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
-                )
+                "Dataset ID is required to push data to Experiments. "
+                "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
             )
         if not self._dne_client:
             raise ValueError(
-                (
-                    "LLMObs client is required to push data to Experiments. "
-                    "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
-                )
+                "LLMObs client is required to push data to Experiments. "
+                "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
             )
 
         data_changed = False
@@ -2042,7 +2038,7 @@ class Dataset:
         column_tuples = set()
         data_rows = []
         for record in self._records:
-            flat_record = {}  # type: dict[Union[str, tuple[str, str]], Any]
+            flat_record: dict[Union[str, tuple[str, str]], Any] = {}
 
             input_data = record.get("input_data", {})
             if isinstance(input_data, dict):
@@ -2163,9 +2159,9 @@ class Experiment:
         self._dataset_id: Optional[str] = dataset._id if dataset is not None else None
         self._dataset_version: Optional[int] = dataset._version if dataset is not None else None
         self._run_name: Optional[str] = None
-        self.experiment_span: Optional["ExportedLLMObsSpan"] = None
+        self.experiment_span: Optional[ExportedLLMObsSpan] = None
         self.result: Optional[ExperimentResult] = None
-        self._run_results: list["ExperimentRun"] = []
+        self._run_results: list[ExperimentRun] = []
         self._interrupted: bool = False
         self._has_errors: bool = False
 
@@ -2245,7 +2241,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        eval_metric: "LLMObsExperimentEvalMetricEvent" = {
+        eval_metric: LLMObsExperimentEvalMetricEvent = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
@@ -2345,7 +2341,7 @@ class Experiment:
         span_id = task_result.get("span_id", "")
         trace_id = task_result.get("trace_id", "")
         timestamp_ns = cast(int, task_result.get("timestamp", 0))
-        metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+        metrics: list[LLMObsExperimentEvalMetricEvent] = []
         for eval_name, eval_data in evaluations.items():
             if not eval_data:
                 continue
@@ -2382,7 +2378,7 @@ class Experiment:
             )
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
+            subset_name = f"[Test subset of {sample_size} records] {self._dataset.name}"
             return Dataset(
                 name=subset_name,
                 project=self._dataset.project,
@@ -2603,7 +2599,7 @@ class Experiment:
         if retry_delay is None:
             retry_delay = _default_retry_delay
         elif not callable(retry_delay):
-            raise TypeError("retry_delay must be a callable, got {}".format(type(retry_delay).__name__))
+            raise TypeError(f"retry_delay must be a callable, got {type(retry_delay).__name__}")
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
         if max_retries < 0:
@@ -2663,11 +2659,11 @@ class Experiment:
         parts: list[str] = []
 
         if self._interrupted:
-            parts.append("Experiment '{}' was interrupted after {}/{} runs.".format(self.name, len(runs), self._runs))
+            parts.append(f"Experiment '{self.name}' was interrupted after {len(runs)}/{self._runs} runs.")
 
         for run_idx, run in enumerate(runs):
             rows = run.rows
-            run_label = "Run {}/{}".format(run_idx + 1, self._runs) if self._runs > 1 else ""
+            run_label = f"Run {run_idx + 1}/{self._runs}" if self._runs > 1 else ""
             task_error_count = sum(
                 1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message")
             )
@@ -2679,12 +2675,12 @@ class Experiment:
                     if isinstance(data, dict) and data.get("error"):
                         stats["errors"] += 1
 
-            header = "Experiment '{}'".format(self.name)
+            header = f"Experiment '{self.name}'"
             if run_label:
-                header += " - {}".format(run_label)
-            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats)))
+                header += f" - {run_label}"
+            parts.append(f"{header}: {len(rows)} rows, {len(eval_stats)} evaluator(s).")
             if task_error_count:
-                parts.append("  Task errors: {}/{}".format(task_error_count, len(rows)))
+                parts.append(f"  Task errors: {task_error_count}/{len(rows)}")
             for eval_name, stats in eval_stats.items():
                 if stats["errors"]:
                     parts.append(
@@ -2799,9 +2795,7 @@ class Experiment:
                     except Exception as e:
                         last_exc_info = sys.exc_info()
                         if attempt < max_retries:
-                            self._retries.append(
-                                "task row {}: attempt {}/{} failed: {}".format(idx, attempt + 1, max_retries + 1, e)
-                            )
+                            self._retries.append(f"task row {idx}: attempt {attempt + 1}/{max_retries + 1} failed: {e}")
                             semaphore.release()
                             try:
                                 await asyncio.sleep(retry_delay(attempt))
@@ -2990,9 +2984,8 @@ class Experiment:
                         eval_err = self._build_evaluator_error(e)
                         if attempt < max_retries:
                             self._retries.append(
-                                "evaluator '{}' row {}: attempt {}/{} failed: {}".format(
-                                    evaluator_name, idx, attempt + 1, max_retries + 1, e
-                                )
+                                f"evaluator '{evaluator_name}' row {idx}: "
+                                f"attempt {attempt + 1}/{max_retries + 1} failed: {e}"
                             )
                             semaphore.release()
                             try:
@@ -3080,7 +3073,7 @@ class Experiment:
             return [], []
         subset_dataset = self._get_subset_dataset(sample_size)
         semaphore = asyncio.Semaphore(jobs)
-        pending_evals: list["LLMObsExperimentEvalMetricEvent"] = []
+        pending_evals: list[LLMObsExperimentEvalMetricEvent] = []
         flush_threshold = jobs
 
         async def _process_and_evaluate(
@@ -3274,7 +3267,7 @@ class Experiment:
                 (cast(int, r.get("timestamp", 0)) for r in task_results),
                 default=0,
             )
-            metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+            metrics: list[LLMObsExperimentEvalMetricEvent] = []
             for name, summary_eval_data in evals_dict.items():
                 if not summary_eval_data:
                     continue
@@ -3647,7 +3640,7 @@ class SyncExperiment:
         asyncio = get_asyncio()
         if missing_task_strategy not in ("raise", "skip", "retry"):
             raise ValueError(
-                "missing_task_strategy must be 'raise', 'skip', or 'retry', got '{}'.".format(missing_task_strategy)
+                f"missing_task_strategy must be 'raise', 'skip', or 'retry', got '{missing_task_strategy}'."
             )
 
         # rerun produces a single child experiment with one run; only the first original run is rescored.
@@ -3921,7 +3914,7 @@ class SyncExperiment:
         if not experiment._llmobs_instance:
             return False
 
-        pending_metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+        pending_metrics: list[LLMObsExperimentEvalMetricEvent] = []
         for task_result, evaluation in zip(task_results, evaluations):
             if evaluation:
                 pending_metrics.extend(experiment._generate_metrics_for_record(task_result, evaluation))

@@ -6,10 +6,10 @@ import subprocess
 import sys
 import time
 from time import sleep
+from unittest import mock
 
 import celery
 from celery.exceptions import Retry
-import mock
 import pytest
 
 from ddtrace.constants import ERROR_MSG
@@ -35,7 +35,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
     """
 
     def tearDown(self):
-        super(CeleryIntegrationTask, self).tearDown()
+        super().tearDown()
         for file_path in ("celerybeat-schedule.bak", "celerybeat-schedule.dat", "celerybeat-schedule.dir"):
             Path(file_path).unlink(missing_ok=True)
 
@@ -583,7 +583,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         t = fn_task.delay()
         assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-        traces = self.pop_traces()
+        traces = self.pop_traces_until(expected_traces=2 if self.ASYNC_USE_CELERY_FIXTURES else 1)
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert len(traces) == 2
@@ -681,12 +681,12 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
     """
 
     def setUp(self):
-        super(CeleryDistributedTracingIntegrationTask, self).setUp()
+        super().setUp()
         provider = self.tracer.context_provider
         provider.activate(Context(trace_id=12345, span_id=12345, sampling_priority=1))
 
     def tearDown(self):
-        super(CeleryDistributedTracingIntegrationTask, self).tearDown()
+        super().tearDown()
 
     # override instrumenting fixture to add prerrun signal for context setting
     @pytest.fixture(autouse=True)

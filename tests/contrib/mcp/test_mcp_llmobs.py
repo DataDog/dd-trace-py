@@ -4,8 +4,7 @@ from importlib.metadata import version
 import json
 import os
 from textwrap import dedent
-
-import mock
+from unittest import mock
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -315,10 +314,8 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
             """
         import asyncio
         import logging
-        import warnings
 
         logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
-        warnings.filterwarnings("ignore", message="OpenTelemetry configuration.*not supported by Datadog")
 
         from ddtrace.llmobs import LLMObs
         LLMObs.enable()

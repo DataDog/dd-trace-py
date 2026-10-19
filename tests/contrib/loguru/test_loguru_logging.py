@@ -18,7 +18,7 @@ def _test_logging(output, span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
     if dd_trace_id > MAX_UINT_64BITS:
-        dd_trace_id = "{:032x}".format(dd_trace_id)
+        dd_trace_id = f"{dd_trace_id:032x}"
 
     assert "Hello" in json.loads(output[0])["text"]
     assert json.loads(output[0])["record"]["extra"]["dd.trace_id"] == str(dd_trace_id)
@@ -229,7 +229,7 @@ def test_log_trace_128bit_trace_ids():
 
     assert span.trace_id > MAX_UINT_64BITS
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == "{:032x}".format(span.trace_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == f"{span.trace_id:032x}"
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "global.env"
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "logging"
@@ -257,7 +257,7 @@ def test_log_DD_TAGS():
 
     trace_id = span.trace_id
     if span.trace_id > MAX_UINT_64BITS:
-        trace_id = "{:032x}".format(span.trace_id)
+        trace_id = f"{span.trace_id:032x}"
 
     assert "Hello" in json.loads(captured_logs[0])["text"]
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(trace_id)
@@ -311,7 +311,7 @@ def test_configured_format():
 
     trace_id = span.trace_id
     if span.trace_id > MAX_UINT_64BITS:
-        trace_id = "{:032x}".format(span.trace_id)
+        trace_id = f"{span.trace_id:032x}"
 
     assert "Hello" in json.loads(captured_logs[0])["text"]
     assert json.loads(captured_logs[0])["dd.trace_id"] == str(trace_id)

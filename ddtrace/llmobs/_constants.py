@@ -22,6 +22,13 @@ class LLMObsExportMode(str, Enum):
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
+LLMOBS_SAMPLING = "_llmobs.sampling"
+# Routing context captured at span start. Stamped on the span because a span may finish in a
+# different execution context than the one it started in, at which point the contextvar is gone.
+CACHED_LLMOBS_ROUTING_CTX_KEY = "_llmobs.routing"
+# LLMObs trace ID of a routed span. Its meta_struct is removed when the span finishes, so this keeps
+# the ID that the tenant intake received available to export_span().
+CACHED_LLMOBS_TRACE_ID_CTX_KEY = "_llmobs.trace_id"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -96,6 +103,7 @@ LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
 LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
+LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY = "_dd.llmobs.artificial_gen_ai_tags"
 
 GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
 GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
@@ -122,9 +130,9 @@ SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"
-AGENTLESS_SPAN_BASE_URL = "https://{}".format(SPAN_SUBDOMAIN_NAME)
-AGENTLESS_EVAL_BASE_URL = "https://{}".format(EVAL_SUBDOMAIN_NAME)
-AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
+AGENTLESS_SPAN_BASE_URL = f"https://{SPAN_SUBDOMAIN_NAME}"
+AGENTLESS_EVAL_BASE_URL = f"https://{EVAL_SUBDOMAIN_NAME}"
+AGENTLESS_EXP_BASE_URL = f"https://{EXP_SUBDOMAIN_NAME}"
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
@@ -150,10 +158,16 @@ PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
-# Agent tracking tag. Set on agent spans only, at span finish.
+# Agent tracking tag set at span finish.
 AGENT_VERSION_TAG_KEY = "agent_version"
 # Holds the version an annotation supplied, until the span kind is known at finish.
-AGENT_ANNOTATION = "_ml_obs.agent_annotation"
+AGENT_VERSION = "_ml_obs.agent_annotation"
+# Holds the version of the nearest agent ancestor, resolved at activation. Also carried on the
+# in-process context handed to asyncio tasks and threads. It is never propagated across services.
+PARENT_AGENT_VERSION = "_ml_obs.parent_agent_version"
+# Holds the manifest the annotations declared, for the same reason. Each annotation is validated
+# and shallow-merged into it as it runs.
+AGENT_MANIFEST = "_ml_obs.agent_declaration_annotation"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"

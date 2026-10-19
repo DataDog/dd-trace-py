@@ -335,7 +335,7 @@ class _UniversalModuleWatchdog:
     _instance: t.Optional["_UniversalModuleWatchdog"] = None
 
     def __init__(self) -> None:
-        self._watchdogs: list["BaseModuleWatchdog"] = []
+        self._watchdogs: list[BaseModuleWatchdog] = []
         self._finding: set[str] = set()
 
         # DEV: pkg_resources support to prevent errors such as

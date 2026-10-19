@@ -18,7 +18,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 
-class PylibmcCore(object):
+class PylibmcCore:
     """Core of the test suite for pylibmc
 
     Shared tests between the patch and TracedClient interface.
@@ -261,12 +261,12 @@ class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the default lib patching"""
 
     def setUp(self):
-        super(TestPylibmcPatchDefault, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
         unpatch()
-        super(TestPylibmcPatchDefault, self).tearDown()
+        super().tearDown()
 
     def get_client(self):
         url = "%s:%s" % (cfg["host"], cfg["port"])

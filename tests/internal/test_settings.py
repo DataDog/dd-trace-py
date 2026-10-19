@@ -1,6 +1,6 @@
+from collections.abc import Sequence
 import json
 import os
-from typing import Sequence
 
 import pytest
 
@@ -633,7 +633,7 @@ def test_config_public_properties_and_methods():
 
 @pytest.mark.subprocess()
 def test_remoteconfig_debug_logging():
-    import mock
+    from unittest import mock
 
     with mock.patch("ddtrace._trace.product.log") as mock_log:
         from ddtrace import config

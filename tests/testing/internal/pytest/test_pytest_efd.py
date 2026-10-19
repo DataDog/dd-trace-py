@@ -15,6 +15,16 @@ from tests.testing.mocks import setup_standard_mocks
 
 
 class TestEFD:
+    @pytest.fixture(autouse=True)
+    def _stable_retry_durations(self):
+        # EFD budgets are duration-based. Keep the default baseline in the fast
+        # bucket; tests for slow buckets override these mocks explicitly.
+        with (
+            patch("ddtrace.testing.internal.test_data.TestRun.seconds_so_far", return_value=0),
+            patch("ddtrace.testing.internal.test_data.Test.seconds_so_far", return_value=0),
+        ):
+            yield
+
     def test_efd_one_new_test(self, pytester: Pytester) -> None:
         """Test that EFD retries new tests and not known tests."""
         pytester.makepyfile(

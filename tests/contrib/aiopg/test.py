@@ -1,7 +1,7 @@
 import time
+from unittest import mock
 
 import aiopg
-import mock
 from psycopg2 import extras
 import pytest
 
@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib import shared_tests_async
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
@@ -47,7 +48,11 @@ class AiopgTestCase(AsyncioTestCase):
                 with pytest.raises(BlockingException):
                     await getattr(traced_cursor, method)("SELECT 1")
 
-            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
+            dispatch_event.assert_called_once_with(
+                DbQueryEvent(
+                    query="SELECT 1", span_name_prefix="postgres", get_encoding=traced_cursor._dbapi_query_encoding
+                )
+            )
             getattr(cursor, method).assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -150,6 +155,13 @@ class AiopgTestCase(AsyncioTestCase):
         conn.close()
 
     @pytest.mark.asyncio
+    @mark_asyncio
+    async def test_byte_query_uses_connection_encoding(self):
+        for encoding, codec in (("UTF8", "utf-8"), ("WIN1252", "cp1252")):
+            async with aiopg.connect(**POSTGRES_CONFIG, options=f"-c client_encoding={encoding}") as connection:
+                async with connection.cursor() as cursor:
+                    await shared_tests_async._test_byte_query_event(AIOTracedCursor(cursor, Pin()), codec, "postgres")
+
     async def test_patch_unpatch(self):
         # Test patch idempotence
         patch()

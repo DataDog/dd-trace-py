@@ -235,19 +235,19 @@ def test_non_probabilistic_sampling_mechanism_does_not_emit_otel_fields():
 
     sampler.sample(span)
 
-    assert span.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == "-{}".format(SamplingMechanism.APPSEC)
+    assert span.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == f"-{SamplingMechanism.APPSEC}"
     assert "ot=" not in span.context._tracestate
 
 
 def test_datadog_and_otel_members_are_kept_leftmost_under_member_cap():
-    other_members = ",".join("vendor{}=value".format(i) for i in range(32))
+    other_members = ",".join(f"vendor{i}=value" for i in range(32))
     context = Context(
         trace_id=1,
         span_id=1,
         sampling_priority=USER_KEEP,
         meta={
             "tracestate": other_members,
-            SAMPLING_DECISION_TRACE_TAG_KEY: "-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+            SAMPLING_DECISION_TRACE_TAG_KEY: f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
         },
     )
     context._publish_sampling_decision(USER_KEEP, 0.1, True)
@@ -265,7 +265,7 @@ def test_otel_member_is_dropped_when_leading_members_exceed_byte_cap():
     assert len(dd_member) == 256
     assert len(ot_member) == 256
 
-    context = Context(meta={"tracestate": "{},{}".format(dd_member, ot_member)})
+    context = Context(meta={"tracestate": f"{dd_member},{ot_member}"})
 
     assert context._tracestate == dd_member
 
@@ -288,7 +288,7 @@ def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_value_cap
         trace_id=1,
         span_id=1,
         sampling_priority=USER_KEEP,
-        meta={"tracestate": "ot={};next:value".format(oversized_future_field)},
+        meta={"tracestate": f"ot={oversized_future_field};next:value"},
     )
     assert len(context._meta["tracestate"]) <= 256
     context._publish_sampling_decision(USER_KEEP, 0.1, True)
@@ -306,17 +306,17 @@ def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_value_cap
 def test_rebuilt_otel_member_allows_a_256_character_value():
     ot_value = "future:" + ("x" * 249)
     assert len(ot_value) == 256
-    context = Context(meta={"tracestate": "ot={}".format(ot_value)})
+    context = Context(meta={"tracestate": f"ot={ot_value}"})
 
-    assert context._tracestate == "ot={}".format(ot_value)
+    assert context._tracestate == f"ot={ot_value}"
 
 
 def test_otel_member_is_kept_when_combined_tracestate_fits_byte_cap():
     ot_value = "future:" + ("x" * 249)
-    context = Context(sampling_priority=USER_KEEP, meta={"tracestate": "ot={}".format(ot_value)})
+    context = Context(sampling_priority=USER_KEEP, meta={"tracestate": f"ot={ot_value}"})
 
     assert 256 < len(context._tracestate) <= DD_TRACE_TRACESTATE_MAX_BYTES
-    assert context._tracestate == "dd=s:2,ot={}".format(ot_value)
+    assert context._tracestate == f"dd=s:2,ot={ot_value}"
 
 
 def test_probability_sampling_tracestate_is_shared_with_existing_child_contexts():
@@ -325,7 +325,7 @@ def test_probability_sampling_tracestate_is_shared_with_existing_child_contexts(
         span_id=1,
         sampling_priority=USER_KEEP,
         meta={
-            SAMPLING_DECISION_TRACE_TAG_KEY: "-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+            SAMPLING_DECISION_TRACE_TAG_KEY: f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
         },
     )
     child = root.copy(trace_id=1, span_id=2)

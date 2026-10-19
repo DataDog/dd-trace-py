@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+from collections.abc import Iterable
 from itertools import chain
 import json
 import linecache
@@ -12,8 +13,8 @@ from types import FunctionType
 from types import ModuleType
 from types import TracebackType
 from typing import Any
-from typing import Iterable
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import cast
 
@@ -41,6 +42,7 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
+from ddtrace.internal.bytecode_injection import HOOK_FRAME_DEPTH
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
@@ -56,10 +58,18 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
-from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
+
+
+class TracerProtocol(Protocol):
+    """Structural stand-in for ddtrace.trace.Tracer, so this module does not need to import from the tracing
+    product.
+    """
+
+    def current_trace_context(self, *args: Any, **kwargs: Any) -> Any: ...
+
 
 _probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
 _probe_metrics.enable()
@@ -81,7 +91,7 @@ class DebuggerWrappingContext(WrappingContext):
         f: FunctionType,
         collector: SignalCollector,
         registry: ProbeRegistry,
-        tracer: Tracer,
+        tracer: TracerProtocol,
         probe_meter: Metrics.Meter,
     ) -> None:
         super().__init__(f)
@@ -272,7 +282,7 @@ class Debugger(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    def __init__(self, tracer: Optional[Tracer] = None) -> None:
+    def __init__(self, tracer: Optional[TracerProtocol] = None) -> None:
         super().__init__()
 
         self._tracer = tracer or ddtrace.tracer
@@ -287,7 +297,7 @@ class Debugger(Service):
         log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
         self._global_rate_limiter = RateLimiter(
             limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
-            on_exceed=lambda: log_limiter.limit(log.warning, "Global rate limit exceeded"),
+            on_exceed=lambda: log_limiter.limit(log.debug, "Global rate limit exceeded"),
             call_once=True,
             raise_on_exceed=False,
         )
@@ -346,7 +356,7 @@ class Debugger(Service):
             try:
                 signal = Signal.from_probe(
                     probe,
-                    frame=sys._getframe(1),
+                    frame=sys._getframe(HOOK_FRAME_DEPTH),
                     thread=threading.current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,

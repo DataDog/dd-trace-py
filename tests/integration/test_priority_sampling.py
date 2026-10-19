@@ -1,6 +1,6 @@
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.constants import AUTO_KEEP
@@ -40,7 +40,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service):
     s.finish()
     t.flush()
 
-    sampler_key = "service:{},env:".format(service)
+    sampler_key = f"service:{service},env:"
     while sampler_key not in t._span_aggregator.sampling_processor.sampler._agent_based_samplers:
         time.sleep(1)
         s = t.trace("operation", service=service)
@@ -60,16 +60,16 @@ def test_priority_sampling_rate_honored():
     from tests.integration.test_priority_sampling import _turn_tracer_into_dummy
 
     _id = time.time()
-    service = "my-svc-{}".format(_id)
+    service = f"my-svc-{_id}"
 
     # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
     for i in range(100):
-        s = t.trace("operation", service="dummysvc{}".format(i))
+        s = t.trace("operation", service=f"dummysvc{i}")
         s.finish()
     t.flush()
 
     _prime_tracer_with_priority_sample_rate_from_agent(t, service)
-    sampler_key = "service:{},env:".format(service)
+    sampler_key = f"service:{service},env:"
     assert sampler_key in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
 
     rate_from_agent = t._span_aggregator.sampling_processor.sampler._agent_based_samplers[sampler_key].sample_rate
@@ -101,8 +101,8 @@ def test_priority_sampling_response():
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
 
     _id = time.time()
-    service = "my-svc-{}".format(_id)
-    sampler_key = "service:{},env:".format(service)
+    service = f"my-svc-{_id}"
+    sampler_key = f"service:{service},env:"
     assert sampler_key not in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
     _prime_tracer_with_priority_sample_rate_from_agent(t, service)
     assert sampler_key in t._span_aggregator.sampling_processor.sampler._agent_based_samplers, (
@@ -148,11 +148,11 @@ def test_sampling_configurations_are_not_reset_on_tracer_configure():
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
 
     _id = time.time()
-    service = "my-svc-{}".format(_id)
+    service = f"my-svc-{_id}"
 
     # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
     for i in range(100):
-        s = t.trace("operation", service="dummysvc{}".format(i))
+        s = t.trace("operation", service=f"dummysvc{i}")
         s.finish()
     t.flush()
 

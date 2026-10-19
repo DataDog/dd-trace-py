@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Mapping
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
     from ray.serve.grpc_util import RayServegRPCContext
 
 
-def extract_grpc_context(headers: Optional["RayServegRPCContext"]) -> Context:
+def extract_grpc_context(headers: Optional[RayServegRPCContext]) -> Context:
     # `headers` is None when calling the deployment handle remote, which is used in
     # the integration tests to reconfigure() (used in the throttling tests)
     metadata = dict(headers.invocation_metadata()) if headers is not None else {}

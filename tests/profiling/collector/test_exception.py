@@ -6,6 +6,9 @@ import sys
 import threading
 import time
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
+from typing import Iterator
 from unittest import mock
 
 import pytest
@@ -140,7 +143,7 @@ def _raise_long_exception_message() -> None:
         pass
 
 
-def _lineno_of(func, substring):
+def _lineno_of(func: Callable[..., Any], substring: str) -> int:
     """Return the 1-based line number of the first source line of func containing substring."""
     source_lines, start_lineno = inspect.getsourcelines(func)
     for offset, line in enumerate(source_lines):
@@ -679,13 +682,13 @@ def test_exception_uses_push_monotonic_ns() -> None:
 class _CountingIterator:
     """Iterator that raises StopIteration after *n* items."""
 
-    def __init__(self, n: int):
+    def __init__(self, n: int) -> None:
         self._remaining = n
 
-    def __iter__(self):
+    def __iter__(self) -> "_CountingIterator":
         return self
 
-    def __next__(self):
+    def __next__(self) -> int:
         if self._remaining <= 0:
             raise StopIteration
         self._remaining -= 1
@@ -719,7 +722,7 @@ def test_generatorexit_not_sampled(tmp_path: Path) -> None:
     """GeneratorExit from generator.close() must not appear in exception profiles."""
     output_filename = _setup_profiler(tmp_path, "test_generatorexit")
 
-    def _gen():
+    def _gen() -> Iterator[int]:
         while True:
             yield 1
 

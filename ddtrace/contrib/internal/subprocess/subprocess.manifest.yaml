@@ -1,0 +1,10 @@
+_v: 1
+name: subprocess
+display_name: Subprocess
+description: Instruments child-process creation and execution for command tracing and security inspection, and propagates
+  runtime lineage context to children.
+packages: []
+category:
+- task.execution
+systems: []
+creation_date: '2023-06-13'

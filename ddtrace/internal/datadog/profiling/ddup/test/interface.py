@@ -32,14 +32,14 @@ sys.modules["ddtrace._trace.span"] = MagicMock()
 # Setup the Span object
 # This is terrible not-quite-copypasta, but this is just a quick-and-dirty harness.
 # This will get replaced in the next iteration
-class Span(object):
+class Span:
     def __init__(
         self,
         span_id: Optional[int] = None,
         service: Union[None, str, bytes] = None,
         span_type: Union[None, str, bytes] = None,
         _local_root: Optional[Span] = None,
-    ):
+    ) -> None:
         self.span_id = span_id
         self.service = service
         self.span_type = span_type
@@ -57,7 +57,7 @@ import _ddup  # noqa
 
 # Function for running a test in a fork
 # Returns true if there were no exceptions, else false
-def run_test(test: Callable) -> bool:
+def run_test(test: Callable[[], None]) -> bool:
     pid = os.fork()
     if pid == 0:
         try:
@@ -73,8 +73,10 @@ def run_test(test: Callable) -> bool:
 
 
 # Initialization tests; we run every single type combination
-def InitTest(name, tags, value):
-    def test():
+def InitTest(
+    name: StringType, tags: Optional[dict[Union[str, bytes], Union[str, bytes]]], value: int
+) -> Callable[[], None]:
+    def test() -> None:
         _ddup.init(
             service=name,
             env=name,
@@ -116,7 +118,7 @@ InitNormal = InitTest("name", {"tag": "value"}, 10)
 
 
 # Test all sample interfaces
-def SampleTestSimple():
+def SampleTestSimple() -> None:
     InitNormal()
     h = _ddup.SampleHandle()
     h.push_walltime(1, 1)

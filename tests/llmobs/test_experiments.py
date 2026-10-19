@@ -11,11 +11,11 @@ eg. VCR_CASSETTES_DIRECTORY=tests/cassettes ddapm-test-agent ...
 """
 
 import asyncio
+from collections.abc import Generator
 import os
 import re
 import tempfile
 import time
-from typing import Generator
 from typing import Optional
 from unittest.mock import MagicMock
 import urllib.parse
@@ -32,7 +32,8 @@ except ImportError:
     LLMTestCase = None  # type: ignore[misc, assignment]
     DEEPEVAL_AVAILABLE = False
 
-import mock
+from unittest import mock
+
 import pytest
 
 import ddtrace
@@ -3107,10 +3108,10 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert event["meta"]["output"] == {"prompt": "What is the capital of France?"}
     assert event["meta"]["expected_output"] == {"answer": "Paris"}
     assert event["meta"]["metadata"] == {"difficulty": "easy"}
-    assert "dataset_name:{}".format(test_dataset_one_record_w_metadata.name) in event["tags"]
+    assert f"dataset_name:{test_dataset_one_record_w_metadata.name}" in event["tags"]
     assert f"project_name:{TEST_PROJECT_NAME}" in event["tags"]
     assert "experiment_name:test_experiment" in event["tags"]
-    assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
+    assert f"dataset_id:{test_dataset_one_record_w_metadata._id}" in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record_w_metadata._records[0]["record_id"]) in event["tags"]
     assert (
         "dataset_record_canonical_id:{}".format(test_dataset_one_record_w_metadata._records[0]["canonical_id"])
@@ -3152,10 +3153,10 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert event["meta"]["output"] == {"prompt": "What is the capital of France?"}
         assert event["meta"]["expected_output"] == {"answer": "Paris"}
         assert event["meta"]["metadata"] == {"difficulty": "easy"}
-        assert "dataset_name:{}".format(test_dataset_one_record_w_metadata.name) in event["tags"]
+        assert f"dataset_name:{test_dataset_one_record_w_metadata.name}" in event["tags"]
         assert f"project_name:{TEST_PROJECT_NAME}" in event["tags"]
         assert "experiment_name:test_experiment" in event["tags"]
-        assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
+        assert f"dataset_id:{test_dataset_one_record_w_metadata._id}" in event["tags"]
         assert (
             "dataset_record_id:{}".format(test_dataset_one_record_w_metadata._records[0]["record_id"]) in event["tags"]
         )

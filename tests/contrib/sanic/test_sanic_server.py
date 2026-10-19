@@ -23,7 +23,7 @@ def sanic_client():
     subp = subprocess.Popen(
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env, preexec_fn=os.setsid
     )
-    client = Client("http://0.0.0.0:{}".format(SERVER_PORT))
+    client = Client(f"http://0.0.0.0:{SERVER_PORT}")
     client.wait(path="/hello")
     try:
         yield client
@@ -51,7 +51,7 @@ def test_multiple_requests_sanic_http(sanic_client):
         assert response.status_code == 200
         assert response.json() == {"hello": "world"}
 
-    url = "http://0.0.0.0:{}/hello".format(SERVER_PORT)
+    url = f"http://0.0.0.0:{SERVER_PORT}/hello"
     assert_response(sanic_client.get(url))
     assert_response(sanic_client.get(url))
 
@@ -64,10 +64,10 @@ def test_multiple_requests_sanic_http(sanic_client):
     },
 )
 def test_sanic_errors(sanic_client):
-    url = "http://0.0.0.0:{}/not_found".format(SERVER_PORT)
+    url = f"http://0.0.0.0:{SERVER_PORT}/not_found"
     response = sanic_client.get(url)
     assert response.status_code == 404
 
-    url = "http://0.0.0.0:{}/internal_error".format(SERVER_PORT)
+    url = f"http://0.0.0.0:{SERVER_PORT}/internal_error"
     response = sanic_client.get(url)
     assert response.status_code == 500

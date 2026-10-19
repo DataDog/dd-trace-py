@@ -7,7 +7,9 @@ from psycopg.sql import Literal
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from tests.contrib import shared_tests_async
 from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import assert_is_measured
 
@@ -17,12 +19,12 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 class PsycopgCore(AsyncioTestCase):
     def setUp(self):
-        super(PsycopgCore, self).setUp()
+        super().setUp()
 
         patch()
 
     def tearDown(self):
-        super(PsycopgCore, self).tearDown()
+        super().tearDown()
 
         unpatch()
 
@@ -30,6 +32,12 @@ class PsycopgCore(AsyncioTestCase):
         print(POSTGRES_CONFIG)
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
         return conn
+
+    @mark_asyncio
+    async def test_byte_query_uses_connection_encoding(self):
+        for encoding, codec in (("UTF8", "utf-8"), ("WIN1252", "cp1252")):
+            async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG, client_encoding=encoding) as connection:
+                await shared_tests_async._test_byte_query_event(connection.cursor(), codec, "postgres")
 
     async def test_patch_unpatch(self):
         # Test patch idempotence
@@ -121,7 +129,7 @@ class PsycopgCore(AsyncioTestCase):
         conn = await self._get_conn()
         t = type(conn.cursor())
         async with conn.cursor() as cur:
-            assert t == type(cur), "{} != {}".format(t, type(cur))
+            assert t == type(cur), f"{t} != {type(cur)}"
             await cur.execute(query="""select 'blah'""")
             rows = await cur.fetchall()
             assert len(rows) == 1, rows

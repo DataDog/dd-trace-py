@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from flask import Flask
 import pytest
 from redis.exceptions import ConnectionError  # noqa: A004

@@ -1,10 +1,9 @@
+from collections.abc import Iterable
 from itertools import groupby
 import json
 import os
 from pathlib import Path
-from typing import Iterable  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Optional
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME

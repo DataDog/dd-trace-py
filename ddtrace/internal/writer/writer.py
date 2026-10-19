@@ -1,6 +1,7 @@
 import abc
 import binascii
 from collections import defaultdict
+from collections.abc import Sequence
 import gzip
 import os
 import socket
@@ -10,11 +11,11 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Protocol
-from typing import Sequence
 from typing import TextIO
 from typing import cast
 from urllib.parse import urlparse as _urlparse
 
+from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -23,7 +24,6 @@ from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.native_runtime import get_native_runtime
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -42,6 +42,7 @@ from ddtrace.version import __version__
 from ...constants import _KEEP_SPANS_RATE_KEY
 from ...constants import _SAMPLING_PRIORITY_KEY
 from .. import compat
+from .. import forksafe
 from .. import periodic
 from .. import process_tags
 from .. import service
@@ -56,6 +57,7 @@ from ..gitmetadata import get_git_tags
 from ..logger import get_logger
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
+from ..serverless import in_aws_lambda_microvm
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
@@ -151,6 +153,14 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
+    def _stop_accepting_writes(self) -> None:
+        """Reject later writes. MicroVM identity refresh calls this on the writer it replaces."""
+        # Only MicroVM writers have a writer lock; elsewhere there is no refresh and nothing to close.
+        writer_lock = getattr(self, "_writer_lock", None)
+        if writer_lock is not None:
+            with writer_lock:
+                self._accepting_writes = False
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -221,7 +231,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent_config.trace_agent_timeout_seconds
-        super(HTTPWriter, self).__init__(interval=processing_interval, autorestart=False)
+        super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._intake_accepts_gzip = use_gzip
         self._buffer_size = buffer_size
@@ -235,11 +245,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional["HTTPConnection"] = None
+        self._conn: Optional[HTTPConnection] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck: RLock = RLock()
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
@@ -252,7 +264,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         )
 
     def _intake_endpoint(self, client=None):
-        return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
+        return f"{self._intake_url(client)}/{client.ENDPOINT if client else self._endpoint}"
 
     @property
     def _endpoint(self):
@@ -424,6 +436,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans=None):
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -580,7 +602,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         timeout: Optional[float] = None,
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
-        super(HTTPWriter, self)._stop_service()
+        super()._stop_service()
         self.join(timeout=timeout)
 
     def on_shutdown(self):
@@ -759,6 +781,7 @@ def _build_base_exporter_builder(
             stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         bucket_size_ns: int = int(stats_interval * 1e9)
         builder.enable_stats(bucket_size_ns)
+        builder.set_stats_cardinality_limit(**config._trace_stats_cardinality_limits)
     elif stats_opt_out:
         builder.set_client_computed_stats()
     return builder
@@ -824,7 +847,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        super(NativeWriter, self).__init__(interval=processing_interval, autorestart=False)
+        super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
@@ -844,8 +867,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-
+        # Identity refresh closes this writer before stopping it; the replacement writer accepts writes.
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
         self._owner_pid = os.getpid()
+
+        # Native exporter methods require exclusive access because PyO3 rejects
+        # overlapping mutable borrows.
+        self._exporter_lock = forksafe.RLock()
         self._exporter = self._create_exporter()
 
     def __del__(self) -> None:
@@ -856,7 +885,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 return
             exporter = getattr(self, "_exporter", None)
             if exporter is not None:
-                exporter.shutdown(3_000_000_000)
+                self._shutdown_exporter(exporter)
         except Exception:  # nosec B110 - destructors must not raise
             pass
 
@@ -939,7 +968,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 heartbeat_ms = int(
                     config._telemetry_heartbeat_interval * 1000
                 )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
-                builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
+                builder.enable_telemetry(heartbeat_ms, config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
         exporter = builder.build(get_native_runtime())
@@ -951,26 +980,27 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
         try:
-            self._exporter.set_telemetry_handle(worker)
+            with self._exporter_lock:
+                self._exporter.set_telemetry_handle(worker)
         except Exception:
             log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
-    @staticmethod
-    def _shutdown_exporter(exporter: native.TraceExporter) -> None:
+    def _shutdown_exporter(self, exporter: native.TraceExporter) -> None:
         """Shut down a native exporter, swallowing a Rust panic from its tokio I/O driver.
 
         The exporter can panic here after a fork; since the exporter is always
         being discarded right after this call, treat that specific panic as
         non-fatal too. Anything else still propagates.
         """
-        try:
-            exporter.shutdown(3_000_000_000)
-        except Exception:
-            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
-        except BaseException as e:
-            if not is_panic_exception(e):
-                raise
-            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+        with self._exporter_lock:
+            try:
+                exporter.shutdown(3_000_000_000)
+            except Exception:
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+            except BaseException as e:
+                if not is_panic_exception(e):
+                    raise
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -1054,7 +1084,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _intake_endpoint(self, client=None):
         if self._otlp_endpoint is not None:
             return self._otlp_endpoint
-        return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
+        return f"{self.intake_url}/{client.ENDPOINT if client else self._endpoint}"
 
     @property
     def _endpoint(self):
@@ -1088,7 +1118,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
-            response_body = self._exporter.send(payload)
+            with self._exporter_lock:
+                response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -1114,11 +1145,24 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        # Identity refresh can close this writer concurrently; only MicroVM writers need this lock.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
+            # Flush under the writer lock: once refresh closes this writer, recreate() shuts down
+            # a sync writer's exporter, so a flush after that would send through a dead exporter.
             self.flush_queue()
 
     @staticmethod
@@ -1243,7 +1287,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         timeout: Optional[float] = None,
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
-        super(NativeWriter, self)._stop_service()
+        super()._stop_service()
         self.join(timeout=timeout)
 
     def on_shutdown(self):

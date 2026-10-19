@@ -14,13 +14,13 @@ Finally, subscribers can listen to multiple event names to allow integration spe
 the same subscriber.
 """
 
+from collections.abc import Sequence
 import logging
 from types import TracebackType
 from typing import Any
 from typing import ClassVar
 from typing import Generic
 from typing import Optional
-from typing import Sequence
 
 from ddtrace.internal import core
 

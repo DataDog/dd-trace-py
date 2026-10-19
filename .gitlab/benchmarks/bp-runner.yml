@@ -10,4 +10,4 @@ experiments:
       - name: benchmarks
         cpus: 26-47
         run: shell
-        script: export SCENARIO=$BP_SCENARIO && /platform/steps/run-benchmarks.sh
+        script: export PATH="/pyenv/shims:/pyenv/bin:$PATH" && export SCENARIO=$BP_SCENARIO && /platform/steps/run-benchmarks.sh

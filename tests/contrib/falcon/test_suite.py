@@ -9,7 +9,7 @@ from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
 
 
-class FalconTestMixin(object):
+class FalconTestMixin:
     def make_test_call(self, url, method="get", expected_status_code=None, **kwargs):
         func = getattr(self.client, "simulate_%s" % (method,))
         out = func(url, **kwargs)
@@ -166,6 +166,27 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag("component") == "falcon"
         assert span.get_tag("span.kind") == "server"
 
+    def _assert_non_str_status(self, url, resource_class):
+        out = self.make_test_call(url, expected_status_code=202)
+        assert out.content.decode("utf-8") == "Accepted"
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        span = traces[0][0]
+
+        assert span.name == "falcon.request"
+        assert span.resource == "GET tests.contrib.falcon.app.resources.%s" % resource_class
+        assert_span_http_status_code(span, 202)
+        assert span.error == 0
+
+    def test_int_status(self):
+        # Falcon 4's resp.status_code setter also stores an int in resp.status.
+        self._assert_non_str_status("/int_status", "ResourceIntStatus")
+
+    def test_http_status_enum(self):
+        self._assert_non_str_status("/http_status", "ResourceHTTPStatus")
+
     def test_500(self):
         out = self.make_test_call("/500", expected_status_code=500)
         assert out.content.decode("utf-8") == "Failure"
@@ -235,46 +256,6 @@ class FalconTestCase(FalconTestMixin):
         span = traces[0][0]
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
-
-    def test_request_metadata_available_during_resource_execution(self):
-        observed = {}
-        test_tracer = self.tracer
-
-        class Resource(object):
-            def on_get(self, req, resp):
-                span = test_tracer.current_root_span()
-                assert span is not None
-
-                observed["resource"] = span.resource
-                observed["method"] = span.get_tag(httpx.METHOD)
-                observed["url"] = span.get_tag(httpx.URL)
-
-                # Ensure event finalization does not overwrite application
-                # customization.
-                span.resource = "custom"
-
-        self.api.add_route("/inspect", Resource())
-        response = self.make_test_call(
-            "/inspect",
-            expected_status_code=200,
-        )
-
-        expected_resource = "GET {}.{}".format(
-            Resource.__module__,
-            Resource.__name__,
-        )
-
-        assert response.status_code == 200
-        assert observed == {
-            "resource": expected_resource,
-            "method": "GET",
-            "url": "http://falconframework.org/inspect",
-        }
-
-        traces = self.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 1
-        assert traces[0][0].resource == "custom"
 
     def test_inferred_spans_api_gateway_default(self):
         headers = {

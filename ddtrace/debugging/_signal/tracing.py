@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 from types import FrameType
+from types import TracebackType
 import typing as t
 
-import ddtrace
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
@@ -18,14 +18,39 @@ from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
+from ddtrace.internal import core
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.safety import _isinstance
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
+
+
+class SpanProtocol(t.Protocol):
+    """Structural stand-in for ddtrace.trace.Span, so this module does not need to import from the tracing
+    product.
+    """
+
+    @property
+    def _local_root(self) -> "SpanProtocol": ...
+
+    def get_tag(self, key: str) -> t.Optional[str]: ...
+
+    def set_tags(self, tags: dict[str, str]) -> None: ...
+
+    def _set_attribute(self, key: str, value: t.Union[str, int, float]) -> None: ...
+
+    def __enter__(self) -> "SpanProtocol": ...
+
+    def __exit__(
+        self,
+        exc_type: t.Optional[type[BaseException]],
+        exc_val: t.Optional[BaseException],
+        exc_tb: t.Optional[TracebackType],
+    ) -> None: ...
+
 
 SPAN_NAME = "dd.dynamic.span"
 PROBE_ID_TAG_NAME = "debugger.probeid"
@@ -35,7 +60,7 @@ PROBE_ID_TAG_NAME = "debugger.probeid"
 class DynamicSpan(Signal):
     """Dynamically created span"""
 
-    _span_cm: t.Optional[Span] = field(init=False, default=None)
+    _span_cm: t.Optional[SpanProtocol] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -45,11 +70,14 @@ class DynamicSpan(Signal):
     def enter(self, scope: t.Mapping[str, t.Any]) -> None:
         probe = t.cast(SpanFunctionProbe, self.probe)
 
-        self._span_cm = ddtrace.tracer.trace(
-            SPAN_NAME,
-            service=None,  # Currently unused
-            resource=probe.func_qname,
-            span_type=None,  # Currently unused
+        self._span_cm = t.cast(
+            SpanProtocol,
+            core.root.get_item("tracer").trace(
+                SPAN_NAME,
+                service=None,  # Currently unused
+                resource=probe.func_qname,
+                span_type=None,  # Currently unused
+            ),
         )
         span = self._span_cm.__enter__()
 
@@ -90,9 +118,9 @@ class SpanDecoration(LogSignal):
         probe = t.cast(SpanDecorationMixin, self.probe)
 
         if probe.target_span == SpanDecorationTargetSpan.ACTIVE:
-            span = ddtrace.tracer.current_span()
+            span = core.root.get_item("tracer").current_span()
         elif probe.target_span == SpanDecorationTargetSpan.ROOT:
-            span = ddtrace.tracer.current_root_span()
+            span = core.root.get_item("tracer").current_root_span()
         else:
             log.error("Invalid target span for span decoration: %s", probe.target_span)  # type: ignore[unreachable]
             return

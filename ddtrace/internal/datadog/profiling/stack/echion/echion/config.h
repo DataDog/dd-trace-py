@@ -4,5 +4,6 @@
 
 #pragma once
 
-// Safety limit for Python frames collected while discovering and stitching task-aware stacks.
-inline constexpr unsigned int MAX_TASK_FRAMES = 2048;
+// Internal safety ceiling for stack unwinding and task-aware stitching,
+// separate from the configured per-sample frame limit.
+inline constexpr unsigned int MAX_STACK_UNWIND_SAFETY_LIMIT = 2048;
