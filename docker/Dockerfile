@@ -46,6 +46,7 @@ RUN apt-get update \
       libmariadb-dev-compat \
       libmemcached-dev \
       libmemcached-dev \
+      libmpdec-dev \
       libncurses5-dev \
       libncursesw5-dev \
       libtool \
