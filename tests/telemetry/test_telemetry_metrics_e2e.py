@@ -151,7 +151,7 @@ for _ in range(9):
 
 
 @contextmanager
-def agent_that_never_answers_telemetry():
+def agent_that_never_answers_telemetry(trace_request_received=None):
     """Serve a stand-in agent that answers every request at once, except telemetry requests.
 
     A telemetry request gets no response until the context exits. This is how an overloaded
@@ -166,6 +166,8 @@ def agent_that_never_answers_telemetry():
             if "telemetry" in self.path:
                 request_received.set()
                 release.wait()
+            elif self.path.endswith("/traces") and trace_request_received is not None:
+                trace_request_received.set()
             body = b"{}"
             try:
                 self.send_response(200)
@@ -290,6 +292,70 @@ os._exit(0)
             except subprocess.TimeoutExpired:
                 pytest.fail("recording telemetry metric points blocked while stderr was not being read")
             assert status == 0, process.stderr.read().decode(errors="replace")
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate(timeout=5)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Nonblocking pipe writes are not supported on all Python versions")
+def test_trace_export_does_not_block_on_full_telemetry_log():
+    """A dropped telemetry point must not block synchronous trace export on stderr."""
+    code = """
+import os
+import sys
+
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.trace import tracer
+
+assert telemetry_writer.enable()
+tracer._span_aggregator.writer._sync_mode = True
+input()
+for _ in range(5000):
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "test_metric", 1)
+
+fd = sys.stderr.fileno()
+os.set_blocking(fd, False)
+try:
+    while True:
+        os.write(fd, b"x" * 4096)
+except BlockingIOError:
+    pass
+finally:
+    os.set_blocking(fd, True)
+
+with tracer.trace("test"):
+    pass
+os._exit(0)
+"""
+    env = os.environ.copy()
+    env.pop("DD_API_KEY", None)
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    env["_DD_NATIVE_LOGGING_BACKEND"] = "stderr"
+    env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = "error"
+    trace_request_received = threading.Event()
+    with agent_that_never_answers_telemetry(trace_request_received) as (agent_url, request_received):
+        env["DD_TRACE_AGENT_URL"] = agent_url
+        process = subprocess.Popen(
+            [sys.executable, "-c", code],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        try:
+            assert request_received.wait(15), "the telemetry worker did not contact the agent"
+            process.stdin.write(b"\n")
+            process.stdin.flush()
+            try:
+                status = process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _, stderr = process.communicate(timeout=5)
+                pytest.fail("synchronous trace export blocked while stderr was full: %r" % stderr[-1000:])
+            assert status == 0
+            assert trace_request_received.is_set(), "the trace exporter did not contact the agent"
         finally:
             if process.poll() is None:
                 process.kill()
