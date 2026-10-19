@@ -47,6 +47,7 @@ from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_STATE_WORKER_INPUT
 from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import no_auto_retry_path
 from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
@@ -647,6 +648,11 @@ class TestOptPlugin(TestOptPluginProtocol):
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
             if (
+                self.xdist_atr_crash_state_path is not None
+                and getattr(getattr(item, "obj", None), "_dd_no_auto_retry", False) is True
+            ):
+                no_auto_retry_path(self.xdist_atr_crash_state_path, item.nodeid).touch()
+            if (
                 self.manager.itr_skipping_level == ITRSkippingLevel.SUITE
                 and self.manager.is_skippable_test(test_ref)
                 and _is_test_unskippable(item)
@@ -758,6 +764,15 @@ class TestOptPlugin(TestOptPluginProtocol):
             # Add custom tags if available
             if custom_tags := _get_test_custom_tags(item):
                 test.set_tags(custom_tags)
+
+            # Read the declaration rather than reporting tags: tags alone do not change execution policy.
+            callback = getattr(item, "obj", None)
+            test.prevent_failure_suppression = getattr(callback, "_dd_prevent_failure_suppression", False) is True
+            test.no_auto_retry = getattr(callback, "_dd_no_auto_retry", False) is True
+            if test.prevent_failure_suppression:
+                test.tags[TestTag.PREVENT_FAILURE_SUPPRESSION] = TAG_TRUE
+            if test.no_auto_retry:
+                test.tags[TestTag.NO_AUTO_RETRY] = TAG_TRUE
 
         return self.manager.discover_test(
             test_ref,
@@ -1078,6 +1093,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
+        if test.no_auto_retry:
+            return None
         for handler in self.manager.retry_handlers:
             if handler.should_apply(test):
                 return handler
@@ -1264,6 +1281,15 @@ class TestOptPlugin(TestOptPluginProtocol):
         if report.failed:
             status = TestStatus.FAIL
             tags.update(_get_exception_tags(excinfo))
+        elif (
+            report.skipped
+            and getattr(report, "wasxfail", None) == "dd_quarantined"
+            and (test := self.tests_by_nodeid.get(nodeid)) is not None
+            and test.no_auto_retry
+        ):
+            # External retry plugins see quarantine as xfail, but the executed callback still failed.
+            status = TestStatus.FAIL
+            tags.update(_get_exception_tags(excinfo))
         elif report.skipped:
             status = TestStatus.SKIP
             reason = str(excinfo.value) if excinfo else "Unknown skip reason"
@@ -1384,6 +1410,8 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         "skipped" (xfail), which prevents ATR from seeing a FAIL status and retrying. Instead, quarantine masking is
         applied after all retries in _apply_quarantine_masking.
         """
+        if test.no_auto_retry and any(item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS):
+            return super()._apply_test_management_markers(item, test)
         if not self.manager.settings.test_management.enabled:
             return
         if test.is_disabled() and not test.is_attempt_to_fix():
@@ -1394,8 +1422,17 @@ class TestOptPluginWithProtocol(TestOptPlugin):
             # Quarantine masking is deferred to _apply_quarantine_masking so ATR can see real FAIL status.
             return
 
+    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> t.Optional[bool]:
+        # Older pluggy inspects the concrete signature and cannot inject arguments through the exception wrapper.
+        return self._run_test_protocol(item, nextitem)
+
     @catch_and_log_exceptions()
-    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+    def _run_test_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> t.Optional[bool]:
+        # Let explicitly configured retry plugins drive excluded tests through the ordinary wrapper.
+        if getattr(getattr(item, "obj", None), "_dd_no_auto_retry", False) is True and any(
+            item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS
+        ):
+            return None
         # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
         # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
         # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
@@ -1461,6 +1498,23 @@ class TestOptPluginWithProtocol(TestOptPlugin):
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
         return True
+
+
+class _ExcludedTestProtocolWrapper:
+    """Retain lifecycle tracing when older pluggy versions delegate excluded tests to retry plugins."""
+
+    def __init__(self, plugin: TestOptPlugin) -> None:
+        self.plugin = plugin
+
+    @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+    def pytest_runtest_protocol(
+        self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
+    ) -> t.Generator[None, None, None]:
+        if getattr(getattr(item, "obj", None), "_dd_no_auto_retry", False) is True:
+            protocol = getattr(TestOptPlugin, "pytest_runtest_protocol")
+            yield from protocol(self.plugin, item, nextitem)
+        else:
+            yield
 
 
 class RetryReports:
@@ -1833,6 +1887,8 @@ def pytest_configure(config: pytest.Config) -> None:
         return
 
     config.pluginmanager.register(plugin)
+    if not _HOOKIMPL_SUPPORTS_SPECNAME and detected_rerun_plugins and dd_retries_enabled:
+        config.pluginmanager.register(_ExcludedTestProtocolWrapper(plugin))
     config.pluginmanager.add_hookspecs(TestOptHooks)
 
     if config.pluginmanager.hasplugin("xdist"):
