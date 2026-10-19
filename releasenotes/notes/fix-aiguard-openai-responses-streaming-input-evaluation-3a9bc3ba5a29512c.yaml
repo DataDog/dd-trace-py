@@ -3,4 +3,6 @@ fixes:
   - |
     AI Guard: Fixes an issue where streaming OpenAI Responses API calls (``responses.create(stream=True)``)
     were not evaluated when ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` was unset or ``false``.
-    Request inputs are now evaluated, matching Chat Completions and Anthropic streaming calls.
+    Request inputs are now evaluated, matching Chat Completions and Anthropic streaming calls, so these
+    calls can now be blocked when blocking is enabled. To keep evaluating without blocking, set
+    ``DD_AI_GUARD_BLOCK=false``; to disable AI Guard for OpenAI, set ``DD_AI_GUARD_OPENAI_ENABLED=false``.

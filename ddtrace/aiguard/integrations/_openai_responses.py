@@ -448,12 +448,9 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
 
 
 def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any], resp: Any) -> None:
-    """Listener for ``openai.responses.create.after``.
+    """Listener for openai.responses.create.after; evaluates input + output, skipped under a framework context.
 
-    Evaluates the full conversation (input + output) after the Responses API
-    returns. ``.after`` only fires on non-streaming responses (the contrib
-    patch gates the dispatch on ``not stream``); when a framework evaluation
-    is already active we skip to avoid double-evaluation.
+    Fires for non-streaming responses, and at stream end when stream response evaluation is enabled.
     """
     if is_aiguard_context_active():
         logger.debug("AI Guard openai responses after-hook skipped: framework context active")

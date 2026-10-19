@@ -185,7 +185,7 @@ async def test_chat_stream_async_buffered_block(mock_execute_request, async_open
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_responses_stream_sync_buffered_allow(mock_execute_request, openai_responses_stream_client_buffered):
-    """ALLOW: responses.create(stream=True) buffers; before-hook (lifted) + response eval."""
+    """ALLOW: responses.create(stream=True) buffers; request eval + response eval."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     stream = openai_responses_stream_client_buffered.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
