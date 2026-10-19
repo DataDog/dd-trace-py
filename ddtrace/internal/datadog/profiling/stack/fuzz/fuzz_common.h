@@ -23,10 +23,19 @@
 
 #include "fuzz_memory_image.h"
 
+#if defined(ECHION_FUZZ_TEST)
+// Native regression tests observe the actual harness's reads without changing the production fuzz target.
+void
+echion_fuzz_on_read(const void* addr, ssize_t len);
+#endif
+
 extern "C" int
 echion_fuzz_copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 {
     (void)proc_ref;
+#if defined(ECHION_FUZZ_TEST)
+    echion_fuzz_on_read(addr, len);
+#endif
     return echion_fuzz_memory_image_read(addr, len, buf);
 }
 

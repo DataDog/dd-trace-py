@@ -115,6 +115,17 @@ configure_stack_internal_test(test_sampling_cycle_state)
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
 
+if(Python3_VERSION VERSION_GREATER_EQUAL "3.14")
+    # Compile the real harness and traversal with the fuzz reader so seeds prove both native list sources are reached.
+    dd_wrapper_add_test(test_task_fuzz_coverage test_task_fuzz_coverage.cpp ../fuzz/fuzz_echion_thread_unwind_tasks.cpp
+                        ../src/echion/threads.cc ../src/echion/stacks.cc)
+    configure_stack_internal_test(test_task_fuzz_coverage)
+    target_link_libraries(test_task_fuzz_coverage PRIVATE dd_wrapper)
+    target_include_directories(test_task_fuzz_coverage PRIVATE ../fuzz)
+    target_compile_definitions(test_task_fuzz_coverage PRIVATE ECHION_FUZZING ECHION_FUZZ_TEST
+                                                               FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
+endif()
+
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
