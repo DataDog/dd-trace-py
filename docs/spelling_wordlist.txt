@@ -294,6 +294,7 @@ rediscluster
 renderer
 renderers
 repo
+rerank
 resolvers
 respawn
 rlocation
