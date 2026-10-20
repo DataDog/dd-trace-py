@@ -88,10 +88,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 if not token_counts:
                     continue
                 input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
-                # `tool_use_prompt_token_count` counts tool-execution results that
-                # Gemini feeds back as input; `total_token_count` is documented as
-                # the sum of prompt, candidates, tool-use and thoughts counts, so
-                # fold it in to keep input + output equal to total.
+                # total_token_count includes tool-use prompt tokens, so count them as input
                 tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
                 if input_tokens is not None or tool_use_tokens is not None:
                     input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
@@ -107,10 +104,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 return
 
             input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
-            # `tool_use_prompt_token_count` counts tool-execution results that
-            # Gemini feeds back as input; `total_token_count` is documented as
-            # the sum of prompt, candidates, tool-use and thoughts counts, so
-            # fold it in to keep input + output equal to total.
+            # total_token_count includes tool-use prompt tokens, so count them as input
             tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
             if input_tokens is not None or tool_use_tokens is not None:
                 input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)

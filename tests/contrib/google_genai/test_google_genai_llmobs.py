@@ -699,9 +699,6 @@ class TestLLMObsGoogleGenAI:
         }
 
     def test_code_execution_tool_use_prompt_token_count(self, genai_client_vcr, genai_llmobs, test_spans):
-        # Regression test for #20783: the cassette's usageMetadata carries
-        # toolUsePromptTokenCount (619) in addition to prompt/candidates/thoughts counts.
-        # It must be folded into input_tokens so that input + output == total on the span.
         genai_client_vcr.models.generate_content(
             model="gemini-2.5-flash",
             contents="What is the sum of the first 50 prime numbers? Generate and run code for the calculation, and make sure you get all 50.",  # noqa: E501
@@ -731,9 +728,7 @@ def test_shadow_tags_generate_when_llmobs_disabled(tracer):
     response.usage_metadata.candidates_token_count = 6
     response.usage_metadata.thoughts_token_count = 0
     response.usage_metadata.total_token_count = 18
-    # A MagicMock auto-creates any attribute that is read, so pin the new
-    # tool-use count to None here: `extract_generation_metrics_google_genai`
-    # folds it into input_tokens, and an auto-created mock would inflate them.
+    # otherwise MagicMock auto-creates it and inflates input_tokens
     response.usage_metadata.tool_use_prompt_token_count = None
     response.model_version = "gemini-2.0-flash"
 
