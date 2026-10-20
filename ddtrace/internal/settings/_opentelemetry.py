@@ -110,8 +110,16 @@ def _derive_traces_headers(config: "ExporterConfig"):
     return get_config("OTEL_EXPORTER_OTLP_TRACES_HEADERS", config.HEADERS)
 
 
+def _normalize_traces_protocol(protocol: str) -> str:
+    protocol = protocol.strip().lower()
+    if protocol not in ("grpc", "http/json", "http/protobuf"):
+        return "http/protobuf"
+    return protocol
+
+
 def _derive_traces_protocol(config: "ExporterConfig"):
-    return get_config(["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], "http/protobuf")
+    protocol = get_config(["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], "http/protobuf")
+    return _normalize_traces_protocol(protocol)
 
 
 def _derive_traces_timeout(config: "ExporterConfig"):
@@ -122,9 +130,7 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     # Signal-specific endpoint takes precedence (full URL, no path appended).
     if traces_endpoint := env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
         return traces_endpoint
-    protocol = config.TRACES_PROTOCOL.strip().lower()
-    if protocol not in ("grpc", "http/json", "http/protobuf"):
-        protocol = "http/protobuf"
+    protocol = config.TRACES_PROTOCOL
     # A global HTTP endpoint is a base URL; gRPC uses it as-is.
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:

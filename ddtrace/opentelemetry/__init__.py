@@ -167,7 +167,8 @@ The following environment variables are supported:
   Defines the target endpoint for the corresponding OTLP signal (default: ``http://<agent_hostname>:4317``).
 
 - ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``
-  Defines the target endpoint for OTLP traces (default: ``http://<agent_hostname>:4318/v1/traces``).
+  Defines the target endpoint for OTLP traces. The default is ``http://<agent_hostname>:4317``
+  for gRPC and ``http://<agent_hostname>:4318/v1/traces`` for HTTP.
 
 - ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_HEADERS``
   Optional comma-separated key-value pairs for OTLP export (default: empty).
@@ -177,7 +178,9 @@ The following environment variables are supported:
 
 - ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_PROTOCOL``
   OTLP protocol used for export. Metrics and logs support ``grpc`` (default) and ``http/protobuf``.
-  Traces also support ``http/json``.
+  Traces support ``grpc``, ``http/protobuf`` (default), and ``http/json``. Trace-specific protocol
+  configuration takes precedence over the global ``OTEL_EXPORTER_OTLP_PROTOCOL`` setting. gRPC
+  trace export currently supports plaintext ``http://`` endpoints only.
 
 OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
 

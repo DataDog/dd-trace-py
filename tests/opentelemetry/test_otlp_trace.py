@@ -32,6 +32,34 @@ def test_otlp_traces_sent_via_grpc():
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS": "X-Test-Header=value",
+        "DD_TRACE_SAMPLE_RATE": "1",
+    }
+)
+def test_otlp_traces_sent_via_grpc_with_global_protocol():
+    from tests.opentelemetry.utils import capture_otlp_traces
+
+    with capture_otlp_traces("grpc") as requests:
+        from ddtrace.trace import tracer
+
+        with tracer.trace("global-grpc-span", service="test-svc"):
+            pass
+        tracer.flush()
+
+    spans = [
+        span
+        for request in requests
+        for resource_spans in request.resource_spans
+        for scope_spans in resource_spans.scope_spans
+        for span in scope_spans.spans
+    ]
+    assert {span.name for span in spans} == {"global-grpc-span"}
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
         "DD_TRACE_SAMPLE_RATE": "1",

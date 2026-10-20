@@ -141,6 +141,7 @@ def test_empty_otel_configuration_uses_defaults():
 def test_unsupported_trace_protocol_uses_http_endpoint():
     from ddtrace.internal.settings._opentelemetry import otel_config
 
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
     assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
 
 
@@ -148,7 +149,35 @@ def test_unsupported_trace_protocol_uses_http_endpoint():
 def test_whitespace_padded_trace_protocol_uses_http_endpoint():
     from ddtrace.internal.settings._opentelemetry import otel_config
 
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
     assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+    }
+)
+def test_global_grpc_trace_endpoint_is_used_without_http_path():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
+    assert otel_config.exporter.TRACES_ENDPOINT == "http://collector:4317"
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+    }
+)
+def test_trace_protocol_overrides_global_protocol_and_appends_http_path():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.TRACES_ENDPOINT == "http://collector:4318/v1/traces"
 
 
 @pytest.mark.subprocess(
@@ -463,7 +492,9 @@ def test_otel_resource_attributes_version_tag():
         ("key=value", [("key", "value")]),
         ("k1=v1,k2=v2,k3=v3", [("k1", "v1"), ("k2", "v2"), ("k3", "v3")]),
         ("  k1 = v1 ,  k2 = v2 ", [("k1", "v1"), ("k2", "v2")]),
+        ("X-Test-Header=value", [("x-test-header", "value")]),
         ("invalid,key=value", [("key", "value")]),
+        ("=value", []),
         ("key=val=extra", [("key", "val=extra")]),
     ],
 )

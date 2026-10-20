@@ -841,14 +841,14 @@ class TraceExporterBuilder:
     def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
         """
         Select the OTLP export protocol: "grpc", "http/json", or "http/protobuf".
-        Any other value raises ValueError.
+        Any other value raises ValueError. gRPC supports plaintext endpoints only.
         :param protocol: The OTLP protocol.
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
         Set additional metadata for OTLP trace export requests.
-        :param headers: A list of (key, value) header pairs.
+        :param headers: A list of (key, value) header pairs. gRPC metadata keys must be lowercase.
         """
         ...
     def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
