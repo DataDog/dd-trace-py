@@ -386,6 +386,14 @@ def openai_responses_stream_client(openai_sdk, _require_responses_api):
 
 
 @pytest.fixture
+def async_openai_responses_stream_client(openai_sdk, _require_responses_api):
+    return openai_sdk.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncResponsesStreamMockTransport()),
+    )
+
+
+@pytest.fixture
 def openai_responses_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
     return openai_sdk_buffered.OpenAI(
         api_key="<not-a-real-key>",

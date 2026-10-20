@@ -35,14 +35,18 @@ Bottle supplies request and route values to the shared HTTP controller. The HTTP
 tracing subscriber selects Bottle conventions and builds the historical METHOD rule
 resource; route data retains the script_name prefix for http.route.
 
-TracePlugin delegates framework hook installation to BottleHooks in
-bottle/lifecycle.py. HttpLifecycle in contrib/internal/http_server.py owns identity,
-observations, block checks and preservation, and completion. WsgiLifecycleDriver in
-contrib/internal/http_wsgi.py owns activation, response delivery, iteration and
-close. Other WSGI integrations reuse both shared layers and supply request extraction,
-framework response conversion, routing/handler hooks, and handled-error capture.
-The shared driver has no Bottle dependency. Hook lookup is scoped to its driver so
-nested applications do not use another application's controller.
+TracePlugin keeps Bottle-specific hook installation in bottle/trace.py; no
+per-integration lifecycle module or adapter class is required. HttpLifecycle in
+contrib/internal/http_server.py owns identity, observations, block checks and
+preservation, and completion. WsgiLifecycleDriver in contrib/internal/http_wsgi.py
+owns activation, response delivery, iteration and close. It needs only get_config;
+standard WSGI request extraction and blocking-response framing are built in.
+Optional request_data and blocking_response callbacks preserve framework-specific
+behavior. Bottle supplies those callbacks to keep its native normalization and
+response defaults. Frameworks add routing/handler hooks and handled-error capture
+in their existing integration module. The driver has no Bottle dependency, and
+hook lookup is scoped to its driver so nested applications do not use another
+application's controller.
 
 Route-local plugins retain _trace_route_callback and use create_http_server_context
 because they cannot observe the WSGI boundary. The normal WSGI path uses the same
