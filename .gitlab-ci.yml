@@ -145,6 +145,7 @@ run-tests-trigger:
    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+   DD_TEST_RUNTIME_PROBE: "$DD_TEST_RUNTIME_PROBE"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
