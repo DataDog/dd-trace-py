@@ -553,6 +553,9 @@ class AIGuardClient:
                     source_tags = _OTEL_ANOMALY_SOURCE_TAGS if config._otel_trace_semantics_enabled else {}
                     for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
                         tag_value = root_span.get_tag(source_tags.get(tag_name, tag_name))
+                        if tag_value is None:
+                            # Inferred proxy roots keep the Datadog attribute names under OTel semantics.
+                            tag_value = root_span.get_tag(tag_name)
                         if tag_value is not None:
                             span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
                 if should_block:
