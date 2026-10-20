@@ -142,3 +142,26 @@ def test_live_dispatcher_imported_after_patch_is_not_double_wrapped(monkeypatch)
     finally:
         unpatch()
     assert not iswrapped(getattr(sys.modules[live_module_name], live_name))
+
+
+def test_dispatcher_wrapped_by_other_instrumentation_is_still_traced_and_kept(monkeypatch):
+    """A wrapper installed by other wrapt-based instrumentation is neither mistaken for ours (so tool
+    calls are still traced) nor removed by unpatch().
+    """
+    import wrapt
+
+    from ddtrace.contrib.internal.google_adk.patch import _traced_functions_call_tool_async
+
+    unpatch()  # patch() is a no-op if an earlier test left the integration patched
+    dispatch_module, dispatch_name = _tool_dispatch_target(GOOGLE_ADK_VERSION)
+    module = importlib.import_module(f"google.adk.{dispatch_module}")
+    other_wrapper = wrapt.FunctionWrapper(getattr(module, dispatch_name), lambda wrapped, i, a, k: wrapped(*a, **k))
+    monkeypatch.setattr(module, dispatch_name, other_wrapper)
+    try:
+        patch()
+        dispatcher = getattr(module, dispatch_name)
+        assert getattr(dispatcher, "_self_wrapper", None) is _traced_functions_call_tool_async
+        assert dispatcher.__wrapped__ is other_wrapper
+    finally:
+        unpatch()
+    assert getattr(module, dispatch_name) is other_wrapper

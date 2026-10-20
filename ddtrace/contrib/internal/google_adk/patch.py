@@ -83,16 +83,23 @@ def _wrap_tool_dispatcher(module_path, name, traced_fn):
         )
         return
     # A module that copies the dispatcher with `from ... import` after another copy was wrapped
-    # already holds the wrapper; wrapping it again would trace each tool call twice.
-    if iswrapped(module, name):
+    # already holds our wrapper; wrapping it again would trace each tool call twice.
+    if _is_wrapped_by(getattr(module, name), traced_fn):
         return
     wrap(module, name, traced_fn)
 
 
-def _unwrap_tool_dispatcher(module_path, name):
+def _unwrap_tool_dispatcher(module_path, name, traced_fn):
     module = sys.modules.get(f"google.adk.{module_path}")
-    if module is not None and iswrapped(module, name):
+    if module is not None and _is_wrapped_by(getattr(module, name, None), traced_fn):
         unwrap(module, name)
+
+
+def _is_wrapped_by(obj, traced_fn):
+    """Whether obj is a wrapper installed with traced_fn, so wrappers added by other instrumentation
+    are neither mistaken for ours nor removed by unpatch().
+    """
+    return iswrapped(obj) and getattr(obj, "_self_wrapper", None) is traced_fn
 
 
 def _traced_agent_run_async(wrapped, instance, args, kwargs):
@@ -372,12 +379,12 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
 
-    _unwrap_tool_dispatcher(*_tool_dispatch_target(GOOGLE_ADK_VERSION))
+    _unwrap_tool_dispatcher(*_tool_dispatch_target(GOOGLE_ADK_VERSION), _traced_functions_call_tool_async)
     live_target = _live_tool_dispatch_target(GOOGLE_ADK_VERSION)
     if live_target is not None:
-        _unwrap_tool_dispatcher(*live_target)
+        _unwrap_tool_dispatcher(*live_target, _traced_functions_call_tool_async)
     if GOOGLE_ADK_VERSION < (2, 7, 0):
-        _unwrap_tool_dispatcher("flows.llm_flows.functions", "__call_tool_live")
+        _unwrap_tool_dispatcher("flows.llm_flows.functions", "__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
