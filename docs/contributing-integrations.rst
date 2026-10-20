@@ -219,13 +219,22 @@ Block checks are synchronous and run only before response commitment. Retaining 
 event or raising from a different thread cannot control the request. There is no
 acceptance callback, capability set, or post-commit stream termination API. Blocking
 is not an application error; response and completion observations still report the
-outcome, including delivery failures. See :doc:`http-contract-api-changes` for history.
+outcome, including delivery failures. Response delivery, stream closure, HEAD body
+suppression, and completion stay with the integration; a consumer chooses whether to
+block and with what response, never how that response reaches the client.
 
 Bottle emits events when a consumer is registered even if tracing is disabled,
 without creating a request span. Consumers should register before request entry to
 observe the complete lifecycle. With no tracing, observation, or block-check listeners,
-the WSGI wrapper delegates directly to Bottle. Route-local plugins publish only route
-resolution and callback completion; they have no WSGI boundary and emit no block checks.
+the WSGI wrapper delegates directly to Bottle.
+
+The before-handler observation and its block check wrap the resolved callback's whole
+plugin chain, so they do not depend on which plugins a route applies: a route that
+skips the trace plugin still publishes handler activity and can still be blocked with
+tracing disabled, and a route cache reset reinstalls the boundary. Route-local plugins
+are the exception. They publish only route resolution and callback completion; they
+have no WSGI boundary and emit no block checks, so a consumer cannot block a route
+whose only instrumentation is a route-local plugin.
 
 
 Testing HTTP contract adapters
