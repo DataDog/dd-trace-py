@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where ``google_genai`` and ``vertexai`` LLM spans did not
+    include ``tool_use_prompt_token_count`` in the input token count. As a result, the sum of input and
+    output tokens was less than the total token count when the model used tools such as code execution.
