@@ -488,6 +488,23 @@ def test_an_attempt_that_fails_without_a_usable_error_name_is_still_an_error(log
     assert request["provider_operations"] == 3
 
 
+def test_failures_after_timezone_aware_start_times_are_recorded(logger, writer, monkeypatch):
+    # LiteLLM can pass timezone-aware start times; the end of a failure the integration timestamps itself must be
+    # comparable with them, on every failure path.
+    monkeypatch.setitem(at.__globals__, "T0", datetime.datetime.now(datetime.timezone.utc))
+    proxy = Proxy(logger)
+    proxy.start()
+    proxy.attempt(0)
+    proxy.attempt_failed(TimeoutError())
+    proxy.attempt(0)
+    logger.attempt_failed({"litellm_call_id": "call-1"}, TimeoutError())
+    proxy.attempt(0)
+    proxy.failed(TimeoutError())
+    attempts = [observation for observation, _ in writer.of(PROVIDER_ATTEMPT)]
+    assert [a["error_type"] for a in attempts] == ["timeout_error"] * 3
+    assert all(a["duration_seconds"] >= 0 for a in attempts)
+
+
 def test_client_disconnect(logger, writer):
     proxy = Proxy(logger, stream=True)
     proxy.start()
@@ -1339,7 +1356,12 @@ def test_patching_off_the_main_thread_flushes_on_tracer_shutdown(enabled, monkey
     [processor] = registered
     flushed = []
     monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_shutdown", lambda *args: flushed.append(True))
+    # Another tracer shutting down shuts the global processors down too, but the process is not exiting.
     processor.shutdown(None)
+    assert flushed == []
+    # The global tracer holds its shutdown lock while it shuts its processors down.
+    with tracer._shutdown_lock:
+        processor.shutdown(None)
     assert flushed == [True]
     # The tracer's shutdown timeout bounds the flush.
     deadlines = []
@@ -1347,7 +1369,8 @@ def test_patching_off_the_main_thread_flushes_on_tracer_shutdown(enabled, monkey
         litellm._datadog_usage_metrics_writer, "on_shutdown", lambda deadline=None: deadlines.append(deadline)
     )
     before = time.monotonic()
-    processor.shutdown(0)
+    with tracer._shutdown_lock:
+        processor.shutdown(0)
     [deadline] = deadlines
     assert before <= deadline <= time.monotonic()
 

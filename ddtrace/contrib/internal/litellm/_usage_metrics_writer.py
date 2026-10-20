@@ -316,7 +316,13 @@ class _DogStatsdSender:
                 log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
                 return
             try:
-                self._connect().send(data)
+                sock = self._connect()
+                # Resolving the host name is not bounded by the socket timeout and can outlast the deadline.
+                if self._deadline is not None and time.monotonic() >= self._deadline:
+                    log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
+                    self.close()
+                    return
+                sock.send(data)
                 return
             except OSError as e:
                 if e.errno == errno.EMSGSIZE:

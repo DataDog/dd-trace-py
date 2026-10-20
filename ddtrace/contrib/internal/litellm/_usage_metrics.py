@@ -335,6 +335,13 @@ def _metadata(kwargs: dict[str, Any]) -> dict[str, Any]:
     return metadata if isinstance(metadata, dict) else {}
 
 
+def _now_like(start: Any) -> datetime.datetime:
+    """Now, in the time zone of start: LiteLLM's timestamps can be timezone-aware, and an aware and a naive
+    datetime cannot be subtracted.
+    """
+    return datetime.datetime.now(start.tzinfo if isinstance(start, datetime.datetime) else None)
+
+
 def _seconds(start: Any, end: Any) -> Optional[float]:
     if isinstance(start, datetime.datetime) and isinstance(end, datetime.datetime):
         try:
@@ -673,7 +680,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
                 self._record_attempt(
-                    request, attempt, kwargs, datetime.datetime.now(), error_type(exception) or "error", None
+                    request, attempt, kwargs, _now_like(attempt.start), error_type(exception) or "error", None
                 )
                 self._forget_if_done(call_id, request)
         except Exception:
@@ -895,7 +902,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
                 self._record_attempt(
-                    request, attempt, request_data, datetime.datetime.now(), error_type(exception) or "error", None
+                    request, attempt, request_data, _now_like(attempt.start), error_type(exception) or "error", None
                 )
                 self._forget_if_done(call_id, request)
         except Exception:
@@ -962,7 +969,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 self._close_unreported_attempts(request, last)
                 if last is not None:
                     self._record_attempt(
-                        request, last, request_data, datetime.datetime.now(), error, _failure_payload(request_data)
+                        request, last, request_data, _now_like(last.start), error, _failure_payload(request_data)
                     )
                 self._record_request(
                     call_id, request, request_data, error, False, _charged_on_failure(request_data), failed=True

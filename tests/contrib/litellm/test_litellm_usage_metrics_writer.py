@@ -810,6 +810,25 @@ class SizeLimitedSocket:
         self.closed = True
 
 
+def test_dogstatsd_rechecks_the_deadline_after_resolving_the_host(monkeypatch):
+    # Name resolution is not bounded by the socket timeout: a slow one must not lead to a send after the deadline.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+
+    def slow_getaddrinfo(host, *args, **kwargs):
+        time.sleep(0.2)
+        return [(socket.AF_INET, socket.SOCK_DGRAM, 17, "", ("127.0.0.1", port))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", slow_getaddrinfo)
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://dogstatsd.test:{port}")
+    receiver = Receiver(sock)
+    sender = _usage_metrics_writer._DogStatsdSender()
+    sender.send(["a:1|c"], deadline=time.monotonic() + 0.05)
+    assert receiver.stop() == []
+    assert sender._socket is None
+
+
 class FullSocket:
     """A datagram socket whose buffer stays full, as macOS reports at once instead of blocking."""
 

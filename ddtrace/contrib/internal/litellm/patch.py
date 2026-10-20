@@ -25,6 +25,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -400,6 +401,11 @@ class _ExitSignalFlush(SpanProcessor):
         pass
 
     def shutdown(self, timeout):
+        # Every Tracer shuts the global span processors down. Only the global tracer's shutdown, which its exit-signal
+        # handler runs, means the process is exiting; an application's own tracer shutting down must not stop the
+        # writer's retries.
+        if not tracer._shutdown_lock.locked():
+            return
         _flush_usage_metrics_on_exit_signal(None if timeout is None else time.monotonic() + max(timeout, 0.0))
 
 
