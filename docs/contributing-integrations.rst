@@ -138,8 +138,25 @@ plugin skip settings and callback-cache resets.
 Bottle implements these hooks in ``ddtrace.contrib.internal.bottle.lifecycle``;
 its public ``TracePlugin`` retains configuration and plugin setup. Route-local
 plugins retain their callback-only fallback because they cannot observe the WSGI
-boundary. See ``examples/http-events/lifecycle.py`` for wiring. ASGI requires a
-separate async transport driver; this migration supplies only the WSGI driver.
+boundary. See ``examples/http-events/lifecycle.py`` for wiring.
+
+The opt-in ASGI proof uses the same ``HttpLifecycle`` controller through
+``ddtrace.contrib.internal.http_asgi.AsgiLifecycleDriver``. Only ``get_config`` is
+required: ``driver.wrap(app)`` supplies standard request extraction, asynchronous
+response delivery, blocking, and completion. An optional ``request_data`` callback
+preserves framework-specific normalization. ``driver.wrap_handler`` adds route
+observations and pre-handler checks around a selected ASGI endpoint. Frameworks
+with native middleware hooks can call ``driver.before_handler`` with the scope,
+route, and route pattern instead. The Falcon ASGI contract proof in
+``tests/contrib/falcon/test_http_lifecycle.py`` exercises this path through
+``process_resource``; no Falcon lifecycle module is needed.
+
+Starlette's existing ``patch`` module supplies ``instrument_http``, a context
+manager that identifies routes and installs those shared handler wrappers. It
+restores the original route callables on exit. No Starlette lifecycle class or
+framework-hooks interface is required. This proof remains separate from automatic
+patching; see ``examples/http-events/README.md`` for its compatibility limits and
+``examples/http-events/asgi_lifecycle.py`` for wiring.
 
 The application-installed Bottle plugin publishes this contract at these boundaries:
 

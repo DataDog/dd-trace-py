@@ -6,7 +6,8 @@ from dataclasses import replace
 import sys
 from typing import Any
 from typing import Optional
-from typing import Protocol
+from urllib.parse import parse_qsl
+from urllib.parse import urlunsplit
 
 from ddtrace.contrib._events.http import HttpBlockingResponse
 from ddtrace.contrib._events.http import HttpRequestData
@@ -25,10 +26,22 @@ _REQUEST = "datadog.http.asgi.request"
 _TRANSPORT_HEADERS = frozenset(("connection", "transfer-encoding", "content-length", "trailer", "upgrade"))
 
 
-class AsgiFrameworkHooks(Protocol):
-    def request_data(self, scope: Scope) -> HttpRequestData: ...
-
-    def fallback_route(self, scope: Scope) -> Optional[tuple[str, str]]: ...
+def request_data_from_scope(scope: Scope) -> HttpRequestData:
+    """Copy ASGI HTTP values without consuming receive or retaining scope."""
+    headers = tuple((key.decode("latin-1"), value.decode("latin-1")) for key, value in scope.get("headers", ()))
+    query = scope.get("query_string", b"").decode("latin-1")
+    scheme = scope.get("scheme", "http")
+    authority = next((value for key, value in headers if key.lower() == "host"), "")
+    server = scope.get("server")
+    if not authority and server is not None:
+        host, port = server
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        authority = host
+        if port is not None and port != {"http": 80, "https": 443}.get(scheme):
+            authority += f":{port}"
+    url = urlunsplit((scheme if authority else "", authority, scope["path"], query, ""))
+    return HttpRequestData(scope["method"], url, headers, query, tuple(parse_qsl(query, keep_blank_values=True)))
 
 
 class _Blocked(BaseException):
@@ -46,13 +59,38 @@ def _valid_block(block: HttpBlockingResponse) -> bool:
 
 
 class AsgiLifecycleDriver:
-    def __init__(self, *, hooks: AsgiFrameworkHooks, get_config: Callable[[], Optional[HttpLifecycleConfig]]) -> None:
-        self.hooks = hooks
+    def __init__(
+        self,
+        *,
+        get_config: Callable[[], Optional[HttpLifecycleConfig]],
+        request_data: Callable[[Scope], HttpRequestData] = request_data_from_scope,
+    ) -> None:
+        self.request_data = request_data
         self.get_config = get_config
 
     def current(self, scope: Scope) -> Optional["AsgiRequest"]:
         request = scope.get(_REQUEST)
         return request if isinstance(request, AsgiRequest) and request.driver is self else None
+
+    async def before_handler(self, scope: Scope, *, route: str, route_pattern: str) -> None:
+        """Run shared checks from a framework's selected-handler hook."""
+        request = self.current(scope)
+        if request is not None:
+            block = request.lifecycle.route_resolved(route, route_pattern)
+            if block is not None:
+                await request.enforce_block(block)
+            block = request.lifecycle.before_handler()
+            if block is not None:
+                await request.enforce_block(block)
+
+    def wrap_handler(self, app: Application, *, route: str, route_pattern: str) -> Application:
+        """Report a selected endpoint and enforce checks before entering it."""
+
+        async def wrapped(scope: Scope, receive: Receive, send: Send) -> None:
+            await self.before_handler(scope, route=route, route_pattern=route_pattern)
+            await app(scope, receive, send)
+
+        return wrapped
 
     def wrap(self, app: Application) -> Application:
         async def wrapped(scope: Scope, receive: Receive, send: Send) -> None:
@@ -63,7 +101,7 @@ class AsgiLifecycleDriver:
             if _REQUEST in scope:
                 raise RuntimeError("nested ASGI lifecycle drivers are not supported by this prototype")
             lifecycle = HttpLifecycle(
-                replace(settings, finish_on_response=True), self.hooks.request_data(scope), validate_block=_valid_block
+                replace(settings, finish_on_response=True), self.request_data(scope), validate_block=_valid_block
             )
             request = AsgiRequest(self, lifecycle, scope, receive, send)
             scope[_REQUEST] = request
@@ -82,7 +120,6 @@ class AsgiRequest:
         self.driver = driver
         self.lifecycle = lifecycle
         self.scope = scope
-        self.original_scope = dict(scope)
         self.receive = receive
         self.downstream_send = send
         self.trailers = False
@@ -94,10 +131,6 @@ class AsgiRequest:
         lifecycle = self.lifecycle
         if lifecycle.completed:
             return
-        if lifecycle.request_data.route is None:
-            route = self.driver.hooks.fallback_route(self.original_scope)
-            if route is not None:
-                lifecycle.request_data = replace(lifecycle.request_data, route=route[0], route_pattern=route[1])
         lifecycle.complete()
 
     async def run(self, app: Application) -> None:

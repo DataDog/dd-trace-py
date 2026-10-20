@@ -6,11 +6,29 @@ The prototype is executable, but does not replace automatic Starlette patching.
 
 ## Run the proof
 
-Construct a Starlette app normally, then serve the callable returned by
-`wire_starlette(app, integration_config=config.starlette)` after initializing
-Starlette integration configuration. Call its `close()` method to restore the route hooks when
-finished. Do not combine this wrapper with the existing tracing middleware or
-install it twice. Recreate the wrapper after adding routes.
+Construct a Starlette app normally, then keep the returned context manager open
+while serving its instrumented callable:
+
+```python
+with wire_starlette(app, integration_config=config.starlette) as instrumented:
+    # Pass instrumented to your ASGI server here.
+    ...
+```
+
+Exiting the context restores the route hooks, including on failure. Do not combine
+this proof with the existing tracing middleware. Duplicate installation on the same
+app is rejected. Re-enter after adding routes.
+
+Plain ASGI applications need no framework adapter at all:
+
+```python
+driver = AsgiLifecycleDriver(get_config=lambda: settings)
+instrumented = driver.wrap(app)
+```
+
+The driver extracts standard ASGI values by default. A request_data callback can
+override normalization where needed. Starlette preserves its version-specific URL
+normalization through a small callback; all other extraction is shared.
 
 `tests/contrib/starlette/test_http_lifecycle.py` exercises real Starlette routes
 using the same `HttpContractTests` as Bottle, plus transport-specific cases. Run
@@ -23,9 +41,12 @@ it with the repository `scripts/run-tests` runner and a Starlette environment.
   `finish()` additionally exits the context in its owning task.
 - `contrib/internal/http_asgi.py` owns response-start/body/trailer delivery,
   replacement response framing, scope lookup, failure and cancellation cleanup.
-  It preserves receive without eagerly reading request bodies.
-- `contrib/internal/starlette/lifecycle.py` wraps selected routes, including mount
-  prefixes, and emits route and pre-handler checks. It restores hooks on close.
+  It extracts request values, wraps selected handlers, and preserves receive
+  without eagerly reading request bodies.
+- `contrib/internal/starlette/patch.py` identifies routes and mount prefixes and
+  installs the shared handler wrappers. There is no Starlette lifecycle class or
+  required framework-hooks interface. Request state and events stay in http_server;
+  ASGI execution and block enforcement stay in http_asgi.
 - The shared tracing subscriber finalizes metadata and, when the request context
   opts into `finish_on_response`, finishes successful spans at response completion.
   Owner-task cleanup still occurs later. Error responses wait for app unwind so
@@ -56,3 +77,33 @@ IAST compatibility are not implemented. Disconnect messages are passed through;
 completion follows application termination rather than treating a received
 message as proof that execution has stopped. ASGI response extensions other than
 body/trailers need separate policies before production use.
+
+
+## Independent Falcon ASGI proof
+
+`tests/contrib/falcon/test_http_lifecycle.py` runs the same `HttpContractTests`
+against a real `falcon.asgi.App`, with no Starlette dependency or Falcon lifecycle
+module. This is test-only wiring; automatic Falcon instrumentation is unchanged.
+The app is wrapped by `AsgiLifecycleDriver.wrap`. A native resource middleware
+hook supplies the selected route:
+
+```python
+class RouteHook:
+    async def process_resource(self, req, resp, resource, params):
+        await driver.before_handler(
+            req.scope, route=req.uri_template, route_pattern=req.uri_template
+        )
+```
+
+This calls the same checks as `wrap_handler`, without requiring the framework's
+responder to have an ASGI signature. Register this hook after other resource
+middleware so their short circuits run before the handler boundary. Request
+extraction, blocking responses, streaming, and completion stay in the shared
+driver. The proof also covers route misses, request-middleware short circuits,
+streaming, and route attribution.
+
+Falcon catches ordinary responder exceptions and renders a 500 response inside
+the framework. The outer driver sees that status, but cannot recover the original
+traceback. Exception hooks and exact boundaries around resource middleware and
+responder decorators still need framework-specific integration work; passing the
+shared contract does not establish full Falcon instrumentation parity.
