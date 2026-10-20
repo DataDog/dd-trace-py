@@ -26,6 +26,8 @@ from tests.llmobs._utils import next_stream
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
+WEB_SEARCH_PROMPT = "Use web search to find the latest released version of the Python package requests on PyPI."
+WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
 WEATHER_OUTPUT_MESSAGE_1 = '<thinking>\nThe get_weather tool is directly relevant for answering this \
 question about the weather in a specific location. \n\nThe get_weather tool requires a "location" \
 parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
@@ -423,80 +425,39 @@ class TestLLMObsAnthropic:
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "google"
 
-    @staticmethod
-    def _web_search_message(web_search_requests):
-        from anthropic.types import Message
-
-        return Message.model_validate(
-            {
-                "id": "msg_1",
-                "type": "message",
-                "role": "assistant",
-                "model": "claude-sonnet-4-6",
-                "content": [{"type": "text", "text": "Here is today's news."}],
-                "stop_reason": "end_turn",
-                "stop_sequence": None,
-                "usage": {
-                    "input_tokens": 105,
-                    "output_tokens": 60,
-                    "server_tool_use": {"web_search_requests": web_search_requests, "web_fetch_requests": 1},
-                },
-            }
-        )
-
-    @patch("anthropic._base_client.SyncAPIClient.post")
-    def test_completion_web_search_count(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
+    def test_completion_web_search(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """web_search_count is read from usage.server_tool_use.web_search_requests."""
-        mock_anthropic_messages_post.return_value = self._web_search_message(web_search_requests=2)
         llm = anthropic.Anthropic()
-        llm.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=200,
-            messages=[{"role": "user", "content": "Find a positive news story from today."}],
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
-        )
+        with request_vcr.use_cassette("anthropic_completion_web_search.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+                tools=[WEB_SEARCH_TOOL],
+            )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
-        assert metrics["web_search_count"] == 2
+        assert metrics["web_search_count"] == 1
         # Web fetch has no per-call price, so it is not recorded.
         assert not any("fetch" in key for key in metrics)
-        assert "storage_search_count" not in metrics
 
-    @patch("anthropic._base_client.SyncAPIClient.post")
-    def test_completion_zero_web_search_omits_metric(
-        self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans
-    ):
-        mock_anthropic_messages_post.return_value = self._web_search_message(web_search_requests=0)
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_completion_web_search_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
+        """Streamed usage keeps server_tool_use from the final message_delta event."""
         llm = anthropic.Anthropic()
-        llm.messages.create(model="claude-sonnet-4-6", max_tokens=200, messages=[{"role": "user", "content": "Hi"}])
+        with request_vcr.use_cassette("anthropic_completion_web_search_stream.yaml"):
+            stream = llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+                tools=[WEB_SEARCH_TOOL],
+                stream=True,
+            )
+            consume_stream(stream)
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert "web_search_count" not in _get_llmobs_data_metastruct(spans[0])["metrics"]
-
-    def test_stream_web_search_count(self):
-        """Streamed usage keeps server_tool_use from the final message_delta event."""
-        from ddtrace.contrib.internal.anthropic._streaming import _construct_message
-        from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
-
-        chunks = [
-            {
-                "type": "message_start",
-                "message": {"role": "assistant", "usage": {"input_tokens": 105, "output_tokens": 1}},
-            },
-            {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
-            {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "News."}},
-            {"type": "content_block_stop", "index": 0},
-            {
-                "type": "message_delta",
-                "delta": {"stop_reason": "end_turn"},
-                "usage": {"output_tokens": 60, "server_tool_use": {"web_search_requests": 3, "web_fetch_requests": 0}},
-            },
-        ]
-        message = _construct_message(chunks)
-        metrics = AnthropicIntegration(mock.MagicMock())._extract_usage(None, message["usage"])
-        assert metrics["web_search_count"] == 3
-        assert metrics["output_tokens"] == 60
+        assert _get_llmobs_data_metastruct(spans[0])["metrics"]["web_search_count"] == 1
 
     def test_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.

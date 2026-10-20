@@ -267,15 +267,20 @@ _OPENAI_SERVER_TOOL_CALL_METRIC_KEYS = {
 
 
 def get_openai_server_tool_usage_metrics(resp: Any) -> dict[str, int]:
-    """Count the billable server-side tool calls in an OpenAI Responses output array.
+    """Count the billable server-side tool calls in an OpenAI Responses response.
 
-    OpenAI bills per tool call and usage doesn't report it, so each completed tool call
-    (web_search_call / file_search_call) item counts once. For web search only search actions are
-    billed, others steps (open_page / find_in_page) from reasoning models are not. Zero counts are omitted.
+    Web searches are read from the untyped tool_usage.web_search.num_requests when present, otherwise
+    counted from completed search actions (open_page / find_in_page steps are not billed). File searches
+    have no usage counter, so each completed file_search_call item counts once. Zero counts are omitted.
     """
+    reported_web_searches = _get_attr(
+        _get_attr(_get_attr(resp, "tool_usage", None), "web_search", None), "num_requests", None
+    )
+    if not isinstance(reported_web_searches, int):
+        reported_web_searches = None
     output = _get_attr(resp, "output", None)
-    if not output or not isinstance(output, list):
-        return {}
+    if not isinstance(output, list):
+        output = []
     metrics: dict[str, int] = {}
     for item in output:
         item_type = _get_attr(item, "type", None)
@@ -283,11 +288,15 @@ def get_openai_server_tool_usage_metrics(resp: Any) -> dict[str, int]:
         if metric_key is None or _get_attr(item, "status", None) != "completed":
             continue
         if item_type == "web_search_call":
+            if reported_web_searches is not None:
+                continue
             # Items without an action (older payloads) are assumed to be searches.
             action_type = _get_attr(_get_attr(item, "action", None), "type", None)
             if action_type is not None and action_type != "search":
                 continue
         metrics[metric_key] = metrics.get(metric_key, 0) + 1
+    if reported_web_searches:
+        metrics[WEB_SEARCH_COUNT_METRIC_KEY] = reported_web_searches
     return metrics
 
 

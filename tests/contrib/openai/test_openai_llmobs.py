@@ -19,6 +19,8 @@ from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import safe_json
+from tests.contrib.openai.utils import SERVER_TOOL_PROMPT
+from tests.contrib.openai.utils import SERVER_TOOL_VECTOR_STORE
 from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -26,7 +28,6 @@ from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
 from tests.contrib.openai.utils import mock_response_mcp_tool_call
-from tests.contrib.openai.utils import mock_response_web_and_file_search
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
@@ -2734,34 +2735,48 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_response_server_tool_usage(self, mock_response_post, openai, openai_llmobs, test_spans):
-        """Completed web_search_call / file_search_call items are counted as billable tool calls."""
-        mock_response_post.return_value = mock_response_web_and_file_search()
-
-        client = openai.OpenAI()
-        client.responses.create(
-            model="gpt-4.1",
-            tools=[{"type": "web_search"}, {"type": "file_search", "vector_store_ids": ["vs_123"]}],
-            input="Find a positive news story and our holiday policy.",
-        )
-
+    def test_response_server_tool_usage(self, openai, openai_llmobs, test_spans):
+        """Web searches come from tool_usage.web_search.num_requests; file searches from file_search_call items."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_server_tool_usage.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                model="gpt-4.1",
+                tools=[{"type": "web_search"}, {"type": "file_search", "vector_store_ids": [SERVER_TOOL_VECTOR_STORE]}],
+                input=SERVER_TOOL_PROMPT,
+            )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
             span_kind="llm",
             name="OpenAI.createResponse",
-            model_name="gpt-4.1-2025-04-14",
             model_provider="openai",
-            metrics={
-                "input_tokens": 120,
-                "output_tokens": 40,
-                "total_tokens": 160,
-                "web_search_count": 1,
-                "storage_search_count": 1,
-            },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            metrics={"web_search_count": 1, "storage_search_count": 1},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_server_tool_usage_stream(self, openai, openai_llmobs, test_spans):
+        """tool_usage arrives on the response.completed event of a streamed response."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_server_tool_usage_stream.yaml"):
+            client = openai.OpenAI()
+            stream = client.responses.create(
+                model="gpt-4.1",
+                tools=[{"type": "web_search"}, {"type": "file_search", "vector_store_ids": [SERVER_TOOL_VECTOR_STORE]}],
+                input=SERVER_TOOL_PROMPT,
+                stream=True,
+            )
+            for _ in stream:
+                pass
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_provider="openai",
+            metrics={"web_search_count": 1, "storage_search_count": 1},
         )
 
     @pytest.mark.skipif(

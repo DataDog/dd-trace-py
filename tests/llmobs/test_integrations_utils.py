@@ -1634,7 +1634,7 @@ _MESSAGE_ITEM = {"type": "message", "role": "assistant", "content": [{"type": "o
 
 
 class TestOpenAIServerToolUsageMetrics:
-    """Server-side web/file search calls are counted from the Responses output array."""
+    """Server-side web/file search calls are counted from tool_usage or the Responses output array."""
 
     def test_no_tool_calls_omits_metrics(self):
         assert get_openai_server_tool_usage_metrics({"output": [_MESSAGE_ITEM]}) == {}
@@ -1691,3 +1691,21 @@ class TestOpenAIServerToolUsageMetrics:
             ]
         )
         assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1, "storage_search_count": 1}
+
+    def test_tool_usage_web_search_takes_precedence(self):
+        resp = {
+            "output": [_web_search_call(), _file_search_call()],
+            "tool_usage": {"image_gen": {"total_tokens": 0}, "web_search": {"num_requests": 3}},
+        }
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 3, "storage_search_count": 1}
+
+    def test_tool_usage_zero_web_search_omits_metric(self):
+        resp = {"output": [_web_search_call()], "tool_usage": {"web_search": {"num_requests": 0}}}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    @pytest.mark.parametrize(
+        "tool_usage", [None, {}, {"image_gen": {"total_tokens": 0}}, {"web_search": {}}, {"web_search": None}]
+    )
+    def test_tool_usage_without_web_search_count_falls_back(self, tool_usage):
+        resp = {"output": [_web_search_call(), _web_search_call(action_type="open_page")], "tool_usage": tool_usage}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}
