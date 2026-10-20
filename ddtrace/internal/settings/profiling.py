@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import math
 import os
+import platform
 import sys
 import sysconfig
 import typing as t
@@ -69,6 +70,22 @@ def _derive_default_heap_sample_size(
     max_samples = 2**16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
+
+
+def _is_platform_supported() -> tuple[str, bool]:
+    # Return (reason, supported) describing whether the native profiling
+    # extensions exist on this platform.
+    if hasattr(sys, "pyston_version_info"):
+        return ("profiling is not supported on Pyston", False)
+
+    system = platform.system()
+    if system not in ("Linux", "Darwin"):
+        return ("profiling is not supported on %s" % (system or "this platform"), False)
+    if not (sys.maxsize > (1 << 32)):
+        return ("profiling is not supported on 32-bit %s" % system, False)
+    if sys.version_info >= (3, 16):
+        return ("profiling is not yet supported on Python %d.%d" % sys.version_info[:2], False)
+    return ("", True)
 
 
 def _check_for_ddup_available() -> tuple[str, bool]:
@@ -667,32 +684,47 @@ ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
 
-ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
+platform_unsupported_msg, platform_is_supported = _is_platform_supported()
 
-# We need to check if ddup is available, and turn off profiling if it is not.
-if not ddup_is_available:
-    msg = ddup_failure_msg or "libdd not available"
+ddup_failure_msg: t.Optional[str] = platform_unsupported_msg or None
+ddup_is_available: bool = False
+stack_failure_msg: t.Optional[str] = platform_unsupported_msg or None
+stack_is_available: bool = False
+
+if not platform_is_supported:
     if config.enabled:
-        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
-    )
+        logger.debug("Profiling is not supported on this platform (%s), disabling", platform_unsupported_msg)
     config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+else:
+    ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
-# We also need to check if stack module is available, and turn if off
-# if it s not.
-stack_failure_msg, stack_is_available = _check_for_stack_available()
-if not stack_is_available:
-    msg = stack_failure_msg or "stack not available"
-    if config.stack.enabled:
+    # We need to check if ddup is available, and turn off profiling if it is not.
+    if not ddup_is_available:
+        msg = ddup_failure_msg or "libdd not available"
         if config.enabled:
-            logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+            logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
         telemetry_writer.add_log(
             TELEMETRY_LOG_LEVEL.ERROR,
-            "Failed to load stack module (%s), disabling stack profiling" % msg,
+            f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
         )
-    config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+    # We also need to check if stack module is available, and turn if off
+    # if it s not.
+    stack_failure_msg, stack_is_available = _check_for_stack_available()
+    if not stack_is_available:
+        msg = stack_failure_msg or "stack not available"
+        if config.stack.enabled:  # pyright: ignore[reportAttributeAccessIssue]
+            if config.enabled:
+                logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+            telemetry_writer.add_log(
+                TELEMETRY_LOG_LEVEL.ERROR,
+                "Failed to load stack module (%s), disabling stack profiling" % msg,
+            )
+        config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Exception profiling requires sys.monitoring (Python 3.12+) and is not
 # supported on free-threaded builds.  Disable the config so that

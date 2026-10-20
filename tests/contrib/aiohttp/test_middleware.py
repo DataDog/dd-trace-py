@@ -112,6 +112,8 @@ if __name__ == "__main__":
         ("foo=bar&foo=baz&x=y", False),
         ("foo=bar", True),
         ("foo=bar&foo=baz&x=y", True),
+        ("json=%7B%20%22sign%22%7D", False),
+        ("json=%7B%20%22sign%22%7D", True),
     ),
 )
 async def test_param_handler(app, test_spans, aiohttp_client, query_string, trace_query_string):
