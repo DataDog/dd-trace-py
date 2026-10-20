@@ -237,18 +237,19 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
-        if sca_enabled == "true":
-            assert appsec_telemetry_config.SCA_ENABLED is True
-        assert tracer.enabled is False
+    try:
+        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
+            tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
+            if sca_enabled == "true":
+                assert appsec_telemetry_config.SCA_ENABLED is True
+            assert tracer.enabled is False
 
-        assert isinstance(tracer._sampler.limiter, RateLimiter)
-        assert tracer._sampler.limiter.rate_limit == 1
-        assert tracer._sampler.limiter.time_window == 60e9
+            assert isinstance(tracer._sampler.limiter, RateLimiter)
+            assert tracer._sampler.limiter.rate_limit == 1
+            assert tracer._sampler.limiter.time_window == 60e9
 
-        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
-
-    # reset tracer values
-    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
-        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+            assert config._trace_compute_stats is False
+    finally:
+        # reset tracer values
+        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
+            tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
