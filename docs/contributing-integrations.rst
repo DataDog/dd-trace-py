@@ -120,25 +120,30 @@ push-only events; lifecycle methods are for instrumentation producers.
 
 For WSGI integrations, ``ddtrace.contrib.internal.http_wsgi.WsgiLifecycleDriver``
 creates the controller and manages context activation, ``start_response``, body
-replacement, HEAD suppression, iteration, errors, and close. Pass framework hooks
-and a ``get_config`` callback, then wrap the application's WSGI callable with
-``driver.wrap``. Returning ``None`` from ``get_config`` disables the wrapper for
-that request, supporting plugin uninstall/reinstall without replacing hooks.
+replacement, HEAD suppression, iteration, errors, and close. Only a ``get_config``
+callback is required; wrap the WSGI callable with ``driver.wrap``. Returning
+``None`` from ``get_config`` disables the wrapper for that request, supporting
+plugin uninstall/reinstall without replacing hooks.
 
-Framework hooks extract request data and convert validated blocking data into a
-response exposing ``status``, ``status_code``, ``headerlist``, and byte ``body``.
-Conversion preserves framework defaults and supplies Content-Length when allowed;
-the driver rejects caller-supplied framing and hop-by-hop headers. Framework
-routing/handler hooks use ``driver.current(environ)`` to find their controller,
-call ``route_resolved`` and ``before_handler``, and enforce returned blocks using
-the framework's response mechanism. Handled errors are recorded before the
-framework converts them to ordinary response values. These hooks must survive
-plugin skip settings and callback-cache resets.
+The driver extracts standard WSGI request values without consuming the body and
+constructs blocking responses with transport framing. There is no required
+framework adapter class or per-integration lifecycle module. Optional
+``request_data`` and ``blocking_response`` callbacks preserve framework-specific
+normalization or native response defaults when needed. Blocking responses expose
+``status``, ``status_code``, ``headerlist``, and byte ``body``. The driver rejects
+caller-supplied framing and hop-by-hop headers.
 
-Bottle implements these hooks in ``ddtrace.contrib.internal.bottle.lifecycle``;
-its public ``TracePlugin`` retains configuration and plugin setup. Route-local
-plugins retain their callback-only fallback because they cannot observe the WSGI
-boundary. See ``examples/http-events/lifecycle.py`` for wiring. ASGI requires a
+Framework routing/handler hooks use ``driver.current(environ)`` to find their
+controller, call ``route_resolved`` and ``before_handler``, and enforce returned
+blocks using the framework's response mechanism. Handled errors are recorded
+before the framework converts them to ordinary response values. These hooks must
+survive plugin skip settings and callback-cache resets.
+
+Bottle keeps its native extraction, response conversion, and routing hooks in
+its existing ``ddtrace.contrib.internal.bottle.trace`` module alongside the public
+``TracePlugin``. Route-local plugins retain their callback-only fallback because
+they cannot observe the WSGI boundary. See ``examples/http-events/lifecycle.py``
+for wiring an ordinary WSGI app without any framework callbacks. ASGI requires a
 separate async transport driver; this migration supplies only the WSGI driver.
 
 The application-installed Bottle plugin publishes this contract at these boundaries:

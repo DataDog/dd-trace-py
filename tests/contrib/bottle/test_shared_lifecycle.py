@@ -1,11 +1,9 @@
 """Exercise the shared driver without a Bottle app or Bottle response objects."""
 
-from dataclasses import dataclass
-from http import HTTPStatus
-
 import pytest
 
 from ddtrace import config
+from ddtrace.contrib._events.http import HttpRequestBlock
 from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib._events.http import HttpRequestPhase
 from ddtrace.contrib.internal.http_server import HttpLifecycleConfig
@@ -16,31 +14,22 @@ from tests.contrib.http_contract import observe_http_requests as observe_http_re
 from tests.contrib.http_contract import register_http_block_checker as register_http_block_checker
 
 
-@dataclass
-class Response:
-    status_code: int
-    headerlist: list[tuple[str, str]]
-    body: bytes
-
-    @property
-    def status(self):
-        return f"{self.status_code} {HTTPStatus(self.status_code).phrase}"
-
-
-class Hooks:
-    def request_data(self, environ):
-        return HttpRequestData(method="GET", url="http://localhost/items/one", headers=())
-
-    def blocking_response(self, block):
-        return Response(block.status_code, list(block.headers) + [("Content-Length", str(len(block.body)))], block.body)
+def environ_for_request():
+    return {
+        "REQUEST_METHOD": "GET",
+        "wsgi.url_scheme": "http",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "SCRIPT_NAME": "",
+        "PATH_INFO": "/items/one",
+        "QUERY_STRING": "",
+    }
 
 
 @pytest.fixture
 def driver():
     settings = IntegrationConfig(config, "test_wsgi")
-    return WsgiLifecycleDriver(
-        hooks=Hooks(), get_config=lambda: HttpLifecycleConfig("test_wsgi", "test-service", settings)
-    )
+    return WsgiLifecycleDriver(get_config=lambda: HttpLifecycleConfig("test_wsgi", "test-service", settings))
 
 
 @pytest.mark.parametrize("blocked", [False, True])
@@ -70,7 +59,7 @@ def test_shared_driver_preserves_early_blocks_and_completes_streams(driver, obse
         start_response("200 OK", [("X-Original", "yes")])
         return Body()
 
-    environ = {}
+    environ = environ_for_request()
     body = driver.wrap(application)(environ, lambda status, headers, exc_info: delivered.append((status, headers)))
     assert driver.current(environ) is None
     assert all(event.phase != HttpRequestPhase.COMPLETED for event in observations)
@@ -98,7 +87,7 @@ def test_shared_driver_finishes_failed_stream_once(driver, observations):
 
         return body()
 
-    body = driver.wrap(application)({}, lambda *args: None)
+    body = driver.wrap(application)(environ_for_request(), lambda *args: None)
     assert next(body) == b"first"
     with pytest.raises(ValueError, match="stream failure"):
         next(body)
@@ -108,7 +97,97 @@ def test_shared_driver_finishes_failed_stream_once(driver, observations):
 
 
 def test_shared_driver_bypasses_uninstalled_integration(observations):
-    driver = WsgiLifecycleDriver(hooks=Hooks(), get_config=lambda: None)
+    driver = WsgiLifecycleDriver(get_config=lambda: None)
     result = [b"original"]
     assert driver.wrap(lambda *args: result)({}, lambda *args: None) is result
     assert observations == []
+
+
+@pytest.mark.parametrize("host", [None, "api.example:8443"])
+def test_default_extraction_needs_no_framework_and_does_not_read_body(driver, observations, host):
+    class UnreadableInput:
+        def read(self, *args):
+            pytest.fail("request extraction consumed the body")
+
+    environ = environ_for_request()
+    environ.update(
+        {
+            "wsgi.url_scheme": "https",
+            "SERVER_PORT": "443",
+            "SCRIPT_NAME": "/api",
+            "PATH_INFO": "/items/a b",
+            "QUERY_STRING": "tag=a&tag=b&empty=",
+            "CONTENT_TYPE": "application/json",
+            "CONTENT_LENGTH": "6",
+            "HTTP_X_REQUEST_ID": "one",
+            "wsgi.input": UnreadableInput(),
+        }
+    )
+    if host:
+        environ["HTTP_HOST"] = host
+
+    def application(environ, start_response):
+        start_response("200 OK", [])
+        return [b"done"]
+
+    body = driver.wrap(application)(environ, lambda *args: None)
+    try:
+        assert b"".join(body) == b"done"
+    finally:
+        body.close()
+    request = observations[0].request
+    assert request.url == f"https://{host or 'localhost'}/api/items/a%20b?tag=a&tag=b&empty="
+    assert request.query_parameters == (("tag", "a"), ("tag", "b"), ("empty", ""))
+    assert request.body is None
+    assert dict(request.headers)["Content-Type"] == "application/json"
+    assert dict(request.headers)["Content-Length"] == "6"
+    assert dict(request.headers)["X-Request-Id"] == "one"
+    assert observations[-1].phase == HttpRequestPhase.COMPLETED
+
+
+@pytest.mark.parametrize("status,method", [(403, "GET"), (403, "HEAD"), (204, "GET"), (499, "GET")])
+def test_default_blocking_response_needs_no_framework(driver, observations, block_checker, status, method):
+    body_value = b"" if status == 204 else b"blocked"
+
+    def inspect(event):
+        raise HttpRequestBlock(status, headers=(("Set-Cookie", "a=1"), ("Set-Cookie", "b=2")), body=body_value)
+
+    block_checker(inspect)
+    delivered = []
+    environ = environ_for_request()
+    environ["REQUEST_METHOD"] = method
+
+    def application(*args):
+        pytest.fail("blocked application ran")
+
+    body = driver.wrap(application)(environ, lambda status, headers, exc_info: delivered.append((status, headers)))
+    try:
+        assert b"".join(body) == (b"" if method == "HEAD" else body_value)
+    finally:
+        body.close()
+    assert delivered[0][0].startswith(str(status) + " ")
+    headers = delivered[0][1]
+    assert [value for name, value in headers if name == "Set-Cookie"] == ["a=1", "b=2"]
+    assert ("Content-Length" in dict(headers)) is (status != 204)
+    if status != 204:
+        assert dict(headers)["Content-Length"] == str(len(body_value))
+    assert observations[-1].response.status_code == status
+
+
+def test_request_extraction_can_be_overridden_without_hooks_class(observations):
+    settings = IntegrationConfig(config, "test_wsgi")
+    driver = WsgiLifecycleDriver(
+        get_config=lambda: HttpLifecycleConfig("test_wsgi", "test-service", settings),
+        request_data=lambda environ: HttpRequestData(method="GET", url="https://custom.example/"),
+    )
+
+    def application(environ, start_response):
+        start_response("200 OK", [])
+        return [b"done"]
+
+    body = driver.wrap(application)({}, lambda *args: None)
+    try:
+        assert b"".join(body) == b"done"
+    finally:
+        body.close()
+    assert observations[0].request.url == "https://custom.example/"

@@ -3,11 +3,15 @@
 from collections.abc import Callable
 from collections.abc import Iterable
 from contextvars import copy_context
+from dataclasses import dataclass
+from http import HTTPStatus
 import sys
 from typing import Any
 from typing import Optional
 from typing import Protocol
 from typing import TypeVar
+from urllib.parse import parse_qsl
+from wsgiref.util import request_uri
 
 from ddtrace.contrib._events.http import HttpBlockingResponse
 from ddtrace.contrib._events.http import HttpRequestData
@@ -54,12 +58,45 @@ class WsgiBlockingResponse(Protocol):
     def body(self) -> bytes: ...
 
 
-class WsgiFrameworkHooks(Protocol):
-    def request_data(self, environ: dict[str, Any]) -> HttpRequestData: ...
+def request_data_from_environ(environ: dict[str, Any]) -> HttpRequestData:
+    """Extract standard WSGI values without consuming or caching request input."""
+    headers = []
+    for name, value in environ.items():
+        if name.startswith("HTTP_"):
+            headers.append((name[5:].replace("_", "-").title(), value))
+        elif name in ("CONTENT_TYPE", "CONTENT_LENGTH"):
+            headers.append((name.replace("_", "-").title(), value))
+    query = environ.get("QUERY_STRING", "")
+    return HttpRequestData(
+        method=environ["REQUEST_METHOD"],
+        url=request_uri(environ),
+        headers=tuple(headers),
+        query_string=query,
+        query_parameters=tuple(parse_qsl(query, keep_blank_values=True)),
+    )
 
-    def blocking_response(self, block: HttpBlockingResponse) -> WsgiBlockingResponse:
-        """Convert a validated block with the framework's defaults and framing."""
-        ...
+
+@dataclass
+class _BlockingResponse:
+    status_code: int
+    headerlist: list[tuple[str, str]]
+    body: bytes
+
+    @property
+    def status(self) -> str:
+        try:
+            reason = HTTPStatus(self.status_code).phrase
+        except ValueError:
+            reason = "Unknown"
+        return f"{self.status_code} {reason}"
+
+
+def blocking_response_from_data(block: HttpBlockingResponse) -> WsgiBlockingResponse:
+    """Supply transport framing without requiring a framework response class."""
+    headers = list(block.headers)
+    if block.status_code not in (204, 304):
+        headers.append(("Content-Length", str(len(block.body))))
+    return _BlockingResponse(block.status_code, headers, block.body)
 
 
 def current_http_lifecycle(environ: dict[str, Any]) -> Optional[HttpLifecycle]:
@@ -68,15 +105,17 @@ def current_http_lifecycle(environ: dict[str, Any]) -> Optional[HttpLifecycle]:
 
 
 class WsgiLifecycleDriver:
-    """Wrap any WSGI callable; the framework installs its own routing hooks."""
+    """Wrap WSGI directly; framework-specific extraction and conversion are optional."""
 
     def __init__(
         self,
         *,
-        hooks: WsgiFrameworkHooks,
         get_config: Callable[[], Optional[HttpLifecycleConfig]],
+        request_data: Callable[[dict[str, Any]], HttpRequestData] = request_data_from_environ,
+        blocking_response: Callable[[HttpBlockingResponse], WsgiBlockingResponse] = blocking_response_from_data,
     ) -> None:
-        self.hooks = hooks
+        self.request_data = request_data
+        self.blocking_response = blocking_response
         self.get_config = get_config
 
     def current(self, environ: dict[str, Any]) -> Optional[HttpLifecycle]:
@@ -88,7 +127,7 @@ class WsgiLifecycleDriver:
             config = self.get_config()
             if config is None or not has_http_listeners():
                 return application(environ, start_response)
-            lifecycle = HttpLifecycle(config, self.hooks.request_data(environ), validate_block=_valid_wsgi_block)
+            lifecycle = HttpLifecycle(config, self.request_data(environ), validate_block=_valid_wsgi_block)
             request = _WsgiRequest(self, lifecycle)
             return request.call(request.run, application, environ, start_response)
 
@@ -130,7 +169,7 @@ class _WsgiRequest:
                 HttpResponseData(status_code=int(status.split(" ", 1)[0]), headers=tuple(headers))
             )
             if block is not None:
-                replacement = self.driver.hooks.blocking_response(block)
+                replacement = self.driver.blocking_response(block)
                 status, headers = replacement.status, replacement.headerlist
             lifecycle.delivery_attempted(
                 HttpResponseData(status_code=int(status.split(" ", 1)[0]), headers=tuple(headers))
@@ -142,7 +181,7 @@ class _WsgiRequest:
         try:
             block = lifecycle.start()
             if block is not None:
-                blocked = self.driver.hooks.blocking_response(block)
+                blocked = self.driver.blocking_response(block)
                 body = [blocked.body]
                 response_ready(blocked.status, blocked.headerlist)
             else:
