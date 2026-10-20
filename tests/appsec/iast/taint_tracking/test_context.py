@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.appsec._iast._iast_env import in_iast_env
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -23,6 +24,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyob
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast_context import IAST_CONTEXT
+from ddtrace.trace import Span
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
@@ -112,6 +114,24 @@ def test_copied_context_cannot_access_or_finish_a_reused_slot(in_thread):
     assert not get_tainted_ranges(late_value)
     finish_request_context(replacement)
     IAST_CONTEXT.set(None)
+
+
+def test_request_admission_recovers_from_an_inherited_expired_identifier():
+    clear_all_request_context_slots()
+    expired = start_request_context()
+    finish_request_context(expired)
+    replacement = start_request_context()
+    IAST_CONTEXT.set(expired)
+    span = Span("recovered.request")
+    try:
+        admitted = _iast_start_request(span)
+        assert admitted is not None and admitted not in (expired, replacement)
+        assert IAST_CONTEXT.get() == admitted
+        assert debug_context_array_free_slots_number() == 0
+    finally:
+        _iast_finish_request(span)
+        finish_request_context(replacement)
+        span.finish()
 
 
 def test_taint_object_with_no_context_is_noop():

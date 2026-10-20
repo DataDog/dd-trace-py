@@ -15,6 +15,7 @@ from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
+from ddtrace.appsec._iast._taint_tracking._context import get_tainted_object_map_by_ctx_id
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.appsec._iast_context import IAST_CONTEXT
@@ -64,10 +65,9 @@ def set_iast_request_endpoint(method, route) -> None:
 def _iast_start_request(span: Optional[SpanData] = None) -> Optional[int]:
     """Initialize the IAST request context for the current execution.
 
-    This function acquires the IAST request budget via the Overhead Control Engine,
-    creates a new native taint context, and stores its identifier in a ContextVar so
-    subsequent IAST operations can locate the request-local taint map. If a context
-    is already active, the existing identifier is reused.
+    When admission succeeds, an inherited expired identifier is replaced with a
+    fresh native context. A live context stays in place without returning a new
+    identifier in that case.
 
     The provided span, when present, is attached to the IAST environment for later
     enrichment and end-of-request processing.
@@ -76,7 +76,10 @@ def _iast_start_request(span: Optional[SpanData] = None) -> Optional[int]:
 
     if asm_config._iast_enabled:
         if oce.acquire_request(span):
-            if not is_iast_request_enabled():
+            active_id = _get_iast_context_id()
+            # A copied execution context can outlive the request that allocated
+            # its native map. It must not suppress admission of a new request.
+            if active_id is None or not get_tainted_object_map_by_ctx_id(active_id):
                 context_id = start_request_context()
                 IAST_CONTEXT.set(context_id)
                 if context_id is not None:
