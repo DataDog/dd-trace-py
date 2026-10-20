@@ -180,10 +180,7 @@ Datadog::UploaderBuilder::build()
         auto& err = set_timeout_result.err;
         std::string errmsg = Datadog::err_to_msg(&err, "Error setting timeout on exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
-        // If set_timeout had failed, then the ddog_exporter must have been a
-        // null pointer, so it's redundant to drop it here but it should also
-        // be safe to do so.
-        ddog_prof_Exporter_drop(ddog_exporter);
+        Datadog::drop_profile_exporter(*ddog_exporter);
         return errmsg;
     }
 
@@ -197,7 +194,7 @@ Datadog::UploaderBuilder::build()
         auto& err = encoded.err;                                // NOLINT (cppcoreguidelines-pro-type-union-access)
         std::string errmsg = Datadog::err_to_msg(&err, "Error serializing pprof");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
-        ddog_prof_Exporter_drop(ddog_exporter);
+        Datadog::drop_profile_exporter(*ddog_exporter);
         return errmsg;
     }
 

@@ -3,14 +3,37 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <condition_variable>
+#include <cstdlib>
+#include <mutex>
+#include <numeric>
 #include <pthread.h>
+#include <utility>
+
+struct UploadThreadState
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool started = false;
+    bool finished = false;
+};
 
 // Initiate an upload in a separate thread, otherwise we won't be mid-upload during fork
 void*
-upload_in_thread(void*)
+upload_in_thread(void* arg)
 {
+    auto* state = static_cast<UploadThreadState*>(arg);
+    {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        state->started = true;
+    }
+    state->condition.notify_one();
+
     ddup_upload();
 
+    std::unique_lock<std::mutex> lock(state->mutex);
+    state->finished = true;
+    std::notify_all_at_thread_exit(state->condition, std::move(lock));
     return nullptr;
 }
 
@@ -38,85 +61,81 @@ is_exit_normal(int status)
     return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
-struct EmulateSamplerArg
-{
-    unsigned int id;
-    unsigned int sleep_time_ns;
-    std::atomic<bool>* done;
-};
-
-void*
-emulate_sampler_wrapper(void* argp)
-{
-    EmulateSamplerArg* arg = reinterpret_cast<EmulateSamplerArg*>(argp);
-
-    emulate_sampler(arg->id, arg->sleep_time_ns, *arg->done);
-
-    return nullptr;
-}
-
-void
-launch_pthread_samplers(std::vector<EmulateSamplerArg>& args, std::vector<pthread_t>& pthread_handles)
-{
-    for (unsigned int i = 0; i < args.size(); i++) {
-        pthread_create(&pthread_handles[i], nullptr, emulate_sampler_wrapper, reinterpret_cast<void*>(&args[i]));
-    }
-}
-
-void
-join_pthread_samplers(std::vector<pthread_t>& threads, std::atomic<bool>& done)
-{
-    done.store(true);
-    for (auto& handle : threads) {
-        pthread_join(handle, nullptr);
-    }
-}
-
 // Validates that sampling/uploads work around forks
 void
 sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
     configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
-    std::vector<pthread_t> thread_handles;
-    std::vector<unsigned int> ids;
-    std::vector<EmulateSamplerArg> args;
-
-    for (unsigned int i = 0; i < ids.size(); i++) {
-        auto id = ids[i];
-        args.push_back(EmulateSamplerArg{ id, sleep_time_ns, &done });
-    }
-
-    // ddup is configured, launch threads
-    launch_pthread_samplers(args, thread_handles);
-
-    // Collect some profiling data for a few ms, then upload in a thread before forking
+    std::vector<unsigned int> ids(num_threads);
+    std::iota(ids.begin(), ids.end(), 0);
+    std::vector<std::thread> samplers;
+    launch_samplers(ids, sleep_time_ns, samplers, done);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    // Finish samplers before the fork so the child does not inherit their in-flight allocations.
+    join_samplers(samplers, done);
+    done.store(false);
 
+    UploadThreadState state;
     pthread_t thread;
-    if (pthread_create(&thread, nullptr, upload_in_thread, nullptr) != 0) {
-        std::cout << "failed to create thread" << std::endl;
+    if (pthread_create(&thread, nullptr, upload_in_thread, &state) != 0) {
+        std::cerr << "failed to create upload thread" << std::endl;
         std::exit(1);
     }
 
-    // Detach the upload thread so TSan doesn't expect it to be joined.
-    // After fork(), threads don't survive in the child, but TSan metadata does,
-    // causing false "thread leak" reports if we don't detach.
-    pthread_detach(thread);
+#ifndef DDUP_LEAK_CHECK
+    // Detaching avoids a TSan leak report in the child.
+    if (pthread_detach(thread) != 0) {
+        std::cerr << "failed to detach upload thread" << std::endl;
+        std::_Exit(1);
+    }
+#endif
+
+    {
+        std::unique_lock<std::mutex> lock(state.mutex);
+        if (!state.condition.wait_for(lock, std::chrono::seconds(30), [&] { return state.started; })) {
+            std::cerr << "upload thread did not start" << std::endl;
+            std::_Exit(1);
+        }
+    }
+    auto wait_for_upload = [&state] {
+        std::unique_lock<std::mutex> lock(state.mutex);
+        if (!state.condition.wait_for(lock, std::chrono::seconds(30), [&] { return state.finished; })) {
+            std::cerr << "upload thread did not finish" << std::endl;
+            std::_Exit(1);
+        }
+    };
+
+#ifdef DDUP_LEAK_CHECK
+    // The child inherits TLS allocations from other threads, which leak checkers report as lost.
+    // Other builds allow the fork to overlap the upload.
+    wait_for_upload();
+    if (pthread_join(thread, nullptr) != 0) {
+        std::cerr << "failed to join upload thread" << std::endl;
+        std::_Exit(1);
+    }
+#endif
 
     // Fork, wait in the parent for child to finish
     pid_t pid = fork();
+    if (pid < 0) {
+        std::cerr << "fork failed" << std::endl;
+        std::_Exit(1);
+    }
     if (pid == 0) {
         // Child
-        profile_in_child(num_threads, 500e3, done); // Child profiles for 500ms
+        profile_in_child(num_threads, 500e3, done); // Child profiles for 500 microseconds
     }
 
     // Parent
     int status;
     done.store(true);
-    waitpid(pid, &status, 0);
+    if (waitpid(pid, &status, 0) != pid) {
+        std::cerr << "waitpid failed" << std::endl;
+        std::_Exit(1);
+    }
+    wait_for_upload();
     ddup_upload();
-    join_pthread_samplers(thread_handles, done);
     if (!is_exit_normal(status)) {
         std::exit(1);
     }
@@ -125,31 +144,26 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 
 TEST(ForkDeathTest, SampleInThreadsAndForkNormal)
 {
-    // Same memory leak as before--whatever
     EXPECT_EXIT(sample_in_threads_and_fork(4, 10e3), ::testing::ExitedWithCode(0), ".*");
 }
 
 TEST(ForkDeathTest, SampleInThreadsAndForkMany)
 {
-    // Same memory leak as before--whatever
     EXPECT_EXIT(sample_in_threads_and_fork(16, 10e3), ::testing::ExitedWithCode(0), ".*");
 }
 
 TEST(ForkDeathTest, SampleInThreadsAndForkManyFast)
 {
-    // Same memory leak as before--whatever
     EXPECT_EXIT(sample_in_threads_and_fork(16, 100), ::testing::ExitedWithCode(0), ".*");
 }
 
 TEST(ForkDeathTest, ForkStressTest4Thread)
 {
-    // Same memory leak as before--whatever
     EXPECT_EXIT(sample_in_threads_and_fork(4, 100), ::testing::ExitedWithCode(0), ".*");
 }
 
 TEST(ForkDeathTest, ForkStressTest16Thread)
 {
-    // Same memory leak as before--whatever
     EXPECT_EXIT(sample_in_threads_and_fork(16, 100), ::testing::ExitedWithCode(0), ".*");
 }
 

@@ -52,6 +52,7 @@ def test_ddup_start():
         pytest.fail(str(e))
 
 
+@pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
 @pytest.mark.subprocess()
 def test_upload_does_not_block_sample_flush():
     """
@@ -68,10 +69,23 @@ def test_upload_does_not_block_sample_flush():
 
     request_received = threading.Event()
     send_response = threading.Event()
+    request_bodies = []
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
-            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            if self.headers.get("Transfer-Encoding", "").lower() == "chunked":
+                body = bytearray()
+                while True:
+                    size = int(self.rfile.readline().split(b";", 1)[0], 16)
+                    if not size:
+                        while self.rfile.readline().strip():
+                            pass
+                        break
+                    body.extend(self.rfile.read(size))
+                    self.rfile.read(2)
+            else:
+                body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            request_bodies.append(body)
             request_received.set()
             # Keep the upload in flight until the test has added a sample
             send_response.wait(timeout=30)
@@ -126,9 +140,11 @@ def test_upload_does_not_block_sample_flush():
 
     assert upload_in_flight, "the upload ended before the sample was added, so the test proved nothing"
     assert elapsed < upload_timeout / 2, "flush_sample() waited %.3f s for the upload" % elapsed
+    assert request_bodies[0], "the agent did not read the profile request"
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
 @pytest.mark.subprocess(err=None)
 def test_upload_during_exit_does_not_abort():
     """

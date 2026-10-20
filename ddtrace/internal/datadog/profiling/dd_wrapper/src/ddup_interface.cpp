@@ -19,9 +19,8 @@ std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-g
 
 namespace {
 
-// True after the destructors of the thread-local data of the current thread have run. They run when the thread
-// ends. For the thread that calls exit(), they also run at the start of exit(), before the atexit handlers.
-// The flag has no destructor, so it is safe to read it after that point.
+// True once a sentinel has observed thread-local teardown on the current thread.
+// The flag has no destructor, so it is safe to read during teardown.
 thread_local bool thread_locals_destroyed = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
 struct ThreadLocalsSentinel
@@ -29,8 +28,7 @@ struct ThreadLocalsSentinel
     ~ThreadLocalsSentinel() { thread_locals_destroyed = true; }
 };
 
-// Makes `thread_locals_destroyed` valid for the current thread. The flag can only become true for a thread that
-// called this function before its thread-local data was destroyed.
+// Watch the current thread for teardown, including when it has not sent a profile.
 void
 watch_thread_locals()
 {
@@ -48,11 +46,27 @@ struct UploadLockGuard
 
 } // namespace
 
+void
+Datadog::drop_profile_exporter(ddog_prof_ProfileExporter& exporter)
+{
+    if (exporter.inner == nullptr) {
+        return;
+    }
+    ddog_prof_Exporter_drop(&exporter);
+    if (thread_locals_destroyed) {
+        return;
+    }
+    // Dropping the exporter can initialize Tokio's thread-local state even when no request was sent.
+    // Register after that state so the sentinel is destroyed first.
+    thread_local ThreadLocalsSentinel sentinel;
+}
+
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
 void
 ddup_postfork_child()
 {
+    Datadog::CodeProvenance::get_instance().postfork_child();
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
 }
@@ -60,17 +74,17 @@ ddup_postfork_child()
 void
 ddup_postfork_parent()
 {
+    Datadog::CodeProvenance::get_instance().postfork_parent();
     Datadog::Uploader::postfork_parent();
 }
 
-// Since we don't control the internal state of libdatadog's exporter and we want to prevent state-tearing
-// after a `fork()`, we just outright prevent uploads from happening during a `fork()` operation.  Since a
-// new upload may be scheduled _just_ as `fork()` is entered, we also need to prevent new uploads from happening.
-// This mutex is released in both the child and the parent.
+// Prevent a fork from copying partially initialized exporter or provenance state.
+// Take the upload lock before the provenance lock, as an upload does when it takes a snapshot.
 void
 ddup_prefork()
 {
     Datadog::Uploader::prefork();
+    Datadog::CodeProvenance::get_instance().prefork();
 }
 
 // Configuration
@@ -372,14 +386,14 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
-    // Do not upload after exit() destroyed the thread-local data of this thread. libdatadog keeps the state of its
+    // Do not upload after a sentinel observes thread-local teardown on this thread. libdatadog keeps the state of its
     // HTTP client in thread-local data, and ddog_prof_Exporter_send() aborts the process when that state is destroyed.
     // This occurs when an embedder finalizes Python in an atexit handler, as uWSGI does: the profiler stops there,
     // and tries to upload the last profile.
-    watch_thread_locals();
     if (thread_locals_destroyed) {
         return false;
     }
+    watch_thread_locals();
 
     // Hold the upload lock from before the Uploader is built until after it is destroyed. The prefork handler takes
     // the same lock, so fork() cannot occur while this thread builds or uses the libdatadog exporter. A child process

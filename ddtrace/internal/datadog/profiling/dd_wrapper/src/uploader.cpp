@@ -64,7 +64,7 @@ Datadog::Uploader::upload()
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
 
-    std::string_view json_str = CodeProvenance::get_instance().get_json_str();
+    const std::string json_str = CodeProvenance::get_instance().get_json_str();
 
     if (!json_str.empty()) {
         to_compress_files.reserve(1);
@@ -87,8 +87,10 @@ Datadog::Uploader::upload()
       nullptr,                               // optional_internal_metadata_json
       nullptr                                // optional_info_json
     );
-    // The request owns the encoded data now (or the build failed), so free the handle before the request is sent.
-    ddog_prof_EncodedProfile_drop(&encoded_profile);
+    // If the build failed before consuming the profile, free it before sending the request.
+    if (encoded_profile.inner != nullptr) {
+        ddog_prof_EncodedProfile_drop(&encoded_profile);
+    }
 
     if (build_res.tag ==
         DDOG_PROF_REQUEST_RESULT_ERR_HANDLE_REQUEST) { // NOLINT (cppcoreguidelines-pro-type-union-access)

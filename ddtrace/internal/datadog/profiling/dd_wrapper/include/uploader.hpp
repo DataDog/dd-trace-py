@@ -14,6 +14,9 @@ extern "C"
 
 namespace Datadog {
 
+void
+drop_profile_exporter(ddog_prof_ProfileExporter& exporter);
+
 class Uploader
 {
   private:
@@ -45,11 +48,13 @@ class Uploader
         // there could be a request in flight, we first need to cancel it. Then,
         // we drop the exporter and the cancellation token.
         ddog_CancellationToken_cancel(&cancel);
-        ddog_prof_Exporter_drop(&ddog_exporter);
+        drop_profile_exporter(ddog_exporter);
         ddog_CancellationToken_drop(&cancel);
         // The request takes the encoded profile when it is built, so this
         // frees the encoded profile only if no request was built from it.
-        ddog_prof_EncodedProfile_drop(&encoded_profile);
+        if (encoded_profile.inner != nullptr) {
+            ddog_prof_EncodedProfile_drop(&encoded_profile);
+        }
     }
 
     // Disable copy constructor and copy assignment operator to avoid double-free
@@ -82,8 +87,10 @@ class Uploader
     Uploader& operator=(Uploader&& other) noexcept
     {
         if (this != &other) {
-            ddog_prof_Exporter_drop(&ddog_exporter);
-            ddog_prof_EncodedProfile_drop(&encoded_profile);
+            drop_profile_exporter(ddog_exporter);
+            if (encoded_profile.inner != nullptr) {
+                ddog_prof_EncodedProfile_drop(&encoded_profile);
+            }
             ddog_exporter = other.ddog_exporter;
             other.ddog_exporter = { .inner = nullptr };
             encoded_profile = other.encoded_profile;
