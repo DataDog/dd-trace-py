@@ -134,6 +134,9 @@ def init_stack() -> None:
     if (config.install or config.stack.enabled) and stack.is_available:
         from ddtrace.profiling._threading import get_thread_native_id
 
+        # The hooks take native locks, so the fork cleanup must be in
+        # place before the sampler starts.
+        stack.register_fork_cleanup()
         _install_thread_hooks()
 
         # Instrument any living threads

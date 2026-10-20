@@ -153,6 +153,7 @@ class Sampler
     void stop();
     PauseResult pause();
     void resume();
+    void register_fork_cleanup();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);

@@ -715,3 +715,140 @@ def test_install_enabled_profiler_restart_does_not_stack_hooks() -> None:
         assert ddtrace_threading.Thread._bootstrap_inner is hooks["_bootstrap_inner"]  # type: ignore[attr-defined]
 
     print("OK")
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="1"),
+    out="OK\n",
+    err=None,
+)
+def test_install_enabled_fork_while_registering_threads_does_not_hang() -> None:
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    should_stop = threading.Event()
+
+    # Each register_thread call releases the GIL and holds the native thread map lock, so a fork can happen while
+    # one of these threads holds it.
+    def register_in_loop() -> None:
+        ident = threading.get_ident()
+        native_id = threading.get_native_id()
+        while not should_stop.is_set():
+            stack.register_thread(ident, native_id, "register-loop")
+
+    registering_threads = [threading.Thread(target=register_in_loop) for _ in range(4)]
+    for t in registering_threads:
+        t.start()
+
+    try:
+        for _ in range(50):
+            pid = os.fork()
+            if pid == 0:
+                child_thread = threading.Thread(target=lambda: None)
+                child_thread.start()
+                child_thread.join()
+                os._exit(0)
+
+            deadline = time.monotonic() + 10
+            while True:
+                waited_pid, status = os.waitpid(pid, os.WNOHANG)
+                if waited_pid == pid:
+                    break
+                if time.monotonic() > deadline:
+                    os.kill(pid, 9)
+                    os.waitpid(pid, 0)
+                    raise AssertionError("the fork child hung")
+                time.sleep(0.01)
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+    finally:
+        should_stop.set()
+        for t in registering_threads:
+            t.join()
+
+    print("OK")
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_PROFILING_ENABLED="0",
+        DD_PROFILING_INSTALL="1",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_install_enabled_runtime_start_in_fork_child_keeps_child_registrations",
+    ),
+    err=None,
+)
+def test_install_enabled_runtime_start_in_fork_child_keeps_child_registrations() -> None:
+    import asyncio
+    import os
+    import threading
+    import time
+    import traceback
+
+    def run_in_child() -> None:
+        loop_started = threading.Event()
+        should_stop = threading.Event()
+
+        async def pre_started_asyncio_task() -> None:
+            loop_started.set()
+            while not should_stop.is_set():
+                start = time.monotonic()
+                while time.monotonic() - start < 0.01:
+                    pass
+                await asyncio.sleep(0)
+
+        async def main() -> None:
+            await asyncio.create_task(pre_started_asyncio_task(), name="pre-started-task")
+
+        # The loop thread and its asyncio loop are registered in the child, before the first profiler start.
+        loop_thread = threading.Thread(target=asyncio.run, args=(main(),), name="loop-thread")
+        loop_thread.start()
+        assert loop_started.wait(timeout=5)
+
+        from ddtrace.profiling import Profiler
+        from tests.profiling.collector import pprof_utils
+
+        p = Profiler()
+        p.start()
+        try:
+            time.sleep(1.0)
+        finally:
+            should_stop.set()
+            loop_thread.join()
+            p.stop()
+
+        output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+        profile = pprof_utils.parse_newest_profile(output_filename)
+        samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+        assert len(samples) > 0
+
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                task_name="pre-started-task",
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name=pre_started_asyncio_task.__name__,
+                        filename="test_install.py",
+                        line_no=-1,
+                    )
+                ],
+            ),
+            print_samples_on_failure=True,
+        )
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            run_in_child()
+        except BaseException:
+            traceback.print_exc()
+            os._exit(1)
+        os._exit(0)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status

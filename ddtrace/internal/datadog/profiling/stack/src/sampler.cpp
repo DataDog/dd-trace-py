@@ -772,8 +772,8 @@ stack_atfork_child()
     // Recreate synchronization and discard any pre-fork fallback GC frame.
     GCFrameTracker::get().postfork_child();
 
-    // Clean up Sampler state, do not start the Sampler yet.
-    stack_postfork_cleanup();
+    // The Sampler state was already cleaned up by the handler of
+    // register_fork_cleanup.
 
     // Restart the sampler if it was running before fork.
     // OriginTaskLinks was left disabled in postfork_child; re-enable when the
@@ -806,6 +806,10 @@ Sampler::one_time_setup()
         register_current_thread_if_missing();
     }
 
+    // Must be registered before stack_atfork_child, which expects the state to be cleaned up when it restarts the
+    // sampler.
+    register_fork_cleanup();
+
     // ProfilerState::start registers
     // dd_wrapper's pthread_atfork handler before Sampler::start is called,
     // so the POSIX FIFO child-handler ordering guarantees dd_wrapper's
@@ -813,6 +817,16 @@ Sampler::one_time_setup()
     // sampling thread restarts and calls intern_string.
     // More details in https://github.com/DataDog/dd-trace-py/pull/17183
     pthread_atfork(stack_atfork_prepare, stack_atfork_parent, stack_atfork_child);
+}
+
+void
+Sampler::register_fork_cleanup()
+{
+    // The hooks can take the Sampler locks with the GIL released before the sampler is first started (e.g. with
+    // DD_PROFILING_INSTALL), so the child must get fresh locks and state even if the sampler never ran.
+    // This handler does not depend on dd_wrapper, so it can run before the dd_wrapper child handler.
+    static std::once_flag once;
+    std::call_once(once, []() { pthread_atfork(nullptr, nullptr, stack_postfork_cleanup); });
 }
 
 void
@@ -841,6 +855,7 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
             // to the thread before, unless the thread id now belongs to another thread.
             if (it->second->native_id == native_id) {
                 (*maybe_thread_info)->asyncio_loop = it->second->asyncio_loop;
+                (*maybe_thread_info)->using_uvloop = it->second->using_uvloop;
             }
             it->second = std::move(*maybe_thread_info);
         } else {
@@ -986,6 +1001,11 @@ Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eag
 void
 Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
+    // Only sampling removes the links of the tasks that are done, so the links would accumulate while it is stopped.
+    if (!sampler_active_.load(std::memory_order_acquire)) {
+        return;
+    }
+
     std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
     echion->task_link_map()[child] = parent;
 }
@@ -993,6 +1013,10 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 void
 Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
 {
+    if (!sampler_active_.load(std::memory_order_acquire)) {
+        return;
+    }
+
     std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
     echion->weak_task_link_map()[child] = parent;
 }
