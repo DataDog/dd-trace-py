@@ -404,6 +404,15 @@ def test_the_response_model_is_the_top_level_one(original, model):
     assert _usage_metrics._response_model({"original_response": original}) == model
 
 
+def test_a_truncated_response_is_scanned_once():
+    # A string that never ends, full of escaped quotes and brackets, stops the scan instead of being retried from
+    # each quote.
+    original = '{"choices": [{"content": "' + '\\"[' * 200_000
+    started = time.monotonic()
+    assert _usage_metrics._response_model({"original_response": original}) is None
+    assert time.monotonic() - started < 2
+
+
 def test_the_response_model_is_read_without_decoding_the_response(monkeypatch):
     # The response can hold the whole generated output; only the model's own string is decoded.
     decoded = []

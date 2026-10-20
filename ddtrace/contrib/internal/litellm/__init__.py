@@ -64,9 +64,11 @@ against its budgets. The two cost metrics describe the same spend and are never 
 
    ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality to the endpoint given by
    ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``), with the
-   headers in ``OTEL_EXPORTER_OTLP_METRICS_HEADERS``. Without an endpoint, metrics go to the Datadog Agent's OTLP receiver
-   on port 4318, which the Agent enables only when configured (for example with
-   ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318``); a failing export logs a warning. An endpoint configured for gRPC (``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL``, or else
+   headers in ``OTEL_EXPORTER_OTLP_METRICS_HEADERS``. Without an endpoint, metrics go to Datadog's OTLP intake
+   (``https://otlp.<DD_SITE>/v1/metrics``, with ``DD_API_KEY`` as the ``dd-api-key`` header) when agentless mode is on
+   (``DD_AGENTLESS_ENABLED=true``), and otherwise to the Datadog Agent's OTLP receiver on port 4318, which the Agent
+   enables only when configured (for example with ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318``).
+   The API key is sent only to the intake. A failing export logs a warning. An endpoint configured for gRPC (``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL``, or else
    ``OTEL_EXPORTER_OTLP_PROTOCOL``, set to ``grpc``) is not supported: set ``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL`` to
    ``http/protobuf`` with an OTLP/HTTP ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``, or the metrics are not enabled. An export
    that fails with status 429, 502, 503 or 504, a refused connection or a timeout is retried, and kept for later exports

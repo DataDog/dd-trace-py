@@ -610,8 +610,9 @@ Metrics
      description: |
          Where LiteLLM usage metrics are sent. ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality
          to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``),
-         or to the Datadog Agent's OTLP receiver, which has to be enabled in the Agent. ``dogstatsd`` sends them to the
-         Datadog Agent's DogStatsD endpoint.
+         or else to Datadog's OTLP intake in agentless mode (``DD_AGENTLESS_ENABLED``) or to the Datadog Agent's OTLP
+         receiver, which has to be enabled in the Agent. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD
+         endpoint.
 
    DD_LITELLM_USAGE_METRICS_TAGS:
      type: String

@@ -810,6 +810,31 @@ class SizeLimitedSocket:
         self.closed = True
 
 
+class FullSocket:
+    """A datagram socket whose buffer stays full, as macOS reports at once instead of blocking."""
+
+    def __init__(self):
+        self.attempts = 0
+        self.closed = False
+
+    def send(self, data):
+        self.attempts += 1
+        raise OSError(errno.ENOBUFS, "No buffer space available")
+
+    def close(self):
+        self.closed = True
+
+
+def test_dogstatsd_retries_stop_at_the_shutdown_deadline(monkeypatch):
+    monkeypatch.setattr(agent_config, "dogstatsd_url", "unix:///nonexistent/dsd.sock")
+    sender = _usage_metrics_writer._DogStatsdSender()
+    sock = FullSocket()
+    sender._socket = sock
+    sender.send(["a:1|c"], deadline=time.monotonic() + 0.02)
+    # Each retry waits a few milliseconds; the deadline ends them long before the last attempt.
+    assert 1 <= sock.attempts < _usage_metrics_writer._SEND_ATTEMPTS
+
+
 def test_dogstatsd_lines_too_long_to_send_are_dropped_alone(monkeypatch):
     monkeypatch.setattr(agent_config, "dogstatsd_url", "unix:///nonexistent/dsd.sock")
     sender = _usage_metrics_writer._DogStatsdSender()

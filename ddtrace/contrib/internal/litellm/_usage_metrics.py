@@ -272,39 +272,48 @@ def _priced_at_zero(kwargs: dict[str, Any]) -> bool:
     return all(price is not None for price in prices) and all(price == 0 for price in prices)
 
 
-# A JSON string, or a bracket outside of one; and what separates an object key from its value.
-_JSON_TOKEN = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|[{}\[\]]')
+# The characters a scan stops at, a whole JSON string, and what separates an object key from its value.
+_JSON_DELIMITER = re.compile(r'["{}\[\]]')
 _JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"')
 _JSON_COLON = re.compile(r"\s*:\s*")
 
 
 def _top_level_model(text: str) -> Optional[str]:
     """The string value of the top-level "model" key of a JSON object, read without parsing the rest: the response
-    can hold the whole generated output, and providers put the model near the start.
+    can hold the whole generated output, and providers put the model near the start. One pass, each character read
+    at most once; a string that never ends stops the scan.
     """
     depth = 0
-    for token in _JSON_TOKEN.finditer(text):
-        value = token.group()
-        if value in ("{", "["):
-            depth += 1
-        elif value in ("}", "]"):
-            depth -= 1
+    position = 0
+    while True:
+        delimiter = _JSON_DELIMITER.search(text, position)
+        if delimiter is None:
+            return None
+        char = delimiter.group()
+        if char != '"':
+            position = delimiter.end()
+            depth += 1 if char in "{[" else -1
             if depth <= 0:
                 return None
-        elif depth == 1 and value == '"model"':
-            # Only a key is followed by a colon; "model" can also be a value.
-            colon = _JSON_COLON.match(text, token.end())
-            if colon is None:
-                continue
-            model = _JSON_STRING.match(text, colon.end())
-            if model is None:
-                return None
-            try:
-                name = json.loads(model.group())
-            except ValueError:
-                return None
-            return name if isinstance(name, str) and name else None
-    return None
+            continue
+        string = _JSON_STRING.match(text, delimiter.start())
+        if string is None:
+            return None
+        position = string.end()
+        if depth != 1 or string.group() != '"model"':
+            continue
+        # Only a key is followed by a colon; "model" can also be a value.
+        colon = _JSON_COLON.match(text, position)
+        if colon is None:
+            continue
+        model = _JSON_STRING.match(text, colon.end())
+        if model is None:
+            return None
+        try:
+            name = json.loads(model.group())
+        except ValueError:
+            return None
+        return name if isinstance(name, str) and name else None
 
 
 def _response_model(kwargs: dict[str, Any]) -> Optional[str]:

@@ -309,11 +309,12 @@ class _DogStatsdSender:
             self._send_packet(packet)
 
     def _send_packet(self, packet: list[bytes]) -> None:
-        if self._deadline is not None and time.monotonic() >= self._deadline:
-            log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
-            return
         data = b"\n".join(packet)
         for attempt in range(_SEND_ATTEMPTS):
+            # Checked before every attempt: a full buffer makes this loop wait between retries.
+            if self._deadline is not None and time.monotonic() >= self._deadline:
+                log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
+                return
             try:
                 self._connect().send(data)
                 return
