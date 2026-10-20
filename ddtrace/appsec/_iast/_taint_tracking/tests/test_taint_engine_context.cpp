@@ -261,7 +261,7 @@ TEST_F(ApplicationContextTest, ClearAllContexts)
     // Create up to min(3, capacity) contexts
     const auto cap = taint_engine_context->debug_context_array_size();
     const auto n = cap < 3 ? cap : static_cast<size_t>(3);
-    std::vector<size_t> indices;
+    std::vector<std::uint64_t> indices;
     for (size_t i = 0; i < n; ++i) {
         auto idx = taint_engine_context->start_request_context();
         ASSERT_TRUE(idx.has_value());
@@ -366,7 +366,7 @@ TEST_F(ApplicationContextTest, GetTaintedObjectMapByInvalidIndexReturnsNull)
 TEST_F(ApplicationContextTest, StartUntilCapacityThenNextReturnsNullopt)
 {
     const auto cap = taint_engine_context->debug_context_array_size();
-    std::vector<size_t> ids;
+    std::vector<std::uint64_t> ids;
     ids.reserve(cap);
     for (size_t i = 0; i < cap; ++i) {
         auto idx = taint_engine_context->start_request_context();

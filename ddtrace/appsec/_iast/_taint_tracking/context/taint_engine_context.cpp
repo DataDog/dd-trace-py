@@ -68,7 +68,7 @@ TaintEngineContext::set_shutting_down(bool v)
     shutting_down.store(v, std::memory_order_release);
 }
 
-std::optional<size_t>
+std::optional<std::uint64_t>
 TaintEngineContext::start_request_context()
 {
     std::lock_guard<std::mutex> lock(slots_mutex_);
@@ -83,7 +83,7 @@ TaintEngineContext::start_request_context()
 }
 
 void
-TaintEngineContext::finish_request_context(size_t ctx_id)
+TaintEngineContext::finish_request_context(std::uint64_t ctx_id)
 {
     std::lock_guard<std::mutex> lock(slots_mutex_);
     const auto cap = request_context_slots.size();
@@ -348,7 +348,7 @@ TaintEngineContext::get_tainted_object_from_request_context_slot(PyObject* taint
 }
 
 string
-TaintEngineContext::debug_taint_map(size_t ctx_id)
+TaintEngineContext::debug_taint_map(std::uint64_t ctx_id)
 {
     const auto ctx_map = get_tainted_object_map_by_ctx_id(ctx_id);
     if (!ctx_map) {
@@ -366,7 +366,7 @@ TaintEngineContext::debug_taint_map(size_t ctx_id)
 }
 
 int
-TaintEngineContext::debug_num_tainted_objects(size_t ctx_id)
+TaintEngineContext::debug_num_tainted_objects(std::uint64_t ctx_id)
 {
     if (const auto ctx_map = get_tainted_object_map_by_ctx_id(ctx_id)) {
         return static_cast<int>(ctx_map->size());
@@ -375,7 +375,7 @@ TaintEngineContext::debug_num_tainted_objects(size_t ctx_id)
 }
 
 TaintedObjectMapTypePtr
-TaintEngineContext::get_tainted_object_map_by_ctx_id(size_t ctx_id)
+TaintEngineContext::get_tainted_object_map_by_ctx_id(std::uint64_t ctx_id)
 {
     if (shutting_down.load(std::memory_order_acquire)) {
         return nullptr;
@@ -390,13 +390,13 @@ TaintEngineContext::get_tainted_object_map_by_ctx_id(size_t ctx_id)
 void
 pyexport_taint_engine_context(py::module& m)
 {
-    m.def("finish_request_context", [](size_t ctx_id) {
+    m.def("finish_request_context", [](std::uint64_t ctx_id) {
         if (!taint_engine_context)
             return;
         taint_engine_context->finish_request_context(ctx_id);
     });
 
-    m.def("start_request_context", []() -> std::optional<size_t> {
+    m.def("start_request_context", []() -> std::optional<std::uint64_t> {
         if (!taint_engine_context)
             return std::nullopt;
         return taint_engine_context->start_request_context();
@@ -408,7 +408,7 @@ pyexport_taint_engine_context(py::module& m)
         taint_engine_context->clear_all_request_context_slots();
     });
 
-    m.def("get_tainted_object_map_by_ctx_id", [](size_t ctx_id) {
+    m.def("get_tainted_object_map_by_ctx_id", [](std::uint64_t ctx_id) {
         if (!taint_engine_context)
             return false;
         return taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id) != nullptr;
@@ -416,7 +416,7 @@ pyexport_taint_engine_context(py::module& m)
 
     m.def(
       "is_in_taint_map",
-      [](py::object tainted_obj, std::optional<size_t> context_id) {
+      [](py::object tainted_obj, std::optional<std::uint64_t> context_id) {
           if (!taint_engine_context)
               return false;
           if (TaintEngineContext::is_shutting_down())
@@ -450,13 +450,13 @@ pyexport_taint_engine_context(py::module& m)
         return taint_engine_context->debug_context_array_free_slots_number();
     });
 
-    m.def("debug_taint_map", [](size_t ctx_id) {
+    m.def("debug_taint_map", [](std::uint64_t ctx_id) {
         if (!taint_engine_context)
             return std::string("");
         return taint_engine_context->debug_taint_map(ctx_id);
     });
 
-    m.def("debug_num_tainted_objects", [](size_t ctx_id) -> int {
+    m.def("debug_num_tainted_objects", [](std::uint64_t ctx_id) -> int {
         if (!taint_engine_context)
             return 0;
         return taint_engine_context->debug_num_tainted_objects(ctx_id);

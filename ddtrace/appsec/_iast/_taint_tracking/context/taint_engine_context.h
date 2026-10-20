@@ -33,6 +33,7 @@
 #include <pybind11/stl.h>
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -66,7 +67,7 @@ class TaintEngineContext
 
     // Fast-path: get the taint map for a known context_id (slot index).
     // Returns nullptr if the slot is empty or out of lifecycle.
-    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(size_t ctx_id);
+    TaintedObjectMapTypePtr get_tainted_object_map_by_ctx_id(std::uint64_t ctx_id);
 
     // Slow-path: find and return the taint map that contains the given
     // tainted object across all active slots. Returns nullptr if not found or
@@ -98,7 +99,7 @@ class TaintEngineContext
     TaintedObjectMapTypePtr get_tainted_object_map_from_ranges(const TaintRangeRefs& ranges);
 
     // Clear a specific map if present; leaves the slot free for reuse.
-    void finish_request_context(size_t ctx_id);
+    void finish_request_context(std::uint64_t ctx_id);
 
     // Clear all maps and free all slots.
     void clear_all_request_context_slots();
@@ -114,14 +115,14 @@ class TaintEngineContext
     // Create a context map for the current request. Returns the index (slot)
     // of the created map when successful, or std::nullopt if all slots are
     // occupied (capacity saturated).
-    std::optional<size_t> start_request_context();
+    std::optional<std::uint64_t> start_request_context();
 
     // Introspection helpers
     size_t debug_context_array_size() const { return request_context_slots.size(); }
 
-    int debug_num_tainted_objects(size_t ctx_id);
+    int debug_num_tainted_objects(std::uint64_t ctx_id);
 
-    string debug_taint_map(size_t ctx_id);
+    string debug_taint_map(std::uint64_t ctx_id);
 
     // Return the number of free slots (i.e., nullptr entries) in the
     // request_context_slots array. Intended for tests and diagnostics to

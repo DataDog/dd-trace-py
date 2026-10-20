@@ -113,7 +113,7 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
 }
 
 bool
-api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid)
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const std::uint64_t contextid)
 {
     if (!taint_engine_context) {
         return false;
@@ -166,7 +166,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
     if (nargs == 6) {
         PyObject* tainted_object = args[0];
         PyObject* ctx_obj = args[5];
-        size_t context_id = PyLong_AsSize_t(ctx_obj);
+        std::uint64_t context_id = PyLong_AsUnsignedLongLong(ctx_obj);
         const auto tx_map = safe_get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
             return new_reference(tainted_object);
@@ -289,7 +289,7 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
 }
 
 TaintRangeRefs
-api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id)
+api_get_ranges(const py::handle& string_input, std::optional<std::uint64_t> context_id)
 {
     if (!taint_engine_context) {
         return {};
@@ -318,7 +318,7 @@ api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id)
 }
 
 void
-api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2, std::optional<size_t> context_id)
+api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2, std::optional<std::uint64_t> context_id)
 {
     if (!taint_engine_context) {
         return;
@@ -351,7 +351,7 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
                                        py::handle& str_2,
                                        const int offset,
                                        const int new_length,
-                                       std::optional<size_t> context_id)
+                                       std::optional<std::uint64_t> context_id)
 {
     if (!taint_engine_context) {
         return;
