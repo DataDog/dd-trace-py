@@ -153,3 +153,39 @@ def test_thread_queued_start_during_fork_runs_once_in_parent():
         threads._forking = original_forking
         threads.ThreadRestartTimer.clear()
         threads._threads_to_start_after_fork.clear()
+
+
+def test_periodic_thread_cancel_if_not_started():
+    t = threads.PeriodicThread(60.0, lambda: None, name="test-periodic-cancel")
+    assert t.cancel_if_not_started() is True
+
+    t.start()
+    try:
+        assert t.cancel_if_not_started() is False
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_periodic_thread_cancel_if_not_started_drops_start_queued_during_fork():
+    calls = []
+
+    t = threads.PeriodicThread(0.01, lambda: calls.append(1), name="test-periodic-cancel-queued")
+
+    original_forking = threads._forking
+    threads._forking = True
+    try:
+        t.start()
+        assert t.cancel_if_not_started() is True
+        assert all(start.__self__ is not t for start in threads._threads_to_start_after_fork)
+
+        threads._forking = False
+        threads._after_fork_parent()
+        sleep(0.3)
+
+        assert calls == []
+        assert t.is_started() is False
+    finally:
+        threads._forking = original_forking
+        threads.ThreadRestartTimer.clear()
+        threads._threads_to_start_after_fork.clear()

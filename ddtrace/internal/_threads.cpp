@@ -911,6 +911,14 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
 
 // ----------------------------------------------------------------------------
 static PyObject*
+PeriodicThread_is_started(PeriodicThread* self, PyObject* Py_UNUSED(args))
+{
+    std::lock_guard<std::mutex> _lock(*self->_thread_mutex);
+    return PyBool_FromLong(self->_thread != nullptr);
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
 PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
     {
@@ -1113,6 +1121,7 @@ static PyMethodDef PeriodicThread_methods[] = {
     { "awake", (PyCFunction)PeriodicThread_awake, METH_NOARGS, "Awake the thread" },
     { "stop", (PyCFunction)PeriodicThread_stop, METH_NOARGS, "Stop the thread" },
     { "join", (PyCFunction)PeriodicThread_join, METH_VARARGS | METH_KEYWORDS, "Join the thread" },
+    { "is_started", (PyCFunction)PeriodicThread_is_started, METH_NOARGS, "Return True if the thread was started" },
     /* Private */
     { "_after_fork",
       (PyCFunction)(void*)PeriodicThread__after_fork,
