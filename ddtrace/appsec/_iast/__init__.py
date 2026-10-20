@@ -9,7 +9,7 @@ Then, implement the `patch()` function and its wrappers.
 
 In order to have the better performance, the Overhead control engine (OCE) helps us to control the overhead of our
 wrapped functions. We should create a class that inherit from `ddtrace.appsec._iast.taint_sinks._base.VulnerabilityBase`
-and register with `ddtrace.appsec._iast.oce`.
+and register with ddtrace.appsec._iast._overhead_control_engine.oce.
 
 @oce.register
 class MyVulnerability(VulnerabilityBase):
@@ -39,7 +39,6 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 
 from ._listener import iast_listen
-from ._overhead_control_engine import oce as oce
 
 
 log = get_logger(__name__)
