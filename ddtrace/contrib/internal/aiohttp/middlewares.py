@@ -87,7 +87,7 @@ async def trace_middleware(app, handler):
                 except BaseException as exc:
                     if (blocking := find_exception(exc, BlockingException)) is None:
                         raise
-                    response = _blocked_response(request, blocking.args[0])
+                    response = _blocked_response(ctx, request, blocking.args[0])
                 finally:
                     core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
                 if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
@@ -103,11 +103,10 @@ async def trace_middleware(app, handler):
 
 async def _handle_request(ctx, request, handler):
     max_body_size = getattr(request, "_client_max_size", 0) or DEFAULT_CLIENT_MAX_SIZE
-    request_body = core.dispatch_with_results(
-        "aiohttp.request.start", (ctx, request, max_body_size)
-    ).aiohttp_request_body
-    if request_body and request_body.value is not None:
-        body = await request_body.value
+    core.dispatch("aiohttp.request.start", (ctx, request, max_body_size))
+    read_body = ctx.get_item("aiohttp_request_body")
+    if read_body is not None:
+        body = await read_body
         if body is not None:
             _restore_request_body(request, body)
     try:
@@ -133,15 +132,16 @@ def _restore_request_body(request, body):
     request._payload = stream
 
 
-def _blocked_response(request, block_config):
+def _blocked_response(ctx, request, block_config):
     started_response = request.get(REQUEST_STARTED_RESPONSE_KEY)
     if started_response is not None:
         if request.transport is not None:
             request.transport.close()
         return started_response
-    block_response = core.dispatch_with_results("aiohttp.request.block", (request, block_config)).aiohttp_block_response
-    if block_response and block_response.value is not None:
-        status, headers, body = block_response.value
+    core.dispatch("aiohttp.request.block", (ctx, request, block_config))
+    block_response = ctx.get_item("aiohttp_block_response")
+    if block_response is not None:
+        status, headers, body = block_response
         return web.Response(status=status, headers=headers, body=body)
     return web.Response(
         status=403, content_type="application/json", text=_format_template(BLOCKED_RESPONSE_JSON, "default")
