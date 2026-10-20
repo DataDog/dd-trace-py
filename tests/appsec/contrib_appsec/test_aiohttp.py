@@ -3,18 +3,25 @@ import base64
 from http.cookies import SimpleCookie
 import json
 import time
+import traceback
 from typing import Any
 from typing import Optional
+from unittest import mock
 import urllib.parse
 
 from aiohttp import ClientError
 from aiohttp import ClientSession
 from aiohttp import web
+import aiohttp.connector
 from aiohttp.test_utils import TestServer
 from multidict import CIMultiDict
 import pytest
 from yarl import URL
 
+from ddtrace.appsec import _common_module_patches
+from ddtrace.appsec._common_module_patches import _SsrfAiohttpConnect
+from ddtrace.appsec._common_module_patches import patch_common_modules
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -22,6 +29,7 @@ from ddtrace.internal.packages import get_version_for_package
 from tests.appsec import rules
 from tests.appsec.contrib_appsec import utils
 from tests.appsec.contrib_appsec.aiohttp_app.app import get_app
+from tests.appsec.contrib_appsec.api10_server import API10_RESPONSE_BODY
 from tests.utils import override_global_config
 from tests.utils import scoped_tracer
 
@@ -350,6 +358,84 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
         utils.Contrib_TestClass_For_Threats.test_api10_addresses_redirects(
             self, "_aiohttp", interface, api10_server, test_spans, entry_span
         )
+
+    def _waf_calls(self):
+        return mock.patch.object(
+            _common_module_patches, "call_waf_callback", wraps=_common_module_patches.call_waf_callback
+        )
+
+    def test_api10_streamed_response_body_aiohttp_client(self, interface, api10_server):
+        with (
+            override_global_config(
+                dict(
+                    _asm_enabled=True,
+                    _api_security_enabled=True,
+                    _ep_enabled=True,
+                    _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+                    _dr_sample_rate=1.0,
+                )
+            ),
+            self._waf_calls() as waf_calls,
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(f"/redirect_aiohttp/response-body/{api10_server.port()}?stream=1")
+            assert self.status(response) == 200
+            assert json.loads(self.body(response))["payload"] == API10_RESPONSE_BODY.decode()
+            addresses = [call.args[0] for call in waf_calls.call_args_list]
+            assert any(a.get("DOWN_RES_STATUS") == "200" for a in addresses), addresses
+            assert not any("DOWN_RES_BODY" in a for a in addresses), addresses
+
+    def test_api10_proxy_connect_response_is_ignored(self, interface):
+        async def proxy(reader, writer):
+            await reader.readuntil(b"\r\n\r\n")
+            writer.write(
+                b"HTTP/1.1 407 Proxy Authentication Required\r\n"
+                b"Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"
+            )
+            await writer.drain()
+            writer.close()
+
+        server = interface.client.loop.run_until_complete(asyncio.start_server(proxy, "127.0.0.1", 0))
+        try:
+            with (
+                override_global_config(
+                    dict(
+                        _asm_enabled=True,
+                        _api_security_enabled=True,
+                        _ep_enabled=True,
+                        _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+                        _dr_sample_rate=1.0,
+                    )
+                ),
+                self._waf_calls() as waf_calls,
+            ):
+                self.update_tracer(interface)
+                port = server.sockets[0].getsockname()[1]
+                response = interface.client.get(f"/aiohttp_proxy/{port}")
+                assert self.status(response) == 200
+                assert self.body(response) == "error ClientHttpProxyError"
+                addresses = [call.args[0] for call in waf_calls.call_args_list]
+                assert any(a.get(EXPLOIT_PREVENTION.ADDRESS.SSRF) == "https://www.datadoghq.com/" for a in addresses), (
+                    addresses
+                )
+                assert not any("DOWN_RES_STATUS" in a for a in addresses), addresses
+        finally:
+            server.close()
+            interface.client.loop.run_until_complete(server.wait_closed())
+
+    def test_aiohttp_client_traceback_has_no_appsec_frames(self):
+        patch_common_modules()
+        assert _SsrfAiohttpConnect.is_wrapped(aiohttp.connector.BaseConnector.connect)
+
+        async def call():
+            async with ClientSession() as session:
+                await session.get("http://127.0.0.1:1/")
+
+        with pytest.raises(ClientError) as raised:
+            asyncio.run(call())
+        frames = traceback.extract_tb(raised.value.__traceback__)
+        appsec_frames = [frame.filename for frame in frames if "/ddtrace/appsec/" in frame.filename]
+        assert not appsec_frames, appsec_frames
 
 
 class Test_Aiohttp_RC(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats_RC):

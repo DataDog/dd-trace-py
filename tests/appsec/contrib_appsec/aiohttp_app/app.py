@@ -412,10 +412,24 @@ async def redirect_aiohttp(request: web.Request) -> web.Response:
             else:
                 response = await session.get(_downstream_url(request), headers={"TagRoute": route})
             async with response:
-                payload = {"payload": await response.text()}
+                if request.query.get("stream"):
+                    body = b"".join([chunk async for chunk in response.content.iter_any()])
+                    payload = {"payload": body.decode("utf-8", errors="replace")}
+                else:
+                    payload = {"payload": await response.text()}
     except Exception as e:
         payload = {"error": repr(e)}
     return web.json_response(payload)
+
+
+async def aiohttp_proxy(request: web.Request) -> web.Response:
+    proxy = f"http://127.0.0.1:{request.match_info['port']}"
+    try:
+        async with ClientSession(timeout=ClientTimeout(total=DOWNSTREAM_HTTP_TIMEOUT)) as session:
+            async with session.get("https://www.datadoghq.com/", proxy=proxy) as response:
+                return _html(f"status {response.status}")
+    except Exception as e:
+        return _html(f"error {e.__class__.__name__}")
 
 
 async def exception_group_block(request: web.Request) -> web.Response:
@@ -505,6 +519,7 @@ def get_app() -> web.Application:
         (r"/redirect_httpx_async/{route}/{port:\d+}", redirect_httpx_async, ("GET", "POST")),
         (r"/redirect_httpx2_async/{route}/{port:\d+}", redirect_httpx_async, ("GET", "POST")),
         (r"/redirect_aiohttp/{route}/{port:\d+}", redirect_aiohttp, ("GET", "POST")),
+        (r"/aiohttp_proxy/{port:\d+}", aiohttp_proxy, ("GET",)),
         ("/exception-group-block", exception_group_block, ("GET",)),
         ("/login/", login, ("GET",)),
         ("/login_sdk/", login_sdk, ("GET",)),

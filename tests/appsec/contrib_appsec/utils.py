@@ -66,6 +66,9 @@ _TRANSIENT_DOWNSTREAM_ERRORS = frozenset(
     {
         "BrokenPipeError",
         "ChunkedEncodingError",
+        "ClientConnectorError",
+        "ClientOSError",
+        "ClientPayloadError",
         "CloseError",
         "ConnectError",
         "ConnectTimeout",
@@ -84,6 +87,8 @@ _TRANSIENT_DOWNSTREAM_ERRORS = frozenset(
         "ReadTimeoutError",
         "RemoteDisconnected",
         "RemoteProtocolError",
+        "ServerDisconnectedError",
+        "ServerTimeoutError",
         "Timeout",
         "TimeoutError",
         "URLError",
