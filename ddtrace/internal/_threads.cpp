@@ -707,11 +707,17 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                     self->_started->set();
 
                     bool error = false;
-                    if (self->_no_wait_at_start)
-                        self->_request->set(REQUEST_REASON_AWAKE);
+                    // With no_wait_at_start, go from registering the thread to the
+                    // first call without releasing the GIL. The before-fork and
+                    // atexit hooks only stop threads registered in periodic_threads,
+                    // and need the GIL to do so, so they cannot stop the thread
+                    // between registration and the first call. A one-shot Thread
+                    // that they find has therefore run its target, as the parent's
+                    // restart logic assumes.
+                    bool run_now = self->_no_wait_at_start;
 
                     while (!self->_stopping) {
-                        {
+                        if (!run_now) {
                             AllowThreads _(state);
 
                             if (self->_request->wait(self->_next_call_time)) {
@@ -728,11 +734,12 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                                     break;
                                 }
 
-                                // Request wakeup while running (awake/no_wait_at_start).
+                                // Request wakeup while running (awake).
                                 // Timer wakeups are the wait(...) == false branch.
                                 self->_request->consume_all();
                             }
                         }
+                        run_now = false;
 
                         if (state->is_finalizing())
                             break;
