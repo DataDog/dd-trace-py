@@ -1783,6 +1783,31 @@ async def test_async_wrapper_frames_have_valid_linenos():
 
 
 @pytest.mark.asyncio
+async def test_wrapping_context_enter_on_coroutine_has_valid_lineno():
+    stack_at_enter = []
+
+    class StackAtEnter(WrappingContext):
+        def __enter__(self):
+            stack_at_enter.extend(inspect.stack())
+            return super().__enter__()
+
+    async def coro(x):
+        await asyncio.sleep(0)
+        return x + 1
+
+    StackAtEnter(coro).wrap()
+
+    assert await coro(41) == 42
+    assert stack_at_enter
+    assert all(frame_info.lineno is not None for frame_info in stack_at_enter), [
+        (frame_info.function, frame_info.lineno) for frame_info in stack_at_enter
+    ]
+    assert [frame_info.lineno for frame_info in stack_at_enter if frame_info.function == "coro"] == [
+        coro.__code__.co_firstlineno
+    ]
+
+
+@pytest.mark.asyncio
 async def test_lazy_async_wrapper_frames_have_valid_linenos():
     """Same lineno regression check for LazyWrappingContext on async functions.
 

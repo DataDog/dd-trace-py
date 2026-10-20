@@ -1246,6 +1246,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                            instr.lineno = code.co_firstlineno
                             break
 
                 *bc[i:i], except_label = CONTEXT_HEAD.bind(
