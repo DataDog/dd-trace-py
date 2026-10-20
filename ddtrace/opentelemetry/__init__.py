@@ -181,7 +181,7 @@ The following environment variables are supported:
   OTLP protocol used for export. Metrics and logs support ``grpc`` (default) and ``http/protobuf``.
   Traces support ``grpc``, ``http/protobuf`` (default), and ``http/json``. Trace-specific protocol
   configuration takes precedence over the global ``OTEL_EXPORTER_OTLP_PROTOCOL`` setting. gRPC
-  trace export currently supports plaintext ``http://`` endpoints only.
+  trace export currently requires an ``http://`` endpoint; ``https://`` is not supported.
 
 OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
 
