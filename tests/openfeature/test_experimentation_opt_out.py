@@ -77,15 +77,17 @@ def test_subject_transition_and_fallback(mode, mocker):
             mode == ExperimentationOptOutMode.DISABLED
         )
         assert provider.resolve_boolean_details("feature", False, eligible).value is True
-        for value in [None, "", True, 123, "2026-02-30T00:00:00Z"]:
+        for value in [None, "", True, 123, {}, [], "2026-02-30T00:00:00Z"]:
             invalid = EvaluationContext(targeting_key="athlete", attributes={"dd_experimentation_opt_out_at": value})
             result = provider.resolve_boolean_details("feature", False, invalid)
             if mode == ExperimentationOptOutMode.IMMEDIATE:
                 assert result.error_code == ErrorCode.INVALID_CONTEXT
                 assert result.value is False
+                assert "omit the attribute" in result.error_message
             else:
                 assert result.error_code is None
                 assert result.value is True
+            assert invalid.attributes["dd_experimentation_opt_out_at"] is value
         assert writer.enqueue.call_count == 1
     finally:
         provider.shutdown()

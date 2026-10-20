@@ -224,7 +224,7 @@ pub mod ffe {
                 ),
                 EvaluationError::InvalidContext => ResolutionDetails::error(
                     ErrorCode::InvalidContext,
-                    "dd_experimentation_opt_out_at must be an RFC3339 timestamp string",
+                    "Set dd_experimentation_opt_out_at to a valid RFC3339 timestamp string, or omit the attribute",
                 ),
                 err => ResolutionDetails::error(ErrorCode::General, err.to_string()),
             }

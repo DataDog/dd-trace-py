@@ -103,6 +103,14 @@ def resolve_flag(
             if hasattr(context, "attributes") and context.attributes:
                 context_dict["attributes"] = context.attributes
 
+    # Native attributes support only scalar values. Preserve an invalid reserved
+    # attribute as null, so immediate mode rejects it and disabled mode ignores it.
+    # Copy the attributes to keep the customer's evaluation context unchanged.
+    attributes = context_dict["attributes"]
+    opt_out_attribute = "dd_experimentation_opt_out_at"
+    if isinstance(attributes, dict) and isinstance(attributes.get(opt_out_attribute), (dict, list)):
+        context_dict["attributes"] = {**attributes, opt_out_attribute: None}
+
     # Call native resolve_value which returns ResolutionDetails
     # ResolutionDetails contains: value, variant, reason, error_code, error_message,
     # allocation_key, do_log

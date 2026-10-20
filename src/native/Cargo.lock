@@ -1079,7 +1079,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core",
 ]
 
 [[package]]
@@ -1393,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities"
 version = "4.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12#20fc742af6d1449d518fdd487bb3b0acff028c12"
+source = "git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7#020004781291bd9178cd91868f53291bfed550f7"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1419,14 +1419,14 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities-impl"
 version = "7.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12#20fc742af6d1449d518fdd487bb3b0acff028c12"
+source = "git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7#020004781291bd9178cd91868f53291bfed550f7"
 dependencies = [
  "anyhow",
  "bytes",
  "http 1.4.2",
  "http-body-util",
- "libdd-capabilities 4.0.1 (git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12)",
- "libdd-common 8.0.0 (git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12)",
+ "libdd-capabilities 4.0.1 (git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7)",
+ "libdd-common 8.0.0 (git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7)",
  "tokio",
 ]
 
@@ -1447,7 +1447,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "8.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12#20fc742af6d1449d518fdd487bb3b0acff028c12"
+source = "git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7#020004781291bd9178cd91868f53291bfed550f7"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1669,13 +1669,13 @@ dependencies = [
 [[package]]
 name = "libdd-ffe"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12#20fc742af6d1449d518fdd487bb3b0acff028c12"
+source = "git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7#020004781291bd9178cd91868f53291bfed550f7"
 dependencies = [
  "chrono",
  "derive_more",
  "faststr",
- "libdd-common 8.0.0 (git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12)",
- "libdd-remote-config 7.0.0 (git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12)",
+ "libdd-common 8.0.0 (git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7)",
+ "libdd-remote-config 7.0.0 (git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7)",
  "log",
  "md5",
  "pyo3",
@@ -1905,14 +1905,14 @@ dependencies = [
 [[package]]
 name = "libdd-remote-config"
 version = "7.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12#20fc742af6d1449d518fdd487bb3b0acff028c12"
+source = "git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7#020004781291bd9178cd91868f53291bfed550f7"
 dependencies = [
  "anyhow",
  "getrandom 0.2.17",
  "hashbrown",
- "libdd-capabilities 4.0.1 (git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12)",
- "libdd-capabilities-impl 7.0.0 (git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12)",
- "libdd-common 8.0.0 (git+https://github.com/DataDog/libdatadog?rev=20fc742af6d1449d518fdd487bb3b0acff028c12)",
+ "libdd-capabilities 4.0.1 (git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7)",
+ "libdd-capabilities-impl 7.0.0 (git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7)",
+ "libdd-common 8.0.0 (git+https://github.com/DataDog/libdatadog?rev=020004781291bd9178cd91868f53291bfed550f7)",
  "serde",
  "serde_json",
  "strum",
@@ -4296,7 +4296,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -4320,7 +4320,7 @@ version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f919aee0a93304be7f62e8e5027811bbba96bcb1de84d6618be56e43f8a32a1"
 dependencies = [
- "windows-core 0.59.0",
+ "windows-core",
  "windows-targets 0.53.5",
 ]
 
@@ -4330,7 +4330,7 @@ version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "810ce18ed2112484b0d4e15d022e5f598113e220c53e373fb31e67e21670c1ce"
 dependencies = [
- "windows-implement 0.59.0",
+ "windows-implement",
  "windows-interface",
  "windows-result 0.3.4",
  "windows-strings 0.3.1",
@@ -4338,34 +4338,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows-core"
-version = "0.62.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb"
-dependencies = [
- "windows-implement 0.60.2",
- "windows-interface",
- "windows-link 0.2.1",
- "windows-result 0.4.1",
- "windows-strings 0.5.1",
-]
-
-[[package]]
 name = "windows-implement"
 version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83577b051e2f49a058c308f17f273b570a6a758386fc291b5f6a934dd84e48c1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "windows-implement"
-version = "0.60.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
 dependencies = [
  "proc-macro2",
  "quote",
