@@ -1448,6 +1448,24 @@ Feature Flagging
          Configuration). ``offline`` is reserved and currently unsupported; any
          unsupported value disables the provider without contacting either source.
 
+   DD_FEATURE_FLAGS_EXPERIMENTATION_OPT_OUT_MODE:
+     type: String
+     default: disabled
+     description: |
+         Set to ``immediate`` to honor the ``dd_experimentation_opt_out_at`` evaluation-context attribute.
+         A valid RFC3339 timestamp immediately excludes the subject from exposure-logging allocations.
+         Evaluation continues through ordinary feature allocations and returns the application default if none match.
+         Omit the attribute for subjects who can participate. Invalid timestamps return ``INVALID_CONTEXT`` and the application default.
+         A future timestamp also excludes immediately. It does not schedule exclusion.
+
+         ``disabled`` ignores the attribute. The provider captures the setting at construction.
+         An explicit ``DataDogProvider(experimentation_opt_out_mode=ExperimentationOptOutMode.DISABLED)``
+         or ``ExperimentationOptOutMode.IMMEDIATE`` overrides the environment.
+         Import ``ExperimentationOptOutMode`` from ``ddtrace.openfeature``.
+         Unsupported mode values raise ``ValueError`` during provider construction.
+         Evaluation telemetry remains independent. Immediate withdrawal can change an enrolled subject's experience;
+         account for this change in experiment analysis.
+
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
      type: String
      default: (none)

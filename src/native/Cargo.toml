@@ -32,7 +32,7 @@ serde = "1.0"
 serde_json = "1.0"
 smallvec = "1"
 tokio = "1"
-libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v46.0.0", optional = true, features = ["pyo3"] }
+libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "dabc13f99b8fa77d45520f7d0e04858a49e85ceb", optional = true, features = ["pyo3"] }
 libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v46.0.0", features = ["one_way_shm_futex"] }
 libdd-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v46.0.0" }
 libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v46.0.0", features = [

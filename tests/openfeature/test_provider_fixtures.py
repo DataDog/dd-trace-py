@@ -8,6 +8,7 @@ import pytest
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from ddtrace.openfeature import ExperimentationOptOutMode
 from tests.utils import override_global_config
 
 
@@ -54,6 +55,12 @@ for fixture_file in fixture_files:
         all_test_cases.append((fixture_file, test_case, test_id))
 
 assert all_test_cases, f"No FFE JSON fixtures found in {FIXTURES_DIR}"
+immediate_test_cases = [
+    (fixture_file, {**test_case, "result": test_case["capabilities"]["experimentationOptOutImmediate"]}, test_id)
+    for fixture_file, test_case, test_id in all_test_cases
+    if "experimentationOptOutImmediate" in test_case.get("capabilities", {})
+]
+assert len(immediate_test_cases) == 18, "Expected the shared immediate opt-out capability cases"
 
 
 @pytest.fixture
@@ -107,3 +114,15 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
             f"Fixture {fixture_file} test {test_id}: flag '{flag_key}' returned error code "
             f"{result.error_code}, expected {expected_result['errorCode']}"
         )
+
+
+@pytest.mark.parametrize(
+    "fixture_file,test_case,test_id", immediate_test_cases, ids=[tc[2] for tc in immediate_test_cases]
+)
+def test_immediate_fixture_case(monkeypatch, flags_config, fixture_file, test_case, test_id):
+    monkeypatch.setenv("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE", "remote_config")
+    provider = DataDogProvider(experimentation_opt_out_mode=ExperimentationOptOutMode.IMMEDIATE)
+    try:
+        test_fixture_case(provider, flags_config, fixture_file, test_case, test_id)
+    finally:
+        provider.shutdown()

@@ -64,6 +64,7 @@ def resolve_flag(
     flag_key: str,
     context: Any,
     expected_type: VariationType,
+    experimentation_opt_out_immediate: bool = False,
 ) -> Optional[ResolutionDetails]:
     """
     Wrapper around native resolve_value that prepares the context.
@@ -108,4 +109,6 @@ def resolve_flag(
     # JSON flags may contain "null" which is a valid value that should be returned.
     # The way to check for absent value is by checking variant field—if it's None,
     # then there's no value returned from evaluation.
-    return configuration.resolve_value(flag_key, expected_type, context_dict)
+    return configuration.resolve_value(
+        flag_key, expected_type, context_dict, experimentation_opt_out_immediate=experimentation_opt_out_immediate
+    )

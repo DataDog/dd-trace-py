@@ -1069,7 +1069,13 @@ class ffe:
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
-        def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
+        def resolve_value(
+            self,
+            flag_key: str,
+            expected_type: ffe.FlagType,
+            context: dict,
+            experimentation_opt_out_immediate: bool = False,
+        ) -> ffe.ResolutionDetails: ...
 
 class native_flare:
     class ListeningError(Exception): ...

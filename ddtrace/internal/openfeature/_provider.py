@@ -31,6 +31,8 @@ from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _register_provider
 from ddtrace.internal.openfeature._config import _unregister_provider
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
+from ddtrace.internal.openfeature._experimentation_opt_out import ExperimentationOptOutMode
+from ddtrace.internal.openfeature._experimentation_opt_out import resolve_mode
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
@@ -117,6 +119,7 @@ class DataDogProvider(AbstractProvider):
         self,
         *args: typing.Any,
         initialization_timeout: typing.Optional[float] = None,
+        experimentation_opt_out_mode: typing.Optional[ExperimentationOptOutMode] = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -132,6 +135,9 @@ class DataDogProvider(AbstractProvider):
         # provider-construction time rather than at import time (see the killswitch
         # note below for the same reasoning).
         instance_config = OpenFeatureConfig()
+        self._experimentation_opt_out_mode = resolve_mode(
+            experimentation_opt_out_mode, instance_config.experimentation_opt_out_mode
+        )
 
         # How long initialize() waits for that first config, in seconds. The
         # constructor argument wins so embedders and tests can override the
@@ -484,6 +490,9 @@ class DataDogProvider(AbstractProvider):
                 flag_key=flag_key,
                 context=evaluation_context,
                 expected_type=variation_type,
+                experimentation_opt_out_immediate=(
+                    self._experimentation_opt_out_mode == ExperimentationOptOutMode.IMMEDIATE
+                ),
             )
 
             # No configuration available - return error with PROVIDER_NOT_READY code
