@@ -46,12 +46,14 @@ class Decision(str, Enum):
 log = get_logger(__name__)
 
 
-# A context is usually only active on the thread that started it, but copying
-# the execution context into another thread (e.g. asyncio.to_thread) shares it.
-# This keeps admission, the decision it records and the per-probe cap atomic per
-# context in that case. It is shared by all contexts, but only held briefly, at
-# capture time. Nothing that can call back into application code (e.g. logging)
-# may run while it is held, or a probe there could deadlock against it.
+# Makes admission atomic. A context is usually only active on the thread that
+# started it, but copying the execution context into another thread (e.g.
+# asyncio.to_thread) shares it, so the decision and the per-probe cap need
+# guarding. Outside of any context, it lets admission check both the global and
+# the probe limiter before charging either, as they are only charged under it.
+# Only held briefly, at capture time. Nothing that can call back into
+# application code (e.g. logging) may run while it is held, or a probe there
+# could deadlock against it.
 _context_lock = forksafe.Lock()
 
 
@@ -257,13 +259,19 @@ class DebuggerSampler:
 
         context = cls._context()
         if context is None:
-            # Charge the probe's own rate first: it is the cheaper token to waste
-            # should the global limit then turn the firing away.
-            if _over_rate(probe, peek=False):
-                return Decision.DROP_RATE
-            if limiter.limit() is RateLimitExceeded:
-                return cls._exceeded()
-            return Decision.FIRE
+            with _context_lock:
+                # Both limiters are only ever charged under this lock, and
+                # peeking only adds to their budget. So once both are seen to
+                # have budget, charging them cannot fail, and a firing turned
+                # away by one never spends a token of the other.
+                if _over_rate(probe, peek=True):
+                    return Decision.DROP_RATE
+                admitted = limiter.has_budget()
+                if admitted:
+                    _over_rate(probe, peek=False)
+                    limiter.limit()
+            # Logged outside the lock, as logging may call into application code.
+            return Decision.FIRE if admitted else cls._exceeded()
 
         with _context_lock:
             if context.captured(probe):

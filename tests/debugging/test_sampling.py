@@ -457,6 +457,20 @@ def test_cap_resets_between_traces(roomy):
             assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
 
+def test_no_trace_global_rejection_does_not_spend_the_probe_rate():
+    # Outside a trace, a firing turned away by the global limit must not spend
+    # the probe's own token: with a zero rate, it would never come back, and the
+    # probe would never capture again even once the global budget is repaid.
+    budget = spent_budget()
+    probe = create_snapshot_line_probe(probe_id="snapshot-probe", source_file="test.py", line=1, rate=0.0)
+
+    assert budget.admit(probe) is Decision.DROP_SAMPLED
+
+    budget._limiter.budget = 1.0
+    assert budget.admit(probe) is Decision.FIRE
+    assert budget.admit(probe) is Decision.DROP_RATE
+
+
 def test_no_trace_falls_back_to_the_probes_own_rate_limiter(roomy):
     # With no trace there is nowhere to remember what captured. Rather than
     # capturing uncapped, the probe falls back to its own rate limiter. The gate
