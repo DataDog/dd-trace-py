@@ -18,7 +18,7 @@ from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib._events.http import HttpResponseData
 from ddtrace.contrib.internal.http_server import HttpLifecycle
 from ddtrace.contrib.internal.http_server import HttpLifecycleConfig
-from ddtrace.contrib.internal.http_server import has_http_listeners
+from ddtrace.contrib.internal.http_server import http_instrumentation_active
 from ddtrace.trace import tracer
 
 
@@ -125,7 +125,7 @@ class WsgiLifecycleDriver:
     def wrap(self, application: Callable[..., Any]) -> Callable[..., Any]:
         def traced_wsgi(environ: dict[str, Any], start_response: Callable[..., Any]) -> Any:
             config = self.get_config()
-            if config is None or not has_http_listeners():
+            if config is None or not http_instrumentation_active():
                 return application(environ, start_response)
             lifecycle = HttpLifecycle(config, self.request_data(environ), validate_block=_valid_wsgi_block)
             request = _WsgiRequest(self, lifecycle)

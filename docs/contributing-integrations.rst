@@ -230,8 +230,9 @@ block and with what response, never how that response reaches the client.
 
 Bottle emits events when a consumer is registered even if tracing is disabled,
 without creating a request span. Consumers should register before request entry to
-observe the complete lifecycle. With no tracing, observation, or block-check listeners,
-the WSGI wrapper delegates directly to Bottle.
+observe the complete lifecycle. When the tracer is disabled and no observation or
+block-check listener is registered, the WSGI wrapper delegates directly to Bottle
+without extracting the request.
 
 The before-handler observation and its block check wrap the resolved callback's whole
 plugin chain, so they do not depend on which plugins a route applies: a route that

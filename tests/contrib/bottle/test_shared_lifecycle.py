@@ -103,6 +103,44 @@ def test_shared_driver_bypasses_uninstalled_integration(observations):
     assert observations == []
 
 
+def _settings():
+    return HttpLifecycleConfig("test_wsgi", "test-service", IntegrationConfig(config, "test_wsgi"))
+
+
+def test_shared_driver_bypasses_requests_nothing_would_consume(tracer, monkeypatch):
+    # Deliberately no observations/block_checker fixture: registering either one is
+    # itself a consumer. The tracing subscriber registers its context listener at
+    # import time whether or not tracing is on, so the bypass has to ask the tracer
+    # rather than probe that listener.
+    monkeypatch.setattr(tracer, "enabled", False)
+    result = [b"original"]
+
+    def request_data(environ):
+        pytest.fail("a bypassed request must not be extracted")
+
+    driver = WsgiLifecycleDriver(get_config=_settings, request_data=request_data)
+    assert driver.wrap(lambda environ, start_response: result)({}, lambda *args: None) is result
+
+
+def test_shared_driver_instruments_for_an_observer_without_tracing(tracer, monkeypatch, observations, test_spans):
+    # The other half of the gate: tracing declines, but a registered consumer still
+    # gets the full lifecycle.
+    monkeypatch.setattr(tracer, "enabled", False)
+
+    def application(environ, start_response):
+        start_response("200 OK", [])
+        return [b"done"]
+
+    driver = WsgiLifecycleDriver(get_config=_settings)
+    body = driver.wrap(application)(environ_for_request(), lambda *args: None)
+    try:
+        assert b"".join(body) == b"done"
+    finally:
+        body.close()
+    assert observations[-1].phase == HttpRequestPhase.COMPLETED
+    assert test_spans.pop() == []
+
+
 @pytest.mark.parametrize("host", [None, "api.example:8443"])
 def test_default_extraction_needs_no_framework_and_does_not_read_body(driver, observations, host):
     class UnreadableInput:

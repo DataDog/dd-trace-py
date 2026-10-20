@@ -16,6 +16,7 @@ from ddtrace.contrib._events.http import HttpRequestError
 from ddtrace.contrib._events.http import HttpRequestPhase
 from ddtrace.contrib._events.http import HttpResponseData
 from ddtrace.contrib._events.http import HttpServerRequestEvent
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.settings.integration import IntegrationConfig
 
@@ -84,15 +85,24 @@ def publish_http_event(phase: HttpRequestPhase, **fields: Any) -> None:
 
 
 ExcInfo = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
-_LIFECYCLE_EVENTS = (
-    f"context.started.{HttpServerRequestEvent.event_name}",
+# Deliberately excludes context.started.http.server.request: the tracing subscriber
+# registers for it at import time whether or not tracing is on, so probing it would
+# always report work to do. is_tracing_enabled is the condition that subscriber
+# actually gates span creation on, so ask it directly instead.
+_OBSERVER_EVENTS = (
     HttpRequestBlockCheckEvent.event_name,
     *(event.event_name for event in HTTP_REQUEST_DATA_EVENTS.values()),
 )
 
 
-def has_http_listeners() -> bool:
-    return any(core.has_listeners(name) for name in _LIFECYCLE_EVENTS)
+def http_instrumentation_active() -> bool:
+    """Whether anything would consume this request's lifecycle.
+
+    False means no span would be created and no listener would be called, so a
+    driver can hand the request straight to the application and skip request
+    extraction entirely.
+    """
+    return is_tracing_enabled() or any(core.has_listeners(name) for name in _OBSERVER_EVENTS)
 
 
 @dataclass(frozen=True)
