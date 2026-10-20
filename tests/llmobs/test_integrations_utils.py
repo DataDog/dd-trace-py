@@ -1371,6 +1371,19 @@ class TestOpenAIConstructMessageWithUnindexedToolCalls:
         assert len(message["tool_calls"]) == 1
         assert message["tool_calls"][0]["function"]["arguments"] == '{"city":"Paris"}'
 
+    def test_unindexed_interleaved_fragments_rejoin_their_call_by_id(self):
+        chunks = [
+            _tool_call_choice(None, "call_1", "get_weather", '{"city":'),
+            _tool_call_choice(None, "call_2", "get_weather", '{"city":'),
+            _tool_call_choice(None, "call_1", None, '"Paris"}'),
+            _tool_call_choice(None, "call_2", None, '"Tokyo"}'),
+        ]
+        message = openai_construct_message_from_streamed_chunks(chunks)
+        assert [(tc["id"], tc["function"]["arguments"]) for tc in message["tool_calls"]] == [
+            ("call_1", '{"city":"Paris"}'),
+            ("call_2", '{"city":"Tokyo"}'),
+        ]
+
     def test_unindexed_fragments_repeating_the_same_id_continue_the_call(self):
         chunks = [
             _tool_call_choice(None, "call_1", "get_weather", '{"city":'),
