@@ -84,3 +84,12 @@ blocking; wrapping the factory preserves this boundary across route cache resets
 An accepted block is kept as immutable HTTP data until the first start_response
 attempt so application hooks cannot replace its status, headers, or body. Clear
 that pending response before delivery so a framework error retry cannot reuse it.
+
+The opt-in Starlette proof in starlette/lifecycle.py reuses HttpLifecycle through
+http_asgi.py. It is not installed by patch(). complete() publishes final HTTP
+observations independently of finish(), which exits context in its owning task.
+ASGI contexts opt into finish_on_response so successful tracing ends before
+background work even when send executes in a child task. Error responses defer
+completion until application unwind. The shared subscriber owns mounted-resource
+conventions; producers report both full routes and local patterns. See
+examples/http-events/README.md for prototype limits before reusing this adapter.

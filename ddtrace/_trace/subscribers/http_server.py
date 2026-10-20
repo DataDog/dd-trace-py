@@ -30,12 +30,15 @@ class HttpServerConventions:
     # ASGI servers hand over header names already lowercased, so the obfuscation and
     # allow-list matching in set_http_meta must not be told the case is meaningful.
     headers_are_case_sensitive: bool = True
+    resource_includes_mount: bool = False
 
 
 # Emitting the shared contract is sufficient to create a request span. This registry
 # supplies optional framework overrides, not an instrumentation allowlist.
 _DEFAULT_CONVENTIONS = HttpServerConventions()
-_CONVENTIONS: dict[str, HttpServerConventions] = {}
+_CONVENTIONS: dict[str, HttpServerConventions] = {
+    "starlette": HttpServerConventions(headers_are_case_sensitive=False, resource_includes_mount=True),
+}
 
 
 # Spans awaiting their request's remaining events, keyed by the request_id carried on
@@ -108,7 +111,7 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
     ) -> None:
         # Drop the entry even if finishing raises, so a failure cannot strand the span.
         _REQUEST_CONTEXTS.pop(ctx.event.request_id, None)
-        if ctx.get_item("_inner_span") is None:
+        if ctx.get_item("_inner_span") is None or ctx.get_item("_http_response_finished", False):
             return
         super()._on_context_ended(ctx, exc_info)
 
@@ -118,11 +121,12 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
         if found is None:
             return
         request = event.request
-        # route_pattern omits a mount prefix that http.route keeps, and the resource has
-        # always been the unprefixed form. It is set as soon as the route is known because
-        # handlers and outer plugins read the resource off the active span mid-request.
-        if request.route_pattern is not None:
-            found[1].resource = f"{request.method} {request.route_pattern}"
+        # Apply framework resource conventions as soon as routing is known;
+        # handlers can inspect the active span before response completion.
+        conventions = _CONVENTIONS.get(event.framework, _DEFAULT_CONVENTIONS)
+        route = request.route if conventions.resource_includes_mount else request.route_pattern
+        if route is not None:
+            found[1].resource = f"{request.method} {route}"
 
     @classmethod
     def _on_request_completed(cls, event: HttpRequestCompletedEvent) -> None:
@@ -159,3 +163,9 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
             log.debug("%s: error adding response tags", ctx.event.framework, exc_info=True)
 
         set_inferred_proxy_tags(span, status_code)
+
+        # ASGI response delivery may finish in a child task, before background
+        # work returns. Finish tracing here; the owner still unwinds its context.
+        if ctx.event.finish_on_response and not event.errors:
+            ctx.set_item("_http_response_finished", True)
+            super()._on_context_ended(ctx, (None, None, None))

@@ -147,6 +147,7 @@ class HttpServerRequestEvent(TracingEvent):
     request_id: object = event_field()
     framework: str = event_field()
     request_headers: Mapping[str, str] = event_field(default_factory=dict)
+    finish_on_response: bool = event_field(default=False)
 
     def __post_init__(self) -> None:
         # The schema implementation is selected from a heterogeneous function table.

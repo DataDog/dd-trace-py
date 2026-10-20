@@ -210,7 +210,10 @@ components:
   sqlite3:
     - ddtrace/contrib/internal/sqlite3/*
   starlette:
+    - tests/contrib/http_contract.py
     - ddtrace/contrib/internal/starlette/*
+    - ddtrace/contrib/internal/http_asgi.py
+    - ddtrace/contrib/internal/http_server.py
   structlog:
     - ddtrace/contrib/internal/structlog/*
   subprocess:
