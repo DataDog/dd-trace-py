@@ -4469,6 +4469,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "400-499"
+      }
+    ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
       {
         "implementation": "A",
@@ -6091,14 +6098,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true",
-        "internal": true
-      }
-    ],
-    "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
         "internal": true
       }
     ],
