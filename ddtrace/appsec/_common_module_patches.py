@@ -568,7 +568,7 @@ class _AiohttpRaspRequest:
 
 
 # Final responses whose body is analyzed when the application reads it, with the RASP subcontext
-# holder and the ASM environment of their request.
+# holder and a weak reference to the ASM environment of their request.
 _aiohttp_pending_bodies: "weakref.WeakKeyDictionary[Any, tuple[Any, Any]]" = weakref.WeakKeyDictionary()
 
 
@@ -589,7 +589,8 @@ class _SsrfAiohttpRequest(_ScopedRaspContext):
     def __enter__(self) -> "_SsrfAiohttpRequest":
         super().__enter__()
         try:
-            # An httpx client on top of an aiohttp transport already analyzes this request.
+            # Inside an httpx send, e.g. httpx over an aiohttp transport, the httpx hooks own the
+            # analysis, so any aiohttp request made there is skipped.
             if get_rasp_capability("ssrf") and core.find_item(APPSEC_SSRF_ANALYZE_BODY_KEY) is None:
                 if get_active_asm_context() is None:
                     report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
@@ -675,7 +676,7 @@ class _SsrfAiohttpResponseStart(WrappingContext):
                     and not (300 <= status < 400)
                     and classify_media_type(response.headers.get("Content-Type")) is MediaType.JSON
                 ):
-                    _aiohttp_pending_bodies[response] = (core.find_item(_RASP_SUBCONTEXT), env)
+                    _aiohttp_pending_bodies[response] = (core.find_item(_RASP_SUBCONTEXT), weakref.ref(env))
         except Exception:
             log.debug("Error handling SSRF instrumentation return", exc_info=True)
         return super().__return__(response)
@@ -687,9 +688,9 @@ class _SsrfAiohttpResponseRead(_RaspContext):
     def __return__(self, body: Any) -> Any:
         if _aiohttp_pending_bodies:
             try:
-                holder, env = _aiohttp_pending_bodies.pop(self._arg("self"), (None, None))
+                holder, env_ref = _aiohttp_pending_bodies.pop(self._arg("self"), (None, None))
                 # A response shared with another incoming request is not analyzed under its context.
-                if holder is not None and get_active_asm_context() is env:
+                if holder is not None and (env := get_active_asm_context()) is not None and env_ref() is env:
                     with core.context_with_data("rasp.ssrf.aiohttp.body", **{_RASP_SUBCONTEXT: holder}):
                         call_waf_callback(
                             {"DOWN_RES_BODY": json.loads(body)}, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES
