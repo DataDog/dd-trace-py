@@ -170,3 +170,11 @@ Every new integration must complete ALL applicable items:
 - [ ] `docs/integrations.rst` -- automodule entry in alphabetical order (non-LLM only)
 - [ ] `docs/index.rst` -- add integration to the docs index
 - [ ] Release note -- use the **releasenote** skill
+
+## OpenTelemetry HTTP semantics
+
+Shared HTTP span attributes live in ddtrace/_trace/otel/http/tags.py; resource
+naming and ownership live in ddtrace/_trace/otel/http/resource.py.
+set_http_meta writes the OTel attributes through _set_http_meta_otel when the
+semantics flag is enabled, and the Datadog ones through _set_http_meta
+otherwise. Preserve user resource replacements with the resource helpers.

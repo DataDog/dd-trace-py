@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal.native._native import SpanData
@@ -41,10 +41,6 @@ class IASTEnvironment:
     def endpoint_key(self) -> str:
         """
         Create a unique key for an endpoint based on HTTP method and route.
-
-        Args:
-            method (str): HTTP method (GET, POST, etc.)
-            route (str): HTTP route/endpoint path
 
         Returns:
             str: Combined key as "METHOD:ROUTE"
