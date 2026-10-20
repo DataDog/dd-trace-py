@@ -413,6 +413,24 @@ def test_a_truncated_response_is_scanned_once():
     assert time.monotonic() - started < 2
 
 
+def test_a_responses_stream_final_event_is_read_without_decoding_its_output(monkeypatch):
+    # response.completed carries the whole response; only its type, model and usage are decoded.
+    decoded = []
+    loads = json.loads
+    monkeypatch.setattr(
+        _usage_metrics.json, "loads", lambda text, *a, **k: decoded.append(len(text)) or loads(text, *a, **k)
+    )
+    response = {
+        "id": "resp_1",
+        "model": "gpt-5-mini-2026-08-07",
+        "output": [{"type": "message", "content": [{"type": "output_text", "text": "x" * 5_000_000}]}],
+        "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
+    }
+    event = "event: response.completed\ndata: " + json.dumps({"type": "response.completed", "response": response})
+    assert _usage_metrics.responses_stream_usage(event) == (True, True, True, "gpt-5-mini-2026-08-07")
+    assert decoded and max(decoded) < 1000
+
+
 def test_the_response_model_is_read_without_decoding_the_response(monkeypatch):
     # The response can hold the whole generated output; only the model's own string is decoded.
     decoded = []

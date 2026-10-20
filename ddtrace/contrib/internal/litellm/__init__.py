@@ -36,7 +36,9 @@ Usage and cost metrics
 
 For calls made through a LiteLLM proxy, the integration can emit usage and cost metrics that follow the
 `OpenTelemetry GenAI semantic conventions <https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/>`_.
-They are recorded for every call, whether or not a trace is sent, and contain no prompts or responses.
+They are recorded for chat completions, text completions, Responses API calls, Anthropic Messages calls and embeddings,
+whether or not a trace is sent, and contain no prompts or responses. Other calls, such as image generation, audio,
+rerank and batch requests, record nothing.
 
 For each request from the proxy to a model provider, including each retry and fallback:
 

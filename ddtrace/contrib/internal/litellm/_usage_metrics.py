@@ -272,48 +272,113 @@ def _priced_at_zero(kwargs: dict[str, Any]) -> bool:
     return all(price is not None for price in prices) and all(price == 0 for price in prices)
 
 
-# The characters a scan stops at, a whole JSON string, and what separates an object key from its value.
+# The characters a scan stops at, a whole JSON string, a number or literal, and what separates a key from its value.
 _JSON_DELIMITER = re.compile(r'["{}\[\]]')
 _JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"')
+_JSON_SCALAR = re.compile(r"[^,}\]\s]+")
 _JSON_COLON = re.compile(r"\s*:\s*")
 
 
-def _top_level_model(text: str) -> Optional[str]:
-    """The string value of the top-level "model" key of a JSON object, read without parsing the rest: the response
-    can hold the whole generated output, and providers put the model near the start. One pass, each character read
-    at most once; a string that never ends stops the scan.
-    """
+def _json_value_end(text: str, start: int) -> int:
+    """Where the JSON value that starts at start ends, or -1 when it does not."""
+    if text.startswith('"', start):
+        string = _JSON_STRING.match(text, start)
+        return string.end() if string else -1
+    if not text.startswith(("{", "["), start):
+        scalar = _JSON_SCALAR.match(text, start)
+        return scalar.end() if scalar else -1
     depth = 0
-    position = 0
+    position = start
     while True:
         delimiter = _JSON_DELIMITER.search(text, position)
         if delimiter is None:
-            return None
-        char = delimiter.group()
-        if char != '"':
+            return -1
+        if delimiter.group() == '"':
+            string = _JSON_STRING.match(text, delimiter.start())
+            if string is None:
+                return -1
+            position = string.end()
+            continue
+        position = delimiter.end()
+        depth += 1 if delimiter.group() in "{[" else -1
+        if depth == 0:
+            return position
+
+
+def _json_paths(text: str, paths: frozenset[tuple[str, ...]]) -> dict[tuple[str, ...], str]:
+    """The raw JSON of the values at the given key paths of a JSON object, read without decoding the rest: a provider
+    response or stream event can hold the whole generated output. One pass, each character read at most once; any
+    other value is stepped over whole, and malformed input ends the scan.
+    """
+    found: dict[tuple[str, ...], str] = {}
+    containers = {path[:length] for path in paths for length in range(1, len(path))}
+    start = text.find("{")
+    if start < 0:
+        return found
+    # The key path of each object being read, innermost last.
+    objects: list[tuple[str, ...]] = [()]
+    position = start + 1
+    while objects and len(found) < len(paths):
+        delimiter = _JSON_DELIMITER.search(text, position)
+        if delimiter is None or delimiter.group() not in ('"', "}"):
+            break
+        if delimiter.group() == "}":
+            objects.pop()
             position = delimiter.end()
-            depth += 1 if char in "{[" else -1
-            if depth <= 0:
-                return None
             continue
-        string = _JSON_STRING.match(text, delimiter.start())
-        if string is None:
-            return None
-        position = string.end()
-        if depth != 1 or string.group() != '"model"':
-            continue
-        # Only a key is followed by a colon; "model" can also be a value.
-        colon = _JSON_COLON.match(text, position)
-        if colon is None:
-            continue
-        model = _JSON_STRING.match(text, colon.end())
-        if model is None:
-            return None
+        key = _JSON_STRING.match(text, delimiter.start())
+        colon = _JSON_COLON.match(text, key.end()) if key else None
+        if key is None or colon is None:
+            break
         try:
-            name = json.loads(model.group())
+            path = objects[-1] + (json.loads(key.group()),)
         except ValueError:
-            return None
-        return name if isinstance(name, str) and name else None
+            break
+        if path in containers and text.startswith("{", colon.end()):
+            objects.append(path)
+            position = colon.end() + 1
+            continue
+        end = _json_value_end(text, colon.end())
+        if end < 0:
+            break
+        if path in paths:
+            found[path] = text[colon.end() : end]
+        position = end
+    return found
+
+
+def _json_string(raw: Optional[str]) -> Optional[str]:
+    """A non-empty JSON string value from its raw text."""
+    if raw is None or not raw.startswith('"'):
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, str) and value else None
+
+
+def _json_object(raw: Optional[str]) -> Optional[dict[str, Any]]:
+    """A JSON object from its raw text."""
+    if raw is None or not raw.startswith("{"):
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+_MODEL = ("model",)
+_EVENT_TYPE = ("type",)
+_EVENT_MODEL = ("response", "model")
+_EVENT_USAGE = ("response", "usage")
+_RESPONSES_EVENT_FIELDS = frozenset({_EVENT_TYPE, _EVENT_MODEL, _EVENT_USAGE})
+
+
+def _top_level_model(text: str) -> Optional[str]:
+    """The top-level "model" of a JSON object; providers put it near the start."""
+    return _json_string(_json_paths(text, frozenset({_MODEL})).get(_MODEL))
 
 
 def _response_model(kwargs: dict[str, Any]) -> Optional[str]:
@@ -402,8 +467,8 @@ def _failure_payload(request_data: dict[str, Any]) -> Optional[dict[str, Any]]:
     return {"response_cost": request_data.get("response_cost"), "metadata": {"usage_object": usage}}
 
 
-def _sse_events(chunks: Any) -> Any:
-    """The JSON events of server-sent event chunks; a chunk can hold several events, or be one bare event."""
+def _sse_data(chunks: Any) -> Any:
+    """The JSON text of each server-sent event in chunks; a chunk can hold several events, or be one bare event."""
     for chunk in chunks:
         if isinstance(chunk, bytes):
             chunk = chunk.decode("utf-8", errors="replace")
@@ -413,14 +478,19 @@ def _sse_events(chunks: Any) -> Any:
             line = line.strip()
             if line.startswith("data:"):
                 line = line[5:].strip()
-            if not line.startswith("{"):
-                continue
-            try:
-                event = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(event, dict):
-                yield event
+            if line.startswith("{"):
+                yield line
+
+
+def _sse_events(chunks: Any) -> Any:
+    """The JSON events of server-sent event chunks."""
+    for line in _sse_data(chunks):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            yield event
 
 
 def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str]]:
@@ -449,14 +519,12 @@ def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str]]
     """
     input_reported = output_reported = reasoning_reported = False
     model = None
-    for event in _sse_events([chunk]):
-        response = event.get("response")
-        if not isinstance(response, dict):
-            continue
-        name = response.get("model")
-        model = model or (name if isinstance(name, str) and name else None)
-        if event.get("type") in ("response.completed", "response.incomplete", "response.failed"):
-            usage = response.get("usage")
+    # The final event holds the whole response, generated output included: only these fields are decoded.
+    for line in _sse_data([chunk]):
+        fields = _json_paths(line, _RESPONSES_EVENT_FIELDS)
+        model = model or _json_string(fields.get(_EVENT_MODEL))
+        if _json_string(fields.get(_EVENT_TYPE)) in ("response.completed", "response.incomplete", "response.failed"):
+            usage = _json_object(fields.get(_EVENT_USAGE))
             input_reported = _count(_get(usage, "input_tokens")) is not None
             output_reported = _count(_get(usage, "output_tokens")) is not None
             reasoning = _get(_get(usage, "output_tokens_details"), "reasoning_tokens")
