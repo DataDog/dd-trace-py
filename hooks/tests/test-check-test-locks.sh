@@ -14,6 +14,7 @@ TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 CHECK_CALLS="$TMPDIR_TEST/check-calls.txt"
+SNAPSHOT_MARKER="$TMPDIR_TEST/ran-in-snapshot.txt"
 
 mock_staged() {
     files="$1"
@@ -91,6 +92,59 @@ run_hook > /dev/null
 hook_rc=$?
 set -e
 check "failed inventory: hook exits non-zero" "[ '$hook_rc' -ne 0 ]"
+
+# Default CHECK_CMD path: materialize the index into a temp tree and run the
+# checker from there (not the live worktree).
+FIXTURE_SRC="$TMPDIR_TEST/fixture-src"
+mkdir -p "$FIXTURE_SRC/scripts"
+cat > "$FIXTURE_SRC/scripts/test-requirements" << EOF
+#!/usr/bin/env sh
+# Record that check ran from the snapshot tree, not the repo worktree.
+printf '%s\n' "\$PWD" > "$SNAPSHOT_MARKER"
+[ "\$1" = "check" ] || exit 2
+exit 0
+EOF
+chmod +x "$FIXTURE_SRC/scripts/test-requirements"
+
+cat > "$TMPDIR_TEST/git" << EOF
+#!/usr/bin/env sh
+case "\$1" in
+    diff)
+        printf '%s\n' "tests/requirements_locks/abc.txt"
+        ;;
+    ls-files)
+        printf '%s\0' "scripts/test-requirements"
+        ;;
+    checkout-index)
+        prefix=""
+        while [ \$# -gt 0 ]; do
+            case "\$1" in
+                --prefix=*)
+                    prefix=\${1#--prefix=}
+                    ;;
+            esac
+            shift
+        done
+        [ -n "\$prefix" ] || exit 3
+        mkdir -p "\${prefix}scripts"
+        cp "$FIXTURE_SRC/scripts/test-requirements" "\${prefix}scripts/test-requirements"
+        chmod +x "\${prefix}scripts/test-requirements"
+        ;;
+    *)
+        exit 4
+        ;;
+esac
+EOF
+chmod +x "$TMPDIR_TEST/git"
+: > "$SNAPSHOT_MARKER"
+set +e
+PATH="$TMPDIR_TEST:$PATH" sh "$SCRIPT" > /dev/null
+snapshot_rc=$?
+set -e
+check "index snapshot: hook exits zero" "[ '$snapshot_rc' -eq 0 ]"
+check "index snapshot: check ran inside snapshot" "[ -s '$SNAPSHOT_MARKER' ]"
+check "index snapshot: check cwd is not the repo" \
+    "! grep -qFx '$(pwd)' '$SNAPSHOT_MARKER' 2>/dev/null"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
