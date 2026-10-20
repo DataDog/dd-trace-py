@@ -11,6 +11,7 @@ import weakref
 
 from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
 from ddtrace.appsec._asm_request_context import _get_asm_context
+from ddtrace.appsec._asm_request_context import _RaspSubcontextHolder
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -19,6 +20,7 @@ from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._contrib.filesystem.patch import patch as patch_filesystem_for_appsec
 from ddtrace.appsec._contrib.filesystem.patch import unpatch as unpatch_filesystem_for_appsec
+from ddtrace.appsec._contrib.httpx.subscribers import APPSEC_SSRF_ANALYZE_BODY_KEY
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
 from ddtrace.appsec._contrib.subprocess.patch import patch as patch_subprocess_for_appsec
@@ -188,6 +190,19 @@ class _ScopedRaspContext(_RaspContext):
         if core_ctx is not None:
             self.set("core_ctx", None)
             core_ctx.__exit__(None, None, None)
+
+    def __return__(self, value: Any) -> Any:
+        self._close_core_context()
+        return super().__return__(value)
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self._close_core_context()
+        super().__exit__(exc_type, exc_value, exc_tb)
 
 
 class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
@@ -450,19 +465,6 @@ class _SsrfUrllib3Urlopen(_ScopedRaspContext):
         # visible to ddtrace's own worker threads, and this releases it on both exit paths.
         self._open_core_context("rasp.ssrf.urllib3.urlopen", full_url=full_url)
 
-    def __return__(self, response: Any) -> Any:
-        self._close_core_context()
-        return super().__return__(response)
-
-    def __exit__(
-        self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> None:
-        self._close_core_context()
-        super().__exit__(exc_type, exc_value, exc_tb)
-
 
 class _SsrfUrllib3MakeRequest(_ScopedRaspContext):
     """RASP SSRF + API10 downstream-request analysis around urllib3's _make_request."""
@@ -519,15 +521,6 @@ class _SsrfUrllib3MakeRequest(_ScopedRaspContext):
         self._close_core_context()
         return super().__return__(response)
 
-    def __exit__(
-        self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> None:
-        self._close_core_context()
-        super().__exit__(exc_type, exc_value, exc_tb)
-
 
 class _SsrfUrllib3Request(_ScopedRaspContext):
     """Opens the subcontext scope for a urllib3 RequestMethods.request call.
@@ -560,19 +553,6 @@ class _SsrfUrllib3Request(_ScopedRaspContext):
         self._open_core_context("url_open_analysis", full_url=url, use_body=should_analyze_body_response(ctx))
         open_rasp_subcontext_scope()
 
-    def __return__(self, response: Any) -> Any:
-        self._close_core_context()
-        return super().__return__(response)
-
-    def __exit__(
-        self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> None:
-        self._close_core_context()
-        super().__exit__(exc_type, exc_value, exc_tb)
-
 
 _AIOHTTP_RASP = "appsec.rasp.aiohttp"
 
@@ -580,16 +560,16 @@ _AIOHTTP_RASP = "appsec.rasp.aiohttp"
 class _AiohttpRaspRequest:
     """State shared by the hops of one aiohttp ClientSession request."""
 
-    __slots__ = ("use_body", "awaiting_response")
+    __slots__ = ("use_body", "pending_hop")
 
     def __init__(self) -> None:
         self.use_body: Optional[bool] = None
-        self.awaiting_response = False
+        self.pending_hop: Optional[tuple[str, str]] = None
 
 
 # Final responses whose body is analyzed when the application reads it, with the RASP subcontext
-# holder of their request.
-_aiohttp_pending_bodies: "weakref.WeakKeyDictionary[Any, Any]" = weakref.WeakKeyDictionary()
+# holder and the ASM environment of their request.
+_aiohttp_pending_bodies: "weakref.WeakKeyDictionary[Any, tuple[Any, Any]]" = weakref.WeakKeyDictionary()
 
 
 def _aiohttp_headers(headers: Any) -> dict[str, Union[str, list[str]]]:
@@ -609,29 +589,21 @@ class _SsrfAiohttpRequest(_ScopedRaspContext):
     def __enter__(self) -> "_SsrfAiohttpRequest":
         super().__enter__()
         try:
-            if get_rasp_capability("ssrf"):
+            # An httpx client on top of an aiohttp transport already analyzes this request.
+            if get_rasp_capability("ssrf") and core.find_item(APPSEC_SSRF_ANALYZE_BODY_KEY) is None:
                 if get_active_asm_context() is None:
                     report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
                 else:
-                    self._open_core_context("rasp.ssrf.aiohttp", **{_AIOHTTP_RASP: _AiohttpRaspRequest()})
-                    open_rasp_subcontext_scope()
+                    # A request nested in another one, e.g. from a client middleware, gets its own
+                    # subcontext.
+                    self._open_core_context(
+                        "rasp.ssrf.aiohttp",
+                        **{_AIOHTTP_RASP: _AiohttpRaspRequest(), _RASP_SUBCONTEXT: _RaspSubcontextHolder()},
+                    )
         except Exception:
             self._close_core_context()
             log.debug("Error handling SSRF instrumentation enter", exc_info=True)
         return self
-
-    def __return__(self, response: Any) -> Any:
-        self._close_core_context()
-        return super().__return__(response)
-
-    def __exit__(
-        self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> None:
-        self._close_core_context()
-        super().__exit__(exc_type, exc_value, exc_tb)
 
 
 class _SsrfAiohttpConnect(_RaspContext):
@@ -647,19 +619,22 @@ class _SsrfAiohttpConnect(_RaspContext):
 
     def _handle_enter(self) -> None:
         state: Optional[_AiohttpRaspRequest] = core.find_item(_AIOHTTP_RASP)
-        # A connect with no response since the last one is aiohttp retrying the same hop on a
-        # stale keep-alive connection.
-        if state is None or state.awaiting_response:
+        if state is None:
             return
         env = get_active_asm_context()
         if env is None:
             return
         req = self._arg("req")
         url = str(req.url)
+        hop = (req.method, url)
+        # The same hop again with no response in between is aiohttp retrying it on a stale
+        # keep-alive connection.
+        if state.pending_hop == hop:
+            return
         if state.use_body is None:
             state.use_body = should_analyze_body_response(env)
         env.downstream_requests += 1
-        state.awaiting_response = True
+        state.pending_hop = hop
         addresses: dict[str, Any] = {
             EXPLOIT_PREVENTION.ADDRESS.SSRF: url,
             "DOWN_REQ_METHOD": req.method,
@@ -688,8 +663,8 @@ class _SsrfAiohttpResponseStart(WrappingContext):
         try:
             state: Optional[_AiohttpRaspRequest] = core.find_item(_AIOHTTP_RASP)
             # The proxy's answer to a CONNECT tunnel is not the downstream response.
-            if state is not None and response.method != "CONNECT" and get_active_asm_context() is not None:
-                state.awaiting_response = False
+            if state is not None and response.method != "CONNECT" and (env := get_active_asm_context()) is not None:
+                state.pending_hop = None
                 status = response.status
                 call_waf_callback(
                     {"DOWN_RES_STATUS": str(status), "DOWN_RES_HEADERS": _aiohttp_headers(response.headers)},
@@ -698,10 +673,9 @@ class _SsrfAiohttpResponseStart(WrappingContext):
                 if (
                     state.use_body
                     and not (300 <= status < 400)
-                    and response.content_length is not None
                     and classify_media_type(response.headers.get("Content-Type")) is MediaType.JSON
                 ):
-                    _aiohttp_pending_bodies[response] = core.find_item(_RASP_SUBCONTEXT)
+                    _aiohttp_pending_bodies[response] = (core.find_item(_RASP_SUBCONTEXT), env)
         except Exception:
             log.debug("Error handling SSRF instrumentation return", exc_info=True)
         return super().__return__(response)
@@ -711,13 +685,17 @@ class _SsrfAiohttpResponseRead(_RaspContext):
     """API10 analysis of the final response body, once the application reads it."""
 
     def __return__(self, body: Any) -> Any:
-        try:
-            holder = _aiohttp_pending_bodies.pop(self._arg("self"), None)
-            if holder is not None and get_active_asm_context() is not None:
-                with core.context_with_data("rasp.ssrf.aiohttp.body", **{_RASP_SUBCONTEXT: holder}):
-                    call_waf_callback({"DOWN_RES_BODY": json.loads(body)}, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-        except Exception:
-            log.debug("Error handling SSRF instrumentation return", exc_info=True)
+        if _aiohttp_pending_bodies:
+            try:
+                holder, env = _aiohttp_pending_bodies.pop(self._arg("self"), (None, None))
+                # A response shared with another incoming request is not analyzed under its context.
+                if holder is not None and get_active_asm_context() is env:
+                    with core.context_with_data("rasp.ssrf.aiohttp.body", **{_RASP_SUBCONTEXT: holder}):
+                        call_waf_callback(
+                            {"DOWN_RES_BODY": json.loads(body)}, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES
+                        )
+            except Exception:
+                log.debug("Error handling SSRF instrumentation return", exc_info=True)
         return super().__return__(body)
 
 
