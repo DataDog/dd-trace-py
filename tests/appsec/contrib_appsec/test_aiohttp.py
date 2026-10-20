@@ -232,7 +232,7 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             try:
                 response = interface.client.get("/", headers={"X-Real-Ip": rules._IP.BLOCKED})
             finally:
-                core.on("aiohttp.request.block", _on_block, "aiohttp_block_response")
+                core.on("aiohttp.request.block", _on_block)
             assert self.status(response) == 403
             assert json.loads(self.body(response))["errors"][0]["title"] == "You've been blocked"
             assert get_entry_span_tag(http.STATUS_CODE) == "403"
