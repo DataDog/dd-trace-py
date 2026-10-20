@@ -46,6 +46,7 @@ RUN apt-get update \
       libmariadb-dev-compat \
       libmemcached-dev \
       libmemcached-dev \
+      libmpdec-dev \
       libncurses5-dev \
       libncursesw5-dev \
       libtool \
@@ -123,10 +124,8 @@ COPY .python-version /home/bits/
 RUN npm install -g @datadog/datadog-ci
 
 # Install pyenv and necessary Python versions.
-# 3.15-dev is a rolling CPython 3.15 branch clone. Bumping pyenv retriggers
-# .github/workflows/testrunner.yml so the image is not stuck on 3.15.0b3+dev
-# (Jun 30 2026); rc1-built cp315 wheels fail to import on that interpreter.
-RUN git clone --depth 1 --branch "v2.8.4" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+# Pin pyenv to a release that knows CPython 3.15.0 final (python.org 2026-10-09).
+RUN git clone --depth 1 --branch "v2.8.9" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 

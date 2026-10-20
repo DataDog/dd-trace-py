@@ -12,7 +12,7 @@ import typing as _t
 import psutil
 from requests.exceptions import ConnectionError  # noqa: A004
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
@@ -442,17 +442,17 @@ def appsec_application_server(
         env["DD_APM_TRACING_ENABLED"] = ""
 
     if iast_enabled is not None and iast_enabled != "false":
-        env[IAST.ENV] = iast_enabled
-        env[IAST.ENV_REQUEST_SAMPLING] = "100"
+        env["DD_IAST_ENABLED"] = iast_enabled
+        env["DD_IAST_REQUEST_SAMPLING"] = "100"
         env["DD_IAST_DEDUPLICATION_ENABLED"] = "false"
         env["_DD_IAST_PATCH_MODULES"] = "tests.appsec."
         env[IAST.ENV_NO_DIR_PATCH] = "false"
         if assert_debug:
-            env["_" + IAST.ENV_DEBUG] = iast_enabled
-            env["_" + IAST.ENV_PROPAGATION_DEBUG] = iast_enabled
+            env["_DD_IAST_DEBUG"] = iast_enabled
+            env["_DD_IAST_PROPAGATION_DEBUG"] = iast_enabled
             env["DD_TRACE_DEBUG"] = iast_enabled
     else:
-        env[IAST.ENV] = iast_enabled
+        env["DD_IAST_ENABLED"] = iast_enabled
 
     if tracer_enabled:
         env["DD_TRACE_ENABLED"] = tracer_enabled

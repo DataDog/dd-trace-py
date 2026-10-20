@@ -1,4 +1,4 @@
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._metrics import _metric_key_as_snake_case
 from ddtrace.internal.native._native import SpanData
