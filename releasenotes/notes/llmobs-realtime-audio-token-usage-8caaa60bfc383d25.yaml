@@ -1,0 +1,4 @@
+features:
+  - |
+    OpenAI: Adds audio and cached-token usage details for Realtime conversations
+    in LLM Observability, enabling separate text, audio, and cached-audio cost estimates.
