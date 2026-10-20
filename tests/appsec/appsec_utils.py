@@ -106,17 +106,47 @@ def _read_proc_file(path: str) -> str:
         return "?"
 
 
+def _server_cgroup(pid: int) -> str:
+    """The server's own cgroup v2 directory, falling back to the mount root (the node, without a private namespace)."""
+    for entry in _read_proc_file(f"/proc/{pid}/cgroup").splitlines():
+        if entry.startswith("0::") and entry[3:] not in ("", "/"):
+            candidate = "/sys/fs/cgroup" + entry[3:]
+            if os.path.isdir(candidate):
+                return candidate
+    return "/sys/fs/cgroup"
+
+
 def _kernel_snapshot(server_process) -> str:
     """Kernel view of the server tree, to tell a disk stall, CPU starvation and a lock or socket wait apart.
 
-    Thread states (D waits on disk, S sleeps, R wants a CPU) and wait channels come from /proc. CPU,
-    I/O and context switch counters are sampled a second apart to show whether anything still moves.
+    Thread states (D is uninterruptible: disk, page faults or memory reclaim; S sleeps; R wants a CPU) and
+    wait channels are read first, at the timeout. CPU, I/O and context switch counters are then sampled
+    0.2s apart to show whether anything still moves, keeping the stack dump that follows close to the timeout.
     """
     try:
         parent = psutil.Process(server_process.pid)
         procs = [parent] + parent.children(recursive=True)
     except psutil.Error as exc:
         return f"could not enumerate the server tree for its kernel state: {exc}"
+
+    thread_lines: dict[int, list[str]] = {}
+    for proc in procs:
+        task_dir = f"/proc/{proc.pid}/task"
+        try:
+            tids = sorted(os.listdir(task_dir), key=int)
+        except OSError:
+            tids = []
+        thread_lines[proc.pid] = []
+        for tid in tids:
+            stat = _read_proc_file(f"{task_dir}/{tid}/stat")
+            fields = stat.rsplit(")", 1)[-1].split()
+            state = fields[0] if fields else "?"
+            thread_lines[proc.pid].append(
+                f"  pid={proc.pid} tid={tid} comm={_read_proc_file(f'{task_dir}/{tid}/comm')} state={state} "
+                f"wchan={_read_proc_file(f'{task_dir}/{tid}/wchan')}"
+            )
+
+    cgroup = _server_cgroup(server_process.pid)
 
     def read(getter):
         try:
@@ -133,17 +163,17 @@ def _kernel_snapshot(server_process) -> str:
             )
             for proc in procs
         }
-        return counters, _read_proc_file("/sys/fs/cgroup/cpu.stat").replace("\n", ", ")
+        return counters, _read_proc_file(f"{cgroup}/cpu.stat").replace("\n", ", ")
 
     before, cgroup_before = sample()
-    time.sleep(1)
+    time.sleep(0.2)
     after, cgroup_after = sample()
 
     lines = []
     for proc in procs:
         pid = proc.pid
         (cpu0, io0, ctx0), (cpu1, io1, ctx1) = before[pid], after[pid]
-        line = f"pid={pid} over 1s:"
+        line = f"pid={pid} over 0.2s:"
         if cpu0 and cpu1:
             line += f" cpu +{max(0.0, cpu1.user + cpu1.system - cpu0.user - cpu0.system):.2f}s"
         if io0 and io1:
@@ -157,23 +187,11 @@ def _kernel_snapshot(server_process) -> str:
                 f" involuntary +{ctx1.involuntary - ctx0.involuntary}"
             )
         lines.append(line)
-        task_dir = f"/proc/{pid}/task"
-        try:
-            tids = sorted(os.listdir(task_dir), key=int)
-        except OSError:
-            continue
-        for tid in tids:
-            stat = _read_proc_file(f"{task_dir}/{tid}/stat")
-            fields = stat.rsplit(")", 1)[-1].split()
-            state = fields[0] if fields else "?"
-            lines.append(
-                f"  pid={pid} tid={tid} comm={_read_proc_file(f'{task_dir}/{tid}/comm')} state={state} "
-                f"wchan={_read_proc_file(f'{task_dir}/{tid}/wchan')}"
-            )
-    lines.append(f"cgroup cpu.stat before: {cgroup_before}")
-    lines.append(f"cgroup cpu.stat after:  {cgroup_after}")
+        lines.extend(thread_lines[pid])
+    lines.append(f"cgroup {cgroup} cpu.stat before: {cgroup_before}")
+    lines.append(f"cgroup {cgroup} cpu.stat after:  {cgroup_after}")
     for resource in ("cpu", "io", "memory"):
-        container = _read_proc_file(f"/sys/fs/cgroup/{resource}.pressure").replace("\n", ", ")
+        container = _read_proc_file(f"{cgroup}/{resource}.pressure").replace("\n", ", ")
         host = _read_proc_file(f"/proc/pressure/{resource}").replace("\n", ", ")
         lines.append(f"pressure {resource}: container {container} | host {host}")
     return "\n".join(lines)
