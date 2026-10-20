@@ -4,6 +4,7 @@ import os
 import platform
 import sys
 import traceback
+from types import ModuleType
 from types import TracebackType
 from typing import Optional
 
@@ -274,31 +275,60 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         # (profiler -> crashtracker -> default) with no cycle. We only touch the
         # stack module if it is already imported: importing it here would load the
         # native extension and install signal handlers even when profiling is off.
-        stack_mod = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        #
+        # Pause the sampler before the swap (same contract as profiling/_faulthandler.py).
+        # uninstall_segv_handler may call set_fast_copy_enabled(false) / Sampler::stop()
+        # on the sticky-foreign path; doing that while the sampling thread is in
+        # safe_memcpy races with fast_copy_active and the handler transition.
+        # pause_sampling returns:
+        #   True  — paused (safe to swap; must resume)
+        #   False — not running (safe to swap)
+        #   None  — timeout: skip uninstall/reinstall so we do not race safe_memcpy
+        #           or build a handler cycle; crashtracker installs on top and the
+        #           sampling thread treats that as foreign takeover.
+        stack_mod: Optional[ModuleType] = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        pause_result: Optional[bool] = None
+        safe_to_swap: bool = True
         if stack_mod is not None:
             try:
-                stack_mod.uninstall_segv_handler()
+                pause_result = stack_mod.pause_sampling()
+                safe_to_swap = pause_result is not None
             except Exception:  # nosec: B110
-                pass
-        crashtracker_init(config, receiver_config, metadata)
-        excepthook.register(_unhandled_exception_reporter)
+                pause_result = None
+                safe_to_swap = False
+            if safe_to_swap:
+                try:
+                    stack_mod.uninstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
+        try:
+            crashtracker_init(config, receiver_config, metadata)
+            excepthook.register(_unhandled_exception_reporter)
 
-        if stack_mod is not None:
-            try:
-                stack_mod.reinstall_segv_handler()
-            except Exception:  # nosec: B110
-                pass
+            if stack_mod is not None and safe_to_swap:
+                try:
+                    stack_mod.reinstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
 
-        def crashtracker_fork_handler():
-            # We recreate the args here mainly to pass updated runtime_id after
-            # fork
-            config, receiver_config, metadata = _get_args(additional_tags)
-            if config is None or receiver_config is None or metadata is None:
-                log.error("Failed to restart crashtracker after fork: failed to construct crashtracker configuration")
-                return
-            crashtracker_on_fork(config, receiver_config, metadata)
+            def crashtracker_fork_handler() -> None:
+                # We recreate the args here mainly to pass updated runtime_id after
+                # fork
+                config, receiver_config, metadata = _get_args(additional_tags)
+                if config is None or receiver_config is None or metadata is None:
+                    log.error(
+                        "Failed to restart crashtracker after fork: failed to construct crashtracker configuration"
+                    )
+                    return
+                crashtracker_on_fork(config, receiver_config, metadata)
 
-        forksafe.register(crashtracker_fork_handler)
+            forksafe.register(crashtracker_fork_handler)
+        finally:
+            if stack_mod is not None and pause_result is True:
+                try:
+                    stack_mod.resume_sampling()
+                except Exception:  # nosec: B110
+                    pass
     except Exception:
         log.exception("Failed to start crashtracker")
         return False
