@@ -4,8 +4,8 @@
   "owner": "DataDog",
   "repo": "dd-trace-py",
   "branch": "gnufede-tach-analysis",
-  "commit": "339cfac63d1de26e0d0c7285158219d2a88cdb15",
-  "full_configuration": "{\"modules\":[{\"path\":\"ddtrace\",\"depends_on\":[\"ddtrace.bootstrap\",\"ddtrace.trace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace._trace\",\"depends_on\":[\"ddtrace.trace\",\"ddtrace.contrib\",\"ddtrace\",\"ddtrace.internal\",\"ddtrace.propagation\",\"ddtrace.ext\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.aiguard\",\"depends_on\":[\"ddtrace\",\"ddtrace.contrib\",\"ddtrace.internal\",\"ddtrace.llmobs\",\"ddtrace.trace\",\"ddtrace.ext\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.appsec\",\"depends_on\":[\"ddtrace.aiguard\",\"ddtrace\",\"ddtrace._trace\",\"ddtrace.internal\",\"ddtrace.contrib\",\"ddtrace.trace\",\"ddtrace.ext\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.bootstrap\",\"depends_on\":[\"ddtrace.profiling\",\"ddtrace\",\"ddtrace.internal\",\"ddtrace.trace\",\"ddtrace.opentelemetry\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.commands\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace.trace\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.contrib\",\"depends_on\":[\"ddtrace.bootstrap\",\"ddtrace.appsec\",\"ddtrace.internal\",\"ddtrace.propagation\",\"ddtrace.llmobs\",\"ddtrace.ext\",\"ddtrace.testing\",\"ddtrace\",\"ddtrace._trace\",\"ddtrace.trace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.debugging\",\"depends_on\":[\"ddtrace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.errortracking\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.ext\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace._trace\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.internal\",\"depends_on\":[\"ddtrace\",\"ddtrace.aiguard\",\"ddtrace.appsec\",\"ddtrace._trace\",\"ddtrace.contrib\",\"ddtrace.ext\",\"ddtrace.trace\",\"ddtrace.propagation\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.llmobs\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace._trace\",\"ddtrace.ext\",\"ddtrace.propagation\",\"ddtrace\",\"ddtrace.trace\",\"ddtrace.contrib\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.openfeature\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.opentelemetry\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.profiling\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace._trace\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.propagation\",\"depends_on\":[\"ddtrace._trace\",\"ddtrace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.runtime\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.sourcecode\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.testing\",\"depends_on\":[\"ddtrace.contrib\",\"ddtrace.trace\",\"ddtrace.appsec\",\"ddtrace.internal\",\"ddtrace.ext\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.trace\",\"depends_on\":[\"ddtrace._trace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null}],\"interfaces\":[],\"exclude\":[\"tests\",\"benchmarks\",\"build\",\"ddtrace/vendor\",\".riot\",\".gitlab\",\".github\",\"docs\",\"scripts\",\"hooks\",\"templates\"],\"source_roots\":[\".\"]}",
+  "commit": "889c5d3dd3c9e4298ff83dfd4ce6bfb3bad3414c",
+  "full_configuration": "{\"modules\":[{\"path\":\"ddtrace\",\"depends_on\":[\"ddtrace.bootstrap\",\"ddtrace.trace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace._trace\",\"depends_on\":[\"ddtrace.trace\",\"ddtrace.internal\",\"ddtrace\",\"ddtrace.contrib\",\"ddtrace.propagation\",\"ddtrace.ext\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.aiguard\",\"depends_on\":[\"ddtrace\",\"ddtrace.contrib\",\"ddtrace.ext\",\"ddtrace.trace\",\"ddtrace.internal\",\"ddtrace.llmobs\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.appsec\",\"depends_on\":[\"ddtrace.aiguard\",\"ddtrace._trace\",\"ddtrace.internal\",\"ddtrace.contrib\",\"ddtrace\",\"ddtrace.trace\",\"ddtrace.ext\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.bootstrap\",\"depends_on\":[\"ddtrace.trace\",\"ddtrace.profiling\",\"ddtrace.opentelemetry\",\"ddtrace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.commands\",\"depends_on\":[\"ddtrace\",\"ddtrace.trace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.contrib\",\"depends_on\":[\"ddtrace.propagation\",\"ddtrace.testing\",\"ddtrace.internal\",\"ddtrace.appsec\",\"ddtrace.bootstrap\",\"ddtrace\",\"ddtrace.trace\",\"ddtrace.ext\",\"ddtrace.llmobs\",\"ddtrace._trace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.debugging\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.errortracking\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.ext\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace._trace\",\"ddtrace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.internal\",\"depends_on\":[\"ddtrace.trace\",\"ddtrace.ext\",\"ddtrace\",\"ddtrace.appsec\",\"ddtrace.propagation\",\"ddtrace.contrib\",\"ddtrace.aiguard\",\"ddtrace._trace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.llmobs\",\"depends_on\":[\"ddtrace.contrib\",\"ddtrace.trace\",\"ddtrace.propagation\",\"ddtrace.ext\",\"ddtrace.internal\",\"ddtrace\",\"ddtrace._trace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.openfeature\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.opentelemetry\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.profiling\",\"depends_on\":[\"ddtrace\",\"ddtrace._trace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.propagation\",\"depends_on\":[\"ddtrace\",\"ddtrace._trace\",\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.runtime\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.sourcecode\",\"depends_on\":[\"ddtrace.internal\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.testing\",\"depends_on\":[\"ddtrace.trace\",\"ddtrace\",\"ddtrace.internal\",\"ddtrace.appsec\",\"ddtrace.ext\",\"ddtrace.contrib\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null},{\"path\":\"ddtrace.trace\",\"depends_on\":[\"ddtrace.internal\",\"ddtrace._trace\"],\"cannot_depend_on\":null,\"depends_on_external\":null,\"cannot_depend_on_external\":null,\"layer\":null,\"visibility\":null}],\"interfaces\":[],\"exclude\":[\"tests\",\"benchmarks\",\"build\",\"ddtrace/vendor\",\".riot\",\".gitlab\",\".github\",\"docs\",\"scripts\",\"hooks\",\"templates\"],\"source_roots\":[\".\"]}",
   "modules": [
     {
       "path": "ddtrace",
@@ -37,7 +37,7 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace.contrib",
+          "path": "ddtrace.internal",
           "deprecated": false
         },
         {
@@ -45,7 +45,7 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace.internal",
+          "path": "ddtrace.contrib",
           "deprecated": false
         },
         {
@@ -73,11 +73,7 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace.internal",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.llmobs",
+          "path": "ddtrace.ext",
           "deprecated": false
         },
         {
@@ -85,7 +81,11 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace.ext",
+          "path": "ddtrace.internal",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.llmobs",
           "deprecated": false
         }
       ],
@@ -101,10 +101,6 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace",
-          "deprecated": false
-        },
-        {
           "path": "ddtrace._trace",
           "deprecated": false
         },
@@ -114,6 +110,10 @@
         },
         {
           "path": "ddtrace.contrib",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace",
           "deprecated": false
         },
         {
@@ -133,7 +133,15 @@
       "interface_members": [],
       "depends_on": [
         {
+          "path": "ddtrace.trace",
+          "deprecated": false
+        },
+        {
           "path": "ddtrace.profiling",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.opentelemetry",
           "deprecated": false
         },
         {
@@ -142,14 +150,6 @@
         },
         {
           "path": "ddtrace.internal",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.trace",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.opentelemetry",
           "deprecated": false
         }
       ],
@@ -161,7 +161,7 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace.internal",
+          "path": "ddtrace",
           "deprecated": false
         },
         {
@@ -169,7 +169,7 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace",
+          "path": "ddtrace.internal",
           "deprecated": false
         }
       ],
@@ -181,27 +181,7 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace.bootstrap",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.appsec",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.internal",
-          "deprecated": false
-        },
-        {
           "path": "ddtrace.propagation",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.llmobs",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.ext",
           "deprecated": false
         },
         {
@@ -209,15 +189,35 @@
           "deprecated": false
         },
         {
+          "path": "ddtrace.internal",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.appsec",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.bootstrap",
+          "deprecated": false
+        },
+        {
           "path": "ddtrace",
           "deprecated": false
         },
         {
-          "path": "ddtrace._trace",
+          "path": "ddtrace.trace",
           "deprecated": false
         },
         {
-          "path": "ddtrace.trace",
+          "path": "ddtrace.ext",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.llmobs",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace._trace",
           "deprecated": false
         }
       ],
@@ -229,11 +229,11 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace",
+          "path": "ddtrace.internal",
           "deprecated": false
         },
         {
-          "path": "ddtrace.internal",
+          "path": "ddtrace",
           "deprecated": false
         }
       ],
@@ -281,23 +281,7 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.aiguard",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.appsec",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace._trace",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.contrib",
+          "path": "ddtrace.trace",
           "deprecated": false
         },
         {
@@ -305,11 +289,27 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace.trace",
+          "path": "ddtrace",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.appsec",
           "deprecated": false
         },
         {
           "path": "ddtrace.propagation",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.contrib",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.aiguard",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace._trace",
           "deprecated": false
         }
       ],
@@ -321,23 +321,7 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace.internal",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace._trace",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.ext",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace.propagation",
-          "deprecated": false
-        },
-        {
-          "path": "ddtrace",
+          "path": "ddtrace.contrib",
           "deprecated": false
         },
         {
@@ -345,7 +329,23 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace.contrib",
+          "path": "ddtrace.propagation",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.ext",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace.internal",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace",
+          "deprecated": false
+        },
+        {
+          "path": "ddtrace._trace",
           "deprecated": false
         }
       ],
@@ -381,7 +381,7 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace.internal",
+          "path": "ddtrace",
           "deprecated": false
         },
         {
@@ -389,7 +389,7 @@
           "deprecated": false
         },
         {
-          "path": "ddtrace",
+          "path": "ddtrace.internal",
           "deprecated": false
         }
       ],
@@ -401,11 +401,11 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace._trace",
+          "path": "ddtrace",
           "deprecated": false
         },
         {
-          "path": "ddtrace",
+          "path": "ddtrace._trace",
           "deprecated": false
         },
         {
@@ -445,15 +445,11 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace.contrib",
-          "deprecated": false
-        },
-        {
           "path": "ddtrace.trace",
           "deprecated": false
         },
         {
-          "path": "ddtrace.appsec",
+          "path": "ddtrace",
           "deprecated": false
         },
         {
@@ -461,11 +457,15 @@
           "deprecated": false
         },
         {
+          "path": "ddtrace.appsec",
+          "deprecated": false
+        },
+        {
           "path": "ddtrace.ext",
           "deprecated": false
         },
         {
-          "path": "ddtrace",
+          "path": "ddtrace.contrib",
           "deprecated": false
         }
       ],
@@ -477,11 +477,11 @@
       "interface_members": [],
       "depends_on": [
         {
-          "path": "ddtrace._trace",
+          "path": "ddtrace.internal",
           "deprecated": false
         },
         {
-          "path": "ddtrace.internal",
+          "path": "ddtrace._trace",
           "deprecated": false
         }
       ],
