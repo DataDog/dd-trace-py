@@ -344,6 +344,7 @@ def test_otel_span_attributes_malformed_url_does_not_abort_later_metadata(tracer
     [
         (SpanTypes.HTTP, SpanKind.CLIENT, 399, 0),
         (SpanTypes.HTTP, SpanKind.CLIENT, 400, 1),
+        (SpanTypes.HTTP, SpanKind.CLIENT, 600, 1),
         (SpanTypes.WEB, None, 499, 0),
         (SpanTypes.WEB, None, 500, 1),
         (SpanTypes.WEB, None, 600, 1),
@@ -399,6 +400,27 @@ def test_otel_span_attributes_honors_stable_server_error_statuses(
             with tracer.trace("request", span_type=SpanTypes.WEB) as span:
                 OTelHTTPSpanAttributes(span, integration_config).set_status_code(status_code)
             assert span.error == expected_error
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "200"})
+def test_otel_span_attributes_honors_custom_client_error_statuses():
+    from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
+    from ddtrace.constants import ERROR_TYPE
+    from ddtrace.constants import SPAN_KIND
+    from ddtrace.ext import SpanKind
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    integration_config = IntegrationConfig(config, "test")
+    for status_code, expected_error in ((200, 1), (404, 0), (500, 0)):
+        with tracer.trace("http.request", span_type=SpanTypes.HTTP) as span:
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+            OTelHTTPSpanAttributes(span, integration_config).set_status_code(status_code)
+
+        assert span.error == expected_error
+        assert span.get_tag(ERROR_TYPE) == (str(status_code) if expected_error else None)
 
 
 def test_otel_span_attributes_status_preserves_exception_error_type(tracer, integration_config, server_error_statuses):
@@ -497,6 +519,23 @@ def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
     span = Span("web.request", span_type=SpanTypes.WEB)
 
     OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
+
+    assert span.error == 0
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "400-599"})
+def test_otel_span_attributes_explicit_default_client_status_does_not_expand():
+    from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
+    from ddtrace.constants import SPAN_KIND
+    from ddtrace.ext import SpanKind
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    with tracer.trace("http.request", span_type=SpanTypes.HTTP) as span:
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+        OTelHTTPSpanAttributes(span, IntegrationConfig(config, "test")).set_status_code(600)
 
     assert span.error == 0
 

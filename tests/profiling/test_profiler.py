@@ -917,8 +917,10 @@ def test_no_samples_pushed_after_stop() -> None:
 
 def test_construction_does_not_configure_global_exporter() -> None:
     with (
-        mock.patch.object(ddup, "config") as mock_config,
-        mock.patch.object(ddup, "start") as mock_start,
+        # Wrap the real functions: with plain mocks the profiler starts with the native profile
+        # state uninitialized, and the stack sampler can crash writing samples.
+        mock.patch.object(ddup, "config", wraps=ddup.config) as mock_config,
+        mock.patch.object(ddup, "start", wraps=ddup.start) as mock_start,
     ):
         p = profiler.Profiler(service="built-but-not-started")
         mock_config.assert_not_called()
