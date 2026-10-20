@@ -64,6 +64,24 @@ def _wait_lockfile() -> str:
     return str(next(environment.lockfile for environment in environments if environment.python == "3.9"))
 
 
+# tests/wait-for-services.py needs a client library from the wait lockfile to check these services. The script
+# checks the other services over HTTP with the standard library, or skips them if it does not know them.
+_WAIT_CLIENT_LIBRARY_SERVICES = frozenset(
+    ("azuresqledge", "azurite", "cassandra", "mysql", "postgres", "rabbitmq", "redis", "vertica")
+)
+
+
+def _wait_python(services: t.Iterable[str]) -> str:
+    """Return the interpreter command that runs tests/wait-for-services.py for these services."""
+    if _WAIT_CLIENT_LIBRARY_SERVICES.isdisjoint(services):
+        # The environment from the wait lockfile takes seconds to build, and the standard library is enough here.
+        return "python"
+    return (
+        f"uv run --no-project --python 3.9 --no-python-downloads --with-requirements {_wait_lockfile()} "
+        "--no-progress python"
+    )
+
+
 @dataclass
 class BenchmarkSpec:
     name: str
@@ -153,9 +171,7 @@ class JobSpec:
             if "testagent" in wait_for:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             lines.append(
-                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
-                f"--with-requirements {_wait_lockfile()} --no-progress "
-                f"python tests/wait-for-services.py {' '.join(wait_for)}"
+                f"    - {wait_environment}{_wait_python(wait_for)} tests/wait-for-services.py {' '.join(wait_for)}"
             )
 
         env = dict(self.env or {})
