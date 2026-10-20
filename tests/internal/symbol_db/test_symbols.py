@@ -18,6 +18,7 @@ from ddtrace.internal.symbol_db.symbols import ScopeType
 from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
 from ddtrace.internal.symbol_db.symbols import _line_ranges
+from ddtrace.internal.symbol_db.symbols import get_fields
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -43,6 +44,27 @@ def test_symbol_from_code():
     symbols = Symbol.from_code(foo.__code__)
     assert {s.name for s in symbols if s.symbol_type == SymbolType.ARG} == {"a", "b", "c"}
     assert {s.name for s in symbols if s.symbol_type == SymbolType.LOCAL} == {"loc"}
+
+
+def test_get_fields_from_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+            self.b = 2
+
+    assert get_fields(Foo) == {"a", "b"}
+
+
+def test_get_fields_skips_obfuscated_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+
+    # Simulate a PyArmor-obfuscated __init__: disassembling it is what can
+    # hard-crash the interpreter, so get_fields must skip that step entirely
+    # rather than attempt it and rely on catching the fallout.
+    with mock.patch("ddtrace.internal.symbol_db.symbols.is_obfuscated_code", return_value=True):
+        assert get_fields(Foo) == set()
 
 
 def test_symbols_class():
@@ -185,6 +207,26 @@ def test_symbols_decorated_methods():
     assert scope is not None
     (bar_scope,) = scope.scopes
     assert bar_scope.name == "bar"
+
+
+def test_symbols_skips_obfuscated_function():
+    class Foo:
+        def bar(self):
+            pass
+
+        def baz(self):
+            pass
+
+    # PyArmor's default mode protects individual functions, so the module
+    # level check alone does not keep them from being inspected.
+    obfuscated = Foo.bar.__code__
+    with mock.patch(
+        "ddtrace.internal.symbol_db.symbols.is_obfuscated_code", side_effect=lambda code: code is obfuscated
+    ):
+        scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
+
+    assert scope is not None
+    assert [s.name for s in scope.scopes] == ["baz"]
 
 
 @pytest.mark.subprocess
@@ -540,6 +582,13 @@ def test_symbols_fork_uploads():
                 assert child_context._event_data["uploadId"] == child_context._upload_id
                 assert child_context._batch_counter == 0
         except BaseException:
+            # Print the traceback before exiting: os._exit() bypasses the
+            # normal interpreter shutdown, so an uncaught exception here
+            # would otherwise vanish without a trace in the parent's
+            # captured output.
+            import traceback
+
+            traceback.print_exc()
             os._exit(1)
         os._exit(0)
 

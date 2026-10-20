@@ -79,7 +79,7 @@ cdef class PoissonSampler:
     """
     cdef uint64_t _state
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._state = int.from_bytes(_os.urandom(8), "little")
 
     cpdef int sample(self, double lam):

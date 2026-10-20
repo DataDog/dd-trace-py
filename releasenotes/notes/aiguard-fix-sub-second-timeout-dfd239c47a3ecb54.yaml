@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where setting ``DD_AI_GUARD_TIMEOUT`` below ``1000`` resulted in a
+    request timeout of 0, because the value is applied in whole seconds. Such values now log a
+    warning at startup and fall back to the default of ``10000``.

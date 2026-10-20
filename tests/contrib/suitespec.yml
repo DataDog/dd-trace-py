@@ -230,7 +230,7 @@ components:
     - ddtrace/contrib/internal/wsgi/*
 suites:
   aiobotocore:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -258,7 +258,7 @@ suites:
         - name: aiobotocore
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, aiobotocore]
   aiohttp:
-    venvs_per_job: 7
+    venvs_per_job: 8
     pattern: ^aiohttp$
     paths:
       - '@bootstrap'
@@ -285,13 +285,13 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio==0.23.7', 'pytest-aiohttp==1.0.5', aiohttp]
         - name: aiohttp
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, 'aiohttp~=3.7']
         - name: aiohttp
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, aiohttp]
   aiohttp_jinja2:
-    venvs_per_job: 5
+    venvs_per_job: 10
     paths:
       - '@bootstrap'
       - '@core'
@@ -321,16 +321,16 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, aiohttp_jinja2, jinja2, 'pytest-asyncio==0.23.7']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, 'aiohttp~=3.7', 'aiohttp_jinja2~=1.5.0', jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, 'aiohttp~=3.7', aiohttp_jinja2, jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, 'aiohttp_jinja2~=1.5.0', jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, aiohttp_jinja2, jinja2, 'pytest-asyncio>=1.0.0']
   aiomysql:
     venvs_per_job: 7
@@ -357,11 +357,11 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.23.7', aiomysql]
         - name: aiomysql
-          python: ['3.13', '3.14']
-          dependencies: [pytest-randomly, pytest-asyncio, 'aiomysql~=0.1.0']
+          python: ['3.13', '3.14', '3.15']
+          dependencies: [cryptography, pytest-randomly, pytest-asyncio, 'aiomysql~=0.1.0']
         - name: aiomysql
-          python: ['3.13', '3.14']
-          dependencies: [pytest-randomly, pytest-asyncio, aiomysql]
+          python: ['3.13', '3.14', '3.15']
+          dependencies: [cryptography, pytest-randomly, pytest-asyncio, aiomysql]
   aiokafka:
     venvs_per_job: 4
     env:
@@ -382,7 +382,6 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/aiokafka/
       env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
         DD_DATA_STREAMS_ENABLED: 'true'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
@@ -391,7 +390,7 @@ suites:
         - name: aiokafka
           dependencies: [pytest-asyncio, pytest-randomly, aiokafka]
   aiopg:
-    venvs_per_job: 4
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -412,11 +411,12 @@ suites:
           python: ['3.9']
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=0.16.0']
         - name: aiopg
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.0']
         - name: aiopg
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.4.0']
   algoliasearch:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -430,6 +430,8 @@ suites:
       variants:
         - name: algoliasearch
           dependencies: ['urllib3~=1.26.15', pytest-randomly, 'algoliasearch~=2.6']
+        - name: algoliasearch
+          dependencies: [pytest-randomly, 'algoliasearch~=3.0']
   anyio:
     paths:
       - '@bootstrap'
@@ -498,7 +500,6 @@ suites:
         - name: asgi
           dependencies: ['pytest-asyncio==0.21.1', 'httpx<0.28.0', asgiref, pytest-randomly]
   asyncpg:
-    venvs_per_job: 7
     retry: 2
     paths:
       - '@bootstrap'
@@ -519,6 +520,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.23.0']
         - name: asyncpg
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, asyncpg]
         - name: asyncpg
           python: ['3.10']
@@ -567,8 +569,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/aws_lambda
       variants:
         - name: aws_lambda
@@ -578,10 +578,9 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
         - name: aws_lambda
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
   aws_durable_execution_sdk_python:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -592,18 +591,16 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python
       variants:
         - name: aws_durable_execution_sdk_python
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['aws-durable-execution-sdk-python~=1.4.0', aws-durable-execution-sdk-python-testing]
         - name: aws_durable_execution_sdk_python
           python: ['3.11', '3.12', '3.13', '3.14']
           dependencies: [aws-durable-execution-sdk-python, aws-durable-execution-sdk-python-testing]
   azure_cosmos:
-    venvs_per_job: 6
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -617,8 +614,6 @@ suites:
       - azurite
       - azurecosmosemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_cosmos
       variants:
         - name: azure_cosmos
@@ -642,6 +637,7 @@ suites:
     env:
       # This job's services are heavier than average; pin resources and disable
       # the VPA to make sure it consistently gets enough CPU/memory to start.
+      DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES: '4'
       DD_DISABLE_VPA: 'true'
       KUBERNETES_CPU_REQUEST: '2'
       KUBERNETES_CPU_LIMIT: '2'
@@ -652,8 +648,6 @@ suites:
       KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
@@ -678,8 +672,6 @@ suites:
   # (the one that runs from scripts/ddtest on Mac OS)
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
         - name: azure_durable_functions
@@ -703,8 +695,6 @@ suites:
     services:
       - azurite
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions
       variants:
         - name: azure_functions
@@ -714,7 +704,6 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
-    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -730,8 +719,6 @@ suites:
       - azurite
       - azurecosmosemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_cosmos
       variants:
         - name: azure_functions:cosmos
@@ -747,7 +734,6 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -763,8 +749,6 @@ suites:
       - azurite
       - azureeventhubsemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_eventhubs
       variants:
         - name: azure_functions:eventhubs
@@ -791,8 +775,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_servicebus
       variants:
         - name: azure_functions:servicebus
@@ -816,8 +798,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_servicebus
       variants:
         - name: azure_servicebus
@@ -827,7 +807,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.servicebus, 'pytest-asyncio==0.23.7']
         - name: azure_servicebus
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [azure.servicebus, pytest-asyncio]
   botocore:
     venvs_per_job: 2
@@ -845,6 +825,7 @@ suites:
       - tests/snapshots/tests.contrib.botocore*
     pattern: ^botocore$
     snapshot: true
+    no_proxy: true
     services:
       - localstack
     matrix:
@@ -875,10 +856,10 @@ suites:
           python: ['3.9']
           dependencies: [WebTest, pytest-randomly, 'bottle>=0.12,<0.13']
         - name: bottle
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [WebTest, pytest-randomly, bottle]
   celery:
-    venvs_per_job: 2
+    venvs_per_job: 1
     env:
       DD_DISABLE_ERROR_RESPONSES: true
       DD_POOL_TRACE_CHECK_FAILURES: true
@@ -908,10 +889,9 @@ suites:
           python: ['3.9']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, celery, 'redis~=3.5']
         - name: celery
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
   cherrypy:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -935,7 +915,6 @@ suites:
         - name: cherrypy
           dependencies: [pytest-randomly, cherrypy, 'more_itertools<8.11.0']
   consul:
-    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -950,8 +929,10 @@ suites:
       command: pytest --no-cov {cmdargs} tests/contrib/consul
       variants:
         - name: consul
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['python-consul>=1.1,<1.2', pytest-randomly]
         - name: consul
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [python-consul, pytest-randomly]
   datastreams:
     paths:
@@ -985,6 +966,7 @@ suites:
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
+      POSTGRES_IMAGE: registry.ddbuild.io/images/mirror/postgres:16-alpine
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
@@ -1067,10 +1049,14 @@ suites:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
-          command: >-
-            pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
-            -k 'not test_user_name_included and not test_user_name_excluded and not
-            test_cached_view' tests/contrib/django
+          runs:
+            - command: >-
+                pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
+                -k 'not test_user_name_included and not test_user_name_excluded' tests/contrib/django
+            - command: >-
+                pytest {cmdargs}
+                tests/contrib/django/test_django_dbm.py::test_django_postgres_dbm_propagation_enabled
+                tests/contrib/django/test_django_snapshots.py::test_psycopg3_query_default
         - name: django:celery
           python: ['3.9']
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, 'sqlalchemy~=1.2.18', 'django~=2.2.0']
@@ -1105,7 +1091,6 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, django_hosts, 'django~=4.0']
   django:djangorestframework:
-    venvs_per_job: 7
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -1142,7 +1127,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', djangorestframework]
   dogpile_cache:
-    venvs_per_job: 8
+    venvs_per_job: 10
     paths:
       - '@bootstrap'
       - '@core'
@@ -1158,13 +1143,16 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'dogpile.cache~=0.6.0']
         - name: dogpile_cache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'dogpile.cache~=0.9']
         - name: dogpile_cache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'dogpile.cache~=1.0']
         - name: dogpile_cache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, dogpile.cache]
         - name: dogpile_cache
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'dogpile.cache~=1.1']
   dramatiq:
     env:
@@ -1191,7 +1179,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [dramatiq, redis]
   elasticsearch:
-    venvs_per_job: 3
+    venvs_per_job: 21
     pattern: ^elasticsearch(?!:opensearch)(?!:multi)(?!:async)
     env:
       TEST_ELASTICSEARCH_HOST: elasticsearch
@@ -1280,7 +1268,6 @@ suites:
           env:
             AIOHTTP_NO_EXTENSIONS: '1'
   opensearch:
-    venvs_per_job: 7
     pattern: elasticsearch:opensearch
     env:
       TEST_OPENSEARCH_HOST: opensearch
@@ -1307,7 +1294,7 @@ suites:
         - name: elasticsearch:opensearch
           dependencies: ['opensearch-py[requests]', pytest-randomly]
   falcon:
-    venvs_per_job: 6
+    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@core'
@@ -1328,10 +1315,10 @@ suites:
         - name: falcon
           dependencies: [pytest-randomly, falcon]
         - name: falcon
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'falcon~=4.0']
   fastapi:
-    venvs_per_job: 6
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -1367,10 +1354,10 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['httpx<=0.27.2', 'pytest-asyncio==0.21.1', python-multipart, pytest-randomly, requests, aiofiles, cloudpickle, fastapi, 'anyio>=3.4.0,<4.0']
         - name: fastapi
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [hypothesis, 'httpx<=0.27.2', 'pytest-asyncio==0.21.1', python-multipart, pytest-randomly, requests, aiofiles, cloudpickle, fastapi]
   flask:
-    venvs_per_job: 3
+    venvs_per_job: 9
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -1507,8 +1494,6 @@ suites:
       - pubsub
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/google_cloud_pubsub
       variants:
         - name: google_cloud_pubsub
@@ -1542,7 +1527,6 @@ suites:
           python: ['3.14']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -1557,11 +1541,13 @@ suites:
       command: pytest {cmdargs} tests/contrib/graphql
       variants:
         - name: graphql
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', 'graphql-core~=3.2.0', pytest-randomly]
         - name: graphql
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', graphql-core, pytest-randomly]
   grpc:
-    venvs_per_job: 6
+    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@core'
@@ -1594,7 +1580,7 @@ suites:
           python: ['3.12']
           dependencies: [googleapis-common-protos, pytest-randomly, grpcio, 'pytest-asyncio==0.23.7']
         - name: grpc
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [googleapis-common-protos, pytest-randomly, 'grpcio>=1.75.0']
         - name: grpc:grpc_aio
           python: ['3.9']
@@ -1621,7 +1607,6 @@ suites:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
           command: python -m pytest {cmdargs} tests/contrib/grpc_aio
   gunicorn:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -1632,8 +1617,6 @@ suites:
       - tests/snapshots/tests.contrib.gunicorn.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/gunicorn
       variants:
         - name: gunicorn
@@ -1641,7 +1624,6 @@ suites:
         - name: gunicorn
           dependencies: [requests, gevent, gunicorn, pytest-randomly]
   httplib:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -1652,13 +1634,14 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/httplib
       variants:
         - name: httplib
           dependencies: [pytest-randomly]
   httpx:
-    venvs_per_job: 6
+    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -1670,6 +1653,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/httpx
       variants:
@@ -1683,13 +1667,13 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, httpx]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'httpx~=0.25.0', legacy-cgi]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'httpx~=0.27.0', legacy-cgi]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, httpx, legacy-cgi]
   httpx2:
     venvs_per_job: 7
@@ -1709,9 +1693,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/httpx2
       variants:
         - name: httpx2
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, 'httpx2~=2.0.0']
         - name: httpx2
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, httpx2]
   integration_registry:
     paths:
@@ -1727,9 +1712,9 @@ suites:
       python: ['3.13']
       variants:
         - name: integration_registry
-          dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema]
+          dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema, filelock]
   jinja2:
-    venvs_per_job: 6
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -1769,7 +1754,6 @@ suites:
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka
       env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
         DD_DATA_STREAMS_ENABLED: 'true'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
@@ -1780,7 +1764,6 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
-    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -1807,7 +1790,6 @@ suites:
           python: ['3.10', '3.11']
           dependencies: [pytest-randomly, 'kombu>=5.2,<5.3']
   logbook:
-    venvs_per_job: 8
     paths:
       - '@core'
       - '@contrib'
@@ -1816,8 +1798,6 @@ suites:
       - tests/contrib/logbook/*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/logbook
       variants:
         - name: logbook
@@ -1825,7 +1805,7 @@ suites:
         - name: logbook
           dependencies: [logbook, pytest-randomly]
   loguru:
-    venvs_per_job: 4
+    venvs_per_job: 7
     paths:
       - '@core'
       - '@contrib'
@@ -1834,8 +1814,6 @@ suites:
       - tests/contrib/loguru/*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/loguru
       variants:
         - name: loguru
@@ -1843,7 +1821,7 @@ suites:
         - name: loguru
           dependencies: [loguru, pytest-randomly]
   mako:
-    venvs_per_job: 6
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -1860,7 +1838,7 @@ suites:
         - name: mako
           dependencies: [mako, pytest-randomly]
   mariadb:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -1883,12 +1861,12 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'mariadb~=1.0']
         - name: mariadb
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mariadb]
         - name: mariadb
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mariadb~=1.1.2']
   mlflow:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -1902,14 +1880,15 @@ suites:
       command: pytest {cmdargs} tests/contrib/mlflow/
       variants:
         - name: mlflow
+          # mlflow 2.11 imports sqlalchemy.pool.FallbackAsyncAdaptedQueuePool, which SQLAlchemy 2.1 removed.
           python: ['3.10', '3.11']
-          dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82']
+          dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
           python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
-    venvs_per_job: 6
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -1920,14 +1899,49 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten
       variants:
         - name: molten
           dependencies: ['cattrs<23.1.1', 'molten>=1.0,<1.1', pytest-randomly, pytest-xdist]
         - name: molten
           dependencies: ['cattrs<23.1.1', molten, pytest-randomly, pytest-xdist]
+  mysql:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@dbapi'
+      - '@mysql'
+      - tests/contrib/mysql/*
+      - tests/contrib/shared_tests.py
+    services:
+      - mysql
+    snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/contrib/mysql
+      variants:
+        - name: mysql
+          python: ['3.9']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.28']
+        - name: mysql
+          python: ['3.9']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.10']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.28']
+        - name: mysql
+          python: ['3.10']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.11']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.31']
+        - name: mysql
+          python: ['3.11']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.12', '3.13', '3.14', '3.15']
+          dependencies: [pytest-randomly, mysql-connector-python]
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -1959,7 +1973,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    venvs_per_job: 4
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -1986,7 +2000,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', opentelemetry-api]
         - name: opentelemetry
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, markupsafe, flask, gevent, 'requests==2.28.1', opentelemetry-api]
         - name: opentelemetry
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -2004,7 +2018,7 @@ suites:
           env:
             SDK_EXPORTER_INSTALLED: '1'
         - name: opentelemetry
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, markupsafe, flask, gevent, 'requests==2.28.1', opentelemetry-exporter-otlp]
           env:
             SDK_EXPORTER_INSTALLED: '1'
@@ -2024,7 +2038,7 @@ suites:
         - name: protobuf
           dependencies: [protobuf, pytest-randomly]
   psycopg:
-    venvs_per_job: 5
+    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -2059,10 +2073,9 @@ suites:
           python: ['3.12']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.23.7']
         - name: psycopg
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio>=1.0']
   pylibmc:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -2080,9 +2093,10 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'pylibmc~=1.6.2']
         - name: pylibmc
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pylibmc]
   pymemcache:
-    venvs_per_job: 4
+    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -2132,11 +2146,12 @@ suites:
           python: ['3.9']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.11']
         - name: pymongo
-          dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.0']
+          dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.17.0']
         - name: pymongo
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [mongoengine, pytest-randomly, pymongo]
         - name: pymongo
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.12.3']
   pymysql:
     paths:
@@ -2162,9 +2177,9 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'pymysql~=1.0']
         - name: pymysql
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pymysql]
   pynamodb:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2175,6 +2190,8 @@ suites:
     snapshot: true
     matrix:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb
+      env:
+        DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: '0'
       variants:
         - name: pynamodb
           python: ['3.9']
@@ -2186,10 +2203,10 @@ suites:
           python: ['3.9']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -2241,6 +2258,7 @@ suites:
           python: ['3.12']
           dependencies: ['torch~=2.12.0']
         - name: pytorch
+          # TODO(py-315): Add 3.15 here once torch supports it
           python: ['3.12', '3.13', '3.14']
           dependencies: [torch]
   pyodbc:
@@ -2260,6 +2278,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'pyodbc~=4.0.34']
         - name: pyodbc
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pyodbc]
   pyramid:
     paths:
@@ -2284,7 +2303,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid]
         - name: pyramid
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid, legacy-cgi]
   ray:
     venvs_per_job: 3
@@ -2313,7 +2332,6 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['ray[default]~=2.54.1']
   ray_serve:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -2340,7 +2358,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [fastapi, 'protobuf==4.25.8', 'ray[serve]~=2.54.1']
   redis:
-    venvs_per_job: 4
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2395,7 +2413,6 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
-    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -2403,9 +2420,11 @@ suites:
       - '@tracing'
       - '@requests'
       - tests/contrib/requests/*
+      - tests/snapshots/tests.contrib.requests.*
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/requests
       variants:
@@ -2421,7 +2440,6 @@ suites:
           python: ['3.11']
           dependencies: [pytest-randomly, 'urllib3~=1.0', 'requests-mock>=1.4', 'requests~=2.28.0']
   rq:
-    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -2452,10 +2470,10 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq, 'click==7.1.2']
         - name: rq
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq]
   sanic:
-    venvs_per_job: 4
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -2497,7 +2515,7 @@ suites:
           python: ['3.12']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, requests, 'websockets<11.0', 'setuptools<82', 'sanic~=23.12', 'sanic-testing~=23.12.0']
         - name: sanic
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, requests, 'websockets<11.0', 'setuptools<82', sanic, sanic-testing]
   snowflake:
     venvs_per_job: 4
@@ -2534,8 +2552,6 @@ suites:
       - '@sourcecode'
       - tests/sourcecode/*
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/sourcecode
       variants:
         - name: sourcecode
@@ -2568,10 +2584,10 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.1.0']
         - name: sqlalchemy
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.2.4']
   starlette:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -2611,10 +2627,10 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', starlette, 'httpx~=0.22.0']
         - name: starlette
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, anyio, starlette, httpx2]
   stdlib:
-    venvs_per_job: 9
+    venvs_per_job: 16
     retry: 2
     paths:
       - '@tracing'
@@ -2661,7 +2677,7 @@ suites:
             DD_IAST_REQUEST_SAMPLING: '100'
           command: pytest {cmdargs} tests/contrib/dbapi_async
         - name: dbapi_async
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, attrs]
           env:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
@@ -2673,7 +2689,7 @@ suites:
           dependencies: [pytest-randomly, uvloop, 'pytest-asyncio==0.21.1']
           command: pytest {cmdargs} tests/contrib/asyncio
         - name: asyncio
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           integration: asyncio
           dependencies: [pytest-randomly, uvloop, 'pytest-asyncio>=1.0.0']
           command: pytest {cmdargs} tests/contrib/asyncio
@@ -2722,7 +2738,6 @@ suites:
         - name: logging
           dependencies: [pytest-randomly, pytest-xdist]
   tornado:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2748,7 +2763,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'tornado==6.3.1']
         - name: tornado
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'tornado==6.4.1']
   trio:
     paths:
@@ -2763,7 +2778,6 @@ suites:
     services:
       - testagent
     snapshot: false
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/trio
       variants:
@@ -2773,7 +2787,6 @@ suites:
         - name: trio
           dependencies: [pytest-randomly, trio]
   urllib3:
-    venvs_per_job: 6
     env:
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
@@ -2803,7 +2816,7 @@ suites:
           python: ['3.11']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.8']
         - name: urllib3
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
   vertica:
     paths:
@@ -2842,7 +2855,7 @@ suites:
           dependencies: [WebTest, pytest-randomly]
           python: ['3.9', '3.10', '3.11', '3.12']
         - name: wsgi
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [WebTest, pytest-randomly, legacy-cgi]
   yaaredis:
     paths:
@@ -2864,10 +2877,9 @@ suites:
           python: ['3.9']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', 'yaaredis~=2.0.0']
         - name: yaaredis
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', yaaredis]
   valkey:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -2882,9 +2894,8 @@ suites:
       - valkey
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/valkey
       variants:
         - name: valkey
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [valkey, pytest-randomly, 'pytest-asyncio==0.23.7']

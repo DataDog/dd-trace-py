@@ -26,7 +26,18 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
-MAX_TOTAL_TEST_JOBS = 600
+# DEV: Do not edit this without first attempting to find ways to reduce current job count
+MAX_TOTAL_TEST_JOBS = 425
+# Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
+NO_PROXY_ADDITIONS = (
+    "icanhazdadjoke.com",
+    "doesnotexist.google.com",
+    "api.stripe.com",
+    "us-central1-aiplatform.googleapis.com",
+    "github.com",
+    "api.github.com",
+    ".amazonaws.com",
+)
 
 
 def _ddtest_module():
@@ -52,6 +63,24 @@ def _wait_lockfile() -> str:
 
     environments = get_test_environments(nightly=False)["wait"]
     return str(next(environment.lockfile for environment in environments if environment.python == "3.9"))
+
+
+# tests/wait-for-services.py needs a client library from the wait lockfile to check these services. The script
+# checks the other services over HTTP with the standard library, or skips them if it does not know them.
+_WAIT_CLIENT_LIBRARY_SERVICES = frozenset(
+    ("azuresqledge", "azurite", "cassandra", "mysql", "postgres", "rabbitmq", "redis", "vertica")
+)
+
+
+def _wait_python(services: t.Iterable[str]) -> str:
+    """Return the interpreter command that runs tests/wait-for-services.py for these services."""
+    if _WAIT_CLIENT_LIBRARY_SERVICES.isdisjoint(services):
+        # The environment from the wait lockfile takes seconds to build, and the standard library is enough here.
+        return "python"
+    return (
+        f"uv run --no-project --python 3.9 --no-python-downloads --with-requirements {_wait_lockfile()} "
+        "--no-progress python"
+    )
 
 
 @dataclass
@@ -83,6 +112,7 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False  # ignored
+    no_proxy: bool = False
     suite: t.Optional[str] = None
 
     environment_hashes: t.Optional[tuple[str, ...]] = None
@@ -128,15 +158,21 @@ class JobSpec:
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
+        if self.no_proxy:
+            no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
+            lines.append("    - |")
+            lines.append(f'      no_proxy_additions="{no_proxy_additions}"')
+            lines.append('      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"')
+            lines.append('      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      echo "NO_PROXY=${NO_PROXY}"')
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             wait_environment = ""
             if "testagent" in wait_for:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             lines.append(
-                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
-                f"--with-requirements {_wait_lockfile()} --no-progress "
-                f"python tests/wait-for-services.py {' '.join(wait_for)}"
+                f"    - {wait_environment}{_wait_python(wait_for)} tests/wait-for-services.py {' '.join(wait_for)}"
             )
 
         env = dict(self.env or {})
@@ -612,7 +648,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check test locks",
         command="scripts/test-requirements check",
-        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-requirements", "tests/suitespec.py"},
+        paths={"**/suitespec.yml", "tests/requirements_locks/*", "scripts/test-requirements", "tests/suitespec.py"},
     )
     check(
         name="Check microbenchmark SLO ownership",
@@ -649,7 +685,10 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check project dependencies",
-        command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
+        command=(
+            "scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py"
+            " && scripts/test_check_dependency_ci_coverage.py"
+        ),
         paths={
             "pyproject.toml",
             "tests/suitespec.py",
@@ -660,6 +699,7 @@ def gen_pre_checks() -> None:
             ".gitlab/**/*.yml",
             ".github/workflows/*.yml",
             "scripts/check-dependency-ci-coverage.py",
+            "scripts/test_check_dependency_ci_coverage.py",
         },
     )
     check(
@@ -680,6 +720,7 @@ def gen_pre_checks() -> None:
     if not checks:
         return
 
+    no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
     with TESTS_GEN.open("a") as f:
         f.write(
             """
@@ -687,6 +728,15 @@ prechecks:
   extends: .testrunner
   stage: setup
   needs: []
+  before_script:
+    - !reference [.testrunner, before_script]
+    - |
+      no_proxy_additions="""
+            + no_proxy_additions
+            + """
+      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"
+      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
+      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:

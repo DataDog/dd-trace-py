@@ -4,6 +4,8 @@ from pathlib import Path
 from unittest.mock import Mock
 from unittest.mock import patch
 
+import pytest
+
 
 class TestCoverageUtils:
     """Test suite for coverage utility functions."""
@@ -409,9 +411,18 @@ class TestCoverageUtilityFunctions:
 class TestRemapLcovPaths:
     """Tests for _remap_lcov_paths and _build_path_aliases."""
 
-    def test_remap_wheel_installed_paths(self, tmp_path):
+    @pytest.mark.parametrize("checkout_exists", [True, False])
+    def test_remap_wheel_installed_paths(self, tmp_path, monkeypatch, checkout_exists):
         """SF: lines with site-packages paths are remapped to repo paths."""
         from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        config = Path(__file__).resolve().parents[4] / ".coveragerc"
+        (tmp_path / ".coveragerc").write_text(config.read_text(), encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        if checkout_exists:
+            (tmp_path / "ddtrace/internal/coverage").mkdir(parents=True)
+            (tmp_path / "ddtrace/__init__.py").touch()
+            (tmp_path / "ddtrace/internal/coverage/instrumentation_py3_10.py").touch()
 
         lcov = (
             "TN:ddtrace\n"
@@ -439,6 +450,61 @@ class TestRemapLcovPaths:
         assert set(sf_lines) == {
             "ddtrace/__init__.py",
             "ddtrace/internal/coverage/instrumentation_py3_10.py",
+        }
+
+    @pytest.mark.parametrize("pytest_cov_enabled", [True, False])
+    @pytest.mark.parametrize("relative_files", [True, False])
+    def test_upload_remaps_wheel_paths_without_checkout(
+        self, tmp_path, monkeypatch, pytest_cov_enabled, relative_files
+    ):
+        """The uploaded report uses aliases even when only installed sources exist."""
+        from coverage import Coverage
+
+        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+
+        monkeypatch.chdir(tmp_path)
+        # Use a custom config to also verify that the reporting instance owns the aliases.
+        cov_config = tmp_path / "custom.coveragerc"
+        cov_config.write_text(
+            f"[run]\nrelative_files = {relative_files}\n[paths]\npackage =\n    src/package/\n"
+            "    */site-packages/package/\n",
+            encoding="utf-8",
+        )
+        cov = Coverage(config_file=str(cov_config), data_file=None)
+        aliases = {}
+        for env, version in (("100b0a9", "3.12"), ("10210f3", "3.9"), ("1027a5e", "3.9"), ("102b11d", "3.11")):
+            for filename in ("__init__.py", "internal/coverage.py"):
+                installed = Path(
+                    f".cache/uv-test-environments/{env}/lib/python{version}/site-packages/package/{filename}"
+                )
+                installed.parent.mkdir(parents=True, exist_ok=True)
+                installed.write_text("value = 1\n", encoding="utf-8")
+                measured = installed if relative_files else installed.resolve()
+                cov.get_data().add_lines({str(measured): {1}})
+                aliases[installed.as_posix()] = f"src/package/{filename}"
+        assert not (tmp_path / "src").exists()
+
+        original_report = tmp_path / "original.lcov"
+        cov.lcov_report(outfile=str(original_report))
+        expected = original_report.read_bytes()
+        for installed, canonical in aliases.items():
+            source_line = f"SF:{installed}\n".encode()
+            assert source_line in expected
+            expected = expected.replace(source_line, f"SF:{canonical}\n".encode())
+
+        upload = Mock(return_value=True)
+        with (
+            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.contrib.internal.coverage.utils.get_coverage_instance", return_value=cov),
+            patch("ddtrace.contrib.internal.coverage.patch.get_coverage_instance", return_value=cov),
+            patch("ddtrace.contrib.internal.coverage.utils._find_pytest_cov_instance", return_value=cov),
+        ):
+            handle_coverage_report(Mock(), upload, lambda config: pytest_cov_enabled)
+
+        upload.assert_called_once_with(expected, "lcov")
+        assert {line for line in expected.splitlines() if line.startswith(b"SF:")} == {
+            b"SF:src/package/__init__.py",
+            b"SF:src/package/internal/coverage.py",
         }
 
     def test_remap_noop_for_repo_paths(self, tmp_path):
@@ -543,12 +609,14 @@ class TestRemapLcovPaths:
 
     def test_remap_uses_active_coverage_config(self, tmp_path):
         """_remap_lcov_paths uses aliases from the provided coverage instance, not the default config."""
+        import re
+
         from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
 
-        # Build a mock aliases object that maps any path to a fixed result
+        # Build a mock aliases object with a real regex that maps
+        # some/installed/ to custom/ (mimicking a [paths] entry).
         mock_aliases = Mock()
-        mock_aliases.aliases = [("pattern", None, "result")]
-        mock_aliases.map = Mock(return_value="/repo/custom/path.py")
+        mock_aliases.aliases = [("pattern", re.compile(r"some/installed/"), "custom/")]
 
         mock_cov = Mock()
         mock_cov._make_aliases.return_value = mock_aliases
@@ -563,3 +631,62 @@ class TestRemapLcovPaths:
         result = lcov_file.read_text(encoding="utf-8")
         assert "SF:custom/path.py\n" in result
         mock_cov._make_aliases.assert_called_once()
+
+    def test_remap_not_poisoned_by_canonical_filename_cache(self, tmp_path, monkeypatch):
+        """Remapping must not be affected by coverage.py's global canonical_filename cache.
+
+        coverage.py's ``PathAliases.map`` calls ``canonical_filename`` on the
+        *mapped* path, which searches ``cwd`` and ``sys.path`` and caches the
+        result globally.  When the checkout sources have been removed, a stale
+        cache entry for the mapped filename can resolve it back to an
+        installed-package location, defeating the alias.
+
+        This test seeds the cache for the exact mapped filename
+        (``mylib/__init__.py``) with an incorrect installed-package path, then
+        verifies that ``_remap_lcov_paths`` still produces the correct relative
+        path because it applies aliases directly without canonicalisation.
+        """
+        import re
+
+        from coverage.files import CANONICAL_FILENAME_CACHE
+
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        monkeypatch.chdir(tmp_path)
+
+        # Build a real Coverage instance with a [paths] entry that maps
+        # */site-packages/mylib/ to mylib/
+        cov_config = tmp_path / ".coveragerc"
+        cov_config.write_text(
+            "[run]\n[paths]\nmylib =\n    mylib/\n    */site-packages/mylib/\n",
+            encoding="utf-8",
+        )
+        from coverage import Coverage
+
+        cov = Coverage(config_file=str(cov_config), data_file=None)
+
+        # Poison the canonical_filename cache for the exact mapped filename.
+        # The alias maps */site-packages/mylib/__init__.py → mylib/__init__.py.
+        # PathAliases.map would then call canonical_filename("mylib/__init__.py"),
+        # which searches sys.path and could resolve it to an installed copy.
+        # We simulate that by pre-seeding the cache with a bogus absolute path.
+        poisoned_path = str(tmp_path / "site-packages" / "mylib" / "__init__.py")
+        CANONICAL_FILENAME_CACHE["mylib/__init__.py"] = poisoned_path
+
+        lcov = (
+            "SF:.cache/uv/env-a/lib/python3.12/site-packages/mylib/__init__.py\n"
+            "DA:1,1\n"
+            "end_of_record\n"
+            "SF:.cache/uv/env-b/lib/python3.9/site-packages/mylib/__init__.py\n"
+            "DA:1,1\n"
+            "end_of_record\n"
+        )
+        lcov_file = tmp_path / "test.lcov"
+        lcov_file.write_text(lcov, encoding="utf-8")
+
+        _remap_lcov_paths(lcov_file, cov_instance=cov)
+
+        result = lcov_file.read_text(encoding="utf-8")
+        sf_lines = re.findall(r"^SF:(.+)$", result, re.MULTILINE)
+        assert len(sf_lines) == 2
+        assert set(sf_lines) == {"mylib/__init__.py"}

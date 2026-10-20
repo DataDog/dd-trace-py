@@ -34,7 +34,7 @@ Both layers must work together. The patch layer identifies the operation and pas
 | Purpose | File |
 |---------|------|
 | Base LLM integration class | `ddtrace/llmobs/_integrations/base.py` (`BaseLLMIntegration`) |
-| Stream handler base classes | `ddtrace/llmobs/_integrations/base_stream_handler.py` (`BaseStreamHandler`, `StreamHandler`, `AsyncStreamHandler`) |
+| Stream handler base classes | `ddtrace/internal/utils/streaming.py` (`BaseStreamHandler`, `StreamHandler`, `AsyncStreamHandler`, `make_traced_stream`) |
 | Shared utilities | `ddtrace/llmobs/_integrations/utils.py` |
 | LLMObs annotation helper | `ddtrace/llmobs/_utils.py` (`_annotate_llmobs_span_data`) |
 | LLMObs constants | `ddtrace/llmobs/_constants.py` |
