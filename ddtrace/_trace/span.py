@@ -10,7 +10,6 @@ from typing import Optional
 from typing import Union
 from typing import cast
 
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
@@ -28,6 +27,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import net
 from ddtrace.internal import core
+from ddtrace.internal._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
