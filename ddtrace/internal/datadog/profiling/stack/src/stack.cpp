@@ -41,15 +41,22 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         return nullptr;
     }
 
+    // Seed before start() launches the sampling thread. Seeding after return races
+    // with that thread writing non-atomic fast_copy_* strategy flags.
+    seed_fast_copy_profiler_stats();
+
     if (Sampler::get().start()) {
         // Enable only after start() succeeds so one_time_setup() has completed
         // before executor work can mutate the origin-task map.
         Py_BEGIN_ALLOW_THREADS;
         OriginTaskLinks::get_instance().enable();
         Py_END_ALLOW_THREADS;
-        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
+
+    // start() may have latched failed_safe_copy / cleared active without launching;
+    // reseed so uploads do not keep the pre-start snapshot.
+    seed_fast_copy_profiler_stats();
 
     if (Sampler::get().gc_enabled() && !GCFrameTracker::get().uninstall_current_interpreter()) {
         // Do not surface the error, start() should return False in this case.

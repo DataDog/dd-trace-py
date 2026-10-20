@@ -84,6 +84,9 @@ drop_fast_copy_after_foreign_takeover()
     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
                  "stopping stack sampling to avoid crashing."
               << std::endl;
+    // Callers stop the sampler and skip the end-of-cycle stats update; reseed so
+    // uploads do not keep fast_copy_memory_enabled from before the failed disable.
+    update_fast_copy_stats(Sample::profile_borrow().stats());
     return false;
 }
 
@@ -524,6 +527,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
                                  "stopping stack sampling to avoid crashing. "
                               << "Handler owners: " << ownership.owners << std::endl;
+                    // mark_fast_copy_foreign_takeover() snapshotted enabled while still
+                    // active; we break before the end-of-cycle update, so reseed here.
+                    seed_fast_copy_profiler_stats();
                     sampler_active_.store(false);
                     break;
                 }

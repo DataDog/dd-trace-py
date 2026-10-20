@@ -431,13 +431,17 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
 )
 def test_fast_copy_fork_after_takeover_without_syscall() -> None:
     """Child must not sample leftover safe_memcpy after a no-syscall foreign takeover."""
+    import json
     import os
     import signal
     import time
+    from typing import Any
+    from typing import Optional
 
     from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_utils import wait_for_fast_copy_state
 
     # No process_vm_readv before start: skips warmup, stays on safe_memcpy, and
@@ -478,6 +482,23 @@ def test_fast_copy_fork_after_takeover_without_syscall() -> None:
 
     assert os.WIFEXITED(status), f"child did not exit normally: {status}"
     assert os.WEXITSTATUS(status) == 0, "child sampled leftover safe_memcpy after no-syscall takeover"
+
+    # Failed disable breaks before the end-of-cycle stats update; metadata must still
+    # reflect that fast copy is off (not the pre-disable snapshot from mark takeover).
+    output_filename: str = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
+    assert files, "Expected at least one internal_metadata.json file"
+
+    metadata: Optional[dict[str, Any]] = None
+    for f in reversed(files):
+        with open(f) as fp:
+            candidate: dict[str, Any] = json.load(fp)
+        if candidate.get("fast_copy_memory_foreign_takeover") is True:
+            metadata = candidate
+            break
+
+    assert metadata is not None, f"Expected a foreign-takeover metadata window: {files}"
+    assert metadata["fast_copy_memory_enabled"] is False, metadata
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
