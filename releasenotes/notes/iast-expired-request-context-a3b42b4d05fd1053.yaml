@@ -1,0 +1,4 @@
+fixes:
+  - |
+    IAST: Fixes an issue where background tasks or worker threads that outlive a
+    request can affect vulnerability analysis for another request.

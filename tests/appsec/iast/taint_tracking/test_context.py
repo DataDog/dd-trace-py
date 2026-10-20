@@ -1,4 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor
+import contextvars
 import gc
+
+import pytest
 
 from ddtrace.appsec._iast._iast_env import in_iast_env
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
@@ -8,6 +12,7 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
@@ -31,17 +36,18 @@ def test_create_two_contexts_and_they_are_distinct():
     assert ctx1 != ctx2
 
 
-def test_reuse_freed_slot_lowest_index():
+def test_reuse_freed_slot_has_a_distinct_request_identifier():
     clear_all_request_context_slots()
     c1 = start_request_context()
     c2 = start_request_context()
     assert c1 is not None and c2 is not None and c1 != c2
 
-    # Free the first and ensure reuse on next start
+    # Both slots are occupied, so another admission must reuse the freed slot.
     finish_request_context(c1)
     assert debug_num_tainted_objects(c1) == 0
     c3 = start_request_context()
-    assert c3 == c1
+    assert c3 is not None and c3 != c1
+    assert debug_context_array_free_slots_number() == 0
 
 
 def test_finish_none_context_is_noop():
@@ -71,9 +77,41 @@ def test_finish_context_twice_is_noop():
     # second finish is idempotent
     finish_request_context(ctx)
     # slot remains cleared
-    # We can't directly check the map presence here, but re-starting should reuse the same id
+    # Reuse the storage, but never its expired request identifier.
     new_id = start_request_context()
-    assert new_id == ctx
+    assert new_id is not None and new_id != ctx
+
+
+@pytest.mark.parametrize("in_thread", [False, True])
+def test_copied_context_cannot_access_or_finish_a_reused_slot(in_thread):
+    clear_all_request_context_slots()
+    first = start_request_context()
+    IAST_CONTEXT.set(first)
+    copied = contextvars.copy_context()
+    finish_request_context(first)
+    replacement = start_request_context()
+    IAST_CONTEXT.set(replacement)
+    value = taint_pyobject("replacement-request", "replacement", "replacement-request")
+    before = debug_num_tainted_objects(replacement)
+
+    def late_work():
+        assert not get_tainted_ranges(value)
+        late_value = taint_pyobject("finished-request", "expired", "finished-request")
+        assert not get_tainted_ranges(late_value)
+        # A stale cleanup must not release the replacement request's map either.
+        finish_request_context(first)
+        return late_value
+
+    if in_thread:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            late_value = executor.submit(copied.run, late_work).result(timeout=5)
+    else:
+        late_value = copied.run(late_work)
+    assert debug_num_tainted_objects(replacement) == before
+    assert get_tainted_ranges(value)
+    assert not get_tainted_ranges(late_value)
+    finish_request_context(replacement)
+    IAST_CONTEXT.set(None)
 
 
 def test_taint_object_with_no_context_is_noop():
