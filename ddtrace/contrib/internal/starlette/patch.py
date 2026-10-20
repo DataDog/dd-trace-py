@@ -1,3 +1,6 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import replace
 import inspect
 from typing import Any
 from typing import Mapping
@@ -6,13 +9,20 @@ from typing import Optional
 import starlette
 from starlette import requests as starlette_requests
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import URL
 from starlette.middleware import Middleware
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.http_asgi import Application
+from ddtrace.contrib.internal.http_asgi import AsgiLifecycleDriver
+from ddtrace.contrib.internal.http_asgi import Scope
+from ddtrace.contrib.internal.http_asgi import request_data_from_scope
+from ddtrace.contrib.internal.http_server import HttpLifecycleConfig
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -382,3 +392,43 @@ def _trace_background_tasks(module):
         return wrapped(*args, **kwargs)
 
     return traced_background_tasks
+
+
+def _http_request_data(scope: Scope) -> HttpRequestData:
+    # Starlette versions differ in root_path handling and Host validation. Keep
+    # their URL normalization while sharing the remaining ASGI extraction.
+    return replace(request_data_from_scope(scope), url=str(URL(scope=scope)))
+
+
+@contextmanager
+def instrument_http(app: Any, settings: HttpLifecycleConfig) -> Iterator[Application]:
+    """Opt-in HTTP proof for an unpatched app; restore route hooks on exit.
+
+    The shared http_server controller and ASGI driver own the lifecycle. This
+    helper only identifies Starlette routes and installs their handler wrappers.
+    It does not replace automatic patching or add nested application spans.
+    """
+    if getattr(app, "_datadog_http_instrumented", False):
+        raise RuntimeError("HTTP route hooks are already installed on this application")
+    driver = AsgiLifecycleDriver(get_config=lambda: settings, request_data=_http_request_data)
+    originals: list[tuple[Any, Application, Application]] = []
+
+    def install(routes: Any, prefix: str) -> None:
+        for route in routes:
+            if isinstance(route, starlette.routing.Mount):
+                install(route.routes, prefix + route.path)
+            elif isinstance(route, starlette.routing.Route):
+                original = route.app
+                wrapper = driver.wrap_handler(original, route=prefix + route.path, route_pattern=route.path)
+                originals.append((route, original, wrapper))
+                route.app = wrapper
+
+    app._datadog_http_instrumented = True
+    try:
+        install(app.routes, "")
+        yield driver.wrap(app)
+    finally:
+        for route, original, wrapper in reversed(originals):
+            if route.app is wrapper:
+                route.app = original
+        del app._datadog_http_instrumented

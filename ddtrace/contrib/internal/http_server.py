@@ -28,6 +28,7 @@ def create_http_server_context(
     request_headers: Mapping[str, str],
     integration_config: IntegrationConfig,
     activate_distributed_headers: bool = True,
+    finish_on_response: bool = False,
 ) -> core.ExecutionContext[HttpServerRequestEvent]:
     """Create a request context; the framework adapter owns its lifetime."""
     return core.context_with_event(
@@ -36,6 +37,7 @@ def create_http_server_context(
             component=integration_config.integration_name,
             request_id=request_id,
             framework=framework,
+            finish_on_response=finish_on_response,
             request_headers=dict(request_headers),
             integration_config=integration_config,
             activate_distributed_headers=activate_distributed_headers,
@@ -101,6 +103,7 @@ class HttpLifecycleConfig:
     service: str
     integration_config: IntegrationConfig
     activate_distributed_headers: bool = True
+    finish_on_response: bool = False
 
 
 class HttpLifecycle:
@@ -121,11 +124,13 @@ class HttpLifecycle:
         self.handler_started = False
         self.committed = False
         self.completed = False
+        self.closed = False
         self.blocked = False
         self.pending_block: Optional[HttpBlockingResponse] = None
         self.validate_block = validate_block
         self.ctx = create_http_server_context(
             framework=config.framework,
+            finish_on_response=config.finish_on_response,
             service=config.service,
             request_id=self.request_id,
             request_headers=dict(request_data.headers or ()),
@@ -200,12 +205,20 @@ class HttpLifecycle:
             self.exc_info = exc_info
             self.errors = (request_error(exc_info[0], cast(BaseException, exc_info[1])),)
 
-    def finish(self) -> None:
+    def complete(self) -> None:
+        """Publish final observations without resetting task-local activation."""
         if self.completed:
             return
         self.completed = True
+        self.publish(HttpRequestPhase.COMPLETED)
+
+    def finish(self) -> None:
+        """Complete if needed and unwind activation in the context's owner."""
+        if self.closed:
+            return
+        self.closed = True
         try:
-            self.publish(HttpRequestPhase.COMPLETED)
+            self.complete()
         finally:
             try:
                 self.ctx.__exit__(*self.exc_info)
