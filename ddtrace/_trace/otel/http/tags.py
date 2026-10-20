@@ -36,6 +36,8 @@ _DEFAULT_KNOWN_HTTP_METHODS = frozenset(
 )
 OTHER_HTTP_METHOD = "_OTHER"
 _HTTP_STATUS_ERROR = "_dd.http_status_error"
+_CLIENT_ERROR_STATUSES = "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES"
+_SERVER_ERROR_STATUSES = "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"
 
 
 @cached()
@@ -296,8 +298,11 @@ class OTelHTTPSpanAttributes:
 
     def _is_error_status(self, status_code: int) -> bool:
         if self.is_client:
-            return status_code >= 400
-        setting = "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"
+            setting = _CLIENT_ERROR_STATUSES
+            if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
+                return status_code >= 400
+            return bool(config._http_client.is_error_code(status_code))
+        setting = _SERVER_ERROR_STATUSES
         if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
             # OTel treats any code at or above 500 as an error.
             return status_code >= 500
