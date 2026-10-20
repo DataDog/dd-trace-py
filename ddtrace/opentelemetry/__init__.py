@@ -64,8 +64,9 @@ semantic conventions:
   ``_OTHER``), and the original value is kept in ``http.request.method_original``.
 - Client and server spans record URL, address, port, and status attributes. URL credentials are
   redacted, captured query values are obfuscated, and ports and status codes stay numeric.
-- Client spans treat status codes of 400 and above as errors; server spans treat 500 and above as
-  errors unless ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` is set.
+- Client spans treat status codes of 400 and above as errors unless
+  ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` is set; server spans treat 500 and above as errors unless
+  ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` is set.
 - Resource names are built from the method and route template, and a resource set by application
   code is never overwritten.
 - Traces are exported over OTLP with native span events, span attribute schema ``v0`` is used, and
