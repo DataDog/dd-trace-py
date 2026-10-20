@@ -1338,7 +1338,7 @@ def _tool_call_choice(index, call_id, name, arguments):
 
 class TestOpenAIConstructMessageWithUnindexedToolCalls:
     """Gemini's OpenAI-compatible endpoint streams each parallel tool call whole in its own chunk and
-    leaves ``tool_calls[].index`` unset, so every call arrives with ``index=None``.
+    leaves tool_calls[].index unset, so every call arrives with index=None.
     """
 
     def test_parallel_calls_without_index_stay_separate(self):
@@ -1357,6 +1357,15 @@ class TestOpenAIConstructMessageWithUnindexedToolCalls:
         chunks = [
             _tool_call_choice(None, "call_1", "get_weather", '{"city":'),
             _tool_call_choice(None, None, None, '"Paris"}'),
+        ]
+        message = openai_construct_message_from_streamed_chunks(chunks)
+        assert len(message["tool_calls"]) == 1
+        assert message["tool_calls"][0]["function"]["arguments"] == '{"city":"Paris"}'
+
+    def test_unindexed_fragments_repeating_the_name_without_an_id_continue_the_call(self):
+        chunks = [
+            _tool_call_choice(None, None, "get_weather", '{"city":'),
+            _tool_call_choice(None, None, "get_weather", '"Paris"}'),
         ]
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert len(message["tool_calls"]) == 1

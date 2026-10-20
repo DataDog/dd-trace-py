@@ -1527,10 +1527,8 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     function_name = getattr(function_call, "name", "") or getattr(custom_call, "name", "")
     if tool_call_idx is None:
         # Some OpenAI-compatible backends (e.g. Gemini) omit the index and stream each parallel call whole in its
-        # own chunk: a new id, or a name without an id, starts a new call; any other delta continues the latest one.
-        starts_call = not stored_tool_calls or (
-            tool_id != stored_tool_calls[-1].get("id") if tool_id else bool(function_name)
-        )
+        # own chunk: a new id starts a new call; any delta without one (even repeating the name) continues the latest.
+        starts_call = not stored_tool_calls or bool(tool_id and tool_id != stored_tool_calls[-1].get("id"))
         list_idx = None if starts_call else -1
     else:
         # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
