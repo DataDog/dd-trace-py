@@ -6,6 +6,7 @@ boto3==1.43.103
 botocore==1.43.103
 certifi==2026.10.19
 coverage[toml]==7.16.2
+execnet==2.1.2
 fastapi==0.141.1
 freezegun==1.5.5
 h11==0.16.0
@@ -28,6 +29,7 @@ pytest==9.1.1
 pytest-cov==7.1.0
 pytest-mock==3.16.0
 pytest-randomly==5.0.0
+pytest-xdist==3.8.0
 python-dateutil==2.9.0.post0
 s3transfer==0.19.2
 setuptools==84.0.0
