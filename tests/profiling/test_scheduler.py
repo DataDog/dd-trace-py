@@ -6,7 +6,6 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal import service
-from ddtrace.internal import threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import scheduler
 
@@ -91,44 +90,6 @@ def test_serverless_periodic(mock_time_ns: mock.MagicMock, mock_periodic: mock.M
     assert s._profiled_intervals == 0
     assert s.interval == 1
     mock_periodic.assert_called_once_with()
-
-
-def test_stop_with_unstarted_worker() -> None:
-    s = scheduler.Scheduler()
-    worker = mock.Mock()
-    worker.cancel_if_not_started.return_value = True
-    s._worker = worker
-    s.status = service.ServiceStatus.RUNNING
-
-    s.stop()
-    s.join()
-
-    worker.stop.assert_not_called()
-    assert s._worker is None
-    assert s.status == service.ServiceStatus.STOPPED
-
-
-def test_stop_cancels_worker_start_deferred_by_fork() -> None:
-    s = scheduler.Scheduler()
-    with mock.patch.object(threads, "_forking", True):
-        s.start()
-    worker = s._worker
-    assert worker is not None
-
-    try:
-        assert worker.is_started() is False
-
-        s.stop()
-        s.join()
-
-        assert s._worker is None
-        assert s.status == service.ServiceStatus.STOPPED
-        # A start left in the queue would bring the upload thread up later with nothing able to stop it.
-        assert all(start.__self__ is not worker for start in threads._threads_to_start_after_fork)
-    finally:
-        threads._threads_to_start_after_fork[:] = [
-            start for start in threads._threads_to_start_after_fork if start.__self__ is not worker
-        ]
 
 
 def test_rollback_start_stops_started_worker() -> None:

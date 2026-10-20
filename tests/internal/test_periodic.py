@@ -7,12 +7,14 @@ from threading import Event
 from threading import Thread
 from time import monotonic
 from time import sleep
+from unittest import mock
 import weakref
 
 import pytest
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
+from ddtrace.internal import threads
 
 
 def test_periodic():
@@ -367,6 +369,44 @@ def test_periodic_thread_is_started():
     finally:
         t.stop()
         t.join()
+
+
+def test_periodic_service_stop_with_unstarted_worker() -> None:
+    s = periodic.PeriodicService(60.0)
+    worker = mock.Mock()
+    worker.cancel_if_not_started.return_value = True
+    s._worker = worker
+    s.status = service.ServiceStatus.RUNNING
+
+    s.stop()
+    s.join()
+
+    worker.stop.assert_not_called()
+    assert s._worker is None
+    assert s.status == service.ServiceStatus.STOPPED
+
+
+def test_periodic_service_stop_cancels_worker_start_deferred_by_fork() -> None:
+    s = periodic.PeriodicService(60.0)
+    with mock.patch.object(threads, "_forking", True):
+        s.start()
+    worker = s._worker
+    assert worker is not None
+
+    try:
+        assert worker.is_started() is False
+
+        s.stop()
+        s.join()
+
+        assert s._worker is None
+        assert s.status == service.ServiceStatus.STOPPED
+        # A start left in the queue would bring the thread up later with nothing able to stop it.
+        assert all(start.__self__ is not worker for start in threads._threads_to_start_after_fork)
+    finally:
+        threads._threads_to_start_after_fork[:] = [
+            start for start in threads._threads_to_start_after_fork if start.__self__ is not worker
+        ]
 
 
 def test_awakeable_periodic_service():

@@ -39,15 +39,6 @@ class Scheduler(periodic.PeriodicService):
         self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
 
-    def _stop_service(self, *args: Any, **kwargs: Any) -> None:
-        if self._worker is not None and self._worker.cancel_if_not_started():
-            # The worker never started: its start was deferred by a fork and either
-            # failed or was just cancelled. There is nothing to stop or join.
-            self._worker = None
-            return
-
-        super()._stop_service(*args, **kwargs)
-
     def _rollback_start(self) -> None:
         with self._service_lock:
             self._stop_service()
