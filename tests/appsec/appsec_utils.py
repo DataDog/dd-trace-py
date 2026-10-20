@@ -98,6 +98,87 @@ def _server_diagnostics(server_process, port: int, cmd: list, port_was_free_at_s
     )
 
 
+def _read_proc_file(path: str) -> str:
+    try:
+        with open(path, errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return "?"
+
+
+def _kernel_snapshot(server_process) -> str:
+    """Kernel view of the server tree, to tell a disk stall, CPU starvation and a lock or socket wait apart.
+
+    Thread states (D waits on disk, S sleeps, R wants a CPU) and wait channels come from /proc. CPU,
+    I/O and context switch counters are sampled a second apart to show whether anything still moves.
+    """
+    try:
+        parent = psutil.Process(server_process.pid)
+        procs = [parent] + parent.children(recursive=True)
+    except psutil.Error as exc:
+        return f"could not enumerate the server tree for its kernel state: {exc}"
+
+    def read(getter):
+        try:
+            return getter()
+        except (psutil.Error, AttributeError, NotImplementedError):
+            return None
+
+    def sample():
+        counters = {
+            proc.pid: (
+                read(lambda: proc.cpu_times()),
+                read(lambda: proc.io_counters()),
+                read(lambda: proc.num_ctx_switches()),
+            )
+            for proc in procs
+        }
+        return counters, _read_proc_file("/sys/fs/cgroup/cpu.stat").replace("\n", ", ")
+
+    before, cgroup_before = sample()
+    time.sleep(1)
+    after, cgroup_after = sample()
+
+    lines = []
+    for proc in procs:
+        pid = proc.pid
+        (cpu0, io0, ctx0), (cpu1, io1, ctx1) = before[pid], after[pid]
+        line = f"pid={pid} over 1s:"
+        if cpu0 and cpu1:
+            line += f" cpu +{max(0.0, cpu1.user + cpu1.system - cpu0.user - cpu0.system):.2f}s"
+        if io0 and io1:
+            line += (
+                f" syscr +{io1.read_count - io0.read_count} syscw +{io1.write_count - io0.write_count}"
+                f" read_bytes +{io1.read_bytes - io0.read_bytes} write_bytes +{io1.write_bytes - io0.write_bytes}"
+            )
+        if ctx0 and ctx1:
+            line += (
+                f" main_thread_ctx_switches voluntary +{ctx1.voluntary - ctx0.voluntary}"
+                f" involuntary +{ctx1.involuntary - ctx0.involuntary}"
+            )
+        lines.append(line)
+        task_dir = f"/proc/{pid}/task"
+        try:
+            tids = sorted(os.listdir(task_dir), key=int)
+        except OSError:
+            continue
+        for tid in tids:
+            stat = _read_proc_file(f"{task_dir}/{tid}/stat")
+            fields = stat.rsplit(")", 1)[-1].split()
+            state = fields[0] if fields else "?"
+            lines.append(
+                f"  pid={pid} tid={tid} comm={_read_proc_file(f'{task_dir}/{tid}/comm')} state={state} "
+                f"wchan={_read_proc_file(f'{task_dir}/{tid}/wchan')}"
+            )
+    lines.append(f"cgroup cpu.stat before: {cgroup_before}")
+    lines.append(f"cgroup cpu.stat after:  {cgroup_after}")
+    for resource in ("cpu", "io", "memory"):
+        container = _read_proc_file(f"/sys/fs/cgroup/{resource}.pressure").replace("\n", ", ")
+        host = _read_proc_file(f"/proc/pressure/{resource}").replace("\n", ", ")
+        lines.append(f"pressure {resource}: container {container} | host {host}")
+    return "\n".join(lines)
+
+
 def _dump_server_stacks(server_process) -> str:
     """Fatally signal the server tree so faulthandler prints every thread's Python stack.
 
@@ -515,15 +596,20 @@ def appsec_application_server(
             print("Server started in %.3fs" % (time.monotonic() - startup_started))
         except Exception as exc:
             # Elapsed time separates a slow contended start from a server that died on import.
+            elapsed = time.monotonic() - startup_started
             diagnostics = _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
             # Still running means it stalled rather than died, and its stacks are the only record
             # of where. A server that died has none, and signalling it would only add noise.
             if _process_exit_code(server_process) is None:
+                try:
+                    diagnostics += "\n" + _kernel_snapshot(server_process)
+                except Exception as snapshot_exc:
+                    diagnostics += f"\nkernel snapshot failed: {snapshot_exc!r}"
                 diagnostics += "\n" + _dump_server_stacks(server_process)
             raise AssertionError(
                 "Server failed to start within %.3fs (of a %.1fs budget, override with "
                 "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
-                "above.\n" % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT) + diagnostics
+                "above.\n" % (elapsed, SERVER_STARTUP_TIMEOUT) + diagnostics
             ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
