@@ -2,7 +2,6 @@ from collections.abc import Callable
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _metrics
 from ddtrace.appsec._asm_request_context import _call_waf
@@ -41,7 +40,7 @@ TELEMETRY_FRAMEWORK_NAME = "django"
 
 
 def _on_django_login(
-    _pin: Pin,
+    _pin: object,
     request: Any,
     user_obj: Any,
     mode: str,
@@ -92,7 +91,7 @@ def _on_django_auth(
     result_user: Any,
     mode: str,
     kwargs: dict[str, Any],
-    _pin: Pin,
+    _pin: object,
     info_retriever: _DjangoUserInfoRetriever,
     django_config: IntegrationConfig,
 ) -> tuple[bool, Any]:
@@ -222,7 +221,7 @@ def _on_django_process(
 
 def _on_django_signup_user(
     django_config: IntegrationConfig,
-    _pin: Pin,
+    _pin: object,
     _func: object,
     _instance: object,
     _args: tuple[object, ...],

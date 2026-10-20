@@ -5,6 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal import periodic
+from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.logger import get_logger
@@ -37,6 +38,11 @@ class Scheduler(periodic.PeriodicService):
         super()._start_service()
         self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
+
+    def _rollback_start(self) -> None:
+        with self._service_lock:
+            self._stop_service()
+            self.status = service.ServiceStatus.STOPPED
 
     def flush(self) -> None:
         """Flush events from recorder to exporters."""

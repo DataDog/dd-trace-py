@@ -10,7 +10,7 @@ attrs==22.1.0
 boto3==1.40.52
 botocore==1.40.52
 cattrs==23.1.2
-certifi==2025.10.5
+certifi==2026.10.19
 coverage[toml]==7.10.7
 exceptiongroup==1.3.0
 fastapi==0.119.0
