@@ -16,6 +16,7 @@ from ddtrace.contrib._events.http import HttpRequestError
 from ddtrace.contrib._events.http import HttpRequestPhase
 from ddtrace.contrib._events.http import HttpResponseData
 from ddtrace.contrib._events.http import HttpServerRequestEvent
+from ddtrace.contrib._events.http import HttpServerTracingDecisionEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -29,6 +30,7 @@ def create_http_server_context(
     request_headers: Mapping[str, str],
     integration_config: IntegrationConfig,
     activate_distributed_headers: bool = True,
+    defer_span_start: bool = False,
 ) -> core.ExecutionContext[HttpServerRequestEvent]:
     """Create a request context; the framework adapter owns its lifetime."""
     return core.context_with_event(
@@ -40,6 +42,7 @@ def create_http_server_context(
             request_headers=dict(request_headers),
             integration_config=integration_config,
             activate_distributed_headers=activate_distributed_headers,
+            defer_span_start=defer_span_start,
         )
     )
 
@@ -111,6 +114,7 @@ class HttpLifecycleConfig:
     service: str
     integration_config: IntegrationConfig
     activate_distributed_headers: bool = True
+    defer_span_start: bool = False
 
 
 class HttpLifecycle:
@@ -141,6 +145,7 @@ class HttpLifecycle:
             request_headers=dict(request_data.headers or ()),
             integration_config=config.integration_config,
             activate_distributed_headers=config.activate_distributed_headers,
+            defer_span_start=config.defer_span_start,
         )
         self.exc_info: ExcInfo = (None, None, None)
 
@@ -175,6 +180,10 @@ class HttpLifecycle:
         self.ctx.__enter__()
         self.publish(HttpRequestPhase.REQUEST_STARTED)
         return self.check_block(HttpRequestPhase.REQUEST_STARTED)
+
+    def set_tracing_enabled(self, enabled: bool) -> None:
+        """Select tracing for a deferred request without disabling HTTP consumers."""
+        core.dispatch_event(HttpServerTracingDecisionEvent(request_id=self.request_id, enabled=enabled))
 
     def route_resolved(self, route: str, route_pattern: str) -> Optional[HttpBlockingResponse]:
         self.request_data = replace(self.request_data, route=route, route_pattern=route_pattern)

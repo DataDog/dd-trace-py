@@ -132,8 +132,8 @@ class HttpServerRequestEvent(TracingEvent):
     that field rather than on a per-framework event name.
 
     Carries only what is knowable before the handler runs; nothing writes to it
-    afterwards. Everything learned later reaches consumers as its own
-    HttpRequestDataEvent, tied back to this context by request_id rather than by
+    afterwards. Later HTTP observations and an optional tracing-policy decision
+    are separate events, tied back to this context by request_id rather than by
     whichever context happens to be active when that event is dispatched.
     """
 
@@ -147,12 +147,26 @@ class HttpServerRequestEvent(TracingEvent):
     request_id: object = event_field()
     framework: str = event_field()
     request_headers: Mapping[str, str] = event_field(default_factory=dict)
+    defer_span_start: bool = event_field(default=False)
 
     def __post_init__(self) -> None:
         # The schema implementation is selected from a heterogeneous function table.
         self.operation_name = schematize_url_operation(  # type: ignore[operator]
             f"{self.framework}.request", protocol="http", direction=SpanDirection.INBOUND
         )
+
+
+@dataclass
+class HttpServerTracingDecisionEvent(Event):
+    """Framework tracing policy, separate from HTTP observations and block checks.
+
+    Deferred requests select their policy before publishing the resolved route.
+    The first decision wins; it cannot suppress a span that has already started.
+    """
+
+    event_name = "http.server.request.tracing_decision"
+    request_id: object = event_field()
+    enabled: bool = event_field()
 
 
 @dataclass

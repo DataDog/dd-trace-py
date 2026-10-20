@@ -695,7 +695,7 @@ class TestRequestLifecycle(TracerTestCase):
         list(body)
         body.close()
         (span,) = self.pop_spans()
-        assert active == [span, span]
+        assert active == [None, span]
         assert_span_http_status_code(span, 202)
 
     def test_hook_error(self):
@@ -919,7 +919,8 @@ class TestRequestLifecycle(TracerTestCase):
             yield b"two"
 
         # A callable forces the WSGI mount path instead of Bottle's route merging.
-        self.app.mount("/child/", lambda environ, start_response: child(environ, start_response))
+        # Bottle skips all plugins on a mount proxy by default. Opt in to test nested spans.
+        self.app.mount("/child/", lambda environ, start_response: child(environ, start_response), skip=False)
         body = self.request("/child/stream")
         assert list(body) == [b"one", b"two"]
         body.close()

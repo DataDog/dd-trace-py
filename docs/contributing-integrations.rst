@@ -146,6 +146,23 @@ they cannot observe the WSGI boundary. See ``examples/http-events/lifecycle.py``
 for wiring an ordinary WSGI app without any framework callbacks. ASGI requires a
 separate async transport driver; this migration supplies only the WSGI driver.
 
+Bottle opts into ``defer_span_start`` so routing can preserve the trace plugin's
+skip settings. Its route hook reports a separate ``HttpServerTracingDecisionEvent``
+through ``HttpLifecycle.set_tracing_enabled`` before publishing the resolved route.
+This tracing policy does not disable HTTP observations or blocking checks. Bottle
+uses ``route.all_plugins()`` to honor skip-by-name, instance, class, and ``True``.
+
+The tracing subscriber retains the request-entry timestamp but creates and
+activates the span only after an allowed route is selected. Consequently,
+``before_request`` hooks run without a Bottle request span, as they did before
+this migration. Skipped routes do not create a request span or activate incoming
+trace headers; their child instrumentation retains the previously active parent.
+Requests without a route decision, including 404s and pre-route blocks, start
+their spans at response preparation or completion using the entry timestamp.
+Allowed spans still finish at response exhaustion, failure, or close. Bottle
+mount proxies default to ``skip=True``, so they likewise omit an outer span;
+explicitly enabling plugins on the proxy permits nested request spans.
+
 The application-installed Bottle plugin publishes this contract at these boundaries:
 
 * ``REQUEST_STARTED``: request entry, before Bottle's request hooks and routing.

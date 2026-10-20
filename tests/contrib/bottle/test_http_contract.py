@@ -1,6 +1,7 @@
 import gc
 from io import BytesIO
 import threading
+from time import time_ns
 import weakref
 
 import bottle
@@ -521,11 +522,11 @@ def test_accepted_block_survives_after_request(app, observations, block_checker,
     assert sum(event.phase == HttpRequestPhase.COMPLETED for event in observations) == 1
 
 
-@pytest.mark.parametrize("skip", [True, "trace", TracePlugin, "instance", None])
+@pytest.mark.parametrize("skip", [True, "trace", ["trace"], TracePlugin, "instance", None])
 @pytest.mark.parametrize("tracing_enabled", [True, False])
 @pytest.mark.parametrize("blocked", [True, False])
 def test_handler_checks_ignore_trace_plugin_skips(
-    app, observations, block_checker, tracer, monkeypatch, skip, tracing_enabled, blocked
+    app, observations, block_checker, tracer, test_spans, monkeypatch, skip, tracing_enabled, blocked
 ):
     monkeypatch.setattr(tracer, "enabled", tracing_enabled)
     if skip == "instance":
@@ -558,6 +559,8 @@ def test_handler_checks_ignore_trace_plugin_skips(
         assert sum(event.phase == HttpRequestPhase.BEFORE_HANDLER for event in observations) == 1
         assert observations[-1].handler_started is (not blocked)
         assert observations[-1].response.status_code == (403 if blocked else 200)
+        spans = test_spans.pop()
+        assert len(spans) == int(tracing_enabled and skip is None)
 
 
 @pytest.mark.parametrize("phase", [HttpRequestPhase.ROUTE_RESOLVED, HttpRequestPhase.BEFORE_HANDLER])
@@ -590,3 +593,83 @@ def test_early_block_closes_hook_replacement_stream(app, observations, block_che
     assert progress == ["first", "closed"]
     assert observations[-1].response.status_code == 403
     assert sum(event.phase == HttpRequestPhase.COMPLETED for event in observations) == 1
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_skipped_route_preserves_parent_and_child_spans(app, tracer, test_spans, observations, streaming):
+    @app.route("/items/<name>", skip=["trace"])
+    def handler(name):
+        assert tracer.current_span() is parent
+
+        def body():
+            assert tracer.current_span() is parent
+            with tracer.trace("child") as child:
+                assert child.parent_id == parent.span_id
+                assert child.trace_id == parent.trace_id
+            yield b"done"
+
+        return body() if streaming else b"".join(body())
+
+    with tracer.trace("parent") as parent:
+        assert consume(request(app, HTTP_X_DATADOG_TRACE_ID="123", HTTP_X_DATADOG_PARENT_ID="456")) == b"done"
+        assert tracer.current_span() is parent
+    spans = test_spans.pop()
+    assert {span.name for span in spans} == {"parent", "child"}
+    assert len(spans) == 2
+    assert observations[0].request_id not in _REQUEST_CONTEXTS
+
+
+def test_route_skip_changes_take_effect_after_cache_reset(app, tracer, test_spans):
+    @app.route("/items/<name>")
+    def handler(name):
+        assert (tracer.current_span() is None) == bool(app.routes[0].skiplist)
+        return "done"
+
+    route = app.routes[0]
+    for skips in (["trace"], [], ["trace"]):
+        route.skiplist = skips
+        route.reset()
+        assert consume(request(app)) == b"done"
+        assert len(test_spans.pop()) == int(not skips)
+
+
+def test_deferred_span_retains_request_entry_time(app, tracer, test_spans):
+    hook_times = []
+
+    @app.hook("before_request")
+    def before():
+        assert tracer.current_span() is None
+        hook_times.append(time_ns())
+
+    @app.route("/items/<name>")
+    def handler(name):
+        assert tracer.current_span() is not None
+        return "done"
+
+    assert consume(request(app)) == b"done"
+    (span,) = test_spans.pop()
+    assert span.start_ns <= hook_times[0]
+    assert span.start_ns + span.duration_ns >= hook_times[0]
+
+
+def test_default_wsgi_mount_skips_outer_span(app, tracer, test_spans, observations):
+    child = bottle.Bottle()
+    child.install(TracePlugin(service="child"))
+
+    @child.route("/items/<name>")
+    def handler(name):
+        return "done"
+
+    app.mount("/child/", lambda environ, start_response: child(environ, start_response))
+    with tracer.trace("parent") as parent:
+        assert consume(request(app, "/child/items/one")) == b"done"
+        assert tracer.current_span() is parent
+    spans = test_spans.pop()
+    assert len(spans) == 2
+    (span,) = [span for span in spans if span.name == "bottle.request"]
+    assert span.service == "child"
+    assert span.parent_id == parent.span_id
+    assert span.get_tag("http.route") == "/child/items/<name>"
+    completed = [event for event in observations if event.phase == HttpRequestPhase.COMPLETED]
+    assert len(completed) == 2
+    assert completed[0].request_id is not completed[1].request_id

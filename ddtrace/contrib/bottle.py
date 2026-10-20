@@ -22,6 +22,13 @@ iterables when a request is interrupted. The final response status and headers
 are recorded after Bottle processes the handler result and response hooks.
 Unmatched requests use a resource such as ``GET 404``.
 
+Bottle's ``skip=['trace']`` setting suppresses the request span while leaving
+HTTP observations and blocking checks active. The span is created only after
+routing confirms that the trace plugin applies, with its start time retained
+from request entry. ``before_request`` hooks run without a Bottle request span.
+Skipping the plugin also leaves incoming trace headers unactivated; independently
+instrumented operations retain their existing tracing context.
+
 Plugins applied only to an individual route retain callback-scoped tracing.
 
 Configuration

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from time import time_ns
 from types import TracebackType
 from typing import Optional
 from weakref import WeakValueDictionary
@@ -8,8 +9,10 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib._events.http import HttpRequestCompletedEvent
 from ddtrace.contrib._events.http import HttpRequestDataEvent
+from ddtrace.contrib._events.http import HttpResponseReadyEvent
 from ddtrace.contrib._events.http import HttpRouteResolvedEvent
 from ddtrace.contrib._events.http import HttpServerRequestEvent
+from ddtrace.contrib._events.http import HttpServerTracingDecisionEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -38,8 +41,8 @@ _DEFAULT_CONVENTIONS = HttpServerConventions()
 _CONVENTIONS: dict[str, HttpServerConventions] = {}
 
 
-# Spans awaiting their request's remaining events, keyed by the request_id carried on
-# every event for that request. Correlating by identity rather than by the active
+# Request contexts awaiting tracing policy or remaining observations, keyed by the
+# request_id carried on every event. Correlating by identity rather than by the active
 # context tree means an event tags the right span no matter which thread or task
 # dispatches it -- a framework may well report a committed response from somewhere
 # other than the code that opened the context.
@@ -53,8 +56,7 @@ _REQUEST_CONTEXTS: WeakValueDictionary[object, core.ExecutionContext[HttpServerR
 def _request_span(event: HttpRequestDataEvent) -> Optional[tuple[core.ExecutionContext[HttpServerRequestEvent], Span]]:
     """Find the span this event belongs to, with the context that owns it.
 
-    Returns None when no span was started for the request, which is the normal case
-    when tracing is disabled.
+    Returns None when tracing is disabled, deferred, or suppressed for the route.
     """
     ctx = _REQUEST_CONTEXTS.get(event.request_id)
     if ctx is None:
@@ -66,9 +68,10 @@ def _request_span(event: HttpRequestDataEvent) -> Optional[tuple[core.ExecutionC
 class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
     """Owns the server request span for every ported HTTP framework.
 
-    The base class starts the span when the request context opens and finishes it when
-    the context closes. In between, this subscriber is a plain listener: producers push
-    events and never learn whether a span exists.
+    Spans normally start when the request context opens. Frameworks with route-level
+    tracing policy defer creation until the route decision, retaining the entry
+    timestamp. The base class finishes the span when the context closes. Producers
+    push events and never learn whether a span exists.
 
     One subscriber rather than one per framework, because the span is assembled the same
     way everywhere -- the registry, the phase handling, and the tag writing do not vary.
@@ -82,23 +85,59 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
     @classmethod
     def register(cls) -> None:
         super().register()
+        core.on(
+            HttpServerTracingDecisionEvent.event_name, cls._on_tracing_decision, name=f"{cls.__name__}.tracing_decision"
+        )
+        core.on(HttpResponseReadyEvent.event_name, cls._on_response_ready, name=f"{cls.__name__}.response_ready")
         core.on(HttpRouteResolvedEvent.event_name, cls._on_route_resolved, name=f"{cls.__name__}.route_resolved")
         core.on(HttpRequestCompletedEvent.event_name, cls._on_request_completed, name=f"{cls.__name__}.completed")
 
     @classmethod
     def unregister(cls) -> None:
         super().unregister()
+        core.reset_listeners(HttpServerTracingDecisionEvent.event_name, cls._on_tracing_decision)
+        core.reset_listeners(HttpResponseReadyEvent.event_name, cls._on_response_ready)
         core.reset_listeners(HttpRouteResolvedEvent.event_name, cls._on_route_resolved)
         core.reset_listeners(HttpRequestCompletedEvent.event_name, cls._on_request_completed)
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[HttpServerRequestEvent]) -> None:
-        # The one place that asks whether tracing is on. Producers push regardless;
-        # skipping span creation here is the tracing product declining the work.
+        # Producers push regardless; the tracing product can decline the request.
         if not is_tracing_enabled():
             return
-        super()._on_context_started(ctx)
         _REQUEST_CONTEXTS[ctx.event.request_id] = ctx
+        if ctx.event.defer_span_start:
+            ctx.set_item("_http_start_ns", time_ns())
+        else:
+            super()._on_context_started(ctx)
+
+    @classmethod
+    def _ensure_span(cls, ctx: core.ExecutionContext[HttpServerRequestEvent]) -> None:
+        if ctx.get_item("_http_tracing_decided"):
+            return
+        ctx.set_item("_http_tracing_decided", True)
+        if ctx.get_item("_inner_span") is None and is_tracing_enabled():
+            super()._on_context_started(ctx)
+            start_ns = ctx.get_item("_http_start_ns")
+            if start_ns is not None:
+                ctx.get_item("_inner_span").start_ns = start_ns
+
+    @classmethod
+    def _on_tracing_decision(cls, event: HttpServerTracingDecisionEvent) -> None:
+        ctx = _REQUEST_CONTEXTS.get(event.request_id)
+        if ctx is None or not ctx.event.defer_span_start:
+            return
+        if event.enabled:
+            cls._ensure_span(ctx)
+        else:
+            ctx.set_item("_http_tracing_decided", True)
+
+    @classmethod
+    def _on_response_ready(cls, event: HttpResponseReadyEvent) -> None:
+        ctx = _REQUEST_CONTEXTS.get(event.request_id)
+        if ctx is not None:
+            # Unmatched requests and pre-route responses never select a route policy.
+            cls._ensure_span(ctx)
 
     @classmethod
     def _on_context_ended(
@@ -126,6 +165,10 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
 
     @classmethod
     def _on_request_completed(cls, event: HttpRequestCompletedEvent) -> None:
+        ctx = _REQUEST_CONTEXTS.get(event.request_id)
+        if ctx is not None:
+            # Failures can unwind before response preparation.
+            cls._ensure_span(ctx)
         found = _request_span(event)
         if found is None:
             return

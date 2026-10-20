@@ -88,3 +88,13 @@ blocking; wrapping the factory preserves this boundary across route cache resets
 An accepted block is kept as immutable HTTP data until the first start_response
 attempt so application hooks cannot replace its status, headers, or body. Clear
 that pending response before delivery so a framework error retry cannot reuse it.
+
+
+Bottle defers request-span creation until routing selects tracing policy with
+HttpLifecycle.set_tracing_enabled and HttpServerTracingDecisionEvent. Use
+route.all_plugins() for the framework's skip semantics; do not cache this decision
+across requests or bypass the outer HTTP/block checks. A skipped route has no
+request span and does not extract distributed tracing headers. The subscriber
+retains the entry timestamp for allowed routes and pre-route responses, while
+before_request hooks execute without a Bottle span. Tracing decisions are separate
+from the HTTP observation contract and never disable other consumers.

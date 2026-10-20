@@ -156,6 +156,7 @@ def _install_hooks(app: Any, current: Callable[[dict[str, Any]], Optional[HttpLi
         route, arguments = match_route(environ)
         lifecycle = current(environ)
         if lifecycle is not None:
+            lifecycle.set_tracing_enabled(any(isinstance(plugin, TracePlugin) for plugin in route.all_plugins()))
             full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
             block = lifecycle.route_resolved(full_route, route.rule)
             if block is not None:
@@ -186,7 +187,7 @@ def _install_lifecycle(app: Any) -> None:
         plugin = next((p for p in reversed(app.plugins) if isinstance(p, TracePlugin)), None)
         if plugin is None:
             return None
-        return HttpLifecycleConfig("bottle", plugin.service, config.bottle)
+        return HttpLifecycleConfig("bottle", plugin.service, config.bottle, defer_span_start=True)
 
     driver = WsgiLifecycleDriver(
         get_config=get_config, request_data=_request_data, blocking_response=_blocking_response
