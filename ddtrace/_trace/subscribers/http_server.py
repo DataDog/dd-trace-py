@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional
+from weakref import WeakValueDictionary
 
 from ddtrace._trace._inferred_proxy import set_inferred_proxy_tags
 from ddtrace._trace.span import Span
@@ -23,8 +24,7 @@ class HttpServerConventions:
     """Where one framework's span differs from the shared HTTP server defaults.
 
     The defaults describe a WSGI framework whose headers keep their original case.
-    An entry exists for every framework this subscriber serves, so an all-defaults
-    value is still meaningful: it is how an integration opts in.
+    Frameworks without an override use these defaults.
     """
 
     # ASGI servers hand over header names already lowercased, so the obfuscation and
@@ -32,12 +32,10 @@ class HttpServerConventions:
     headers_are_case_sensitive: bool = True
 
 
-# The frameworks whose server requests this subscriber owns. Membership is the opt-in:
-# an integration that has not been ported dispatches nothing, and one that dispatches
-# without an entry here is ignored rather than traced with guessed conventions.
-_CONVENTIONS: dict[str, HttpServerConventions] = {
-    "bottle": HttpServerConventions(),
-}
+# Emitting the shared contract is sufficient to create a request span. This registry
+# supplies optional framework overrides, not an instrumentation allowlist.
+_DEFAULT_CONVENTIONS = HttpServerConventions()
+_CONVENTIONS: dict[str, HttpServerConventions] = {}
 
 
 # Spans awaiting their request's remaining events, keyed by the request_id carried on
@@ -46,17 +44,17 @@ _CONVENTIONS: dict[str, HttpServerConventions] = {
 # dispatches it -- a framework may well report a committed response from somewhere
 # other than the code that opened the context.
 #
-# Entries live only for the duration of a request: _on_context_started adds one and
-# _on_context_ended removes it. Requests never share a request_id, so concurrent
-# requests only ever touch their own key.
-_REQUEST_CONTEXTS: dict[object, core.ExecutionContext[HttpServerRequestEvent]] = {}
+# The request lifecycle owns its context; this lookup must not keep it alive if
+# end-event cleanup is missed. Normal completion still removes the entry explicitly.
+# Requests never share a request_id, so concurrent requests touch their own key.
+_REQUEST_CONTEXTS: WeakValueDictionary[object, core.ExecutionContext[HttpServerRequestEvent]] = WeakValueDictionary()
 
 
 def _request_span(event: HttpRequestDataEvent) -> Optional[tuple[core.ExecutionContext[HttpServerRequestEvent], Span]]:
     """Find the span this event belongs to, with the context that owns it.
 
     Returns None when no span was started for the request, which is the normal case
-    when tracing is disabled or the framework has no entry in _CONVENTIONS.
+    when tracing is disabled.
     """
     ctx = _REQUEST_CONTEXTS.get(event.request_id)
     if ctx is None:
@@ -95,8 +93,6 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[HttpServerRequestEvent]) -> None:
-        if ctx.event.framework not in _CONVENTIONS:
-            return
         # The one place that asks whether tracing is on. Producers push regardless;
         # skipping span creation here is the tracing product declining the work.
         if not is_tracing_enabled():
@@ -110,8 +106,6 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
         ctx: core.ExecutionContext[HttpServerRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        if ctx.event.framework not in _CONVENTIONS:
-            return
         # Drop the entry even if finishing raises, so a failure cannot strand the span.
         _REQUEST_CONTEXTS.pop(ctx.event.request_id, None)
         if ctx.get_item("_inner_span") is None:
@@ -136,7 +130,7 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
         if found is None:
             return
         ctx, span = found
-        conventions = _CONVENTIONS[ctx.event.framework]
+        conventions = _CONVENTIONS.get(ctx.event.framework, _DEFAULT_CONVENTIONS)
 
         request = event.request
         response = event.response

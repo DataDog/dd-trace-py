@@ -1,5 +1,7 @@
+import gc
 from io import BytesIO
 import threading
+import weakref
 
 import bottle
 import pytest
@@ -8,8 +10,10 @@ import webtest
 from ddtrace import config
 from ddtrace._trace.subscribers.http_server import _CONVENTIONS
 from ddtrace._trace.subscribers.http_server import _REQUEST_CONTEXTS
+from ddtrace.contrib._events.http import HttpRequestCompletedEvent
 from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib._events.http import HttpRequestPhase
+from ddtrace.contrib._events.http import HttpResponseData
 from ddtrace.contrib._events.http import HttpRouteResolvedEvent
 from ddtrace.contrib._events.http import HttpServerRequestEvent
 from ddtrace.contrib.internal.bottle.trace import TracePlugin
@@ -339,18 +343,98 @@ def test_event_for_another_request_leaves_the_active_span_alone(tracer, test_spa
         assert span.resource == resource
 
 
-def test_unported_framework_is_not_traced(tracer, test_spans):
-    # _CONVENTIONS membership is how an integration opts in. A framework that is absent
-    # gets no span rather than one assembled from guessed conventions, so a half-ported
-    # integration cannot emit misnamed spans just by dispatching the shared event.
-    assert "not-a-ported-framework" not in _CONVENTIONS
-    event = _start_event(object(), framework="not-a-ported-framework")
+@pytest.mark.parametrize("routed", [False, True])
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+def test_framework_without_conventions_uses_generic_tracing(tracer, test_spans, monkeypatch, routed, tracing_enabled):
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
+    framework = "generic-framework"
+    assert framework not in _CONVENTIONS
+    event = _start_event(object(), framework=framework)
+    request_data = HttpRequestData(method="GET", url="http://localhost/items/one")
 
     with core.context_with_event(event) as ctx:
-        assert ctx.get_item("_inner_span") is None
-        assert event.request_id not in _REQUEST_CONTEXTS
+        span = ctx.get_item("_inner_span")
+        assert (span is not None) is tracing_enabled
+        assert (event.request_id in _REQUEST_CONTEXTS) is tracing_enabled
+        if routed:
+            route = _route_resolved(event.request_id)
+            route.framework = framework
+            request_data = route.request
+            core.dispatch_event(route)
+        core.dispatch_event(
+            HttpRequestCompletedEvent(
+                request_id=event.request_id,
+                framework=framework,
+                phase=HttpRequestPhase.COMPLETED,
+                request=request_data,
+                response=HttpResponseData(status_code=201 if routed else 404),
+                response_committed=True,
+            )
+        )
+        if tracing_enabled:
+            assert span.resource == ("GET /items/<name>" if routed else "GET 404")
+            assert span.get_tag("http.method") == "GET"
+            assert span.get_tag("http.status_code") == ("201" if routed else "404")
+            assert span.get_tag("http.route") == ("/items/<name>" if routed else None)
+            assert span.span_type == "web"
 
-    assert test_spans.get_spans() == []
+    assert event.request_id not in _REQUEST_CONTEXTS
+    spans = test_spans.get_spans()
+    assert len(spans) == int(tracing_enabled)
+    if tracing_enabled:
+        assert spans[0] is span
+        assert span.finished
+
+
+def test_correlation_registry_does_not_retain_context_without_end_event(tracer, test_spans):
+    event = _start_event(object())
+    ctx = core.context_with_event(event, dispatch_end_event=False)
+    span = None
+    try:
+        with ctx:
+            span = ctx.get_item("_inner_span")
+            assert _REQUEST_CONTEXTS[event.request_id] is ctx
+            context_ref = weakref.ref(ctx)
+            gc.collect()
+            assert context_ref() is ctx
+
+        # Simulate a producer that releases its context without dispatching completion.
+        del ctx
+        gc.collect()
+        assert context_ref() is None
+        assert event.request_id not in _REQUEST_CONTEXTS
+    finally:
+        _REQUEST_CONTEXTS.pop(event.request_id, None)
+        if span is not None:
+            span.finish()
+
+
+def test_stream_keeps_weakly_indexed_context_until_completion(app, observations, test_spans):
+    @app.route("/items/<name>")
+    def handler(name):
+        yield b"first"
+        yield b"last"
+
+    body = request(app)
+    request_id = observations[0].request_id
+    context_ref = weakref.ref(_REQUEST_CONTEXTS[request_id])
+    try:
+        gc.collect()
+        assert context_ref() is not None
+        assert _REQUEST_CONTEXTS[request_id] is context_ref()
+        assert next(body) == b"first"
+        gc.collect()
+        assert context_ref() is not None
+        assert consume(body) == b"last"
+        # The iterable still owns the context, so this checks explicit removal too.
+        assert context_ref() is not None
+        assert request_id not in _REQUEST_CONTEXTS
+        (span,) = test_spans.pop()
+        assert span.finished
+        assert span.resource == "GET /items/<name>"
+        assert span.get_tag("http.status_code") == "200"
+    finally:
+        body.close()
 
 
 def test_finished_requests_leave_no_correlation_entry(app, tracer, test_spans):

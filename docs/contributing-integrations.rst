@@ -101,7 +101,11 @@ The shared ``HttpRequestDataEvent`` base supplies fields, not a subscription nam
 Events carry no span, resource, service, operation name, or integration configuration.
 The shared ``HttpServerRequestEvent`` opens the tracing context. Its subscriber
 correlates HTTP observations by ``request_id`` and selects framework conventions
-using the ``framework`` field.
+using the ``framework`` field. Frameworks without a conventions override receive
+a request span using generic HTTP defaults; no tracing allowlist entry is required.
+The correlation registry holds contexts weakly: the request lifecycle owns their
+lifetime. Completion removes entries explicitly; garbage collection can remove
+abandoned entries without keeping request state alive.
 See ``examples/http-events/contract.py`` for consumer registration and blocking.
 
 Shared producer lifecycle
