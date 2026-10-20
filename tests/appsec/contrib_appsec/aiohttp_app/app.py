@@ -7,6 +7,8 @@ import subprocess
 import sys
 from typing import Optional
 
+from aiohttp import ClientSession
+from aiohttp import ClientTimeout
 from aiohttp import web
 
 from ddtrace import config
@@ -194,6 +196,9 @@ async def _ssrf(param: str, urlname: str) -> str:
         import requests
 
         return f"Url: {requests.get(urlname, timeout=0.5).text}"
+    if param.startswith("url_aiohttp"):
+        async with ClientSession() as session, session.get(urlname, timeout=ClientTimeout(total=0.5)) as response:
+            return f"Url: {await response.text()}"
     if param.startswith("url_httpx2_async"):
         import httpx2
 
@@ -394,6 +399,25 @@ async def redirect_httpx_async(request: web.Request) -> web.Response:
     return web.json_response(payload)
 
 
+async def redirect_aiohttp(request: web.Request) -> web.Response:
+    route = request.match_info["route"]
+    try:
+        async with ClientSession(timeout=ClientTimeout(total=DOWNSTREAM_HTTP_TIMEOUT)) as session:
+            if request.method == "POST":
+                response = await session.post(
+                    _downstream_url(request),
+                    data=await request.read(),
+                    headers={"Content-Type": "application/json", "TagRoute": route},
+                )
+            else:
+                response = await session.get(_downstream_url(request), headers={"TagRoute": route})
+            async with response:
+                payload = {"payload": await response.text()}
+    except Exception as e:
+        payload = {"error": repr(e)}
+    return web.json_response(payload)
+
+
 async def exception_group_block(request: web.Request) -> web.Response:
     """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
     if sys.version_info < (3, 11) or request.query.get("block") != "true":
@@ -480,6 +504,7 @@ def get_app() -> web.Application:
         (r"/redirect_httpx2/{route}/{port:\d+}", redirect_httpx, ("GET", "POST")),
         (r"/redirect_httpx_async/{route}/{port:\d+}", redirect_httpx_async, ("GET", "POST")),
         (r"/redirect_httpx2_async/{route}/{port:\d+}", redirect_httpx_async, ("GET", "POST")),
+        (r"/redirect_aiohttp/{route}/{port:\d+}", redirect_aiohttp, ("GET", "POST")),
         ("/exception-group-block", exception_group_block, ("GET",)),
         ("/login/", login, ("GET",)),
         ("/login_sdk/", login_sdk, ("GET",)),

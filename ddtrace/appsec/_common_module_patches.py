@@ -15,6 +15,8 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._contrib.aiohttp.client import patch as patch_aiohttp_client_for_appsec
+from ddtrace.appsec._contrib.aiohttp.client import unpatch as unpatch_aiohttp_client_for_appsec
 from ddtrace.appsec._contrib.filesystem.patch import patch as patch_filesystem_for_appsec
 from ddtrace.appsec._contrib.filesystem.patch import unpatch as unpatch_filesystem_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
@@ -54,6 +56,7 @@ def patch_common_modules() -> None:
     try_wrap_context("http.client", "HTTPConnection.request", _SsrfHttpConnectionRequest)
     try_wrap_context("http.client", "HTTPConnection.getresponse", _SsrfHttpConnectionGetresponse)
 
+    patch_aiohttp_client_for_appsec()
     patch_filesystem_for_appsec()
     patch_stripe_for_appsec()
     patch_subprocess_for_appsec()
@@ -76,6 +79,7 @@ def unpatch_common_modules():
     try_unwrap_context("urllib.request", "OpenerDirector.open")
     try_unwrap_context("http.client", "HTTPConnection.request")
     try_unwrap_context("http.client", "HTTPConnection.getresponse")
+    unpatch_aiohttp_client_for_appsec()
     unpatch_filesystem_for_appsec()
     unpatch_stripe_for_appsec()
     unpatch_subprocess_for_appsec()

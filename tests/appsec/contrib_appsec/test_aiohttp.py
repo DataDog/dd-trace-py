@@ -292,6 +292,65 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             assert utils._addresses_store, "no waf addresses stored"
             assert utils._addresses_store[0].get("http.response.status") == "500"
 
+    @pytest.mark.parametrize(
+        ("rule_file", "action_level", "status_expected"),
+        [
+            (rules.RULES_EXPLOIT_PREVENTION, 1, 200),
+            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, 2, 403),
+            (rules.RULES_EXPLOIT_PREVENTION_REDIRECTING, 2, 301),
+            (rules.RULES_EXPLOIT_PREVENTION_DISABLED, 0, 200),
+        ],
+    )
+    def test_exploit_prevention_aiohttp_client(
+        self,
+        interface,
+        entry_span,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        rule_file,
+        action_level,
+        status_expected,
+    ):
+        utils.Contrib_TestClass_For_Threats.test_exploit_prevention(
+            self,
+            interface,
+            entry_span,
+            get_entry_span_tag,
+            get_entry_span_metric,
+            True,
+            True,
+            "ssrf",
+            {"url_aiohttp_1": "127.0.0.1:1", "url_aiohttp_2": "127.0.0.1:2"},
+            "rasp-934-100",
+            ("_request",),
+            rule_file,
+            action_level,
+            status_expected,
+        )
+
+    def test_api10_aiohttp_client(self, interface, get_tag):
+        utils.Contrib_TestClass_For_Threats.test_api10(self, "aiohttp", interface, get_tag)
+
+    @pytest.mark.parametrize(
+        ("route", "data", "tag"),
+        [
+            ("request-headers", None, "TAG_API10_REQ_HEADERS"),
+            ("request-body", {"payload": "api10-request-body"}, "TAG_API10_REQ_BODY"),
+            ("response-headers", None, "TAG_API10_RESP_HEADERS"),
+            ("response-body", None, "TAG_API10_RESP_BODY"),
+            ("response-status", None, "TAG_API10_RESP_STATUS"),
+        ],
+    )
+    def test_api10_addresses_aiohttp_client(self, route, data, tag, interface, api10_server, test_spans, get_tag):
+        utils.Contrib_TestClass_For_Threats.test_api10_addresses(
+            self, "_aiohttp", route, data, tag, interface, api10_server, test_spans, get_tag
+        )
+
+    def test_api10_addresses_redirects_aiohttp_client(self, interface, api10_server, test_spans, entry_span):
+        utils.Contrib_TestClass_For_Threats.test_api10_addresses_redirects(
+            self, "_aiohttp", interface, api10_server, test_spans, entry_span
+        )
+
 
 class Test_Aiohttp_RC(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats_RC):
     pass
