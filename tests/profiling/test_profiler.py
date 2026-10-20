@@ -128,6 +128,14 @@ def test_copy_keeps_collector_selection() -> None:
     assert c._collectors == []
 
 
+def test_shallow_copy_of_profiler() -> None:
+    import copy
+
+    p = profiler.Profiler()
+    c = copy.copy(p)
+    assert c._profiler is p._profiler
+
+
 def test_profiler_does_not_mutate_custom_tags() -> None:
     class TestProfiler(profiler._ProfilerInstance):
         def _start_exporter(self) -> None:
@@ -582,6 +590,30 @@ def test_stack_failure_telemetry_logging_with_auto() -> None:
         assert "mock failure message" in message
 
 
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err=None,
+)
+def test_unsupported_platform_disables_profiling_quietly():
+    from unittest import mock
+
+    with (
+        mock.patch("platform.system", return_value="Windows"),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
+        from ddtrace.internal.settings.profiling import config
+        from ddtrace.internal.settings.profiling import ddup_failure_msg
+        from ddtrace.internal.settings.profiling import ddup_is_available
+
+        assert config.enabled is False
+        assert config.stack.enabled is False
+        assert ddup_is_available is False
+        assert ddup_failure_msg is not None and "Windows" in ddup_failure_msg
+
+        for call in mock_add_log.call_args_list:
+            assert "Failed to load" not in call.args[1]
+
+
 @pytest.mark.subprocess(err=None)
 def test_profiling_auto_degrades_when_unavailable() -> None:
     """import ddtrace.profiling.auto must not crash when native extensions are missing."""
@@ -887,8 +919,10 @@ def test_no_samples_pushed_after_stop() -> None:
 
 def test_construction_does_not_configure_global_exporter() -> None:
     with (
-        mock.patch.object(ddup, "config") as mock_config,
-        mock.patch.object(ddup, "start") as mock_start,
+        # Wrap the real functions: with plain mocks the profiler starts with the native profile
+        # state uninitialized, and the stack sampler can crash writing samples.
+        mock.patch.object(ddup, "config", wraps=ddup.config) as mock_config,
+        mock.patch.object(ddup, "start", wraps=ddup.start) as mock_start,
     ):
         p = profiler.Profiler(service="built-but-not-started")
         mock_config.assert_not_called()
