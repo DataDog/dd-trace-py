@@ -1,0 +1,6 @@
+fixes:
+  - |
+    OpenFeature: Enables compatible Datadog Lambda libraries to flush pending
+    feature flag evaluation and exposure events before an invocation ends,
+    reducing delayed or missing telemetry from short invocations while preserving
+    providers for warm invocations.
