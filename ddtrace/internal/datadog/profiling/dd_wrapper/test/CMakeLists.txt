@@ -67,6 +67,7 @@ endfunction()
 # Add the tests
 dd_wrapper_add_test(test_initialization test_initialization.cpp)
 dd_wrapper_add_test(test_api test_api.cpp)
+target_include_directories(test_api PRIVATE $<TARGET_PROPERTY:_native,INTERFACE_INCLUDE_DIRECTORIES>)
 dd_wrapper_add_test(test_threading test_threading.cpp)
 dd_wrapper_add_test(test_forking test_forking.cpp)
 

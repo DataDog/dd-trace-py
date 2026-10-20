@@ -8,14 +8,19 @@
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
+#include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
+#include <new>
+#include <pthread.h>
 #include <unistd.h>
 #include <unordered_map>
 
 // State
-bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
-std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<bool> is_ddup_initialized{ false }; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+std::once_flag ddup_init_flag;                  // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+std::mutex ddup_init_lock;                      // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace {
 
@@ -66,25 +71,42 @@ Datadog::drop_profile_exporter(ddog_prof_ProfileExporter& exporter)
 void
 ddup_postfork_child()
 {
-    Datadog::CodeProvenance::get_instance().postfork_child();
-    Datadog::Uploader::postfork_child();
-    Datadog::SampleManager::postfork_child();
+    if (is_ddup_initialized.load()) {
+        Datadog::Uploader::postfork_child();
+        Datadog::SampleManager::postfork_child();
+    }
+    new (&ddup_init_lock) std::mutex();
 }
 
 void
 ddup_postfork_parent()
 {
-    Datadog::CodeProvenance::get_instance().postfork_parent();
-    Datadog::Uploader::postfork_parent();
+    if (is_ddup_initialized.load()) {
+        Datadog::Uploader::postfork_parent();
+    } else {
+        ddup_init_lock.unlock();
+    }
 }
 
-// Prevent a fork from copying partially initialized exporter or provenance state.
-// Take the upload lock before the provenance lock, as an upload does when it takes a snapshot.
+// The provenance fork handler is registered first, so this handler takes the upload lock first.
 void
 ddup_prefork()
 {
-    Datadog::Uploader::prefork();
-    Datadog::CodeProvenance::get_instance().prefork();
+    ddup_init_lock.lock();
+    if (is_ddup_initialized.load()) {
+        // Initialization is complete. Do not block its callers while waiting for an upload.
+        ddup_init_lock.unlock();
+        Datadog::Uploader::prefork();
+    }
+}
+
+namespace {
+// Register both fork handlers before the profiler can start. Prepare handlers run in reverse registration order.
+[[maybe_unused]] const bool ddup_atfork_initialized = [] {
+    (void)Datadog::CodeProvenance::get_instance();
+    pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+    return true;
+}();
 }
 
 // Configuration
@@ -181,25 +203,26 @@ ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {
-    return is_ddup_initialized;
+    return is_ddup_initialized.load();
 }
 
 void
 ddup_start() // cppcheck-suppress unusedFunction
 {
+    if (is_ddup_initialized.load()) {
+        return;
+    }
+    // A fork must not copy partially initialized profiler state.
+    const std::lock_guard<std::mutex> lock(ddup_init_lock);
     std::call_once(ddup_init_flag, []() {
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
-
-        // install the ddup_fork_handler for pthread_atfork
-        // Right now, only do things in the child _after_ fork
-        pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
 
         // The thread that starts the profiler is usually the thread that stops it when the process exits
         watch_thread_locals();
 
         // Set the global initialization flag
-        is_ddup_initialized = true;
+        is_ddup_initialized.store(true);
         return true;
     });
 }
@@ -378,7 +401,7 @@ bool
 ddup_upload() // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    if (!is_ddup_initialized) {
+    if (!is_ddup_initialized.load()) {
         if (!already_warned) {
             already_warned = true;
             std::cerr << "ddup_upload() called before ddup_start()" << std::endl;

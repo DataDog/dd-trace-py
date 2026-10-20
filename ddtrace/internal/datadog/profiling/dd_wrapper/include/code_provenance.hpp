@@ -23,7 +23,7 @@ class CodeProvenance
     CodeProvenance& operator=(CodeProvenance const&) = delete;
 
     void set_json_str(std::string_view json_str);
-    std::string get_json_str();
+    std::string get_json_snapshot();
     void prefork();
     void postfork_parent();
     void postfork_child();
@@ -33,7 +33,7 @@ class CodeProvenance
     std::string json_str;
 
     // Private Constructor/Destructor to prevent instantiation/deletion from outside
-    CodeProvenance() = default;
+    CodeProvenance();
     ~CodeProvenance() = default;
 };
 }

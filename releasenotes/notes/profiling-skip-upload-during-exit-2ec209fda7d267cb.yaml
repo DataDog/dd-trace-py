@@ -4,4 +4,4 @@ fixes:
     profiling: This fix resolves an issue where a uWSGI worker could abort with ``SIGABRT`` during a graceful
     shutdown, with the message ``The Tokio context thread-local variable has been destroyed``. uWSGI finalizes
     Python in an ``atexit`` handler, and the profiler tried to upload the last profile at that time. The profiler
-    now skips an upload that starts after ``exit()`` destroyed the thread-local data of the calling thread.
+    now skips the upload when it detects that the calling thread's thread-local data has been destroyed.

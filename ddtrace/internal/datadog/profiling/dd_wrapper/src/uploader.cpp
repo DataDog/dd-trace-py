@@ -64,7 +64,7 @@ Datadog::Uploader::upload()
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
 
-    const std::string json_str = CodeProvenance::get_instance().get_json_str();
+    const std::string json_str = CodeProvenance::get_instance().get_json_snapshot();
 
     if (!json_str.empty()) {
         to_compress_files.reserve(1);

@@ -2,13 +2,21 @@
 
 #include <mutex>
 #include <new>
+#include <pthread.h>
 #include <string>
 #include <string_view>
 
 namespace Datadog {
 
+CodeProvenance::CodeProvenance()
+{
+    pthread_atfork([] { CodeProvenance::get_instance().prefork(); },
+                   [] { CodeProvenance::get_instance().postfork_parent(); },
+                   [] { CodeProvenance::get_instance().postfork_child(); });
+}
+
 std::string
-Datadog::CodeProvenance::get_json_str()
+Datadog::CodeProvenance::get_json_snapshot()
 {
     const std::lock_guard<std::mutex> lock(json_mutex);
     return json_str;
