@@ -240,3 +240,7 @@ ddtrace/profiling/collector/build-test/
 # file created when running scripts/lint
 uv.lock
 benchmark-artifacts/
+
+# tach generated artifacts (scripts/run_tach.py)
+tach_module_graph.mmd
+tach_modularity_report.json
