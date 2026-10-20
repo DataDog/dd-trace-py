@@ -105,6 +105,7 @@ async def _handle_request(ctx, request, handler):
     max_body_size = getattr(request, "_client_max_size", 0) or DEFAULT_CLIENT_MAX_SIZE
     core.dispatch("aiohttp.request.start", (ctx, request, max_body_size))
     read_body = ctx.get_item("aiohttp_request_body")
+    ctx.discard_local_item("aiohttp_request_body")
     if read_body is not None:
         body = await read_body
         if body is not None:
@@ -138,8 +139,9 @@ def _blocked_response(ctx, request, block_config):
         if request.transport is not None:
             request.transport.close()
         return started_response
-    core.dispatch("aiohttp.request.block", (ctx, request, block_config))
+    core.dispatch("aiohttp.request.block", (ctx, block_config))
     block_response = ctx.get_item("aiohttp_block_response")
+    ctx.discard_local_item("aiohttp_block_response")
     if block_response is not None:
         status, headers, body = block_response
         return web.Response(status=status, headers=headers, body=body)

@@ -205,7 +205,7 @@ def _on_response(request: Any, response: Any) -> None:
     _check_blocked()
 
 
-def _on_block(ctx: core.ExecutionContext[Any], request: Any, block: Block_config) -> None:
+def _on_block(ctx: core.ExecutionContext[Any], block: Block_config) -> None:
     if block.type == "none":
         headers = {"Content-Type": "text/plain; charset=utf-8", "Location": block.location}
         content = b""
