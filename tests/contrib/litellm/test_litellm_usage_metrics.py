@@ -391,7 +391,7 @@ def test_a_proxy_router_span_is_marked_before_its_request_exists(logger, monkeyp
             ' "type": "model", "model" : "top"}',
             "top",
         ),
-        ('{"model": "caf\\u00e9"}', "caf\u00e9"),
+        ('{"model": "gpt-\\u00e9"}', "gpt-\u00e9"),
         ('{"model": null}', None),
         ('{"model": ""}', None),
         ('{"choices": []}', None),
