@@ -357,7 +357,12 @@ def _usage_attempt_failed(kwargs):
 
 def _mark_gateway_span(span, kwargs):
     logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
-    if logger is not None and logger.has_request(kwargs.get("litellm_call_id")):
+    if logger is None:
+        return
+    # Every proxy request gets a gateway observation. Proxies that assign the call id after async_pre_call_hook
+    # (LiteLLM 1.6x) pass the router no call id yet, and a gateway cache hit makes no provider attempt that could
+    # mark this span later, so a proxy request is recognized by the request data the proxy adds.
+    if logger.has_request(kwargs.get("litellm_call_id")) or kwargs.get("proxy_server_request"):
         span._set_attribute(_usage_metrics.RECORDED_PROFILES_TAG, _usage_metrics.GATEWAY_PROFILES)
 
 

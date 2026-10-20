@@ -272,16 +272,48 @@ def _priced_at_zero(kwargs: dict[str, Any]) -> bool:
     return all(price is not None for price in prices) and all(price == 0 for price in prices)
 
 
+# A JSON string, or a bracket outside of one; and what separates an object key from its value.
+_JSON_TOKEN = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|[{}\[\]]')
+_JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"')
+_JSON_COLON = re.compile(r"\s*:\s*")
+
+
+def _top_level_model(text: str) -> Optional[str]:
+    """The string value of the top-level "model" key of a JSON object, read without parsing the rest: the response
+    can hold the whole generated output, and providers put the model near the start.
+    """
+    depth = 0
+    for token in _JSON_TOKEN.finditer(text):
+        value = token.group()
+        if value in ("{", "["):
+            depth += 1
+        elif value in ("}", "]"):
+            depth -= 1
+            if depth <= 0:
+                return None
+        elif depth == 1 and value == '"model"':
+            # Only a key is followed by a colon; "model" can also be a value.
+            colon = _JSON_COLON.match(text, token.end())
+            if colon is None:
+                continue
+            model = _JSON_STRING.match(text, colon.end())
+            if model is None:
+                return None
+            try:
+                name = json.loads(model.group())
+            except ValueError:
+                return None
+            return name if isinstance(name, str) and name else None
+    return None
+
+
 def _response_model(kwargs: dict[str, Any]) -> Optional[str]:
     """The model the provider's response names. LiteLLM rewrites the response's model to the client's route,
     so read the provider's own response when it is available.
     """
     original = kwargs.get("original_response")
     if isinstance(original, str) and original.startswith("{"):
-        try:
-            original = json.loads(original)
-        except ValueError:
-            return None
+        return _top_level_model(original)
     if isinstance(original, dict):
         model = original.get("model")
         return model if isinstance(model, str) and model else None

@@ -249,6 +249,7 @@ class _DogStatsdSender:
         self._socket: Optional[socket.socket] = None
         # Failed sends so far: each makes the next connection start at the next address the host resolves to.
         self._failed_sends = 0
+        self._deadline: Optional[float] = None
 
     def _connect(self) -> socket.socket:
         if self._socket is None:
@@ -282,7 +283,11 @@ class _DogStatsdSender:
                 raise OSError(f"{self._address[0]} resolves to no address")
         return self._socket
 
-    def send(self, lines: list[str]) -> None:
+    def send(self, lines: list[str], deadline: Optional[float] = None) -> None:
+        """Send the lines, stopping when deadline, a time.monotonic() value, passes: a full Unix socket can make each
+        packet wait for its send timeout.
+        """
+        self._deadline = deadline
         self._send_lines([line.encode("utf-8") for line in lines])
 
     def _send_lines(self, lines: list[bytes]) -> None:
@@ -304,6 +309,9 @@ class _DogStatsdSender:
             self._send_packet(packet)
 
     def _send_packet(self, packet: list[bytes]) -> None:
+        if self._deadline is not None and time.monotonic() >= self._deadline:
+            log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
+            return
         data = b"\n".join(packet)
         for attempt in range(_SEND_ATTEMPTS):
             try:
@@ -436,7 +444,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             elif self._dogstatsd is not None:
                 lines = self._usage.take_dogstatsd()
                 if lines:
-                    self._dogstatsd.send(lines)
+                    self._dogstatsd.send(lines, deadline)
         except Exception:
             log.debug("LiteLLM usage metrics: export failed", exc_info=True)
         finally:

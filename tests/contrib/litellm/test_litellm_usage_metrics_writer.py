@@ -690,6 +690,21 @@ def test_dogstatsd_over_udp_splits_packets(monkeypatch):
     assert all("user.id:user-" in line for line in lines)
 
 
+def test_dogstatsd_stops_sending_at_the_shutdown_deadline(monkeypatch):
+    # A full Unix socket can make each packet wait for its send timeout: the exit flush must not outlast close().
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{sock.getsockname()[1]}")
+    receiver = Receiver(sock)
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation(user="user-late"))
+    writer.flush(deadline=time.monotonic() - 1)
+    writer.record(PROVIDER_ATTEMPT, *observation(user="user-on-time"))
+    writer.flush(deadline=time.monotonic() + 30)
+    lines = [line for packet in receiver.stop() for line in packet.decode().split("\n")]
+    assert lines and all("user.id:user-on-time" in line for line in lines)
+
+
 def test_dogstatsd_host_that_resolves_to_ipv6_only(monkeypatch):
     sock = None
     try:

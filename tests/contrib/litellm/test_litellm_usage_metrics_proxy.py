@@ -52,6 +52,7 @@ def run_scenarios(proxy):
         "messages": [{"role": "user", "content": "hi"}],
     }
     assert proxy.request("/v1/messages", messages)[0] == 200
+    assert proxy.chat("claude-chat", stream=True, stream_options={"include_usage": True})[0] == 200
     for _ in range(2):
         assert proxy.chat("gpt-4o-mini", key="sk-bob-0002", cache={"use-cache": True})[0] == 200
     assert proxy.chat("custom-unpriced")[0] == 200
@@ -248,7 +249,11 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
     # The Anthropic Messages route: input includes cache reads and writes, and writes are split by lifetime.
     # LiteLLM before 1.80 serves /v1/messages as a pass-through whose own logging records no usage.
     if LITELLM_VERSION >= (1, 80):
-        claude = {"gen_ai.provider.name": "anthropic", "trajectory.token.source": None}
+        claude = {
+            "gen_ai.provider.name": "anthropic",
+            "trajectory.token.source": None,
+            "trajectory.gateway.route": "claude-haiku-4-5",
+        }
         assert export.total("gen_ai.client.inference.usage.input_tokens", **claude) == 60
         assert export.total("gen_ai.client.inference.usage.output_tokens", **claude) == 5
         assert export.total("gen_ai.client.inference.usage.cache_read.input_tokens", **claude) == 20
@@ -263,6 +268,15 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
         }
         # LiteLLM versions that keep Anthropic's split of cache writes by lifetime report it; others report the total.
         assert lifetimes in ({"5m": 18, "1h": 12}, {"unspecified": 30}), lifetimes
+
+    # A chat stream through LiteLLM's Anthropic provider: no chunk LiteLLM passes on names the model, so it comes
+    # from the stream's message_start event.
+    claude_chat = {"trajectory.gateway.route": "claude-chat", "gen_ai.provider.name": "anthropic"}
+    assert export.count("gen_ai.client.inference.duration", error__type=None, **claude_chat) == 1
+    assert {
+        s.get("gen_ai.response.model") for s in export.series("gen_ai.client.inference.duration", **claude_chat)
+    } == {"claude-haiku-4-5-20251001"}
+    assert export.total("gen_ai.client.inference.usage.output_tokens", **claude_chat) > 0
 
     # A gateway cache hit: one provider attempt for two requests, and a charge of exactly zero for the hit.
     bob = {"user.id": "user-bob"}
@@ -310,14 +324,9 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
     routed = sum(
         1 for span in spans if span["name"] == "litellm.request" and span.get("resource") == "router.acompletion"
     )
-    if LITELLM_VERSION >= (1, 70):
-        # Every client request is a gateway request, a cache hit included: the proxy assigns its call id and runs the
-        # pre-call hook before it calls the Router.
-        assert routed and marked[("litellm.request", "router.acompletion", GATEWAY_PROFILES)] == routed, marked
-    else:
-        # Proxies that assign the call id after the pre-call hook mark a Router span at its first provider call, so a
-        # cache hit's is not marked.
-        assert marked[("litellm.request", "router.acompletion", GATEWAY_PROFILES)] >= 1, marked
+    # Every client request is a gateway request, a cache hit included, on proxies that assign the call id after the
+    # pre-call hook too.
+    assert routed and marked[("litellm.request", "router.acompletion", GATEWAY_PROFILES)] == routed, marked
     assert {(name, profiles) for name, _, profiles in marked} <= {
         ("litellm.request", ATTEMPT_PROFILES),
         ("litellm.request", GATEWAY_PROFILES),

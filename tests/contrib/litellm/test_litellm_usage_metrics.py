@@ -366,6 +366,57 @@ def test_attempt_span_is_marked(logger):
     assert other.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) is None
 
 
+def test_a_proxy_router_span_is_marked_before_its_request_exists(logger, monkeypatch):
+    # Proxies that assign the call id after async_pre_call_hook (LiteLLM 1.6x) pass the Router no call id, and a
+    # gateway cache hit makes no provider attempt that could mark the Router span later.
+    monkeypatch.setattr(litellm, "_datadog_usage_metrics_logger", logger, raising=False)
+    with tracer.trace("litellm.request", resource="router.acompletion") as proxied:
+        litellm_patch._mark_gateway_span(proxied, {"model": "gpt", "proxy_server_request": {"url": "/chat"}})
+    with tracer.trace("litellm.request", resource="router.acompletion") as direct:
+        litellm_patch._mark_gateway_span(direct, {"model": "gpt"})
+    assert proxied.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) == _usage_metrics.GATEWAY_PROFILES
+    assert direct.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) is None
+
+
+@pytest.mark.parametrize(
+    "original, model",
+    [
+        (
+            '{"id": "x", "object": "chat.completion", "model": "gpt-4o-mini-2024-07-18", "choices": []}',
+            "gpt-4o-mini-2024-07-18",
+        ),
+        # A nested "model" key, one inside a string, and "model" as a value come first: only the top-level key counts.
+        (
+            '{"choices": [{"message": {"model": "nested", "content": "say \\"model\\": \\"quoted\\""}}],'
+            ' "type": "model", "model" : "top"}',
+            "top",
+        ),
+        ('{"model": "caf\\u00e9"}', "caf\u00e9"),
+        ('{"model": null}', None),
+        ('{"model": ""}', None),
+        ('{"choices": []}', None),
+        ('{"model": "unterminated', None),
+        ("not json", None),
+        ({"model": "from-a-dict"}, "from-a-dict"),
+    ],
+)
+def test_the_response_model_is_the_top_level_one(original, model):
+    assert _usage_metrics._response_model({"original_response": original}) == model
+
+
+def test_the_response_model_is_read_without_decoding_the_response(monkeypatch):
+    # The response can hold the whole generated output; only the model's own string is decoded.
+    decoded = []
+    loads = json.loads
+    monkeypatch.setattr(
+        _usage_metrics.json, "loads", lambda text, *a, **k: decoded.append(len(text)) or loads(text, *a, **k)
+    )
+    content = "x" * 5_000_000
+    original = json.dumps({"choices": [{"message": {"content": content}}], "model": "claude-haiku-4-5-20251001"})
+    assert _usage_metrics._response_model({"original_response": original}) == "claude-haiku-4-5-20251001"
+    assert decoded and max(decoded) < 100
+
+
 def test_fallback(logger, writer):
     proxy = Proxy(logger, route="primary")
     proxy.start()

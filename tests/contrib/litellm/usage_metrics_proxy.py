@@ -313,6 +313,8 @@ def _config(provider_port):
             litellm_params: {{model: openai/text-embedding-3-small, {openai}}}
           - model_name: claude-haiku-4-5
             litellm_params: {{model: anthropic/claude-haiku-4-5, {anthropic}}}
+          - model_name: claude-chat
+            litellm_params: {{model: anthropic/claude-haiku-4-5, {anthropic}}}
           - model_name: custom-unpriced
             litellm_params: {{model: openai/my-custom-model-xyz, {openai}}}
         litellm_settings:
