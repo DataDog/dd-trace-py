@@ -102,7 +102,7 @@ def _obfuscated_query(query: Optional[str]) -> Optional[Union[str, bytes]]:
     if pattern is None or getattr(pattern, "pattern", None) == b"":
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
         return None
-    return redact_query_string(query, pattern)
+    return redact_query_string(query, pattern, preserve_delimiter=config._query_string_obfuscation_preserve_delimiter)
 
 
 def _set_otel_query(span: Span, query: Optional[str]) -> None:
@@ -213,6 +213,18 @@ def otel_client_url(
     return f"{scheme}://{host}{target if target.startswith('/') else ''}"
 
 
+def is_otel_server_error_status(status_code: int) -> bool:
+    """Whether a server response with this status marks the span as an error under OTel semantics."""
+    if (
+        _SERVER_ERROR_STATUSES not in env
+        and _SERVER_ERROR_STATUSES not in LOCAL_CONFIG
+        and _SERVER_ERROR_STATUSES not in FLEET_CONFIG
+    ):
+        # OTel treats any code at or above 500 as an error.
+        return status_code >= 500
+    return bool(config._http_server.is_error_code(status_code))
+
+
 # This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
@@ -302,25 +314,11 @@ class OTelHTTPSpanAttributes:
             if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
                 return status_code >= 400
             return bool(config._http_client.is_error_code(status_code))
-        setting = _SERVER_ERROR_STATUSES
-        if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
-            # OTel treats any code at or above 500 as an error.
-            return status_code >= 500
-        return bool(config._http_server.is_error_code(status_code))
+        return is_otel_server_error_status(status_code)
 
     def set_user_agent(self, user_agent: Optional[str]) -> None:
         if user_agent:
             self._span._set_attribute(otel_http.USER_AGENT_ORIGINAL, user_agent)
-
-    def set_client_addresses(
-        self,
-        client_address: Optional[str],
-        network_peer_address: Optional[str],
-    ) -> None:
-        if client_address:
-            self._span._set_attribute(otel_http.CLIENT_ADDRESS, client_address)
-        if network_peer_address:
-            self._span._set_attribute(otel_http.NETWORK_PEER_ADDRESS, network_peer_address)
 
     def set_resource(self, route: Optional[str]) -> None:
         if self._normalized_method is None:
