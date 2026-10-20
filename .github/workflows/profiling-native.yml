@@ -15,7 +15,8 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 9
+    # A valgrind job usually takes about 8 minutes. Keep a margin for a slow package download.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
