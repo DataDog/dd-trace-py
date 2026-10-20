@@ -1,0 +1,97 @@
+# Module boundaries for tach (https://github.com/tach-org/tach)
+#
+# Modules are defined at the top-level package boundaries of ddtrace/.
+# depends_on lists are maintained by `tach sync` to reflect actual dependencies.
+exclude = [
+    "tests",
+    "benchmarks",
+    "build",
+    "ddtrace/vendor",
+    ".riot",
+    ".gitlab",
+    ".github",
+    "docs",
+    "scripts",
+    "hooks",
+    "templates",
+]
+
+[[modules]]
+path = "ddtrace"
+depends_on = ["ddtrace.bootstrap", "ddtrace.trace", "ddtrace.internal"]
+
+[[modules]]
+path = "ddtrace._trace"
+depends_on = ["ddtrace.trace", "ddtrace.contrib", "ddtrace", "ddtrace.internal", "ddtrace.propagation", "ddtrace.ext"]
+
+[[modules]]
+path = "ddtrace.aiguard"
+depends_on = ["ddtrace", "ddtrace.contrib", "ddtrace.internal", "ddtrace.llmobs", "ddtrace.trace", "ddtrace.ext"]
+
+[[modules]]
+path = "ddtrace.appsec"
+depends_on = ["ddtrace.aiguard", "ddtrace", "ddtrace._trace", "ddtrace.internal", "ddtrace.contrib", "ddtrace.trace", "ddtrace.ext"]
+
+[[modules]]
+path = "ddtrace.bootstrap"
+depends_on = ["ddtrace.profiling", "ddtrace", "ddtrace.internal", "ddtrace.trace", "ddtrace.opentelemetry"]
+
+[[modules]]
+path = "ddtrace.commands"
+depends_on = ["ddtrace.internal", "ddtrace.trace", "ddtrace"]
+
+[[modules]]
+path = "ddtrace.contrib"
+depends_on = ["ddtrace.bootstrap", "ddtrace.appsec", "ddtrace.internal", "ddtrace.propagation", "ddtrace.llmobs", "ddtrace.ext", "ddtrace.testing", "ddtrace", "ddtrace._trace", "ddtrace.trace"]
+
+[[modules]]
+path = "ddtrace.debugging"
+depends_on = ["ddtrace", "ddtrace.internal"]
+
+[[modules]]
+path = "ddtrace.errortracking"
+depends_on = ["ddtrace.internal", "ddtrace"]
+
+[[modules]]
+path = "ddtrace.ext"
+depends_on = ["ddtrace.internal", "ddtrace._trace", "ddtrace"]
+
+[[modules]]
+path = "ddtrace.internal"
+depends_on = ["ddtrace", "ddtrace.aiguard", "ddtrace.appsec", "ddtrace._trace", "ddtrace.contrib", "ddtrace.ext", "ddtrace.trace", "ddtrace.propagation"]
+
+[[modules]]
+path = "ddtrace.llmobs"
+depends_on = ["ddtrace.internal", "ddtrace._trace", "ddtrace.ext", "ddtrace.propagation", "ddtrace", "ddtrace.trace", "ddtrace.contrib"]
+
+[[modules]]
+path = "ddtrace.openfeature"
+depends_on = ["ddtrace.internal"]
+
+[[modules]]
+path = "ddtrace.opentelemetry"
+depends_on = ["ddtrace.internal"]
+
+[[modules]]
+path = "ddtrace.profiling"
+depends_on = ["ddtrace.internal", "ddtrace._trace", "ddtrace"]
+
+[[modules]]
+path = "ddtrace.propagation"
+depends_on = ["ddtrace._trace", "ddtrace", "ddtrace.internal"]
+
+[[modules]]
+path = "ddtrace.runtime"
+depends_on = ["ddtrace.internal"]
+
+[[modules]]
+path = "ddtrace.sourcecode"
+depends_on = ["ddtrace.internal"]
+
+[[modules]]
+path = "ddtrace.testing"
+depends_on = ["ddtrace.contrib", "ddtrace.trace", "ddtrace.appsec", "ddtrace.internal", "ddtrace.ext", "ddtrace"]
+
+[[modules]]
+path = "ddtrace.trace"
+depends_on = ["ddtrace._trace", "ddtrace.internal"]
