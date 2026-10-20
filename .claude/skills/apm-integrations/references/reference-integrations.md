@@ -85,8 +85,12 @@ An accepted block is kept as immutable HTTP data until the first start_response
 attempt so application hooks cannot replace its status, headers, or body. Clear
 that pending response before delivery so a framework error retry cannot reuse it.
 
-The opt-in Starlette proof in starlette/lifecycle.py reuses HttpLifecycle through
-http_asgi.py. It is not installed by patch(). complete() publishes final HTTP
+The opt-in Starlette proof in starlette/patch.py reuses HttpLifecycle through
+http_asgi.py. instrument_http is a context manager that installs reversible route
+hooks; it is not installed by patch(). The ASGI driver needs only get_config and
+provides request extraction, handler wrapping, and block enforcement. An optional
+request_data callback preserves framework-specific normalization. There is no
+per-integration lifecycle module or required framework adapter class. complete() publishes final HTTP
 observations independently of finish(), which exits context in its owning task.
 ASGI contexts opt into finish_on_response so successful tracing ends before
 background work even when send executes in a child task. Error responses defer
