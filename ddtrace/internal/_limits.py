@@ -1,5 +1,5 @@
 """
-Limits for trace data.
+Limits for span attributes shared by producers and encoders.
 """
 
 MAX_SPAN_META_KEY_LEN = 200

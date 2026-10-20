@@ -5,7 +5,7 @@ anyio==4.15.1
 attrs==26.1.0
 authlib==1.9.1
 backports-asyncio-runner==1.2.0
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0
