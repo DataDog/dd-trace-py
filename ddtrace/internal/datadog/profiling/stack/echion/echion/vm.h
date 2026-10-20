@@ -73,8 +73,9 @@ mark_fast_copy_syscall_fallback()
 }
 
 // Install/reclaim while we still want memcpy recovery, or while memcpy is still
-// the active copy method after a failed disable (no process_vm_readv), and no
-// foreign takeover. Warmup keeps desired set with active cleared.
+// the active copy method, and no foreign takeover. Warmup keeps desired set with
+// active cleared. A failed disable (no process_vm_readv) clears both flags and
+// uninstalls any leftover recovery handler via set_fast_copy().
 inline bool
 fast_copy_handler_ops_enabled()
 {

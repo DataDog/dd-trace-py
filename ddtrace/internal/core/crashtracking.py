@@ -283,9 +283,8 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         # pause_sampling returns:
         #   True  — paused (safe to swap; must resume)
         #   False — not running (safe to swap)
-        #   None  — timeout: skip uninstall/reinstall so we do not race safe_memcpy
-        #           or build a handler cycle; crashtracker installs on top and the
-        #           sampling thread treats that as foreign takeover.
+        #   None  — timeout: refuse init so we do not install crashtracking over an
+        #           in-flight safe_memcpy or build a handler cycle.
         stack_mod: Optional[ModuleType] = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
         pause_result: Optional[bool] = None
         safe_to_swap: bool = True
@@ -296,16 +295,18 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             except Exception:  # nosec: B110
                 pause_result = None
                 safe_to_swap = False
-            if safe_to_swap:
-                try:
-                    stack_mod.uninstall_segv_handler()
-                except Exception:  # nosec: B110
-                    pass
+            if not safe_to_swap:
+                log.error("Failed to start crashtracker: could not pause stack sampler for handler swap")
+                return False
+            try:
+                stack_mod.uninstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
         try:
             crashtracker_init(config, receiver_config, metadata)
             excepthook.register(_unhandled_exception_reporter)
 
-            if stack_mod is not None and safe_to_swap:
+            if stack_mod is not None:
                 try:
                     stack_mod.reinstall_segv_handler()
                 except Exception:  # nosec: B110

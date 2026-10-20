@@ -332,11 +332,11 @@ def test_faulthandler_with_fork() -> None:
     env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_uninstall_not_called_on_pause_timeout() -> None:
-    """When pause_sampling times out (returns None), skip uninstall and reinstall.
+    """When pause_sampling times out (returns None), refuse to enable faulthandler.
 
-    Uninstall while the sampling thread is still running races with safe_memcpy.
-    Reinstall without that uninstall chains ddtrace on top of faulthandler after
-    faulthandler already saved us as previous — a handler cycle.
+    A capture may still be in safe_memcpy; enabling would replace our recovery
+    handler. Uninstall/reinstall are also skipped (reinstall without uninstall
+    would build a handler cycle).
     """
     import faulthandler
     from unittest.mock import MagicMock
@@ -349,21 +349,30 @@ def test_uninstall_not_called_on_pause_timeout() -> None:
     # Import _faulthandler to patch faulthandler.enable. No sampler started.
     from ddtrace.profiling import _faulthandler  # noqa: F401
 
+    was_enabled: bool = faulthandler.is_enabled()
+    if was_enabled:
+        faulthandler.disable()
+
     mock_uninstall: MagicMock = MagicMock()
     mock_reinstall: MagicMock = MagicMock()
     mock_resume: MagicMock = MagicMock()
 
-    with (
-        patch.object(stack, "pause_sampling", return_value=None),
-        patch.object(stack, "uninstall_segv_handler", mock_uninstall),
-        patch.object(stack, "reinstall_segv_handler", mock_reinstall),
-        patch.object(stack, "resume_sampling", mock_resume),
-    ):
-        faulthandler.enable()
+    try:
+        with (
+            patch.object(stack, "pause_sampling", return_value=None),
+            patch.object(stack, "uninstall_segv_handler", mock_uninstall),
+            patch.object(stack, "reinstall_segv_handler", mock_reinstall),
+            patch.object(stack, "resume_sampling", mock_resume),
+        ):
+            faulthandler.enable()
 
-    mock_uninstall.assert_not_called()
-    mock_resume.assert_not_called()
-    mock_reinstall.assert_not_called()
+        mock_uninstall.assert_not_called()
+        mock_resume.assert_not_called()
+        mock_reinstall.assert_not_called()
+        assert not faulthandler.is_enabled(), "pause timeout must not enable faulthandler"
+    finally:
+        if was_enabled:
+            faulthandler.enable()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")

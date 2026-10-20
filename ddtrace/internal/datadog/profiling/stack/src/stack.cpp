@@ -1038,7 +1038,14 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     if (want && !enable_fast_copy) {
         mark_fast_copy_syscall_fallback();
     }
-    set_fast_copy_enabled(enable_fast_copy);
+    if (!set_fast_copy_enabled(enable_fast_copy)) {
+        // Failed disable (no process_vm_readv) clears active/desired but can leave
+        // the recovery handler installed after stop. Drop it so a later faulthandler
+        // or crashtracker install does not skip uninstall and sit above us.
+        if (segv_handler_installed()) {
+            uninstall_segv_handler();
+        }
+    }
     seed_fast_copy_profiler_stats();
 
     Py_RETURN_NONE;
