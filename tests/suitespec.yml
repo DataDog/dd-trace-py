@@ -445,7 +445,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
-    venvs_per_job: 1
+    venvs_per_job: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
       DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
@@ -467,7 +467,7 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     matrix:
-      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
+      command: pytest -v -n auto --dist=worksteal {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
       env:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
@@ -476,17 +476,17 @@ suites:
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
         - name: tracer-python-optimize
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
           env:
             PYTHONOPTIMIZE: '1'
         - name: tracer-legacy-attrs
           python: ['3.9']
-          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
+          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun, 'cattrs<23.2.0']
         - name: tracer-128-bit-traceid-disabled
           python: ['3.14', '3.15']
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:
