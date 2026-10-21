@@ -458,14 +458,22 @@ async def aiohttp_client_case(request: web.Request) -> web.Response:
         async with session:
             return _html(await response.text())
     middlewares = {"failover": (failover,), "nested": (nested,)}.get(case)
-    session = ClientSession(**({"middlewares": middlewares} if middlewares else {}))
+    session: Optional[ClientSession] = ClientSession(
+        timeout=ClientTimeout(total=DOWNSTREAM_HTTP_TIMEOUT), **({"middlewares": middlewares} if middlewares else {})
+    )
     url = {"failover": "http://127.0.0.1:1/", "chunked": f"http://127.0.0.1:{request.url.port}/chunked_json/"}
-    response = await session.get(url.get(case, target))
-    if case == "store":
-        _STORED_RESPONSES.append((session, response))
-        return _html("stored")
-    async with session:
+    try:
+        response = await session.get(url.get(case, target))
+        if case == "store":
+            _STORED_RESPONSES.append((session, response))
+            session = None
+            return _html("stored")
         return _html(await response.text())
+    except ClientError as e:
+        return _html(repr(e), 502)
+    finally:
+        if session is not None:
+            await session.close()
 
 
 async def aiohttp_proxy(request: web.Request) -> web.Response:

@@ -29,6 +29,7 @@ from ddtrace.internal import core
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec import rules
 from tests.appsec.contrib_appsec import utils
+from tests.appsec.contrib_appsec.aiohttp_app.app import _STORED_RESPONSES
 from tests.appsec.contrib_appsec.aiohttp_app.app import get_app
 from tests.appsec.contrib_appsec.api10_server import API10_RESPONSE_BODY
 from tests.utils import override_global_config
@@ -437,8 +438,13 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             mock.patch.object(_common_module_patches, "call_waf_callback", side_effect=record),
         ):
             self.update_tracer(interface)
-            for case in cases:
-                assert self.status(interface.client.get(f"/aiohttp_client/{case}/{api10_server.port()}")) == 200
+            try:
+                for case in cases:
+                    response = interface.client.get(f"/aiohttp_client/{case}/{api10_server.port()}")
+                    assert self.status(response) == 200, self.body(response)
+            finally:
+                while _STORED_RESPONSES:
+                    interface.client.loop.run_until_complete(_STORED_RESPONSES.pop()[0].close())
         return calls
 
     @pytest.mark.skipif(AIOHTTP_VERSION < (3, 12), reason="client middlewares need aiohttp 3.12")
