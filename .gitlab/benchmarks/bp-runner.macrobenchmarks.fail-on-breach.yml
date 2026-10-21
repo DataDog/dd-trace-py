@@ -57,3 +57,332 @@ experiments:
             thresholds:
               - throughput > 35.0 op/s
               - agg_http_req_duration_p99 < 160 ms
+
+          # Latency and throughput gates for remaining scenarios (auto-generated,
+          # max across baseline pipelines 145463821/145520737/145585549, values unrounded)
+          # Tracing
+          - name: normal_operation/tracing-native-writer-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 72.94545354 ms
+              - agg_http_req_duration_p95 < 89.58063318 ms
+          - name: normal_operation/tracing-native-writer-enabled-stats-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 71.80839793000001 ms
+              - agg_http_req_duration_p95 < 88.26031028 ms
+          - name: normal_operation/tracing-rc-disabled-telemetry-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 72.09358162999999 ms
+              - agg_http_req_duration_p95 < 88.36362802 ms
+          - name: normal_operation/tracing-rc-enabled-telemetry-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 72.40124984 ms
+              - agg_http_req_duration_p95 < 88.90396023000001 ms
+          - name: high_load/tracing-native-writer-enabled
+            thresholds:
+              - throughput > 38.59 op/s
+          - name: high_load/tracing-native-writer-enabled-stats-enabled
+            thresholds:
+              - throughput > 36.11 op/s
+          - name: high_load/tracing-rc-disabled-telemetry-disabled
+            thresholds:
+              - throughput > 37.45 op/s
+          - name: high_load/tracing-rc-disabled-telemetry-enabled
+            thresholds:
+              - throughput > 38.1 op/s
+          - name: high_load/tracing-rc-enabled-telemetry-disabled
+            thresholds:
+              - throughput > 38.08 op/s
+          - name: high_load/tracing-runtime-metrics-enabled
+            thresholds:
+              - throughput > 38.36 op/s
+          # Appsec
+          - name: normal_operation/appsec-disabled-iast-enabled-ep-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 89.65018118 ms
+              - agg_http_req_duration_p95 < 105.03159814 ms
+          - name: normal_operation/appsec-disabled-iast-enabled-ep-disabled-profiling-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 92.09427749 ms
+              - agg_http_req_duration_p95 < 110.95993328 ms
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-disabled-profiling-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 81.21301778 ms
+              - agg_http_req_duration_p95 < 93.47677058 ms
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 99.18073094 ms
+              - agg_http_req_duration_p95 < 118.44606778 ms
+          - name: high_load/appsec-disabled-iast-enabled-ep-disabled
+            thresholds:
+              - throughput > 30.35 op/s
+          - name: high_load/appsec-disabled-iast-enabled-ep-disabled-profiling-enabled
+            thresholds:
+              - throughput > 35.54 op/s
+          - name: high_load/appsec-enabled-iast-disabled-ep-disabled
+            thresholds:
+              - throughput > 36.96 op/s
+          - name: high_load/appsec-enabled-iast-disabled-ep-disabled-profiling-enabled
+            thresholds:
+              - throughput > 31.3 op/s
+          - name: high_load/appsec-enabled-iast-disabled-ep-enabled
+            thresholds:
+              - throughput > 27.81 op/s
+          - name: high_load/appsec-enabled-iast-enabled-ep-disabled
+            thresholds:
+              - throughput > 30.9 op/s
+          # Attack
+          - name: normal_operation/attack-appsec-disabled-iast-disabled-ep-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 71.79907988 ms
+              - agg_http_req_duration_p95 < 89.15721562 ms
+          - name: normal_operation/attack-appsec-enabled-iast-disabled-ep-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 100.18973149 ms
+              - agg_http_req_duration_p95 < 119.02218851 ms
+          - name: normal_operation/attack-appsec-enabled-iast-disabled-ep-enabled-profiling-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 105.10117647 ms
+              - agg_http_req_duration_p95 < 121.15049187999999 ms
+          - name: normal_operation/attack-appsec-enabled-iast-enabled-ep-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 111.73411117 ms
+              - agg_http_req_duration_p95 < 134.97566002000002 ms
+          - name: high_load/attack-appsec-disabled-iast-disabled-ep-disabled
+            thresholds:
+              - throughput > 37.01 op/s
+          - name: high_load/attack-appsec-enabled-iast-disabled-ep-enabled
+            thresholds:
+              - throughput > 28.22 op/s
+          - name: high_load/attack-appsec-enabled-iast-disabled-ep-enabled-profiling-enabled
+            thresholds:
+              - throughput > 27.34 op/s
+          - name: high_load/attack-appsec-enabled-iast-enabled-ep-enabled
+            thresholds:
+              - throughput > 24.23 op/s
+          # Baseline
+          - name: normal_operation/baseline
+            thresholds:
+              - agg_http_req_duration_p50 < 51.857044450000004 ms
+              - agg_http_req_duration_p95 < 67.56019927 ms
+          - name: high_load/baseline
+            thresholds:
+              - throughput > 50.86 op/s
+          # Vuln
+          - name: normal_operation/vuln-appsec-disabled-iast-disabled-ep-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 90.76999354 ms
+              - agg_http_req_duration_p95 < 109.54061782 ms
+          - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 100.82950806000001 ms
+              - agg_http_req_duration_p95 < 127.34303926999999 ms
+          - name: normal_operation/vuln-appsec-enabled-iast-enabled-ep-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 113.32202176999999 ms
+              - agg_http_req_duration_p95 < 139.86460758 ms
+          - name: normal_operation/vuln-baseline
+            thresholds:
+              - agg_http_req_duration_p50 < 67.03418861 ms
+              - agg_http_req_duration_p95 < 81.86609259999999 ms
+          - name: high_load/vuln-appsec-disabled-iast-disabled-ep-disabled
+            thresholds:
+              - throughput > 30.44 op/s
+          - name: high_load/vuln-appsec-disabled-iast-enabled-ep-disabled
+            thresholds:
+              - throughput > 25.98 op/s
+          - name: high_load/vuln-appsec-enabled-iast-enabled-ep-disabled
+            thresholds:
+              - throughput > 23.35 op/s
+          - name: high_load/vuln-baseline
+            thresholds:
+              - throughput > 40.64 op/s
+
+          # Tracing (server utilization)
+          - name: normal_operation/tracing-runtime-metrics-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 198.35 %
+              - rss < 1020.8670290499999 MB
+          - name: high_load/tracing-runtime-metrics-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 296.01 %
+              - rss < 1025.36778712 MB
+          - name: normal_operation/tracing-rc-disabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 198.43 %
+              - rss < 1018.3290608200001 MB
+          - name: high_load/tracing-rc-disabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 288.58 %
+              - rss < 1026.63315315 MB
+          - name: normal_operation/tracing-rc-disabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 199.69 %
+              - rss < 1030.34464063 MB
+          - name: high_load/tracing-rc-disabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 288.19 %
+              - rss < 1043.53122816 MB
+          - name: normal_operation/tracing-rc-enabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 200.04 %
+              - rss < 1022.1160677400001 MB
+          - name: high_load/tracing-rc-enabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 291.35 %
+              - rss < 1036.85969771 MB
+          - name: normal_operation/tracing-rc-enabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 199.6 %
+              - rss < 1032.99700845 MB
+          - name: high_load/tracing-rc-enabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 294.88 %
+              - rss < 1040.45552383 MB
+          - name: normal_operation/tracing-native-writer-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 200.85 %
+              - rss < 1028.87263679 MB
+          - name: high_load/tracing-native-writer-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 292.57 %
+              - rss < 1032.3371726 MB
+          - name: normal_operation/tracing-native-writer-enabled-stats-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 199.7 %
+              - rss < 1027.92352789 MB
+          - name: high_load/tracing-native-writer-enabled-stats-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 289.97 %
+              - rss < 1044.0108360499999 MB
+          - name: high_load/tracing-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 293.13 %
+              - rss < 1120.31685294 MB
+          - name: normal_operation/appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 223.14 %
+              - rss < 1178.05756582 MB
+          - name: high_load/appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 293.14 %
+              - rss < 1181.69674752 MB
+          - name: normal_operation/appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 233.26 %
+              - rss < 1267.6071273399998 MB
+          - name: high_load/appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 297.58 %
+              - rss < 1274.89815596 MB
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 209.23 %
+              - rss < 1142.40203854 MB
+          - name: high_load/appsec-enabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 294.86 %
+              - rss < 1154.33880219 MB
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 227.06 %
+              - rss < 1236.8661191600002 MB
+          - name: high_load/appsec-enabled-iast-disabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 301.23 %
+              - rss < 1246.1788563900002 MB
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 238.35 %
+              - rss < 1138.27393875 MB
+          - name: high_load/appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 299.21 %
+              - rss < 1162.1290302999998 MB
+          - name: normal_operation/appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 221.55 %
+              - rss < 1285.56247288 MB
+          - name: high_load/appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 291.25 %
+              - rss < 1290.5579268699998 MB
+          - name: normal_operation/attack-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 198.94 %
+              - rss < 1020.05063477 MB
+          - name: high_load/attack-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 292.99 %
+              - rss < 1024.77530301 MB
+          - name: normal_operation/attack-appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 240.1 %
+              - rss < 1154.04293974 MB
+          - name: high_load/attack-appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 299.04 %
+              - rss < 1177.6646415599998 MB
+          - name: normal_operation/attack-appsec-enabled-iast-disabled-ep-enabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 244.7 %
+              - rss < 1243.3718451 MB
+          - name: high_load/attack-appsec-enabled-iast-disabled-ep-enabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 307.07 %
+              - rss < 1256.5232421800001 MB
+          - name: normal_operation/attack-appsec-enabled-iast-enabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 247.65 %
+              - rss < 1302.68318126 MB
+          - name: high_load/attack-appsec-enabled-iast-enabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 292.21 %
+              - rss < 1303.6094740199999 MB
+          - name: normal_operation/baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 149.42 %
+              - rss < 727.50653155 MB
+          - name: high_load/baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 277.59 %
+              - rss < 735.76849632 MB
+          - name: normal_operation/vuln-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 230.91 %
+              - rss < 1025.11416358 MB
+          - name: high_load/vuln-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 282.4 %
+              - rss < 1038.79616126 MB
+          - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 245.68 %
+              - rss < 1177.55263239 MB
+          - name: high_load/vuln-appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 279.56 %
+              - rss < 1190.4322247 MB
+          - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 246.93 %
+              - rss < 1264.7241095999998 MB
+          - name: high_load/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 284.34 %
+              - rss < 1283.0546047799999 MB
+          - name: normal_operation/vuln-appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 244.38 %
+              - rss < 1284.76951349 MB
+          - name: high_load/vuln-appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 282.08 %
+              - rss < 1300.70124368 MB
+          - name: normal_operation/vuln-baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 181.86 %
+              - rss < 731.64239423 MB
+          - name: high_load/vuln-baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 270.48 %
+              - rss < 740.07082137 MB
