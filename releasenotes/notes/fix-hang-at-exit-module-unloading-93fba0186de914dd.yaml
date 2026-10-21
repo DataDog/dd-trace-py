@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue on Python 3.12 and earlier where a process can hang at exit instead
+    of terminating when module unloading is active (for example, when ``gevent`` is installed)
+    and a remotely configured product such as Exception Replay is enabled during startup.
