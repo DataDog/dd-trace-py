@@ -19,8 +19,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "asyncio_debug_bounds.h"
-
+#include <echion/asyncio_debug_bounds.h>
 #include <echion/cpython/asyncio_debug.h>
 
 #include <array>
