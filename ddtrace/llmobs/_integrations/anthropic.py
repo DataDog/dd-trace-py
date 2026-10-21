@@ -92,7 +92,7 @@ class AnthropicIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         parameters = {}
-        if kwargs.get("temperature"):
+        if kwargs.get("temperature") is not None:
             parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
