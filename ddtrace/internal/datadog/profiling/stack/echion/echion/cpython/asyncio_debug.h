@@ -74,8 +74,9 @@ read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary);
 
 // Finds and validates CPython's AsyncioDebug table in the loaded binaries (implemented in asyncio_debug_linux.cc and
 // asyncio_debug_macos.cc). Returns no offsets when the table is missing or cannot be proven to belong to a loaded
-// binary; callers then omit native task-list attribution but keep thread-stack sampling. Call during asyncio
-// initialization, never on the sampling thread: Linux discovery reads files and may block.
+// binary. Callers then skip the native task lists, which on 3.14 are the only record of asyncio.Task instances, so
+// suspended tasks are not found; thread-stack sampling continues. Call during asyncio initialization, never on the
+// sampling thread: Linux discovery reads files and may block.
 //
 // Discovery returns the first valid table in load order. It assumes the process loads a single CPython build that
 // carries the table. If another 3.14 build's _asyncio, libpython, or executable were loaded before the active one,

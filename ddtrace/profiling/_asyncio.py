@@ -129,9 +129,10 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
         eager_tasks = None
 
     if not stack.init_asyncio(scheduled_tasks, eager_tasks) and not _native_task_lists_unavailable_logged:
-        # Task-set discovery still runs, so this only narrows task coverage. Log once; later calls retry silently.
+        # On Python 3.14 the native lists are the only record of asyncio.Task instances, so suspended tasks are
+        # not profiled. Log once; later calls retry only after binaries are loaded or unloaded.
         _native_task_lists_unavailable_logged = True
-        log.debug("Could not locate the native asyncio task lists; asyncio task coverage may be incomplete")
+        log.debug("Could not locate the native asyncio task lists; suspended asyncio tasks will not be profiled")
 
 
 def link_existing_loop_to_current_thread() -> None:
