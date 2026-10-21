@@ -10,7 +10,7 @@ aiosignal==1.4.0
 annotated-types==0.7.0
 anyio==4.10.0
 attrs==25.3.0
-certifi==2025.8.3
+certifi==2026.10.19
 charset-normalizer==3.4.3
 coverage[toml]==7.10.4
 dataclasses-json==0.6.7

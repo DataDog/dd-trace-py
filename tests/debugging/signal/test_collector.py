@@ -4,6 +4,8 @@ import threading
 from unittest import mock
 from uuid import uuid4
 
+import pytest
+
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.log import LogSignal
@@ -197,9 +199,10 @@ def test_push_skip_rate_probe_emits_rate_limit_probe():
     )
 
 
-def test_push_skip_budget_emits_budget_exceeded_invocation():
+@pytest.mark.parametrize("state", [SignalState.SKIP_BUDGET, SignalState.SKIP_CAPPED])
+def test_push_skip_budget_emits_budget_exceeded_invocation(state):
     collector, _ = _make_collector()
-    signal = _snapshot(state=SignalState.SKIP_BUDGET)
+    signal = _snapshot(state=state)
 
     with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
         collector.push(signal)

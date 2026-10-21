@@ -23,6 +23,12 @@ class LLMObsExportMode(str, Enum):
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
 LLMOBS_SAMPLING = "_llmobs.sampling"
+# Routing context captured at span start. Stamped on the span because a span may finish in a
+# different execution context than the one it started in, at which point the contextvar is gone.
+CACHED_LLMOBS_ROUTING_CTX_KEY = "_llmobs.routing"
+# LLMObs trace ID of a routed span. Its meta_struct is removed when the span finishes, so this keeps
+# the ID that the tenant intake received available to export_span().
+CACHED_LLMOBS_TRACE_ID_CTX_KEY = "_llmobs.trace_id"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -81,6 +87,10 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
+
+# Server-side tool calls billed per call by the provider, on top of token costs.
+WEB_SEARCH_COUNT_METRIC_KEY = "web_search_count"
+STORAGE_SEARCH_COUNT_METRIC_KEY = "storage_search_count"
 
 # Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
 # token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).

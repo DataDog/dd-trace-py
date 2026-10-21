@@ -1,6 +1,5 @@
 ---
 fixes:
   - |
-    internal: Fixes a deadlock that could hang a Python 3.15 application when a function instrumented by
-    dynamic instrumentation, exception replay or code origin is garbage collected while another function is
-    being instrumented.
+    internal: On Python 3.15, garbage collecting a function instrumented by dynamic instrumentation, exception replay
+    or code origin no longer waits for another thread that is instrumenting a function.

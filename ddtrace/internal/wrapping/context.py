@@ -465,10 +465,12 @@ if is_at_least_py(3, 15):
     # wrapping metadata and deepcopy of decorated functions does not traverse a
     # context holding unpicklable state (locks, ContextVars). See issue #16443.
     _fn_registry: "weakref.WeakKeyDictionary[FunctionType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
-    _ctx_registry_lock = Lock()
-    # Cleanups of wrapped functions collected without unwrap(). A finalizer can run from the cyclic GC at any
-    # allocation, including on a thread that already holds _ctx_registry_lock inside wrap(), so it never waits for that
-    # lock: when the lock is taken, the cleanup stays queued for the next wrap() or unwrap().
+    # Reentrant because _finalize_monitoring_wrap takes it from a weakref.finalize
+    # callback: a GC pass triggered by any allocation made while the lock is held
+    # (e.g. in wrap()) runs that callback on the same thread.
+    _ctx_registry_lock = RLock()
+    # Cleanups of wrapped functions collected without unwrap(). A finalizer never waits for _ctx_registry_lock: when
+    # another thread holds it, the cleanup stays queued for the next wrap() or unwrap().
     _pending_cleanups: "deque[tuple[weakref.ref[_UniversalWrappingContext], CodeType]]" = deque()
 
 
@@ -933,6 +935,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             _drain_pending_cleanups()
             f: FunctionType = self.__wrapped__
             original_code: CodeType = get_function_code(f)
+            if is_obfuscated_code(original_code):
+                raise ObfuscatedCodeError(
+                    f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                )
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
                     existing: _UniversalWrappingContext = _ctx_registry[original_code]
@@ -948,11 +954,6 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                         _monitoring.unregister(original_code, existing)
                     else:
                         raise ValueError("Function already wrapped")
-
-                if is_obfuscated_code(original_code):
-                    raise ObfuscatedCodeError(
-                        f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
-                    )
 
                 # sys.monitoring dispatches per code object. Clone the code so
                 # unwrapped siblings that share the same CodeType are not affected.
@@ -1246,12 +1247,17 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             i += len(return_code)
                     i += 1
 
-                # Search for the GEN_START instruction, which needs to stay on top.
+                # Search for the GEN_START instruction, which needs to stay on top. It takes the
+                # first line of the function: bytecode would otherwise fold the head below, which
+                # is on that line, into the line-less range of GEN_START.
                 i = 0
                 if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                            instr.lineno = code.co_firstlineno
                             break
+                    else:
+                        i = 0
 
                 *bc[i:i], except_label = CONTEXT_HEAD.bind(
                     {"context": _CONTEXT_PLACEHOLDER}, lineno=code.co_firstlineno
@@ -1287,6 +1293,12 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
                     bc[i : i + len(CONTEXT_HEAD) - 1] = []
 
+                    gen_start = bc[i - 1] if i else None
+                    if isinstance(gen_start, bytecode.Instr) and gen_start.name == "GEN_START":
+                        first = next((instr for instr in bc[i:] if isinstance(instr, bytecode.Instr)), None)
+                        if first is None or first.lineno != gen_start.lineno:
+                            gen_start.lineno = None
+
                     # Remove all the return handlers
                     i = 0
                     while i < len(bc):
@@ -1320,9 +1332,9 @@ if is_at_least_py(3, 15):
         of self.__wrapped__) cannot be used here. Clean up via the cloned monitor code
         object instead, which the finalizer callback captures directly.
 
-        The cyclic GC can run this on a thread that holds _ctx_registry_lock (any allocation
-        inside wrap() can trigger it), and that lock is not reentrant. So the cleanup is queued,
-        and done now only if the lock is free; otherwise the next wrap() or unwrap() does it.
+        The cyclic GC can run this on any thread at any allocation. The cleanup is queued and done
+        now if the lock can be taken without waiting, which includes the thread already holding it
+        inside wrap(); when another thread holds it, the next wrap() or unwrap() does it.
         """
         _pending_cleanups.append((self_ref, code))
         _drain_pending_cleanups(blocking=False)
