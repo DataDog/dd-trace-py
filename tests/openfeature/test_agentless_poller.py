@@ -91,7 +91,7 @@ class _FakeConn:
 def harness(monkeypatch):
     """Return a factory building a poller with a scripted fake HTTP layer."""
 
-    def build(responses, api_key=None, poll_interval=30.0, sock=None, env=None):
+    def build(responses, api_key=None, poll_interval=30.0, sock=None, env=None, endpoint=ENDPOINT):
         requests: list = []
         applied: list = []
         conns: list = []
@@ -102,9 +102,10 @@ def harness(monkeypatch):
             return conn
 
         monkeypatch.setattr(source_mod, "get_connection", fake_get_connection)
+        monkeypatch.setattr(source_mod, "_get_ffe_snapshot", lambda: object() if applied else None)
 
         src = AgentlessConfigurationSource(
-            endpoint=ENDPOINT,
+            endpoint=endpoint,
             apply_configuration=applied.append,
             api_key=api_key,
             poll_interval=poll_interval,
@@ -252,12 +253,13 @@ def test_debug_logs_each_attempt_and_its_outcome(harness, caplog):
     messages = _debug_messages(caplog)
     assert messages == [
         "Feature Flags: agentless configuration poll attempt 1/3",
-        "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 503",
+        "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 503; retrying in 0.0s",
         "Feature Flags: agentless configuration poll attempt 2/3",
-        "Feature Flags: agentless configuration poll attempt 2/3 failed: TimeoutError",
+        "Feature Flags: agentless configuration poll attempt 2/3 failed: TimeoutError; retrying in 0.0s",
         "Feature Flags: agentless configuration poll attempt 3/3",
         "Feature Flags: agentless configuration poll attempt 3/3 returned HTTP 200",
-        "Feature Flags: agentless configuration applied successfully (1 flag(s), env=prod)",
+        "Feature Flags: agentless configuration applied successfully (1 flag(s), sdk_env=prod, requested_env=prod, "
+        'configuration_env=production, created_at=2024-01-01T00:00:00Z, etag="v1")',
     ], messages
 
 
@@ -276,7 +278,9 @@ def test_poll_failure_logs_redact_transport_urls(harness, caplog, recovers, sche
         src.periodic()
 
     diagnostic = "ConnectionFailedError: error sending request for url (<endpoint>)"
-    assert (f"Feature Flags: agentless configuration poll attempt 1/3 failed: {diagnostic}") in _debug_messages(caplog)
+    assert (f"Feature Flags: agentless configuration poll attempt 1/3 failed: {diagnostic}; retrying in 0.0s") in (
+        _debug_messages(caplog)
+    )
     for sensitive in ("secret-password", "secret-path", "secret-query", "flags.example.test"):
         assert sensitive not in caplog.text
     if recovers:
@@ -338,8 +342,84 @@ def test_debug_logs_unset_env_and_attempt_count_restarts_per_poll(harness, caplo
         src.periodic()
 
     messages = _debug_messages(caplog)
-    assert "Feature Flags: agentless configuration applied successfully (1 flag(s), env=unset)" in messages
+    assert (
+        "Feature Flags: agentless configuration applied successfully (1 flag(s), sdk_env=unset, requested_env=prod, "
+        "configuration_env=production, created_at=2024-01-01T00:00:00Z, etag=None)"
+    ) in messages
     assert messages.count("Feature Flags: agentless configuration poll attempt 1/3") == 2, messages
+
+
+def test_debug_logs_terminal_status_and_warns(harness, caplog):
+    src = harness([_FakeResponse(404)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 404; not retrying" in messages
+    assert (
+        "Feature Flags: agentless configuration poll failed; no configuration is active, so evaluations return "
+        "default values"
+    ) in messages
+    assert any(
+        m.startswith("Feature Flagging agentless endpoint returned HTTP 404. Possible causes: ")
+        for m in caplog.messages
+    ), caplog.messages
+
+
+def test_debug_logs_retained_configuration_and_recovery(harness, caplog):
+    src = harness(
+        [
+            _FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}),
+            _FakeResponse(500),
+            _FakeResponse(500),
+            _FakeResponse(500),
+            _FakeResponse(304),
+        ]
+    )
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+        src.periodic()
+        src.periodic()
+
+    messages = _debug_messages(caplog)
+    assert "Feature Flags: agentless configuration poll attempt 3/3 returned HTTP 500; not retrying" in messages
+    assert (
+        "Feature Flags: agentless configuration poll failed; the previously applied configuration remains active"
+    ) in messages
+    assert "Feature Flags: agentless configuration poll attempt 1/3 returned HTTP 304 (unchanged)" in messages
+    assert messages[-1] == 'Feature Flags: agentless configuration delivery recovered (etag="v1")'
+
+
+def test_debug_logs_malformed_payload_reason(harness, caplog):
+    src = harness([_FakeResponse(200, b"not json")])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert "Feature Flags: agentless configuration payload rejected: ValueError: Malformed UFC payload" in (
+        _debug_messages(caplog)
+    )
+
+
+@pytest.mark.parametrize(
+    "endpoint,api_key,requested_env,api_key_header",
+    [
+        (ENDPOINT, "secret", "prod", "sent"),
+        ("https://flags.example.test/custom/path", None, "not sent", "not sent"),
+    ],
+    ids=["managed", "custom"],
+)
+def test_debug_logs_effective_settings_on_start(harness, caplog, endpoint, api_key, requested_env, api_key_header):
+    src = harness([_FakeResponse(304)], api_key=api_key, env="prod", endpoint=endpoint)
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.start()
+        src.stop()
+        src.join()
+
+    assert (
+        f"Feature Flags: agentless configuration source settings: sdk_env=prod, requested_env={requested_env}, "
+        f"DD-API-KEY header {api_key_header}, poll interval 30.0s, request timeout 5.0s"
+    ) in _debug_messages(caplog)
+    assert "secret" not in caplog.text
 
 
 def test_debug_does_not_report_rejected_payload_as_applied(harness, caplog, monkeypatch):

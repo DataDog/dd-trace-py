@@ -1,8 +1,20 @@
 ---
 features:
   - |
-    openfeature: With ``DD_TRACE_DEBUG=true``, the feature flagging provider now logs how it was set up,
-    each attempt to fetch flag configuration and its result, when configuration is applied or removed, whether
-    provider initialization succeeded, and each evaluation's flag key, variant, reason, and error code.
-    Evaluation logs omit flag values, raw error messages, evaluation context, and arbitrary metadata,
-    regardless of full-data telemetry consent.
+    openfeature: With ``DD_TRACE_DEBUG=true``, the feature flagging provider now logs how it was set up, each attempt
+    to fetch flag configuration and its result, when configuration is applied, rejected, or removed, exposure
+    delivery outcomes, and the details of each flag evaluation. Evaluation logs include the evaluation context, flag
+    values, and flag metadata, so they can contain application data; the provider logs a warning each time it is
+    created with debug logging enabled. Debug logging must be enabled before the provider is created for evaluation
+    details to be logged.
+fixes:
+  - |
+    openfeature: Fixes an issue where the agentless configuration source silently ignored unexpected HTTP responses
+    from the endpoint, such as a 404 caused by a wrong site, URL, or environment. It now logs a warning with the
+    status code and the likely causes.
+  - |
+    openfeature: A logging handler, filter, or record factory that raises no longer interrupts feature flagging provider
+    initialization, configuration updates, flag evaluation, or shutdown.
+  - |
+    openfeature: Provider shutdown now waits up to two seconds for exposure delivery to finish.
+    With ``DD_TRACE_DEBUG=true``, logs report the flush outcome or any queued and in-flight work still unfinished.

@@ -12,6 +12,11 @@ and do not follow the semver versioning scheme of the `ddtrace` package.
 producers and encoders. Products that attach payloads to spans use these shared
 limits to keep their output within the encoding limits.
 
+Products whose diagnostics must not interrupt their lifecycle can opt into
+`ddtrace.internal.logger.get_safe_logger`. It preserves call-site rate limiting
+and drops exceptions from record creation, filters, formatting and handlers.
+It does not inspect log arguments when the log level is disabled.
+
 ## HTTP endpoint normalization
 
 `ddtrace.internal.utils.endpoint.SimplifiedEndpointComputer` normalizes URL paths

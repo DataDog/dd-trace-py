@@ -43,7 +43,7 @@ from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.openfeature._evp_transport import EVPRoute
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
