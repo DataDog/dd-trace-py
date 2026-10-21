@@ -74,7 +74,9 @@ class SignalCollector:
                 "dynamic_instrumentation.guardrails.events.skipped",
                 tags={"reason": "rateLimitProbe", "probe_type": type(signal.probe).__name__},
             )
-        elif signal.state is SignalState.SKIP_BUDGET:
+        elif signal.state is SignalState.SKIP_BUDGET or signal.state is SignalState.SKIP_CAPPED:
+            # Both a session's per-probe budget and the coordinated sampling cap
+            # of one snapshot per probe per trace are invocation budgets.
             meter.increment(
                 "dynamic_instrumentation.guardrails.events.skipped",
                 tags={"reason": "budgetExceededInvocation", "probe_type": type(signal.probe).__name__},
