@@ -1,8 +1,8 @@
 from typing import Any
 from typing import Callable
 
-from ddtrace.internal.security._patch_utils import try_unwrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._patch_utils import try_unwrap
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 

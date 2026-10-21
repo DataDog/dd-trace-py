@@ -12,8 +12,6 @@ from typing import Protocol
 from typing import Union
 from urllib import parse
 
-from ddtrace.internal.security._context import _ASM_CONTEXT
-from ddtrace.internal.security._context import get_entry_span as get_entry_span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -35,6 +33,8 @@ from ddtrace.internal.constants import Constant_Class
 from ddtrace.internal.core.events import Event
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.security._context import _ASM_CONTEXT
+from ddtrace.internal.security._context import get_entry_span as get_entry_span
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 

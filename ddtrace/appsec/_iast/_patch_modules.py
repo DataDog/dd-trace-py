@@ -17,9 +17,6 @@ from typing import Optional
 
 from wrapt import FunctionWrapper
 
-from ddtrace.internal.security._patch_utils import try_unwrap
-from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
-from ddtrace.internal.security._patch_utils import wrap_object
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast.secure_marks import SecurityControl
 from ddtrace.appsec._iast.secure_marks import get_security_controls_from_env
@@ -28,6 +25,9 @@ from ddtrace.appsec._iast.secure_marks.configuration import SC_VALIDATOR
 from ddtrace.appsec._iast.secure_marks.sanitizers import create_sanitizer
 from ddtrace.appsec._iast.secure_marks.validators import create_validator
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
+from ddtrace.internal.security._patch_utils import wrap_object
 from ddtrace.internal.settings.asm import config as asm_config
 
 

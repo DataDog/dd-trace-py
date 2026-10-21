@@ -5,9 +5,9 @@ import os
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.security._constants import STACK_TRACE
 from ddtrace.internal.security._context import get_entry_span
-from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
 

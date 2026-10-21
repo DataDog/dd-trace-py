@@ -8,8 +8,6 @@ from unittest import mock
 import pytest
 from wrapt import FunctionWrapper
 
-from ddtrace.internal.security._patch_utils import try_unwrap
-from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 import ddtrace.appsec._common_module_patches as cmp
 from ddtrace.appsec._common_module_patches import _RaspContext
 from ddtrace.appsec._common_module_patches import _ScopedRaspContext
@@ -28,6 +26,8 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS

@@ -1,12 +1,12 @@
 from typing import Any
 from typing import Callable
 
-from ddtrace.internal.security._patch_utils import try_unwrap
-from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._contrib.stripe.types import StripeCheckoutSession
 from ddtrace.appsec._contrib.stripe.types import StripeEvent
 from ddtrace.appsec._contrib.stripe.types import StripePaymentIntent
 from ddtrace.internal import core
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 
 
 def _wrap_checkout_session_create(

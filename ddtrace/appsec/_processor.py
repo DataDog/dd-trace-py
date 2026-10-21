@@ -10,7 +10,6 @@ from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec import _asm_request_context
-from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -36,6 +35,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
