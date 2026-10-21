@@ -29,7 +29,11 @@ ensure_uv() {
     brew install uv >&2
   else
     echo "[uv] Installing via installer script..." >&2
-    curl -LsSf --retry 5 --retry-delay 2 --retry-connrefused https://astral.sh/uv/install.sh | sh >&2
+    local uv_installer
+    uv_installer="$(mktemp)"
+    curl -LsSf --retry 5 --retry-delay 2 --retry-connrefused -o "$uv_installer" https://astral.sh/uv/install.sh
+    sh "$uv_installer" >&2
+    rm -f "$uv_installer"
   fi
 
   for path in "${CANDIDATE_PATHS[@]}"; do
