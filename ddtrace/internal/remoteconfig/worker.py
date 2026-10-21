@@ -7,7 +7,7 @@ from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
@@ -61,6 +61,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             if endpoints and (
                 REMOTE_CONFIG_AGENT_ENDPOINT in endpoints or ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in endpoints
             ):
+                log.debug("Remote Config Agent available; configuration polling resumes")
                 self._state = self._online
                 # Immediately query the agent for the remote config configuration
                 self._online()
@@ -70,10 +71,15 @@ class RemoteConfigPoller(periodic.PeriodicService):
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
             "Check Your Remote Config environment variables on your Agent:\n"
             "DD_REMOTE_CONFIGURATION_ENABLED=true\n"
-            "See: https://docs.datadoghq.com/agent/guide/how_remote_config_works/",
+            "See: https://docs.datadoghq.com/agent/guide/how_remote_config_works/\n"
+            "Retrying Agent discovery in %.3fs",
+            self.interval,
         )
 
     def _online(self) -> None:
+        log.debug(
+            "Remote Config poll attempt (sdk_env=%s, preceding failures=%d)", ddconfig.env, self._consecutive_failures
+        )
         with StopWatch() as sw:
             succeeded = self._client.request()
 
@@ -86,6 +92,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         if not succeeded:
             self._consecutive_failures += 1
+            log.debug(
+                "Remote Config poll failed; retaining applied configuration; retrying in %.3fs",
+                self.interval,
+            )
             # Without an agent there is nothing to fall back to, so keep retrying
             # on the backoff the native client asked for.
             if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES and not self._client.agentless:
@@ -93,6 +103,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 self._consecutive_failures = 0
             return
 
+        if self._consecutive_failures:
+            log.debug("Remote Config delivery recovered after %d failed poll(s)", self._consecutive_failures)
         self._consecutive_failures = 0
         log.debug(
             "[%d][P: %d] Datadog Remote Config Poller sent request to %s in %.5fs",

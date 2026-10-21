@@ -13,7 +13,7 @@ from typing import Callable
 from typing import Optional
 from urllib.parse import urlsplit
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 from ddtrace.internal.settings.openfeature import AGENTLESS

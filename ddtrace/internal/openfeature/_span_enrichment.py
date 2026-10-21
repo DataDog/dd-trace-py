@@ -38,7 +38,7 @@ from weakref import WeakKeyDictionary
 from openfeature.hook import Hook
 
 from ddtrace.internal import core
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.openfeature._flageval_pii import targeting_key_digest
 
 
