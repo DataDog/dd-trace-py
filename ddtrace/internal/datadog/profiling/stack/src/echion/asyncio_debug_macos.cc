@@ -161,11 +161,20 @@ find_asyncio_debug_offsets()
     // Scan by section rather than filename so no borrowed dyld string needs to be dereferenced.
     const uint32_t count = std::min(_dyld_image_count(), uint32_t{ 4096 });
     for (uint32_t index = 0; index < count; ++index) {
+        // First match wins; see find_asyncio_debug_offsets in asyncio_debug.h for the single-build assumption.
         if (auto offsets = read_asyncio_debug_offsets_from_macho(_dyld_get_image_header(index), *snapshot)) {
             return offsets;
         }
     }
     return std::nullopt;
+}
+
+std::optional<uint64_t>
+loaded_binaries_generation()
+{
+    // dyld has no change counter. The image count misses a load paired with an unload, which only delays a retry
+    // until the next change.
+    return _dyld_image_count();
 }
 
 #endif // defined(__APPLE__)

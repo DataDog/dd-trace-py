@@ -15,6 +15,7 @@ if typing.TYPE_CHECKING:
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
@@ -25,7 +26,10 @@ if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
 
+log = get_logger(__name__)
+
 ASYNCIO_IMPORTED: bool = False
+_native_task_lists_unavailable_logged: bool = False
 
 
 _ASYNCIO_MONITORING_MIN: tuple[int, int] = (3, 15)
@@ -113,6 +117,8 @@ def _task_get_name(task: asyncio.Task[typing.Any]) -> str:
 
 
 def _call_init_asyncio(asyncio: ModuleType) -> None:
+    global _native_task_lists_unavailable_logged
+
     from asyncio import tasks as asyncio_tasks
 
     if sys.hexversion >= 0x030C0000:
@@ -122,7 +128,10 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
         scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
         eager_tasks = None
 
-    stack.init_asyncio(scheduled_tasks, eager_tasks)
+    if not stack.init_asyncio(scheduled_tasks, eager_tasks) and not _native_task_lists_unavailable_logged:
+        # Task-set discovery still runs, so this only narrows task coverage. Log once; later calls retry silently.
+        _native_task_lists_unavailable_logged = True
+        log.debug("Could not locate the native asyncio task lists; asyncio task coverage may be incomplete")
 
 
 def link_existing_loop_to_current_thread() -> None:

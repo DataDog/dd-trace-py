@@ -45,5 +45,12 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
     }
 
     return AsyncioOffsets{ static_cast<size_t>(offsets.interpreter.asyncio_tasks_head),
-                           static_cast<size_t>(offsets.thread.asyncio_tasks_head) };
+                           static_cast<size_t>(offsets.thread.asyncio_tasks_head),
+                           AsyncioTaskLayout{ offsets.task.size,
+                                              offsets.task.task_name,
+                                              offsets.task.task_awaited_by,
+                                              offsets.task.task_is_task,
+                                              offsets.task.task_awaited_by_is_set,
+                                              offsets.task.task_coro,
+                                              offsets.task.task_node } };
 }

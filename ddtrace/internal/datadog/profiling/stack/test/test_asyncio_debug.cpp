@@ -25,6 +25,22 @@ TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
     EXPECT_EQ(echion.asyncio_thread_tasks_head_offset(), 256);
 }
 
+TEST(AsyncioDebugOffsets, ReportsTaskLayout)
+{
+    auto table = valid_table();
+    auto offsets = parse_asyncio_debug_offsets(table);
+    ASSERT_TRUE(offsets);
+    ASSERT_TRUE(offsets->task_layout);
+    EXPECT_EQ(*offsets->task_layout,
+              (AsyncioTaskLayout{ table.task.size,
+                                  table.task.task_name,
+                                  table.task.task_awaited_by,
+                                  table.task.task_is_task,
+                                  table.task.task_awaited_by_is_set,
+                                  table.task.task_coro,
+                                  table.task.task_node }));
+}
+
 TEST(AsyncioDebugOffsets, RejectsTaskNodeOutsideTask)
 {
     auto table = valid_table();
@@ -82,6 +98,44 @@ TEST(AsyncioDebugOffsets, RejectsMisalignedThreadHead)
 }
 
 // ----------------------------------------------------------------------------
+// Task layout check against Echion's TaskObj mirror.
+// ----------------------------------------------------------------------------
+
+#if PY_VERSION_HEX >= 0x030e0000
+namespace {
+
+AsyncioTaskLayout
+mirror_task_layout()
+{
+    return AsyncioTaskLayout{ sizeof(TaskObj),
+                              offsetof(TaskObj, task_name),
+                              offsetof(TaskObj, task_awaited_by),
+                              offsetof(TaskObj, task_is_task),
+                              offsetof(TaskObj, task_awaited_by_is_set),
+                              offsetof(TaskObj, task_coro),
+                              offsetof(TaskObj, task_node) };
+}
+
+} // namespace
+
+TEST(AsyncioDebugOffsets, AcceptsTaskLayoutMatchingMirror)
+{
+    EXPECT_TRUE(EchionSampler::asyncio_task_layout_matches_mirror(mirror_task_layout()));
+}
+
+TEST(AsyncioDebugOffsets, RejectsTaskLayoutDifferingFromMirror)
+{
+    auto layout = mirror_task_layout();
+    layout.task_node += sizeof(uintptr_t);
+    EXPECT_FALSE(EchionSampler::asyncio_task_layout_matches_mirror(layout));
+
+    layout = mirror_task_layout();
+    layout.size += sizeof(uintptr_t);
+    EXPECT_FALSE(EchionSampler::asyncio_task_layout_matches_mirror(layout));
+}
+#endif
+
+// ----------------------------------------------------------------------------
 // Discovery of the real runtime table.
 // ----------------------------------------------------------------------------
 
@@ -99,5 +153,14 @@ TEST(AsyncioDebugOffsets, DiscoversRuntimeTableAfterAnEarlierAttempt)
     // Native tests use the same interpreter and headers, unlike wheels running on a different patch release.
     EXPECT_EQ(offsets->interpreter_tasks_head, offsetof(PyInterpreterState, asyncio_tasks_head));
     EXPECT_EQ(offsets->thread_tasks_head, offsetof(_PyThreadStateImpl, asyncio_tasks_head));
+    ASSERT_TRUE(offsets->task_layout);
+    EXPECT_TRUE(EchionSampler::asyncio_task_layout_matches_mirror(*offsets->task_layout));
+}
+
+TEST(AsyncioDebugOffsets, LoadedBinariesGenerationIsStableWithoutLoads)
+{
+    const auto before = loaded_binaries_generation();
+    ASSERT_TRUE(before);
+    EXPECT_EQ(loaded_binaries_generation(), before);
 }
 #endif

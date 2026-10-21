@@ -26,6 +26,7 @@
 #include <array>
 #include <bit>
 #include <cerrno>
+#include <cstddef>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -445,11 +446,29 @@ find_asyncio_debug_offsets()
         auto binary = snapshot.binary();
         auto offsets = read_asyncio_debug_offsets_from_elf(fd, binary);
         close(fd);
+        // First match wins; see find_asyncio_debug_offsets in asyncio_debug.h for the single-build assumption.
         if (offsets) {
             return offsets;
         }
     }
     return std::nullopt;
+}
+
+std::optional<uint64_t>
+loaded_binaries_generation()
+{
+    // glibc and musl report load and unload counters in every dl_phdr_info. Older loaders may pass a shorter struct.
+    std::optional<uint64_t> generation;
+    dl_iterate_phdr(
+      [](dl_phdr_info* binary, size_t size, void* data) -> int {
+          if (size >= offsetof(dl_phdr_info, dlpi_subs) + sizeof(binary->dlpi_subs)) {
+              *static_cast<std::optional<uint64_t>*>(data) =
+                static_cast<uint64_t>(binary->dlpi_adds) + static_cast<uint64_t>(binary->dlpi_subs);
+          }
+          return 1;
+      },
+      &generation);
+    return generation;
 }
 
 #endif // defined(__linux__)
