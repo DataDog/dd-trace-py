@@ -94,6 +94,18 @@ refreshes the editable ddtrace build.
 An ``-s`` after ``--`` still belongs to the test command and disables output capture.
 The legacy runner option ``-s`` before ``--`` is a no-op; use ``-r`` to refresh the installation.
 
+Nightly coverage report upload
+------------------------------
+
+Nightly test environments enable coverage report upload by default only on Python 3.15. This focuses reports on
+new Python support without paying the collection and reporting cost on every Python version. Other nightly
+Python versions explicitly disable report upload; suites without a Python 3.15 environment do not fall back to
+another version. The full test matrix and the separate ITR coverage policy are unchanged.
+
+The version selection is defined by ``NIGHTLY_COVERAGE_PYTHON_VERSIONS`` in ``tests/suitespec.py``. Add versions
+there when expanding nightly report coverage. Explicit matrix, variant, and run environment overrides retain
+their existing precedence, including suites that disable report upload. Non-nightly defaults are unchanged.
+
 OpenFeature fixtures
 --------------------
 
@@ -289,6 +301,53 @@ Using ``@flaky`` comes with the responsibility of maintaining the test suite's c
 of using it, periodically set aside some time to ``grep -R 'flaky' tests`` and remove some of the decorators. This may require
 finding and fixing the root cause of the unreliable behavior. Upholding this responsibility is an important way to keep the test
 suite's coverage meaningfully broad while skipping tests.
+
+
+How do I find out if a slow or timed-out CI job ran on a slow machine?
+-----------------------------------------------------------------------
+
+Maintainers can read the resource metrics of the pod that ran a CI job in Datadog.
+Use the pod metrics first. They need no change to the pipeline, and they work for a job that already finished.
+
+1. Open the job in GitLab. Note the job id from the URL, the start time, and the end time.
+2. In the job log, find the line ``Running on <pod> via <runner>``. Read the ``Waiting for pod``
+   lines above it. A reason such as ``Unschedulable`` means that the job waited for a machine,
+   not for tests.
+3. In Datadog Metrics, query the pod metrics with the ``ci-job-id`` tag and the container name
+   ``build``. Use the time from 2 minutes before the job start to 1 minute after the job end.
+   Compare the CPU usage with the CPU request and limit. Compare the memory working set with the
+   memory limit. Check the OOM event count. Group the query by the ``host`` tag to see the node
+   that ran the job.
+4. To explain a slow start, query the pod phase, ready, and unschedulable metrics with the pod name.
+   These metrics do not carry the job id. Search the Kubernetes events for the same pod name to
+   find scheduling failures.
+
+Do not trust the CPU throttling counters. The counters can read zero when a container uses more
+CPU than its limit. Compare the CPU usage with the limit instead.
+
+If the pod metrics do not explain the result, turn on the runtime probe. The root ``conftest.py``
+contains the probe. When the probe is on, it prints a ``RUNTIME PROBE`` block in the job log at
+the start and at the end of each pytest session.
+The block shows the CPU count and affinity, the cgroup CPU and memory limits and counters, and
+the results of three short benchmarks.
+Use the block to compare the machine against the machines of other jobs in the same pipeline.
+
+The probe is off by default because the benchmarks add a fraction of a second to each pytest session.
+To turn the probe on for a CI run, start a new pipeline for your branch and set the pipeline
+variable ``DD_TEST_RUNTIME_PROBE`` to ``1``.
+In GitLab, use **Build > Pipelines > New pipeline** and add the variable in the form.
+The ``run-tests-trigger`` job passes the variable to the test jobs in the child pipeline.
+A retry of a single job does not accept new variables, so a retry does not turn on the probe.
+
+To turn the probe on for a local run, set the variable before you run the tests::
+
+    $ DD_TEST_RUNTIME_PROBE=1 scripts/run-tests --venv <hash>
+
+``scripts/ddtest`` passes the variable into the test container.
+
+The probe does not run in ``pytest-xdist`` workers.
+When the GitLab job timeout or an out-of-memory kill stops a job, pytest does not run its
+session-end hook. In that case, the log contains only the block from the session start.
 
 
 How do I enable debug logs for just a specific part of the library?

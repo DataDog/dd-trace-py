@@ -8,7 +8,7 @@ annotated-types==0.7.0
 anyio==4.12.1
 attrs==25.4.0
 backports-asyncio-runner==1.2.0
-certifi==2026.1.4
+certifi==2026.10.19
 cffi==2.0.0
 claude-agent-sdk==0.1.21
 click==8.3.1

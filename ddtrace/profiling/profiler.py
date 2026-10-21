@@ -177,6 +177,9 @@ class Profiler:
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
     def __getattr__(self, key: str) -> Any:
+        # Without this, any lookup on an instance that skipped __init__ (e.g. copy.copy, pickle) recurses forever.
+        if key == "_profiler":
+            raise AttributeError(key)
         return getattr(self._profiler, key)
 
 
@@ -313,9 +316,11 @@ class _ProfilerInstance(service.Service):
                             LOG.debug("Started collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
+                            self._rollback_collector_start(col)
                             return
                         except Exception:
                             LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                            self._rollback_collector_start(col)
                             return
 
                     self._collectors.append(col)
@@ -347,9 +352,11 @@ class _ProfilerInstance(service.Service):
                             LOG.debug("Started pytorch collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r pytorch is unavailable, disabling", col)
+                            self._rollback_collector_start(col)
                             return
                         except Exception:
                             LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
+                            self._rollback_collector_start(col)
                             return
 
                     self._collectors.append(col)
@@ -456,31 +463,62 @@ class _ProfilerInstance(service.Service):
     def _start_collectors(self) -> None:
         started_collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         for col in self._collectors:
+            # A collector whose stop failed during a previous shutdown stays RUNNING. Retry its
+            # cleanup so it can be started again instead of being dropped.
+            if col.status != service.ServiceStatus.STOPPED:
+                self._rollback_collector_start(col)
+
             try:
                 col.start()
             except collector.CollectorUnavailable:
                 LOG.debug("Collector %r is unavailable, disabling", col)
+                self._rollback_collector_start(col)
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                self._rollback_collector_start(col)
             else:
                 started_collectors.append(col)
 
         self._collectors = started_collectors
+
+    @staticmethod
+    def _rollback_collector_start(col: Union[collector.Collector, memalloc.MemoryCollector]) -> None:
+        try:
+            col._rollback_start()
+        except Exception:
+            LOG.debug("Failed to clean up partially started collector %r", col, exc_info=True)
+
+    def _rollback_start_service(self) -> None:
+        # Best effort: Service.start leaves the status STOPPED when _start_service raises, so
+        # stop() would refuse to run and anything started so far would keep running.
+        if self._scheduler is not None:
+            try:
+                self._scheduler._rollback_start()
+            except Exception:
+                LOG.debug("Failed to clean up partially started scheduler", exc_info=True)
+
+        for col in reversed(self._collectors):
+            if col.status != service.ServiceStatus.STOPPED:
+                self._rollback_collector_start(col)
 
     def _start_service(self) -> None:
         """Start the profiler."""
 
         self._arm_native_heap_profiling()
 
-        # Start ddup
-        self._start_exporter()
+        try:
+            # Start ddup
+            self._start_exporter()
 
-        # Start collectors (stack, memory, etc.)
-        self._start_collectors()
+            # Start collectors (stack, memory, etc.)
+            self._start_collectors()
 
-        # Start the upload scheduler
-        if self._scheduler is not None:
-            self._scheduler.start()
+            # Start the upload scheduler
+            if self._scheduler is not None:
+                self._scheduler.start()
+        except BaseException:
+            self._rollback_start_service()
+            raise
 
     def _stop_service(self, flush: bool = True, join: bool = True) -> None:
         """Stop the profiler.

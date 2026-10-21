@@ -1,7 +1,7 @@
 anyio==4.15.1
 asynctest==0.13.0
 attrs==26.1.0
-certifi==2026.7.22
+certifi==2026.10.19
 coverage[toml]==7.16.2
 execnet==2.1.2
 gherkin-official==29.0.0

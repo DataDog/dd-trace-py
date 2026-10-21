@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import scheduler
 
@@ -89,3 +90,25 @@ def test_serverless_periodic(mock_time_ns: mock.MagicMock, mock_periodic: mock.M
     assert s._profiled_intervals == 0
     assert s.interval == 1
     mock_periodic.assert_called_once_with()
+
+
+def test_rollback_start_stops_started_worker() -> None:
+    s = scheduler.Scheduler()
+    s.start()
+    worker = s._worker
+    assert worker is not None
+
+    s._rollback_start()
+    s.join()
+
+    assert s.status == service.ServiceStatus.STOPPED
+    assert s._worker is worker
+
+
+def test_rollback_start_without_worker() -> None:
+    s = scheduler.Scheduler()
+
+    s._rollback_start()
+    s.join()
+
+    assert s.status == service.ServiceStatus.STOPPED

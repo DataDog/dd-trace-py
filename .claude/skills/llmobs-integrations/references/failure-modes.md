@@ -123,7 +123,6 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 **Symptoms:**
 - Long-running web worker RSS grows linearly with traffic
 - One gunicorn/uvicorn worker is much larger than siblings
-- Later requests nest under an old LLM span (one worker's traces all share a parent)
 
 **Causes:**
 1. `LLMObs.llm()` or an integration stream span is finished only from a generator `finally` that never runs on client disconnect or an abandoned pump task
@@ -131,7 +130,7 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 3. Unfinished LLM spans keep the whole trace in the SpanAggregator until every span in the trace has finished
 
 **Fix:**
-- ASGI `TraceMiddleware` finishes leftover descendant `SpanTypes.LLM` spans after `await self.app()` returns (`_finish_unfinished_llm_spans`). Do not attach this to request-span finish: the last `http.response.body` can precede more annotation. Do not finish enclosing LLM ancestors or non-LLM children
+- Reclaim the span from the object that owns it, never from request teardown. An ASGI sweep of unfinished `SpanTypes.LLM` descendants cannot tell an abandoned stream from an agent that intentionally outlives the request, and every LLMObs kind (`agent`, `workflow`, `tool`, ...) carries `span_type=llm` -- so a sweep truncates live background spans and detaches their later children into new root traces
 - `TracedStream` / `TracedAsyncStream` `__exit__`/`__aexit__` close the wrapped stream first, then `close_stream()` (including `BaseException` from wrapped cleanup). `__del__` is last-resort for dropped `next()`. Stream-manager `__enter__` retains the child wrapper for the `with` body; `on_stream_created` runs before retain and finalizes on callback failure because `__exit__` will not run
 - `close_stream()` is idempotent with `__iter__`/`__next__`
 - Happy path should still annotate and finish the LLM span from the generator `finally` so teardown is a no-op
