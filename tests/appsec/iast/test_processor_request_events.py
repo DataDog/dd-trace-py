@@ -40,7 +40,6 @@ def active_context(identifier, integration):
 @pytest.fixture
 def processor(monkeypatch):
     monkeypatch.setattr(asm_config, "_iast_enabled", True)
-    monkeypatch.setattr(lifecycle, "_EVENT_MANAGED_REQUESTS", frozenset({("asgi.request", "fastapi")}))
     monkeypatch.setattr(core, "has_listeners", lambda _event: True)
     return AppSecIastSpanProcessor()
 

@@ -8,6 +8,8 @@ from urllib import parse
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.web_request import WebRequestCompleting
+from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
@@ -138,6 +140,10 @@ def _call_route_resource_resolver(scope: Mapping[str, Any], span: Span) -> None:
         log.debug("failed to resolve route pattern for span resource", exc_info=True)
 
 
+def _noop_request_completion() -> None:
+    pass
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces HTTP and websocket requests.
@@ -256,286 +262,308 @@ class TraceMiddleware:
             ) as ctx,
             span_from_context(ctx) as span,
         ):
-            if self.span_modifier:
-                self.span_modifier(span, scope)
+            complete_request = _noop_request_completion
+            if core.has_listeners(WebRequestCompleting.event_name):
+                completed = False
 
-            host_header = None
-            for key, value in extract_headers(scope).items():
-                if key.encode() == b"host":
-                    try:
-                        host_header = value
-                    except UnicodeDecodeError:
-                        log.warning(
-                            "failed to decode host header, host from http headers will not be considered", exc_info=True
-                        )
-                    break
-            method = scope.get("method")
-            server = scope.get("server")
-            scheme = scope.get("scheme", "http")
+                def complete() -> None:
+                    nonlocal completed
+                    if not completed:
+                        completed = True
+                        core.dispatch_event(WebRequestCompleting(ctx, span))
 
-            parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
-            full_path = scope.get("path", "")
-            # Use raw_path for WAF evaluation — scope["path"] may have path
-            # traversal sequences resolved (e.g. /waf/../ becomes /) which
-            # prevents LFI detection. raw_path preserves the original URI.
-            raw_path = scope.get("raw_path")
-            raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
-            if host_header:
-                url = f"{scheme}://{host_header}{full_path}"
-                raw_url = f"{scheme}://{host_header}{raw_path_str}"
-            elif server and len(server) == 2:
-                port = server[1]
-                default_port = self.default_ports.get(scheme, None)
-                server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = f"{scheme}://{server_host}{full_path}"
-                raw_url = f"{scheme}://{server_host}{raw_path_str}"
-            else:
-                url = None
-                raw_url = None
-            query_string = scope.get("query_string")
-            if query_string:
-                query_string = bytes_to_str(query_string)
-                if url:
-                    url = f"{url}?{query_string}"
-                if raw_url:
-                    raw_url = f"{raw_url}?{query_string}"
-            if not self.integration_config.trace_query_string:
-                query_string = None
-            # Body parsing is HTTP-only: sub-apps skip it (parent already handled it),
-            # and websocket scopes must not have their receive() consumed here.
-            body = None
-            peer_ip = None
-            if not is_subapp and scope["type"] == "http":
-                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                    "asgi.request.parse.body", (receive, headers)
-                ).await_receive_and_body
-                if result:
-                    receive, body = await result.value
+                complete_request = complete
 
-            if not is_subapp:
-                client = scope.get("client")
-                # Both list and tuple must be supported for scope["client"].
-                # In Startlette's ASGI implementation, it is a 2-item tuple (host, port). Other implementations
-                # may use a list, and Starlette's own testing code often uses a 2-item list here.
-                if isinstance(client, (list, tuple)) and len(client) and is_valid_ip(client[0]):
-                    peer_ip = client[0]
-
-            trace_utils.set_http_meta(
-                span,
-                self.integration_config,
-                method=method,
-                url=url,
-                query=query_string,
-                request_headers=headers,
-                raw_uri=raw_url if not is_subapp else None,
-                parsed_query=parsed_query if not is_subapp else None,
-                request_body=body,
-                peer_ip=peer_ip,
-                headers_are_case_sensitive=True,
-            )
-            tags = _extract_versions_from_scope(scope, self.integration_config)
-            for name, value in tags.items():
-                span._set_attribute(name, value)
-
-            @wraps(receive)
-            async def wrapped_receive():
-                """
-                Wrapped receive function that instruments websocket message reception.
-
-                Intercepts websocket receive operations to create ExecutionContexts for:
-                - Message receive timing and metadata
-                - Message type (text/binary)
-                - Message length measurement
-                - Connection close events
-
-                When websocket instrumentation is enabled, creates ExecutionContexts for:
-                - websocket.receive: For incoming messages
-                - websocket.close: For peer disconnect events
-
-                Note:
-                    - Spans are linked to the handshake span
-                    - Receive spans are finished exactly when the next receive operation starts
-                """
-
-                if not self.integration_config.trace_asgi_websocket_messages:
-                    return await receive()
-
-                current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-
-                with core.context_with_data(
-                    "asgi.websocket.receive.message",
-                    integration_config=self.integration_config,
-                    span_name="websocket.receive",
-                    service=span.service,
-                    resource=f"websocket {scope.get('path', '')}",
-                    span_type=SpanTypes.WEBSOCKET,
-                    child_of=span if not self.integration_config.websocket_messages_separate_traces else None,
-                    call_trace=False,
-                    activate=True,
-                ) as ctx:
-                    if current_receive_span:
-                        current_receive_span.finish()
-                        scope["datadog"].pop("current_receive_span", None)
-
-                    recv_span = span_from_context(ctx)
-                    try:
-                        message = await receive()
-
-                        if scope["type"] == "websocket" and message["type"] == "websocket.receive":
-                            self._handle_websocket_receive_message(ctx, scope, message, recv_span, span)
-
-                        elif message["type"] == "websocket.disconnect":
-                            self._handle_websocket_disconnect_message(scope, message, span)
-
-                        return message
-                    except Exception:
-                        recv_span.set_exc_info(*sys.exc_info())
-                        recv_span.finish()
-                        raise
-                    finally:
-                        # Ensure the recv_span is finished if it wasn't stored in scope
-                        # handles cases where the message type is not websocket.receive or websocket.disconnect
-                        if "datadog" not in scope or "current_receive_span" not in scope["datadog"]:
-                            recv_span.finish()
-
-            @wraps(send)
-            async def wrapped_send(message: Mapping[str, Any]):
-                """
-                Wrapped ASGI send function that traces websocket message transmission.
-
-                Intercepts websocket send operations to create spans for:
-                - Message transmission timing and metadata
-                - Message type (text/binary)
-                - Message length measurement
-                - Connection close operations
-
-                When websocket instrumentation is enabled, creates ExecutionContexts for:
-                - websocket.send: For outgoing messages
-                - websocket.close: For application-initiated close events
-
-                Note:
-                    - Spans are linked to the handshake span
-                    - Context (baggage, sampling) is propagated from handshake span
-                    - Each sent message is attached to the current context
-                    - Close spans include additional metadata like close codes and reasons
-                """
-                try:
-                    if (
-                        scope["type"] == "websocket"
-                        and self.integration_config.trace_asgi_websocket_messages
-                        and message.get("type") == "websocket.accept"
-                    ):
-                        # Close handshake span once connection is upgraded
-                        if span and span.error == 0:
-                            span.finish()
-                        return await send(message)
-
-                    elif (
-                        scope["type"] == "websocket"
-                        and self.integration_config.trace_asgi_websocket_messages
-                        and message.get("type") == "websocket.send"
-                    ):
-                        self._handle_websocket_send_message(scope, message, span)
-
-                    elif (
-                        scope["type"] == "websocket"
-                        and self.integration_config.trace_asgi_websocket_messages
-                        and message.get("type") == "websocket.close"
-                    ):
-                        self._handle_websocket_close_message(scope, message, span)
-                        return await send(message)
-
-                    response_headers = extract_headers(message)
-                except Exception:
-                    log.warning("failed to extract response headers", exc_info=True)
-                    response_headers = None
-                self._handle_http_response(scope, message, span, method, response_headers)
-                core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
-                blocked = get_blocked()
-                if blocked:
-                    raise BlockingException(blocked)
-                try:
-                    return await send(message)
-                finally:
-                    # Per asgi spec, "more_body" is used if there is still data to send
-                    # Close the span if "http.response.body" has no more data left to send in the
-                    # response.
-                    if (
-                        message.get("type") == "http.response.body"
-                        and not message.get("more_body", False)
-                        and span.error == 0
-                    ):
-                        # Resolve fallback route resource before finishing so span processors
-                        # see the correct value (e.g. CORSMiddleware short-circuits before
-                        # traced_handler populates resource_paths).
-                        if not scope.get("datadog", {}).get("resource_paths"):
-                            _call_route_resource_resolver(scope, span)
-                        # If the span has an error status code delay finishing the span until the
-                        # traceback and exception message is available
-                        span.finish()
-
-            async def wrapped_blocked_send(message: Mapping[str, Any]):
-                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                    "asgi.block.started", (ctx, url)
-                ).status_headers_content
-                if result:
-                    status, headers, content = result.value
-                else:
-                    status, headers, content = 403, [], b""
-                if span and message.get("type") == "http.response.start":
-                    message["headers"] = headers
-                    message["status"] = int(status)
-                    core.dispatch("asgi.finalize_response", (None, headers))
-                elif message.get("type") == "http.response.body":
-                    message["body"] = (
-                        content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
-                    )
-                    message["more_body"] = False
-                    core.dispatch("asgi.finalize_response", (content, None))
-                try:
-                    return await send(message)
-                finally:
-                    trace_utils.set_http_meta(
-                        span, self.integration_config, status_code=status, response_headers=dict(headers)
-                    )
-                    if message.get("type") == "http.response.body" and span.error == 0:
-                        span.finish()
-
-            wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
-                if not is_subapp:
-                    core.dispatch("asgi.start_request", ("asgi",))
-                # Do not block right here. Wait for route to be resolved in starlette/patch.py
-                return await self.app(scope, wrapped_recv, wrapped_send)
-            except BlockingException as e:
-                set_blocked(e.args[0])
-                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-            except Exception as exc:
-                (exc_type, exc_val, exc_tb) = sys.exc_info()
-                span.set_exc_info(exc_type, exc_val, exc_tb)
-                self.handle_exception_span(exc, span)
-                raise
-            except BaseException as exception:
-                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
-                if exc := find_exception(exception, BlockingException):
-                    set_blocked(exc.args[0])
-                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-                raise
-            finally:
-                core.dispatch("web.request.final_tags", (span,))
-                # If resource_paths was never populated (e.g. CORSMiddleware short-circuited
-                # before traced_handler ran), let framework integrations resolve a route
-                # template so the span does not keep a raw path resource.
-                if not scope.get("datadog", {}).get("resource_paths") and scope["type"] == "http":
-                    _call_route_resource_resolver(scope, span)
-                # missing datadog scope should not crash request teardown.
-                request_spans = scope.get("datadog", {}).get("request_spans")
-                if request_spans and span in request_spans:
-                    request_spans.remove(span)
+                if core.has_listeners(WebRequestReady.event_name):
+                    core.dispatch_event(WebRequestReady(ctx, span))
 
-                # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
-                if scope["type"] == "websocket" and "datadog" in scope:
-                    _cleanup_previous_receive(scope)
+                if self.span_modifier:
+                    self.span_modifier(span, scope)
+
+                host_header = None
+                for key, value in extract_headers(scope).items():
+                    if key.encode() == b"host":
+                        try:
+                            host_header = value
+                        except UnicodeDecodeError:
+                            log.warning(
+                                "failed to decode host header, host from http headers will not be considered",
+                                exc_info=True,
+                            )
+                        break
+                method = scope.get("method")
+                server = scope.get("server")
+                scheme = scope.get("scheme", "http")
+
+                parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
+                full_path = scope.get("path", "")
+                # Use raw_path for WAF evaluation — scope["path"] may have path
+                # traversal sequences resolved (e.g. /waf/../ becomes /) which
+                # prevents LFI detection. raw_path preserves the original URI.
+                raw_path = scope.get("raw_path")
+                raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
+                if host_header:
+                    url = f"{scheme}://{host_header}{full_path}"
+                    raw_url = f"{scheme}://{host_header}{raw_path_str}"
+                elif server and len(server) == 2:
+                    port = server[1]
+                    default_port = self.default_ports.get(scheme, None)
+                    server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
+                    url = f"{scheme}://{server_host}{full_path}"
+                    raw_url = f"{scheme}://{server_host}{raw_path_str}"
+                else:
+                    url = None
+                    raw_url = None
+                query_string = scope.get("query_string")
+                if query_string:
+                    query_string = bytes_to_str(query_string)
+                    if url:
+                        url = f"{url}?{query_string}"
+                    if raw_url:
+                        raw_url = f"{raw_url}?{query_string}"
+                if not self.integration_config.trace_query_string:
+                    query_string = None
+                # Body parsing is HTTP-only: sub-apps skip it (parent already handled it),
+                # and websocket scopes must not have their receive() consumed here.
+                body = None
+                peer_ip = None
+                if not is_subapp and scope["type"] == "http":
+                    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                        "asgi.request.parse.body", (receive, headers)
+                    ).await_receive_and_body
+                    if result:
+                        receive, body = await result.value
+
+                if not is_subapp:
+                    client = scope.get("client")
+                    # Both list and tuple must be supported for scope["client"].
+                    # In Startlette's ASGI implementation, it is a 2-item tuple (host, port). Other implementations
+                    # may use a list, and Starlette's own testing code often uses a 2-item list here.
+                    if isinstance(client, (list, tuple)) and len(client) and is_valid_ip(client[0]):
+                        peer_ip = client[0]
+
+                trace_utils.set_http_meta(
+                    span,
+                    self.integration_config,
+                    method=method,
+                    url=url,
+                    query=query_string,
+                    request_headers=headers,
+                    raw_uri=raw_url if not is_subapp else None,
+                    parsed_query=parsed_query if not is_subapp else None,
+                    request_body=body,
+                    peer_ip=peer_ip,
+                    headers_are_case_sensitive=True,
+                )
+                tags = _extract_versions_from_scope(scope, self.integration_config)
+                for name, value in tags.items():
+                    span._set_attribute(name, value)
+
+                @wraps(receive)
+                async def wrapped_receive():
+                    """
+                    Wrapped receive function that instruments websocket message reception.
+
+                    Intercepts websocket receive operations to create ExecutionContexts for:
+                    - Message receive timing and metadata
+                    - Message type (text/binary)
+                    - Message length measurement
+                    - Connection close events
+
+                    When websocket instrumentation is enabled, creates ExecutionContexts for:
+                    - websocket.receive: For incoming messages
+                    - websocket.close: For peer disconnect events
+
+                    Note:
+                        - Spans are linked to the handshake span
+                        - Receive spans are finished exactly when the next receive operation starts
+                    """
+
+                    if not self.integration_config.trace_asgi_websocket_messages:
+                        return await receive()
+
+                    current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+
+                    with core.context_with_data(
+                        "asgi.websocket.receive.message",
+                        integration_config=self.integration_config,
+                        span_name="websocket.receive",
+                        service=span.service,
+                        resource=f"websocket {scope.get('path', '')}",
+                        span_type=SpanTypes.WEBSOCKET,
+                        child_of=span if not self.integration_config.websocket_messages_separate_traces else None,
+                        call_trace=False,
+                        activate=True,
+                    ) as ctx:
+                        if current_receive_span:
+                            current_receive_span.finish()
+                            scope["datadog"].pop("current_receive_span", None)
+
+                        recv_span = span_from_context(ctx)
+                        try:
+                            message = await receive()
+
+                            if scope["type"] == "websocket" and message["type"] == "websocket.receive":
+                                self._handle_websocket_receive_message(ctx, scope, message, recv_span, span)
+
+                            elif message["type"] == "websocket.disconnect":
+                                self._handle_websocket_disconnect_message(scope, message, span)
+
+                            return message
+                        except Exception:
+                            recv_span.set_exc_info(*sys.exc_info())
+                            recv_span.finish()
+                            raise
+                        finally:
+                            # Ensure the recv_span is finished if it wasn't stored in scope
+                            # handles cases where the message type is not websocket.receive or websocket.disconnect
+                            if "datadog" not in scope or "current_receive_span" not in scope["datadog"]:
+                                recv_span.finish()
+
+                @wraps(send)
+                async def wrapped_send(message: Mapping[str, Any]):
+                    """
+                    Wrapped ASGI send function that traces websocket message transmission.
+
+                    Intercepts websocket send operations to create spans for:
+                    - Message transmission timing and metadata
+                    - Message type (text/binary)
+                    - Message length measurement
+                    - Connection close operations
+
+                    When websocket instrumentation is enabled, creates ExecutionContexts for:
+                    - websocket.send: For outgoing messages
+                    - websocket.close: For application-initiated close events
+
+                    Note:
+                        - Spans are linked to the handshake span
+                        - Context (baggage, sampling) is propagated from handshake span
+                        - Each sent message is attached to the current context
+                        - Close spans include additional metadata like close codes and reasons
+                    """
+                    try:
+                        if (
+                            scope["type"] == "websocket"
+                            and self.integration_config.trace_asgi_websocket_messages
+                            and message.get("type") == "websocket.accept"
+                        ):
+                            # Close handshake span once connection is upgraded
+                            if span and span.error == 0:
+                                complete_request()
+                                span.finish()
+                            return await send(message)
+
+                        elif (
+                            scope["type"] == "websocket"
+                            and self.integration_config.trace_asgi_websocket_messages
+                            and message.get("type") == "websocket.send"
+                        ):
+                            self._handle_websocket_send_message(scope, message, span)
+
+                        elif (
+                            scope["type"] == "websocket"
+                            and self.integration_config.trace_asgi_websocket_messages
+                            and message.get("type") == "websocket.close"
+                        ):
+                            self._handle_websocket_close_message(scope, message, span)
+                            return await send(message)
+
+                        response_headers = extract_headers(message)
+                    except Exception:
+                        log.warning("failed to extract response headers", exc_info=True)
+                        response_headers = None
+                    self._handle_http_response(scope, message, span, method, response_headers)
+                    core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
+                    blocked = get_blocked()
+                    if blocked:
+                        raise BlockingException(blocked)
+                    try:
+                        return await send(message)
+                    finally:
+                        # Per asgi spec, "more_body" is used if there is still data to send
+                        # Close the span if "http.response.body" has no more data left to send in the
+                        # response.
+                        if (
+                            message.get("type") == "http.response.body"
+                            and not message.get("more_body", False)
+                            and span.error == 0
+                        ):
+                            # Resolve fallback route resource before finishing so span processors
+                            # see the correct value (e.g. CORSMiddleware short-circuits before
+                            # traced_handler populates resource_paths).
+                            if not scope.get("datadog", {}).get("resource_paths"):
+                                _call_route_resource_resolver(scope, span)
+                            # If the span has an error status code delay finishing the span until the
+                            # traceback and exception message is available
+                            complete_request()
+                            span.finish()
+
+                async def wrapped_blocked_send(message: Mapping[str, Any]):
+                    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                        "asgi.block.started", (ctx, url)
+                    ).status_headers_content
+                    if result:
+                        status, headers, content = result.value
+                    else:
+                        status, headers, content = 403, [], b""
+                    if span and message.get("type") == "http.response.start":
+                        message["headers"] = headers
+                        message["status"] = int(status)
+                        core.dispatch("asgi.finalize_response", (None, headers))
+                    elif message.get("type") == "http.response.body":
+                        message["body"] = (
+                            content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
+                        )
+                        message["more_body"] = False
+                        core.dispatch("asgi.finalize_response", (content, None))
+                    try:
+                        return await send(message)
+                    finally:
+                        trace_utils.set_http_meta(
+                            span, self.integration_config, status_code=status, response_headers=dict(headers)
+                        )
+                        if message.get("type") == "http.response.body" and span.error == 0:
+                            complete_request()
+                            span.finish()
+
+                wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
+                try:
+                    if not is_subapp:
+                        core.dispatch("asgi.start_request", ("asgi",))
+                    # Do not block right here. Wait for route to be resolved in starlette/patch.py
+                    return await self.app(scope, wrapped_recv, wrapped_send)
+                except BlockingException as e:
+                    set_blocked(e.args[0])
+                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                except Exception as exc:
+                    (exc_type, exc_val, exc_tb) = sys.exc_info()
+                    span.set_exc_info(exc_type, exc_val, exc_tb)
+                    self.handle_exception_span(exc, span)
+                    raise
+                except BaseException as exception:
+                    # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                    if exc := find_exception(exception, BlockingException):
+                        set_blocked(exc.args[0])
+                        return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                    raise
+                finally:
+                    core.dispatch("web.request.final_tags", (span,))
+                    # If resource_paths was never populated (e.g. CORSMiddleware short-circuited
+                    # before traced_handler ran), let framework integrations resolve a route
+                    # template so the span does not keep a raw path resource.
+                    if not scope.get("datadog", {}).get("resource_paths") and scope["type"] == "http":
+                        _call_route_resource_resolver(scope, span)
+                    # missing datadog scope should not crash request teardown.
+                    request_spans = scope.get("datadog", {}).get("request_spans")
+                    if request_spans and span in request_spans:
+                        request_spans.remove(span)
+
+                    # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
+                    if scope["type"] == "websocket" and "datadog" in scope:
+                        _cleanup_previous_receive(scope)
+            finally:
+                complete_request()
 
     def _handle_websocket_send_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")

@@ -23,6 +23,31 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
+## HTTP Request Lifecycle Notifications
+
+FastAPI is the first IAST integration migrated to `WebRequestReady` and
+`WebRequestCompleting`. ASGI middleware emits these events from
+`ddtrace.contrib._events.web_request`, carrying the existing request
+`ExecutionContext` and `SpanData`. Emit ready after span binding and completing
+before span finish on every exit path. Completion can run in a response task or
+callback; a lexical scope exit alone is not completion for a deferred response
+iterator. Products own their handlers, cleanup and nested-request bookkeeping.
+
+ASGI guards dispatches with subscriber checks and allocates a completion callback
+only when Completing has subscribers. An outer try/finally covers setup failures,
+application execution and teardown. Completion is dispatched once, including
+when a subscriber interrupts dispatch with cancellation. Callbacks can use
+`core.activate_context(ctx)` to temporarily activate an existing context without
+re-emitting its scope events. Product-specific state handling belongs in the
+product's listeners.
+
+Keep product lifecycle behavior in shared IAST tests and integration-specific
+IAST cases under `tests/appsec/integrations/`, outside the contrib suites. During
+migration, `test_processor_request_events.py` covers only coexistence routing and
+span exclusions; delete that file with `AppSecIastSpanProcessor`.
+For integrations already covered by IAST tests, extend those tests to check the
+event boundaries instead of adding another lifecycle matrix.
+
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable

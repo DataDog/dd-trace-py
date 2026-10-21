@@ -29,7 +29,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 _REQUEST_STATE = "iast.request_lifecycle"
 # Remove the migration policy with the legacy processor. Enable entries with their hooks.
-_EVENT_MANAGED_REQUESTS: frozenset[tuple[str, str]] = frozenset()
+_EVENT_MANAGED_REQUESTS: frozenset[tuple[str, str]] = frozenset({("asgi.request", "fastapi")})
 # Temporary coexistence bookkeeping; remove with the legacy processor.
 _SPAN_ROUTES: WeakKeyDictionary[SpanData, bool] = WeakKeyDictionary()
 
