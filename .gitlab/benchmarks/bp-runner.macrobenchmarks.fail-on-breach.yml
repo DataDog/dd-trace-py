@@ -42,8 +42,8 @@ experiments:
               - agg_http_req_duration_p95 < 95 ms
           - name: normal_operation/tracing-profiling-enabled/python-server-utilization
             thresholds:
-              - cpu_usage_percentage < 216.05 %
-              - rss < 1114.21470466 MB
+              - cpu_usage_percentage < 220 %
+              - rss < 1080 MB
           - name: high_load/tracing-profiling-enabled
             thresholds:
               - throughput > 30.0 op/s
