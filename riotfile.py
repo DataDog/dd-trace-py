@@ -659,6 +659,20 @@ venv = Venv(
                 "wrapt": [latest, "<2.0.0"],
             },
         ),
+        # Python 3.15-only: pin the obfuscation guard on the sys.monitoring wrap path.
+        # Default wrapping stays at 3.14 (select_pys), matching tests/suitespec.yml.
+        Venv(
+            name="wrapping",
+            env={
+                "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS": "true",
+            },
+            command="pytest -v {cmdargs} tests/wrapping/test_obfuscation.py",
+            pys=["3.15"],
+            pkgs={
+                "pytest-xdist": latest,
+                "wrapt": latest,
+            },
+        ),
         Venv(
             name="internal",
             env={
