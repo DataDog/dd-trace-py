@@ -1,6 +1,0 @@
----
-features:
-  - |
-    AI Guard: Adds tags returned in the evaluation response to the AI Guard span. Tags computed by
-    the library, such as the evaluation action or reason, are never overridden, and malformed
-    values are ignored.
