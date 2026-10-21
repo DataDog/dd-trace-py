@@ -138,7 +138,9 @@ def _trace_route_callback(
 
 
 def _request_data(environ: dict[str, Any]) -> HttpRequestData:
-    req = BaseRequest(environ)
+    # Do not populate the application's caches at entry or reuse stale values
+    # after a hook rewrites the environ. No body properties are accessed here.
+    req = BaseRequest({key: value for key, value in environ.items() if not key.startswith("bottle.request.")})
     return HttpRequestData(
         method=req.method,
         url=req.url,
@@ -156,6 +158,9 @@ def _install_hooks(app: Any, current: Callable[[dict[str, Any]], Optional[HttpLi
         route, arguments = match_route(environ)
         lifecycle = current(environ)
         if lifecycle is not None:
+            # Hooks may rewrite request metadata. Retain the entry observation and
+            # select tracing before any route-level block can bypass the handler.
+            lifecycle.request_data = _request_data(environ)
             lifecycle.set_tracing_enabled(any(isinstance(plugin, TracePlugin) for plugin in route.all_plugins()))
             full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
             block = lifecycle.route_resolved(full_route, route.rule)

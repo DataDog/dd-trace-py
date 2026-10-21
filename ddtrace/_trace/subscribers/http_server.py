@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from time import time_ns
 from types import TracebackType
 from typing import Optional
 from weakref import WeakValueDictionary
@@ -9,7 +8,6 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib._events.http import HttpRequestCompletedEvent
 from ddtrace.contrib._events.http import HttpRequestDataEvent
-from ddtrace.contrib._events.http import HttpResponseReadyEvent
 from ddtrace.contrib._events.http import HttpRouteResolvedEvent
 from ddtrace.contrib._events.http import HttpServerRequestEvent
 from ddtrace.contrib._events.http import HttpServerTracingDecisionEvent
@@ -69,9 +67,10 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
     """Owns the server request span for every ported HTTP framework.
 
     Spans normally start when the request context opens. Frameworks with route-level
-    tracing policy defer creation until the route decision, retaining the entry
-    timestamp. The base class finishes the span when the context closes. Producers
-    push events and never learn whether a span exists.
+    tracing policy defer creation until that policy is known, so a request that never
+    selects one -- an unmatched path, a skipped route -- gets no span at all. The base
+    class finishes the span when the context closes. Producers push events and never
+    learn whether a span exists.
 
     One subscriber rather than one per framework, because the span is assembled the same
     way everywhere -- the registry, the phase handling, and the tag writing do not vary.
@@ -88,7 +87,6 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
         core.on(
             HttpServerTracingDecisionEvent.event_name, cls._on_tracing_decision, name=f"{cls.__name__}.tracing_decision"
         )
-        core.on(HttpResponseReadyEvent.event_name, cls._on_response_ready, name=f"{cls.__name__}.response_ready")
         core.on(HttpRouteResolvedEvent.event_name, cls._on_route_resolved, name=f"{cls.__name__}.route_resolved")
         core.on(HttpRequestCompletedEvent.event_name, cls._on_request_completed, name=f"{cls.__name__}.completed")
 
@@ -96,7 +94,6 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
     def unregister(cls) -> None:
         super().unregister()
         core.reset_listeners(HttpServerTracingDecisionEvent.event_name, cls._on_tracing_decision)
-        core.reset_listeners(HttpResponseReadyEvent.event_name, cls._on_response_ready)
         core.reset_listeners(HttpRouteResolvedEvent.event_name, cls._on_route_resolved)
         core.reset_listeners(HttpRequestCompletedEvent.event_name, cls._on_request_completed)
 
@@ -106,9 +103,7 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
         if not is_tracing_enabled():
             return
         _REQUEST_CONTEXTS[ctx.event.request_id] = ctx
-        if ctx.event.defer_span_start:
-            ctx.set_item("_http_start_ns", time_ns())
-        else:
+        if not ctx.event.defer_span_start:
             super()._on_context_started(ctx)
 
     @classmethod
@@ -118,26 +113,24 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
         ctx.set_item("_http_tracing_decided", True)
         if ctx.get_item("_inner_span") is None and is_tracing_enabled():
             super()._on_context_started(ctx)
-            start_ns = ctx.get_item("_http_start_ns")
-            if start_ns is not None:
-                ctx.get_item("_inner_span").start_ns = start_ns
+            resource = ctx.get_item("_http_resource")
+            if resource is not None:
+                # Route resolution happens before a deferred span exists, so the
+                # resource it determined is applied here instead of being lost.
+                ctx.get_item("_inner_span").resource = resource
 
     @classmethod
     def _on_tracing_decision(cls, event: HttpServerTracingDecisionEvent) -> None:
         ctx = _REQUEST_CONTEXTS.get(event.request_id)
-        if ctx is None or not ctx.event.defer_span_start:
+        if ctx is None or not ctx.event.defer_span_start or ctx.get_item("_http_tracing_decided"):
             return
         if event.enabled:
+            if event.request_headers is not None:
+                # Both propagation and inferred proxy extraction use this snapshot.
+                ctx.set_item("headers", dict(event.request_headers))
             cls._ensure_span(ctx)
         else:
             ctx.set_item("_http_tracing_decided", True)
-
-    @classmethod
-    def _on_response_ready(cls, event: HttpResponseReadyEvent) -> None:
-        ctx = _REQUEST_CONTEXTS.get(event.request_id)
-        if ctx is not None:
-            # Unmatched requests and pre-route responses never select a route policy.
-            cls._ensure_span(ctx)
 
     @classmethod
     def _on_context_ended(
@@ -153,22 +146,24 @@ class HttpServerRequestSubscriber(TracingSubscriber[HttpServerRequestEvent]):
 
     @classmethod
     def _on_route_resolved(cls, event: HttpRouteResolvedEvent) -> None:
-        found = _request_span(event)
-        if found is None:
+        ctx = _REQUEST_CONTEXTS.get(event.request_id)
+        if ctx is None:
             return
         request = event.request
         # route_pattern omits a mount prefix that http.route keeps, and the resource has
         # always been the unprefixed form. It is set as soon as the route is known because
         # handlers and outer plugins read the resource off the active span mid-request.
-        if request.route_pattern is not None:
-            found[1].resource = f"{request.method} {request.route_pattern}"
+        if request.route_pattern is None:
+            return
+        resource = f"{request.method} {request.route_pattern}"
+        span: Optional[Span] = ctx.get_item("_inner_span")
+        if span is None:
+            ctx.set_item("_http_resource", resource)
+        else:
+            span.resource = resource
 
     @classmethod
     def _on_request_completed(cls, event: HttpRequestCompletedEvent) -> None:
-        ctx = _REQUEST_CONTEXTS.get(event.request_id)
-        if ctx is not None:
-            # Failures can unwind before response preparation.
-            cls._ensure_span(ctx)
         found = _request_span(event)
         if found is None:
             return

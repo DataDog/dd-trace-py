@@ -152,13 +152,16 @@ through ``HttpLifecycle.set_tracing_enabled`` before publishing the resolved rou
 This tracing policy does not disable HTTP observations or blocking checks. Bottle
 uses ``route.all_plugins()`` to honor skip-by-name, instance, class, and ``True``.
 
-The tracing subscriber retains the request-entry timestamp but creates and
-activates the span only after an allowed route is selected. Consequently,
+The tracing subscriber creates and activates the span when an allowed route is
+selected; it does not backdate its start time. Consequently,
 ``before_request`` hooks run without a Bottle request span, as they did before
 this migration. Skipped routes do not create a request span or activate incoming
 trace headers; their child instrumentation retains the previously active parent.
-Requests without a route decision, including 404s and pre-route blocks, start
-their spans at response preparation or completion using the entry timestamp.
+Requests without a route decision, including 404s and pre-route blocks, create no
+request span. Blocking never overrides the route's tracing decision. Bottle
+refreshes request metadata after its before-request hooks, before selecting tracing;
+earlier observations retain their original snapshot. Deferred tracing extracts the
+refreshed headers, including distributed tracing and inferred proxy headers.
 Allowed spans still finish at response exhaustion, failure, or close. Bottle
 mount proxies default to ``skip=True``, so they likewise omit an outer span;
 explicitly enabling plugins on the proxy permits nested request spans.

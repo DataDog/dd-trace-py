@@ -95,6 +95,13 @@ HttpLifecycle.set_tracing_enabled and HttpServerTracingDecisionEvent. Use
 route.all_plugins() for the framework's skip semantics; do not cache this decision
 across requests or bypass the outer HTTP/block checks. A skipped route has no
 request span and does not extract distributed tracing headers. The subscriber
-retains the entry timestamp for allowed routes and pre-route responses, while
+starts spans at route selection without backdating; unmatched requests and pre-route
+blocks create no span. Blocking must not override route tracing policy. Refresh
+request metadata after before_request hooks, retaining earlier observations; pass
+refreshed headers with the tracing decision for propagation and inferred proxies.
 before_request hooks execute without a Bottle span. Tracing decisions are separate
 from the HTTP observation contract and never disable other consumers.
+
+The shared driver's no-consumer gate must check all HTTP phases, including routing
+and completion. Built-in tracing listeners may conservatively keep it active when
+tracing is disabled; never exclude a phase that another consumer may subscribe to.

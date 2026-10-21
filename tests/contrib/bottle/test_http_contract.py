@@ -176,10 +176,11 @@ def test_interleaved_requests_have_distinct_tokens(app, observations):
         HttpRequestPhase.RESPONSE_READY,
     ],
 )
-def test_block_sets_span_resource_and_status(app, block_checker, test_spans, phase):
+@pytest.mark.parametrize("skip", [True, False])
+def test_block_preserves_route_tracing_policy(app, block_checker, test_spans, observations, phase, skip):
     calls = []
 
-    @app.route("/items/<name>")
+    @app.route("/items/<name>", skip=["trace"] if skip else [])
     def handler(name):
         calls.append(name)
         return "original"
@@ -191,10 +192,16 @@ def test_block_sets_span_resource_and_status(app, block_checker, test_spans, pha
     block_checker(inspect)
     assert consume(request(app)) == b"blocked"
     assert calls == (["one"] if phase == HttpRequestPhase.RESPONSE_READY else [])
-    (span,) = test_spans.pop()
-    assert span.get_tag("http.status_code") == "403"
-    assert span.error == 0
-    assert span.resource == ("GET 403" if phase == HttpRequestPhase.REQUEST_STARTED else "GET /items/<name>")
+    assert observations[-1].phase == HttpRequestPhase.COMPLETED
+    assert observations[-1].response.status_code == 403
+    spans = test_spans.pop()
+    if skip or phase == HttpRequestPhase.REQUEST_STARTED:
+        assert spans == []
+    else:
+        (span,) = spans
+        assert span.get_tag("http.status_code") == "403"
+        assert span.error == 0
+        assert span.resource == "GET /items/<name>"
 
 
 def test_checks_stop_before_commit_and_retained_events_have_no_control(app, block_checker):
@@ -633,7 +640,9 @@ def test_route_skip_changes_take_effect_after_cache_reset(app, tracer, test_span
         assert len(test_spans.pop()) == int(not skips)
 
 
-def test_deferred_span_retains_request_entry_time(app, tracer, test_spans):
+def test_deferred_span_starts_after_before_request_hooks(app, tracer, test_spans):
+    # The span covers the handler, not the whole WSGI request: work Bottle does
+    # before the route is known is outside it, as it was before the redesign.
     hook_times = []
 
     @app.hook("before_request")
@@ -648,8 +657,22 @@ def test_deferred_span_retains_request_entry_time(app, tracer, test_spans):
 
     assert consume(request(app)) == b"done"
     (span,) = test_spans.pop()
-    assert span.start_ns <= hook_times[0]
-    assert span.start_ns + span.duration_ns >= hook_times[0]
+    assert span.start_ns >= hook_times[0]
+
+
+def test_unmatched_request_is_observed_without_a_span(app, tracer, test_spans, observations):
+    # Suppressing the span must not suppress the lifecycle: AppSec and other
+    # consumers still need to see traffic that matched no route.
+    @app.route("/items/<name>")
+    def handler(name):
+        return "done"
+
+    consume(request(app, "/missing"))
+    assert test_spans.pop() == []
+    assert observations[-1].phase == HttpRequestPhase.COMPLETED
+    assert observations[-1].response.status_code == 404
+    assert observations[-1].request.route_pattern is None
+    assert all(not event.handler_started for event in observations)
 
 
 def test_default_wsgi_mount_skips_outer_span(app, tracer, test_spans, observations):
@@ -673,3 +696,54 @@ def test_default_wsgi_mount_skips_outer_span(app, tracer, test_spans, observatio
     completed = [event for event in observations if event.phase == HttpRequestPhase.COMPLETED]
     assert len(completed) == 2
     assert completed[0].request_id is not completed[1].request_id
+
+
+@pytest.mark.parametrize("inferred_proxy", [False, True])
+def test_hook_metadata_refresh_preserves_entry_observation(app, observations, test_spans, monkeypatch, inferred_proxy):
+    monkeypatch.setattr(config, "_inferred_proxy_services_enabled", inferred_proxy)
+    monkeypatch.setattr(config.bottle.http, "trace_query_string", True)
+
+    @app.hook("before_request")
+    def rewrite():
+        # Exercise rewrites after instrumentation has observed the initial request.
+        bottle.request["HTTP_HOST"] = "rewritten.example"
+        bottle.request["PATH_INFO"] = "/items/two"
+        bottle.request["QUERY_STRING"] = "tag=updated"
+        bottle.request["HTTP_X_DATADOG_TRACE_ID"] = "1234"
+        bottle.request["HTTP_X_DATADOG_PARENT_ID"] = "5678"
+        bottle.request["HTTP_X_DD_PROXY"] = "aws-apigateway"
+        bottle.request["HTTP_X_DD_PROXY_REQUEST_TIME_MS"] = "1736973768000"
+        bottle.request["HTTP_X_DD_PROXY_PATH"] = "/gateway"
+        bottle.request["HTTP_X_DD_PROXY_HTTPMETHOD"] = "GET"
+        bottle.request["HTTP_X_DD_PROXY_DOMAIN_NAME"] = "gateway.example"
+        bottle.request["HTTP_X_DD_PROXY_STAGE"] = "stage"
+
+    @app.route("/items/<name>")
+    def handler(name):
+        assert name == "two"
+        return "done"
+
+    assert consume(request(app, "/items/one?tag=original")) == b"done"
+    initial = observations[0].request
+    assert initial.url.endswith("/items/one?tag=original")
+    assert initial.query_string == "tag=original"
+    assert "X-Datadog-Trace-Id" not in dict(initial.headers)
+    for event in observations[1:]:
+        assert event.request.url == "http://rewritten.example/items/two?tag=updated"
+        assert event.request.query_parameters == (("tag", "updated"),)
+        assert dict(event.request.headers)["X-Datadog-Trace-Id"] == "1234"
+    spans = test_spans.pop()
+    (span,) = [span for span in spans if span.name == "bottle.request"]
+    assert span.trace_id == 1234
+    assert span.get_tag("http.url").split("?")[0] == "http://rewritten.example/items/two"
+    assert span.get_tag("http.query.string") == "tag=updated"
+    if inferred_proxy:
+        (proxy,) = [other for other in spans if other is not span]
+        assert proxy.service == "gateway.example"
+        assert proxy.resource == "GET /gateway"
+        assert proxy.trace_id == 1234
+        assert proxy.parent_id == 5678
+        assert span.parent_id == proxy.span_id
+    else:
+        assert len(spans) == 1
+        assert span.parent_id == 5678

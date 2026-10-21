@@ -160,13 +160,16 @@ class HttpServerRequestEvent(TracingEvent):
 class HttpServerTracingDecisionEvent(Event):
     """Framework tracing policy, separate from HTTP observations and block checks.
 
-    Deferred requests select their policy before publishing the resolved route.
-    The first decision wins; it cannot suppress a span that has already started.
+    A deferred request selects its policy once the framework knows whether the
+    matched route is traced; one that never selects gets no span. The first
+    decision wins; it cannot suppress a span that has already started.
     """
 
     event_name = "http.server.request.tracing_decision"
     request_id: object = event_field()
     enabled: bool = event_field()
+    # Deferred tracing uses headers observed when routing selects the policy.
+    request_headers: Optional[Mapping[str, str]] = event_field(default=None)
 
 
 @dataclass

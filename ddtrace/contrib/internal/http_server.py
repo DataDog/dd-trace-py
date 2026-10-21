@@ -88,10 +88,8 @@ def publish_http_event(phase: HttpRequestPhase, **fields: Any) -> None:
 
 
 ExcInfo = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
-# Deliberately excludes context.started.http.server.request: the tracing subscriber
-# registers for it at import time whether or not tracing is on, so probing it would
-# always report work to do. is_tracing_enabled is the condition that subscriber
-# actually gates span creation on, so ask it directly instead.
+# Include every phase: a consumer may subscribe only to routing or completion.
+# Tracing's own listeners can keep this conservative gate open when tracing is off.
 _OBSERVER_EVENTS = (
     HttpRequestBlockCheckEvent.event_name,
     *(event.event_name for event in HTTP_REQUEST_DATA_EVENTS.values()),
@@ -183,7 +181,11 @@ class HttpLifecycle:
 
     def set_tracing_enabled(self, enabled: bool) -> None:
         """Select tracing for a deferred request without disabling HTTP consumers."""
-        core.dispatch_event(HttpServerTracingDecisionEvent(request_id=self.request_id, enabled=enabled))
+        core.dispatch_event(
+            HttpServerTracingDecisionEvent(
+                request_id=self.request_id, enabled=enabled, request_headers=dict(self.request_data.headers or ())
+            )
+        )
 
     def route_resolved(self, route: str, route_pattern: str) -> Optional[HttpBlockingResponse]:
         self.request_data = replace(self.request_data, route=route, route_pattern=route_pattern)

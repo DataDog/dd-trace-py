@@ -3,11 +3,14 @@
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.subscribers.http_server import HttpServerRequestSubscriber
+from ddtrace.contrib._events.http import HTTP_REQUEST_DATA_EVENTS
 from ddtrace.contrib._events.http import HttpRequestBlock
 from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib._events.http import HttpRequestPhase
 from ddtrace.contrib.internal.http_server import HttpLifecycleConfig
 from ddtrace.contrib.internal.http_wsgi import WsgiLifecycleDriver
+from ddtrace.internal import core
 from ddtrace.internal.settings.integration import IntegrationConfig
 from tests.contrib.http_contract import block_response
 from tests.contrib.http_contract import observe_http_requests as observe_http_requests
@@ -108,10 +111,7 @@ def _settings():
 
 
 def test_shared_driver_bypasses_requests_nothing_would_consume(tracer, monkeypatch):
-    # Deliberately no observations/block_checker fixture: registering either one is
-    # itself a consumer. The tracing subscriber registers its context listener at
-    # import time whether or not tracing is on, so the bypass has to ask the tracer
-    # rather than probe that listener.
+    # A genuine no-consumer setup must remove tracing's registered listeners too.
     monkeypatch.setattr(tracer, "enabled", False)
     result = [b"original"]
 
@@ -119,7 +119,11 @@ def test_shared_driver_bypasses_requests_nothing_would_consume(tracer, monkeypat
         pytest.fail("a bypassed request must not be extracted")
 
     driver = WsgiLifecycleDriver(get_config=_settings, request_data=request_data)
-    assert driver.wrap(lambda environ, start_response: result)({}, lambda *args: None) is result
+    HttpServerRequestSubscriber.unregister()
+    try:
+        assert driver.wrap(lambda environ, start_response: result)({}, lambda *args: None) is result
+    finally:
+        HttpServerRequestSubscriber.register()
 
 
 def test_shared_driver_instruments_for_an_observer_without_tracing(tracer, monkeypatch, observations, test_spans):
@@ -229,3 +233,32 @@ def test_request_extraction_can_be_overridden_without_hooks_class(observations):
     finally:
         body.close()
     assert observations[0].request.url == "https://custom.example/"
+
+
+@pytest.mark.parametrize("phase", [HttpRequestPhase.ROUTE_RESOLVED, HttpRequestPhase.COMPLETED])
+def test_shared_driver_honors_single_phase_observer(driver, tracer, monkeypatch, test_spans, phase):
+    monkeypatch.setattr(tracer, "enabled", False)
+    received = []
+    event_name = HTTP_REQUEST_DATA_EVENTS[phase].event_name
+
+    def observe(event):
+        received.append(event)
+
+    def application(environ, start_response):
+        assert driver.current(environ).route_resolved("/items/{name}", "/items/{name}") is None
+        start_response("200 OK", [])
+        return [b"done"]
+
+    core.on(event_name, observe)
+    try:
+        body = driver.wrap(application)(environ_for_request(), lambda *args: None)
+        try:
+            assert b"".join(body) == b"done"
+        finally:
+            body.close()
+    finally:
+        core.reset_listeners(event_name, observe)
+    assert len(received) == 1
+    assert received[0].phase == phase
+    assert received[0].request.route == "/items/{name}"
+    assert test_spans.pop() == []
