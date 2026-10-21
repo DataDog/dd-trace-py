@@ -1,6 +1,21 @@
 import pytest
 
 
+@pytest.mark.subprocess()
+def test_listener_registration_is_idempotent():
+    from unittest import mock
+
+    from ddtrace.appsec._iast import _listener
+    from ddtrace.internal import core
+
+    with mock.patch.object(_listener, "_iast_end_request") as end:
+        _listener.iast_listen()
+        _listener.iast_listen()
+        ctx = core.ExecutionContext("legacy", parent=core.current)
+        core.dispatch("context.ended.wsgi.__call__", (ctx, (None, None, None)))
+        end.assert_called_once_with(ctx)
+
+
 @pytest.mark.subprocess(
     env=dict(DD_IAST_ENABLED="true"),
     parametrize=dict(_DD_TEST_IAST_STARTUP=("auto", "uwsgi", "manual")),

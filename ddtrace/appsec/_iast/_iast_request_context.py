@@ -60,6 +60,7 @@ def _create_and_attach_iast_report_to_span(req_span: SpanData) -> None:
 def _iast_end_request(scope: Union[ExecutionContext[Event], SpanData]) -> None:
     req_span: Optional[SpanData] = None
     try:
+        environment = _get_iast_env()
         if isinstance(scope, SpanData):
             req_span = scope
         else:
@@ -80,7 +81,10 @@ def _iast_end_request(scope: Union[ExecutionContext[Event], SpanData]) -> None:
                     req_span._set_attribute(IAST.ENABLED, 1.0)
                     _create_and_attach_iast_report_to_span(req_span)
 
-            reset_request_vulnerabilities()
-            base.clear_hash_object_tracking()
+            # Finishing removes this environment from core. A fresh lookup can
+            # expose another execution's environment through a shared ancestor.
+            if environment is not None:
+                reset_request_vulnerabilities(environment)
+                environment.iast_hash_object_tracking.clear()
     except Exception:
         log.debug("iast::propagation::context::Error finishing IAST context", exc_info=True)
