@@ -7,11 +7,11 @@ from unittest import mock
 import pytest
 
 import ddtrace.appsec._asm_request_context as asm_request_context
+from ddtrace.internal.security._deduplications import deduplication
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 import ddtrace.appsec._ddwaf.ddwaf_types
 import ddtrace.appsec._ddwaf.waf
-from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import AppSecCallback
 from ddtrace.appsec._utils import DDWaf_result

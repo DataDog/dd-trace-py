@@ -5,8 +5,8 @@ import os
 from typing import Any
 from typing import Optional
 
-from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._constants import STACK_TRACE
+from ddtrace.internal.security._constants import STACK_TRACE
+from ddtrace.internal.security._context import get_entry_span
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -39,7 +39,7 @@ def report_stack(
         return False
 
     if span is None:
-        span = _asm_request_context.get_entry_span()
+        span = get_entry_span()
 
     if span is None or stack_id is None:
         return False

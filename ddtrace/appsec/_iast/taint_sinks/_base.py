@@ -1,13 +1,13 @@
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._deduplications import deduplication
+from ddtrace.internal.security._deduplications import deduplication
+from ddtrace.internal.security._patch_utils import get_caller_frame_info
+from ddtrace.internal.security._trace_utils import _asm_manual_keep
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
-from ddtrace.appsec._patch_utils import get_caller_frame_info
-from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config

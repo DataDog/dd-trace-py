@@ -1,6 +1,6 @@
 from typing import Union
 
-from ddtrace.appsec._deduplications import deduplication
+from ddtrace.internal.security._deduplications import deduplication
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._iast._constants import TELEMETRY_MANDATORY_VERBOSITY

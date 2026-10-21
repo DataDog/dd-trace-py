@@ -8,6 +8,8 @@ from unittest import mock
 import pytest
 from wrapt import FunctionWrapper
 
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 import ddtrace.appsec._common_module_patches as cmp
 from ddtrace.appsec._common_module_patches import _RaspContext
 from ddtrace.appsec._common_module_patches import _ScopedRaspContext
@@ -20,8 +22,6 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core

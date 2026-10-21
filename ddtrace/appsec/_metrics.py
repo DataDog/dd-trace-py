@@ -5,7 +5,7 @@ from typing import Literal
 from typing import Optional
 
 from ddtrace.appsec import _constants
-from ddtrace.appsec._deduplications import deduplication
+from ddtrace.internal.security._deduplications import deduplication
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import _observator

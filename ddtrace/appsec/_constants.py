@@ -3,6 +3,7 @@
 import os
 from typing import Literal  # noqa:F401
 
+from ddtrace.internal.security._constants import STACK_TRACE as STACK_TRACE
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
@@ -325,12 +326,6 @@ class FINGERPRINTING(metaclass=Constant_Class):
     HEADER = PREFIX + "http.header"
     NETWORK = PREFIX + "http.network"
     SESSION = PREFIX + "session"
-
-
-class STACK_TRACE(metaclass=Constant_Class):
-    RASP = "exploit"
-    IAST = "vulnerability"
-    TAG: Literal["_dd.stack"] = "_dd.stack"
 
 
 # AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the

@@ -12,7 +12,7 @@ from types import FunctionType
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from ddtrace.appsec._patch_utils import get_caller_frame_info
+from ddtrace.internal.security._patch_utils import get_caller_frame_info
 from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.appsec.sca._resolver import SymbolResolver
 from ddtrace.appsec.sca._types import CveTarget

@@ -6,8 +6,8 @@ from typing import Any
 from typing import Optional
 import zlib
 
-from ddtrace.appsec._constants import STACK_TRACE
-from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
+from ddtrace.internal.security._constants import STACK_TRACE
+from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
