@@ -1901,6 +1901,7 @@ def listen():
         "django.traced_get_response",
         "django.process_exception",
         "django.func.wrapped",
+        "django.contrib.auth.login",
         # non web frameworks
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
@@ -1952,6 +1953,7 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
+        "django.contrib.auth.login",
         "redis.execute_pipeline",
         "redis.command",
         "azure.durable_functions.patched_activity",

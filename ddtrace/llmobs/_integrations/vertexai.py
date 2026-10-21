@@ -88,6 +88,10 @@ class VertexAIIntegration(BaseLLMIntegration):
                 if not token_counts:
                     continue
                 input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+                # total_token_count includes tool-use prompt tokens, so count them as input
+                tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
+                if input_tokens is not None or tool_use_tokens is not None:
+                    input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
                 candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
                 thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
                 output_tokens = candidates_tokens + thoughts_tokens
@@ -100,6 +104,10 @@ class VertexAIIntegration(BaseLLMIntegration):
                 return
 
             input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+            # total_token_count includes tool-use prompt tokens, so count them as input
+            tool_use_tokens = _get_attr(token_counts, "tool_use_prompt_token_count", 0)
+            if input_tokens is not None or tool_use_tokens is not None:
+                input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
             candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
             thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
             output_tokens = candidates_tokens + thoughts_tokens
