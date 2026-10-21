@@ -118,5 +118,11 @@ def cleanup_loaded_modules() -> None:
     def _(threading):
         logging.threading = threading  # type: ignore[attr-defined]
 
+    # Re-import threading here, on the main thread. threading binds its
+    # module-level _main_thread to the thread that imports it; if a ddtrace
+    # background worker got there first it would become the non-daemon thread
+    # that threading._shutdown() blocks on at interpreter exit.
+    import threading  # noqa: F401
+
     # Do module cloning only once
     enabled = False

@@ -174,6 +174,63 @@ def test_warnings_not_unloaded():
     assert "captureWarnings regression" in stream.getvalue()
 
 
+# Remote config is disabled so that the service below is the only ddtrace worker
+# that can import threading, which makes the race deterministic. In the original
+# report the remote config poller imported threading while enabling Exception
+# Replay from an APM_TRACING payload received during bootstrap.
+@pytest.mark.subprocess(
+    env=dict(
+        DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true",
+        DD_REMOTE_CONFIGURATION_ENABLED="0",
+    ),
+    timeout=20,
+)
+def test_threading_reimported_by_background_worker_does_not_hang_at_exit():
+    """The interpreter must exit when a ddtrace worker re-imports threading first.
+
+    Module cloning drops threading from sys.modules. On CPython < 3.13,
+    threading binds _main_thread to whichever thread imports the module, so if a
+    ddtrace background worker wins that race, the worker becomes the "main
+    thread" and threading._shutdown() blocks on it forever at exit, before the
+    atexit handlers that would stop the worker get a chance to run.
+    """
+    import sys
+
+    import ddtrace.auto  # noqa:F401  (runs cleanup_loaded_modules())
+
+    from ddtrace.internal.periodic import PeriodicService
+
+    assert "threading" not in sys.modules
+
+    imported = []
+
+    class Poller(PeriodicService):
+        def periodic(self):
+            if not imported:
+                import threading  # noqa:F401
+
+                imported.append(threading)
+
+    # Never stopped explicitly: in the real case the worker is only stopped by
+    # ddtrace's atexit handlers, which run after threading._shutdown().
+    Poller(interval=0.01, no_wait_at_start=True).start()
+
+    import time
+
+    deadline = time.monotonic() + 10
+    while not imported and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert imported, "background worker did not import threading"
+
+    import threading
+
+    assert threading is imported[0]
+    assert threading.current_thread() is threading.main_thread(), (
+        threading.current_thread(),
+        threading.main_thread(),
+    )
+
+
 def test_uwsgi_gevent():
     """
     Test that we support uwsgi + gevent when threads are patched.
