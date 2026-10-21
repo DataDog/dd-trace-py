@@ -6,6 +6,8 @@ import anthropic
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.anthropic._constants import COMPONENT
+from ddtrace.contrib.internal.anthropic._constants import TAG_MODEL
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
 from ddtrace.contrib.internal.trace_utils import int_service
@@ -33,9 +35,6 @@ def _supported_versions() -> dict[str, str]:
 
 config._add("anthropic", {})
 
-# LLMObs subscribes to LlmEvents for this component; see ddtrace/llmobs/_contrib/anthropic.
-COMPONENT = "anthropic"
-
 
 def _request_event(func: Callable[..., Any], instance: Any, kwargs: Any) -> LlmRequestEvent:
     model = kwargs.get("model", "")
@@ -46,7 +45,7 @@ def _request_event(func: Callable[..., Any], instance: Any, kwargs: Any) -> LlmR
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
         model=model,
-        tags={"anthropic.request.model": model},
+        tags={TAG_MODEL: model},
         submit_to_llmobs=True,
         request_kwargs=kwargs,
         instance=instance,

@@ -3,7 +3,9 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib.internal.anthropic._constants import TAG_MODEL
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
@@ -25,16 +27,12 @@ from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_conte
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
-
-
-MODEL = "anthropic.request.model"
 
 _ANTHROPIC_MODEL_PROVIDER = "anthropic"
 _BEDROCK_MODEL_PROVIDER = "amazon"
@@ -113,7 +111,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
-            model_name=span.get_tag(MODEL) or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
             model_provider=self._get_model_provider(span),
             input_messages=input_messages,
             metadata=parameters,
@@ -126,7 +124,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
-        model_name = span.get_tag(MODEL)
+        model_name = span.get_tag(TAG_MODEL)
         self._apply_shadow_metrics(
             span,
             metrics,

@@ -4,6 +4,7 @@ from typing import Optional
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmEvents
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.anthropic._constants import COMPONENT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
@@ -11,11 +12,6 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
-
-
-# Must match ddtrace.contrib.internal.anthropic.patch.COMPONENT. Duplicated so this module
-# does not import the contrib, which imports the anthropic library.
-ANTHROPIC_COMPONENT = "anthropic"
 
 
 class LLMObsAnthropicSubscriber(Subscriber):
@@ -37,7 +33,7 @@ class LLMObsAnthropicSubscriber(Subscriber):
 
     @staticmethod
     def _is_anthropic(ctx: core.ExecutionContext[LlmRequestEvent]) -> bool:
-        return ctx.event.component == ANTHROPIC_COMPONENT
+        return ctx.event.component == COMPONENT
 
 
 class LLMObsAnthropicSpanStartingSubscriber(LLMObsAnthropicSubscriber):
