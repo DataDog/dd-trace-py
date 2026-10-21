@@ -1,0 +1,4 @@
+fixes:
+  - |
+    OpenFeature: Fixes an issue where flag evaluation returns ``INVALID_CONTEXT``
+    when the ignored ``dd_experimentation_opt_out_at`` attribute contains an object or array.
