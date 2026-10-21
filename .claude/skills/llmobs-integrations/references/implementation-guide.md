@@ -5,8 +5,8 @@ Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integra
 ## Design: Two-Layer Architecture
 
 LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
-- Patch code creates a subclass instance and stores it on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
-- Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and calls `integration.llmobs_set_tags()` when the event ends
+- Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and dispatches `LlmEvents.SPAN_STARTING`, `SPAN_STARTED`, and `SPAN_FINISHING` with the execution context
+- LLMObs subscribers in `ddtrace/llmobs/_contrib/{name}/` listen to those events, build the `BaseLLMIntegration` subclass lazily, and call it to set the span type, base tags, and LLMObs tags, so the contrib never imports `ddtrace.llmobs`
 - Older integrations instead store the instance on the module (`module._datadog_integration = ...`) and pass it as `LlmRequestEvent(llmobs_integration=...)`; `LlmTracingSubscriber` then calls it directly
 - The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, usage, metadata, and tool extraction
 - Some existing or specialized integrations still call `integration.trace()` directly for direct child spans; follow the closest current reference before using that pattern
@@ -17,7 +17,7 @@ This separation keeps APM patching decoupled from LLMObs data extraction.
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
 - **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
-- **Step 2(LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers and register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
+- **Step 1b (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers and register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
 - **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and usage extraction (this guide)
 - **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
 - **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`

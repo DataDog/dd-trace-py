@@ -19,7 +19,7 @@ LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They 
 
 LLMObs integrations consist of two cooperating layers:
 
-1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle and LLMObs tag extraction.
+1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle. The patch layer must not import from `ddtrace.llmobs`.
 2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and usage metrics.
 3. **LLMObs Subscribers** (`ddtrace/llmobs/_contrib/{name}/`) -- subscribe to the `LlmEvents` span lifecycle events (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) that `LlmTracingSubscriber` dispatches, filter on `ctx.event.component`, and call the integration layer. `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py` registers them when the library is patched.
 
