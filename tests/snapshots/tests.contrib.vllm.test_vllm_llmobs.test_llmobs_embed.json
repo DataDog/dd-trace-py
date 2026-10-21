@@ -9,7 +9,7 @@
     "type": "llm",
     "meta": {
       "_dd.llmobs.artificial_gen_ai_tags": "true",
-      "_dd.llmobs.model_name": "intfloat/e5-small",
+      "_dd.llmobs.model_name": "dd-trace-py/tiny-bert",
       "_dd.llmobs.model_provider": "vllm",
       "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
@@ -19,12 +19,12 @@
       "gen_ai.application.name": "<ml-app-name>",
       "gen_ai.operation.name": "embedding",
       "gen_ai.provider.name": "vllm",
-      "gen_ai.request.model": "intfloat/e5-small",
+      "gen_ai.request.model": "dd-trace-py/tiny-bert",
       "language": "python",
       "llmobs_parent_id": "15820146546708390738",
       "llmobs_trace_id": "6acea62600000000d3c230b8145548e8",
       "runtime-id": "c05ecd224f5e4cd1b09d9cc841f5c423",
-      "vllm.request.model": "intfloat/e5-small",
+      "vllm.request.model": "dd-trace-py/tiny-bert",
       "vllm.request.provider": "vllm"
     },
     "metrics": {
@@ -59,7 +59,7 @@
     "type": "llm",
     "meta": {
       "_dd.llmobs.artificial_gen_ai_tags": "true",
-      "_dd.llmobs.model_name": "intfloat/e5-small",
+      "_dd.llmobs.model_name": "dd-trace-py/tiny-bert",
       "_dd.llmobs.model_provider": "vllm",
       "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
@@ -69,12 +69,12 @@
       "gen_ai.application.name": "<ml-app-name>",
       "gen_ai.operation.name": "embedding",
       "gen_ai.provider.name": "vllm",
-      "gen_ai.request.model": "intfloat/e5-small",
+      "gen_ai.request.model": "dd-trace-py/tiny-bert",
       "language": "python",
       "llmobs_parent_id": "15820146546708390738",
       "llmobs_trace_id": "6acea62600000000d3c230b8145548e8",
       "runtime-id": "c05ecd224f5e4cd1b09d9cc841f5c423",
-      "vllm.request.model": "intfloat/e5-small",
+      "vllm.request.model": "dd-trace-py/tiny-bert",
       "vllm.request.provider": "vllm"
     },
     "metrics": {

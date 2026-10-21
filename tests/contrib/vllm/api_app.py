@@ -10,6 +10,8 @@ import vllm
 from ddtrace import tracer as ddtracer
 from ddtrace.propagation.http import HTTPPropagator
 
+from ._tiny_models import TINY_BERT
+from ._tiny_models import TINY_OPT
 from ._utils import create_async_engine
 
 
@@ -21,7 +23,7 @@ class RagRequest(BaseModel):
 app = FastAPI()
 
 EMBED_PARAMS = {
-    "model": "intfloat/e5-small-v2",
+    "model": TINY_BERT,
     "enforce_eager": True,
     "load_format": "dummy",
     "max_model_len": 256,
@@ -31,7 +33,7 @@ EMBED_PARAMS = {
 }
 
 GEN_PARAMS = {
-    "model": "facebook/opt-125m",
+    "model": TINY_OPT,
     "enforce_eager": True,
     "load_format": "dummy",
     "max_model_len": 256,

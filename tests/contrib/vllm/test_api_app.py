@@ -13,6 +13,9 @@ from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.propagation.http import HTTPPropagator
 from tests.llmobs._utils import assert_llmobs_span_data
 
+from ._tiny_models import HIDDEN_SIZE
+from ._tiny_models import TINY_BERT
+from ._tiny_models import TINY_OPT
 from .api_app import app
 
 
@@ -95,9 +98,9 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(span),
             span_kind="embedding",
-            model_name="intfloat/e5-small-v2",
+            model_name=TINY_BERT,
             model_provider="vllm",
-            metadata={"embedding_dim": 384, "num_cached_tokens": 0},
+            metadata={"embedding_dim": HIDDEN_SIZE, "num_cached_tokens": 0},
             metrics={
                 "output_tokens": 0,
                 "time_to_first_token": mock.ANY,
@@ -117,7 +120,7 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(gen_span),
         span_kind="llm",
-        model_name="facebook/opt-125m",
+        model_name=TINY_OPT,
         model_provider="vllm",
         metadata={
             "temperature": 0.8,
@@ -127,7 +130,7 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
             "num_cached_tokens": 0,
         },
         metrics={
-            "input_tokens": 27,
+            "input_tokens": 25,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,

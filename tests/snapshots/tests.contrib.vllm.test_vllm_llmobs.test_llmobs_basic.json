@@ -9,7 +9,7 @@
     "type": "llm",
     "meta": {
       "_dd.llmobs.artificial_gen_ai_tags": "true",
-      "_dd.llmobs.model_name": "facebook/opt-125m",
+      "_dd.llmobs.model_name": "dd-trace-py/tiny-opt",
       "_dd.llmobs.model_provider": "vllm",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
@@ -19,12 +19,12 @@
       "gen_ai.application.name": "<ml-app-name>",
       "gen_ai.operation.name": "llm",
       "gen_ai.provider.name": "vllm",
-      "gen_ai.request.model": "facebook/opt-125m",
+      "gen_ai.request.model": "dd-trace-py/tiny-opt",
       "language": "python",
       "llmobs_parent_id": "10074430362672015105",
       "llmobs_trace_id": "6acea66200000000b79b56f0ddb6e0a8",
       "runtime-id": "c05ecd224f5e4cd1b09d9cc841f5c423",
-      "vllm.request.model": "facebook/opt-125m",
+      "vllm.request.model": "dd-trace-py/tiny-opt",
       "vllm.request.provider": "vllm"
     },
     "metrics": {

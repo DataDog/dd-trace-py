@@ -9,7 +9,7 @@
     "type": "llm",
     "meta": {
       "_dd.llmobs.artificial_gen_ai_tags": "true",
-      "_dd.llmobs.model_name": "BAAI/bge-reranker-v2-m3",
+      "_dd.llmobs.model_name": "dd-trace-py/tiny-xlm-roberta-reranker",
       "_dd.llmobs.model_provider": "vllm",
       "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
@@ -19,12 +19,12 @@
       "gen_ai.application.name": "<ml-app-name>",
       "gen_ai.operation.name": "embedding",
       "gen_ai.provider.name": "vllm",
-      "gen_ai.request.model": "BAAI/bge-reranker-v2-m3",
+      "gen_ai.request.model": "dd-trace-py/tiny-xlm-roberta-reranker",
       "language": "python",
       "llmobs_parent_id": "17396489431264671506",
       "llmobs_trace_id": "6acea64f00000000f7d9350ef951d8cb",
       "runtime-id": "c05ecd224f5e4cd1b09d9cc841f5c423",
-      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "vllm.request.model": "dd-trace-py/tiny-xlm-roberta-reranker",
       "vllm.request.provider": "vllm"
     },
     "metrics": {
@@ -59,7 +59,7 @@
     "type": "llm",
     "meta": {
       "_dd.llmobs.artificial_gen_ai_tags": "true",
-      "_dd.llmobs.model_name": "BAAI/bge-reranker-v2-m3",
+      "_dd.llmobs.model_name": "dd-trace-py/tiny-xlm-roberta-reranker",
       "_dd.llmobs.model_provider": "vllm",
       "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
@@ -69,12 +69,12 @@
       "gen_ai.application.name": "<ml-app-name>",
       "gen_ai.operation.name": "embedding",
       "gen_ai.provider.name": "vllm",
-      "gen_ai.request.model": "BAAI/bge-reranker-v2-m3",
+      "gen_ai.request.model": "dd-trace-py/tiny-xlm-roberta-reranker",
       "language": "python",
       "llmobs_parent_id": "17396489431264671506",
       "llmobs_trace_id": "6acea64f00000000f7d9350ef951d8cb",
       "runtime-id": "c05ecd224f5e4cd1b09d9cc841f5c423",
-      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "vllm.request.model": "dd-trace-py/tiny-xlm-roberta-reranker",
       "vllm.request.provider": "vllm"
     },
     "metrics": {
