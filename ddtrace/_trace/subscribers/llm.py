@@ -33,6 +33,8 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
+        # SPAN_STARTING must be dispatched before super() creates the span, because span creation reads
+        # event.span_type and SPAN_STARTING listeners (such as LLMObs setting it to "llm") may change it.
         core.dispatch(LlmEvents.SPAN_STARTING.value, (ctx,))
         super()._on_context_started(ctx)
 
