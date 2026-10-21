@@ -196,11 +196,11 @@ def test_threading_reimported_by_background_worker_does_not_hang_at_exit():
     """
     import sys
 
+    import ddtrace.auto  # noqa:F401  (runs cleanup_loaded_modules())
+
     # Imported before cleanup, like the remote config poller, so that it keeps
     # using ddtrace's own copy of threading.
     from ddtrace.internal.periodic import PeriodicService
-
-    import ddtrace.auto  # noqa:F401  (runs cleanup_loaded_modules())
 
     assert "threading" not in sys.modules
 

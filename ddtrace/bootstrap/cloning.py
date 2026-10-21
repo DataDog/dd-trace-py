@@ -115,7 +115,7 @@ def cleanup_loaded_modules() -> None:
     # thread object information, like the thread name. We register a post-import
     # hook on the threading module to perform this update.
     @ModuleWatchdog.after_module_imported("threading")
-    def _(threading):
+    def _(threading):  # noqa: F811
         logging.threading = threading  # type: ignore[attr-defined]
 
     # Re-import threading here, on the main thread. threading binds its
