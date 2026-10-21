@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable
+from contextlib import nullcontext
 from functools import partial
 import logging
 import os
@@ -324,8 +325,8 @@ async def test_request_lifecycle_without_ready_subscriber(interrupt_completion):
     try:
         instance = ApplicationCommunicator(TraceMiddleware(basic_app), scope)
         await instance.send_input({"type": "http.request", "body": b""})
-        await instance.wait()
-        # ApplicationCommunicator.wait() consumes the task's CancelledError.
+        with pytest.raises(asyncio.CancelledError) if interrupt_completion else nullcontext():
+            await asyncio.wait_for(instance.future, timeout=1)
         assert instance.future.cancelled() is interrupt_completion
     finally:
         core.reset_listeners(WebRequestCompleting.event_name, finalize)
