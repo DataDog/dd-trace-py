@@ -31,7 +31,9 @@ def test_llmobs_basic(vllm_llmobs, test_spans, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
-    sampling = SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
+    # The weights are random (load_format="dummy"), so the output text is not fixed. ignore_eos makes the output
+    # length fixed.
+    sampling = SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42, ignore_eos=True)
     llm.generate("The future of AI is", sampling)
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
@@ -42,7 +44,7 @@ def test_llmobs_basic(vllm_llmobs, test_spans, opt_125m_llm):
         model_name="facebook/opt-125m",
         model_provider="vllm",
         input_messages=[Message(content="The future of AI is")],
-        output_messages=[Message(role="assistant", content=" in the hands of the people.")],
+        output_messages=[Message(role="assistant", content=mock.ANY)],
         metadata={
             "max_tokens": 8,
             "n": 1,
@@ -70,7 +72,7 @@ def test_llmobs_chat(vllm_llmobs, test_spans, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
-    sampling_params = SamplingParams(seed=42)
+    sampling_params = SamplingParams(seed=42, ignore_eos=True)
 
     conversation = [
         {"role": "system", "content": "You are a helpful assistant"},

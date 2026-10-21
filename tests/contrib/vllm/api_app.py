@@ -23,6 +23,7 @@ app = FastAPI()
 EMBED_PARAMS = {
     "model": "intfloat/e5-small-v2",
     "enforce_eager": True,
+    "load_format": "dummy",
     "max_model_len": 256,
     "trust_remote_code": True,
     "gpu_memory_utilization": 0.1,
@@ -32,6 +33,7 @@ EMBED_PARAMS = {
 GEN_PARAMS = {
     "model": "facebook/opt-125m",
     "enforce_eager": True,
+    "load_format": "dummy",
     "max_model_len": 256,
     "trust_remote_code": True,
     "gpu_memory_utilization": 0.1,

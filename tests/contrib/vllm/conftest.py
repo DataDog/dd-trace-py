@@ -1,16 +1,28 @@
 import gc
+import os
+from pathlib import Path
+import sys
 from unittest import mock
 import weakref
 
-import pytest
-import torch
 
-from ddtrace.contrib.internal.vllm.patch import patch
-from ddtrace.contrib.internal.vllm.patch import unpatch
-from ddtrace.llmobs import LLMObs
-from tests.utils import override_global_config
+# The tests load models with load_format="dummy", so vLLM needs only the model config and tokenizer files.
+# Read them from the committed cache (see fetch_hf_cache.py) and never call the Hugging Face Hub: anonymous
+# Hub requests from CI are rate limited. huggingface_hub reads these variables when it is imported, and the
+# vLLM engine core subprocess inherits them.
+assert "huggingface_hub" not in sys.modules, "huggingface_hub was imported before HF_HUB_CACHE was set"
+os.environ["HF_HUB_CACHE"] = str(Path(__file__).parent / "hf_cache")
+os.environ["HF_HUB_OFFLINE"] = "1"
 
-from ._utils import shutdown_cached_llms
+import pytest  # noqa: E402
+import torch  # noqa: E402
+
+from ddtrace.contrib.internal.vllm.patch import patch  # noqa: E402
+from ddtrace.contrib.internal.vllm.patch import unpatch  # noqa: E402
+from ddtrace.llmobs import LLMObs  # noqa: E402
+from tests.utils import override_global_config  # noqa: E402
+
+from ._utils import shutdown_cached_llms  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -110,6 +122,7 @@ def opt_125m_llm(_require_gpu_module):
         model="facebook/opt-125m",
         max_model_len=256,
         enforce_eager=True,
+        load_format="dummy",
         gpu_memory_utilization=0.1,
     )
     yield weakref.proxy(llm)
@@ -133,6 +146,7 @@ def e5_small_llm(_require_gpu_module):
         runner="pooling",
         max_model_len=256,
         enforce_eager=True,
+        load_format="dummy",
         trust_remote_code=True,
         gpu_memory_utilization=0.1,
     )
@@ -157,6 +171,7 @@ def bge_reranker_llm(_require_gpu_module):
         runner="pooling",
         max_model_len=256,
         enforce_eager=True,
+        load_format="dummy",
         trust_remote_code=True,
         gpu_memory_utilization=0.1,
     )
