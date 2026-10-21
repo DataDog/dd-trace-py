@@ -33,6 +33,10 @@ log = get_logger(__name__)
 class EntrySpanProbe(LogFunctionProbe):
     __span_class__ = "entry"
 
+    def is_sampled(self) -> bool:
+        # Code origin snapshots are not coordinated with Live Debugger probes.
+        return False
+
     @classmethod
     def build(cls, name: str, module: str, function: str) -> "EntrySpanProbe":
         message = f"{cls.__span_class__} span info for {name}, in {module}, in function {function}"
