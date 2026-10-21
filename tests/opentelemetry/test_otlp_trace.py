@@ -1,6 +1,15 @@
+import importlib.util
+
 import pytest
 
 
+requires_grpc_test_server = pytest.mark.skipif(
+    importlib.util.find_spec("grpc") is None,
+    reason="The gRPC test receiver is not available in this environment",
+)
+
+
+@requires_grpc_test_server
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
@@ -29,6 +38,7 @@ def test_otlp_traces_sent_via_grpc():
     assert {span.name for span in spans} == {"test-span", "test-child"}
 
 
+@requires_grpc_test_server
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
