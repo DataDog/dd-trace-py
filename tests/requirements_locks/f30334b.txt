@@ -6,7 +6,7 @@
 #
 anyio==4.11.0
 attrs==25.4.0
-certifi==2025.10.5
+certifi==2026.10.19
 coverage[toml]==7.11.0
 h11==0.16.0
 httpcore==1.0.9

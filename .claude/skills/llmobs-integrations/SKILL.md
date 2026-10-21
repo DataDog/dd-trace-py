@@ -3,7 +3,7 @@ name: llmobs-integrations
 description: |
   dd-trace-py LLMObs integration development guide. Use when creating, modifying,
   or debugging LLMObs integrations for LLM/AI libraries in the Python tracer.
-  Covers BaseLLMIntegration, stream handling, message extraction, token counting,
+  Covers BaseLLMIntegration, stream handling, message extraction, usage metrics,
   tool call parsing, and VCR-based testing patterns.
   Triggers: "llmobs", "LLMObs", "BaseLLMIntegration", "llmobs_set_tags",
   "_llmobs_set_tags", "BaseStreamHandler", "submit_to_llmobs", "integration.trace",
@@ -13,14 +13,14 @@ description: |
 
 # dd-trace-py LLMObs Integrations
 
-LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They extract model inputs, outputs, token usage, and tool calls from traced spans. This skill should be used in addition to the `apm-integrations` skill.
+LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They extract model inputs, outputs, usage metrics, and tool calls from traced spans. This skill should be used in addition to the `apm-integrations` skill.
 
 ## Two-Layer Architecture
 
 LLMObs integrations consist of two cooperating layers:
 
-1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle. The patch layer must not import from `ddtrace.llmobs`.
-2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and token metrics.
+1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle and LLMObs tag extraction.
+2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and usage metrics.
 3. **LLMObs Subscribers** (`ddtrace/llmobs/_contrib/{name}/`) -- subscribe to the `LlmEvents` span lifecycle events (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) that `LlmTracingSubscriber` dispatches, filter on `ctx.event.component`, and call the integration layer. `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py` registers them when the library is patched.
 
 The layers must work together. The patch layer identifies the operation and passes request/response data through the event; the subscribers connect the event to the integration layer, which controls what data is extracted.
@@ -74,7 +74,7 @@ Extract and annotate all LLMObs fields on the span:
 | `input_messages` | List of `Message` objects from request |
 | `output_messages` | List of `Message` objects from response |
 | `metadata` | Dict of sanitized request parameters (temperature, top_p, etc.), plus response-derived scalars such as `finish_reason` (see Response Metadata below) |
-| `metrics` | Token usage dict with `INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY` |
+| `metrics` | Usage dict: token counts (`INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY`) plus provider-billed server-side tool calls (`WEB_SEARCH_COUNT_METRIC_KEY`, `STORAGE_SEARCH_COUNT_METRIC_KEY`) when present |
 | `tool_definitions` | List of `ToolDefinition` objects if tools are passed |
 
 Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set_ctx_items(...)`.
@@ -82,7 +82,7 @@ Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set
 ### Response Metadata
 
 `metadata` is not request-only. Scalars the provider reports on the *response* belong there too, so
-long as they are not already covered by `metrics` (token counts) or `output_messages`.
+long as they are not already covered by `metrics` (usage counts) or `output_messages`.
 
 The stop reason is the established case. Record it under the key `finish_reason` for every provider,
 so one facet answers "why did generation stop" regardless of integration, and keep each provider's

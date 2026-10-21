@@ -42,6 +42,8 @@ def writer():
     w.start()
     yield w
     w.stop()
+    # Finish the shutdown flush before another test patches the retry helper.
+    w.join()
 
 
 @pytest.fixture

@@ -3,7 +3,6 @@ import sys
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.trace import tracer
 
 
 _APPSEC_TO_BE_LOADED = True
@@ -55,7 +54,7 @@ def _abort_appsec(failure_msg: str) -> None:
 
     disable_appsec_rc()
 
-    tracer.configure(appsec_enabled=False)
+    core.dispatch("asm.tracer.reconfigure", (False, ""), allow_raise=True)
     _report_asm_enabled()
 
 
@@ -74,10 +73,9 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
 
         APIManager.disable()
 
+    asm_config._asm_enabled = False
     if reconfigure_tracer:
-        tracer.configure(appsec_enabled=False)
-    else:
-        asm_config._asm_enabled = False
+        core.dispatch("asm.tracer.reconfigure", (False, ""), allow_raise=True)
 
     _report_asm_enabled()
     return
@@ -114,6 +112,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         return False
 
     from ddtrace.appsec._asm_request_context import asm_listen
+    from ddtrace.appsec._contrib.aiohttp import listen as aiohttp_listen
     from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
     from ddtrace.appsec._contrib.django import listen as django_listen
     from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
@@ -135,6 +134,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         openai_listen()
         stripe_listen()
         tornado_listen()
+        aiohttp_listen()
 
         # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
         # grpc_listen()
@@ -153,10 +153,11 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
 
         APIManager.enable()
 
+    asm_config._asm_enabled = True
     if reconfigure_tracer:
-        tracer.configure(appsec_enabled=True, appsec_enabled_origin=origin)
-    else:
-        asm_config._asm_enabled = True
+        if origin:
+            asm_config._asm_enabled_origin = origin  # type: ignore[assignment]
+        core.dispatch("asm.tracer.reconfigure", (True, origin), allow_raise=True)
 
     _report_asm_enabled()
     return True
