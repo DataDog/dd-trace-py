@@ -26,6 +26,8 @@ def _parse_timeout(raw: str) -> int:
 class AIGuardConfig(DDConfig):
     _ai_guard_enabled = DDConfig.var(bool, AI_GUARD.ENV_ENABLED, default=False)
     _ai_guard_endpoint = DDConfig.var(str, AI_GUARD.ENV_ENDPOINT, default="")
+    # POC: with the Agent transport, ask the Agent EVP proxy to attach its own application key.
+    _ai_guard_agent_needs_app_key = DDConfig.var(bool, AI_GUARD.ENV_AGENT_NEEDS_APP_KEY, default=False)
     _ai_guard_block = DDConfig.var(bool, AI_GUARD.BLOCK_ENV, default=True)
     _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD.ENV_MAX_CONTENT_SIZE, default=512 * 1024)
     _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD.ENV_MAX_MESSAGES_LENGTH, default=16)
@@ -46,6 +48,7 @@ class AIGuardConfig(DDConfig):
     _ai_guard_config_keys = [
         "_ai_guard_enabled",
         "_ai_guard_endpoint",
+        "_ai_guard_agent_needs_app_key",
         "_ai_guard_block",
         "_ai_guard_max_content_size",
         "_ai_guard_max_messages_length",

@@ -1,0 +1,13 @@
+.git
+.riot
+.uv
+.venv*
+.download_cache
+**/__pycache__
+**/*.so
+build
+dist
+docs
+tests
+benchmarks
+releasenotes
