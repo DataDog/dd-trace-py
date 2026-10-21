@@ -114,7 +114,29 @@ def test_encode_traces_civisibility_v01_no_traces():
     assert encoded_traces == [], "Expected empty list when no traces"
 
 
+def _walk_even(n):
+    # Temporary e2e probe (delete before merging): mutual recursion over two
+    # functions avoids Python's "[Previous line repeated N more times]" traceback
+    # collapse, so ~100 frames yield a stack well over the 5000-char truncation
+    # threshold. This forces a failing test whose error.stack/error.message sent
+    # to the backend can be inspected on a real CI run.
+    if n == 0:
+        raise RuntimeError(
+            "forced e2e unhandled exception: this test is expected to fail so the "
+            "error stack and message reported to the backend can be inspected"
+        )
+    return _walk_odd(n - 1)
+
+
+def _walk_odd(n):
+    return _walk_even(n - 1)
+
+
 def test_encode_traces_civisibility_v01_empty_traces():
+    # Temporary e2e probe (delete before merging): intentionally fails with a
+    # long traceback so the tail-truncated error.stack reaches the backend.
+    _walk_even(100)
+
     traces = [[], []]
 
     encoder = CIVisibilityEncoderV01(0, 0)
