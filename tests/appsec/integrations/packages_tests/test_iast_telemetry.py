@@ -1,4 +1,4 @@
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
+from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sqli_sqlalchemy_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sqlalchemy_unpatch

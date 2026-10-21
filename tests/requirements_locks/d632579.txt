@@ -4,7 +4,7 @@ aiosignal==1.4.0
 attrs==26.1.0
 azure-core==1.41.0
 azure-cosmos==4.17.1
-certifi==2026.7.22
+certifi==2026.10.19
 charset-normalizer==3.5.1
 coverage[toml]==7.16.2
 frozenlist==1.8.0
