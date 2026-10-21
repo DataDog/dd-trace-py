@@ -42,7 +42,8 @@ DEFAULT_ENVIRONMENT = {
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
-NIGHTLY_ENVIRONMENT = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
+# Focus report upload on new Python support without duplicating its cost across the matrix.
+NIGHTLY_COVERAGE_PYTHON_VERSIONS = ("3.15",)
 
 
 class MatrixError(ValueError):
@@ -208,12 +209,15 @@ def _variant_settings(
     suite_config: dict[str, Any],
     matrix: dict[str, Any],
     variant: dict[str, Any],
+    python: str,
     nightly: bool,
 ) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
     if nightly:
-        environment.update(NIGHTLY_ENVIRONMENT)
+        environment["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = (
+            "1" if python in NIGHTLY_COVERAGE_PYTHON_VERSIONS else "0"
+        )
     if "env" in matrix:
         environment.update(matrix["env"])
     if "env" in variant:
@@ -246,14 +250,15 @@ def _expand_suite_matrix(
         python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies, integration, runs = _variant_settings(
-            suite,
-            suite_config,
-            matrix,
-            variant,
-            nightly,
-        )
         for python in python_versions:
+            dependencies, integration, runs = _variant_settings(
+                suite,
+                suite_config,
+                matrix,
+                variant,
+                python,
+                nightly,
+            )
             environments.append(
                 TestEnvironment(
                     suite=suite,

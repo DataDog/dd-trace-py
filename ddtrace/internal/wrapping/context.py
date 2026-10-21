@@ -930,6 +930,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         def wrap(self) -> None:
             f: FunctionType = self.__wrapped__
             original_code: CodeType = get_function_code(f)
+            if is_obfuscated_code(original_code):
+                raise ObfuscatedCodeError(
+                    f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                )
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
                     existing: _UniversalWrappingContext = _ctx_registry[original_code]
@@ -945,11 +949,6 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                         _monitoring.unregister(original_code, existing)
                     else:
                         raise ValueError("Function already wrapped")
-
-                if is_obfuscated_code(original_code):
-                    raise ObfuscatedCodeError(
-                        f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
-                    )
 
                 # sys.monitoring dispatches per code object. Clone the code so
                 # unwrapped siblings that share the same CodeType are not affected.
@@ -1242,12 +1241,17 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             i += len(return_code)
                     i += 1
 
-                # Search for the GEN_START instruction, which needs to stay on top.
+                # Search for the GEN_START instruction, which needs to stay on top. It takes the
+                # first line of the function: bytecode would otherwise fold the head below, which
+                # is on that line, into the line-less range of GEN_START.
                 i = 0
                 if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                            instr.lineno = code.co_firstlineno
                             break
+                    else:
+                        i = 0
 
                 *bc[i:i], except_label = CONTEXT_HEAD.bind(
                     {"context": _CONTEXT_PLACEHOLDER}, lineno=code.co_firstlineno
@@ -1282,6 +1286,12 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             break
 
                     bc[i : i + len(CONTEXT_HEAD) - 1] = []
+
+                    gen_start = bc[i - 1] if i else None
+                    if isinstance(gen_start, bytecode.Instr) and gen_start.name == "GEN_START":
+                        first = next((instr for instr in bc[i:] if isinstance(instr, bytecode.Instr)), None)
+                        if first is None or first.lineno != gen_start.lineno:
+                            gen_start.lineno = None
 
                     # Remove all the return handlers
                     i = 0

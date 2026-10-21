@@ -7,7 +7,7 @@
 anyio==3.7.1
 attrs==26.1.0
 backports-asyncio-runner==1.2.0
-certifi==2026.7.22
+certifi==2026.10.19
 charset-normalizer==3.4.9
 click==8.4.2
 coverage[toml]==7.15.4

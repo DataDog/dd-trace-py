@@ -22,8 +22,9 @@ class IASTEnvironment:
     cannot be reused while source overrides preserve their secure marks.
     """
 
-    def __init__(self, span: Optional[SpanData] = None) -> None:
+    def __init__(self, span: Optional[SpanData] = None, context_id: Optional[int] = None) -> None:
         self.span = span or span_bus.get_span()
+        self.context_id = context_id
 
         self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: dict[str, int] = {}
@@ -41,10 +42,6 @@ class IASTEnvironment:
     def endpoint_key(self) -> str:
         """
         Create a unique key for an endpoint based on HTTP method and route.
-
-        Args:
-            method (str): HTTP method (GET, POST, etc.)
-            route (str): HTTP route/endpoint path
 
         Returns:
             str: Combined key as "METHOD:ROUTE"
