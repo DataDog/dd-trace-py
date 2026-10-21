@@ -162,6 +162,12 @@ After running this skill, you should have:
 
 This information can then be used with the `compare-cpython-versions` skill to identify what changed.
 
+## Profiling bring-up
+
+If this inventory is for Continuous Profiler, use `compare-cpython-versions`,
+then hand off to `migrate-profiling-new-cpython`.
+
 ## Related
 
 - **compare-cpython-versions skill**: Use findings from this skill to compare versions
+- **migrate-profiling-new-cpython skill**: Orchestrates profiling bring-up by phase (alpha/beta/RC/final)

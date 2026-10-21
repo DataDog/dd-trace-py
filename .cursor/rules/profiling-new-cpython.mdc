@@ -1,0 +1,35 @@
+---
+description: Profiling new-CPython migration guardrails (version registry, skill, hard stops)
+globs:
+  - ddtrace/internal/datadog/profiling/**
+  - ddtrace/profiling/**
+  - setup.py
+  - scripts/verify_profiler_compatibility.py
+  - scripts/run-profiling-tests
+  - scripts/profiles/profiling_versions.json
+  - scripts/profiles/compatibility_baselines.json
+---
+
+# Profiling — new CPython minor
+
+When editing profiling natives, collectors, or `setup.py` version gates:
+
+1. **Version registry** — any new `PY_VERSION_HEX` / MAJOR.MINOR guard must update
+   `scripts/profiles/profiling_versions.json` (and usually
+   `scripts/profiles/compatibility_baselines.json`). Scaffold with:
+
+   ```bash
+   python scripts/verify_profiler_compatibility.py --scaffold X.Y
+   ```
+
+2. **Orchestrator skill** — drive bring-up via
+   `.claude/skills/migrate-profiling-new-cpython/SKILL.md`. Detail lives in
+   `docs/contributing-profiling-new-cpython.rst`; do not invent a parallel checklist.
+
+3. **Hard stops** — never enable SSI/OCI before final; never claim memory parity
+   without an A/B; never skip staging auth preflight; never mix prerelease ABIs.
+
+4. **Version layer** — ABI/hook answers and live PR states live in
+   `docs/cpython-diffs/py3XX_pr_catalog.md` and
+   `scripts/py3XX-stack/PROFILING_STACK.md` for the relevant minor; do not
+   hard-code them into this rule or the runbook.
