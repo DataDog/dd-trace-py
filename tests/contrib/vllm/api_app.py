@@ -9,9 +9,9 @@ import vllm
 
 from ddtrace import tracer as ddtracer
 from ddtrace.propagation.http import HTTPPropagator
+from tests.contrib.vllm._tiny_models import TINY_BERT
+from tests.contrib.vllm._tiny_models import TINY_OPT
 
-from ._tiny_models import TINY_BERT
-from ._tiny_models import TINY_OPT
 from ._utils import create_async_engine
 
 
@@ -87,6 +87,10 @@ async def generate_text(engine, prompt: str, sampling_params: vllm.SamplingParam
     return ""
 
 
+def build_rag_prompt(document: str, query: str) -> str:
+    return f"Context: {document}\nQuestion: {query}\nAnswer:"
+
+
 @app.post("/rag")
 async def rag(req: RagRequest, request: Request):
     """RAG endpoint using vLLM V1 for embedding and text generation."""
@@ -114,7 +118,7 @@ async def rag(req: RagRequest, request: Request):
     # Create V1 generation engine
     gen_engine = create_async_engine(**GEN_PARAMS)
     sampling = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=64, seed=42)
-    prompt = f"Context: {top_doc}\nQuestion: {req.query}\nAnswer:"
+    prompt = build_rag_prompt(top_doc, req.query)
     generated_text = await generate_text(gen_engine, prompt, sampling, "gen-0")
 
     return {"generated_text": generated_text, "retrieved_document": top_doc}

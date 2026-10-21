@@ -11,12 +11,13 @@ from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.propagation.http import HTTPPropagator
+from tests.contrib.vllm._tiny_models import HIDDEN_SIZE
+from tests.contrib.vllm._tiny_models import TINY_BERT
+from tests.contrib.vllm._tiny_models import TINY_OPT
 from tests.llmobs._utils import assert_llmobs_span_data
 
-from ._tiny_models import HIDDEN_SIZE
-from ._tiny_models import TINY_BERT
-from ._tiny_models import TINY_OPT
 from .api_app import app
+from .api_app import build_rag_prompt
 
 
 IGNORE_FIELDS = [
@@ -117,7 +118,9 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
         metrics = get_llmobs_metrics(span) or {}
         assert metrics.get("input_tokens", 0) > 0
 
-    # Verify generation span has correct structure
+    # Verify generation span has correct structure. The weights are random, so the retrieved document can be
+    # either document. The prompt has one token for each byte, plus the </s> BOS token.
+    rag_prompt = build_rag_prompt(res.json()["retrieved_document"], payload["query"])
     gen_span = generation_spans[0]
     assert gen_span.trace_id == parent_span.trace_id
     assert_llmobs_span_data(
@@ -133,7 +136,7 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
             "num_cached_tokens": 0,
         },
         metrics={
-            "input_tokens": 113,
+            "input_tokens": len(rag_prompt.encode()) + 1,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,

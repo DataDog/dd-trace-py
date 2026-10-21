@@ -7,12 +7,12 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs.types import Message
+from tests.contrib.vllm._tiny_models import HIDDEN_SIZE
+from tests.contrib.vllm._tiny_models import TINY_BERT
+from tests.contrib.vllm._tiny_models import TINY_OPT
+from tests.contrib.vllm._tiny_models import TINY_RERANKER
 from tests.llmobs._utils import assert_llmobs_span_data
 
-from ._tiny_models import HIDDEN_SIZE
-from ._tiny_models import TINY_BERT
-from ._tiny_models import TINY_OPT
-from ._tiny_models import TINY_RERANKER
 from ._utils import get_simple_chat_template
 
 

@@ -1,41 +1,48 @@
 import gc
 import os
 import shutil
-import sys
 from unittest import mock
 import weakref
 
-from ._tiny_models import MODELS_DIR
-from ._tiny_models import TINY_BERT
-from ._tiny_models import TINY_OPT
-from ._tiny_models import TINY_RERANKER
-from ._tiny_models import write_models
+import pytest
+import torch
+
+from ddtrace.contrib.internal.vllm.patch import patch
+from ddtrace.contrib.internal.vllm.patch import unpatch
+from ddtrace.llmobs import LLMObs
+from tests.contrib.vllm._tiny_models import MODELS_DIR
+from tests.contrib.vllm._tiny_models import TINY_BERT
+from tests.contrib.vllm._tiny_models import TINY_OPT
+from tests.contrib.vllm._tiny_models import TINY_RERANKER
+from tests.contrib.vllm._tiny_models import write_models
+from tests.utils import override_global_config
+
+from ._utils import shutdown_cached_llms
 
 
-# The tests load tiny local models with load_format="dummy", so vLLM needs only the config and tokenizer files
-# that write_models creates. HF_HUB_OFFLINE=1 makes sure that the tests never call the Hugging Face Hub:
-# anonymous Hub requests from CI are rate limited. huggingface_hub reads this variable when it is imported, and
-# the vLLM engine core subprocess inherits it.
-assert "huggingface_hub" not in sys.modules, "huggingface_hub was imported before HF_HUB_OFFLINE was set"
-os.environ["HF_HUB_OFFLINE"] = "1"
-write_models()
+@pytest.fixture(scope="session", autouse=True)
+def _tiny_models():
+    """Write the tiny models, and keep the vLLM engine off the Hugging Face Hub.
 
-import pytest  # noqa: E402
-import torch  # noqa: E402
-
-from ddtrace.contrib.internal.vllm.patch import patch  # noqa: E402
-from ddtrace.contrib.internal.vllm.patch import unpatch  # noqa: E402
-from ddtrace.llmobs import LLMObs  # noqa: E402
-from tests.utils import override_global_config  # noqa: E402
-
-from ._utils import shutdown_cached_llms  # noqa: E402
+    The models are local directories, so vLLM reads them from disk. HF_HUB_OFFLINE is a guard: the vLLM engine
+    core subprocess inherits it, and any Hub call fails at once instead of being sent. Anonymous Hub requests
+    from CI are rate limited.
+    """
+    previous = os.environ.get("HF_HUB_OFFLINE")
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    write_models()
+    yield
+    shutil.rmtree(MODELS_DIR, ignore_errors=True)
+    if previous is None:
+        os.environ.pop("HF_HUB_OFFLINE", None)
+    else:
+        os.environ["HF_HUB_OFFLINE"] = previous
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _shutdown_cached_llms_session():
     yield
     shutdown_cached_llms()
-    shutil.rmtree(MODELS_DIR, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)

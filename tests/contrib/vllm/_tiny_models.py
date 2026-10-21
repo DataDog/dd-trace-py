@@ -9,12 +9,13 @@ The configs keep the architectures of real models (OPT, BERT, XLM-RoBERTa), so v
 """
 
 import json
+import os
 from pathlib import Path
 import tempfile
 
 
-# vLLM reports the model directory as the model name.
-MODELS_DIR = Path(tempfile.mkdtemp(prefix="dd-trace-py-vllm-models-"))
+# vLLM reports the model directory as the model name. The process id keeps concurrent test runs apart.
+MODELS_DIR = Path(tempfile.gettempdir()) / f"dd-trace-py-vllm-models-{os.getpid()}"
 TINY_OPT = str(MODELS_DIR / "tiny-opt")
 TINY_BERT = str(MODELS_DIR / "tiny-bert")
 TINY_RERANKER = str(MODELS_DIR / "tiny-xlm-roberta-reranker")
