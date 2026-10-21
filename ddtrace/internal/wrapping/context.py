@@ -1289,7 +1289,9 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
                     gen_start = bc[i - 1] if i else None
                     if isinstance(gen_start, bytecode.Instr) and gen_start.name == "GEN_START":
-                        gen_start.lineno = None
+                        first = next((instr for instr in bc[i:] if isinstance(instr, bytecode.Instr)), None)
+                        if first is None or first.lineno != gen_start.lineno:
+                            gen_start.lineno = None
 
                     # Remove all the return handlers
                     i = 0
