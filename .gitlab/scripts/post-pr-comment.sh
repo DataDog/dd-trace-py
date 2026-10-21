@@ -15,9 +15,9 @@ MESSAGE_FILE="$2"
 # Bail out silently if there is nothing to say.
 [ -s "$MESSAGE_FILE" ] || exit 0
 
-# Merge queue pipelines run on a temporary merge commit that no PR points to.
-if [[ "${CI_COMMIT_BRANCH:-}" =~ ^(mq-working-branch-|gh-readonly-queue/) ]]; then
-  echo "Merge queue pipeline: skipping PR comment."
+# main and merge queue pipelines (temporary merge commits) have no open PR to comment on.
+if [[ "${CI_COMMIT_BRANCH:-}" =~ ^(main$|mq-working-branch-|gh-readonly-queue/) ]]; then
+  echo "No PR for branch ${CI_COMMIT_BRANCH}: skipping PR comment."
   exit 0
 fi
 
