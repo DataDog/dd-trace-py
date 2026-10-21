@@ -89,9 +89,19 @@ def test_llmobs_set_tags(mock_is_enabled, mock_log, tracer, mock_integration_con
     )
 
 
+class _NotGiven:
+    """Stand-in for anthropic.NOT_GIVEN: falsy, not None, and meaning "parameter omitted"."""
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return "NOT_GIVEN"
+
+
 @pytest.mark.parametrize(
     "temperature,expected",
-    [(0, 0), (0.0, 0.0), (0.7, 0.7), (None, None)],
+    [(0, 0), (0.0, 0.0), (0.7, 0.7), (None, None), (_NotGiven(), None)],
 )
 def test_anthropic_records_temperature_including_zero(temperature, expected, mock_integration_config):
     from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
