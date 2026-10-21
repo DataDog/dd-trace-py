@@ -37,6 +37,7 @@ from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -54,8 +55,8 @@ DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 _RESERVED_TAG_PREFIX = AI_GUARD.TAG + "."
-# Backend extra tags never override what the tracer computes itself, nor keys set_tag treats as
-# span controls (sampling, service, version, env) rather than plain tags.
+# Backend extra tags never override what the tracer computes itself, nor span control keys
+# (sampling, service, version, env).
 _RESERVED_EXTRA_TAGS = frozenset(
     (
         AI_GUARD.ACTION_TAG,
@@ -323,7 +324,7 @@ class AIGuardClient:
         return None
 
     @staticmethod
-    def _apply_extra_tags(span: Any, meta_struct: dict[str, Any], extra_tags: Any) -> None:
+    def _apply_extra_tags(span: SpanData, meta_struct: dict[str, Any], extra_tags: object) -> None:
         """Copy backend-provided tags to the span, scalars as tags and structured values to meta_struct.
 
         Best effort: a malformed payload is skipped and must never change the evaluation outcome.
@@ -340,10 +341,10 @@ class AIGuardClient:
                 if isinstance(value, bool):
                     # Lowercase like every other boolean AI Guard tag, not Python's str(True).
                     if key not in _RESERVED_EXTRA_TAGS:
-                        span.set_tag(key, "true" if value else "false")
+                        span._set_attribute(key, "true" if value else "false")
                 elif isinstance(value, (str, int, float)):
                     if key not in _RESERVED_EXTRA_TAGS:
-                        span.set_tag(key, value)
+                        span._set_attribute(key, value)
                 elif isinstance(value, (dict, list)):
                     if key not in _RESERVED_EXTRA_STRUCT_KEYS:
                         meta_struct[key] = value
