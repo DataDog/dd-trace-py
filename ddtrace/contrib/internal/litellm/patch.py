@@ -319,11 +319,9 @@ def _unwrap_stream_methods():
 
 def _wrap_anthropic_stream(module):
     try:
-        _wrap_stream_method(
-            module.AnthropicPassthroughLoggingHandler,
-            "_build_complete_streaming_response",
-            traced_anthropic_stream_events,
-        )
+        # LiteLLM 1.106 renamed the builder and kept the old name as an alias of it; callers use either name.
+        for name in ("build_complete_streaming_response", "_build_complete_streaming_response"):
+            _wrap_stream_method(module.AnthropicPassthroughLoggingHandler, name, traced_anthropic_stream_events)
     except Exception:
         log.debug("LiteLLM usage metrics: cannot observe Anthropic Messages streams", exc_info=True)
 

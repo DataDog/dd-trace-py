@@ -1080,12 +1080,17 @@ def test_unpatch_restores_the_stream_methods():
     except ImportError:
         pytest.skip("the LiteLLM proxy is not installed")
     handler = module.AnthropicPassthroughLoggingHandler
-    original = vars(handler)["_build_complete_streaming_response"]
+    # LiteLLM 1.106 added build_complete_streaming_response and kept the old name as its alias.
+    names = [
+        n for n in ("build_complete_streaming_response", "_build_complete_streaming_response") if n in vars(handler)
+    ]
+    originals = {name: vars(handler)[name] for name in names}
     litellm_patch._wrap_anthropic_stream(module)
-    assert vars(handler)["_build_complete_streaming_response"] is not original
+    assert all(vars(handler)[name] is not original for name, original in originals.items())
     litellm_patch._unwrap_stream_methods()
-    assert vars(handler)["_build_complete_streaming_response"] is original
-    assert isinstance(original, staticmethod)
+    assert all(vars(handler)[name] is original for name, original in originals.items())
+    assert "_build_complete_streaming_response" in originals
+    assert all(isinstance(original, staticmethod) for original in originals.values())
 
 
 def test_a_retry_no_hook_reported_is_counted_but_not_recorded(logger, writer):
