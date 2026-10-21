@@ -164,7 +164,7 @@ def test_request_admission_recovers_from_an_inherited_expired_identifier(
 
 
 @pytest.mark.parametrize("sampling_allowed", [True, False])
-def test_expired_admission_preserves_another_requests_environment(monkeypatch, sampling_allowed):
+def test_rejected_expired_request_preserves_another_requests_environment(monkeypatch, mocker, sampling_allowed):
     clear_all_request_context_slots()
     _end_iast_context_and_oce()
     expired = start_request_context()
@@ -173,17 +173,24 @@ def test_expired_admission_preserves_another_requests_environment(monkeypatch, s
     blocker = start_request_context()
     env = IASTEnvironment(context_id=live)
     env.iast_taint_source_objects[123] = "live source"
+    update_limits = mocker.patch("ddtrace.appsec._iast._iast_request_context_base.update_global_vulnerability_limit")
     monkeypatch.setattr(oce, "acquire_request", lambda span: sampling_allowed)
     IAST_CONTEXT.set(expired)
     try:
         with core.context_with_data("live.request"):
             core.set_item(IAST.REQUEST_CONTEXT_KEY, env)
             with core.context_with_data("expired.worker"):
+                copied = contextvars.copy_context()
                 _iast_start_request()
                 assert IAST_CONTEXT.get() is None
                 assert _get_iast_env() is env
+                assert _iast_finish_request(env.span) is False
+                assert _get_iast_env() is env
+                assert copied.run(_iast_finish_request, env.span) is True
             assert _get_iast_env() is env
             assert env.iast_taint_source_objects == {123: "live source"}
+            assert debug_context_array_free_slots_number() == 0
+            update_limits.assert_not_called()
     finally:
         finish_request_context(live)
         finish_request_context(blocker)

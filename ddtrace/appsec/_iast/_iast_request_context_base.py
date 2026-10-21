@@ -106,17 +106,19 @@ def _iast_start_request(span: Optional[SpanData] = None) -> Optional[int]:
 def _iast_finish_request(span: Optional[SpanData] = None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
     """Finalize the IAST request context and optionally update global limits.
 
-    This function discards the per-request IAST environment, optionally updates the
-    global vulnerability optimization data, and releases the native taint context
-    associated with the active request.
+    This function only clears an environment owned by the active context, optionally
+    updates global vulnerability optimization data, and releases the native taint context.
     """
+    context_id = _get_iast_context_id()
     env = _get_iast_env()
+    # Rejected admission can leave another request's environment visible through core.
+    if env is not None and (context_id is None or env.context_id != context_id):
+        env = None
     if env is not None and env.span is span:
         if shoud_update_global_vulnerability_limit:
             update_global_vulnerability_limit(env)
         core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
-    context_id = _get_iast_context_id()
     if context_id is not None:
         finish_request_context(context_id)
         IAST_CONTEXT.set(None)
