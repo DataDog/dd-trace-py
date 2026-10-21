@@ -103,11 +103,11 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@648ead29e24f9c64f28bc4893f16fe6963c74d4f
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@f96fc0c87def8db5eea943254d74ba81370f6cbe
     secrets: inherit
     with:
       library: python_lambda
-      ref: '648ead29e24f9c64f28bc4893f16fe6963c74d4f'
+      ref: 'f96fc0c87def8db5eea943254d74ba81370f6cbe'
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
@@ -140,11 +140,11 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@648ead29e24f9c64f28bc4893f16fe6963c74d4f
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@f96fc0c87def8db5eea943254d74ba81370f6cbe
     secrets: inherit
     with:
       library: python
-      ref: '648ead29e24f9c64f28bc4893f16fe6963c74d4f'
+      ref: 'f96fc0c87def8db5eea943254d74ba81370f6cbe'
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
       push_to_test_optimization: true
@@ -152,11 +152,11 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@648ead29e24f9c64f28bc4893f16fe6963c74d4f
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@f96fc0c87def8db5eea943254d74ba81370f6cbe
     secrets: inherit
     with:
       library: python
-      ref: '648ead29e24f9c64f28bc4893f16fe6963c74d4f'
+      ref: 'f96fc0c87def8db5eea943254d74ba81370f6cbe'
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
