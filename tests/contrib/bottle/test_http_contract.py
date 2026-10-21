@@ -702,6 +702,7 @@ def test_default_wsgi_mount_skips_outer_span(app, tracer, test_spans, observatio
 def test_hook_metadata_refresh_preserves_entry_observation(app, observations, test_spans, monkeypatch, inferred_proxy):
     monkeypatch.setattr(config, "_inferred_proxy_services_enabled", inferred_proxy)
     monkeypatch.setattr(config.bottle.http, "trace_query_string", True)
+    monkeypatch.setattr(config.bottle, "distributed_tracing", True)
 
     @app.hook("before_request")
     def rewrite():
