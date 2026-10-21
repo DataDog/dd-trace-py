@@ -6,7 +6,7 @@ autobahn==26.7.1
 automat==25.4.16
 bcrypt==4.2.1
 cbor2==6.1.4
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.1.1
 channels==4.3.2
 charset-normalizer==3.5.1

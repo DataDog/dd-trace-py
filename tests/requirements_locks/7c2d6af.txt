@@ -6,7 +6,7 @@
 #
 attrs==26.1.0
 babel==2.18.0
-certifi==2026.2.25
+certifi==2026.10.19
 charset-normalizer==3.4.7
 click==8.1.8
 coverage[toml]==7.10.7
