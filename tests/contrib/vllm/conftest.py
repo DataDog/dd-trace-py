@@ -1,27 +1,24 @@
 import gc
 import os
-from pathlib import Path
 import shutil
 import sys
-import tempfile
 from unittest import mock
 import weakref
 
+from ._tiny_models import MODELS_DIR
 from ._tiny_models import TINY_BERT
 from ._tiny_models import TINY_OPT
 from ._tiny_models import TINY_RERANKER
-from ._tiny_models import write_hf_cache
+from ._tiny_models import write_models
 
 
-# The tests load tiny models with load_format="dummy", so vLLM needs only the config and tokenizer files that
-# write_hf_cache creates. With HF_HUB_OFFLINE=1, the tests never call the Hugging Face Hub: anonymous Hub
-# requests from CI are rate limited. huggingface_hub reads these variables when it is imported, and the vLLM
-# engine core subprocess inherits them.
-assert "huggingface_hub" not in sys.modules, "huggingface_hub was imported before HF_HUB_CACHE was set"
-_HF_CACHE_DIR = Path(tempfile.mkdtemp(prefix="vllm-hf-cache-"))
-write_hf_cache(_HF_CACHE_DIR)
-os.environ["HF_HUB_CACHE"] = str(_HF_CACHE_DIR)
+# The tests load tiny local models with load_format="dummy", so vLLM needs only the config and tokenizer files
+# that write_models creates. HF_HUB_OFFLINE=1 makes sure that the tests never call the Hugging Face Hub:
+# anonymous Hub requests from CI are rate limited. huggingface_hub reads this variable when it is imported, and
+# the vLLM engine core subprocess inherits it.
+assert "huggingface_hub" not in sys.modules, "huggingface_hub was imported before HF_HUB_OFFLINE was set"
 os.environ["HF_HUB_OFFLINE"] = "1"
+write_models()
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -38,7 +35,7 @@ from ._utils import shutdown_cached_llms  # noqa: E402
 def _shutdown_cached_llms_session():
     yield
     shutdown_cached_llms()
-    shutil.rmtree(_HF_CACHE_DIR, ignore_errors=True)
+    shutil.rmtree(MODELS_DIR, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)
@@ -130,7 +127,8 @@ def tiny_opt_llm(_require_gpu_module):
 
     llm = vllm.LLM(
         model=TINY_OPT,
-        max_model_len=256,
+        # The tokenizer makes one token for each byte, so prompts have more tokens than with a real tokenizer.
+        max_model_len=512,
         enforce_eager=True,
         load_format="dummy",
         gpu_memory_utilization=0.1,

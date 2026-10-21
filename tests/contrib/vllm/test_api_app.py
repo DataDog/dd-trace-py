@@ -31,6 +31,9 @@ IGNORE_FIELDS = [
     "meta.gen_ai.operation.name",
     "meta.gen_ai.provider.name",
     "meta.gen_ai.request.model",
+    # vLLM reports the model directory, which is a temporary directory, as the model name.
+    "meta._dd.llmobs.model_name",
+    "meta.vllm.request.model",
     "metrics._dd.llmobs.input_tokens",
     "metrics._dd.llmobs.output_tokens",
     "metrics._dd.llmobs.total_tokens",
@@ -130,7 +133,7 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
             "num_cached_tokens": 0,
         },
         metrics={
-            "input_tokens": 25,
+            "input_tokens": 113,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,

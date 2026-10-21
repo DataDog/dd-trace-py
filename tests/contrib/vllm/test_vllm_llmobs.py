@@ -27,7 +27,16 @@ IGNORE_FIELDS = [
     "metrics.vllm.latency.prefill",
     "metrics.vllm.latency.decode",
     "metrics.vllm.latency.inference",
+    # vLLM reports the model directory, which is a temporary directory, as the model name. The tests check the
+    # model name with assert_llmobs_span_data.
+    "meta._dd.llmobs.model_name",
+    "meta.gen_ai.request.model",
+    "meta.vllm.request.model",
 ]
+
+# The tiny models make one token for each byte. The encoder models add <s> and </s>.
+PROMPTS = ["Hello, my name is", "The capital of France is"]
+ENCODER_INPUT_TOKENS = {"Hello, my name is": 19, "The capital of France is": 26}
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -58,9 +67,10 @@ def test_llmobs_basic(vllm_llmobs, test_spans, tiny_opt_llm):
             "num_cached_tokens": 0,
         },
         metrics={
-            "input_tokens": 6,
+            # One token for each byte, plus the </s> BOS token.
+            "input_tokens": 20,
             "output_tokens": 8,
-            "total_tokens": 14,
+            "total_tokens": 28,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,
@@ -127,10 +137,7 @@ def test_llmobs_chat(vllm_llmobs, test_spans, tiny_opt_llm):
 def test_llmobs_classify(vllm_llmobs, test_spans, tiny_reranker_llm):
     llm = tiny_reranker_llm
 
-    prompts = [
-        "Hello, my name is",
-        "The capital of France is",
-    ]
+    prompts = PROMPTS
 
     llm.classify(prompts)
     traces = test_spans.pop_traces()
@@ -158,9 +165,9 @@ def test_llmobs_classify(vllm_llmobs, test_spans, tiny_reranker_llm):
             output_value="[1 embedding(s) returned with size 1]",
             metadata={"embedding_dim": 1, "num_cached_tokens": 0},
             metrics={
-                "input_tokens": 7,
+                "input_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "output_tokens": 0,
-                "total_tokens": 7,
+                "total_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "time_to_first_token": mock.ANY,
                 "time_in_queue": mock.ANY,
                 "time_in_model_prefill": mock.ANY,
@@ -174,10 +181,7 @@ def test_llmobs_classify(vllm_llmobs, test_spans, tiny_reranker_llm):
 def test_llmobs_embed(vllm_llmobs, test_spans, tiny_bert_llm):
     llm = tiny_bert_llm
 
-    prompts = [
-        "Hello, my name is",
-        "The capital of France is",
-    ]
+    prompts = PROMPTS
 
     llm.embed(prompts)
     traces = test_spans.pop_traces()
@@ -203,9 +207,9 @@ def test_llmobs_embed(vllm_llmobs, test_spans, tiny_bert_llm):
             output_value=f"[1 embedding(s) returned with size {HIDDEN_SIZE}]",
             metadata={"embedding_dim": HIDDEN_SIZE, "num_cached_tokens": 0},
             metrics={
-                "input_tokens": 7,
+                "input_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "output_tokens": 0,
-                "total_tokens": 7,
+                "total_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "time_to_first_token": mock.ANY,
                 "time_in_queue": mock.ANY,
                 "time_in_model_prefill": mock.ANY,
@@ -220,18 +224,9 @@ def test_llmobs_embed(vllm_llmobs, test_spans, tiny_bert_llm):
 def test_llmobs_reward(vllm_llmobs, test_spans, tiny_reranker_llm):
     llm = tiny_reranker_llm
 
-    prompts = [
-        "Hello, my name is",
-        "The capital of France is",
-    ]
+    prompts = PROMPTS
 
     llm.reward(prompts)
-    # vLLM 0.10 returns the hidden states of each token (7 tokens of size HIDDEN_SIZE). Later versions return
-    # one reward score for each token.
-    if VLLM_VERSION < (0, 11, 0):
-        output_value, embedding_dim = f"[7 embedding(s) returned with size {HIDDEN_SIZE}]", HIDDEN_SIZE
-    else:
-        output_value, embedding_dim = "[1 embedding(s) returned with size 7]", 7
     traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
@@ -246,6 +241,14 @@ def test_llmobs_reward(vllm_llmobs, test_spans, tiny_reranker_llm):
     assert set(spans_by_prompt.keys()) == set(prompts)
 
     for prompt in prompts:
+        # vLLM 0.10 returns the hidden states of each token (one vector of size HIDDEN_SIZE for each token). Later
+        # versions return one reward score for each token.
+        num_tokens = ENCODER_INPUT_TOKENS[prompt]
+        if VLLM_VERSION < (0, 11, 0):
+            output_value = f"[{num_tokens} embedding(s) returned with size {HIDDEN_SIZE}]"
+            embedding_dim = HIDDEN_SIZE
+        else:
+            output_value, embedding_dim = f"[1 embedding(s) returned with size {num_tokens}]", num_tokens
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans_by_prompt[prompt]),
             span_kind="embedding",
@@ -255,9 +258,9 @@ def test_llmobs_reward(vllm_llmobs, test_spans, tiny_reranker_llm):
             output_value=output_value,
             metadata={"embedding_dim": embedding_dim, "num_cached_tokens": 0},
             metrics={
-                "input_tokens": 7,
+                "input_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "output_tokens": 0,
-                "total_tokens": 7,
+                "total_tokens": ENCODER_INPUT_TOKENS[prompt],
                 "time_to_first_token": mock.ANY,
                 "time_in_queue": mock.ANY,
                 "time_in_model_prefill": mock.ANY,
@@ -284,25 +287,20 @@ def test_llmobs_score(vllm_llmobs, test_spans, tiny_reranker_llm):
     # Expect one span per candidate document
     assert len(spans) == len(texts_2)
 
+    # The input document of each span is the list of token ids of the (text_1, text_2) pair.
+    tokenizer = llm.get_tokenizer()
+    input_tokens_by_text_2 = {texts_2[0]: 68, texts_2[1]: 65}
     expected_token_metrics_by_text = {
-        "[0, 25, 9, 5, 33, 8, 34, 61, 2, 2, 5, 33, 8, 36, 9, 37, 58, 2]": {
-            "input_tokens": 18,
+        str(tokenizer(text_1, text_2).input_ids): {
+            "input_tokens": input_tokens,
             "output_tokens": 0,
-            "total_tokens": 18,
+            "total_tokens": input_tokens,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,
             "time_in_model_inference": mock.ANY,
-        },
-        "[0, 25, 9, 5, 33, 8, 34, 61, 2, 2, 5, 33, 8, 34, 9, 35, 58, 2]": {
-            "input_tokens": 18,
-            "output_tokens": 0,
-            "total_tokens": 18,
-            "time_to_first_token": mock.ANY,
-            "time_in_queue": mock.ANY,
-            "time_in_model_prefill": mock.ANY,
-            "time_in_model_inference": mock.ANY,
-        },
+        }
+        for text_2, input_tokens in input_tokens_by_text_2.items()
     }
 
     for span in spans:

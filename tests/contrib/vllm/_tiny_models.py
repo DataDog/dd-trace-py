@@ -1,34 +1,48 @@
 """Tiny models for the vLLM tests.
 
 The tests load models with load_format="dummy" (random weights), so vLLM reads only the model config and the
-tokenizer. This module writes tiny configs and a small word-level tokenizer into a directory with the Hugging
-Face cache layout. With HF_HUB_CACHE set to that directory and HF_HUB_OFFLINE=1, the tests never call the
-Hugging Face Hub, and the repository stores no model files.
+tokenizer. This module writes tiny configs and a byte-level tokenizer into local model directories. The tests
+pass these directories to vLLM as the model, so vLLM never calls the Hugging Face Hub, and the repository
+stores no model files.
 
 The configs keep the architectures of real models (OPT, BERT, XLM-RoBERTa), so vLLM runs the same code paths.
 """
 
 import json
 from pathlib import Path
+import tempfile
 
 
-TINY_OPT = "dd-trace-py/tiny-opt"
-TINY_BERT = "dd-trace-py/tiny-bert"
-TINY_RERANKER = "dd-trace-py/tiny-xlm-roberta-reranker"
+# vLLM reports the model directory as the model name.
+MODELS_DIR = Path(tempfile.mkdtemp(prefix="dd-trace-py-vllm-models-"))
+TINY_OPT = str(MODELS_DIR / "tiny-opt")
+TINY_BERT = str(MODELS_DIR / "tiny-bert")
+TINY_RERANKER = str(MODELS_DIR / "tiny-xlm-roberta-reranker")
 
 HIDDEN_SIZE = 64
-_REVISION = "0" * 40
 
-# One vocabulary for all models. The special tokens use the XLM-RoBERTa ids, which OPT also uses for
-# <pad> (1) and </s> (2).
+# The special tokens use the XLM-RoBERTa ids, which OPT also uses for <pad> (1) and </s> (2).
 _SPECIAL_TOKENS = ["<s>", "<pad>", "</s>", "<unk>", "<mask>"]
-_WORDS = (
-    "the a an of is are to and in on for with as my your you i it this that what how can today hello name "
-    "future ai capital france paris brazil brasilia germany berlin city most populous write essay about "
-    "importance higher education assistant helpful system user context question answer people hands "
-    ". , ! ? : ' s < > | _ im start end"
-).split()
-_VOCAB = {token: i for i, token in enumerate(_SPECIAL_TOKENS + _WORDS)}
+
+
+def _byte_tokens():
+    """Return the 256 byte-level tokens (the GPT-2 byte-to-unicode mapping)."""
+    printable = list(range(ord("!"), ord("~") + 1)) + list(range(ord("¡"), ord("¬") + 1)) + list(range(ord("®"), 256))
+    chars = {}
+    extra = 0
+    for b in range(256):
+        if b in printable:
+            chars[b] = chr(b)
+        else:
+            chars[b] = chr(256 + extra)
+            extra += 1
+    return [chars[b] for b in range(256)]
+
+
+# One vocabulary for all models: the special tokens, then one token for each byte. There are no merges, so
+# each byte of the input is one token, and decoding gives back the input text. The integration decodes the
+# prompt token ids to text on some vLLM versions.
+_VOCAB = {token: i for i, token in enumerate(_SPECIAL_TOKENS + _byte_tokens())}
 
 
 def _token(content, special=True):
@@ -61,16 +75,27 @@ def _tokenizer_json(single, pair):
         "truncation": None,
         "padding": None,
         "added_tokens": [_token(t) for t in _SPECIAL_TOKENS],
-        "normalizer": {"type": "Lowercase"},
-        "pre_tokenizer": {"type": "Whitespace"},
+        "normalizer": None,
+        "pre_tokenizer": {"type": "ByteLevel", "add_prefix_space": False, "trim_offsets": True, "use_regex": True},
         "post_processor": {
             "type": "TemplateProcessing",
             "single": _template(single),
             "pair": _template(pair),
             "special_tokens": {t: {"id": t, "ids": [_VOCAB[t]], "tokens": [t]} for t in special_tokens},
         },
-        "decoder": None,
-        "model": {"type": "WordLevel", "vocab": _VOCAB, "unk_token": "<unk>"},
+        "decoder": {"type": "ByteLevel", "add_prefix_space": False, "trim_offsets": True, "use_regex": True},
+        "model": {
+            "type": "BPE",
+            "dropout": None,
+            "unk_token": None,
+            "continuing_subword_prefix": None,
+            "end_of_word_suffix": None,
+            "fuse_unk": False,
+            "byte_fallback": False,
+            "ignore_merges": False,
+            "vocab": _VOCAB,
+            "merges": [],
+        },
     }
 
 
@@ -83,7 +108,7 @@ _TOKENIZER_CONFIG = {
     "cls_token": "<s>",
     "sep_token": "</s>",
     "mask_token": "<mask>",
-    "model_max_length": 256,
+    "model_max_length": 1024,
 }
 
 # Values common to the encoder configs.
@@ -113,7 +138,7 @@ MODELS = {
             "ffn_dim": 4 * HIDDEN_SIZE,
             "hidden_size": HIDDEN_SIZE,
             "word_embed_proj_dim": HIDDEN_SIZE,
-            "max_position_embeddings": 512,
+            "max_position_embeddings": 1024,
             "num_attention_heads": 2,
             "num_hidden_layers": 2,
             "torch_dtype": "float16",
@@ -162,12 +187,9 @@ MODELS = {
 }
 
 
-def write_hf_cache(cache_dir: Path) -> None:
-    for repo_id, files in MODELS.items():
-        repo_dir = cache_dir / ("models--" + repo_id.replace("/", "--"))
-        (repo_dir / "refs").mkdir(parents=True, exist_ok=True)
-        (repo_dir / "refs" / "main").write_text(_REVISION)
+def write_models() -> None:
+    for model_dir, files in MODELS.items():
         for filename, content in files.items():
-            path = repo_dir / "snapshots" / _REVISION / filename
+            path = Path(model_dir) / filename
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(content, indent=2))
