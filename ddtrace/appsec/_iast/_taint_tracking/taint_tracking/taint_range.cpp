@@ -3,6 +3,8 @@
 #include "api/safe_initializer.h"
 #include "utils/generic_utils.h"
 
+#include <limits>
+
 namespace py = pybind11;
 
 static PyObject*
@@ -167,6 +169,9 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         PyObject* tainted_object = args[0];
         PyObject* ctx_obj = args[5];
         std::uint64_t context_id = PyLong_AsUnsignedLongLong(ctx_obj);
+        if (context_id == std::numeric_limits<std::uint64_t>::max() && PyErr_Occurred()) {
+            return nullptr;
+        }
         const auto tx_map = safe_get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
             return new_reference(tainted_object);
@@ -332,7 +337,10 @@ api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2, std::optional
                                                : safe_get_tainted_object_map(str_1.ptr());
 
     if (not tx_map) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        // Request completion can race with a preceding Python taint check.
+        if (!context_id.has_value()) {
+            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        }
         return;
     }
 
@@ -362,7 +370,9 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
     const auto tx_map = context_id.has_value() ? safe_get_tainted_object_map_by_ctx_id(*context_id)
                                                : safe_get_tainted_object_map(str_1.ptr());
     if (not tx_map) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        if (!context_id.has_value()) {
+            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        }
         return;
     }
     auto [ranges, ranges_error] = get_ranges(str_1.ptr(), tx_map);

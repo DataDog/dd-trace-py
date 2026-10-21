@@ -62,6 +62,12 @@ def set_iast_request_endpoint(method, route) -> None:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
+def _discard_expired_iast_env(context_id: int) -> None:
+    if (env := _get_iast_env()) is not None and env.context_id == context_id:
+        env.iast_taint_source_objects.clear()
+        core.discard_item(IAST.REQUEST_CONTEXT_KEY)
+
+
 def _iast_start_request(span: Optional[SpanData] = None) -> Optional[int]:
     """Initialize the IAST request context for the current execution.
 
@@ -80,14 +86,19 @@ def _iast_start_request(span: Optional[SpanData] = None) -> Optional[int]:
             # A copied execution context can outlive the request that allocated
             # its native map. It must not suppress admission of a new request.
             if active_id is None or not get_tainted_object_map_by_ctx_id(active_id):
+                if active_id is not None:
+                    _discard_expired_iast_env(active_id)
                 context_id = start_request_context()
                 IAST_CONTEXT.set(context_id)
                 if context_id is not None:
-                    core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
+                    core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span, context_id))
         elif (context_id := _get_iast_context_id()) is not None:
+            expired = not get_tainted_object_map_by_ctx_id(context_id)
             finish_request_context(context_id)
             IAST_CONTEXT.set(None)
-            if env := _get_iast_env():
+            if expired:
+                _discard_expired_iast_env(context_id)
+            elif env := _get_iast_env():
                 env.iast_taint_source_objects.clear()
     return context_id
 

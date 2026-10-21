@@ -4,13 +4,20 @@ import gc
 
 import pytest
 
+from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._iast_env import IASTEnvironment
+from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._iast_env import in_iast_env
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
+from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
 from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject as native_taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
@@ -24,6 +31,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyob
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast_context import IAST_CONTEXT
+from ddtrace.internal import core
 from ddtrace.trace import Span
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
@@ -99,6 +107,8 @@ def test_copied_context_cannot_access_or_finish_a_reused_slot(in_thread):
     def late_work():
         assert not get_tainted_ranges(value)
         late_value = taint_pyobject("finished-request", "expired", "finished-request")
+        copy_ranges_from_strings(value, late_value)
+        copy_and_shift_ranges_from_strings(value, late_value, 0, len(late_value))
         assert not get_tainted_ranges(late_value)
         # A stale cleanup must not release the replacement request's map either.
         finish_request_context(first)
@@ -116,22 +126,67 @@ def test_copied_context_cannot_access_or_finish_a_reused_slot(in_thread):
     IAST_CONTEXT.set(None)
 
 
-def test_request_admission_recovers_from_an_inherited_expired_identifier():
+@pytest.mark.parametrize("capacity_available", [True, False])
+@pytest.mark.parametrize("sampling_allowed", [True, False])
+def test_request_admission_recovers_from_an_inherited_expired_identifier(
+    monkeypatch, capacity_available, sampling_allowed
+):
     clear_all_request_context_slots()
+    _end_iast_context_and_oce()
     expired = start_request_context()
     finish_request_context(expired)
     replacement = start_request_context()
+    other = None if capacity_available else start_request_context()
+    old_env = IASTEnvironment(context_id=expired)
+    old_env.iast_taint_source_objects[123] = "retained source"
+    core.set_item(IAST.REQUEST_CONTEXT_KEY, old_env)
     IAST_CONTEXT.set(expired)
+    monkeypatch.setattr(oce, "acquire_request", lambda span: sampling_allowed)
     span = Span("recovered.request")
     try:
         admitted = _iast_start_request(span)
-        assert admitted is not None and admitted not in (expired, replacement)
-        assert IAST_CONTEXT.get() == admitted
-        assert debug_context_array_free_slots_number() == 0
+        if capacity_available and sampling_allowed:
+            assert admitted is not None and admitted not in (expired, replacement)
+            assert _get_iast_env().span is span
+        else:
+            assert IAST_CONTEXT.get() is None
+            assert _get_iast_env() is None
+        if sampling_allowed:
+            assert IAST_CONTEXT.get() == admitted
+        assert old_env.iast_taint_source_objects == {}
+        assert debug_context_array_free_slots_number() == int(capacity_available and not sampling_allowed)
     finally:
         _iast_finish_request(span)
         finish_request_context(replacement)
+        if other is not None:
+            finish_request_context(other)
         span.finish()
+
+
+@pytest.mark.parametrize("sampling_allowed", [True, False])
+def test_expired_admission_preserves_another_requests_environment(monkeypatch, sampling_allowed):
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+    expired = start_request_context()
+    finish_request_context(expired)
+    live = start_request_context()
+    blocker = start_request_context()
+    env = IASTEnvironment(context_id=live)
+    env.iast_taint_source_objects[123] = "live source"
+    monkeypatch.setattr(oce, "acquire_request", lambda span: sampling_allowed)
+    IAST_CONTEXT.set(expired)
+    try:
+        with core.context_with_data("live.request"):
+            core.set_item(IAST.REQUEST_CONTEXT_KEY, env)
+            with core.context_with_data("expired.worker"):
+                _iast_start_request()
+                assert IAST_CONTEXT.get() is None
+                assert _get_iast_env() is env
+            assert _get_iast_env() is env
+            assert env.iast_taint_source_objects == {123: "live source"}
+    finally:
+        finish_request_context(live)
+        finish_request_context(blocker)
 
 
 def test_taint_object_with_no_context_is_noop():
@@ -152,15 +207,21 @@ def test_taint_object_with_no_context_is_noop():
     assert res is False
 
 
-def test_taint_with_wrong_context_id_is_noop():
+@pytest.mark.parametrize("invalid_ctx", [999_999, 2**64 - 1])
+def test_taint_with_wrong_context_id_is_noop(invalid_ctx):
     clear_all_request_context_slots()
     _end_iast_context_and_oce()
 
     s = "abc"
-    invalid_ctx = 999_999
     res = _taint_pyobject_base(s, "src", "val", OriginType.PARAMETER, contextid=invalid_ctx)
     assert res == s
     assert not is_pyobject_tainted(res)
+
+
+@pytest.mark.parametrize("context_id, error", [(None, TypeError), (-1, OverflowError), (2**64, OverflowError)])
+def test_native_taint_rejects_invalid_context_identifiers(context_id, error):
+    with pytest.raises(error):
+        native_taint_pyobject("value", 5, "name", "value", OriginType.PARAMETER, context_id)
 
 
 def test_get_tainted_ranges_returns_empty_without_context():

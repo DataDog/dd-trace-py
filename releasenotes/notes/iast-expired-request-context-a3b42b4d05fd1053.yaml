@@ -1,4 +1,6 @@
 fixes:
   - |
     IAST: Fixes an issue where background tasks or worker threads that outlive a
-    request can affect vulnerability analysis for another request.
+    request can affect vulnerability analysis for another request. Also prevents
+    errors in instrumented regular-expression substitutions when a request finishes
+    during taint propagation.
