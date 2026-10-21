@@ -8,7 +8,7 @@ asn1crypto==1.5.1
 attrs==25.3.0
 boto3==1.40.18
 botocore==1.40.18
-certifi==2025.8.3
+certifi==2026.10.19
 cffi==1.17.1
 charset-normalizer==3.4.3
 coverage[toml]==7.10.5
