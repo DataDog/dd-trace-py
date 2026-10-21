@@ -13,6 +13,7 @@ from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 def make_index():
@@ -111,6 +112,8 @@ class FlaskScenarioMixin:
                 "DD_TRACE_RESOURCE_RENAMING_ENABLED": str(self.resource_renaming_enabled),
             }
         )
+        # The benchmark helpers import ddtrace before setting the AppSec environment.
+        asm_config.reset()
 
         if self.errortracking_enabled:
             os.environ.update({"DD_ERROR_TRACKING_HANDLED_ERRORS": self.errortracking_enabled})

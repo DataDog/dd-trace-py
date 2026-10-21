@@ -44,7 +44,7 @@ class DjangoSimple(bm.Scenario):
                 }
             )
         if self.appsec_enabled:
-            os.environ.update({"DD_APPSEC_ENABLED ": "1"})
+            os.environ.update({"DD_APPSEC_ENABLED": "1"})
         if self.iast_enabled:
             os.environ.update({"DD_IAST_ENABLED ": "1"})
         if self.span_code_origin_enabled:

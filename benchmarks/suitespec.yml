@@ -331,6 +331,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - '@django'
+      - '@appsec'
       - benchmarks/django_simple/*
       - benchmarks/suitespec.yml
     cpus_per_run: 2
@@ -342,7 +343,9 @@ suites:
       - '@core'
       - '@vendor'
       - '@flask'
+      - '@appsec'
       - benchmarks/flask_simple/*
+      - benchmarks/bm/flask_utils.py
       - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
@@ -365,7 +368,9 @@ suites:
       - '@tracing'
       - '@vendor'
       - '@flask'
+      - '@appsec'
       - benchmarks/flask_sqli/*
+      - benchmarks/bm/flask_utils.py
       - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
