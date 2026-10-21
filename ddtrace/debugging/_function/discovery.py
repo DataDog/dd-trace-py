@@ -406,6 +406,11 @@ class FunctionDiscovery(defaultdict[Any, Any]):
             return fd
 
     @classmethod
+    def cached(cls, module: ModuleType) -> Optional["FunctionDiscovery"]:
+        """Return the discovery cached on the module, without building one."""
+        return getattr(module, "__function_discovery__", None)
+
+    @classmethod
     def invalidate(cls, module: ModuleType) -> None:
         """Drop the discovery cached on the module, e.g. because it was recompiled."""
         try:

@@ -235,7 +235,7 @@ class Debugger(Service):
 
         cls._instance = debugger = cls()
 
-        cls.__watchdog__.register_compile_hook(debugger._on_module_compile)
+        cls.__watchdog__.register_import_hook(debugger._on_module_import)
 
         DebuggerSampler.start()
 
@@ -274,7 +274,7 @@ class Debugger(Service):
 
         unregister_post_run_module_hook(cls._on_run_module)
 
-        cls.__watchdog__.unregister_compile_hook(cls._instance._on_module_compile)
+        cls.__watchdog__.unregister_import_hook(cls._instance._on_module_import)
 
         cls._instance.stop(join=join)
         cls._instance = None
@@ -524,16 +524,28 @@ class Debugger(Service):
         else:
             log.error("Attempted to unwrap %r, but no wrapper found", probe)
 
-    def _on_module_compile(self, module: ModuleType) -> None:
-        # Probes installed at a recompiled location are attached to orphaned
-        # code. Detach them from it, while the discovery still refers to the
-        # old functions, and let the import hooks reinstall them on the new
-        # code. No-op on first import.
+    def _on_module_import(self, module: ModuleType) -> None:
+        # Probes installed at the location of an executed module are attached
+        # to code it has just replaced. Detach them via the discovery built for
+        # the replaced code and let the origin and module hooks reinstall them
+        # on the new code. No-op on first import. The replaced code belongs to
+        # the module itself on reload, or to the module previously imported
+        # from the same source if it was removed from sys.modules and imported
+        # again. The watchdog still maps the source to the latter, if alive,
+        # until this hook returns. Modules without a cached discovery have
+        # nothing to detach, and building one now would be premature.
         try:
-            if (module_origin := origin(module)) is not None:
-                self._eject_hooks(module, cast(list[LineProbe], self._probe_registry.reset_pending(str(module_origin))))
-            for probe in self._probe_registry.reset_pending(module.__name__):
-                self._unwrap_function(module, cast(FunctionProbe, probe))
+            line_probes = self._probe_registry.reset_pending(str(o)) if (o := origin(module)) is not None else []
+            function_probes = self._probe_registry.reset_pending(module.__name__)
+            replaced = {module}
+            if o is not None and (previous := self.__watchdog__.get_by_origin(o)) is not None:
+                replaced.add(previous)
+            for m in replaced:
+                if FunctionDiscovery.cached(m) is None:
+                    continue
+                self._eject_hooks(m, cast(list[LineProbe], line_probes))
+                for probe in function_probes:
+                    self._unwrap_function(m, cast(FunctionProbe, probe))
         finally:
             # The new code must never be matched against the old functions
             FunctionDiscovery.invalidate(module)

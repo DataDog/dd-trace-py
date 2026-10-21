@@ -232,7 +232,9 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
             if (installed := self._installed.pop(location, None)) is None:
                 return []
             for probe in installed:
-                self[probe.probe_id].installed = False
+                entry = self[probe.probe_id]
+                # The probe has to prove itself again on the new code
+                entry.installed = entry.emitting = False
             self._pending[location].extend(installed)
             return installed
 
