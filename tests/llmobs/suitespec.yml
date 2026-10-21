@@ -88,6 +88,11 @@ suites:
           # storage), which breaks unpinned locks once the resolved version is gone.
           # 0.1.22 is the closest surviving release to the previously resolved 0.1.21.
           dependencies: ['claude-agent-sdk==0.1.22', pytest-asyncio]
+        - name: claude_agent_sdk
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
+          # current SDK line stays covered without latest-tracking (see above).
+          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
   google_adk:
     venvs_per_job: 7
     paths:
