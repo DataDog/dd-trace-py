@@ -15,6 +15,12 @@ MESSAGE_FILE="$2"
 # Bail out silently if there is nothing to say.
 [ -s "$MESSAGE_FILE" ] || exit 0
 
+# Merge queue pipelines run on a temporary merge commit that no PR points to.
+if [[ "${CI_COMMIT_BRANCH:-}" =~ ^(mq-working-branch-|gh-readonly-queue/) ]]; then
+  echo "Merge queue pipeline: skipping PR comment."
+  exit 0
+fi
+
 AUTHANYWHERE_DIR="$(mktemp -d)"
 trap 'rm -rf "$AUTHANYWHERE_DIR"' EXIT
 PAYLOAD_FILE="$AUTHANYWHERE_DIR/payload.json"
