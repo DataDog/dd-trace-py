@@ -26,6 +26,147 @@ Put your code's tests in the appropriate subdirectory of the ``tests`` directory
 If your feature is substantially new, you may decide to create a new ``tests`` subdirectory in the interest
 of code organization.
 
+.. _capability_test_contracts:
+
+Capability test contracts and isolation
+--------------------------------------
+
+These conventions apply to tests owned by ``apm-sdk-capabilities`` in ``.github/CODEOWNERS``.
+Apply them to new tests and when changing existing coverage. Preserve other owners' contracts
+and co-ownership when consolidating shared tests.
+
+Choose the boundary
+^^^^^^^^^^^^^^^^^^^
+
+Start with a behavior: configuration input, initialization, an application action, and its
+observable result. Prefer public APIs and emitted spans, headers, metrics, or documented errors.
+A test should explain what breaks for an application when it fails.
+
+Use a fresh subprocess for environment configuration read at import time, global singletons,
+provider registration, monkey-patching, background workers, shutdown, and fork behavior.
+An xdist worker is reused across tests and is not a substitute for a fresh application process.
+Do not simulate a clean process by reloading modules or rebuilding the global tracer in-place.
+
+Keep local span/context objects, parsing, encoding, sampling mathematics, and other substantial
+algorithms in-process when they do not mutate shared state. Prefer the public entry point.
+Direct tests of a private method need a specific complex algorithm or low-level invariant;
+frequent reliance on private implementation details is a reason to review the design.
+
+Mock external boundaries or time when necessary. Do not mock the decision or configuration path
+that the test claims to validate. For asynchronous behavior, wait for a bounded observable signal
+instead of sleeping for an estimated duration.
+
+Write isolated subprocess tests
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``pytest.mark.subprocess`` for self-contained scenarios. Put application imports inside the
+test body so the configured environment exists before initialization. Do not request parent
+fixtures as arguments: the marker executes the function body in a different process.
+
+.. code-block:: python
+
+    import pytest
+
+    @pytest.mark.subprocess(
+        env={"DD_TRACE_PROPAGATION_STYLE_EXTRACT": "datadog"}, timeout=10
+    )
+    def test_datadog_headers_are_extracted() -> None:
+        from ddtrace.propagation.http import HTTPPropagator
+
+        context = HTTPPropagator.extract(
+            {"x-datadog-trace-id": "1234", "x-datadog-parent-id": "5678"}
+        )
+        assert context.trace_id == 1234
+        assert context.span_id == 5678
+
+Specify every environment value that determines the scenario. Use ``None`` in the marker's
+environment mapping to remove an inherited variable. Related assertions can share a process;
+independent startup configurations require independent processes.
+
+When the parent must own a receiver, use the existing subprocess script fixture, pass its
+endpoint through the child environment, and assert the return code and captured output.
+Use an explicit timeout. Avoid introducing another process-launch helper or raw subprocess call.
+
+Tests that emit data must declare their receiver or test-agent service through the suite.
+Do not rely on a developer's running agent, disable the behavior under test to silence errors,
+or broadly ignore stderr. Assert expected diagnostics when diagnostics are part of the contract.
+
+Imported assertion helpers also need to work in optimized Python. Ordinary assertions in an
+imported helper may be removed by optimization; use explicit failure checks for those helpers
+or keep the contract assertions in the subprocess test body.
+
+Use snapshots for emitted contracts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the snapshot marker for a whole test and the context manager only when separate phases need
+separate snapshots. Assert critical counts, relationships, values, and absent fields explicitly
+when they make the behavior clearer than a large snapshot alone.
+
+Normalize unstable identifiers and timestamps while preserving parent-child relationships and
+meaningful event data. Do not patch production methods just to manufacture stable timestamps.
+Do not hide meaningful fields with broad ignore lists or regenerate snapshots to resolve an
+unexplained mismatch. Keep baseline tokens stable during file or test-name moves.
+
+Each scenario owns its receiver session and cleanup. A skipped or failed test must not leave
+writer headers, environment changes, background workers, or child processes for another test.
+An expected failure must name a specific known issue, not treat all output mismatches as flaky.
+
+Organize and simplify cases
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Group tests by feature, then distinguish startup configuration, behavior/emission, and justified
+algorithm coverage where useful. Keep runtime and OpenTelemetry tests in their existing roots.
+Do not copy a feature's cases into a second suite solely to obtain coverage from another runner.
+
+Use named parameter cases for defaults, boundaries, invalid input, and meaningful interactions.
+Use a Cartesian product only when every interaction matters. Include valid surrounding inputs
+when testing a parser branch; an earlier rejected field can prevent the intended branch running.
+
+Write pytest functions with typed arguments and ``-> None``. Type fixtures and shared helpers,
+use ``pathlib.Path``/``tmp_path`` and ``pytest.MonkeyPatch``, and prefer ordinary assertions over
+new unittest subclasses. Make missing, zero, false, and unchecked expectations distinct.
+
+Before removing overlapping cases, record the behavior each case proves and its retained test.
+Check that the retained test fails for an incorrect result. Preserve tests of separate supported
+contracts, such as startup configuration and an explicitly supported runtime override API.
+
+Starting contract inventory
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use this map to find existing coverage before adding a new test; it is not permission to delete
+all tests of a similar shape. Record the exact retained test names in a consolidation PR.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 40 40
+
+   * - Contract
+     - Existing coverage
+     - Boundary to prefer
+   * - Service, environment, and version
+     - ``tests/tracer/test_env_vars.py`` and ``EnvTracerTestCase`` in ``test_tracer.py``
+     - Environment before import; assert resulting span metadata
+   * - Propagation configuration and headers
+     - ``tests/tracer/test_propagation.py`` and ``tests/integration/test_propagation.py``
+     - Fresh startup for configuration; deterministic header cases locally
+   * - Sampling decisions
+     - ``test_sampler.py``, ``test_single_span_sampling_rules.py``, and integration priority sampling
+     - Configured behavior and emitted decisions; local matching/rate algorithms
+   * - Runtime metrics
+     - ``tests/runtime/`` and ``tests/tracer/runtime/``
+     - Public lifecycle and received metrics; local collector algorithms
+   * - OpenTelemetry providers and context
+     - ``tests/opentelemetry/``
+     - Fresh provider initialization; observable context and exported data
+
+Ownership follows the last matching CODEOWNERS rule, including exceptions within a directory.
+``tests/integration/test_sampling.py`` and ``test_tracemethods.py`` are adjacent coverage to review
+with their current owners; the stale root-level entries do not transfer ownership of those files.
+
+Validate changes with ``scripts/run-tests`` and ``scripts/lint``. Compare collection and execution
+time separately from environment setup, verify child-process coverage before removing a coverage
+workaround, and exercise isolation-sensitive selections independently and in shuffled order.
+
 How do I run the test suite?
 ----------------------------
 
