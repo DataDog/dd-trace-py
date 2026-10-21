@@ -204,6 +204,13 @@ def _probe_enabled(config) -> bool:
     return not hasattr(config, "workerinput") and os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
 
 
+def pytest_addoption(parser: "pytest.Parser") -> None:
+    # Some suites omit pytest-asyncio or use versions without loop-scope configuration.
+    # Recognize the shared settings in those suites so strict-config remains usable.
+    parser.addini("asyncio_mode", "Default mode for pytest-asyncio", default="strict")
+    parser.addini("asyncio_default_fixture_loop_scope", "Default event loop scope for async fixtures")
+
+
 # Hook for dynamic configuration of pytest in CI
 # https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
 def pytest_configure(config):

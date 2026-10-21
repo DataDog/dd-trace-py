@@ -29,6 +29,11 @@ of code organization.
 How do I run the test suite?
 ----------------------------
 
+Shared pytest defaults live in ``setup.cfg``. Suite commands inherit strict configuration and marker
+validation, automatic asyncio mode, and function-scoped async fixture loops. Register custom markers
+in configuration or a local plugin before using them. The root ``conftest.py`` also recognizes asyncio
+settings for suites without pytest-asyncio or with an older version; only supported options take effect.
+
 **Prerequisites**
 
 Install and run:
