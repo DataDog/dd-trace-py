@@ -136,19 +136,19 @@ def _listing(tmp_path, name):
     return sorted(p.name for p in (tmp_path / name).iterdir())
 
 
-def test_cp315_wheels_are_deleted_and_everything_else_survives(prune, tmp_path):
+def test_cp315_wheels_survive_when_unsupported_tags_is_empty(prune, tmp_path):
+    """cp315 is no longer in UNSUPPORTED_TAGS; prune must leave those wheels alone."""
     proc = prune("pywheels", contents={"pywheels": SUPPORTED_WHEELS + CP315_WHEELS + [SDIST]})
+    assert proc.returncode == 0
+    remaining = {p.name for p in (tmp_path / "pywheels").iterdir()}
+    assert remaining == set(SUPPORTED_WHEELS + CP315_WHEELS + [SDIST])
 
-    assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == sorted(SUPPORTED_WHEELS + [SDIST])
 
-
-def test_both_ddtrace_and_serverless_cp315_wheels_are_deleted(prune, tmp_path):
+def test_both_ddtrace_and_serverless_cp315_wheels_survive(prune, tmp_path):
     proc = prune("pywheels", contents={"pywheels": CP315_WHEELS})
-
-    assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == []
-    assert "ddtrace_serverless" in proc.stdout
+    assert proc.returncode == 0
+    remaining = {p.name for p in (tmp_path / "pywheels").iterdir()}
+    assert remaining == set(CP315_WHEELS)
 
 
 def test_pruning_is_a_no_op_when_no_cp315_is_present(prune, tmp_path):
