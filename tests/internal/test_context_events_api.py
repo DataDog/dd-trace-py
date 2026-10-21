@@ -48,6 +48,26 @@ class TestContextEventsApi(unittest.TestCase):
         has_listeners = core.has_listeners(event_name)
         assert has_listeners
 
+    def test_activate_context_restores_caller_without_dispatching_lifecycle(self):
+        notifications = []
+        core.on("context.started.borrowed", lambda *args: notifications.append("started"))
+        core.on("context.ended.borrowed", lambda *args: notifications.append("ended"))
+        with core.context_with_data("caller", value="caller") as caller:
+            borrowed = core.ExecutionContext("borrowed", parent=caller, value="borrowed")
+            with pytest.raises(RuntimeError, match="callback failed"):
+                with core.activate_context(borrowed):
+                    assert core.current is borrowed
+                    assert core.find_item("value") == "borrowed"
+                    with core.activate_context(borrowed):
+                        assert core.current is borrowed
+                    with core.activate_context(caller):
+                        assert core.current is caller
+                    assert core.current is borrowed
+                    raise RuntimeError("callback failed")
+            assert core.current is caller
+            assert core.find_item("value") == "caller"
+        assert notifications == []
+
     def test_core_dispatch_with_results(self):
         event_name = "my.cool.event"
         dynamic_value = 42
@@ -247,7 +267,8 @@ class TestContextEventsApi(unittest.TestCase):
             received.append((a, b))
 
         core.on("my.cool.event", listener)
-        core.dispatch("my.cool.event", [1, 2])  # type: ignore[arg-type]  # ast-grep-ignore: core-dispatch-list-args-multi
+        # ast-grep-ignore: core-dispatch-list-args-multi
+        core.dispatch("my.cool.event", [1, 2])  # type: ignore[arg-type]
         assert received == [(1, 2)]
 
     def test_core_dispatch_args_invalid_type_does_not_raise(self):
