@@ -467,13 +467,7 @@ DEFAULT_ALLOCATOR = ddwaf_get_default_allocator()
 
 ddwaf_object_destroy: Callable[[ddwaf_object, ddwaf_allocator], None] = ctypes.PYFUNCTYPE(
     None, ddwaf_object_p, ddwaf_allocator
-)(
-    ("ddwaf_object_destroy", ddwaf),
-    (
-        (1, "object"),
-        (1, "alloc"),
-    ),
-)
+)(("ddwaf_object_destroy", ddwaf))
 
 
 def ddwaf_object_free(obj: ddwaf_object) -> None:
@@ -636,104 +630,47 @@ ddwaf_builder_destroy: Callable[[ddwaf_builder], None] = ctypes.CFUNCTYPE(None, 
 
 ddwaf_object_set_string: Callable[["ctypes._Pointer[ddwaf_object]", bytes, int, ddwaf_allocator], None] = (
     ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator)(
-        ("ddwaf_object_set_string", ddwaf),
-        (
-            (1, "object"),
-            (1, "string"),
-            (1, "length"),
-            (1, "alloc"),
-        ),
+        ("ddwaf_object_set_string", ddwaf)
     )
 )
 
 ddwaf_object_set_signed: Callable[["ctypes._Pointer[ddwaf_object]", int], None] = ctypes.PYFUNCTYPE(
     None, ddwaf_object_p, ctypes.c_int64
-)(
-    ("ddwaf_object_set_signed", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
-)
+)(("ddwaf_object_set_signed", ddwaf))
 
 ddwaf_object_set_unsigned: Callable[["ctypes._Pointer[ddwaf_object]", int], None] = ctypes.PYFUNCTYPE(
     None, ddwaf_object_p, ctypes.c_uint64
-)(
-    ("ddwaf_object_set_unsigned", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
-)
+)(("ddwaf_object_set_unsigned", ddwaf))
 
 ddwaf_object_set_bool: Callable[["ctypes._Pointer[ddwaf_object]", bool], None] = ctypes.PYFUNCTYPE(
     None, ddwaf_object_p, ctypes.c_bool
-)(
-    ("ddwaf_object_set_bool", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
-)
+)(("ddwaf_object_set_bool", ddwaf))
 
 ddwaf_object_set_float: Callable[["ctypes._Pointer[ddwaf_object]", float], None] = ctypes.PYFUNCTYPE(
     None, ddwaf_object_p, ctypes.c_double
-)(
-    ("ddwaf_object_set_float", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
-)
+)(("ddwaf_object_set_float", ddwaf))
 
 ddwaf_object_set_null: Callable[["ctypes._Pointer[ddwaf_object]"], None] = ctypes.PYFUNCTYPE(None, ddwaf_object_p)(
-    ("ddwaf_object_set_null", ddwaf),
-    ((1, "object"),),
+    ("ddwaf_object_set_null", ddwaf)
 )
 
 ddwaf_object_set_array: Callable[["ctypes._Pointer[ddwaf_object]", int, ddwaf_allocator], None] = ctypes.PYFUNCTYPE(
     None, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator
-)(
-    ("ddwaf_object_set_array", ddwaf),
-    (
-        (1, "object"),
-        (1, "capacity"),
-        (1, "alloc"),
-    ),
-)
+)(("ddwaf_object_set_array", ddwaf))
 
 ddwaf_object_set_map: Callable[["ctypes._Pointer[ddwaf_object]", int, ddwaf_allocator], None] = ctypes.PYFUNCTYPE(
     None, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator
-)(
-    ("ddwaf_object_set_map", ddwaf),
-    (
-        (1, "object"),
-        (1, "capacity"),
-        (1, "alloc"),
-    ),
-)
+)(("ddwaf_object_set_map", ddwaf))
 
 # Returns a pointer to the newly inserted (uninitialized) element to be built into.
 ddwaf_object_insert: Callable[["ctypes._Pointer[ddwaf_object]", ddwaf_allocator], "ctypes._Pointer[ddwaf_object]"] = (
-    ctypes.PYFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ddwaf_allocator)(
-        ("ddwaf_object_insert", ddwaf),
-        (
-            (1, "array"),
-            (1, "alloc"),
-        ),
-    )
+    ctypes.PYFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ddwaf_allocator)(("ddwaf_object_insert", ddwaf))
 )
 
 ddwaf_object_insert_key: Callable[
     ["ctypes._Pointer[ddwaf_object]", bytes, int, ddwaf_allocator], "ctypes._Pointer[ddwaf_object]"
 ] = ctypes.PYFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator)(
-    ("ddwaf_object_insert_key", ddwaf),
-    (
-        (1, "map"),
-        (1, "key"),
-        (1, "length"),
-        (1, "alloc"),
-    ),
+    ("ddwaf_object_insert_key", ddwaf)
 )
 
 ddwaf_object_from_json: Callable[[ddwaf_object, bytes, int, ddwaf_allocator], bool] = ctypes.CFUNCTYPE(
