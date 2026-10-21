@@ -797,7 +797,7 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     // Only do it after a fork: the threads, asyncio loops and greenlets registered before the first start (e.g. when
-    // the hooks are installed at startup with DD_PROFILING_INSTALL) must be kept.
+    // the hooks are installed at startup with DD_PROFILING_ENABLED=armed) must be kept.
     if (pid != getpid()) {
         stack_postfork_cleanup();
     } else {
@@ -823,7 +823,7 @@ void
 Sampler::register_fork_cleanup()
 {
     // The hooks can take the Sampler locks with the GIL released before the sampler is first started (e.g. with
-    // DD_PROFILING_INSTALL), so the child must get fresh locks and state even if the sampler never ran.
+    // DD_PROFILING_ENABLED=armed), so the child must get fresh locks and state even if the sampler never ran.
     // This handler does not depend on dd_wrapper, so it can run before the dd_wrapper child handler.
     static std::once_flag once;
     std::call_once(once, []() { pthread_atfork(nullptr, nullptr, stack_postfork_cleanup); });

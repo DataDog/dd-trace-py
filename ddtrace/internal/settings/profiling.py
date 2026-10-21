@@ -148,7 +148,7 @@ def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
 
 
 def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
-    tags = {
+    updated_tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
             _update_git_metadata_tags(parse_tags_str(env.get("DD_TAGS"))).items(),
@@ -156,7 +156,7 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
         )
     }
 
-    return tags
+    return updated_tags
 
 
 # The profiling backend accepts at most this many locations per sample.
@@ -182,11 +182,17 @@ class ProfilingConfig(DDConfig):
         parser=_parse_profiling_enabled,
         default=False,
         help_type="Boolean",
-        help="Enable Datadog profiling when using ``ddtrace-run``",
+        help=(
+            "Enable Datadog profiling when using ``ddtrace-run``. "
+            "Experimental: set this to ``armed`` to install profiling hooks "
+            "but not start the profiler right away."
+        ),
     )
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
+
+        self.install: bool = self.source.get("DD_PROFILING_ENABLED", "").strip().lower() == "armed"
 
         # When DD_PROFILING_ENABLED is not set, envier uses the default value directly
         # without invoking the parser. This means the DD_INJECTION_ENABLED check in
@@ -209,17 +215,6 @@ class ProfilingConfig(DDConfig):
         default=True,
         help_type="Boolean",
         help="Whether to enable code provenance",
-    )
-
-    install = DDConfig.v(
-        bool,
-        "install",
-        default=False,
-        help_type="Boolean",
-        help=(
-            "Whether to install the profiler hooks (thread, asyncio, uvloop and gevent tracking) at import "
-            "time, so the stack profiler can be enabled at runtime even if it was disabled at startup"
-        ),
     )
 
     endpoint_collection = DDConfig.v(

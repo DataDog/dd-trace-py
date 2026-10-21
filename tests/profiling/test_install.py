@@ -1,8 +1,7 @@
 """
-Contracts for when the stack profiler hooks get installed, depending on DD_PROFILING_INSTALL.
+Contracts for when the stack profiler hooks get installed, depending on DD_PROFILING_ENABLED=armed.
 
-The various cases are combinations of DD_PROFILING_ENABLED, DD_PROFILING_INSTALL and
-DD_PROFILING_STACK values.
+The various cases are combinations of DD_PROFILING_ENABLED and DD_PROFILING_STACK_ENABLED values.
 """
 
 import importlib.util
@@ -27,7 +26,7 @@ pytestmark = [
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_INSTALL="0"),
+    env=dict(DD_PROFILING_ENABLED="1"),
     out="OK\n",
     err=None,
 )
@@ -50,7 +49,7 @@ def test_install_disabled_profiling_enabled_installs_at_startup() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="0"),
+    env=dict(DD_PROFILING_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -75,7 +74,7 @@ def test_install_disabled_profiling_disabled_installs_nothing() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="0"),
+    env=dict(DD_PROFILING_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -107,30 +106,7 @@ def test_install_disabled_profiling_disabled_installs_on_profiler_start() -> Non
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_INSTALL="1"),
-    out="OK\n",
-    err=None,
-)
-def test_install_enabled_profiling_enabled_installs_at_startup() -> None:
-    import sys
-
-    from ddtrace.internal._unpatched import _threading as ddtrace_threading
-    from ddtrace.profiling.collector import _task
-    from ddtrace.profiling.collector import threading as profiling_threading
-
-    hooks = profiling_threading._installed_thread_hooks
-    assert set(hooks) == {"_set_native_id", "_bootstrap_inner"}, hooks
-    assert ddtrace_threading.Thread._set_native_id is hooks["_set_native_id"]  # type: ignore[attr-defined]
-    assert ddtrace_threading.Thread._bootstrap_inner is hooks["_bootstrap_inner"]  # type: ignore[attr-defined]
-    assert "ddtrace.profiling._faulthandler" in sys.modules
-    assert _task._gevent_support_initialized  # type: ignore[attr-defined]
-
-    print("OK")
-
-
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="1"),
+    env=dict(DD_PROFILING_ENABLED="armed"),
     out="OK\n",
     err=None,
 )
@@ -153,7 +129,7 @@ def test_install_enabled_profiling_disabled_installs_at_startup() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_INSTALL="0", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -183,7 +159,7 @@ def test_install_disabled_profiling_enabled_stack_disabled_installs_nothing() ->
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="1", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="armed", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -215,39 +191,7 @@ def test_install_enabled_profiling_disabled_stack_disabled_installs_at_startup()
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_INSTALL="1", DD_PROFILING_STACK_ENABLED="0"),
-    out="OK\n",
-    err=None,
-)
-def test_install_enabled_profiling_enabled_stack_disabled_installs_at_startup() -> None:
-    import asyncio
-    import sys
-
-    from ddtrace.internal._unpatched import _threading as ddtrace_threading
-    from ddtrace.internal.wrapping import is_wrapped
-    from ddtrace.profiling.collector import threading as profiling_threading
-
-    hooks = profiling_threading._installed_thread_hooks
-    assert set(hooks) == {"_set_native_id", "_bootstrap_inner"}, hooks
-    assert ddtrace_threading.Thread._set_native_id is hooks["_set_native_id"]  # type: ignore[attr-defined]
-    assert "ddtrace.profiling._faulthandler" in sys.modules
-    assert is_wrapped(asyncio.tasks._GatheringFuture.__init__)  # type: ignore[attr-defined]
-
-    try:
-        import gevent  # noqa: F401
-    except ImportError:
-        pass
-    else:
-        from ddtrace.profiling import _gevent
-
-        assert _gevent._greenlet_tracer_enabled
-
-    print("OK")
-
-
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="0", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -274,7 +218,7 @@ def test_install_disabled_profiling_disabled_stack_disabled_installs_nothing() -
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_INSTALL="0", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="1", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -313,7 +257,7 @@ def test_install_disabled_profiling_enabled_stack_disabled_installs_nothing_on_p
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="0", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -350,8 +294,7 @@ def test_install_disabled_profiling_disabled_stack_disabled_installs_nothing_on_
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
-        DD_PROFILING_ENABLED="0",
-        DD_PROFILING_INSTALL="1",
+        DD_PROFILING_ENABLED="armed",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_install_enabled_application_behavior_unchanged",
     ),
     out="OK\n",
@@ -424,8 +367,7 @@ def test_install_enabled_application_behavior_unchanged() -> None:
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
-        DD_PROFILING_ENABLED="0",
-        DD_PROFILING_INSTALL="1",
+        DD_PROFILING_ENABLED="armed",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_install_enabled_runtime_start_samples_pre_started_thread",
     ),
     err=None,
@@ -484,8 +426,7 @@ def test_install_enabled_runtime_start_samples_pre_started_thread() -> None:
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
-        DD_PROFILING_ENABLED="0",
-        DD_PROFILING_INSTALL="1",
+        DD_PROFILING_ENABLED="armed",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_install_enabled_runtime_start_samples_pre_started_asyncio_task",
     ),
     err=None,
@@ -546,8 +487,7 @@ def test_install_enabled_runtime_start_samples_pre_started_asyncio_task() -> Non
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
-        DD_PROFILING_ENABLED="0",
-        DD_PROFILING_INSTALL="1",
+        DD_PROFILING_ENABLED="armed",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_install_enabled_runtime_start_samples_asyncio_loop_in_other_thread",
     ),
     err=None,
@@ -617,8 +557,7 @@ def test_install_enabled_runtime_start_samples_asyncio_loop_in_other_thread() ->
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
-        DD_PROFILING_ENABLED="0",
-        DD_PROFILING_INSTALL="1",
+        DD_PROFILING_ENABLED="armed",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_install_enabled_runtime_start_samples_pre_started_greenlet",
     ),
     err=None,
@@ -687,7 +626,7 @@ def test_install_enabled_runtime_start_samples_pre_started_greenlet() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="1"),
+    env=dict(DD_PROFILING_ENABLED="armed"),
     out="OK\n",
     err=None,
 )
@@ -719,7 +658,7 @@ def test_install_enabled_profiler_restart_does_not_stack_hooks() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="1"),
+    env=dict(DD_PROFILING_ENABLED="armed"),
     out="OK\n",
     err=None,
 )
@@ -775,8 +714,7 @@ def test_install_enabled_fork_while_registering_threads_does_not_hang() -> None:
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
-        DD_PROFILING_ENABLED="0",
-        DD_PROFILING_INSTALL="1",
+        DD_PROFILING_ENABLED="armed",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_install_enabled_runtime_start_in_fork_child_keeps_child_registrations",
     ),
     err=None,
@@ -860,7 +798,7 @@ def test_install_enabled_runtime_start_in_fork_child_keeps_child_registrations()
 )
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="1"),
+    env=dict(DD_PROFILING_ENABLED="armed"),
     out="OK\n",
     err=None,
 )

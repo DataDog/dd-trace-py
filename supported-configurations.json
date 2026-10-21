@@ -2925,13 +2925,6 @@
         "default": "false"
       }
     ],
-    "DD_PROFILING_INSTALL": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_PROFILING_LOCK_ENABLED": [
       {
         "implementation": "B",
