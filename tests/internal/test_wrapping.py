@@ -1782,6 +1782,90 @@ async def test_async_wrapper_frames_have_valid_linenos():
         )
 
 
+def _lines_at_enter(base):
+    seen = []
+
+    class LinesAtEnter(base):
+        def __enter__(self):
+            seen.extend((frame_info.function, frame_info.lineno) for frame_info in inspect.stack())
+            return super().__enter__()
+
+    return LinesAtEnter, seen
+
+
+def _assert_entry_lines(seen, f, calls=None):
+    assert seen
+    assert all(lineno is not None for _, lineno in seen), seen
+    entry_lines = [lineno for function, lineno in seen if function == f.__name__]
+    assert entry_lines, seen
+    if calls is not None:
+        assert entry_lines == [f.__code__.co_firstlineno] * calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("base", [WrappingContext, LazyWrappingContext])
+async def test_wrapping_context_enter_on_coroutine_has_valid_lineno(base):
+    context, seen = _lines_at_enter(base)
+
+    async def coro(x):
+        await asyncio.sleep(0)
+        return x + 1
+
+    context(coro).wrap()
+
+    assert await coro(41) == 42
+    assert await coro(41) == 42
+    _assert_entry_lines(seen, coro, None if base is LazyWrappingContext else 2)
+
+
+def test_wrapping_context_enter_on_generator_has_valid_lineno():
+    context, seen = _lines_at_enter(WrappingContext)
+
+    def gen():
+        yield 1
+
+    context(gen).wrap()
+
+    assert list(gen()) == [1]
+    _assert_entry_lines(seen, gen, 1)
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_enter_on_async_generator_has_valid_lineno():
+    context, seen = _lines_at_enter(WrappingContext)
+
+    async def agen():
+        yield 1
+
+    context(agen).wrap()
+
+    assert [x async for x in agen()] == [1]
+    _assert_entry_lines(seen, agen, 1)
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 10), reason="GEN_START only exists on Python 3.10")
+def test_wrapping_context_unwrap_restores_coroutine_line_table():
+    async def coro():
+        return 1
+
+    before = list(coro.__code__.co_lines())
+    (wc := WrappingContext(coro)).wrap()
+    wc.unwrap()
+
+    assert list(coro.__code__.co_lines()) == before
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 10), reason="GEN_START only exists on Python 3.10")
+def test_wrapping_context_unwrap_one_line_coroutine_keeps_line_numbers():
+    async def coro(): return [(frame_info.function, frame_info.lineno) for frame_info in inspect.stack()]  # fmt: skip
+
+    (wc := WrappingContext(coro)).wrap()
+    wc.unwrap()
+
+    lines = asyncio.run(coro())
+    assert ("coro", coro.__code__.co_firstlineno) in lines, lines
+
+
 @pytest.mark.asyncio
 async def test_lazy_async_wrapper_frames_have_valid_linenos():
     """Same lineno regression check for LazyWrappingContext on async functions.
