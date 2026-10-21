@@ -15,9 +15,10 @@ MESSAGE_FILE="$2"
 # Bail out silently if there is nothing to say.
 [ -s "$MESSAGE_FILE" ] || exit 0
 
-# main and merge queue pipelines (temporary merge commits) have no open PR to comment on.
-if [[ "${CI_COMMIT_BRANCH:-}" =~ ^(main$|mq-working-branch-|gh-readonly-queue/) ]]; then
-  echo "No PR for branch ${CI_COMMIT_BRANCH}: skipping PR comment."
+# main, release branches/tags and merge queue pipelines (temporary merge commits) have no open PR
+# to comment on. CI_COMMIT_REF_NAME is the branch or tag name (CI_COMMIT_BRANCH is empty for tags).
+if [[ "${CI_COMMIT_REF_NAME:-}" =~ ^(main$|[0-9]+\.[0-9]+$|v[0-9]+\.[0-9]+\.[0-9]+|mq-working-branch-|gh-readonly-queue/) ]]; then
+  echo "No PR for ref ${CI_COMMIT_REF_NAME}: skipping PR comment."
   exit 0
 fi
 
