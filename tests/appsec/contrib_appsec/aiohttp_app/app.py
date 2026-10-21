@@ -7,9 +7,11 @@ import subprocess
 import sys
 from typing import Optional
 
+from aiohttp import ClientError
 from aiohttp import ClientSession
 from aiohttp import ClientTimeout
 from aiohttp import web
+from yarl import URL
 
 from ddtrace import config
 import ddtrace.constants
@@ -422,6 +424,50 @@ async def redirect_aiohttp(request: web.Request) -> web.Response:
     return web.json_response(payload)
 
 
+_STORED_RESPONSES: list = []
+
+
+async def chunked_json(request: web.Request) -> web.StreamResponse:
+    response = web.StreamResponse(headers={"Content-Type": "application/json"})
+    response.enable_chunked_encoding()
+    await response.prepare(request)
+    await response.write(b'{"payload": "api10-response-body"}')
+    await response.write_eof()
+    return response
+
+
+async def aiohttp_client_case(request: web.Request) -> web.Response:
+    case = request.match_info["case"]
+    target = f"http://127.0.0.1:{request.match_info['port']}/response-body"
+
+    async def failover(req, handler):
+        try:
+            return await handler(req)
+        except ClientError:
+            req.url = URL(target)
+            req.update_host(req.url)
+            return await handler(req)
+
+    async def nested(req, handler):
+        async with req.session.get(target, middlewares=()) as response:
+            await response.read()
+        return await handler(req)
+
+    if case == "read":
+        session, response = _STORED_RESPONSES.pop()
+        async with session:
+            return _html(await response.text())
+    middlewares = {"failover": (failover,), "nested": (nested,)}.get(case)
+    session = ClientSession(**({"middlewares": middlewares} if middlewares else {}))
+    url = {"failover": "http://127.0.0.1:1/", "chunked": f"http://127.0.0.1:{request.url.port}/chunked_json/"}
+    response = await session.get(url.get(case, target))
+    if case == "store":
+        _STORED_RESPONSES.append((session, response))
+        return _html("stored")
+    async with session:
+        return _html(await response.text())
+
+
 async def aiohttp_proxy(request: web.Request) -> web.Response:
     proxy = f"http://127.0.0.1:{request.match_info['port']}"
     try:
@@ -520,6 +566,8 @@ def get_app() -> web.Application:
         (r"/redirect_httpx2_async/{route}/{port:\d+}", redirect_httpx_async, ("GET", "POST")),
         (r"/redirect_aiohttp/{route}/{port:\d+}", redirect_aiohttp, ("GET", "POST")),
         (r"/aiohttp_proxy/{port:\d+}", aiohttp_proxy, ("GET",)),
+        (r"/aiohttp_client/{case}/{port:\d+}", aiohttp_client_case, ("GET",)),
+        (r"/chunked_json/", chunked_json, ("GET",)),
         ("/exception-group-block", exception_group_block, ("GET",)),
         ("/login/", login, ("GET",)),
         ("/login_sdk/", login_sdk, ("GET",)),

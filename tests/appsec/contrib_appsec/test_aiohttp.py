@@ -19,6 +19,7 @@ import pytest
 from yarl import URL
 
 from ddtrace.appsec import _common_module_patches
+from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
 from ddtrace.appsec._common_module_patches import _SsrfAiohttpConnect
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -422,6 +423,46 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
         finally:
             server.close()
             interface.client.loop.run_until_complete(server.wait_closed())
+
+    def _client_cases(self, interface, api10_server, *cases):
+        calls = []
+        waf = _common_module_patches.call_waf_callback
+
+        def record(addresses, *args, **kwargs):
+            calls.append((addresses, core.find_item(_RASP_SUBCONTEXT)))
+            return waf(addresses, *args, **kwargs)
+
+        with (
+            override_global_config(dict(_asm_enabled=True, _ep_enabled=True, _dr_sample_rate=1.0)),
+            mock.patch.object(_common_module_patches, "call_waf_callback", side_effect=record),
+        ):
+            self.update_tracer(interface)
+            for case in cases:
+                assert self.status(interface.client.get(f"/aiohttp_client/{case}/{api10_server.port()}")) == 200
+        return calls
+
+    @pytest.mark.skipif(AIOHTTP_VERSION < (3, 12), reason="client middlewares need aiohttp 3.12")
+    def test_aiohttp_client_failover_hop_is_analyzed(self, interface, api10_server):
+        calls = self._client_cases(interface, api10_server, "failover")
+        assert [a[EXPLOIT_PREVENTION.ADDRESS.SSRF] for a, _ in calls if EXPLOIT_PREVENTION.ADDRESS.SSRF in a] == [
+            "http://127.0.0.1:1/",
+            f"http://127.0.0.1:{api10_server.port()}/response-body",
+        ]
+
+    @pytest.mark.skipif(AIOHTTP_VERSION < (3, 12), reason="client middlewares need aiohttp 3.12")
+    def test_aiohttp_client_nested_request_has_own_subcontext(self, interface, api10_server):
+        calls = self._client_cases(interface, api10_server, "nested")
+        holders = [holder for a, holder in calls if EXPLOIT_PREVENTION.ADDRESS.SSRF in a]
+        assert len(holders) == 2 and holders[0] is not holders[1]
+
+    def test_aiohttp_client_chunked_json_body_is_analyzed(self, interface, api10_server):
+        calls = self._client_cases(interface, api10_server, "chunked")
+        assert any("DOWN_RES_BODY" in a for a, _ in calls), calls
+
+    def test_aiohttp_client_body_read_by_another_request_is_ignored(self, interface, api10_server):
+        calls = self._client_cases(interface, api10_server, "store", "read")
+        assert any("DOWN_RES_STATUS" in a for a, _ in calls), calls
+        assert not any("DOWN_RES_BODY" in a for a, _ in calls), calls
 
     def test_aiohttp_client_traceback_has_no_appsec_frames(self):
         patch_common_modules()
