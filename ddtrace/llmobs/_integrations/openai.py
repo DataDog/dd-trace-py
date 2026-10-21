@@ -16,9 +16,11 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
+from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -30,7 +32,7 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
-OPENAI_LLM_OPERATIONS = ("completion", "chat", "response")
+OPENAI_LLM_OPERATIONS = ("completion", "chat", "response", "decision")
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -54,6 +56,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             "parseChatCompletion",
             "parseResponse",
             "createRealtimeResponse",
+            "createDecision",
         )
         if operation_id in traced_operations:
             submit_to_llmobs = True
@@ -97,7 +100,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "completion", "chat", "embedding", "response"
+        operation: str = "",  # oneof "completion", "chat", "embedding", "response", "decision"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = (
@@ -131,6 +134,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         elif operation == "response":
             openai_set_meta_tags_from_response(span, kwargs, response, self)
+        elif operation == "decision":
+            openai_set_meta_tags_from_decision(span, kwargs, response)
         elif operation == "tool":
             self._llmobs_set_tags_from_tool(span, kwargs, response)
 
@@ -325,6 +330,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             if reasoning_output_tokens is not None:
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
             metrics.update(get_openrouter_cost_metrics(token_usage))
+            metrics.update(get_openai_server_tool_usage_metrics(resp))
             return metrics
         elif kwargs.get("stream") and isinstance(resp, list):
             # `_compute_completion_tokens` expects the chat/completion shape: a list of message

@@ -23,7 +23,6 @@ from typing import Optional
 
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 
@@ -61,35 +60,38 @@ _MULTIPLEXER_TOOL_NAME = "ddtrace"
 _CANDIDATE_TOOL_IDS = (3,)
 
 _tool_id: Optional[int] = None
-_tool_lock = Lock()
+# Reentrant because _release_tool_if_unused takes it from unregister(), which
+# weakref.finalize callbacks call (e.g. when a wrapped function is collected),
+# and a GC pass can run those on the same thread while _setup() holds the lock.
+_tool_lock = RLock()
 
 _registry_lock = RLock()
 
 
-# CodeType.__eq__ treats structurally-identical code objects (e.g. two
-# CodeType.replace() clones, or two exec()'d copies of identical source) as
-# equal, which a plain weakref.WeakKeyDictionary would conflate. Keying on
-# id(code) via IdentityWeakKeyDictionary keeps distinct code objects separate.
-# NOTE: CodeType equality is structural. Keep identity semantics here and in
-# every code-object registry built on this class, or separately compiled/reloaded
-# copies of the same code will overwrite each other.
-_IdentityWeakKeyDictionary = IdentityWeakKeyDictionary[CodeType, Any]
-
-
 def _on_code_registration_collected() -> None:
-    """Release tool ownership when weak cleanup removes the final local registration."""
+    """Release tool ownership when weak cleanup removes the final local registration.
+
+    Interpreter shutdown clears single-underscore module globals to None before
+    this weakref callback runs. The lock is already gone, and the process is
+    exiting, so there is no tool left to release.
+    """
+    if _registry_lock is None:
+        return
     with _registry_lock:
         _release_tool_if_unused()
 
 
-_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_registration_collected)
+# NOTE: CodeType equality is structural. Keep identity semantics here and in
+# every code-object registry built on this class, or separately compiled/reloaded
+# copies of the same code will overwrite each other.
+_registry: IdentityWeakKeyDictionary[CodeType, Any] = IdentityWeakKeyDictionary(_on_code_registration_collected)
 
 
 def _disarm_registry_cleanup() -> None:
     global _registry
 
     with _registry_lock:
-        registry, _registry = _registry, _IdentityWeakKeyDictionary()
+        registry, _registry = _registry, IdentityWeakKeyDictionary()
         registry.clear()
 
 
@@ -109,12 +111,13 @@ class MonitoringEventHandler(ABC):
         being iterated, which produces undefined behavior.
 
     .. warning::
-        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` and
-        ``on_exception_handled`` are not caught -- they propagate into the
-        monitored frame, exactly as sys.monitoring itself would deliver a
-        callback failure. Catch your own exceptions if a handler must not
-        affect the monitored function's behavior. ``on_py_line`` exceptions
-        are caught and logged instead so one sub-system cannot disrupt another.
+        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` are
+        not caught -- they propagate into the monitored frame and skip any
+        later handler for the same event, exactly as sys.monitoring itself
+        would deliver a callback failure. Catch your own exceptions if a
+        handler must not affect the monitored function's behavior.
+        ``on_py_line`` and ``on_exception_handled`` are caught and logged
+        instead so one sub-system cannot disrupt another.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -336,7 +339,10 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
     h = _global_exception_handler
     if h is not None:
-        h.on_exception_handled(code, instruction_offset, exception)
+        try:
+            h.on_exception_handled(code, instruction_offset, exception)
+        except Exception:
+            log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@ from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import StopWatch
 from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
@@ -34,6 +35,8 @@ TSerializable = t.TypeVar("TSerializable", bound=TestItem[t.Any, t.Any])
 EventSerializer = t.Callable[[TSerializable], Event]
 
 _MAX_META_TAG_VALUE_LENGTH = 5000
+# The most useful part of an error (the failing frame and exception line) is at the end.
+_TAIL_TRUNCATED_META_KEYS = frozenset({TestTag.ERROR_STACK, TestTag.ERROR_MESSAGE})
 
 
 def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
@@ -42,7 +45,10 @@ def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
         if isinstance(value, str) and len(value) > _MAX_META_TAG_VALUE_LENGTH:
             if truncated is None:
                 truncated = dict(meta)
-            truncated[key] = value[:_MAX_META_TAG_VALUE_LENGTH]
+            if key in _TAIL_TRUNCATED_META_KEYS:
+                truncated[key] = value[-_MAX_META_TAG_VALUE_LENGTH:]
+            else:
+                truncated[key] = value[:_MAX_META_TAG_VALUE_LENGTH]
 
     return meta if truncated is None else truncated
 

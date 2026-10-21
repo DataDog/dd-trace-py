@@ -112,6 +112,8 @@ if __name__ == "__main__":
         ("foo=bar&foo=baz&x=y", False),
         ("foo=bar", True),
         ("foo=bar&foo=baz&x=y", True),
+        ("json=%7B%20%22sign%22%7D", False),
+        ("json=%7B%20%22sign%22%7D", True),
     ),
 )
 async def test_param_handler(app, test_spans, aiohttp_client, query_string, trace_query_string):
@@ -611,3 +613,61 @@ async def test_inferred_spans_api_gateway(
                 distributed_parent_id=2,
                 distributed_sampling_priority=USER_KEEP,
             )
+
+
+@pytest.mark.parametrize("ddtrace_run", [False, True])
+def test_trace_app_without_patch(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, ddtrace_run):
+    code = """
+import asyncio
+
+from aiohttp import web
+from aiohttp.test_utils import TestClient
+from aiohttp.test_utils import TestServer
+
+from ddtrace.contrib.aiohttp import trace_app
+
+
+async def handler(request):
+    return web.Response(text="ok")
+
+
+async def main():
+    app = web.Application()
+    app.router.add_get("/", handler)
+    trace_app(app)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/")
+        assert response.status == 200, response.status
+        assert await response.text() == "ok"
+
+
+asyncio.run(main())
+"""
+    env = os.environ.copy()
+    if ddtrace_run:
+        env["DD_TRACE_ENABLED"] = "false"
+        out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    else:
+        out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
+
+
+def test_config_set_before_trace_app_import(ddtrace_run_python_code_in_subprocess):
+    code = """
+import aiohttp
+
+from ddtrace import config
+
+assert config.aiohttp["disable_stream_timing_for_mem_leak"] is False
+config.aiohttp.http.trace_headers(["x-request-id"])
+config.aiohttp["disable_stream_timing_for_mem_leak"] = True
+
+from ddtrace.contrib.aiohttp import trace_app
+
+assert config.aiohttp.http.header_is_traced("x-request-id")
+assert config.aiohttp["disable_stream_timing_for_mem_leak"] is True
+"""
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()

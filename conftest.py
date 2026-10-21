@@ -194,10 +194,14 @@ def _probe(config, label: str, benchmarks_first: bool) -> None:
 
 
 def _probe_enabled(config) -> bool:
-    """Probe once per session on the xdist controller only, in CI or when explicitly asked."""
-    if hasattr(config, "workerinput") or os.getenv("DD_TEST_RUNTIME_PROBE") == "0":
-        return False
-    return os.getenv("CI") == "true" or os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
+    """Probe only when DD_TEST_RUNTIME_PROBE is "1", and only on the xdist controller.
+
+    The benchmarks cost a fraction of a second per session, and CI runs thousands of sessions per
+    pipeline. Set the variable when a job needs investigation, not on every run. Any other value is
+    off. GitLab can pass an unset variable to a child pipeline as an empty string or as the literal
+    "$DD_TEST_RUNTIME_PROBE".
+    """
+    return not hasattr(config, "workerinput") and os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
 
 
 # Hook for dynamic configuration of pytest in CI
