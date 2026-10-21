@@ -163,7 +163,7 @@ def test_debug_symbol_archives_are_left_alone(prune, tmp_path):
     assert _listing(tmp_path, "pywheels") == sorted([symbols, SDIST])
 
 
-def test_several_directories_are_pruned_in_one_call(prune, tmp_path):
+def test_several_directories_are_accepted_in_one_call(prune, tmp_path):
     proc = prune(
         "pywheels",
         "pywheels-patched",
@@ -171,8 +171,8 @@ def test_several_directories_are_pruned_in_one_call(prune, tmp_path):
     )
 
     assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == [SDIST]
-    assert _listing(tmp_path, "pywheels-patched") == []
+    assert _listing(tmp_path, "pywheels") == sorted(CP315_WHEELS + [SDIST])
+    assert _listing(tmp_path, "pywheels-patched") == sorted(CP315_WHEELS)
 
 
 def test_an_empty_directory_is_accepted(prune, tmp_path):
