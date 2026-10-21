@@ -706,6 +706,7 @@ if not platform_is_supported:
     if config.enabled:
         logger.debug("Profiling is not supported on this platform (%s), disabling", platform_unsupported_msg)
     config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.install = False  # pyright: ignore[reportAttributeAccessIssue]
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
     config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
     config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
@@ -736,6 +737,7 @@ else:
                 "Failed to load stack module (%s), disabling stack profiling" % msg,
             )
         config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Exception profiling requires sys.monitoring (Python 3.12+) and is not
 # supported on free-threaded builds.  Disable the config so that

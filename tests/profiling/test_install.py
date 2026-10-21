@@ -852,3 +852,53 @@ def test_install_enabled_runtime_start_in_fork_child_keeps_child_registrations()
 
     _, status = os.waitpid(pid, 0)
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_INSTALL="1"),
+    out="OK\n",
+    err=None,
+)
+def test_install_enabled_fork_resets_gevent_tracking_state() -> None:
+    import os
+
+    import gevent  # noqa: F401
+
+    from ddtrace.profiling import _gevent
+
+    current_thread_ident: int = _gevent._get_native_thread_ident()
+    assert current_thread_ident in _gevent._original_greenlet_tracers
+
+    # The native greenlet state is cleared in the child, so these entries would be stale there.
+    stale_greenlet_id = 0x123
+    stale_parent_id = 0x456
+    stale_thread_ident = 0x789
+    _gevent._tracked_greenlets.add(stale_greenlet_id)
+    _gevent._greenlet_parent_map[stale_greenlet_id] = stale_parent_id
+    _gevent._parent_greenlet_count[stale_parent_id] = 1
+    _gevent._original_greenlet_tracers[stale_thread_ident] = None
+
+    pid = os.fork()
+    if pid == 0:
+        ok = (
+            stale_greenlet_id not in _gevent._tracked_greenlets
+            and stale_greenlet_id not in _gevent._greenlet_parent_map
+            and stale_parent_id not in _gevent._parent_greenlet_count
+            and stale_thread_ident not in _gevent._original_greenlet_tracers
+            and current_thread_ident in _gevent._original_greenlet_tracers
+        )
+        os._exit(0 if ok else 1)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+    # The parent keeps its state.
+    assert stale_greenlet_id in _gevent._tracked_greenlets
+    assert stale_thread_ident in _gevent._original_greenlet_tracers
+
+    print("OK")
