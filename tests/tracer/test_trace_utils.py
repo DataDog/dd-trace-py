@@ -556,7 +556,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
         ("http-user-agent", {}, ["runtime-id"], None),
     ],
 )
-def test_set_http_meta_headers_useragent(
+def test_set_http_meta_headers_useragent_tracing_enabled(
     mock_store_headers, user_agent_key, user_agent_value, expected_keys, expected, span, int_config
 ):
     int_config.myint.http._header_tags = {"enabled": True}
@@ -867,7 +867,7 @@ def test_ip_subnet_regression():
         (b"", ["runtime-id"], None),
     ],
 )
-def test_set_http_meta_headers_useragent(  # noqa:F811
+def test_set_http_meta_headers_useragent_tracing_disabled(
     mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
 ):
     assert int_config.myint.is_header_tracing_configured is False
