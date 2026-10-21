@@ -16,6 +16,15 @@ if in_aws_lambda_microvm():
     from ddtrace.internal._runtime_id import on_runtime_identity_refresh
 
     on_runtime_identity_refresh(tracer._refresh_runtime_identity)
+
+
+def _on_asm_tracer_reconfigure(appsec_enabled: bool, origin: str) -> None:
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=origin)
+
+
+core.on("asm.tracer.reconfigure", _on_asm_tracer_reconfigure)
+
+
 if sys.platform == "linux":
     from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
 
