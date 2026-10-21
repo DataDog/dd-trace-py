@@ -141,6 +141,8 @@ def test_function_discovery_after_reload():
 
     ModuleCodeCollector.register("di")
     DebuggerModuleWatchdog.install()
+    # The debugger registers this hook itself when enabled
+    DebuggerModuleWatchdog.register_compile_hook(FunctionDiscovery.invalidate)
 
     import tests.submod.stuff as stuff
 

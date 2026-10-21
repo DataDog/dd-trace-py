@@ -3,26 +3,44 @@ import sys
 from types import CodeType
 from types import ModuleType
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 
 
+log = get_logger(__name__)
+
+
 class DebuggerModuleWatchdog(ModuleWatchdog):
     _locations: set[str] = set()
+    _compile_hooks: list[ModuleHookType] = []
 
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
-        # FunctionDiscovery memoizes itself on the module as
-        # __function_discovery__. Its presence means some earlier compilation
-        # of this exact module object already had a discovery built for it, so
-        # this compile must be a recompile (e.g. importlib.reload()) and that
-        # cache is now stale. Unconditional: a module being compiled for the
-        # first time never has the attribute yet, so this is a cheap no-op in
-        # the common case.
-        try:
-            del module.__function_discovery__
-        except AttributeError:
-            pass
+        for hook in self._compile_hooks:
+            try:
+                hook(module)
+            except Exception:
+                log.exception("Failed to call compile hook on module %s", module.__name__)
+
         return code
+
+    @classmethod
+    def register_compile_hook(cls, hook: ModuleHookType) -> None:
+        """Register a hook to be called whenever a module is compiled.
+
+        This includes recompilations of an already loaded module (e.g.
+        importlib.reload()). The hook runs before the module code is executed,
+        so it must not rely on the module's contents.
+        """
+        if hook not in cls._compile_hooks:
+            cls._compile_hooks.append(hook)
+
+    @classmethod
+    def unregister_compile_hook(cls, hook: ModuleHookType) -> None:
+        try:
+            cls._compile_hooks.remove(hook)
+        except ValueError:
+            pass
 
     @classmethod
     def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:

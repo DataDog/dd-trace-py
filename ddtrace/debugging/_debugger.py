@@ -235,6 +235,8 @@ class Debugger(Service):
 
         cls._instance = debugger = cls()
 
+        cls.__watchdog__.register_compile_hook(debugger._on_module_compile)
+
         debugger.start()
 
         register_post_run_module_hook(cls._on_run_module)
@@ -269,6 +271,8 @@ class Debugger(Service):
             cast(DebuggerRCCallback, callback).delete_all_probes()
 
         unregister_post_run_module_hook(cls._on_run_module)
+
+        cls.__watchdog__.unregister_compile_hook(cls._instance._on_module_compile)
 
         cls._instance.stop(join=join)
         cls._instance = None
@@ -383,18 +387,10 @@ class Debugger(Service):
         # This hook is invoked by the ModuleWatchdog or the post run module hook
         # to inject probes.
 
-        location = str(origin(module))
-
-        # If the module is being recompiled (e.g. importlib.reload()), any
-        # probe already installed on it was attached to a now-orphaned
-        # function/code object. Move it back to pending so it gets
-        # reinstalled against the fresh module below.
-        self._probe_registry.reset_pending(location)
-
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
         probes_for_function: dict[FullyNamedContextWrappedFunction, list[Probe]] = defaultdict(list)
-        for probe in self._probe_registry.get_pending(location):
+        for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
                 continue
             line = probe.line
@@ -489,26 +485,7 @@ class Debugger(Service):
             module = self.__watchdog__.get_by_origin(resolved_source)
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
-                probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
-                for probe in probes:
-                    if not isinstance(probe, LineLocationMixin):
-                        continue  # type: ignore[unreachable]
-                    line = probe.line
-                    assert line is not None, probe  # nosec
-                    functions = FunctionDiscovery.from_module(module).at_line(line)
-                    for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
-                        probes_for_function[function].append(probe)
-
-                for function, ps in probes_for_function.items():
-                    failed = self._function_store.eject_hooks(
-                        cast(FunctionType, function),
-                        [(self._dd_debugger_hook, probe.line, probe) for probe in ps if probe.line is not None],
-                    )
-                    for probe in ps:
-                        if probe.probe_id in failed:
-                            log.error("Failed to eject %r from %r", probe, function)
-                        else:
-                            log.debug("Ejected %r from %r", probe, function)
+                self._eject_hooks(module, probes)
 
             if not self._probe_registry.has_probes(str(resolved_source)):
                 try:
@@ -517,13 +494,55 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister injection hook on %r", resolved_source, exc_info=True)
 
-    def _probe_wrapping_hook(self, module: ModuleType) -> None:
-        # If the module is being recompiled (e.g. importlib.reload()), any
-        # probe already installed on it was wrapped around a now-orphaned
-        # function object. Move it back to pending so it gets rewrapped
-        # around the fresh function below.
-        self._probe_registry.reset_pending(module.__name__)
+    def _eject_hooks(self, module: ModuleType, probes: list[LineProbe]) -> None:
+        probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
+        for probe in probes:
+            if not isinstance(probe, LineLocationMixin):
+                continue  # type: ignore[unreachable]
+            line = probe.line
+            assert line is not None, probe  # nosec
+            functions = FunctionDiscovery.from_module(module).at_line(line)
+            for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
+                probes_for_function[function].append(probe)
 
+        for function, ps in probes_for_function.items():
+            failed = self._function_store.eject_hooks(
+                cast(FunctionType, function),
+                [(self._dd_debugger_hook, probe.line, probe) for probe in ps if probe.line is not None],
+            )
+            for probe in ps:
+                if probe.probe_id in failed:
+                    log.error("Failed to eject %r from %r", probe, function)
+                else:
+                    log.debug("Ejected %r from %r", probe, function)
+
+    def _unwrap_function(self, module: ModuleType, probe: FunctionProbe) -> None:
+        assert probe.func_qname is not None  # nosec
+        function = cast(FunctionType, FunctionDiscovery.from_module(module).by_name(probe.func_qname))
+        if DebuggerWrappingContext.is_wrapped(function):
+            context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
+            context.remove_probe(probe)
+            if not context.has_probes():
+                self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
+            log.debug("Unwrapped %r", probe)
+        else:
+            log.error("Attempted to unwrap %r, but no wrapper found", probe)
+
+    def _on_module_compile(self, module: ModuleType) -> None:
+        # Probes installed at a recompiled location are attached to orphaned
+        # code. Detach them from it, while the discovery still refers to the
+        # old functions, and let the import hooks reinstall them on the new
+        # code. No-op on first import.
+        try:
+            if (module_origin := origin(module)) is not None:
+                self._eject_hooks(module, cast(list[LineProbe], self._probe_registry.reset_pending(str(module_origin))))
+            for probe in self._probe_registry.reset_pending(module.__name__):
+                self._unwrap_function(module, cast(FunctionProbe, probe))
+        finally:
+            # The new code must never be matched against the old functions
+            FunctionDiscovery.invalidate(module)
+
+    def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)
         collector = self.__uploader__.get_collector()
         for probe in probes:
@@ -610,16 +629,7 @@ class Debugger(Service):
             if module is not None:
                 # The module is still loaded, so we can try to unwrap the function
                 touched_modules.add(probe.module)
-                assert probe.func_qname is not None  # nosec
-                function = cast(FunctionType, FunctionDiscovery.from_module(module).by_name(probe.func_qname))
-                if DebuggerWrappingContext.is_wrapped(function):
-                    context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
-                    context.remove_probe(probe)
-                    if not context.has_probes():
-                        self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
-                    log.debug("Unwrapped %r", registered_probe)
-                else:
-                    log.error("Attempted to unwrap %r, but no wrapper found", registered_probe)
+                self._unwrap_function(module, cast(FunctionProbe, registered_probe))
 
         # Clean up import hooks.
         for module_name in touched_modules:

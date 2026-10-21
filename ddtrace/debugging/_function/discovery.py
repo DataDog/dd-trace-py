@@ -404,3 +404,11 @@ class FunctionDiscovery(defaultdict[Any, Any]):
             # We no longer need to keep this collection around
             ModuleCodeCollector.release(module, "di")
             return fd
+
+    @classmethod
+    def invalidate(cls, module: ModuleType) -> None:
+        """Drop the discovery cached on the module, e.g. because it was recompiled."""
+        try:
+            del module.__function_discovery__
+        except AttributeError:
+            pass

@@ -203,12 +203,69 @@ def test_debugger_probe_survives_reload(probe, stuff):
         (snapshot,) = d.uploader.wait_for_payloads()
         assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
 
+        OldStuff = stuff.Stuff
+
         reload(stuff)
+
+        # The probe moves to the new code, so code retained from before the
+        # reload is no longer instrumented.
+        signals = sum(d.signal_state_counter.values())
+        OldStuff().instancestuff(42)
+        assert sum(d.signal_state_counter.values()) == signals
 
         stuff.Stuff().instancestuff(42)
 
         (snapshot,) = d.uploader.wait_for_payloads()
         assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+
+@pytest.mark.parametrize(
+    "probe,other_probe",
+    [
+        (
+            create_snapshot_function_probe(
+                probe_id="probe-instance-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                rate=1000,
+            ),
+            create_snapshot_function_probe(
+                probe_id="probe-static-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.staticstuff",
+                rate=1000,
+            ),
+        ),
+        (
+            create_snapshot_line_probe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=1000,
+            ),
+            create_snapshot_line_probe(
+                probe_id="probe-static-method",
+                source_file="tests/submod/stuff.py",
+                line=29,
+                rate=1000,
+            ),
+        ),
+    ],
+)
+def test_debugger_probe_not_reinstalled_on_new_probe(probe, other_probe, stuff):
+    # Adding a probe to an already-loaded module re-runs the import hook for
+    # it, which must not install the probes already installed there again.
+    with debugger() as d:
+        d.add_probes(probe)
+        d.add_probes(other_probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        # Count every signal pushed, not just the emitted snapshots, since the
+        # probe rate limiter can drop a duplicate that fires in the same call.
+        assert sum(d.signal_state_counter.values()) == 1
+        (snapshot,) = d.test_queue
+        assert snapshot.probe.probe_id == probe.probe_id
 
 
 def test_debugger_function_probe_on_instance_method(stuff):

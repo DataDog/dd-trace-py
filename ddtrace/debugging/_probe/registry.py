@@ -65,6 +65,9 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
 
         # Used to keep track of probes pending installation
         self._pending: dict[str, list[Probe]] = defaultdict(list)
+        # Used to move installed probes back to pending without scanning the
+        # whole registry, since that happens on every module compilation
+        self._installed: dict[str, list[Probe]] = defaultdict(list)
 
         self._lock = RLock()
 
@@ -104,7 +107,11 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
     def set_installed(self, probe: Probe) -> None:
         """Set the installed flag for a probe."""
         with self._lock:
-            self[probe.probe_id].set_installed()
+            entry = cast(ProbeRegistryEntry, self[probe.probe_id])
+            if not entry.installed:
+                entry.set_installed()
+                if (location := _get_probe_location(entry.probe)) is not None:
+                    self._installed[location].append(entry.probe)
 
             # No longer pending
             self._remove_pending(probe)
@@ -156,22 +163,28 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
             for entry in self.values():
                 self._log_probe_status_unlocked(entry)
 
-    def _remove_pending(self, probe: Probe) -> None:
+    @staticmethod
+    def _remove_located(probes_by_location: dict[str, list[Probe]], probe: Probe) -> None:
         if (location := _get_probe_location(probe)) is None:
             # If the probe has no location information, then it cannot be
-            # pending.
+            # tracked by location.
             return
 
-        pending_probes = self._pending[location]
+        probes = probes_by_location.get(location)
+        if probes is None:
+            return
         try:
             # DEV: Note that this is O(n), which is fine with a conservative
             # number of probes.
-            pending_probes.remove(probe)
+            probes.remove(probe)
         except ValueError:
-            # The probe wasn't pending
+            # The probe wasn't tracked at this location
             pass
-        if not pending_probes:
-            del self._pending[location]
+        if not probes:
+            del probes_by_location[location]
+
+    def _remove_pending(self, probe: Probe) -> None:
+        self._remove_located(self._pending, probe)
 
     def has_probes(self, location: str) -> bool:
         for entry in self.values():
@@ -196,6 +209,7 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
                 else:
                     probe = entry.probe
                     self._remove_pending(probe)
+                    self._remove_located(self._installed, probe)
                     unregistered_probes.append(probe)
         return unregistered_probes
 
@@ -203,20 +217,24 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
         """Get the currently pending probes by location."""
         return self._pending[location].copy()
 
-    def reset_pending(self, location: str) -> None:
+    def reset_pending(self, location: str) -> list[Probe]:
         """Move any installed probes at the given location back to pending.
 
-        Called when the module backing a location has been recompiled (e.g.
-        via ``importlib.reload()``), which orphans whatever function or code
-        object an installed probe was previously attached to and requires a
-        fresh installation pass.
+        Called whenever a module backing a location is compiled. If it is
+        recompiled (e.g. via importlib.reload()), whatever function or code
+        object an installed probe was previously attached to is orphaned and a
+        fresh installation pass is required.
+
+        Returns the probes that were moved, so that the caller can detach them
+        from the orphaned objects.
         """
         with self._lock:
-            pending_probes = self._pending[location]
-            for entry in self.values():
-                if entry.installed and _get_probe_location(entry.probe) == location:
-                    entry.installed = False
-                    pending_probes.append(entry.probe)
+            if (installed := self._installed.pop(location, None)) is None:
+                return []
+            for probe in installed:
+                self[probe.probe_id].installed = False
+            self._pending[location].extend(installed)
+            return installed
 
     def __contains__(self, probe: object) -> bool:
         """Check if a probe is in the registry."""
