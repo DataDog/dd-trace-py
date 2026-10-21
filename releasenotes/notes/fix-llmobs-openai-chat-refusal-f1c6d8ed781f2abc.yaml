@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the OpenAI integration recorded an empty output message for chat completions
+    (streamed or not) that the model refused. The refusal text is now used as the output message.
