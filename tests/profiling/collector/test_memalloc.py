@@ -1166,6 +1166,18 @@ def test_start_twice() -> None:
     _memalloc.stop()
 
 
+def test_is_started() -> None:
+    from ddtrace.profiling.collector import _memalloc
+
+    assert _memalloc.is_started() is False
+    _memalloc.start(64, 512, False)
+    try:
+        assert _memalloc.is_started() is True
+    finally:
+        _memalloc.stop()
+    assert _memalloc.is_started() is False
+
+
 def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 

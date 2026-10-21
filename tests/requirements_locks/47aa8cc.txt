@@ -8,7 +8,7 @@ automat==25.4.16
 backports-asyncio-runner==1.2.0
 bcrypt==4.2.1
 blessed==1.48.0
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.0.0
 channels==3.0.5
 charset-normalizer==3.5.1
