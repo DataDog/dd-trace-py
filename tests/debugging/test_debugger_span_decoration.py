@@ -1,12 +1,9 @@
-import sys
-
 import ddtrace
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._signal.model import EvaluationError
-from ddtrace.internal.utils import inspection
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import create_span_decoration_function_probe
 from tests.debugging.utils import create_span_decoration_line_probe
@@ -21,8 +18,6 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
         import tests.submod.traced_stuff as ts
 
-        inspection.clear()
-
         self.traced_stuff = ts
         self.backup_tracer = ddtrace.tracer
         self.old_traceme = ts.traceme
@@ -32,7 +27,6 @@ class SpanDecorationProbeTestCase(TracerTestCase):
         ts.traceme = self.tracer.wrap(name="traceme", service="test")(ts.traceme)
 
     def tearDown(self):
-        del sys.modules["tests.submod.traced_stuff"]
         ddtrace.tracer = self.backup_tracer
         super().tearDown()
 

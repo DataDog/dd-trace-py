@@ -19,7 +19,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
 14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
-15. **No automatic GitLab CI retries on `main`** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies with `retry: 0`. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
+15. **Automatic GitLab CI retries on `main` are allowed only for infrastructure failures** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies to infrastructure failures only. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
 
 ## Docstrings and Comments
 
@@ -62,15 +62,6 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## AIDEV Anchor Comments
-
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
-
-- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
-- **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
-
 ## PR Guidelines
 
 Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
@@ -78,6 +69,11 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - Use `.github/PULL_REQUEST_TEMPLATE.md` for PR descriptions.
 - **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
 - Link relevant issues or JIRA tickets; include a testing plan.
+- **This repository is public** — PR titles, descriptions, commit messages, and release notes must
+  describe only the change itself (problem, root cause, fix, testing, risks). Do not mention
+  internal discussions (Slack threads, meetings), coordination with other teams or tracers, their
+  tickets, internal backend or data-pipeline names, or open internal questions. Linking the PR's
+  own JIRA ticket is fine; put the rest of the internal context in that ticket.
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
 - **Fork PR CI** — External fork PRs cannot run all required CI. A repo-owned branch can start
   GitLab, but a draft shadow PR into `main` is required for System Tests. The shadow PR moves the
@@ -88,13 +84,27 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
   accesses credentials or changes permissions; involve code owners or security reviewers where
   appropriate. Recheck the reviewed SHA immediately before pushing it to a repo-owned branch, and
   repeat the review if it changed; the branch name need not match the contributor's branch. Give
-  the shadow PR a Conventional Commit
-  title ending in `[DO NOT MERGE]`, and state in its description that it exists only to run CI and
-  must not be merged. Once its checks pass, verify that the original PR still has the tested SHA,
-  then `/merge` the original. After it lands, close the shadow PR without merging it and delete its
-  branch. Never mirror speculative or partially reviewed code merely to obtain CI results: an
-  identical SHA proves source-commit parity, not safety or identical execution context.
+  the shadow PR a Conventional Commit title ending in `[DO NOT MERGE]`. Its description must say it
+  exists only to run CI, must not be merged, and include `Original PR: <URL>`. Add
+  `Closes: <shadow PR URL>` to the original PR's description. Once the checks pass, verify that the
+  original PR still has the tested SHA, then `/merge` the original. After the original PR closes,
+  close the shadow without merging if it is still open, then delete its branch. Never mirror
+  speculative or partially reviewed code merely to obtain CI results: an identical SHA proves
+  source-commit parity, not safety or identical execution context.
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
+
+## CI Scripts
+
+Every `curl` that runs in CI (`.gitlab-ci.yml`, `.gitlab/`, GitHub Actions, the scripts they call, and the Dockerfiles they build) must:
+
+- **Fail on HTTP errors**: pass `-f`/`--fail`. Without it, a 4xx/5xx exits 0 and the error page is used as if it were the real response.
+- **Retry transient errors**: pass `--retry 5 --retry-delay 2 --retry-connrefused`, or wrap the call in an explicit retry loop.
+- **Download to a file, then extract or run it**: never pipe a retried `curl` into `tar`/`sh`; a retry after a partial transfer sends the partial data and the full file down the same pipe.
+- **Keep stderr out of captured output**: never use `VAR="$(curl ... 2>&1)"`; with `--retry`, curl writes a warning for each failed attempt to stderr, which corrupts the captured response.
+
+Example: `curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o out.tar.gz "$url"`
+
+Exceptions are fine when justified, e.g. a polling loop that checks the HTTP status itself (`scripts/download-s3-wheels.sh`) may skip `--retry`, and a best-effort lookup must fall back visibly (`.gitlab/scripts/resolve-base-branch.sh`).
 
 ## Troubleshooting
 
@@ -146,3 +156,14 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+
+## AIDEV Anchor Comments
+
+The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
+Existing anchors were removed from the repository (#20143).
+
+- Do not add new `AIDEV-*` anchor comments. Use plain inline comments when
+  context is needed (see Docstrings and Comments above).
+- CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
+  lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
+  its tests are excluded because they document or exercise the deprecation.

@@ -4,10 +4,11 @@ from _ast import ImportFrom
 import ast
 import copy
 import os
-import sys
 from typing import Any
 
-from ..._constants import IAST
+from ddtrace.internal.compat import is_at_least_py
+
+from .._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_COMMAND_INJECTION_FUNCTIONS
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -148,10 +149,10 @@ _ASPECTS_SPEC: dict[str, Any] = {
 }
 
 
-if sys.version_info >= (3, 12):
+if is_at_least_py(3, 12):
     _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = _PREFIX + "aspects.ospathsplitroot_aspect"
 
-if sys.version_info >= (3, 12) or os.name == "nt":
+if is_at_least_py(3, 12) or os.name == "nt":
     _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = _PREFIX + "aspects.ospathsplitdrive_aspect"
 
 

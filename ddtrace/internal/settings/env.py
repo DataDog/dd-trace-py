@@ -63,7 +63,7 @@ def _validate_key(key: str) -> None:
         logger.debug("Deprecated Datadog configuration variable accessed: %s", key)
 
 
-class EnvConfig(MutableMapping):
+class EnvConfig(MutableMapping[str, str]):
     """A MutableMapping wrapper around os.environ.
 
     Serves as the centralized entry point for all environment variable access
@@ -104,7 +104,7 @@ class EnvConfig(MutableMapping):
     def __len__(self) -> int:
         return sum(1 for _ in self)
 
-    def copy(self) -> dict:
+    def copy(self) -> dict[str, str]:
         return dict(self)
 
 

@@ -71,6 +71,13 @@ stack_is_origin_task_linking_enabled(PyObject* Py_UNUSED(self), PyObject* Py_UNU
 }
 
 static PyObject*
+stack_register_fork_cleanup(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    Sampler::get().register_fork_cleanup();
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     Py_BEGIN_ALLOW_THREADS; // Release GIL
@@ -123,16 +130,26 @@ stack_thread_register(PyObject* self, PyObject* args)
 
     uintptr_t id;
     uint64_t native_id;
-    const char* name;
+    PyObject* name_obj;
 
-    if (!PyArg_ParseTuple(args, "KKs", &id, &native_id, &name)) {
+    if (!PyArg_ParseTuple(args, "KKU", &id, &native_id, &name_obj)) {
         return nullptr;
     }
+
+    // Thread names may hold lone surrogates, which strict UTF-8 encoding rejects. Raising here would
+    // propagate out of Thread._set_native_id and hang Thread.start forever.
+    PyObject* name_bytes = PyUnicode_AsEncodedString(name_obj, "utf-8", "replace");
+    if (name_bytes == nullptr) {
+        return nullptr;
+    }
+    // An embedded NUL truncates the name, which is acceptable.
+    const char* name = PyBytes_AS_STRING(name_bytes);
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().register_thread(id, native_id, name);
     Py_END_ALLOW_THREADS;
 
+    Py_DECREF(name_bytes);
     Py_RETURN_NONE;
 }
 
@@ -1120,6 +1137,10 @@ static PyMethodDef stack_methods[] = {
       stack_is_origin_task_linking_enabled,
       METH_NOARGS,
       "Return whether OriginTaskLinks is enabled (stack sampler has been started)" },
+    { "register_fork_cleanup",
+      stack_register_fork_cleanup,
+      METH_NOARGS,
+      "Reset the sampler state in fork children, even if the sampler was never started" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },

@@ -1,9 +1,7 @@
-from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 import ddtrace.appsec._iast._iast_request_context_base as base
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
@@ -13,9 +11,10 @@ from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.internal import span_bus
-from ddtrace.internal.appsec.prototypes import SpanProtocol
+from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -37,16 +36,8 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
     return None
 
 
-def _create_and_attach_iast_report_to_span(
-    req_span: SpanProtocol, existing_data: Optional[Union[str, dict[str, Any]]], merge: bool = False
-):
+def _create_and_attach_iast_report_to_span(req_span: SpanData) -> None:
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
-    if merge and existing_data is not None and report_data is not None:
-        if isinstance(existing_data, str):
-            report_data._merge_json(existing_data)
-        elif isinstance(existing_data, dict):
-            report_data._merge_dict(existing_data)
-
     if report_data is not None:
         data = report_data.build_and_scrub_value_parts()
         if asm_config._use_metastruct_for_iast:
@@ -62,39 +53,32 @@ def _create_and_attach_iast_report_to_span(
 
     base._iast_finish_request(req_span)
 
-    if req_span.get_tag(_ORIGIN_KEY) is None:
-        req_span._set_attribute(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+    if req_span._get_str_attribute(_ORIGIN_KEY) is None:
+        req_span._set_attribute(_ORIGIN_KEY, IAST.ORIGIN_VALUE)
 
 
-def _iast_end_request(ctx=None, span=None, *args, **kwargs):
+def _iast_end_request(scope: Union[ExecutionContext[Event], SpanData]) -> None:
+    req_span: Optional[SpanData] = None
     try:
-        move_to_root = asm_config._iast_use_root_span
-        if move_to_root:
-            req_span = span_bus.get_root_span()
+        if isinstance(scope, SpanData):
+            req_span = scope
         else:
-            if span:
-                req_span = span
-            else:
-                req_span = ctx.get_item("req_span")
+            req_span = scope.get_item("req_span")
         if req_span is None:
             log.debug("iast::propagation::context::Error finishing IAST context. There isn't a SPAN")
             return
 
         if asm_config._iast_enabled:
-            existing_data = req_span.get_tag(IAST.JSON) or req_span._get_struct_tag(IAST.STRUCT)
+            existing_data = req_span._get_str_attribute(IAST.JSON) or req_span._get_struct_tag(IAST.STRUCT)
             if existing_data is None:
-                if req_span.get_metric(IAST.ENABLED) is None:
+                if req_span._get_numeric_attribute(IAST.ENABLED) is None:
                     if not base.is_iast_request_enabled():
                         req_span._set_attribute(IAST.ENABLED, 0.0)
                         base._iast_finish_request(req_span)
                         return
 
                     req_span._set_attribute(IAST.ENABLED, 1.0)
-                    _create_and_attach_iast_report_to_span(req_span, existing_data, merge=False)
-
-            elif move_to_root:
-                # Data exists from a previous request, we will merge both reports
-                _create_and_attach_iast_report_to_span(req_span, existing_data, merge=True)
+                    _create_and_attach_iast_report_to_span(req_span)
 
             reset_request_vulnerabilities()
             base.clear_hash_object_tracking()

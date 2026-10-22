@@ -1,9 +1,6 @@
 [build-system]
 requires = [
-    # Cython 3.3 cp315 manylinux wheels SIGSEGV on the current 3.15 interpreter; <3.3 pins 3.2.x.
-    # TODO(py-315): drop this pin once IMAGE_TAG is on the 2026.08.04-1 images.
-    "cython<3.3; python_version >= '3.15'",
-    "cython; python_version < '3.15'",
+    "cython",
     "cmake>=3.24.2,<3.28",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
@@ -12,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.16.0rc1"
+version = "4.17.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -124,7 +121,6 @@ lint = [
     "grpcio==1.82.1; python_version>='3.11'",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.23.0",
     "ruff==0.14.10",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
@@ -147,9 +143,9 @@ max-line-length = 120
 exclude = '''
 (
   \.worktrees/
+  | \.cache/
   | .venv*
   | \.sg
-  | \.riot
   | ddtrace/profiling/
   | test_ci_visibility_api_client_skippable_real_world_responses\.py
 )
@@ -159,9 +155,7 @@ exclude = '''
 exclude = [
   "**/__pycache__",
   ".git",
-  ".ddriot",
   ".ddtox",
-  ".riot",
   ".sg",
   ".tox",
   ".venv",
@@ -184,14 +178,13 @@ exclude_dirs = [
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
   "scripts/ext_cache.py",
+  "scripts/check_no_new_aidev_anchors.py",
   "setup.py",
 ]
 
 [tool.ruff]
 # This exclude list applies to both linting and formatting
 exclude = [
-    ".riot",
-    ".ddriot",
     ".venv*",
     ".git",
     ".worktrees",

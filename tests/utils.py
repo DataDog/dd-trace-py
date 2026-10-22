@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import contextlib
 from contextlib import contextmanager
@@ -26,19 +28,20 @@ from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal import packages as _packages_module
 from ddtrace.internal import process_tags
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.packages import Distribution
-from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
@@ -74,6 +77,7 @@ _LLMOBS_SHADOW_IGNORES = [
     "meta._dd.llmobs.span_kind",
     "meta._dd.llmobs.model_name",
     "meta._dd.llmobs.model_provider",
+    "meta._dd.llmobs.artificial_gen_ai_tags",
     "meta._dd.p.llmobs_trace_id",
     "meta._dd.p.llmobs_parent_id",
     "meta._dd.p.llmobs_ml_app",
@@ -192,7 +196,9 @@ def override_global_config(values: dict[str, Any]):
         "_raise",
         "_trace_compute_stats",
         "_trace_resource_renaming_always_simplified_endpoint",
+        "_otel_trace_semantics_enabled",
         "_obfuscation_query_string_pattern",
+        "_query_string_obfuscation_preserve_delimiter",
         "_global_query_string_obfuscation_disabled",
         "_trace_agentless_enabled",
         "_agentless_enabled",
@@ -250,6 +256,11 @@ def override_global_config(values: dict[str, Any]):
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
+    if "_obfuscation_query_string_pattern" in values and "_query_string_obfuscation_preserve_delimiter" not in values:
+        pattern = values["_obfuscation_query_string_pattern"]
+        ddtrace.config._query_string_obfuscation_preserve_delimiter = (
+            pattern is not None and pattern.pattern == DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode("ascii")
+        )
     # rebuild asm config from env vars and global config
     for key, value in values.items():
         if key in asm_config_keys:
@@ -483,7 +494,7 @@ class TestSpanContainer:
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self) -> "TestSpanNode":
+    def get_root_span(self) -> TestSpanNode:
         """
         Helper to get the root span from the list of spans in this container
 
@@ -696,7 +707,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
-    ) -> "DummyWriter":
+    ) -> DummyWriter:
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
@@ -1478,8 +1489,8 @@ def call_program(*args, **kwargs):
     else:
         # No explicit env: subprocess would inherit os.environ directly.
         cleaned_env = dict(os.environ)
-    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches normal
-    # riot CI, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
+    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches ordinary
+    # test runs, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
     kwargs["env"] = strip_ddtest_leaked_env(cleaned_env)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
@@ -1625,16 +1636,12 @@ def override_third_party_packages(packages: list[str]):
     except AttributeError:
         original_callonce = None
 
-    try:
-        original_mapping = _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore
-    except AttributeError:
-        original_mapping = None
+    # filename_to_package looks the mapping up through the module at call time.
+    original_mapping = _packages_module._package_for_root_module_mapping
+    mapping = {p: Distribution(p, "0.0.0") for p in packages}
 
     _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)  # type: ignore[attr-defined]
-    _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (  # type: ignore[attr-defined]
-        {p: Distribution(p, "0.0.0") for p in packages},
-        None,
-    )
+    _packages_module._package_for_root_module_mapping = lambda: mapping
     filename_to_package.cache_clear()
     is_third_party.cache_clear()
 
@@ -1646,10 +1653,7 @@ def override_third_party_packages(packages: list[str]):
         else:
             del _third_party_packages.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
-        if original_mapping is not None:
-            _package_for_root_module_mapping.__wrapped__.__callonce_result__ = original_mapping  # type: ignore
-        else:
-            del _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
+        _packages_module._package_for_root_module_mapping = original_mapping
 
         filename_to_package.cache_clear()
         is_third_party.cache_clear()

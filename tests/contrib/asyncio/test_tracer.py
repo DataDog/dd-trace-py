@@ -221,8 +221,8 @@ if __name__ == "__main__":
     assert status == 0, err + out
 
     pattern = rb"Executing <Task finished name=\'Task-1\' coro=<my_function\(\) done, "
-    rb"defined at .*/dd-trace-py/ddtrace/contrib/internal/asyncio/patch.py:.* result=None "
-    rb"created at .*/dd-trace-py/ddtrace/contrib/internal/asyncio/patch.py:.* took .* seconds"
+    rb"defined at .*/ddtrace/contrib/internal/asyncio/patch.py:.* result=None "
+    rb"created at .*/ddtrace/contrib/internal/asyncio/patch.py:.* took .* seconds"
     match = re.match(pattern, err)
     assert match, err
 

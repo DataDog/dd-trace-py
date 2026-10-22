@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.httpx2.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.settings.http import HttpConfig
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -19,8 +20,7 @@ DEFAULT_HEADERS = {
 }
 
 
-def get_url(path):
-    # type: (str) -> str
+def get_url(path: str) -> str:
     return f"http://{HOST}:{PORT}{path}"
 
 
@@ -62,7 +62,9 @@ def test_alias_httpx():
 
     import httpx
 
-    response = httpx.get("http://localhost:8001/status/200")
+    from tests.contrib.httpx2.test_httpx2 import DEFAULT_HEADERS
+
+    response = httpx.get("http://localhost:8001/status/200", headers=DEFAULT_HEADERS)
     assert response.status_code == 200
 
 
@@ -90,6 +92,19 @@ async def test_get_200():
     async with httpx2.AsyncClient() as client:
         resp = await client.get(url, headers=DEFAULT_HEADERS)
         assert resp.status_code == 200
+
+
+def test_otel_semantics_use_shared_http_client_subscriber(test_spans):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        response = httpx2.get(get_url("/status/200"), headers=DEFAULT_HEADERS)
+
+    assert response.status_code == 200
+    span = test_spans.find_span(name="http.request")
+    assert span.resource == "GET"
+    assert span.get_tag("http.request.method") == "GET"
+    assert span.get_tag("url.full") == get_url("/status/200")
+    assert span.get_tag("http.method") is None
+    assert span.get_tag("http.url") is None
 
 
 @pytest.mark.asyncio

@@ -4441,6 +4441,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "400-499"
+      }
+    ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
       {
         "implementation": "A",
@@ -5110,6 +5117,20 @@
         "experimental": true
       }
     ],
+    "DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "100"
+      }
+    ],
+    "DD_TRACE_STATS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "D",
+        "type": "int",
+        "default": "7000"
+      }
+    ],
     "DD_TRACE_STATS_COMPUTATION_ENABLED": [
       {
         "implementation": "C",
@@ -5118,6 +5139,27 @@
         "aliases": [
           "DD_TRACE_COMPUTE_STATS"
         ]
+      }
+    ],
+    "DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "512"
+      }
+    ],
+    "DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "512"
+      }
+    ],
+    "DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "1024"
       }
     ],
     "DD_TRACE_STRUCTLOG_ENABLED": [
@@ -5146,6 +5188,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_TRIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_UNITTEST_ENABLED": [
@@ -6021,14 +6070,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true",
-        "internal": true
-      }
-    ],
-    "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
         "internal": true
       }
     ],
