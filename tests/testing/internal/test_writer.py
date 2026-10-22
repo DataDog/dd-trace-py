@@ -472,6 +472,23 @@ class TestMetadataTruncation:
         assert truncated["*"]["long"] == "m" * MAX_META_TAG_VALUE_LENGTH
         assert metadata["*"]["long"] == long_value
 
+    def test_events_meta_keeps_tail_of_error_stack_and_message(self) -> None:
+        long_stack = "s" * MAX_META_TAG_VALUE_LENGTH + "STACK_TAIL"
+        long_message = "m" * MAX_META_TAG_VALUE_LENGTH + "MESSAGE_TAIL"
+        long_other = "OTHER_HEAD" + "o" * MAX_META_TAG_VALUE_LENGTH
+        event = Event(
+            type="test",
+            content={"meta": {"error.stack": long_stack, "error.message": long_message, "other": long_other}},
+        )
+
+        truncated = _truncate_events_meta([event])
+
+        assert truncated[0]["content"]["meta"] == {
+            "error.stack": long_stack[-MAX_META_TAG_VALUE_LENGTH:],
+            "error.message": long_message[-MAX_META_TAG_VALUE_LENGTH:],
+            "other": long_other[:MAX_META_TAG_VALUE_LENGTH],
+        }
+
     def test_events_meta_returns_original_when_no_values_truncated(self) -> None:
         event = Event(type="test", content={"meta": {"short": "value"}})
         events = [event]
