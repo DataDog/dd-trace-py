@@ -39,7 +39,7 @@ APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableExceptionReplay,)
 
 def apm_tracing_rc(lib_config: Any, _config: Any) -> None:
     # A missing or null key means the config was removed (e.g. deleted on the
-    # backend), which must be treated the same as an explicit ``false``: fall
+    # backend), which must be treated the same as an explicit false: fall
     # back to the local (non-remote) value rather than leaving the current
     # state untouched.
     enabled = lib_config.get("exception_replay_enabled")
