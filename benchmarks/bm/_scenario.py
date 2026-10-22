@@ -1,6 +1,7 @@
 import abc
 import cProfile
 import dataclasses
+import gc
 from pathlib import Path
 import time
 import typing
@@ -89,9 +90,17 @@ class Scenario:
     def _pyperf(self, loops: int) -> float:
         rungen = self.run()
         run = next(rungen)
-        t0 = time.perf_counter()
-        run(loops)
-        dt = time.perf_counter() - t0
+        # Move the import-time and setup heap out of the collector's reach. Otherwise each full
+        # collection inside the timed region rescans it, and the number of full collections per
+        # value varies, which makes allocation-heavy scenarios noisy.
+        gc.collect()
+        gc.freeze()
+        try:
+            t0 = time.perf_counter()
+            run(loops)
+            dt = time.perf_counter() - t0
+        finally:
+            gc.unfreeze()
         try:
             # perform any teardown
             next(rungen)
