@@ -623,10 +623,6 @@ class _IncompleteReadRequestHandlerTest(_BaseHTTPRequestHandler):
 
 
 _HOST = "0.0.0.0"
-_PORT = 8743
-_TIMEOUT_PORT = _PORT + 1
-_RESET_PORT = _TIMEOUT_PORT + 1
-_INCOMPLETE_READ_PORT = _RESET_PORT + 1
 
 
 class UDSHTTPServer(socketserver.UnixStreamServer, http.server.HTTPServer):
@@ -670,8 +666,10 @@ def endpoint_uds_server():
         os.unlink(socket_name)
 
 
-def _make_server(port, request_handler):
-    server = http.server.HTTPServer((_HOST, port), request_handler)
+def _make_server(request_handler):
+    # Port 0 lets the OS pick a free port. When pytest-xdist workers run this module at the same time on one host,
+    # a fixed port fails with "Address already in use".
+    server = http.server.HTTPServer((_HOST, 0), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True
@@ -681,9 +679,9 @@ def _make_server(port, request_handler):
 
 @pytest.fixture(scope="module")
 def endpoint_test_timeout_server():
-    server, thread = _make_server(_TIMEOUT_PORT, _TimeoutAPIEndpointRequestHandlerTest)
+    server, thread = _make_server(_TimeoutAPIEndpointRequestHandlerTest)
     try:
-        yield thread
+        yield server.server_port
     finally:
         server.shutdown()
         thread.join()
@@ -691,9 +689,9 @@ def endpoint_test_timeout_server():
 
 @pytest.fixture(scope="module")
 def endpoint_test_reset_server():
-    server, thread = _make_server(_RESET_PORT, _ResetAPIEndpointRequestHandlerTest)
+    server, thread = _make_server(_ResetAPIEndpointRequestHandlerTest)
     try:
-        yield thread
+        yield server.server_port
     finally:
         server.shutdown()
         thread.join()
@@ -701,9 +699,9 @@ def endpoint_test_reset_server():
 
 @pytest.fixture(scope="module")
 def endpoint_test_incomplete_read_server():
-    server, thread = _make_server(_INCOMPLETE_READ_PORT, _IncompleteReadRequestHandlerTest)
+    server, thread = _make_server(_IncompleteReadRequestHandlerTest)
     try:
-        yield thread
+        yield server.server_port
     finally:
         server.shutdown()
         thread.join()
@@ -712,11 +710,11 @@ def endpoint_test_incomplete_read_server():
 @pytest.fixture
 def endpoint_assert_path():
     handler = _APIEndpointRequestHandlerTest
-    server, thread = _make_server(_PORT, handler)
+    server, thread = _make_server(handler)
 
     def configure(expected_path_prefix=None):
         handler.expected_path_prefix = expected_path_prefix
-        return thread
+        return server.server_port
 
     try:
         yield configure
@@ -731,19 +729,19 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer_class, path = writer_and_path
         # test without base path
-        endpoint_assert_path(path)
-        with managed_writer(writer_class, "http://%s:%s/" % (_HOST, _PORT)) as writer:
+        port = endpoint_assert_path(path)
+        with managed_writer(writer_class, "http://%s:%s/" % (_HOST, port)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test without base path nor trailing slash
-        with managed_writer(writer_class, "http://%s:%s" % (_HOST, _PORT)) as writer:
+        with managed_writer(writer_class, "http://%s:%s" % (_HOST, port)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test with a base path
         endpoint_assert_path("/test%s" % path)
-        with managed_writer(writer_class, "http://%s:%s/test/" % (_HOST, _PORT)) as writer:
+        with managed_writer(writer_class, "http://%s:%s/test/" % (_HOST, port)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -764,7 +762,7 @@ def test_flush_connection_timeout_connect(writer_class):
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        managed_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
+        managed_writer(writer_class, "http://%s:%s" % (_HOST, endpoint_test_timeout_server)) as writer,
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
         with pytest.raises((socket.timeout, IoError, HttpClientError)):
@@ -845,7 +843,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        managed_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
+        managed_writer(writer_class, "http://%s:%s" % (_HOST, endpoint_test_reset_server)) as writer,
     ):
         exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
@@ -857,7 +855,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
 @pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, writer_class):
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
-    with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
+    with managed_writer(writer_class, f"http://{_HOST}:{endpoint_test_incomplete_read_server}") as writer:
         # IncompleteRead should be raised when the server sends an incomplete chunked response
         exc_types = (httplib.IncompleteRead, NetworkError, HttpClientError)
         with pytest.raises(exc_types):

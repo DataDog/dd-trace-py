@@ -680,4 +680,9 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
+        # If _start_service failed before patch ran (e.g. _c_initialize_gevent_support raised),
+        # _original_lock is still None; restoring it would set the module attribute to None.
+        if self._original_lock is None:
+            return
+
         self._set_patch_target(self._original_lock)

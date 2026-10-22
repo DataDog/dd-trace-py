@@ -203,8 +203,8 @@ variables:
     set -euo pipefail
     # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
     # so resolve creds from the tart iam-proxy beforehand
-    role=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
-    creds=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+    role=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
+    creds=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
     export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
     export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
     export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")

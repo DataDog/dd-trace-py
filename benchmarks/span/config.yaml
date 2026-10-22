@@ -12,6 +12,13 @@ start: &base
   record_exception: false
   set_status: false
   update_name: false
+start-traceid128:
+  <<: *base
+  traceid128: true
+add-one-tag:
+  <<: *base
+  ntags: 1
+  ltags: 100
 add-tags:
   <<: *base
   ntags: 100
