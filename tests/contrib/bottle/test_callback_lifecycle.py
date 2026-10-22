@@ -74,7 +74,11 @@ def test_completion_reports_callback_outcome(app, events, outcome, status):
             raise result
         return result
 
-    webtest.TestApp(app).get("/hello", status=status)
+    # An uncaught callback error reaches wsgi.errors, and webtest fails any request
+    # that logged there. expect_errors skips that check and the status check, so assert
+    # the status directly.
+    response = webtest.TestApp(app).get("/hello", expect_errors=True)
+    assert response.status_int == status
     assert len(events) == 2
     completed = events[-1]
     assert completed.response_status_code == status
@@ -239,7 +243,8 @@ def test_consumer_owns_setup_and_cleanup_without_tracing(app, tracer, monkeypatc
     core.on(WebFrameworkCallbackStartedEvent.event_name, started)
     core.on(WebFrameworkCallbackCompletedEvent.event_name, completed)
     try:
-        webtest.TestApp(app).get("/work", status=500 if fail else 200)
+        response = webtest.TestApp(app).get("/work", expect_errors=True)
+        assert response.status_int == (500 if fail else 200)
         assert state == {}
     finally:
         core.reset_listeners(WebFrameworkCallbackStartedEvent.event_name, started)
