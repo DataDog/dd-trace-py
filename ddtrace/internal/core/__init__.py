@@ -366,10 +366,9 @@ _CONTEXT_CLASS = ExecutionContext
 
 @contextmanager
 def activate_context(ctx: ExecutionContext[Event]) -> Iterator[None]:
-    """Temporarily activate an existing context without dispatching lifecycle events.
+    """Run a callback with its saved context current, then restore the caller.
 
-    Restore the caller's context on exit, including when the callback raises.
-    Activation neither re-enters nor ends the existing context's scope.
+    This neither re-enters nor ends the context, so no lifecycle events are dispatched.
     """
     if _CURRENT_CONTEXT.get() is ctx:
         yield

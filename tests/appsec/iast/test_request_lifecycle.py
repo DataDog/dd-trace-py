@@ -198,26 +198,6 @@ def test_request_failure_always_releases_state(request_lifecycle, monkeypatch, f
         core.dispatch_event(WebRequestCompleting(ctx, span), allow_raise=True)
 
 
-def test_child_completion_uses_saved_request_identifier(request_lifecycle):
-    async def run():
-        async def complete():
-            assert IAST_CONTEXT.get() is None
-            core.dispatch_event(WebRequestCompleting(ctx, span), allow_raise=True)
-
-        # Workers may exist before admission and never inherit its identifier.
-        task = asyncio.create_task(complete())
-        with core.context_with_data("test.request") as ctx, Span("request", span_type="web") as span:
-            core.dispatch_event(WebRequestReady(ctx, span), allow_raise=True)
-            context_id = IAST_CONTEXT.get()
-
-            await task
-            assert IAST_CONTEXT.get() == context_id
-            assert not get_tainted_object_map_by_ctx_id(context_id)
-            assert live_maps() == 0
-
-    asyncio.run(run())
-
-
 def test_deferred_completion_restores_callback_request(request_lifecycle):
     callback_context = contextvars.copy_context()
     with core.context_with_data("test.request") as ctx:

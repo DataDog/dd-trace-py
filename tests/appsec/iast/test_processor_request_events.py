@@ -67,7 +67,7 @@ def test_request_route_survives_context_exit_and_processor_replacement(
             span = Span("arbitrary.request.name", span_type="web")
             processor.on_span_start(span)
             if listening:
-                lifecycle.on_request_ready(WebRequestReady(ctx, span))
+                lifecycle.IastRequestReadySubscriber.on_event(WebRequestReady(ctx, span))
         # Completion does not depend on the current scope or mutable component tag.
         span.set_tag("component", "fastapi")
         AppSecIastSpanProcessor().on_span_finish(span)
@@ -102,19 +102,19 @@ def test_enclosing_legacy_request_keeps_finish_callback(processor, capacity_reje
                     span = Span("fastapi.request", span_type="web")
                     span._parent = parent
                     processor.on_span_start(span)
-                    lifecycle.on_request_ready(WebRequestReady(inner, span))
+                    lifecycle.IastRequestReadySubscriber.on_event(WebRequestReady(inner, span))
                     if capacity_rejected and not is_subapp:
                         event_start.assert_called_once_with(span)
                     else:
                         event_start.assert_not_called()
                     if not is_subapp:
                         # An independent request delivers its own response first.
-                        lifecycle.on_request_completing(WebRequestCompleting(inner, span))
+                        lifecycle.IastRequestCompletingSubscriber.on_event(WebRequestCompleting(inner, span))
                     # Nested ASGI send wrappers finish the outer span first.
                     processor.on_span_finish(parent)
                     end.assert_called_once_with(parent)
                     processor.on_span_finish(span)
-                    lifecycle.on_request_completing(WebRequestCompleting(inner, span))
+                    lifecycle.IastRequestCompletingSubscriber.on_event(WebRequestCompleting(inner, span))
                     assert span.get_metric(IAST.ENABLED) == (1.0 if capacity_rejected and not is_subapp else None)
                     assert not (span.get_tag(IAST.JSON) or span._get_struct_tag(IAST.STRUCT))
                     span.finish()

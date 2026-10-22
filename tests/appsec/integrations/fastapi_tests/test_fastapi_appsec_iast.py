@@ -1427,16 +1427,13 @@ def test_fastapi_request_lifecycle(iast_fastapi, spec, mode):
     def observe(event):
         if event.ctx.get_item("integration_config").integration_name != "fastapi":
             return
-        notifications.append(
-            dict(
-                event=event,
-                task=asyncio.current_task(),
-                context_id=IAST_CONTEXT.get(),
-                finished=event.span.finished,
-                reported=bool(event.span.get_tag(IAST.JSON) or event.span._get_struct_tag(IAST.STRUCT)),
-                enabled=event.span.get_metric(IAST.ENABLED),
-            )
-        )
+        assert not event.span.finished
+        if isinstance(event, WebRequestReady):
+            assert IAST_CONTEXT.get() is not None
+        else:
+            assert bool(load_iast_report(event.span)) == (mode != "setup_error")
+            assert event.span.get_metric(IAST.ENABLED) == 1.0
+        notifications.append((event, asyncio.current_task()))
 
     application = iast_fastapi
 
@@ -1493,14 +1490,9 @@ def test_fastapi_request_lifecycle(iast_fastapi, spec, mode):
         for event_type in event_types:
             core.reset_listeners(event_type.event_name, observe)
 
-    assert [type(row["event"]) for row in notifications] == event_types * 2
-    assert notifications[0]["event"].span is not notifications[2]["event"].span
-    for ready, complete in zip(notifications[::2], notifications[1::2]):
-        assert ready["event"].ctx is complete["event"].ctx
-        assert ready["event"].span is complete["event"].span
-        assert ready["context_id"] is not None
-        assert complete["reported"] == (mode != "setup_error")
-        assert complete["enabled"] == 1.0
-        assert not complete["finished"]
+    assert [type(event) for event, _task in notifications] == event_types * 2
+    assert notifications[0][0].span is not notifications[2][0].span
+    for (ready, ready_task), (complete, complete_task) in zip(notifications[::2], notifications[1::2]):
+        assert ready.ctx is complete.ctx and ready.span is complete.span
         if mode == "stream" and spec == "2.3":
-            assert complete["task"] is not ready["task"]
+            assert complete_task is not ready_task

@@ -61,9 +61,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         uses_events = _SPAN_ROUTES.pop(span, None)
-        if uses_events is True:
-            return
-        if uses_events is None and find_request_owner(core.current):
-            # Late WEB typing does not make a child span another request.
+        if uses_events is True or (uses_events is None and find_request_owner(core.current)):
+            # Request events also own children typed WEB after span start.
             return
         _iast_end_request(span)
