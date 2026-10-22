@@ -1043,6 +1043,8 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, django_hosts, 'django~=4.0']
   django:djangorestframework:
+    # TODO(py-315): the newest djangorestframework/django row still fails on
+    # 3.15 (Django template context internals). Re-add 3.15 once supported.
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -1073,7 +1075,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', 'djangorestframework~=3.13']
         - name: django:djangorestframework
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', djangorestframework]
   dogpile_cache:
     venvs_per_job: 10
@@ -1397,7 +1399,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, gevent]
         - name: gevent
-          python: ['3.11', '3.15']
+          python: ['3.11']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=22.10.0']
   google_cloud_pubsub:
     venvs_per_job: 6
@@ -1605,6 +1607,9 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, httpx2]
   integration_registry:
+    # TODO(py-315): the PyPI availability check fails on 3.15 because torch
+    # and ray have no cp315 distributions yet. Re-add 3.15 once they publish
+    # cp315 wheels.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1613,7 +1618,7 @@ suites:
     snapshot: false
     matrix:
       command: pytest {cmdargs} tests/contrib/integration_registry
-      python: ['3.13', '3.14', '3.15']
+      python: ['3.13', '3.14']
       variants:
         - name: integration_registry
           dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema, filelock]
@@ -1636,6 +1641,9 @@ suites:
         - name: jinja2
           dependencies: [pytest-randomly, jinja2]
   kafka:
+    # TODO(py-315): confluent-kafka publishes no cp315 wheels and its sdist build
+    # needs librdkafka headers, so the suite cannot build on 3.15. Re-add 3.15
+    # once confluent-kafka ships cp315 wheels.
     venvs_per_job: 4
     retry: 2
     env:
@@ -1661,7 +1669,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, pytest-xdist, 'confluent-kafka~=1.9.2']
         - name: kafka
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
     paths:
@@ -1756,6 +1764,8 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mariadb~=1.1.2']
   mlflow:
+    # TODO(py-315): mlflow pulls pyarrow, which has no cp315 wheels and whose
+    # sdist build fails on 3.15. Re-add 3.15 once pyarrow supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1772,7 +1782,7 @@ suites:
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
-          python: ['3.12', '3.13', '3.14', '3.15']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     venvs_per_job: 7
