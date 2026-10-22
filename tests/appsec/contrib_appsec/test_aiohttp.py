@@ -1,11 +1,13 @@
 import asyncio
 import base64
+import gzip
 from http.cookies import SimpleCookie
 import json
 import time
 import traceback
 from typing import Any
 from typing import Optional
+from typing import Union
 from unittest import mock
 import urllib.parse
 
@@ -130,16 +132,21 @@ class _Test_Aiohttp_Base:
         return response.headers["location"]
 
 
-_ATTACK = b"yqrweytqwreasldhkuqwgervflnmlnli"
-_UTF7_ATTACK = ("+" + base64.b64encode(_ATTACK.decode().encode("utf-16-be")).decode().rstrip("=") + "-").encode()
+_ATTACK = "yqrweytqwreasldhkuqwgervflnmlnli"
 
 
-def _multipart_body(fields: dict[str, bytes]) -> tuple[bytes, str]:
+def _utf7(text: str) -> str:
+    return "+" + base64.b64encode(text.encode("utf-16-be")).decode().rstrip("=") + "-"
+
+
+def _multipart_body(fields: dict[str, Union[bytes, tuple[str, bytes]]]) -> tuple[bytes, str]:
     boundary = "52d1fb4eb9c021e53ac2846190e4ac72"
-    body = b"".join(
-        f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode() + value + b"\r\n"
-        for name, value in fields.items()
-    )
+    body = b""
+    for name, field in fields.items():
+        headers, value = field if isinstance(field, tuple) else ("", field)
+        body += (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"{headers}\r\n\r\n'.encode() + value + b"\r\n"
+        )
     return body + f"--{boundary}--\r\n".encode(), f"multipart/form-data; boundary={boundary}"
 
 
@@ -169,41 +176,50 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
                 assert json.loads(self.body(response)) == {"field": value, "other": "other_value"}
 
     @pytest.mark.parametrize(
-        ("parts", "blocked"),
+        ("fields", "method"),
         [
-            ([("Content-Transfer-Encoding: base64", base64.b64encode(_ATTACK), None)], True),
+            ({"f": ("\r\nContent-Transfer-Encoding: base64", base64.b64encode(_ATTACK.encode()))}, "POST"),
             (
-                [("Content-Transfer-Encoding: quoted-printable", "".join(f"={b:02X}" for b in _ATTACK).encode(), None)],
-                True,
+                {
+                    "f": (
+                        "\r\nContent-Transfer-Encoding: quoted-printable",
+                        "".join(f"={b:02X}" for b in _ATTACK.encode()).encode(),
+                    )
+                },
+                "POST",
             ),
-            ([("Content-Type: text/plain; charset=utf-7", _UTF7_ATTACK, None)], True),
-            ([("Content-Type: application/json", b"{bad", None), ("Content-Type: text/plain", _ATTACK, None)], True),
-            ([("Content-Type: text/plain", _ATTACK, "f.txt")], False),
+            ({"f": ("\r\nContent-Type: text/plain; charset=utf-7", _utf7(_ATTACK).encode())}, "POST"),
+            ({"j": ("\r\nContent-Type: application/json", b"{bad"), "f": _ATTACK.encode()}, "POST"),
+            ({"b": ("\r\nContent-Transfer-Encoding: base64", b"!"), "f": _ATTACK.encode()}, "POST"),
+            (
+                {"n": ("\r\nContent-Type: multipart/mixed; boundary=in", f"--in\r\n\r\n{_ATTACK}\r\n--in--".encode())},
+                "POST",
+            ),
+            ({"f": ("\r\nContent-Encoding: gzip", gzip.compress(_ATTACK.encode()))}, "POST"),
+            ({"f": _ATTACK.encode()}, "GET"),
         ],
-        ids=["base64", "quoted_printable", "utf7", "after_malformed_json_part", "file"],
+        ids=["base64", "quoted_printable", "utf7", "after_malformed_json", "after_bad_base64", "nested", "gzip", "get"],
     )
-    def test_multipart_parts_decoded_as_aiohttp(self, interface, entry_span, get_entry_span_tag, parts, blocked):
-        boundary = "52d1fb4eb9c021e53ac2846190e4ac72"
-        body = (
-            b"".join(
-                f'--{boundary}\r\nContent-Disposition: form-data; name="f{i}"'.encode()
-                + (f'; filename="{filename}"'.encode() if filename else b"")
-                + f"\r\n{header}\r\n\r\n".encode()
-                + value
-                + b"\r\n"
-                for i, (header, value, filename) in enumerate(parts)
-            )
-            + f"--{boundary}--\r\n".encode()
+    def test_multipart_parts_decoded_as_aiohttp(self, interface, entry_span, get_entry_span_tag, fields, method):
+        body, content_type = _multipart_body(fields)
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
+            self.update_tracer(interface)
+            response = interface.client._run(method, "/asm/", data=body, content_type=content_type)
+            self.assert_blocked(response, entry_span, get_entry_span_tag, "tst-037-003")
+
+    def test_multipart_fields_sent_to_waf(self, interface):
+        body, content_type = _multipart_body(
+            {
+                "text": b"ok",
+                "json": ("\r\nContent-Type: application/json", b'{"a": "b"}'),
+                "upload": ('; filename="f.txt"', _ATTACK.encode()),
+            }
         )
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
             self.update_tracer(interface)
-            response = interface.client.post(
-                "/asm/", data=body, content_type=f"multipart/form-data; boundary={boundary}"
-            )
-            if blocked:
-                self.assert_blocked(response, entry_span, get_entry_span_tag, "tst-037-003")
-            else:
-                assert self.status(response) == 200, self.body(response)
+            response = interface.client.post("/asm/", data=body, content_type=content_type)
+            assert self.status(response) == 200, self.body(response)
+            assert utils._addresses_store[0]["http.request.body"] == {"text": "ok", "json": {"a": "b"}}
 
     def test_x_url_encoded_body(self, interface, entry_span, get_entry_span_tag):
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
@@ -216,7 +232,7 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
     @pytest.mark.parametrize("encoding", ["json", "form"])
     def test_request_body_charset(self, interface, entry_span, get_entry_span_tag, encoding):
         attack = "yqrweytqwreasldhkuqwgervflnmlnli"
-        utf7_attack = "+" + base64.b64encode(attack.encode("utf-16-be")).decode().rstrip("=") + "-"
+        utf7_attack = _utf7(attack)
         if encoding == "json":
             body, content_type = json.dumps({"attack": utf7_attack}), "application/json; charset=utf-7"
         else:
