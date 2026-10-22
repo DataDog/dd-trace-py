@@ -527,7 +527,7 @@ integrations:
   tested_versions_by_dependency:
     httpx2:
       min: 2.0.0
-      max: 2.13.1
+      max: 2.15.1
 
 - integration_name: jinja2
   is_external_package: true
