@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    error tracking: Fixes an issue where handled exceptions from modules configured in
+    ``DD_ERROR_TRACKING_HANDLED_ERRORS`` were not reported on Python 3.12 and later when
+    the first handled exception occurred while the module was still being imported,
+    causing all later handled exceptions from the same module to also be missed.
