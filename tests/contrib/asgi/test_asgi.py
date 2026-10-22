@@ -303,6 +303,7 @@ async def test_request_lifecycle_without_ready_subscriber(interrupt_completion):
     finalized = []
 
     def finalize(event):
+        assert not event.span.finished
         finalized.append(event)
 
     def observe(event):
