@@ -32,12 +32,17 @@ Before writing anything, read the existing implementation that most closely matc
 
 Create `ddtrace/llmobs/_integrations/{name}.py`:
 
+Do not import the concrete `Span` class (`ddtrace.trace.Span` / `ddtrace._trace.span.Span`) into `ddtrace/llmobs/_integrations/` modules — that recreates a `product:llmobs -> product:tracing` dependency. Type the `span` parameter as `SpanData` from `ddtrace.internal.native._native` instead; it carries the attributes and struct/attribute-tag methods (`_set_attribute`, `_get_struct_tag`, `_set_struct_tag`, etc.) without pulling in `Span`.
+
+`_annotate_llmobs_span_data` (and a few other helpers such as `get_tool_version_from_llm_span`) need `_set_ctx_item`, which `SpanData` doesn't have, so they're typed to accept `_LLMObsSpan` from `ddtrace.llmobs._span` — the single structural `Protocol` all LLMObs code uses for spans. Extend it there when a new call site needs another `Span` member instead of declaring a new per-module protocol. `SpanData` does not satisfy that protocol, so a caller passing a bare `SpanData` there is a type error rather than a silently swallowed exception. The object every integration actually passes at runtime is a full `Span`, which does satisfy the protocol, so annotate your integration's `_llmobs_set_tags` override (and its helpers) with `span: _LLMObsSpan`. That is a valid override of the base class's `span: Span` parameter. Don't type the span as `SpanData` and then `cast(Any, span)` at the call site: that disables the very check the protocol exists for.
+
 ```python
 from typing import Any, Optional
 
-from ddtrace.trace import Span
+from ddtrace.internal.native._native import SpanData
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY, OUTPUT_TOKENS_METRIC_KEY, TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolDefinition, ToolResult
 
@@ -45,13 +50,13 @@ from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolDefinition, T
 class MyLibIntegration(BaseLLMIntegration):
     _integration_name: str = "mylib"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
         """Set APM tags on span."""
-        span.set_tag_str("mylib.request.model", kwargs.get("model", ""))
+        span._set_attribute("mylib.request.model", kwargs.get("model", ""))
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -105,7 +110,7 @@ Some older or specialized integrations still call `integration.trace()` and `int
 
 ## Streaming
 
-Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/llmobs/_integrations/base_stream_handler.py`:
+Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/internal/utils/streaming.py`, and import `make_traced_stream` from there too. `ddtrace/contrib/internal/stream_handler.py` only re-exports these for backwards compatibility; do not add new imports from it:
 
 - `initialize_chunk_storage()` — set up accumulators for content, usage, role
 - `process_chunk(chunk)` — accumulate text, tool blocks, usage from each chunk
@@ -201,7 +206,7 @@ span = integration.trace(
 
 Integration overrides the hook:
 ```python
-def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+def _llmobs_agent_name_at_start(self, span: SpanData, **kwargs: Any) -> Optional[str]:
     agent = kwargs.get("_dd_agent")
     return getattr(agent, "name", None) if agent else None
 ```
@@ -219,49 +224,10 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 
 ## Duplex audio streams
 
-Nova 2 Sonic (aws_sdk_bedrock_runtime) uses a connection-local duplex adapter,
-like OpenAI Realtime, rather than one response iterator and one span.
-Do not consume ahead. Observe successful input sends, allow output drain after
-input half-close, and finish once on output EOF, close, cancellation, or error.
-Keep turn state separate from provider completion IDs, which can be shared by
-many responses. Snapshot the caller's parent; do not activate long-lived turns.
+Use a connection-local adapter to observe successful sends and consumed output
+without reading ahead. Preserve input half-close and finish once on output EOF,
+close, cancellation, or error. Snapshot caller context and activate it only while
+emitting turns. Keep audio retention limits separate from timing validity.
 
-Use explicit LLMObs parent/trace/session identity on the three direct children
-of each audio-turn workflow. Speech offsets select the input WAV; speech-end
-event receipt defines the initial latency boundary. Projected assistant playback
-is an estimate, not a device acknowledgement. Keep total samples separate from
-bounded retained bytes; share the audio payload budget across both roles.
-
-Nova protocol state lives in llmobs/_integrations/aws_sdk_bedrock_runtime_utils.py.
-The product supplies it through the Bedrock core event only while enabled. Shared
-parent/trace identity stamping lives in BaseLLMIntegration._set_llmobs_parent;
-audio span creation and annotations live in AwsSdkBedrockRuntimeIntegration.
-
-Keep audio retention separate from timing validity. Dropping an oversized WAV
-must not remove a valid speech phase or its TTFA boundary. Never shorten gaps
-inside a retained clip without a matching timestamped segment contract. End
-interrupted generation at its observed interruption, even when emission waits
-for the next turn. Explicit LLMObs identity must come from an LLMObs ancestor,
-never from a plain APM span's identifiers.
-
-Ignore post-interruption audio for playback validation and retention so late
-malformed chunks cannot erase the already-trimmed clip or its speech phase.
-Generated-byte accounting may continue independently for decodable chunks.
-
-Nova 2 Sonic usageEvent audio counts come from details.total.input.speechTokens
-and details.total.output.speechTokens. Difference these cumulative counters using
-the same turn attribution as totalInputTokens/totalOutputTokens. Emit
-input_audio_tokens/output_audio_tokens as subsets, never add them to total_tokens,
-and preserve explicit zero. A missing or invalid breakdown makes that turn's
-corresponding audio metric unknown; recover the baseline before pricing later
-turns, without attributing earlier unknown usage to them.
-
-### Nova Sonic token breakdowns
-
-Nova Sonic 2 reports cumulative `details.total.input` / `output` counters.
-Difference `textTokens` into `input_text_tokens` / `output_text_tokens` and
-`speechTokens` into `input_audio_tokens` / `output_audio_tokens`, following the
-same turn attribution as aggregate usage. Keep each modality baseline independent.
-A missing or invalid counter makes that turn's split unknown; re-establish its
-baseline without attributing the gap to a later turn. Preserve explicit zeros,
-omit invalid or missing counts, and never add modality counts to inclusive totals.
+See [Nova Sonic](nova-sonic.md) for its turn boundaries, context propagation,
+audio budgets, interruption handling, tool metadata, and cumulative usage rules.

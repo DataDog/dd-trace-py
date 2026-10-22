@@ -83,16 +83,28 @@ List the matching environments before selecting one by hash. The runner starts a
     $ scripts/run-tests --list tests/contrib/django/
     $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-After a successful first run, pass ``-s`` before ``--`` to reuse the selected environment's existing ddtrace
-installation while refreshing its suite dependencies. Omit it after changing native code or project metadata, or
-after updating from main.
+Matching test environments are reused by default. Pass ``-r`` before ``--`` after changing native code or build
+configuration, or after updating from main when those inputs may have changed. This recreates the environment and
+refreshes the editable ddtrace build.
 
 .. code-block:: bash
 
-    $ scripts/run-tests -s --venv <environment-hash> -- -k test_specific_function
+    $ scripts/run-tests -r --venv <environment-hash> -- -k test_specific_function
 
-An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
-remains supported for existing workflows.
+An ``-s`` after ``--`` still belongs to the test command and disables output capture.
+The legacy runner option ``-s`` before ``--`` is a no-op; use ``-r`` to refresh the installation.
+
+Nightly coverage report upload
+------------------------------
+
+Nightly test environments enable coverage report upload by default only on Python 3.15. This focuses reports on
+new Python support without paying the collection and reporting cost on every Python version. Other nightly
+Python versions explicitly disable report upload; suites without a Python 3.15 environment do not fall back to
+another version. The full test matrix and the separate ITR coverage policy are unchanged.
+
+The version selection is defined by ``NIGHTLY_COVERAGE_PYTHON_VERSIONS`` in ``tests/suitespec.py``. Add versions
+there when expanding nightly report coverage. Explicit matrix, variant, and run environment overrides retain
+their existing precedence, including suites that disable report upload. Non-nightly defaults are unchanged.
 
 OpenFeature fixtures
 --------------------
@@ -179,13 +191,11 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run the environment without ``-s`` so that the ddtrace installation is refreshed:
+Then rebuild the environment so that the ddtrace installation is refreshed:
 
 .. code-block:: bash
 
-    $ scripts/run-tests --venv <environment-hash> -- -vv -k test_name
-
-Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
+    $ scripts/run-tests -r --venv <environment-hash> -- -vv -k test_name
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------

@@ -9,10 +9,7 @@ from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
-from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _libddwaf_platform
@@ -71,16 +68,16 @@ class ASMConfig(DDConfig):
     )
     _asm_processed_span_types = {SpanTypes.WEB}
     _asm_http_span_types = {SpanTypes.WEB}
-    _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
-    _iast_propagation_enabled = DDConfig.var(bool, IAST.ENV_PROPAGATION_ENABLED, default=True, private=True)
-    _iast_sink_points_enabled = DDConfig.var(bool, IAST.ENV_SINK_POINTS_ENABLED, default=True, private=True)
-    _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
-    _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
-    _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
-    _iast_telemetry_report_lvl = DDConfig.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
-    _iast_truncation_max_value_length = DDConfig.var(
-        int, IAST.ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH, default=IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
+    _iast_enabled = tracer_config._from_endpoint.get(
+        "iast_enabled", DDConfig.var(bool, "DD_IAST_ENABLED", default=False)
     )
+    _iast_propagation_enabled = DDConfig.var(bool, "DD_IAST_PROPAGATION_ENABLED", default=True, private=True)
+    _iast_sink_points_enabled = DDConfig.var(bool, "DD_IAST_SINK_POINTS_ENABLED", default=True, private=True)
+    _iast_request_sampling = DDConfig.var(float, "DD_IAST_REQUEST_SAMPLING", default=30.0)
+    _iast_debug = DDConfig.var(bool, "DD_IAST_DEBUG", default=False, private=True)
+    _iast_propagation_debug = DDConfig.var(bool, "DD_IAST_PROPAGATION_DEBUG", default=False, private=True)
+    _iast_telemetry_report_lvl = DDConfig.var(str, "DD_IAST_TELEMETRY_VERBOSITY", default="INFORMATION")
+    _iast_truncation_max_value_length = DDConfig.var(int, "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH", default=250)
     _use_metastruct_for_triggers = True
     _use_metastruct_for_iast = True
 
@@ -121,10 +118,10 @@ class ASMConfig(DDConfig):
         str, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
-    _iast_redaction_enabled = DDConfig.var(bool, IAST.REDACTION_ENABLED, default=True)
+    _iast_redaction_enabled = DDConfig.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
     _iast_redaction_name_pattern = DDConfig.var(
         str,
-        IAST.REDACTION_NAME_PATTERN,
+        "DD_IAST_REDACTION_NAME_PATTERN",
         default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
         + r"public_?|access_?|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|"
         + r"consumer_?(?:id|key|secret)|"
@@ -132,7 +129,7 @@ class ASMConfig(DDConfig):
     )
     _iast_redaction_value_pattern = DDConfig.var(
         str,
-        IAST.REDACTION_VALUE_PATTERN,
+        "DD_IAST_REDACTION_VALUE_PATTERN",
         default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|"
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
@@ -141,15 +138,15 @@ class ASMConfig(DDConfig):
     # but we define it so it can be reported through telemetry, since it’s used from the C files.
     _iast_max_concurrent_requests = DDConfig.var(
         int,
-        IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
+        "DD_IAST_MAX_CONCURRENT_REQUESTS",
         default=2,
     )
     _iast_max_vulnerabilities_per_requests = DDConfig.var(
         int,
-        IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
+        "DD_IAST_VULNERABILITIES_PER_REQUEST",
         default=2,
     )
-    _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
+    _iast_lazy_taint = DDConfig.var(bool, "_DD_IAST_LAZY_TAINT", default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
     _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
     _iast_use_root_span = DDConfig.var(bool, "_DD_IAST_USE_ROOT_SPAN", default=False)
@@ -173,7 +170,7 @@ class ASMConfig(DDConfig):
         float, EXPLOIT_PREVENTION.STACK_TOP_PERCENT, default=75.0, validator=_validate_percentage
     )
 
-    _iast_stack_trace_enabled = DDConfig.var(bool, IAST.STACK_TRACE_ENABLED, default=True)
+    _iast_stack_trace_enabled = DDConfig.var(bool, "DD_IAST_STACK_TRACE_ENABLED", default=True)
 
     # Django ATO
     _django_include_user_name = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
@@ -247,7 +244,7 @@ class ASMConfig(DDConfig):
     ]
     _iast_redaction_numeral_pattern = DDConfig.var(
         str,
-        IAST.REDACTION_VALUE_NUMERAL,
+        "DD_IAST_REDACTION_VALUE_NUMERAL",
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
