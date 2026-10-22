@@ -437,6 +437,283 @@ def test_debugger_probe_new_delete(probe, stuff):
         assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe_id
 
 
+@pytest.mark.parametrize(
+    "probe",
+    [
+        (
+            create_snapshot_function_probe(
+                probe_id="probe-instance-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                rate=1000,
+            )
+        ),
+        (
+            create_snapshot_line_probe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=1000,
+            )
+        ),
+    ],
+)
+def test_debugger_probe_survives_reload(probe, stuff):
+    from importlib import reload
+
+    with debugger() as d:
+        d.add_probes(probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+        OldStuff = stuff.Stuff
+
+        reload(stuff)
+
+        # The probe moves to the new code, so code retained from before the
+        # reload is no longer instrumented.
+        signals = sum(d.signal_state_counter.values())
+        OldStuff().instancestuff(42)
+        assert sum(d.signal_state_counter.values()) == signals
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+
+@pytest.mark.parametrize(
+    "probe",
+    [
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method",
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+            rate=1000,
+        ),
+        create_snapshot_line_probe(
+            probe_id="probe-instance-method",
+            source_file="tests/submod/stuff.py",
+            line=36,
+            rate=1000,
+        ),
+    ],
+)
+def test_debugger_probe_survives_get_code(probe, stuff):
+    from importlib import reload
+
+    with debugger() as d:
+        # Make sure that the module loader is chained by the watchdog
+        reload(stuff)
+
+        d.add_probes(probe)
+
+        # Compiling the module code without executing it must not affect the
+        # installed probes.
+        stuff.__spec__.loader.get_code(stuff.__name__)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+
+@pytest.mark.parametrize(
+    "probe",
+    [
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method",
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+            rate=1000,
+        ),
+        create_snapshot_line_probe(
+            probe_id="probe-instance-method",
+            source_file="tests/submod/stuff.py",
+            line=36,
+            rate=1000,
+        ),
+    ],
+)
+def test_debugger_probe_survives_reimport(probe, stuff):
+    from importlib import import_module
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    # Another subscriber, like symbol database uploads, keeps the collected
+    # code of the new module around after the debugger has used it.
+    ModuleCodeCollector.register("test")
+
+    with debugger() as d:
+        d.add_probes(probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+        # Importing the module again creates a new module object for the same
+        # source, which the probe must move to.
+        del sys.modules["tests.submod.stuff"]
+        new_stuff = import_module("tests.submod.stuff")
+        assert new_stuff is not stuff
+
+        try:
+            # The probe moves to the new code, so the code of the module that
+            # was replaced, and that is still referenced here, is no longer
+            # instrumented.
+            signals = sum(d.signal_state_counter.values())
+            stuff.Stuff().instancestuff(42)
+            assert sum(d.signal_state_counter.values()) == signals
+
+            new_stuff.Stuff().instancestuff(42)
+
+            (snapshot,) = d.uploader.wait_for_payloads()
+            assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+        finally:
+            ModuleCodeCollector._subscribers.discard("test")
+            ModuleCodeCollector.release(new_stuff, "test")
+
+
+def test_debugger_probe_added_during_reimport(stuff):
+    # A probe that arrives from another thread (e.g. remote configuration)
+    # while a module is being imported again must not be installed on the
+    # module being replaced, nor leave the replacement uninstrumented.
+    from importlib import import_module
+    from threading import Thread
+
+    instance_probe = create_snapshot_line_probe(
+        probe_id="probe-instance-method",
+        source_file="tests/submod/stuff.py",
+        line=36,
+        rate=float("inf"),
+    )
+    static_probe = create_snapshot_line_probe(
+        probe_id="probe-static-method",
+        source_file="tests/submod/stuff.py",
+        line=29,
+        rate=float("inf"),
+    )
+
+    with debugger() as d:
+        d.add_probes(instance_probe)
+
+        threads = []
+        on_module_import = d._on_module_import
+
+        def import_hook(module):
+            on_module_import(module)
+            if module.__name__ == "tests.submod.stuff":
+                # Give the other thread the chance to register the new probe
+                # while this import is still being processed.
+                thread = Thread(target=d.add_probes, args=(static_probe,))
+                thread.start()
+                thread.join(0.2)
+                threads.append(thread)
+
+        d.__watchdog__.unregister_import_hook(on_module_import)
+        d.__watchdog__.register_import_hook(import_hook)
+        try:
+            del sys.modules["tests.submod.stuff"]
+            new_stuff = import_module("tests.submod.stuff")
+        finally:
+            d.__watchdog__.unregister_import_hook(import_hook)
+            d.__watchdog__.register_import_hook(on_module_import)
+
+        (thread,) = threads
+        thread.join()
+
+        new_stuff.Stuff().instancestuff(42)
+        new_stuff.Stuff.staticstuff(42)
+
+        assert {s.probe.probe_id for s in d.test_queue} == {instance_probe.probe_id, static_probe.probe_id}
+
+
+def test_debugger_probe_survives_after_import_without_execution(stuff):
+    # Import hooks can run for a module without it having executed any new
+    # code, e.g. when a watchdog subclass collects a module and installs probes
+    # on it before handing it over to its parent class. Probes installed on the
+    # current code must be left alone, even on functions that can only be found
+    # via the code objects collected at compile time, like property getters.
+    from importlib import reload
+
+    with debugger() as d:
+        # Make sure that the module code is collected at compile time
+        reload(stuff)
+
+        probe = create_snapshot_function_probe(
+            probe_id="probe-property",
+            module="tests.submod.stuff",
+            func_qname="Stuff.propertystuff",
+            rate=float("inf"),
+        )
+        d.add_probes(probe)
+        assert d._probe_registry[probe.probe_id].installed
+
+        d.__watchdog__._instance.after_import(stuff)
+
+        entry = d._probe_registry[probe.probe_id]
+        assert entry.installed, entry.message
+
+        s = stuff.Stuff()
+        s.propertystuff = 42
+        s.propertystuff
+
+        assert sum(d.signal_state_counter.values()) >= 1
+
+
+@pytest.mark.parametrize(
+    "probe,other_probe",
+    [
+        (
+            create_snapshot_function_probe(
+                probe_id="probe-instance-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                rate=1000,
+            ),
+            create_snapshot_function_probe(
+                probe_id="probe-static-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.staticstuff",
+                rate=1000,
+            ),
+        ),
+        (
+            create_snapshot_line_probe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=1000,
+            ),
+            create_snapshot_line_probe(
+                probe_id="probe-static-method",
+                source_file="tests/submod/stuff.py",
+                line=29,
+                rate=1000,
+            ),
+        ),
+    ],
+)
+def test_debugger_probe_not_reinstalled_on_new_probe(probe, other_probe, stuff):
+    # Adding a probe to an already-loaded module re-runs the import hook for
+    # it, which must not install the probes already installed there again.
+    with debugger() as d:
+        d.add_probes(probe)
+        d.add_probes(other_probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        # Count every signal pushed, not just the emitted snapshots, since the
+        # probe rate limiter can drop a duplicate that fires in the same call.
+        assert sum(d.signal_state_counter.values()) == 1
+        (snapshot,) = d.test_queue
+        assert snapshot.probe.probe_id == probe.probe_id
+
+
 def test_debugger_function_probe_on_instance_method(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_function_probe(
