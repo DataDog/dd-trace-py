@@ -11,6 +11,7 @@ from greenlet import gettrace
 from greenlet import greenlet
 from greenlet import settrace
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.datadog.profiling import stack
 
 
@@ -33,6 +34,19 @@ _greenlet_parent_map: dict[int, int] = {}
 _parent_greenlet_count: dict[int, int] = {}
 
 FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
+
+
+@forksafe.register
+def _reset_after_fork() -> None:
+    # Native greenlet state is cleared in the child, so greenlets must be tracked and linked again.
+    _tracked_greenlets.clear()
+    _greenlet_parent_map.clear()
+    _parent_greenlet_count.clear()
+
+    # A new thread could reuse the id of a thread that is gone.
+    current_thread_ident: int = _get_native_thread_ident()
+    for thread_ident in [_ for _ in _original_greenlet_tracers if _ != current_thread_ident]:
+        del _original_greenlet_tracers[thread_ident]
 
 
 class GreenletTrackingError(Exception):
