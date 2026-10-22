@@ -203,7 +203,7 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer, monkeypatch
     In ASM standalone mode, agent-based samplers should not interfere
     with the rate limiter.
     """
-    # Standalone configuration changes the global stats setting; restore it during teardown.
+    # Standalone configuration changes the global stats setting; monkeypatch it to avoid impacting other tests.
     monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", True):
         tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
