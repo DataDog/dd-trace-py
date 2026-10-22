@@ -166,12 +166,45 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
         testrunner \
         bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
 else
+    CONTAINER_SCRIPT="(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+    DOCKER_USER_ARGS=()
+
+    # The image runs as `bits` (uid 1000). On Linux, Docker bind mounts keep the
+    # host's ownership, so when the checkout is owned by a uid other than 1000,
+    # `bits` cannot write build artifacts or test environments. Docker Desktop on
+    # macOS maps ownership itself, so only Linux needs this. Override with
+    # DD_TEST_USER=uid:gid, or set it empty to keep the image's default user.
+    DEFAULT_RUN_AS_USER=""
+    if [ "$(uname -s)" = "Linux" ] && [ "$(id -u)" != "1000" ]; then
+        DEFAULT_RUN_AS_USER="$(id -u):$(id -g)"
+    fi
+    RUN_AS_USER="${DD_TEST_USER-$DEFAULT_RUN_AS_USER}"
+    if [ -n "$RUN_AS_USER" ]; then
+        RUN_AS_UID="${RUN_AS_USER%%:*}"
+        RUN_AS_GID="${RUN_AS_USER##*:}"
+        # Remapping `bits` with usermod would re-chown the whole toolchain on every
+        # run, so start as root and drop to the requested ids instead. The
+        # toolchains stay owned by uid 1000 and are only read; Cargo's writable
+        # state moves to the mounted cache. Before dropping privileges, hand the
+        # home directory itself (not its contents) to the new uid so dotfiles such
+        # as ~/.gitconfig can be written, and give the uid a passwd entry so user
+        # lookups (whoami, getpass.getuser, ssh) work. The container is removed
+        # after the run, so none of this persists.
+        SETUP_SCRIPT="chown ${RUN_AS_UID}:${RUN_AS_GID} /home/bits"
+        SETUP_SCRIPT+=" && { getent group ${RUN_AS_GID} >/dev/null || echo 'ddtest:x:${RUN_AS_GID}:' >> /etc/group; }"
+        SETUP_SCRIPT+=" && { getent passwd ${RUN_AS_UID} >/dev/null || echo 'ddtest:x:${RUN_AS_UID}:${RUN_AS_GID}::/home/bits:/bin/bash' >> /etc/passwd; }"
+        INNER_SCRIPT=$(printf '%q' "$CONTAINER_SCRIPT")
+        CONTAINER_SCRIPT="$SETUP_SCRIPT && exec setpriv --reuid ${RUN_AS_UID} --regid ${RUN_AS_GID} --clear-groups env HOME=/home/bits CARGO_HOME=/home/bits/.cache/cargo bash -c $INNER_SCRIPT"
+        DOCKER_USER_ARGS=(--user root)
+    fi
+
     docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
            -e DD_TRACE_AGENT_URL \
            -e DD_TEST_RUNTIME_PROBE \
            "${GIT_MOUNT_ARGS[@]}" \
+           "${DOCKER_USER_ARGS[@]}" \
            --rm \
            -i \
            testrunner \
-           bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+           bash -c "$CONTAINER_SCRIPT"
 fi
