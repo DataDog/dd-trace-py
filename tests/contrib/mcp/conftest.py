@@ -1,19 +1,25 @@
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
+from importlib.metadata import version
 import json
 import threading
 import time
 
-from mcp.server.fastmcp import FastMCP
-from mcp.shared.memory import create_connected_server_and_client_session
 import pytest
 
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
 from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
+
+
+MCP_V2 = parse_version(version("mcp")) >= (2, 0, 0)
+
+# mcp 2 replaced FastMCP and the session classes the v1 tests are written against
+collect_ignore = ["test_mcp.py", "test_mcp_llmobs.py"] if MCP_V2 else ["test_mcp_v2.py"]
 
 
 class LLMObsServer(BaseHTTPRequestHandler):
@@ -74,6 +80,8 @@ def mcp_llmobs(tracer, monkeypatch):
 @pytest.fixture
 def mcp_server():
     """FastMCP server with common test tools."""
+    from mcp.server.fastmcp import FastMCP
+
     mcp = FastMCP(name="TestServer")
 
     @mcp.tool(description="Get weather for a location")
@@ -130,6 +138,8 @@ def mcp_call_tool(mcp_server):
 @pytest.fixture
 async def mcp_client(mcp_server):
     """Connected MCP client-server session."""
+    from mcp.shared.memory import create_connected_server_and_client_session
+
     async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
         yield client
 
@@ -139,6 +149,8 @@ def mcp_server_initialized():
     """Run MCP server initialization with custom client info."""
     import asyncio
 
+    from mcp.server.fastmcp import FastMCP
+    from mcp.shared.memory import create_connected_server_and_client_session
     from mcp.types import Implementation
 
     mcp_server = FastMCP("TestInitServer")
