@@ -50,7 +50,7 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI
 
 
 Realtime token usage
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 LLM Observability preserves the Realtime API's audio and cached-token breakdown
 when reported: ``input_audio_tokens``, ``output_audio_tokens``,
