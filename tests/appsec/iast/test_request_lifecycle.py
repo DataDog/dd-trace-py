@@ -47,10 +47,9 @@ def test_ready_records_admission_once(ready, context_id):
     assert ready.ctx.get_item(lifecycle._REQUEST_STATE).context_id == context_id
 
 
-@pytest.mark.parametrize("context_id", [None, 0])
-def test_ready_borrows_existing_analysis_without_finishing_it(ready, monkeypatch, context_id):
-    lifecycle.IAST_CONTEXT.set(context_id)
-    ready.ctx.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(mock.sentinel.outer, context_id))
+def test_ready_borrows_existing_analysis_without_finishing_it(ready, monkeypatch):
+    lifecycle.IAST_CONTEXT.set(0)
+    ready.ctx.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(mock.sentinel.outer, 0))
     monkeypatch.setattr(lifecycle, "get_tainted_object_map_by_ctx_id", lambda _id: True)
     with (
         mock.patch.object(lifecycle, "_iast_start_request") as start,
@@ -60,7 +59,7 @@ def test_ready_borrows_existing_analysis_without_finishing_it(ready, monkeypatch
         lifecycle.IastRequestCompletingSubscriber.on_event(WebRequestCompleting(ready.ctx, ready.span))
     start.assert_not_called()
     end.assert_not_called()
-    assert lifecycle.IAST_CONTEXT.get() == context_id
+    assert lifecycle.IAST_CONTEXT.get() == 0
 
 
 @pytest.mark.parametrize("expired", [False, True])
@@ -120,6 +119,11 @@ def test_completing_reports_once_cleans_up_and_restores_caller(ready, caller_id,
     ready.ctx.set_item(lifecycle._REQUEST_STATE, lifecycle._RequestState(ready.span, 0))
     lifecycle.IAST_CONTEXT.set(caller_id)
     caller = core.current
+    live_contexts = {0}
+
+    def release(_span):
+        live_contexts.discard(lifecycle.IAST_CONTEXT.get())
+        lifecycle.IAST_CONTEXT.set(None)
 
     def report(_span):
         assert core.current is ready.ctx
@@ -127,19 +131,17 @@ def test_completing_reports_once_cleans_up_and_restores_caller(ready, caller_id,
         if isinstance(outcome, type):
             raise outcome()
         if outcome == "reported":
-            lifecycle.IAST_CONTEXT.set(None)
+            release(_span)
 
     with (
         mock.patch.object(lifecycle, "_iast_end_request", side_effect=report) as end,
-        mock.patch.object(
-            lifecycle, "_iast_finish_request", side_effect=lambda _span: lifecycle.IAST_CONTEXT.set(None)
-        ) as finish,
+        mock.patch.object(lifecycle, "_iast_finish_request", side_effect=release),
     ):
         with pytest.raises(outcome) if isinstance(outcome, type) else nullcontext():
             lifecycle.IastRequestCompletingSubscriber.on_event(WebRequestCompleting(ready.ctx, ready.span))
         lifecycle.IastRequestCompletingSubscriber.on_event(WebRequestCompleting(ready.ctx, ready.span))
     end.assert_called_once_with(ready.span)
-    assert finish.call_count == (outcome != "reported")
+    assert not live_contexts
     assert core.current is caller
     assert lifecycle.IAST_CONTEXT.get() == (None if caller_id == 0 else caller_id)
     assert ready.ctx.get_item(IAST.REQUEST_CONTEXT_KEY, mock.sentinel.missing) is None

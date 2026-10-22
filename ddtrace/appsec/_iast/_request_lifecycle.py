@@ -66,7 +66,10 @@ def find_request_owner(ctx: core.ExecutionContext[Event]) -> Optional[core.Execu
         # original request's decision even when it was rejected or completed.
         if current.identifier == "asgi.request" and current.get_item("is_subapp") is False:
             new_request = True
-        elif current.identifier != "asgi.request" and current.get_item("span_type") == SpanTypes.WEB:
+        elif current.identifier != "asgi.request" and (
+            current.get_item("span_type") == SpanTypes.WEB
+            or getattr(getattr(current, "event", None), "span_type", None) == SpanTypes.WEB
+        ):
             new_request = True
         current = current.parent
     return None
@@ -118,9 +121,6 @@ class IastRequestReadySubscriber(Subscriber):
                 state.completed = True
                 return
             environment = _get_iast_env()
-            if environment is not None and environment.context_id is None:
-                state.completed = True
-                return
             if environment is not None and environment.context_id is not None:
                 if get_tainted_object_map_by_ctx_id(environment.context_id):
                     # A shared ancestor can expose another task's environment even
@@ -165,8 +165,7 @@ class IastRequestCompletingSubscriber(Subscriber):
                 finally:
                     # Reporting can fail, or IAST can be disabled after admission. Neither
                     # may strand the environment or its native taint map.
-                    if _get_iast_env() is not None or IAST_CONTEXT.get() is not None:
-                        _iast_finish_request(span)
+                    _iast_finish_request(span)
         finally:
             # Completed analysis must not expose an unrelated ancestor environment
             # to middleware or background work that still holds this request scope.

@@ -5,6 +5,7 @@ integration suites. Keep only routing and exclusion bookkeeping checks here.
 """
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 import gc
 from unittest import mock
 import weakref
@@ -22,6 +23,7 @@ from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_si
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib._events.web_request import WebRequestCompleting
 from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.internal import core
@@ -76,6 +78,35 @@ def test_request_route_survives_context_exit_and_processor_replacement(
         assert end.call_args_list == expected_legacy_calls
         assert event_start.call_args_list == ([mock.call(span)] if migrated else [])
         span.finish()
+
+
+@pytest.mark.parametrize("completed", [False, True])
+def test_typed_legacy_request_keeps_admission_after_fastapi(processor, monkeypatch, completed):
+    monkeypatch.setattr(lifecycle, "IAST_CONTEXT", ContextVar("test_iast_context", default=None))
+    event = WebFrameworkRequestEvent(
+        component="bottle",
+        integration_config=config.bottle,
+        http_operation="bottle.request",
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with (
+        active_context("asgi.request", config.fastapi) as outer,
+        mock.patch.object(module, "_iast_start_request") as start,
+        mock.patch.object(module, "_iast_end_request") as end,
+    ):
+        outer.set_item(
+            lifecycle._REQUEST_STATE,
+            lifecycle._RequestState(Span("outer"), 0 if completed else None, completed=completed),
+        )
+        ctx = core.ExecutionContext(event.event_name, parent=outer, event=event)
+        with core.activate_context(ctx), Span("legacy.request", span_type="web") as span:
+            processor.on_span_start(span)
+            processor.on_span_finish(span)
+        start.assert_called_once_with(span)
+        end.assert_called_once_with(span)
 
 
 @pytest.mark.parametrize("capacity_rejected", [False, True])
