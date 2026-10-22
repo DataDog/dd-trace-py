@@ -221,6 +221,10 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
   llmobs:
+    # TODO(py-315): the suite fails on 3.15: one variant cannot import deepeval
+    # (no 3.15 support) and another hits a pyo3 panic in native code surfaced as
+    # stderr noise. Re-add 3.15 once deepeval supports it and the pyo3 panic is
+    # triaged.
     paths:
       - '@bootstrap'
       - '@core'
@@ -242,13 +246,13 @@ suites:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
       variants:
         - name: llmobs
-          python: ['3.9', '3.15']
+          python: ['3.9']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1']
         - name: llmobs
-          python: ['3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1', deepeval, 'pydantic-evals>=1.31']
         - name: llmobs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
