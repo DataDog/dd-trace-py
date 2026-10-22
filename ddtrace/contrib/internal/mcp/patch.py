@@ -170,9 +170,7 @@ async def traced_client_session_initialize(func, instance, args: tuple, kwargs: 
             response = await func(*args, **kwargs)
             return response
         finally:
-            integration.llmobs_set_tags(
-                span, args=args, kwargs=dict(kwargs, session=instance), response=response, operation=func.__name__
-            )
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="initialize")
 
 
 async def traced_client_session_list_tools(func, instance, args: tuple, kwargs: dict):
@@ -364,6 +362,16 @@ def _strip_telemetry_argument(integration: MCPIntegration, span: Span, ctx):
     return dataclasses.replace(ctx, params=params)
 
 
+def traced_client_session_adopt(func, instance, args: tuple, kwargs: dict):
+    """mcp>=2 stateless sessions skip initialize. Every stateless flow (discover(), Client's auto
+    negotiation, a pinned protocol version) installs the server's identity through adopt().
+    """
+    result = func(*args, **kwargs)
+    integration: MCPIntegration = mcp._datadog_integration
+    integration.set_client_session_server_info(tracer.current_span(), _get_attr(instance, "server_info", None))
+    return result
+
+
 def traced_server_init(func, instance, args: tuple, kwargs: dict):
     result = func(*args, **kwargs)
     # Outermost, so the span also covers params validation and the SDK's OpenTelemetry middleware
@@ -402,7 +410,7 @@ def patch():
         from mcp.server.lowlevel.server import Server
 
         wrap(ClientSession, "send_request", traced_send_request)
-        wrap(ClientSession, "discover", traced_client_session_initialize)
+        wrap(ClientSession, "adopt", traced_client_session_adopt)
         wrap(Server, "__init__", traced_server_init)
         return
 
@@ -432,11 +440,11 @@ def unpatch():
     unwrap(ClientSession, "initialize")
 
     # Only wrapped on mcp>=2, see patch().
-    if iswrapped(ClientSession, "discover"):
+    if iswrapped(ClientSession, "adopt"):
         from mcp.server.lowlevel.server import Server
 
         unwrap(ClientSession, "send_request")
-        unwrap(ClientSession, "discover")
+        unwrap(ClientSession, "adopt")
         unwrap(Server, "__init__")
     else:
         from mcp.shared.session import BaseSession

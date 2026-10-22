@@ -102,7 +102,7 @@ def test_tool_call(mcp_llmobs, test_spans, run_client, mode):
         assert _only(spans, "ClientSession.initialize")
     else:
         assert server_initialize_spans == []
-        assert get_llmobs_span_name(_only(spans, "ClientSession.discover")) == "MCP Client Discover"
+        assert not [span for span in spans if span.resource == "ClientSession.initialize"]
 
 
 @pytest.mark.parametrize("mode", CLIENT_MODES)
@@ -116,8 +116,9 @@ def test_tool_error(mcp_llmobs, test_spans, run_client, mode):
     assert client_span.error
     assert server_span.error
     assert server_span.get_tag("error.type") == "ToolError"
-    assert "Tool execution failed" in server_span.get_tag("error.message")
-    assert "Tool execution failed" in client_span.get_tag("error.message")
+    # mcp 2 reports a generic message rather than the raised exception's text
+    assert server_span.get_tag("error.message").startswith("Error executing tool failing_tool")
+    assert client_span.get_tag("error.message").startswith("Error executing tool failing_tool")
 
 
 @pytest.mark.parametrize("mode", CLIENT_MODES)

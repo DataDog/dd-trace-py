@@ -169,8 +169,6 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
         elif operation == SERVER_MIDDLEWARE_OPERATION_NAME:
             self._llmobs_set_tags_server_middleware(span, args, kwargs, response)
-        elif operation == "discover":
-            self._llmobs_set_tags_initialize(span, args, kwargs, response, name="MCP Client Discover")
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)
         elif operation == "session":
@@ -202,23 +200,15 @@ class MCPIntegration(BaseLLMIntegration):
             ]
         _annotate_llmobs_span_data(span, output_value={"content": processed_content, "isError": is_error})
 
-    def _llmobs_set_tags_initialize(
-        self,
-        span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
-        response: Any,
-        name: str = "MCP Client Initialize",
-    ) -> None:
-        _annotate_llmobs_span_data(span, name=name, kind="task", output_value=safe_json(response))
-
-        # mcp>=2 sessions expose server_info for both the initialize and discover flows
-        server_info = (
-            _get_attr(response, "serverInfo", None)
-            or _get_attr(response, "server_info", None)
-            or _get_attr(kwargs.get("session"), "server_info", None)
+    def _llmobs_set_tags_initialize(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+        _annotate_llmobs_span_data(span, name="MCP Client Initialize", kind="task", output_value=safe_json(response))
+        self.set_client_session_server_info(
+            span, _get_attr(response, "serverInfo", None) or _get_attr(response, "server_info", None)
         )
-        if not server_info:
+
+    def set_client_session_server_info(self, span: Optional[Span], server_info: Any) -> None:
+        """Tag the enclosing client session span with the server's self-reported identity."""
+        if not self.llmobs_enabled or not server_info:
             return
 
         client_session_root = _find_client_session_root(span)

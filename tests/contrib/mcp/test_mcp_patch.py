@@ -20,7 +20,7 @@ def _patched_functions():
     except ImportError:
         from mcp.server.lowlevel.server import Server
 
-        return functions + [ClientSession.send_request, ClientSession.discover, Server.__init__]
+        return functions + [ClientSession.send_request, ClientSession.adopt, Server.__init__]
     return functions + [
         BaseSession.send_request,
         RequestResponder.__enter__,
