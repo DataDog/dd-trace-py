@@ -51,3 +51,25 @@ streaming and later response hooks. Neither event is a blocking channel.
 The plugin bypasses instrumentation only when tracing is disabled and neither
 callback event has listeners. Notifications still follow plugin skip settings;
 this is not coverage of every HTTP request.
+
+## Specialized duplex SDKs
+
+For independently consumed input/output streams, see
+`aws_sdk_bedrock_runtime/patch.py` and `_stream.py`. Wrap only the target
+SDK operation and its returned connection, not global Smithy classes.
+These audio-turn spans use the specialized direct-span LLMObs lifecycle;
+see the LLMObs implementation guide for parenting and finalization rules.
+
+The Bedrock wrapper dispatches a typed observer handoff event through core. The
+LLMObs service registers its handler on enable and removes it on disable; contrib
+does not import the product. Stream proxies depend only on the observer protocol.
+
+Input context-manager exits must record body and cleanup errors without changing
+exception propagation or suppression. A successful input exit only half-closes;
+it must not finalize the observer before the output stream drains.
+All three proxies must finalize entry failures too: Python does not call
+`__aexit__` when `__aenter__` raises, including cancellation.
+
+Delegate output iteration to the wrapped receiver's `__anext__` so the SDK owns
+EOF cleanup. Finalize telemetry after that operation returns or raises, including
+cleanup failures. Direct `receive()` retains its separate SDK half lifecycle.
