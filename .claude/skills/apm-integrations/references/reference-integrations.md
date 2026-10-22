@@ -42,4 +42,12 @@ Later response hooks, streaming failures, and transport delivery are outside thi
 boundary. Do not wrap router.match, _cast, or _make_callback to extend it.
 
 
-The plugin bypasses instrumentation when tracing is disabled.
+Bottle also dispatches WebFrameworkCallbackStartedEvent and
+WebFrameworkCallbackCompletedEvent around the callback, inside the optional tracing
+context. Their callback_id correlates an invocation; metadata is copied and no
+body is consumed. Consumers own product setup and cleanup. Completion precedes
+streaming and later response hooks. Neither event is a blocking channel.
+
+The plugin bypasses instrumentation only when tracing is disabled and neither
+callback event has listeners. Notifications still follow plugin skip settings;
+this is not coverage of every HTTP request.

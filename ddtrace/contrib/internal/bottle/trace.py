@@ -1,4 +1,8 @@
+from collections.abc import Callable
 from collections.abc import MutableMapping
+from contextlib import nullcontext
+from typing import Any
+from typing import Optional
 from typing import cast
 
 from bottle import HTTPError
@@ -7,6 +11,8 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
+from ddtrace.contrib._events.web_framework import WebFrameworkCallbackCompletedEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkCallbackStartedEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -39,9 +45,13 @@ class TracePlugin:
     def distributed_tracing(self, distributed_tracing):
         config.bottle["distributed_tracing"] = asbool(distributed_tracing)
 
-    def apply(self, callback, route):
-        def wrapped(*args, **kwargs):
-            if not is_tracing_enabled():
+    def apply(self, callback: Callable[..., Any], route: Any) -> Callable[..., Any]:
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            tracing = is_tracing_enabled()
+            observe = core.has_listeners(WebFrameworkCallbackStartedEvent.event_name) or core.has_listeners(
+                WebFrameworkCallbackCompletedEvent.event_name
+            )
+            if not tracing and not observe:
                 return callback(*args, **kwargs)
 
             resource = f"{request.method} {route.rule}"
@@ -50,8 +60,9 @@ class TracePlugin:
             url = request.url
             full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
 
-            with core.context_with_event(
-                WebFrameworkRequestEvent(
+            event: Optional[WebFrameworkRequestEvent] = None
+            if tracing:
+                event = WebFrameworkRequestEvent(
                     http_operation="bottle.request",
                     service=self.service,
                     resource=resource,
@@ -65,10 +76,29 @@ class TracePlugin:
                     headers_case_sensitive=True,
                     activate_distributed_headers=True,
                 )
-            ) as ctx:
+            # Keep owned values separate from the event envelopes listeners receive.
+            fields: Optional[dict[str, Any]] = (
+                dict(
+                    callback_id=object(),
+                    framework="bottle",
+                    request_method=method,
+                    request_url=url,
+                    request_route=full_route,
+                    request_headers=tuple(request.headers.items()),
+                    query=request.query_string,
+                )
+                if observe
+                else None
+            )
+            with core.context_with_event(event) if event is not None else nullcontext():
                 code = None
                 result = None
+                raised_response = None
+                error_type = None
+                error_message = None
                 try:
+                    if fields is not None:
+                        core.dispatch_event(WebFrameworkCallbackStartedEvent(**fields))
                     result = callback(*args, **kwargs)
                     return result
                 except (HTTPError, HTTPResponse) as e:
@@ -77,11 +107,19 @@ class TracePlugin:
                     # we also need to handle when response is raised as is the
                     # case with a 4xx status
                     code = e.status_code
+                    raised_response = e
                     raise
-                except Exception:
+                except BaseException as error:
                     # bottle doesn't always translate unhandled exceptions, so
                     # we mark it here.
-                    code = 500
+                    if isinstance(error, Exception):
+                        code = 500
+                    if fields is not None:
+                        error_type = f"{type(error).__module__}.{type(error).__qualname__}"
+                        try:
+                            error_message = str(error)
+                        except Exception:
+                            error_message = None
                     raise
                 finally:
                     if isinstance(result, HTTPResponse):
@@ -93,8 +131,20 @@ class TracePlugin:
                         # will be default
                         response_code = response.status_code
 
-                    event: WebFrameworkRequestEvent = ctx.event
-                    event.response_status_code = response_code
-                    event.response_headers = response.headers
+                    if event is not None:
+                        event.response_status_code = response_code
+                        event.response_headers = response.headers
+                    if fields is not None:
+                        callback_response = result if isinstance(result, HTTPResponse) else raised_response
+                        headers = callback_response.headerlist if callback_response is not None else response.headerlist
+                        core.dispatch_event(
+                            WebFrameworkCallbackCompletedEvent(
+                                **fields,
+                                response_status_code=response_code,
+                                response_headers=tuple(headers),
+                                error_type=error_type,
+                                error_message=error_message,
+                            )
+                        )
 
         return wrapped

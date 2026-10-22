@@ -89,6 +89,38 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+Web framework callback notifications
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Bottle emits ``WebFrameworkCallbackStartedEvent`` and
+``WebFrameworkCallbackCompletedEvent`` from ``ddtrace.contrib._events.web_framework``
+around its plugin callback. Subscribe using ``core.on(EventClass.event_name, listener)``.
+Register before the callback starts to receive a paired lifecycle. Notifications
+remain active with tracing disabled when either event has a registered listener.
+
+These synchronous notifications carry direct metadata fields and an opaque
+``callback_id`` shared by the two events. Nested invocations have distinct IDs.
+Headers are copied into tuples; request bodies, response iterators, exception
+objects, and tracebacks are not included. Treat event envelopes as read-only.
+Listener return values are ignored; these events provide no blocking mechanism.
+Ordinary listener exceptions follow core's isolation policy.
+
+Started runs inside the tracing context, if enabled, before the wrapped callback.
+Completed runs in its finally path, before that context exits, on returns and
+exceptions. Returned or raised Bottle HTTP responses supply their own status and
+headers; ordinary exceptions report a 500 status and a textual error description.
+Raised HTTP responses represent framework control flow, not callback errors.
+Consumers own their setup and cleanup; neither event creates a span or activates
+security products. A completion-only listener is supported.
+
+Completion means the plugin callback boundary has exited. It does not mean the
+response was streamed or delivered, and it precedes later Bottle response hooks.
+Notifications follow Bottle's plugin ordering and skip settings. Unmatched routes,
+pre-callback failures, and routes that skip the plugin produce no notifications.
+``WebFrameworkRequestEvent`` and ``WebFrameworkRequestSubscriber`` continue to own
+tracing, with the existing callback-scoped span lifetime.
+
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 
