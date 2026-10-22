@@ -1684,6 +1684,8 @@ def test_normalize_foreign_handler_owner_component(component: str, expected: str
         ("SIGSEGV=/opt/foo, bar/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo.so"),
         ("SIGSEGV=ddtrace, SIGBUS=/opt/foo, bar/libbar.so+0x1 (bar_handler)", "libbar.so"),
         ("SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace", "ddtrace+missing_sa_siginfo"),
+        # SIGBUS-only missing SA_SIGINFO must not collapse to the healthy SIGSEGV owner.
+        ("SIGSEGV=ddtrace, SIGBUS=ddtrace+missing_sa_siginfo", "ddtrace+missing_sa_siginfo"),
         (
             "SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
             "libfoo.so",
@@ -1713,6 +1715,7 @@ def test_normalize_foreign_handler_owner(owner: str, expected: str) -> None:
         # A stripped SA_SIGINFO leaves the handler pointing at us but unable to deliver
         # the recovery, which is a signal we lost however the owner reads.
         ("SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace", "SIGSEGV"),
+        ("SIGSEGV=ddtrace, SIGBUS=ddtrace+missing_sa_siginfo", "SIGBUS"),
         # A comma inside the SIGSEGV path is not a field delimiter.
         ("SIGSEGV=/opt/foo, bar/libfoo.so+0x1 (h), SIGBUS=ddtrace", "SIGSEGV"),
         ("not the format the sampler emits", ""),

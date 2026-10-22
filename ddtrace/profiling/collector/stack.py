@@ -91,6 +91,11 @@ def _normalize_foreign_handler_owner(owner: str) -> str:
     for candidate in (sigsegv_owner, sigbus_owner):
         if candidate is not None and _owner_symbol_key(candidate) != "ddtrace":
             return candidate
+    # Prefer a tagged ddtrace owner over a healthy plain one so a SIGBUS-only
+    # +missing_sa_siginfo diagnostic is not discarded for the SIGSEGV owner.
+    for candidate in (sigsegv_owner, sigbus_owner):
+        if candidate is not None and candidate.endswith(_MISSING_SA_SIGINFO_TAG):
+            return candidate
     if sigsegv_owner is not None:
         return sigsegv_owner
     if sigbus_owner is not None:
