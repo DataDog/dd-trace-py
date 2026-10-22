@@ -31,7 +31,6 @@ Lifecycle (mirrors the Node SpanEnrichmentHook):
 
 import base64
 import json
-import threading
 import typing
 from weakref import WeakKeyDictionary
 
@@ -40,6 +39,7 @@ from openfeature.hook import Hook
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._flageval_pii import targeting_key_digest
+from ddtrace.internal.threads import Lock
 
 
 log = get_logger(__name__)
@@ -117,7 +117,7 @@ class SpanEnrichmentState:
         self._serial_ids: set[int] = set()
         self._subjects: dict[str, set[int]] = {}
         self._defaults: dict[str, str] = {}
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
     def add_serial_id(self, serial_id: int) -> None:
         with self._lock:
@@ -269,7 +269,7 @@ class SpanEnrichmentHook(Hook):
         # root-span-finish callback never race on the dict (a WeakKeyDictionary
         # is not thread-safe, and free-threaded CPython drops the GIL atomicity
         # that masks this under the default build).
-        self._states_lock = threading.Lock()
+        self._states_lock = Lock()
         # A PER-INSTANCE subscription name. The native event hub keys listeners
         # by name and REPLACES a same-name registration (event_hub.rs `on`), so
         # a shared name would let a second live provider/domain stomp this

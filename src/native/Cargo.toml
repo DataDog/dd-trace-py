@@ -32,6 +32,8 @@ serde = "1.0"
 serde_json = "1.0"
 smallvec = "1"
 tokio = "1"
+# Random bytes come from our own RNG (see rand.rs), so no getrandom feature.
+uuid = { version = "1", default-features = false }
 libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v46.0.0", optional = true, features = ["pyo3"] }
 libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v46.0.0", features = ["one_way_shm_futex"] }
 libdd-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v46.0.0" }

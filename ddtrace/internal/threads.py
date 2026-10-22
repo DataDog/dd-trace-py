@@ -1,3 +1,8 @@
+from _queue import SimpleQueue
+from threading import Event
+from threading import current_thread
+from threading import local
+from threading import main_thread
 from time import monotonic_ns
 import typing as t
 
@@ -18,6 +23,11 @@ __all__ = [
     "Thread",
     "PeriodicThread",
     "RLock",
+    "Event",
+    "SimpleQueue",
+    "current_thread",
+    "local",
+    "main_thread",
 ]
 
 

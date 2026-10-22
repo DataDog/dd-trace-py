@@ -374,3 +374,47 @@ def test_span_api_fork():
             q.put(child_ids)
         finally:
             os._exit(0)
+
+
+def test_uuid4_conforms_to_rfc_9562():
+    import uuid
+
+    from ddtrace.internal.native import uuid4
+
+    values = [uuid4() for _ in range(4096)]
+    assert len(set(values)) == len(values)
+
+    ones = zeros = 0
+    for value in values:
+        parsed = uuid.UUID(value)
+        # Canonical form: lowercase, hyphenated 8-4-4-4-12.
+        assert value == str(parsed)
+        assert parsed.version == 4
+        assert parsed.variant == uuid.RFC_4122
+        ones |= parsed.int
+        zeros |= ~parsed.int & (2**128 - 1)
+
+    # The version (bits 48-51) and variant (bits 64-65) fields are fixed;
+    # every one of the other 122 bits is random, so it must take both values.
+    fixed = (0xF << 76) | (0x3 << 62)
+    assert ones | fixed == zeros | fixed == 2**128 - 1
+
+
+@pytest.mark.subprocess()
+def test_uuid4_differs_across_fork():
+    import os
+
+    from ddtrace.internal.native import uuid4
+
+    r, w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.write(w, "".join(uuid4() for _ in range(64)).encode())
+        os._exit(0)
+    os.close(w)
+    os.waitpid(pid, 0)
+    child = os.read(r, 64 * 36).decode()
+    child_values = {child[i : i + 36] for i in range(0, len(child), 36)}
+    parent_values = {uuid4() for _ in range(64)}
+    assert len(child_values) == 64
+    assert not child_values & parent_values
