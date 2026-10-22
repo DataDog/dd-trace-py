@@ -89,6 +89,188 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+HTTP request-data contract
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This experimental internal API exposes HTTP observations without requiring tracing
+configuration. Register for phase-specific events such as ``HttpRouteResolvedEvent``
+and ``HttpRequestCompletedEvent`` from ``ddtrace.contrib._events.http`` using
+``core.on(EventClass.event_name, listener)``. Read ``event.request``, ``event.response``,
+``event.phase``, and ``event.request_id`` directly; there is no snapshot wrapper.
+The shared ``HttpRequestDataEvent`` base supplies fields, not a subscription name.
+Events carry no span, resource, service, operation name, or integration configuration.
+The shared ``HttpServerRequestEvent`` opens the tracing context.
+``WebFrameworkRequestSubscriber`` handles both this event and the existing
+``WebFrameworkRequestEvent``; legacy integrations retain their current event and
+metadata handling. For the shared HTTP lifecycle, the subscriber
+correlates HTTP observations by ``request_id`` and selects framework conventions
+using the ``framework`` field. Frameworks without a conventions override receive
+a request span using generic HTTP defaults; no tracing allowlist entry is required.
+The correlation registry holds contexts weakly: the request lifecycle owns their
+lifetime. Completion removes entries explicitly; garbage collection can remove
+abandoned entries without keeping request state alive.
+See ``examples/http-events/contract.py`` for consumer registration and blocking.
+
+Shared producer lifecycle
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ddtrace.contrib.internal.http_server.HttpLifecycle`` owns request identity,
+HTTP observations, phase publication, block checks, accepted block preservation,
+and idempotent completion. Construct it with ``HttpLifecycleConfig`` and owned
+``HttpRequestData``. It uses ``create_http_server_context`` to open the tracing
+context and publishes completion before exiting it. Consumers continue to receive
+push-only events; lifecycle methods are for instrumentation producers.
+
+For WSGI integrations, ``ddtrace.contrib.internal.http_wsgi.WsgiLifecycleDriver``
+creates the controller and manages context activation, ``start_response``, body
+replacement, HEAD suppression, iteration, errors, and close. Only a ``get_config``
+callback is required; wrap the WSGI callable with ``driver.wrap``. Returning
+``None`` from ``get_config`` disables the wrapper for that request, supporting
+plugin uninstall/reinstall without replacing hooks.
+
+The driver extracts standard WSGI request values without consuming the body and
+constructs blocking responses with transport framing. There is no required
+framework adapter class or per-integration lifecycle module. Optional
+``request_data`` and ``blocking_response`` callbacks preserve framework-specific
+normalization or native response defaults when needed. Blocking responses expose
+``status``, ``status_code``, ``headerlist``, and byte ``body``. The driver rejects
+caller-supplied framing and hop-by-hop headers.
+
+Framework routing/handler hooks use ``driver.current(environ)`` to find their
+controller, call ``route_resolved`` and ``before_handler``, and enforce returned
+blocks using the framework's response mechanism. Handled errors are recorded
+before the framework converts them to ordinary response values. These hooks must
+survive plugin skip settings and callback-cache resets.
+
+Bottle plugin boundary
+^^^^^^^^^^^^^^^^^^^^^^
+
+Bottle retains its thin ``TracePlugin.apply`` wrapper and emits
+``WebFrameworkRequestEvent`` to ``WebFrameworkRequestSubscriber``. Bottle manages
+plugin ordering, skip settings, uninstall/reinstall, and callback-cache resets.
+The plugin reads Bottle's request metadata at callback entry and records status,
+headers, and exceptions at callback exit. Spans end when the callback returns or
+raises, even if its result is an unconsumed response iterable. Later response-hook
+changes, streaming failures, and transport errors are outside this boundary.
+
+Bottle does not install ``WsgiLifecycleDriver``, publish the HTTP phase events,
+or emit block checks. Disabling tracing bypasses its plugin instrumentation.
+The shared subscriber still supports the experimental HTTP lifecycle separately.
+See ``examples/http-events/lifecycle.py`` for an ordinary WSGI app using that
+lifecycle without framework callbacks. ASGI requires a separate async driver.
+
+Shared HTTP lifecycle boundaries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* ``REQUEST_STARTED``: entry to the instrumented request lifecycle.
+* ``ROUTE_RESOLVED``: the producer reports a resolved route.
+* ``BEFORE_HANDLER``: before the producer invokes the wrapped handler.
+* ``RESPONSE_READY``: status and headers prepared, before ``start_response``.
+* ``RESPONSE_COMMITTED``: ``start_response`` returned successfully; this does not
+  prove bytes have reached the network.
+* ``COMPLETED``: response exhaustion, failure, or explicit close, exactly once.
+
+These are observations, not a required sequence for every request. Routing failures
+have no resolved-route or handler phase. Framework retries can repeat routing or
+response preparation. A failed ``start_response`` does not produce a committed
+phase. Streaming responses produce completion only when iteration finishes or the
+server closes them.
+
+Availability and lifetime
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+``None`` means a field is unavailable, whereas an empty string or tuple is a known
+empty value. In particular, ``response=None`` means no response has been prepared;
+``request.route=None`` means no route template is available. Empty query strings
+and empty parsed query pairs are available values. The shared WSGI extractor
+preserves repeated query keys. The raw query string is also available when exact
+wire ordering or encoding matters.
+
+Events are ordinary dataclasses and consumers must treat them as read-only.
+Their request, response, and error values are frozen dataclasses. Header and
+query values are tuples of pairs; response headers retain duplicates, including
+multiple ``Set-Cookie`` values. Header names must be compared case-insensitively.
+Consumers may retain events after dispatch; each phase creates a fresh envelope,
+so later lifecycle updates do not change earlier observations. Mutation is not a
+decision channel and can affect other listeners receiving the same event.
+
+``request_id`` is an opaque token with identity shared by all events of one
+request in this process. It is independent of span IDs and distinct for nested or
+interleaved requests. It is not a serializable or cross-process correlation ID.
+
+``errors`` contains the most recently observed failure, or an empty tuple when no
+failure has been observed. Errors contain a qualified type name and a message, with
+``message=None`` if the exception cannot be converted to text. They retain neither
+exception objects nor tracebacks. A failure after response commitment does not
+rewrite the prepared response status.
+
+The shared WSGI extractor leaves request and response bodies unavailable. Producing these events
+must not consume request bodies, buffer responses, or advance response streams.
+
+Blocking and consumers
+^^^^^^^^^^^^^^^^^^^^^^
+
+Observation events are one-way: listener return values are ignored. A separate
+``HttpRequestBlockCheckEvent`` dispatch follows observation at request entry,
+route resolution, before the wrapped handler, and response preparation. Its fields
+are the same HTTP observations. A consumer can raise ``HttpRequestBlock`` with
+``status_code``, ``headers``, and a bytes ``body`` to request a replacement response.
+Returning normally allows the next listener to run.
+
+The first block interrupts the check, skipping remaining block-check listeners.
+An invalid blocking response is ignored, but skipped listeners are not resumed.
+The shared lifecycle validates status, headers, and body; the driver owns transport framing. After a valid
+block it skips subsequent block checks, including checks of its replacement response.
+The accepted status, headers, and body are retained through application hooks and
+reapplied before the first ``start_response`` attempt. If delivery fails and the application
+retries with an error response, that attempt does not reuse the blocking body.
+Ordinary listener exceptions retain core's normal isolation behavior; the testing
+raise setting still propagates them. ``HttpRequestBlock`` inherits ``BaseException``
+to use the hub's existing control-flow propagation. Raise it only from a block-check
+listener, never an observation listener. Process-control exceptions still propagate.
+
+Block checks are synchronous and run only before response commitment. Retaining an
+event or raising from a different thread cannot control the request. There is no
+acceptance callback, capability set, or post-commit stream termination API. Blocking
+is not an application error; response and completion observations still report the
+outcome, including delivery failures. Response delivery, stream closure, HEAD body
+suppression, and completion stay with the integration; a consumer chooses whether to
+block and with what response, never how that response reaches the client.
+
+The shared driver emits events when a consumer is registered even if tracing is
+disabled, without creating a request span. Consumers should register before request
+entry to observe the complete lifecycle. When tracing is disabled and no consumer
+is registered, the driver delegates without extracting the request. Integrations
+adopting this contract must explicitly provide routing and handler boundaries;
+installing a tracing plugin alone does not supply these guarantees.
+
+
+Testing HTTP contract adapters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Integrations adopting the HTTP server request-data contract should inherit
+``HttpContractTests`` from ``tests.contrib.http_contract`` in a pytest class
+whose name starts with ``Test``. Import ``observe_http_requests`` and
+``register_http_block_checker`` into that test module to expose the shared
+``observations`` and ``block_checker`` fixtures, and provide an
+``http_adapter`` fixture implementing ``HttpContractAdapter``. Bottle does not
+implement this adapter; its tests cover the plugin and shared infrastructure separately.
+
+The adapter registers a parameterized route, constructs a native response, and
+sends a request through the real instrumented application. It returns the consumed
+response bytes even for error statuses and closes the response. It must not emit
+synthetic events or provide expected phase sequences. The shared suite owns the
+assertions for lifecycle ordering, field availability, immutable values, blocking,
+and operation without tracing. Framework route syntax is supplied through
+``route_pattern``. Async integrations can drive their test client behind the
+synchronous adapter interface; transport-level async behavior needs separate tests.
+
+Keep framework tracing conventions and transport-specific cases, including WSGI
+``start_response`` failures and streaming cleanup, in the integration's own tests.
+When adopting the shared suite, add ``tests/contrib/http_contract.py`` to that
+integration's suite paths so changes to the contract tests select its CI jobs.
+
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 

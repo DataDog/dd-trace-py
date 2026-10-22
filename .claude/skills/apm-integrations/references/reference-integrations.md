@@ -28,3 +28,13 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+## Shared HTTP lifecycle scaffold
+
+HttpLifecycle owns request identity, HTTP observations, synchronous block checks,
+and completion. WsgiLifecycleDriver owns context activation, response replacement,
+iteration, and cleanup. WebFrameworkRequestSubscriber supports HttpServerRequestEvent
+alongside existing WebFrameworkRequestEvent integrations. Producers publish phase
+events with frozen request, response, and error values; consumers treat envelopes
+as read-only. No existing integration automatically adopts this lifecycle.
+See docs/contributing-integrations.rst and examples/http-events/ for the contract.
