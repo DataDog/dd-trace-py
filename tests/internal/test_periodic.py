@@ -4,6 +4,7 @@ import os
 import platform
 from threading import Barrier
 from threading import Event
+from threading import RLock
 from threading import Thread
 from time import monotonic
 from time import sleep
@@ -271,8 +272,8 @@ def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
       5. The worker cannot finish the callback and cannot reach
          the wake-completion path — both threads wait forever.
 
-    The middle-ground fix has awake() release _awake_mutex before waiting on
-    _served, so a worker-thread stop() can take the mutex freely.
+    awake() now holds _awake_mutex only to publish the request and never
+    waits for the worker, so a worker-thread stop() can take the mutex freely.
     """
 
     def _target():
@@ -359,11 +360,13 @@ def test_periodic_join_stop_no_start():
 
 
 def test_awakeable_periodic_service():
+    ran = Event()
     queue = []
 
     class AwakeMe(periodic.AwakeablePeriodicService):
         def periodic(self):
             queue.append(len(queue))
+            ran.set()
 
     interval = 1
 
@@ -371,10 +374,13 @@ def test_awakeable_periodic_service():
 
     awake_me.start()
 
-    # Manually awake the service
+    # Each awake request is served by a run of the target. awake() does not
+    # wait for it, so we wait for each run before making the next request.
     n = 10
-    for _ in range(10):
+    for _ in range(n):
+        ran.clear()
         awake_me.awake()
+        assert ran.wait(timeout=2)
 
     assert queue == list(range(n))
 
@@ -382,8 +388,123 @@ def test_awakeable_periodic_service():
     sleep(1.1 * interval)
 
     awake_me.stop()
+    awake_me.join()
 
     assert queue == list(range(n + 1))
+
+
+def test_awake_requests_coalesce():
+    """Requests made before the worker wakes up are served by a single run."""
+    release = Event()
+    entered = Event()
+    calls = []
+
+    def target():
+        calls.append(1)
+        entered.set()
+        release.wait(timeout=5)
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    t.awake()
+    assert entered.wait(timeout=2)
+
+    # The target is busy: these must all return immediately and coalesce
+    # into a single follow-up run.
+    for _ in range(10):
+        t.awake()
+
+    release.set()
+    sleep(0.2)
+    t.stop()
+    t.join()
+
+    assert len(calls) == 2
+
+
+def test_awake_does_not_block_while_target_runs():
+    release = Event()
+    entered = Event()
+
+    def target():
+        entered.set()
+        release.wait(timeout=5)
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    t.awake()
+    assert entered.wait(timeout=2)
+
+    done = Event()
+    awaker = Thread(target=lambda: (t.awake(), done.set()))
+    awaker.start()
+    try:
+        assert done.wait(timeout=1), "awake() blocked while the target was running"
+    finally:
+        release.set()
+        awaker.join(timeout=2)
+        t.stop()
+        t.join()
+
+
+def test_awake_while_holding_lock_needed_by_target():
+    """Regression: awake() from a thread holding a lock that the target needs.
+
+    The DI signal queue calls its on_full callback, which awakes the uploader,
+    while holding the queue lock, and the uploader takes that lock to flush. A
+    blocking awake() deadlocked both threads.
+    """
+    lock = RLock()
+    flushed = Event()
+
+    def target():
+        with lock:
+            flushed.set()
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    try:
+        with lock:
+            t.awake()
+        assert flushed.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_awake_from_target_does_not_deadlock():
+    calls = []
+    ran_twice = Event()
+
+    def target():
+        calls.append(1)
+        if len(calls) == 1:
+            t.awake()
+        else:
+            ran_twice.set()
+
+    t = periodic.PeriodicThread(60.0, target, no_wait_at_start=True)
+    t.start()
+    try:
+        assert ran_twice.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_awake_before_start_is_served_on_start():
+    ran = Event()
+
+    t = periodic.PeriodicThread(60.0, ran.set)
+    t.awake()
+    assert not ran.is_set()
+
+    t.start()
+    try:
+        assert ran.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
 
 
 @pytest.mark.subprocess
@@ -1185,8 +1306,7 @@ def test_concurrent_start_stop():
 def test_concurrent_awake():
     """N threads call awake() on the same PeriodicThread simultaneously.
 
-    Exercises the _awake_mutex / _request / _served Event trio under
-    concurrent writers.
+    Exercises _awake_mutex and the _request Event under concurrent writers.
     """
     barrier = Barrier(_N_THREADS)
     errors = []
