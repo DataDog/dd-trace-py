@@ -26,6 +26,13 @@ Datadog::SampleManager::set_timeline(bool enable)
 }
 
 void
+Datadog::SampleManager::add_type(unsigned int type)
+{
+    auto& state = ProfilerState::get();
+    state.type_mask = static_cast<SampleType>((state.type_mask | type) & SampleType::Known);
+}
+
+void
 Datadog::SampleManager::set_sample_pool_capacity(size_t capacity)
 {
     if (capacity > 0) {
