@@ -12,7 +12,7 @@ azure-data-tables==12.7.0
 azure-storage-blob==12.28.0
 azure-storage-queue==12.15.0
 cassandra-driver==3.29.3
-certifi==2026.1.4
+certifi==2026.10.19
 cffi==2.0.0
 charset-normalizer==3.4.4
 click==8.1.8

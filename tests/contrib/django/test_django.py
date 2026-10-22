@@ -1609,15 +1609,26 @@ def test_cache_delete_many():
     setup.__exit__(None, None, None)
 
 
-@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_CACHES": "true"}, parametrize={"TEST_DJANGO_USE_TZ": ["false", "true"]}
+)
 def test_cached_view():
+    import os
+
     from django.test import Client
+    from django.test import override_settings
 
     from tests.contrib.django.utils import setup_django_test_spans
     from tests.contrib.django.utils import with_default_django_db
 
+    use_tz = os.environ["TEST_DJANGO_USE_TZ"] == "true"
+
     # make the first request so that the view is cached
-    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
+    with (
+        setup_django_test_spans() as test_spans,
+        override_settings(USE_TZ=use_tz, TIME_ZONE="America/Chicago"),
+        with_default_django_db(test_spans),
+    ):
         client = Client()
         response = client.get("/cached-users/")
         assert response.status_code == 200
@@ -1666,12 +1677,15 @@ def test_cached_view():
             "_dd.svc_src": "django",
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-            "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+            "django.cache.key": (
+                "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us"
+                + (".America/Chicago" if use_tz else "")
+            ),
             "_dd.base_service": "ddtrace_subprocess_dir",
         }
 
         assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
-        assert span_header.get_tags() == expected_meta_header
+        assert span_header.get_tags() == expected_meta_header, span_header.get_tags()
 
 
 """
