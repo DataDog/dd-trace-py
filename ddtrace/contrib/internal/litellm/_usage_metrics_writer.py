@@ -166,7 +166,7 @@ def _partial_success(body: bytes) -> Optional[tuple[int, str]]:
                     elif inner == 2 and isinstance(inner_value, bytes):
                         message = inner_value.decode("utf-8", errors="replace")
                 return (rejected, message) if rejected or message else None
-    except IndexError:
+    except (IndexError, TypeError, ValueError):
         pass
     return None
 
@@ -256,7 +256,7 @@ class _OtlpSender:
                 status = response.status_code
                 if 200 <= status < 300:
                     # A partial success is not retried: the endpoint has kept what it accepted.
-                    partial = _partial_success(response.body)
+                    partial = _partial_success(response.body())
                     if partial is not None:
                         log.warning(
                             "LiteLLM usage metrics: the OTLP endpoint at %s rejected %d data points: %s",

@@ -49,6 +49,8 @@ class Collector(http.server.BaseHTTPRequestHandler):
     location = None
     # Seconds the collector waits before it answers.
     delay = 0
+    # The body of a 2xx response.
+    response_body = b""
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
@@ -60,7 +62,10 @@ class Collector(http.server.BaseHTTPRequestHandler):
             self.send_header("Retry-After", Collector.retry_after)
         if Collector.location is not None and 300 <= status < 400:
             self.send_header("Location", Collector.location)
+        body = Collector.response_body if 200 <= status < 300 else b""
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, *args):
         pass
@@ -74,6 +79,7 @@ def collector():
     Collector.retry_after = None
     Collector.location = None
     Collector.delay = 0
+    Collector.response_body = b""
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Collector)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -321,6 +327,22 @@ def test_a_partial_success_is_read_from_the_response():
     assert _usage_metrics_writer._partial_success(b"") is None
     assert _usage_metrics_writer._partial_success(b"\x0a\x05\x08") is None
     assert _usage_metrics_writer._partial_success(b"not protobuf") is None
+
+
+def test_a_partial_success_is_reported_and_not_sent_again(otlp_endpoint, monkeypatch):
+    metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
+    response = metrics_service_pb2.ExportMetricsServiceResponse()
+    response.partial_success.rejected_data_points = 2
+    response.partial_success.error_message = "unit not allowed"
+    Collector.response_body = response.SerializeToString()
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    writer.flush()
+    assert len(Collector.requests) == 1
+    assert [w[2:] for w in warnings] == [(2, "unit not allowed")]
 
 
 def test_retry_after_reads_an_http_date():
