@@ -451,7 +451,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/aredis
-      python: ['3.9']
+      python: ['3.9', '3.15']
       variants:
         - name: aredis
           dependencies: ['pytest-asyncio==0.21.1', aredis, pytest-randomly]
@@ -512,7 +512,7 @@ suites:
       env:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       command: pytest {cmdargs} tests/contrib/asynctest/
-      python: ['3.9']
+      python: ['3.9', '3.15']
       variants:
         - name: asynctest
           dependencies: ['pytest>=6.0,<7.0', pytest-randomly, 'asynctest==0.13.0']
@@ -613,10 +613,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['azure.eventhub~=5.12.0', 'pytest-asyncio==0.23.7']
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [azure.eventhub, 'pytest-asyncio==0.23.7']
   azure_durable_functions:
     venvs_per_job: 6
@@ -635,10 +635,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: ['azure-functions-durable==1.2.1']
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [azure-functions-durable]
   azure_functions:
     venvs_per_job: 4
@@ -656,10 +656,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions
       variants:
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: ['azure.functions~=1.10.1', requests]
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
     paths:
@@ -678,16 +678,16 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions_cosmos
       variants:
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13']
+          python: ['3.11', '3.12', '3.13', '3.15']
           dependencies: ['azure.functions~=1.10.1', 'azure.cosmos~=4.9.0', azure.storage.blob, aiohttp]
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13']
+          python: ['3.11', '3.12', '3.13', '3.15']
           dependencies: ['azure.functions~=1.10.1', azure.cosmos, azure.storage.blob, aiohttp]
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13']
+          python: ['3.11', '3.12', '3.13', '3.15']
           dependencies: [azure.functions, 'azure.cosmos~=4.9.0', azure.storage.blob, aiohttp]
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13']
+          python: ['3.11', '3.12', '3.13', '3.15']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
     paths:
@@ -705,10 +705,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions_eventhubs
       variants:
         - name: azure_functions:eventhubs
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: ['azure.functions~=1.10.1', azure.eventhub, azure.storage.blob]
         - name: azure_functions:eventhubs
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [azure.functions, azure.eventhub, azure.storage.blob]
   azure_functions:servicebus:
     venvs_per_job: 3
@@ -728,10 +728,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions_servicebus
       variants:
         - name: azure_functions:servicebus
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: ['azure.functions~=1.10.1', azure.servicebus]
         - name: azure_functions:servicebus
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [azure.functions, azure.servicebus]
   azure_servicebus:
     venvs_per_job: 3
@@ -1009,13 +1009,13 @@ suites:
       command: pytest {cmdargs} tests/contrib/django_hosts
       variants:
         - name: django:django_hosts
-          python: ['3.9', '3.10']
+          python: ['3.9', '3.10', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, 'django_hosts~=4.0', 'django~=3.2']
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, 'django_hosts~=5.0', 'django~=4.0']
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, django_hosts, 'django~=4.0']
   django:djangorestframework:
     env:
@@ -1036,19 +1036,19 @@ suites:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/djangorestframework
       variants:
         - name: django:djangorestframework
-          python: ['3.9']
+          python: ['3.9', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django>=2.2,<2.3', 'djangorestframework==3.12.4']
         - name: django:djangorestframework
-          python: ['3.9']
+          python: ['3.9', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django>=2.2,<2.3', 'djangorestframework==3.13.1']
         - name: django:djangorestframework
-          python: ['3.9', '3.10']
+          python: ['3.9', '3.10', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=3.2', 'djangorestframework>=3.11,<3.12']
         - name: django:djangorestframework
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', 'djangorestframework~=3.13']
         - name: django:djangorestframework
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', djangorestframework]
   dogpile_cache:
     venvs_per_job: 10
@@ -1360,19 +1360,19 @@ suites:
       command: pytest {cmdargs} tests/contrib/gevent
       variants:
         - name: gevent
-          python: ['3.9']
+          python: ['3.9', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=21.1.0', 'greenlet~=1.0']
         - name: gevent
-          python: ['3.9']
+          python: ['3.9', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent<21.8.0', 'greenlet~=1.0']
         - name: gevent
-          python: ['3.10']
+          python: ['3.10', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=21.12.0']
         - name: gevent
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, gevent]
         - name: gevent
-          python: ['3.11']
+          python: ['3.11', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=22.10.0']
   google_cloud_pubsub:
     venvs_per_job: 6
@@ -1411,13 +1411,13 @@ suites:
       command: pytest {cmdargs} tests/contrib/graphene
       variants:
         - name: graphql:graphene
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [graphql-relay, pytest-randomly, 'graphene~=3.0.0', 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
     paths:
@@ -1588,7 +1588,7 @@ suites:
     snapshot: false
     matrix:
       command: pytest {cmdargs} tests/contrib/integration_registry
-      python: ['3.13', '3.14']
+      python: ['3.13', '3.14', '3.15']
       variants:
         - name: integration_registry
           dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema, filelock]
@@ -1633,10 +1633,10 @@ suites:
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
         - name: kafka
-          python: ['3.9', '3.10']
+          python: ['3.9', '3.10', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, 'confluent-kafka~=1.9.2']
         - name: kafka
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
     paths:
@@ -1743,11 +1743,11 @@ suites:
       variants:
         - name: mlflow
           # mlflow 2.11 imports sqlalchemy.pool.FallbackAsyncAdaptedQueuePool, which SQLAlchemy 2.1 removed.
-          python: ['3.10', '3.11']
+          python: ['3.10', '3.11', '3.15']
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     venvs_per_job: 7
@@ -2044,6 +2044,9 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
+    # TODO(py-315): torch has no cp315 wheels yet (2.14.1 ships cp310–cp314t
+    # only), so this suite cannot run on Python 3.15. Add 3.15 to the python
+    # lists once torch publishes 3.15 wheels.
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -2137,6 +2140,8 @@ suites:
           python: ['3.13', '3.14', '3.15']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid, legacy-cgi]
   ray:
+    # TODO(py-315): ray has no cp315 wheels yet, so this suite cannot run on
+    # Python 3.15. Add 3.15 to the python lists once ray publishes 3.15 wheels.
     venvs_per_job: 3
     paths:
       - '@contrib'
@@ -2160,6 +2165,8 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['ray[default]~=2.54.1']
   ray_serve:
+    # TODO(py-315): ray has no cp315 wheels yet, so this suite cannot run on
+    # Python 3.15. Add 3.15 to the python lists once ray publishes 3.15 wheels.
     paths:
       - '@contrib'
       - '@ray'
@@ -2199,19 +2206,19 @@ suites:
       command: pytest {cmdargs} tests/contrib/redis
       variants:
         - name: redis
-          python: ['3.9', '3.10']
+          python: ['3.9', '3.10', '3.15']
           dependencies: [pytest-randomly, 'redis~=4.1', 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [pytest-randomly, 'redis~=4.3', 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [pytest-randomly, 'redis==5.0.1', 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.15']
           dependencies: [pytest-randomly, redis, 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
     paths:
@@ -2228,10 +2235,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/rediscluster
       variants:
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [pytest-randomly, 'redis-py-cluster>=2.0,<2.1']
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
     paths:
