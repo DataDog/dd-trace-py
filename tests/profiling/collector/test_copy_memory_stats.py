@@ -537,6 +537,9 @@ def test_fast_copy_reenable_clears_failed_safe_copy() -> None:
 
     _stack.set_fast_copy(True)
     assert not _stack.is_safe_copy_failed(), "re-enable must clear failed_safe_copy when safe_memcpy is usable"
+    assert _stack.segv_handler_installed(), (
+        "re-enable must reinstall the recovery handler after failed-disable uninstall"
+    )
 
     p.start()
     assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after re-enable"

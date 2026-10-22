@@ -1027,9 +1027,10 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     const bool want = static_cast<bool>(enabled);
-    if (!want) {
-        fast_copy_user_disabled = true;
-    }
+    // Runtime set_fast_copy(True) clears a prior set_fast_copy(False) latch so
+    // metadata does not report both "user disabled" and "desired". Env/embedded
+    // init still leave safe_memcpy_initialized false, so desired stays off.
+    fast_copy_user_disabled = !want;
     fast_copy_desired = want && safe_memcpy_initialized;
     // Sticky foreign takeover: never reselect safe_memcpy across stop/set_fast_copy/restart
     // while the flag is set, or the next sampling thread skips warmup with memcpy active
@@ -1045,6 +1046,11 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
         if (segv_handler_installed()) {
             uninstall_segv_handler();
         }
+    } else if (enable_fast_copy && safe_memcpy_initialized && !segv_handler_installed()) {
+        // A prior failed-disable path uninstalled the recovery handler. Reinstall
+        // here: sampling_thread's once_flag was already consumed on the first start,
+        // so a later start cannot put the handler back.
+        init_segv_catcher();
     }
     seed_fast_copy_profiler_stats();
 

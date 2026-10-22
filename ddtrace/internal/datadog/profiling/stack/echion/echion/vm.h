@@ -54,10 +54,14 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 // Whether safe_copy is currently set to the memcpy-based wrapper.
 inline bool fast_copy_active = false;
 
-// Persistent intent (!= fast_copy_active): warmup does not clear this; fork child re-runs warmup.
+// Persistent intent (!= fast_copy_active): true when handlers installed at init
+// (safe_memcpy_initialized) and the user has not opted out. Warmup clears
+// active but keeps this set; fork child re-runs warmup from it.
 inline bool fast_copy_desired = false;
 
-// User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
+// User opted out via _DD_PROFILING_STACK_FAST_COPY, embedded Python, or
+// set_fast_copy(false). Cleared again by set_fast_copy(true). Orthogonal to
+// desired: desired also requires safe_memcpy_initialized.
 inline bool fast_copy_user_disabled = false;
 
 // Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
@@ -73,9 +77,11 @@ mark_fast_copy_syscall_fallback()
 }
 
 // Install/reclaim while we still want memcpy recovery, or while memcpy is still
-// the active copy method, and no foreign takeover. Warmup keeps desired set with
-// active cleared. A failed disable (no process_vm_readv) clears both flags and
-// uninstalls any leftover recovery handler via set_fast_copy().
+// the active copy method, and no foreign takeover.
+// desired covers warmup (desired set, active cleared). active covers the brief
+// window in set_fast_copy(false) after desired is cleared and before
+// set_fast_copy_enabled finishes clearing active — keep ops enabled so a
+// coordinated uninstall can still drop a live recovery handler.
 inline bool
 fast_copy_handler_ops_enabled()
 {

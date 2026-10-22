@@ -285,7 +285,14 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         #   False — not running (safe to swap)
         #   None  — timeout: refuse init so we do not install crashtracking over an
         #           in-flight safe_memcpy or build a handler cycle.
+        # Gate on is_available, not mere presence in sys.modules: importing
+        # profiling_config can leave the stack package loaded with
+        # is_available=False when the native extension failed. Coordinating
+        # against that stub would treat a missing pause_sampling as a timeout
+        # and disable crash reporting.
         stack_mod: Optional[ModuleType] = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        if stack_mod is not None and not getattr(stack_mod, "is_available", False):
+            stack_mod = None
         pause_result: Optional[bool] = None
         safe_to_swap: bool = True
         if stack_mod is not None:
