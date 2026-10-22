@@ -142,46 +142,32 @@ blocks using the framework's response mechanism. Handled errors are recorded
 before the framework converts them to ordinary response values. These hooks must
 survive plugin skip settings and callback-cache resets.
 
-Bottle keeps its native extraction, response conversion, and routing hooks in
-its existing ``ddtrace.contrib.internal.bottle.trace`` module alongside the public
-``TracePlugin``. Route-local plugins retain their callback-only fallback because
-they cannot observe the WSGI boundary. See ``examples/http-events/lifecycle.py``
-for wiring an ordinary WSGI app without any framework callbacks. ASGI requires a
-separate async transport driver; this migration supplies only the WSGI driver.
+Bottle plugin boundary
+^^^^^^^^^^^^^^^^^^^^^^
 
-Bottle opts into ``defer_span_start`` so routing can preserve the trace plugin's
-skip settings. Its route hook reports a separate ``HttpServerTracingDecisionEvent``
-through ``HttpLifecycle.set_tracing_enabled`` before publishing the resolved route.
-This tracing policy does not disable HTTP observations or blocking checks. Bottle
-uses ``route.all_plugins()`` to honor skip-by-name, instance, class, and ``True``.
+Bottle retains its thin ``TracePlugin.apply`` wrapper and emits
+``WebFrameworkRequestEvent`` to ``WebFrameworkRequestSubscriber``. Bottle manages
+plugin ordering, skip settings, uninstall/reinstall, and callback-cache resets.
+The plugin reads Bottle's request metadata at callback entry and records status,
+headers, and exceptions at callback exit. Spans end when the callback returns or
+raises, even if its result is an unconsumed response iterable. Later response-hook
+changes, streaming failures, and transport errors are outside this boundary.
 
-The tracing subscriber creates and activates the span when an allowed route is
-selected; it does not backdate its start time. Consequently,
-``before_request`` hooks run without a Bottle request span, as they did before
-this migration. Skipped routes do not create a request span or activate incoming
-trace headers; their child instrumentation retains the previously active parent.
-Requests without a route decision, including 404s and pre-route blocks, create no
-request span. Blocking never overrides the route's tracing decision. Bottle
-refreshes request metadata after its before-request hooks, before selecting tracing;
-earlier observations retain their original snapshot. Deferred tracing extracts the
-refreshed headers, including distributed tracing and inferred proxy headers.
-Allowed spans still finish at response exhaustion, failure, or close. Bottle
-mount proxies default to ``skip=True``, so they likewise omit an outer span;
-explicitly enabling plugins on the proxy permits nested request spans.
+Bottle does not install ``WsgiLifecycleDriver``, publish the HTTP phase events,
+or emit block checks. Disabling tracing bypasses its plugin instrumentation.
+The shared subscriber still supports the experimental HTTP lifecycle separately.
+See ``examples/http-events/lifecycle.py`` for an ordinary WSGI app using that
+lifecycle without framework callbacks. ASGI requires a separate async driver.
 
-The application-installed Bottle plugin publishes this contract at these boundaries:
+Shared HTTP lifecycle boundaries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* ``REQUEST_STARTED``: request entry, before Bottle's request hooks and routing.
-* ``ROUTE_RESOLVED``: successful routing, with the mounted route template available.
-* ``BEFORE_HANDLER``: immediately before the resolved route callback is invoked.
-  ``handler_started`` is still false at this boundary and becomes true when that
-  callback begins. The callback includes the complete plugin chain. This boundary
-  remains active when a route skips the trace plugin or all plugins.
-* ``RESPONSE_READY``: Bottle has prepared status and headers, before calling the
-  server's ``start_response``.
-* ``RESPONSE_COMMITTED``: ``start_response`` has returned successfully. This is
-  the integration's conservative commitment boundary, not proof of bytes sent on
-  the network.
+* ``REQUEST_STARTED``: entry to the instrumented request lifecycle.
+* ``ROUTE_RESOLVED``: the producer reports a resolved route.
+* ``BEFORE_HANDLER``: before the producer invokes the wrapped handler.
+* ``RESPONSE_READY``: status and headers prepared, before ``start_response``.
+* ``RESPONSE_COMMITTED``: ``start_response`` returned successfully; this does not
+  prove bytes have reached the network.
 * ``COMPLETED``: response exhaustion, failure, or explicit close, exactly once.
 
 These are observations, not a required sequence for every request. Routing failures
@@ -196,9 +182,9 @@ Availability and lifetime
 ``None`` means a field is unavailable, whereas an empty string or tuple is a known
 empty value. In particular, ``response=None`` means no response has been prepared;
 ``request.route=None`` means no route template is available. Empty query strings
-and empty parsed query pairs are available values. Bottle exposes the query pairs
-as parsed by the framework, preserving repeated keys. The raw query string is also
-available when exact wire ordering or encoding matters.
+and empty parsed query pairs are available values. The shared WSGI extractor
+preserves repeated query keys. The raw query string is also available when exact
+wire ordering or encoding matters.
 
 Events are ordinary dataclasses and consumers must treat them as read-only.
 Their request, response, and error values are frozen dataclasses. Header and
@@ -218,7 +204,7 @@ failure has been observed. Errors contain a qualified type name and a message, w
 exception objects nor tracebacks. A failure after response commitment does not
 rewrite the prepared response status.
 
-Request and response bodies remain unavailable in Bottle. Producing these events
+The shared WSGI extractor leaves request and response bodies unavailable. Producing these events
 must not consume request bodies, buffer responses, or advance response streams.
 
 Blocking and consumers
@@ -233,10 +219,10 @@ Returning normally allows the next listener to run.
 
 The first block interrupts the check, skipping remaining block-check listeners.
 An invalid blocking response is ignored, but skipped listeners are not resumed.
-Bottle validates status, headers, and body and owns transport framing. After a valid
+The shared lifecycle validates status, headers, and body; the driver owns transport framing. After a valid
 block it skips subsequent block checks, including checks of its replacement response.
 The accepted status, headers, and body are retained through application hooks and
-reapplied before the first ``start_response`` attempt. If delivery fails and Bottle
+reapplied before the first ``start_response`` attempt. If delivery fails and the application
 retries with an error response, that attempt does not reuse the blocking body.
 Ordinary listener exceptions retain core's normal isolation behavior; the testing
 raise setting still propagates them. ``HttpRequestBlock`` inherits ``BaseException``
@@ -251,19 +237,12 @@ outcome, including delivery failures. Response delivery, stream closure, HEAD bo
 suppression, and completion stay with the integration; a consumer chooses whether to
 block and with what response, never how that response reaches the client.
 
-Bottle emits events when a consumer is registered even if tracing is disabled,
-without creating a request span. Consumers should register before request entry to
-observe the complete lifecycle. When the tracer is disabled and no observation or
-block-check listener is registered, the WSGI wrapper delegates directly to Bottle
-without extracting the request.
-
-The before-handler observation and its block check wrap the resolved callback's whole
-plugin chain, so they do not depend on which plugins a route applies: a route that
-skips the trace plugin still publishes handler activity and can still be blocked with
-tracing disabled, and a route cache reset reinstalls the boundary. Route-local plugins
-are the exception. They publish only route resolution and callback completion; they
-have no WSGI boundary and emit no block checks, so a consumer cannot block a route
-whose only instrumentation is a route-local plugin.
+The shared driver emits events when a consumer is registered even if tracing is
+disabled, without creating a request span. Consumers should register before request
+entry to observe the complete lifecycle. When tracing is disabled and no consumer
+is registered, the driver delegates without extracting the request. Integrations
+adopting this contract must explicitly provide routing and handler boundaries;
+installing a tracing plugin alone does not supply these guarantees.
 
 
 Testing HTTP contract adapters
@@ -274,8 +253,8 @@ Integrations adopting the HTTP server request-data contract should inherit
 whose name starts with ``Test``. Import ``observe_http_requests`` and
 ``register_http_block_checker`` into that test module to expose the shared
 ``observations`` and ``block_checker`` fixtures, and provide an
-``http_adapter`` fixture implementing ``HttpContractAdapter``. See
-``tests/contrib/bottle/test_http_contract.py`` for the first implementation.
+``http_adapter`` fixture implementing ``HttpContractAdapter``. Bottle does not
+implement this adapter; its tests cover the plugin and shared infrastructure separately.
 
 The adapter registers a parameterized route, constructs a native response, and
 sends a request through the real instrumented application. It returns the consumed
