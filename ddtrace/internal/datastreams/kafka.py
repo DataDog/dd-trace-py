@@ -24,13 +24,20 @@ log = get_logger(__name__)
 
 
 def _headers_byte_size(headers: Any) -> int:
-    # confluent-kafka also accepts headers as a list of (key, value) tuples.
-    if isinstance(headers, (list, tuple)):
-        try:
-            headers = dict(headers)
-        except (TypeError, ValueError):
-            return 0
-    return _calculate_byte_size(headers)
+    """Size of headers given as a dict or as confluent-kafka's list of (key, value) pairs."""
+    entries = headers.items() if isinstance(headers, dict) else headers
+    try:
+        return sum(_calculate_byte_size(key) + _calculate_byte_size(value) for key, value in entries)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _with_pathway_header(headers: Any, ctx: Any) -> list[tuple[Any, Any]]:
+    """A copy of the header list with any DSM pathway header replaced by one for ctx."""
+    pathway_headers: dict[str, str] = {}
+    DsmPathwayCodec.encode(ctx, pathway_headers)
+    kept = [header for header in headers if header[0] not in pathway_headers]
+    return kept + list(pathway_headers.items())
 
 
 def dsm_kafka_message_produce(
@@ -62,11 +69,7 @@ def dsm_kafka_message_produce(
                 DsmPathwayCodec.encode(ctx, headers)
                 kwargs["headers"] = headers
             elif isinstance(headers, (list, tuple)):
-                # A new list, so a caller reusing one headers list across produce() calls
-                # does not accumulate a pathway header per call.
-                dsm_headers: dict[str, str] = {}
-                DsmPathwayCodec.encode(ctx, dsm_headers)
-                kwargs["headers"] = list(headers) + list(dsm_headers.items())
+                kwargs["headers"] = _with_pathway_header(headers, ctx)
 
     on_delivery_kwarg = "on_delivery"
     on_delivery_arg = 5
@@ -107,7 +110,8 @@ def dsm_kafka_message_consume(instance, message, span):
     if message.error() is not None:
         return
 
-    headers = {header[0]: header[1] for header in (message.headers() or [])}
+    header_list = message.headers() or []
+    headers = dict(header_list)
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
     group = instance._group_id
@@ -120,7 +124,7 @@ def dsm_kafka_message_consume(instance, message, span):
         payload_size += _calculate_byte_size(message.value())
 
     payload_size += _calculate_byte_size(message.key())
-    payload_size += _calculate_byte_size(headers)
+    payload_size += _headers_byte_size(header_list)
 
     p = processor()
     if p is None:

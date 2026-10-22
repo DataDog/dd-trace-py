@@ -5,6 +5,7 @@ from confluent_kafka import TopicPartition
 import pytest
 
 from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.datastreams.kafka import _headers_byte_size
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
@@ -319,8 +320,30 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     assert message.headers()[0][1] is not None
 
 
+@pytest.mark.parametrize(
+    "headers,expected",
+    [
+        ([("tag", b"a"), ("tag", b"b")], 8),
+        ({"tag": b"a"}, 4),
+        ([("tag",)], 0),
+        (None, 0),
+    ],
+    ids=["repeated-keys", "dict", "malformed", "none"],
+)
+def test_headers_byte_size(headers, expected):
+    assert _headers_byte_size(headers) == expected
+
+
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
-@pytest.mark.parametrize("headers", [[("app-header", b"app-value")], None], ids=["list", "none"])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        [("app-header", b"app-value")],
+        [("app-header", b"app-value"), (PROPAGATION_KEY_BASE_64, b"stale")],
+        None,
+    ],
+    ids=["list", "forwarded-list", "none"],
+)
 def test_data_streams_produce_with_list_or_none_headers(
     dsm_processor, fresh_consumer, producer, empty_kafka_topic, headers, distributed_tracing_enabled
 ):
@@ -342,7 +365,8 @@ def test_data_streams_produce_with_list_or_none_headers(
     assert message is not None, "Consumer did not receive the produced message within 10s"
 
     header_keys = [h[0] for h in (message.headers() or [])]
-    assert header_keys.count(PROPAGATION_KEY_BASE_64) == 1, f"DSM pathway header not injected: {header_keys}"
+    assert header_keys.count(PROPAGATION_KEY_BASE_64) == 1, f"expected exactly one DSM pathway header: {header_keys}"
+    assert (PROPAGATION_KEY_BASE_64, b"stale") not in message.headers(), "stale DSM pathway header was forwarded"
     if original_headers is not None:
         assert ("app-header", b"app-value") in message.headers()
         assert headers == original_headers, "caller's headers list was mutated"
