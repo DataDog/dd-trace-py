@@ -348,10 +348,19 @@ def test_a_partial_success_is_reported_and_not_sent_again(otlp_endpoint, monkeyp
 def test_a_periodic_flush_starts_no_export_once_close_began(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
-    writer._stopping.set()
+    writer._closing = True
     writer.flush()
     assert Collector.requests == []
     writer.on_shutdown(time.monotonic() + 5)
+    assert len(Collector.requests) == 1
+
+
+def test_periodic_exports_continue_after_a_tracer_shutdown(otlp_endpoint):
+    # An application can shut the global tracer down, which runs on_shutdown, and keep serving.
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.on_shutdown(time.monotonic() + 5)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
     assert len(Collector.requests) == 1
 
 

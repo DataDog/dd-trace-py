@@ -445,6 +445,9 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._stopping = forksafe.Event()
         # Set by close(), so that the worker's own last flush as it stops keeps to the same deadline.
         self._shutdown_deadline: Optional[float] = None
+        # Set by close() only. on_shutdown() also runs when an application shuts the global tracer down and keeps
+        # serving, so it must not stop the periodic exports.
+        self._closing = False
         self._otlp: Optional[_OtlpSender] = None
         self._dogstatsd: Optional[_DogStatsdSender] = None
         # OTLP exports that failed in a retryable way, oldest first.
@@ -485,6 +488,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         time.
         """
         deadline = self._shutdown_deadline = time.monotonic() + _SHUTDOWN_SECONDS
+        self._closing = True
         # A flush in progress stops retrying, and a DogStatsD send in progress stops at the deadline; the worker
         # flushes once more as it stops.
         self._stopping.set()
@@ -545,7 +549,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             # A periodic flush that close() interrupted starts no new request: the exit flush, which has the shutdown
             # deadline, sends what is left. A request already in progress cannot be cancelled and ends within its
             # timeout.
-            if deadline is None and self._stopping.is_set():
+            if deadline is None and self._closing:
                 return
             if deadline is not None and time.monotonic() >= deadline:
                 log.debug("LiteLLM usage metrics: dropping %d unsent OTLP exports at exit", len(self._pending))
