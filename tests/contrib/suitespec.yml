@@ -458,6 +458,9 @@ suites:
         - name: anyio
           dependencies: [pytest-randomly, anyio, trio]
   aredis:
+    # TODO(py-315): aredis is unmaintained and its suite fails at setup on Python
+    # 3.15 (no failing tests, the session errors out). Re-add 3.15 only if aredis
+    # ever supports it.
     paths:
       - '@bootstrap'
       - '@core'
@@ -472,7 +475,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/aredis
-      python: ['3.9', '3.15']
+      python: ['3.9']
       variants:
         - name: aredis
           dependencies: ['pytest-asyncio==0.21.1', aredis, pytest-randomly]
@@ -657,6 +660,9 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [azure.eventhub, 'pytest-asyncio==0.23.7']
   azure_durable_functions:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the durable
+    # task worker support it.
     venvs_per_job: 6
     paths:
       - '@bootstrap'
@@ -675,12 +681,15 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['azure-functions-durable==1.2.1']
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure-functions-durable]
   azure_functions:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     venvs_per_job: 4
     paths:
       - '@bootstrap'
@@ -698,12 +707,15 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions
       variants:
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['azure.functions~=1.10.1', requests]
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     paths:
       - '@bootstrap'
       - '@core'
@@ -722,18 +734,21 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions_cosmos
       variants:
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13', '3.15']
+          python: ['3.11', '3.12', '3.13']
           dependencies: ['azure.functions~=1.10.1', 'azure.cosmos~=4.9.0', azure.storage.blob, aiohttp]
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13', '3.15']
+          python: ['3.11', '3.12', '3.13']
           dependencies: ['azure.functions~=1.10.1', azure.cosmos, azure.storage.blob, aiohttp]
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13', '3.15']
+          python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, 'azure.cosmos~=4.9.0', azure.storage.blob, aiohttp]
         - name: azure_functions:cosmos
-          python: ['3.11', '3.12', '3.13', '3.15']
+          python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     paths:
       - '@bootstrap'
       - '@core'
@@ -752,12 +767,15 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions_eventhubs
       variants:
         - name: azure_functions:eventhubs
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: ['azure.functions~=1.10.1', azure.eventhub, azure.storage.blob]
         - name: azure_functions:eventhubs
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [azure.functions, azure.eventhub, azure.storage.blob]
   azure_functions:servicebus:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -778,10 +796,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions_servicebus
       variants:
         - name: azure_functions:servicebus
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: ['azure.functions~=1.10.1', azure.servicebus]
         - name: azure_functions:servicebus
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [azure.functions, azure.servicebus]
   azure_servicebus:
     venvs_per_job: 3
@@ -2398,6 +2416,8 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
+    # TODO(py-315): redis-py-cluster does not work on Python 3.15; both variants'
+    # sessions fail at setup. Re-add 3.15 once the dependency supports it.
     paths:
       - '@bootstrap'
       - '@core'
@@ -2414,10 +2434,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/rediscluster
       variants:
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [pytest-randomly, 'redis-py-cluster>=2.0,<2.1']
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
     paths:
