@@ -109,10 +109,87 @@ class TestDiscoveryMode:
         assert nested_entry["suiteSourceFile"].endswith("test_nested.py")
 
     def test_exit_code_zero(self, pytester: Pytester, output_file: Path) -> None:
-        """Discovery mode always exits with code 0."""
+        """Discovery mode exits with code 0 when collection succeeds."""
         pytester.makepyfile(test_x="def test_pass(): pass")
         result = pytester.inline_run()
         assert result.ret == 0
+
+    # ------------------------------------------------------------------
+    # Collection errors
+    # ------------------------------------------------------------------
+
+    def test_collection_error_exits_nonzero_and_writes_partial_results(
+        self, pytester: Pytester, output_file: Path
+    ) -> None:
+        """A file that fails collection makes discovery exit 2 (pytest's own
+        collection-interrupt status) while still writing the tests that did
+        collect. Without this, files failing collection (import errors,
+        same-basename import mismatches, ...) silently drop out of the
+        discovery output and consumers see a successful run.
+        """
+        pytester.makepyfile(
+            test_ok="""
+            def test_good():
+                pass
+            """,
+        )
+        pytester.makepyfile(
+            test_broken="""
+            import nonexistent_module_for_discovery_test
+
+            def test_never_collected():
+                pass
+            """,
+        )
+
+        result = pytester.inline_run()
+
+        assert result.ret == 2
+        # Partial results are still written: the consumer can decide what to do.
+        tests = self._read_discovered(output_file)
+        assert [t["name"] for t in tests] == ["test_good"]
+        assert "test_never_collected" not in {t["name"] for t in tests}
+
+    def test_collection_error_message_names_failing_node(self, pytester: Pytester, output_file: Path) -> None:
+        """The exit message names the file(s) that failed collection."""
+        pytester.makepyfile(
+            test_broken2="""
+            import another_nonexistent_module_for_discovery_test
+
+            def test_never_collected():
+                pass
+            """,
+        )
+
+        result = pytester.runpytest_subprocess()
+
+        assert result.ret == 2
+        result.stdout.fnmatch_lines(["*Test discovery found 1 collection error*test_broken2.py*"])
+
+    def test_collection_error_with_continue_flag_exits_zero(self, pytester: Pytester, output_file: Path) -> None:
+        """--continue-on-collection-errors keeps the exit code 0, mirroring
+        pytest's own semantics, while logging the errors.
+        """
+        pytester.makepyfile(
+            test_ok2="""
+            def test_good2():
+                pass
+            """,
+        )
+        pytester.makepyfile(
+            test_broken3="""
+            import yet_another_nonexistent_module
+
+            def test_never_collected2():
+                pass
+            """,
+        )
+
+        result = pytester.inline_run("--continue-on-collection-errors")
+
+        assert result.ret == 0
+        tests = self._read_discovered(output_file)
+        assert [t["name"] for t in tests] == ["test_good2"]
 
     # ------------------------------------------------------------------
     # Parametrized tests

@@ -10,7 +10,7 @@ anyio==4.12.1
 attrs==26.1.0
 boto3==1.42.97
 botocore==1.42.97
-certifi==2026.6.17
+certifi==2026.10.19
 coverage[toml]==7.10.7
 exceptiongroup==1.3.1
 fastapi==0.128.8

@@ -29,6 +29,7 @@ CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 SERVER_REQUEST_OPERATION_NAME = "server_request"
 # This operation is handled the same as server_request but has a different name for legacy reasons
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
+DEFAULT_TOOL_ERROR_MESSAGE = "tool resulted in an error"
 
 
 TELEMETRY_KEY = "telemetry"
@@ -62,6 +63,18 @@ def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
         if span._get_ctx_item(MCP_SPAN_TYPE) == "client_session":
             return span
         span = span._parent
+    return None
+
+
+def get_tool_error_message(result: Any) -> Optional[str]:
+    content = _get_attr(result, "content", None) or []
+    if not isinstance(content, list):
+        return None
+    for item in content:
+        if _get_attr(item, "type", None) == "text":
+            text = _get_attr(item, "text", None)
+            if text:
+                return str(text)
     return None
 
 
@@ -207,7 +220,7 @@ class MCPIntegration(BaseLLMIntegration):
         if is_error:
             span.error = 1
             span.set_tag(ERROR_TYPE, "ToolError")
-            span.set_tag(ERROR_MSG, "tool resulted in an error")
+            span.set_tag(ERROR_MSG, get_tool_error_message(response) or DEFAULT_TOOL_ERROR_MESSAGE)
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
     def process_telemetry_argument(self, span: Span, request: "CallToolRequest") -> None:
