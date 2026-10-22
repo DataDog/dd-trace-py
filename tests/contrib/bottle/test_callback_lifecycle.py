@@ -4,8 +4,9 @@ import bottle
 import pytest
 import webtest
 
-from ddtrace.contrib._events.web_framework import WebFrameworkCallbackCompletedEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkCallbackStartedEvent
+import ddtrace
+from ddtrace.contrib._events.web_framework_callback import WebFrameworkCallbackCompletedEvent
+from ddtrace.contrib._events.web_framework_callback import WebFrameworkCallbackStartedEvent
 from ddtrace.contrib.internal.bottle import trace
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.internal import core
@@ -243,3 +244,46 @@ def test_consumer_owns_setup_and_cleanup_without_tracing(app, tracer, monkeypatc
     finally:
         core.reset_listeners(WebFrameworkCallbackStartedEvent.event_name, started)
         core.reset_listeners(WebFrameworkCallbackCompletedEvent.event_name, completed)
+
+
+def test_callback_events_do_not_depend_on_tracing():
+    """The callback contract must stay importable without pulling in tracing.
+
+    These events exist so a listener that only observes handler invocations can
+    subscribe without depending on spans. That guarantee is structural, not a naming
+    convention, so walk the module's import closure instead of trusting the header.
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path(ddtrace.__file__).parent
+
+    def module_path(name):
+        base = root.joinpath(*name.split(".")[1:])
+        for candidate in (base.with_suffix(".py"), base / "__init__.py"):
+            if candidate.is_file():
+                return candidate
+        return None
+
+    seen = set()
+    pending = ["ddtrace.contrib._events.web_framework_callback"]
+    while pending:
+        name = pending.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        path = module_path(name)
+        if path is None:
+            continue
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                imported = [node.module]
+            elif isinstance(node, ast.Import):
+                imported = [alias.name for alias in node.names]
+            else:
+                continue
+            pending.extend(name for name in imported if name.startswith("ddtrace."))
+
+    assert not [name for name in seen if name.startswith("ddtrace._trace")]
+    assert not [name for name in seen if name.startswith("ddtrace.contrib._events.web_framework.")]
+    assert "ddtrace.contrib._events.web_framework" not in seen

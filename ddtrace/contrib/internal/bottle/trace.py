@@ -11,9 +11,9 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace.contrib._events.web_framework import WebFrameworkCallbackCompletedEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkCallbackStartedEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework_callback import WebFrameworkCallbackCompletedEvent
+from ddtrace.contrib._events.web_framework_callback import WebFrameworkCallbackStartedEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
