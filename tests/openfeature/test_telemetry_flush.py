@@ -62,6 +62,31 @@ def test_flush_and_warm_reuse(kind):
     assert writer._progress.accepted == writer._progress.settled == 3
 
 
+@pytest.mark.parametrize("pre_drain", [False, True])
+@pytest.mark.parametrize("include_healthy", [False, True])
+def test_aggregation_failure_settles_and_later_flush_recovers(pre_drain, include_healthy):
+    class UnhashableString(str):
+        __hash__ = None
+
+    writer, connection = make_writer()
+    writer.enqueue(_make_event(flag_key=UnhashableString("my-flag")))
+    if include_healthy:
+        enqueue(writer)
+    if pre_drain:
+        # The background drain worker may consume the bad event before flush.
+        writer._drain_queue()
+    assert _telemetry.flush(1) == "failed"
+    assert writer._progress.accepted == writer._progress.settled == 1 + include_healthy
+    assert connection.request.call_count == int(include_healthy)
+
+    enqueue(writer)
+    assert _telemetry.flush(1) == "completed"
+    assert writer._progress.accepted == writer._progress.settled == 2 + include_healthy
+    assert connection.request.call_count == 1 + include_healthy
+    assert _telemetry.flush(1) == "completed"
+    assert connection.request.call_count == 1 + include_healthy
+
+
 @pytest.mark.parametrize("kind", ["evaluation", "exposure"])
 @pytest.mark.parametrize("status", [202, 400, 500])
 def test_endpoint_acknowledgement(kind, status):

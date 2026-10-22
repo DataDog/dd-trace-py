@@ -756,6 +756,7 @@ class _WriterProcessState:
         self.accepting_events = True
         self.drained = 0
         self.batch_target = 0
+        self.aggregation_failed = False
 
 
 # ---------------------------------------------------------------------------
@@ -1045,6 +1046,8 @@ class FlagEvaluationWriter(PeriodicService):
                 self._global_count = 0
                 self._dropped_degraded_overflow = 0
             self._process_state.batch_target = self._process_state.drained
+            aggregation_failed = self._process_state.aggregation_failed
+            self._process_state.aggregation_failed = False
         with self._counter_lock:
             dropped_pre_queue = self._dropped_pre_queue
             dropped_queue = self._dropped_queue
@@ -1082,7 +1085,7 @@ class FlagEvaluationWriter(PeriodicService):
         _count_metric(FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC, targeting_key_omitted, "invalid")
 
         if not full and not degraded:
-            return not dropped_degraded
+            return not (dropped_degraded or aggregation_failed)
 
         # 3. Build payload.
         flush_time_ms = int(time.time() * 1000)
@@ -1129,7 +1132,7 @@ class FlagEvaluationWriter(PeriodicService):
         _count_metric(FLAG_EVALUATION_DEGRADED_METRIC, degraded_count, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
 
         if not events:
-            return not dropped_degraded
+            return not (dropped_degraded or aggregation_failed)
 
         # 4. Encode under the EVP payload limit and POST.
         context: dict[str, str] = {}
@@ -1159,7 +1162,9 @@ class FlagEvaluationWriter(PeriodicService):
         if len(result.payloads) > 1:
             _count_metric(FLAG_EVALUATION_SPLITS_METRIC, len(result.payloads) - 1)
 
-        success = not (dropped_degraded or result.dropped_payload_limit or result.dropped_serialization_error)
+        success = not (
+            aggregation_failed or dropped_degraded or result.dropped_payload_limit or result.dropped_serialization_error
+        )
         for payload, num_events in result.payloads:
             success = self._send_payload(payload, num_events) and success
         return success
@@ -1192,8 +1197,15 @@ class FlagEvaluationWriter(PeriodicService):
                     event = self._queue.get_nowait()
                 except queue.Empty:
                     break
-                self._aggregate(event)
-                self._process_state.drained += 1
+                try:
+                    self._aggregate(event)
+                except Exception as exc:
+                    self._process_state.aggregation_failed = True
+                    # Caller-defined values can raise; do not log their contents.
+                    logger.debug("FlagEvaluationWriter: aggregation error (%s)", type(exc).__name__)
+                finally:
+                    # Every dequeued event must settle, including failed aggregation.
+                    self._process_state.drained += 1
 
     def _request_drain_worker_stop(self) -> bool:
         worker = self._drain_worker
