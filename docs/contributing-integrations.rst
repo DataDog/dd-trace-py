@@ -99,7 +99,10 @@ and ``HttpRequestCompletedEvent`` from ``ddtrace.contrib._events.http`` using
 ``event.phase``, and ``event.request_id`` directly; there is no snapshot wrapper.
 The shared ``HttpRequestDataEvent`` base supplies fields, not a subscription name.
 Events carry no span, resource, service, operation name, or integration configuration.
-The shared ``HttpServerRequestEvent`` opens the tracing context. Its subscriber
+The shared ``HttpServerRequestEvent`` opens the tracing context.
+``WebFrameworkRequestSubscriber`` handles both this event and the existing
+``WebFrameworkRequestEvent``; legacy integrations retain their current event and
+metadata handling. For the shared HTTP lifecycle, the subscriber
 correlates HTTP observations by ``request_id`` and selects framework conventions
 using the ``framework`` field. Frameworks without a conventions override receive
 a request span using generic HTTP defaults; no tracing allowlist entry is required.

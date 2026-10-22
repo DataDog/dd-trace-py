@@ -31,9 +31,10 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
 ## Bottle HTTP event boundary
 
-Bottle supplies request and route values to the shared HTTP controller. The HTTP
-tracing subscriber selects Bottle conventions and builds the historical METHOD rule
-resource; route data retains the script_name prefix for http.route.
+Bottle supplies request and route values to the shared HTTP controller. The shared
+WebFrameworkRequestSubscriber handles both HttpServerRequestEvent and legacy
+WebFrameworkRequestEvent without changing legacy metadata handling. It selects Bottle
+conventions and builds the historical METHOD rule resource; route data retains the script_name prefix for http.route.
 
 TracePlugin keeps Bottle-specific hook installation in bottle/trace.py; no
 per-integration lifecycle module or adapter class is required. HttpLifecycle in

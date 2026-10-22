@@ -3,7 +3,7 @@
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.subscribers.http_server import HttpServerRequestSubscriber
+from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib._events.http import HTTP_REQUEST_DATA_EVENTS
 from ddtrace.contrib._events.http import HttpRequestBlock
 from ddtrace.contrib._events.http import HttpRequestData
@@ -119,11 +119,11 @@ def test_shared_driver_bypasses_requests_nothing_would_consume(tracer, monkeypat
         pytest.fail("a bypassed request must not be extracted")
 
     driver = WsgiLifecycleDriver(get_config=_settings, request_data=request_data)
-    HttpServerRequestSubscriber.unregister()
+    WebFrameworkRequestSubscriber.unregister()
     try:
         assert driver.wrap(lambda environ, start_response: result)({}, lambda *args: None) is result
     finally:
-        HttpServerRequestSubscriber.register()
+        WebFrameworkRequestSubscriber.register()
 
 
 def test_shared_driver_instruments_for_an_observer_without_tracing(tracer, monkeypatch, observations, test_spans):

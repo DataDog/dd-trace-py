@@ -9,14 +9,15 @@ import pytest
 import webtest
 
 from ddtrace import config
-from ddtrace._trace.subscribers.http_server import _CONVENTIONS
-from ddtrace._trace.subscribers.http_server import _REQUEST_CONTEXTS
+from ddtrace._trace.subscribers.web_framework import _CONVENTIONS
+from ddtrace._trace.subscribers.web_framework import _REQUEST_CONTEXTS
 from ddtrace.contrib._events.http import HttpRequestCompletedEvent
 from ddtrace.contrib._events.http import HttpRequestData
 from ddtrace.contrib._events.http import HttpRequestPhase
 from ddtrace.contrib._events.http import HttpResponseData
 from ddtrace.contrib._events.http import HttpRouteResolvedEvent
 from ddtrace.contrib._events.http import HttpServerRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.bottle.trace import TracePlugin
 from ddtrace.internal import core
 from tests.contrib.http_contract import HttpContractTests
@@ -748,3 +749,47 @@ def test_hook_metadata_refresh_preserves_entry_observation(app, observations, te
     else:
         assert len(spans) == 1
         assert span.parent_id == 5678
+
+
+@pytest.mark.parametrize("resource", [None, "custom-resource"])
+def test_legacy_web_event_keeps_metadata_and_span_ownership(tracer, test_spans, resource):
+    event = WebFrameworkRequestEvent(
+        component="bottle",
+        integration_config=config.bottle,
+        service="legacy-web",
+        http_operation="bottle.request",
+        request_method="GET",
+        request_url="http://localhost/legacy",
+        request_headers={},
+        headers_case_sensitive=True,
+        allow_default_resource=True,
+        resource=resource,
+        trace_query_string=True,
+        query="key=value",
+        additional_tags={"legacy.tag": "kept"},
+    )
+    request_id = object()
+    with core.context_with_event(event) as legacy_ctx:
+        legacy_span = legacy_ctx.get_item("_inner_span")
+        assert legacy_span is not None
+        assert all(ctx is not legacy_ctx for ctx in _REQUEST_CONTEXTS.values())
+        with core.context_with_event(_start_event(request_id)) as http_ctx:
+            http_span = http_ctx.get_item("_inner_span")
+            assert http_span is not legacy_span
+            core.dispatch_event(_route_resolved(request_id))
+            assert http_span.resource == "GET /items/<name>"
+        assert request_id not in _REQUEST_CONTEXTS
+        assert not legacy_span.finished
+        event.response_status_code = 202
+        event.request_route = "/legacy"
+
+    spans = test_spans.pop()
+    assert len(spans) == 2
+    assert legacy_span.finished
+    assert http_span.finished
+    assert http_span.parent_id == legacy_span.span_id
+    assert legacy_span.resource == (resource or "GET 202")
+    assert legacy_span.get_tag("http.status_code") == "202"
+    assert legacy_span.get_tag("http.route") == "/legacy"
+    assert legacy_span.get_tag("http.query.string") == "key=value"
+    assert legacy_span.get_tag("legacy.tag") == "kept"
