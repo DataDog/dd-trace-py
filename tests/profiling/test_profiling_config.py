@@ -80,6 +80,35 @@ class TestGCFramesConfig:
         assert ProfilingConfig().stack.gc_enabled is True
 
 
+class TestProfilingGCConfig:
+    def test_default_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.gc.enabled is False
+
+    def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.gc.enabled is True
+
+    def test_disabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.gc.enabled is False
+
+    def test_config_str_includes_tag_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
+        assert "gc" in config_str(ProfilingConfig()).split("_")
+
+    def test_config_str_omits_tag_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
+        assert "gc" not in config_str(ProfilingConfig()).split("_")
+
+
 class TestExcludeModulesConfig:
     """Unit tests for the exclude_modules config field type guarantees."""
 
@@ -163,6 +192,7 @@ class TestDumpSettings:
             "stack.adaptive_sampling_max_interval",
             "stack.fast_copy",
             "stack.max_threads",
+            "gc.enabled",
             "exception.enabled",
             "exception.sampling_interval",
         ):
