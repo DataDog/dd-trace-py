@@ -384,26 +384,51 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
-        tool_id: int = _setup()
         handlers: Optional[_CodeHandlers] = _registry.get(code)
+        published: bool = False
+        existing_events: int = 0
         if handlers is None:
-            _registry[code] = handlers = _CodeHandlers()
+            # Build the handler table fully before publishing so a GC pass
+            # triggered by these allocations never observes a partial
+            # registration.
+            handlers = _CodeHandlers()
+            handlers.set_handler(id(handler), entry)
+            # Publish before claiming the tool. Once the registry is
+            # non-empty, weakref cleanup cannot release the tool, so a GC
+            # pass during _setup() or set_local_events() cannot free the tool
+            # out from under this registration. Before this ordering, a
+            # cyclic GC collecting the previous (last) registration while
+            # _CodeHandlers() was constructed after _setup() returned could
+            # free the tool mid-registration and make register() raise
+            # "tool ... is not in use".
+            _registry[code] = handlers
+            published = True
+        else:
+            existing_events = _events_for(handlers)
+            handlers.set_handler(id(handler), entry)
 
         # Events already provided by an existing handler may have been DISABLE'd by
         # that handler's callback return (LINE, or PY_START when a handler opts in).
         # If the new handler shares any of those events, re-arm via the tool-scoped
         # toggle so the new handler actually receives them. This generalises the
         # previous LINE-only re-arm to every local event.
-        existing_events: int = _events_for(handlers)
-        handlers.set_handler(id(handler), entry)
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
         handlers.disabled_events &= local_events
 
-        rearm_events = handler_events & existing_events & handlers.disabled_events
-        if rearm_events:
-            _rearm_local_events(tool_id, code, local_events, rearm_events)
-        else:
-            _set_local_events(tool_id, code, local_events)
+        try:
+            tool_id: int = _setup()
+            rearm_events = handler_events & existing_events & handlers.disabled_events
+            if rearm_events:
+                _rearm_local_events(tool_id, code, local_events, rearm_events)
+            else:
+                _set_local_events(tool_id, code, local_events)
+        except Exception:
+            # Preserve cleanup on failure: undo the registration published
+            # above so a failed register() leaves no state behind.
+            if published:
+                del _registry[code]
+            _release_tool_if_unused()
+            raise
 
 
 def refresh(code: CodeType, events: int) -> None:
