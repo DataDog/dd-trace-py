@@ -546,7 +546,7 @@ def test_debug_logs_drop_after_rejected_delivery(caplog, sample_exposure_event):
     assert "Feature Flags: 1 exposure event(s) not delivered (HTTP 400); dropping them" in _writer_messages(caplog)
 
 
-def test_shutdown_reports_in_flight_timeout_then_delivery(caplog, sample_exposure_event):
+def test_shutdown_does_not_wait_for_in_flight_delivery(caplog, sample_exposure_event):
     sending = threading.Event()
     release = threading.Event()
 
@@ -556,22 +556,25 @@ def test_shutdown_reports_in_flight_timeout_then_delivery(caplog, sample_exposur
         return mock.Mock(status=200)
 
     writer = ExposureWriter(interval=0.01, enabled=True, route_selector=_route_selector())
-    with caplog.at_level("DEBUG", logger=WRITER_LOGGER), mock.patch.object(writer, "_send_payload_with_retry", send):
+    with (
+        caplog.at_level("DEBUG", logger=WRITER_LOGGER),
+        mock.patch.object(writer, "_send_payload_with_retry", send),
+        mock.patch.object(writer, "join", wraps=writer.join) as join,
+    ):
         writer.enqueue(sample_exposure_event)
         writer.start()
         try:
             assert sending.wait(5)
-            writer.stop(timeout=0)
-            assert "1 in-flight event(s) with delivery unknown" in caplog.text
-            assert not writer._shutdown_complete
+            writer.stop()
+            join.assert_not_called()
+            assert "exposure writer shutdown flush outcome" not in caplog.text
         finally:
             release.set()
             writer.join(timeout=5)
-    assert writer._shutdown_complete
     assert "exposure writer shutdown flush outcome" in caplog.text
 
 
-def test_shutdown_waits_for_pending_exposure_outcome(caplog, sample_exposure_event):
+def test_shutdown_logs_pending_exposure_outcome_in_background(caplog, sample_exposure_event):
     writer = ExposureWriter(interval=60, enabled=True, route_selector=_route_selector())
     with (
         caplog.at_level("DEBUG", logger=WRITER_LOGGER),
@@ -580,5 +583,5 @@ def test_shutdown_waits_for_pending_exposure_outcome(caplog, sample_exposure_eve
         writer.start()
         writer.enqueue(sample_exposure_event)
         writer.stop()
-    assert writer._shutdown_complete
+        writer.join(timeout=5)
     assert "1 event(s) accepted by the selected route (HTTP 200)" in caplog.text
