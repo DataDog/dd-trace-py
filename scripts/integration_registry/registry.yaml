@@ -1009,7 +1009,7 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
-      max: 1.7.0
+      max: 1.8.0
 
 - integration_name: structlog
   is_external_package: true

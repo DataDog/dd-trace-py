@@ -247,19 +247,23 @@ class FunctionDiscovery(defaultdict[Any, Any]):
     def __init__(self, module: ModuleType) -> None:
         super().__init__(list)
 
+        self._module = module
+        # The code objects collected when the module was last compiled, if any,
+        # that this discovery is based on.
+        self._code_objects: Optional[list[CodeType]] = None
+
         module_path = origin(module)
         if module_path is None:
             # We are not going to collect anything because no code objects will
             # match the origin.
             return
 
-        self._module = module
         if not is_at_least_py(3, 11):
             self._name_index: dict[str, list[_FunctionCodePair]] = defaultdict(list)
         self._cached: dict[int, list[FullyNamedFunction]] = {}
 
         # Create the line to function mapping
-        code_objects = ModuleCodeCollector.get_code_objects(module)
+        self._code_objects = code_objects = ModuleCodeCollector.get_code_objects(module)
         if code_objects is not None:
             self._fullname_index = {}
             for code in code_objects:
@@ -404,3 +408,26 @@ class FunctionDiscovery(defaultdict[Any, Any]):
             # We no longer need to keep this collection around
             ModuleCodeCollector.release(module, "di")
             return fd
+
+    def is_outdated(self) -> bool:
+        """Whether the module has been compiled again since the discovery was built.
+
+        Every compilation of the module collects a new list of code objects,
+        whereas the list this discovery was built from, if any, is either still
+        the current one or has been released after use.
+        """
+        code_objects = ModuleCodeCollector.get_code_objects(self._module)
+        return code_objects is not None and code_objects is not self._code_objects
+
+    @classmethod
+    def cached(cls, module: ModuleType) -> Optional["FunctionDiscovery"]:
+        """Return the discovery cached on the module, without building one."""
+        return getattr(module, "__function_discovery__", None)
+
+    @classmethod
+    def invalidate(cls, module: ModuleType) -> None:
+        """Drop the discovery cached on the module, e.g. because it was recompiled."""
+        try:
+            del module.__function_discovery__
+        except AttributeError:
+            pass

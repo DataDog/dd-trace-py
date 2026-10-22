@@ -6090,14 +6090,6 @@
         "internal": true
       }
     ],
-    "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
     "_DD_LLMOBS_EVALUATOR_INTERVAL": [
       {
         "implementation": "A",

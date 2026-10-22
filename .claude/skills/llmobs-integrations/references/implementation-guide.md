@@ -7,7 +7,7 @@ Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integra
 LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
 - Patch code creates a subclass instance and stores it on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
 - Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and calls `integration.llmobs_set_tags()` when the event ends
-- The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, token, metadata, and tool extraction
+- The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, usage, metadata, and tool extraction
 - Some existing or specialized integrations still call `integration.trace()` directly for direct child spans; follow the closest current reference before using that pattern
 
 This separation keeps APM patching decoupled from LLMObs data extraction.
@@ -16,7 +16,7 @@ This separation keeps APM patching decoupled from LLMObs data extraction.
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
 - **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
-- **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and token extraction (this guide)
+- **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and usage extraction (this guide)
 - **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
 - **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
 
@@ -86,7 +86,7 @@ Common helpers (implement only what applies):
 
 - `_extract_input_messages(self, kwargs: dict[str, Any]) -> list[Message]` — convert `messages` array to `Message` list; handle system message, multi-part content blocks, tool results
 - `_extract_output_messages(self, response: Any) -> list[Message]` — convert response content blocks to `Message` list; handle text, tool_use, thinking blocks
-- `_extract_usage(self, response: Any) -> dict[str, int]` — map library token field names to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`
+- `_extract_usage(self, response: Any) -> dict[str, int]` — map library usage fields to metric keys: token counts to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`, and provider-billed server-side tool calls as described in Server-Side Tool Usage below
 - `_extract_tools(self, kwargs: dict[str, Any]) -> list[ToolDefinition]` — convert `tools` list to `ToolDefinition` list
 - `_extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]` — pick scalar request params: `temperature`, `top_p`, `max_tokens`, etc.
 - `_extract_response_metadata(self, response: Any) -> dict[str, Any]` — pick scalar params the provider reports on the *response* and that `metrics`/`output_messages` do not already cover. The stop reason is the established case: record it as `finish_reason`, omit the key when the provider reports none, and comma-join per-choice reasons in choice order when a request returns multiple choices so the value stays a single string. See the Response Metadata section of `SKILL.md` for the per-provider sources and `_openai_finish_reason_metadata()` in `_integrations/utils.py` for the comma-join helper.
@@ -132,12 +132,12 @@ Different libraries structure messages differently — implement only the helper
 
 - `_extract_input_messages(kwargs)` — handle system message, multi-part content blocks, tool results
 - `_extract_output_messages(response)` — handle text blocks, tool use blocks, thinking blocks
-- `_extract_usage(response)` — map library-specific token field names to metric keys
+- `_extract_usage(response)` — map library-specific usage fields (tokens, server-side tool calls) to metric keys
 - `_extract_tools(kwargs)` — convert `tools` kwarg to `ToolDefinition` list
 - `_extract_audio_parts(...)` — for multimodal audio providers, populate `Message.audio_parts` with `AudioPart` entries containing `mime_type` plus either inline base64 `content` or an `attachment_key`
 - `_extract_<lib>_image_source(...)` — same, for `Message.image_parts`. See `anthropic.py`
 
-`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper — except where a payload format is shared with another integration, which belongs in `_integrations/utils.py` as above.
+`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and usage normalization in the integration subclass rather than in the patch wrapper — except where a payload format is shared with another integration, which belongs in `_integrations/utils.py` as above.
 
 ### Inline Media Size Guards
 
@@ -160,6 +160,25 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 | Google GenAI | `prompt_token_count` | `candidates_token_count` | `cached_content_token_count` |
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
+
+### Server-Side Tool Usage
+
+Some providers run tools themselves and bill per call on top of token costs. Record those billable calls as LLM-span metrics next to the token counts:
+
+| Metric key | Meaning |
+|------------|---------|
+| `WEB_SEARCH_COUNT_METRIC_KEY` (`web_search_count`) | Provider-executed web searches |
+| `STORAGE_SEARCH_COUNT_METRIC_KEY` (`storage_search_count`) | Provider-executed file / vector-store searches |
+
+- Count billable calls, not queries or results. One call can carry several queries.
+- Prefer a count the provider reports, and only count output items when nothing reports one:
+  - Anthropic: `usage.server_tool_use.web_search_requests`.
+  - OpenAI Responses web search: the untyped top-level `tool_usage.web_search.num_requests` (documented as the billing count by Azure OpenAI). When it is absent, count completed `web_search_call` items whose `action.type` is `search`; `open_page` / `find_in_page` steps are not billed.
+  - OpenAI file search: no counter exists, so count completed `file_search_call` items.
+  - See `get_openai_server_tool_usage_metrics()` in `_integrations/utils.py`.
+- Omit the metric when the count is absent or 0; never write 0.
+- Skip server tools with no per-call price (for example Anthropic `web_fetch_requests`).
+- For streams, read the count from the final usage event (Anthropic `message_delta`, OpenAI `response.completed`), not from content block events.
 
 ## Agent Integrations: Stamp Kind and Name at Span Start
 
