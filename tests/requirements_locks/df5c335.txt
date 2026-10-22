@@ -2,7 +2,7 @@
 #    uv pip compile --no-annotate --no-strip-extras --python /opt/hostedtoolcache/Python/3.10.21/x64/bin/python3.10 --output-file tests/requirements_locks/df5c335.txt --exclude-newer 2026-08-30T00:54:16Z tests/requirements_locks/df5c335.in
 anyio==4.15.1
 attrs==26.1.0
-certifi==2026.7.22
+certifi==2026.10.19
 coverage[toml]==7.16.2
 elastic-transport==9.4.2
 elasticsearch==9.5.1

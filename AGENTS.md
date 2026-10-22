@@ -93,6 +93,19 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
   source-commit parity, not safety or identical execution context.
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
+## CI Scripts
+
+Every `curl` that runs in CI (`.gitlab-ci.yml`, `.gitlab/`, GitHub Actions, the scripts they call, and the Dockerfiles they build) must:
+
+- **Fail on HTTP errors**: pass `-f`/`--fail`. Without it, a 4xx/5xx exits 0 and the error page is used as if it were the real response.
+- **Retry transient errors**: pass `--retry 5 --retry-delay 2 --retry-connrefused`, or wrap the call in an explicit retry loop.
+- **Download to a file, then extract or run it**: never pipe a retried `curl` into `tar`/`sh`; a retry after a partial transfer sends the partial data and the full file down the same pipe.
+- **Keep stderr out of captured output**: never use `VAR="$(curl ... 2>&1)"`; with `--retry`, curl writes a warning for each failed attempt to stderr, which corrupts the captured response.
+
+Example: `curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o out.tar.gz "$url"`
+
+Exceptions are fine when justified, e.g. a polling loop that checks the HTTP status itself (`scripts/download-s3-wheels.sh`) may skip `--retry`, and a best-effort lookup must fall back visibly (`.gitlab/scripts/resolve-base-branch.sh`).
+
 ## Troubleshooting
 
 OpenFeature tests use the checked-in canonical fixture snapshot under
