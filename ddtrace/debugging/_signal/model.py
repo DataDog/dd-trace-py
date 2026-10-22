@@ -284,7 +284,8 @@ class Signal(abc.ABC):
 
         self.exit(retval, cast(ExcInfoType, exc_info), duration or 0, scope)
 
-        self.state = SignalState.DONE
+        if self.state is SignalState.NONE:
+            self.state = SignalState.DONE
 
     def do_line(self) -> None:
         if not self._session_check():
@@ -307,7 +308,8 @@ class Signal(abc.ABC):
 
         self.line(scope)
 
-        self.state = SignalState.DONE
+        if self.state is SignalState.NONE:
+            self.state = SignalState.DONE
 
     @staticmethod
     def from_probe(

@@ -6,16 +6,21 @@ from typing import Any
 from typing import Optional
 from typing import cast
 
+from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
+from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.log import LogSignal
+from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
 @dataclass
@@ -43,7 +48,22 @@ class MetricSample(LogSignal):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        value = float(probe.value(scope)) if probe.value is not None else 1
+        if probe.value is None:
+            value = 1.0
+        else:
+            try:
+                value = float(probe.value(scope))
+            except (DDExpressionEvaluationError, TypeError, ValueError) as e:
+                # Report like a condition error: escaping here drops the failure silently.
+                if isinstance(e, DDExpressionEvaluationError):
+                    self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
+                else:
+                    self.errors.append(EvaluationError(expr=probe.value.dsl, message=f"Value is not a number: {e}"))
+                if cast(ProbeConditionMixin, self.probe).condition_error_limiter.limit() is RateLimitExceeded:
+                    self.state = SignalState.SKIP_COND_ERROR
+                else:
+                    self.state = SignalState.COND_ERROR
+                return
 
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.

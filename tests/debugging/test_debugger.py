@@ -761,6 +761,55 @@ def test_debugger_metric_function_probe_fires_once_not_twice(mock_metrics, stuff
             )
 
 
+@pytest.mark.parametrize(
+    "value,message",
+    [
+        ({"getmember": [{"ref": "bar"}, "x"]}, "'dict' object has no attribute 'x'"),
+        ({"ref": "bar"}, "Value is not a number"),
+    ],
+)
+def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, message):
+    with debugger() as d:
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, value))
+
+        for _ in range(100):
+            stuff.Stuff().instancestuff({"x": 420})
+
+        (payload,) = d.uploader.wait_for_payloads()
+
+        assert not mock_metrics.gauge.mock_calls
+        assert d.signal_state_counter[SignalState.COND_ERROR] == 1
+        assert d.signal_state_counter[SignalState.SKIP_COND_ERROR] == 99
+        assert SignalState.DONE not in d.signal_state_counter
+        (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
+        assert error["expr"] == "test"
+        assert message in error["message"]
+
+
+def test_debugger_metric_function_probe_exit_value_error_reported(mock_metrics, stuff):
+    probe = create_metric_function_probe(
+        probe_id="metric-function-probe-test",
+        module="tests.submod.stuff",
+        func_qname="mutator",
+        kind=MetricProbeKind.GAUGE,
+        name="test.gauge",
+        tags={"debugger.probeid": "metric-function-probe-test"},
+        evaluate_at=ProbeEvalTiming.EXIT,
+        value=DDExpression(dsl="arg.x", callable=dd_compile({"getmember": [{"ref": "arg"}, "x"]})),
+    )
+    with debugger() as d:
+        d.add_probes(probe)
+
+        stuff.mutator([])
+
+        (payload,) = d.uploader.wait_for_payloads()
+
+        assert not mock_metrics.gauge.mock_calls
+        assert d.signal_state_counter[SignalState.COND_ERROR] == 1
+        (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
+        assert error["expr"] == "arg.x"
+
+
 def test_debugger_multiple_function_probes_on_same_function(stuff):
     probes = [
         create_snapshot_function_probe(
