@@ -8,12 +8,14 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 # ddtrace's entry-point groups are internal-only. We reject plugins from any
-# distribution other than "ddtrace" to prevent supply-chain attacks where a
+# distribution other than ddtrace's own to prevent supply-chain attacks where a
 # malicious third-party package registers a plugin that would be automatically
 # loaded into every instrumented process.
 # Distribution names are matched exactly (case-insensitively); module paths are
 # matched as prefixes so all ddtrace.* submodules are covered.
-_TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace"})
+# Serverless builds publish the same package under the "ddtrace-serverless"
+# distribution name (see PACKAGE_NAME in setup.py).
+_TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless"})
 _TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace."})
 
 
