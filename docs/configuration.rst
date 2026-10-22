@@ -235,6 +235,17 @@ Traces
          If a tag name is not supplied the header name will be used. For example if
          ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.headers.user-agent`` and ``http.<response/request>.headers.content-type``.
 
+   DD_TRACE_HTTP_CLIENT_ERROR_STATUSES:
+     type: String
+     default: "400-499"
+
+     description: |
+        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP
+        client request. Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
+        This setting is applied when ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` is enabled, where it sets the span
+        error status and the ``error.type`` attribute. With ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` enabled and this
+        setting not set, status codes from 400 to 499 is an error.
+
    DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
      default: True
@@ -794,7 +805,10 @@ AI Guard
      description: |
        When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
        OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
-       are fully buffered before any chunk is returned to the caller. The complete response is
+       are fully buffered before any chunk is returned to the caller. LangChain chat model and LLM
+       streams (``stream()`` and ``astream()``) from any provider are buffered too, and the tokens
+       LangChain reports to callbacks (for example ``astream_events()`` or LangGraph
+       ``stream_mode="messages"``) are held until the response is evaluated. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
        are evaluated and streamed chunks are forwarded live.

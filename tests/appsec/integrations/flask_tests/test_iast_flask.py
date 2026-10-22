@@ -5,7 +5,7 @@ from flask import request
 from flask_babel import Babel
 import pytest
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json

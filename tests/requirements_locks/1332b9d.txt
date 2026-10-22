@@ -6,7 +6,7 @@
 #
 asn1crypto==1.5.1
 attrs==24.2.0
-certifi==2024.8.30
+certifi==2026.10.19
 cffi==1.17.1
 charset-normalizer==3.3.2
 coverage[toml]==7.6.1
