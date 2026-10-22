@@ -176,7 +176,19 @@ class EchionSampler
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
-    void invalidate_frame_identity_cache() { frame_cache_.clear(); }
+    // Drops every cache whose key is a CPython object address that frame metadata depends on: the frame cache (code
+    // object addresses), the string table and rendered string IDs (co_name and co_filename addresses, which CPython
+    // 3.14 interns mortally and frees with the code object), and the asyncio/uvloop boundary keys taken from that
+    // table. Clearing only the frame cache would let a rebuilt frame resolve a reused string address to a stale name.
+    // Must run on the sampling thread between unwinds, because string lookups hand out references into the table.
+    void invalidate_frame_identity_cache()
+    {
+        frame_cache_.clear();
+        string_table_.clear();
+        renderer_.clear_string_id_cache();
+        asyncio_boundary_frame_.reset();
+        uvloop_boundary_frame_.reset();
+    }
 
 #if PY_VERSION_HEX >= 0x030e0000
     bool update_code_object_generations(const std::vector<InterpreterInfo>& interpreters,

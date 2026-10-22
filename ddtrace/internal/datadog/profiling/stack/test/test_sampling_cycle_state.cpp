@@ -5,8 +5,10 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <cstring>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 namespace {
 
@@ -202,6 +204,56 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
     EXPECT_FALSE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, false));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
+}
+
+TEST(SamplingCycleState, CodeObjectGenerationInvalidatesStringIdentityCaches)
+{
+    if (!Py_IsInitialized()) {
+        Py_Initialize();
+    }
+    _set_pid(getpid());
+
+    EchionSampler echion(2);
+    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 1) }, true));
+
+    // CPython 3.14 frees a code object's mortal interned co_name with the code object, so a replacement code object
+    // can get a different name at the same address. Rewriting a fresh string in place reproduces that reuse.
+    constexpr std::string_view old_name = "old_name";
+    constexpr std::string_view new_name = "new_name";
+    PyObject* name = PyUnicode_New(static_cast<Py_ssize_t>(old_name.size()), 127);
+    ASSERT_NE(name, nullptr);
+    std::memcpy(PyUnicode_DATA(name), old_name.data(), old_name.size());
+
+    auto old_key = echion.string_table().key(name, StringTag::FuncName);
+    ASSERT_TRUE(old_key);
+    echion.asyncio_boundary_frame() = BoundaryFrame{ *old_key, *old_key };
+    echion.uvloop_boundary_frame() = BoundaryFrame{ *old_key, *old_key };
+    std::memcpy(PyUnicode_DATA(name), new_name.data(), new_name.size());
+
+    // Unchanged generations keep the cached strings.
+    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 1) }, true));
+    auto cached = echion.string_table().lookup(*old_key);
+    ASSERT_TRUE(cached);
+    EXPECT_EQ(cached->get(), old_name);
+    EXPECT_TRUE(echion.asyncio_boundary_frame());
+    EXPECT_TRUE(echion.uvloop_boundary_frame());
+
+    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 2) }, true));
+    EXPECT_FALSE(echion.string_table().lookup(*old_key));
+    EXPECT_FALSE(echion.asyncio_boundary_frame());
+    EXPECT_FALSE(echion.uvloop_boundary_frame());
+
+    auto new_key = echion.string_table().key(name, StringTag::FuncName);
+    ASSERT_TRUE(new_key);
+    auto reread = echion.string_table().lookup(*new_key);
+    ASSERT_TRUE(reread);
+    EXPECT_EQ(reread->get(), new_name);
+
+    auto invalid = echion.string_table().lookup(StringTable::INVALID);
+    ASSERT_TRUE(invalid);
+    EXPECT_EQ(invalid->get(), "<invalid>");
+
+    Py_DECREF(name);
 }
 #endif
 
