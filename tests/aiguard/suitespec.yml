@@ -119,7 +119,7 @@ suites:
       variants:
         - name: ai_guard_litellm_guardrail
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [pytest-asyncio, 'litellm[proxy]==1.78.5']
+          dependencies: [pytest-asyncio, 'litellm[proxy]==1.83.7']
         - name: ai_guard_litellm_guardrail
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [pytest-asyncio, 'litellm[proxy]==1.82.6']
+          dependencies: [pytest-asyncio, 'litellm[proxy]>=1.83.7']
