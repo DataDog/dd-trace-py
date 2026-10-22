@@ -8,6 +8,7 @@ import pytest
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
+from ddtrace.openfeature import ExperimentationOptOutMode
 from tests.utils import override_global_config
 
 
@@ -54,6 +55,48 @@ for fixture_file in fixture_files:
         all_test_cases.append((fixture_file, test_case, test_id))
 
 assert all_test_cases, f"No FFE JSON fixtures found in {FIXTURES_DIR}"
+immediate_test_cases = [
+    (fixture_file, {**test_case, "result": test_case["capabilities"]["experimentationOptOutImmediate"]}, test_id)
+    for fixture_file, test_case, test_id in all_test_cases
+    if "experimentationOptOutImmediate" in test_case.get("capabilities", {})
+]
+assert immediate_test_cases, "Expected the shared immediate opt-out capability cases"
+
+
+def assert_json_value_equal(actual, expected):
+    # JSON numbers can use int or float. Booleans must not compare equal to numbers.
+    if type(expected) in (int, float):
+        assert type(actual) in (int, float)
+    else:
+        assert type(actual) is type(expected)
+    if isinstance(expected, dict):
+        assert actual.keys() == expected.keys()
+        for key, value in expected.items():
+            assert_json_value_equal(actual[key], value)
+    elif isinstance(expected, list):
+        assert len(actual) == len(expected)
+        for actual_item, expected_item in zip(actual, expected):
+            assert_json_value_equal(actual_item, expected_item)
+    else:
+        assert actual == expected
+
+
+@pytest.mark.parametrize("actual,expected", [(0, "0"), (False, 0), (0, False), ({"x": 0}, {"x": "0"})])
+def test_json_value_comparison_preserves_types(actual, expected):
+    with pytest.raises(AssertionError):
+        assert_json_value_equal(actual, expected)
+
+
+@pytest.mark.parametrize("actual,expected", [(0, 0.0), (0.0, 0), ([1.0, {"x": False}], [1, {"x": False}])])
+def test_json_value_comparison_accepts_equivalent_numbers(actual, expected):
+    assert_json_value_equal(actual, expected)
+
+
+def test_immediate_fixture_coverage():
+    cases = [test_case for _, test_case, _ in immediate_test_cases]
+    assert {case["variationType"] for case in cases} == {"BOOLEAN", "STRING", "INTEGER", "NUMERIC", "JSON"}
+    assert {"ERROR", "DEFAULT"} <= {case["result"]["reason"] for case in cases}
+    assert any(case.get("targetingKey") is None for case in cases)
 
 
 @pytest.fixture
@@ -92,11 +135,7 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
     result = resolve_method(flag_key, default_value, evaluation_context)
 
     expected_value = expected_result.get("value")
-    assert result.value == expected_value, (
-        f"Fixture {fixture_file} test {test_id}: flag '{flag_key}' with "
-        f"context (targetingKey='{targeting_key}', attributes={attributes}) "
-        f"returned {result.value}, expected {expected_value}"
-    )
+    assert_json_value_equal(result.value, expected_value)
     assert result.reason is not None
     assert result.reason.value == expected_result["reason"], (
         f"Fixture {fixture_file} test {test_id}: flag '{flag_key}' returned reason "
@@ -107,3 +146,17 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
             f"Fixture {fixture_file} test {test_id}: flag '{flag_key}' returned error code "
             f"{result.error_code}, expected {expected_result['errorCode']}"
         )
+    elif expected_result["reason"] != "ERROR":
+        assert result.error_code is None
+
+
+@pytest.mark.parametrize(
+    "fixture_file,test_case,test_id", immediate_test_cases, ids=[tc[2] for tc in immediate_test_cases]
+)
+def test_immediate_fixture_case(monkeypatch, flags_config, fixture_file, test_case, test_id):
+    monkeypatch.setenv("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE", "remote_config")
+    provider = DataDogProvider(experimentation_opt_out_mode=ExperimentationOptOutMode.IMMEDIATE)
+    try:
+        test_fixture_case(provider, flags_config, fixture_file, test_case, test_id)
+    finally:
+        provider.shutdown()

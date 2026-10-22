@@ -3,6 +3,7 @@ from importlib.metadata import version
 import typing
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._experimentation_opt_out import ExperimentationOptOutMode as ExperimentationOptOutMode
 
 
 log = get_logger(__name__)

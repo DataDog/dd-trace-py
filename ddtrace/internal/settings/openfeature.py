@@ -113,6 +113,13 @@ class OpenFeatureConfig(DDConfig):
         default=True,
     )
 
+    # Validate when a provider is constructed, not during module import.
+    experimentation_opt_out_mode = DDConfig.var(
+        str,
+        "DD_FEATURE_FLAGS_EXPERIMENTATION_OPT_OUT_MODE",
+        default="disabled",
+    )
+
     # Where Feature Flagging loads Universal Flag Configuration from.
     # Supported: "agentless" (default) and "remote_config"; "offline" is reserved
     # and currently unsupported. Normalized to trimmed lowercase; validity and
@@ -157,6 +164,7 @@ class OpenFeatureConfig(DDConfig):
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
         "feature_flags_enabled",
+        "experimentation_opt_out_mode",
         "configuration_source",
         "configuration_source_agentless_base_url",
         "configuration_source_agentless_poll_interval_seconds",

@@ -1,0 +1,5 @@
+features:
+  - |
+    Feature Flagging: Adds ``DD_FEATURE_FLAGS_EXPERIMENTATION_OPT_OUT_MODE`` (default ``disabled``).
+    Set it to ``immediate`` and supply the subject's RFC3339 ``dd_experimentation_opt_out_at``
+    timestamp in the evaluation context to skip experiment allocations while preserving ordinary feature delivery.

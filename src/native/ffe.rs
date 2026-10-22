@@ -11,8 +11,8 @@ pub mod ffe {
 
     use libdd_ffe::rules_based as ffe;
     use libdd_ffe::rules_based::{
-        get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
-        EvaluationError, Str, UniversalFlagConfig,
+        now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext, EvaluationError,
+        EvaluationOptions, Str, UniversalFlagConfig,
     };
 
     #[pyclass(frozen)]
@@ -115,11 +115,13 @@ pub mod ffe {
             })
         }
 
+        #[pyo3(signature = (flag_key, expected_type, context, experimentation_opt_out_immediate=false))]
         fn resolve_value<'py>(
             &self,
             flag_key: &str,
             expected_type: FlagType,
             context: Bound<'py, PyAny>,
+            experimentation_opt_out_immediate: bool,
         ) -> PyResult<ResolutionDetails> {
             let context = match context.extract::<EvaluationContext>() {
                 Ok(context) => context,
@@ -131,12 +133,14 @@ pub mod ffe {
                 }
             };
 
-            let assignment = get_assignment(
-                Some(&self.inner),
+            let assignment = self.inner.eval_flag_with_options(
                 flag_key,
                 &context,
                 expected_type.into(),
                 now(),
+                EvaluationOptions {
+                    experimentation_opt_out_immediate,
+                },
             );
 
             let result = match assignment {
@@ -217,6 +221,10 @@ pub mod ffe {
                 EvaluationError::TargetingKeyMissing => ResolutionDetails::error(
                     ErrorCode::TargetingKeyMissing,
                     "targeting key is missing",
+                ),
+                EvaluationError::InvalidContext => ResolutionDetails::error(
+                    ErrorCode::InvalidContext,
+                    "Set dd_experimentation_opt_out_at to a valid RFC3339 timestamp string, or omit the attribute",
                 ),
                 err => ResolutionDetails::error(ErrorCode::General, err.to_string()),
             }

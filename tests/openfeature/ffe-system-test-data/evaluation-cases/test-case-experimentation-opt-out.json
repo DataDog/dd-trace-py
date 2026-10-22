@@ -1,0 +1,210 @@
+[
+  {
+    "flag": "unknown-opt-out-flag", "variationType": "STRING", "defaultValue": "default", "targetingKey": "subject",
+    "attributes": { "dd_experimentation_opt_out_at": "not-a-timestamp" },
+    "result": { "value": "default", "reason": "ERROR", "errorCode": "FLAG_NOT_FOUND" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": "default", "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "special-characters", "variationType": "JSON", "defaultValue": {}, "targetingKey": null,
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": {}, "reason": "ERROR", "errorCode": "TARGETING_KEY_MISSING" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": { "a": "kümmert", "b": "schön" }, "reason": "STATIC" }
+    }
+  },
+  {
+    "flag": "new-user-onboarding", "variationType": "STRING", "defaultValue": "default", "targetingKey": "19",
+    "attributes": { "country": "UK" },
+    "result": { "value": "red", "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": "red", "reason": "TARGETING_MATCH" }
+    }
+  },
+  {
+    "flag": "new-user-onboarding", "variationType": "STRING", "defaultValue": "default", "targetingKey": "19",
+    "attributes": { "country": "UK", "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": "red", "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": "default", "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "new-user-onboarding", "variationType": "STRING", "defaultValue": "default", "targetingKey": "alice",
+    "attributes": { "email": "alice@mycompany.com", "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": "green", "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": "green", "reason": "TARGETING_MATCH" }
+    }
+  },
+  {
+    "flag": "special-characters", "variationType": "JSON", "defaultValue": {}, "targetingKey": "ben",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": { "a": "піклуватися", "b": "любов" }, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": { "a": "kümmert", "b": "schön" }, "reason": "STATIC" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "1",
+    "attributes": {},
+    "result": { "value": 2, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 2, "reason": "SPLIT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": {},
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 1, "reason": "SPLIT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "1",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": 2, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "numeric_flag", "variationType": "NUMERIC", "defaultValue": 0, "targetingKey": "alice",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": 3.1415926, "reason": "STATIC" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "kill-switch", "variationType": "BOOLEAN", "defaultValue": false, "targetingKey": "alice",
+    "attributes": { "country": "US", "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": true, "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": false, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00.123456789Z" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T08:00:00-04:00" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "2099-01-01T00:00:00Z" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "DEFAULT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "not-a-timestamp" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": "" },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": true },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": null },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": 1792411200 },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "new-user-onboarding", "variationType": "STRING", "defaultValue": "default", "targetingKey": "alice",
+    "attributes": { "email": "alice@mycompany.com", "dd_experimentation_opt_out_at": "not-a-timestamp" },
+    "result": { "value": "green", "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": "default", "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "new-user-onboarding", "variationType": "STRING", "defaultValue": "default", "targetingKey": "alice",
+    "attributes": { "email": "alice@mycompany.com", "dd_experimentation_opt_out_at": false },
+    "result": { "value": "green", "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": "default", "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "new-user-onboarding", "variationType": "STRING", "defaultValue": "default", "targetingKey": "alice",
+    "attributes": { "email": "alice@mycompany.com", "dd_experimentation_opt_out_at": null },
+    "result": { "value": "green", "reason": "TARGETING_MATCH" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": "default", "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "special-characters", "variationType": "JSON", "defaultValue": {}, "targetingKey": "ben",
+    "attributes": { "dd_experimentation_opt_out_at": "not-a-timestamp" },
+    "result": { "value": { "a": "піклуватися", "b": "любов" }, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": {}, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": { "timestamp": "2026-10-19T12:00:00Z" } },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  },
+  {
+    "flag": "integer-flag", "variationType": "INTEGER", "defaultValue": 0, "targetingKey": "5",
+    "attributes": { "dd_experimentation_opt_out_at": ["2026-10-19T12:00:00Z"] },
+    "result": { "value": 1, "reason": "SPLIT" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": 0, "reason": "ERROR", "errorCode": "INVALID_CONTEXT" }
+    }
+  }
+]
