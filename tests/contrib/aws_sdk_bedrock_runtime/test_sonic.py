@@ -60,7 +60,11 @@ class RecordingIntegration(AwsSdkBedrockRuntimeIntegration):
             operation_id, trace_id=getattr(parent, "trace_id", None), parent_id=getattr(parent, "span_id", None)
         )
         # Real LLMObs initializes identity on span start; this recorder bypasses it.
-        _annotate_llmobs_span_data(span, trace_id=f"{span.trace_id:032x}")
+        _annotate_llmobs_span_data(
+            span,
+            trace_id=f"{span.trace_id:032x}",
+            parent_id=str(parent.span_id) if isinstance(parent, Span) else "undefined",
+        )
         self.spans.append(span)
         return span
 
@@ -385,10 +389,11 @@ def test_final_text_stays_with_previous_response_after_new_speech():
     assert first["content"] == "repeatrepeat"
 
 
-def test_tool_use_and_result_keep_the_response_and_ids():
+@pytest.mark.parametrize("role", ["ASSISTANT", "TOOL"])
+def test_tool_use_and_result_keep_the_response_and_ids(role):
     sonic, integration = state()
     sonic.pending.user_text = "weather"
-    sonic.received("contentStart", {"contentId": "tool", "role": "ASSISTANT", "type": "TOOL"}, 1)
+    sonic.received("contentStart", {"contentId": "tool", "role": role, "type": "TOOL", "completionId": "completion"}, 1)
     sonic.received(
         "toolUse",
         {"contentId": "tool", "toolName": "weather", "toolUseId": "call-1", "content": '{"city":"Boston"}'},
@@ -424,6 +429,8 @@ def test_tool_use_and_result_keep_the_response_and_ids():
     meta = data(llms(integration)[0])["meta"]
     assert meta["output"]["messages"][0]["tool_calls"][0]["tool_id"] == "call-1"
     assert meta["input"]["messages"][-1]["tool_results"][0]["tool_id"] == "call-1"
+    assert meta["metadata"]["finish_reason"] == "END_TURN"
+    assert meta["metadata"]["completion_id"] == "completion"
 
 
 def test_user_json_is_not_an_interruption():
@@ -732,3 +739,405 @@ def test_text_zero_and_gap_recovery_remain_independent(missing_text):
     assert metrics["input_text_tokens"] == 2
     assert metrics["input_audio_tokens"] == 8
     assert metrics["input_tokens"] == 10
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("invalid", [None, -1, True, "5", 1.5])
+def test_unknown_aggregate_counter_is_not_zero(direction, invalid):
+    sonic, integration = state()
+    fields = {"input": "totalInputTokens", "output": "totalOutputTokens"}
+    other = "output" if direction == "input" else "input"
+    sonic.observe(event("usageEvent", {fields[direction]: invalid, fields[other]: 2}))
+    assert sonic.pending.metrics == {other + "_tokens": 2}
+    sonic.observe(event("usageEvent", {fields[direction]: 3, fields[other]: 2}))
+    expected = {direction + "_tokens": 3, other + "_tokens": 2, "total_tokens": 5}
+    assert sonic.pending.metrics == expected
+    sonic.observe(event("usageEvent", {fields[direction]: 3, fields[other]: 2}))
+    sonic.observe(event("usageEvent", {fields[direction]: 1, fields[other]: 1}))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == expected
+
+
+@pytest.mark.parametrize(
+    "usage,expected",
+    [
+        ({"totalInputTokens": 0}, {"input_tokens": 0}),
+        ({"totalOutputTokens": 0}, {"output_tokens": 0}),
+        ({"totalInputTokens": 0, "totalOutputTokens": 0}, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}),
+    ],
+)
+def test_explicit_zero_usage_is_emitted(usage, expected):
+    sonic, integration = state()
+    sonic.observe(event("usageEvent", usage))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == expected
+
+
+@pytest.mark.parametrize("report_zero", [False, True])
+def test_usage_presence_resets_between_turns(report_zero):
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.observe(event("usageEvent", {"totalInputTokens": 3, "totalOutputTokens": 2}))
+    sonic.pending.user_text = "next question"
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    if report_zero:
+        sonic.observe(event("usageEvent", {"totalInputTokens": 3, "totalOutputTokens": 2}))
+    sonic.finish()
+    first, second = [data(span)["metrics"] for span in llms(integration)]
+    assert first == {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}
+    assert second == ({"input_tokens": 0, "output_tokens": 0, "total_tokens": 0} if report_zero else {})
+
+
+@pytest.mark.parametrize("size", [98, 100, 102, 196610])
+def test_input_frame_decoding_and_retention_are_bounded(monkeypatch, size):
+    monkeypatch.setattr(_sonic, "MAX_AUDIO", 100)
+
+    class MeasuredBuffer(bytearray):
+        peak = 0
+
+        def extend(self, value):
+            super().extend(value)
+            self.peak = max(self.peak, len(self))
+
+    decode = base64.b64decode
+    decoded_sizes = []
+
+    def measured_decode(value, **kwargs):
+        decoded_sizes.append(len(value))
+        return decode(value, **kwargs)
+
+    monkeypatch.setattr(_sonic.base64, "b64decode", measured_decode)
+    buf = InputAudio()
+    buf.configure(INPUT)
+    buf.data = MeasuredBuffer()
+    buf.append(base64.b64encode(b"\x01\x00" * 2), 0)
+    raw = b"\x02\x00" * (size // 2)
+    buf.append(base64.b64encode(raw).decode(), 1_000_000_000)
+    assert buf.valid
+    assert buf.total == size + 4
+    assert buf.anchor_ns == 1_000_000_000 - buf.total * 1_000_000_000 // 32000
+    assert bytes(buf.data) == (b"\x01\x00" * 2 + raw)[-100:]
+    assert buf.data.peak <= 100
+    assert max(decoded_sizes) <= 65536
+    # A later frame and absolute speech offsets still select the right samples.
+    buf.append(base64.b64encode(b"\x03\x00" * 16), 2_000_000_000)
+    assert buf.clip((size + 4) / 32, (size + 36) / 32) == b"\x03\x00" * 16
+
+
+@pytest.mark.parametrize("bad", ["!", "é", "AAAA=", "AA==AAAA"])
+def test_chunked_input_rejects_malformed_base64(bad):
+    buf = InputAudio()
+    buf.configure(INPUT)
+    with pytest.raises(ValueError):
+        buf.append("AAAA" * 16384 + bad, 100)
+    assert not buf.valid
+    assert buf.clip(0, 1) == b""
+
+
+def test_chunked_input_rejects_padding_before_final_chunk():
+    buf = InputAudio()
+    encoded = base64.b64encode(bytes(49150)).decode() + "AAAA"
+    with pytest.raises(ValueError, match="Padding before the end"):
+        buf.append(encoded, 100)
+    assert not buf.valid
+
+
+@pytest.mark.parametrize("size", [49151, 49153])
+def test_chunked_input_marks_odd_pcm_invalid(size):
+    buf = InputAudio()
+    buf.append(base64.b64encode(bytes(size)).decode(), 100)
+    assert not buf.valid
+    assert buf.total == size
+
+
+@pytest.mark.parametrize("next_speech", [False, True])
+def test_tool_first_partial_turn_keeps_identity_and_boundary(next_speech):
+    sonic, integration = state()
+    sonic.received("userSpeechStart", {"inputAudioOffsetMs": 0}, 100)
+    sonic.received("userSpeechEnd", {"inputAudioOffsetMs": 20}, 200)
+    sonic.received(
+        "contentStart", {"contentId": "tool", "completionId": "completion", "type": "TOOL", "role": "TOOL"}, 300
+    )
+    sonic.received("toolUse", {"contentId": "tool", "content": "{}", "toolName": "weather", "toolUseId": "call"}, 400)
+    sonic.received("contentEnd", {"contentId": "tool", "stopReason": "TOOL_USE"}, 450)
+    assert sonic.current.started_ns == 300
+    if next_speech:
+        sonic.received("userSpeechStart", {"inputAudioOffsetMs": 30}, 500)
+        sonic.received("userSpeechEnd", {"inputAudioOffsetMs": 40}, 600)
+        sonic.received("contentStart", {"contentId": "next", "role": "ASSISTANT", "type": "AUDIO"}, 700)
+    sonic.finish()
+    responses = llms(integration)
+    assert len(responses) == (2 if next_speech else 1)
+    meta = data(responses[0])["meta"]
+    assert meta["metadata"]["completion_id"] == "completion"
+    assert meta["metadata"]["finish_reason"] == "TOOL_USE"
+    assert meta["metadata"]["partial"]
+    assert len(meta["metadata"]["speech_windows"]) == 1
+    assert meta["output"]["messages"][0]["tool_calls"][0]["tool_id"] == "call"
+
+
+@pytest.mark.parametrize(
+    "reasons,expected",
+    [
+        (["PARTIAL_TURN"], "PARTIAL_TURN"),
+        (["TOOL_USE", "PARTIAL_TURN"], "TOOL_USE"),
+        (["PARTIAL_TURN", "TOOL_USE", "PARTIAL_TURN"], "TOOL_USE"),
+        (["TOOL_USE", "PARTIAL_TURN", "END_TURN", "PARTIAL_TURN"], "END_TURN"),
+        (["END_TURN", "INTERRUPTED", "END_TURN"], "INTERRUPTED"),
+        ([None, "unknown", {}], None),
+    ],
+)
+def test_model_finish_reason_precedence(reasons, expected):
+    sonic, integration = state()
+    for i, reason in enumerate(reasons):
+        key = str(i)
+        sonic.received("contentStart", {"contentId": key, "role": "ASSISTANT", "type": "TEXT"}, i * 2 + 1)
+        sonic.received("contentEnd", {"contentId": key, "stopReason": reason}, i * 2 + 2)
+    sonic.finish()
+    metadata = data(llms(integration)[0])["meta"]["metadata"]
+    if expected is None:
+        assert "finish_reason" not in metadata
+    else:
+        assert metadata["finish_reason"] == expected
+
+
+def test_user_stop_reason_does_not_interrupt_model():
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "model", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.received("contentEnd", {"contentId": "model", "stopReason": "END_TURN"}, 2)
+    sonic.received("contentStart", {"contentId": "user", "role": "USER", "type": "TEXT"}, 3)
+    sonic.received("contentEnd", {"contentId": "user", "stopReason": "INTERRUPTED"}, 4)
+    sonic.finish()
+    metadata = data(llms(integration)[0])["meta"]["metadata"]
+    assert metadata["finish_reason"] == "END_TURN"
+    assert not metadata["interrupted"]
+
+
+def test_control_interruption_preserves_finish_reason():
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "control", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.received("textOutput", {"contentId": "control", "content": '{"interrupted":true}'}, 2)
+    sonic.received("contentEnd", {"contentId": "control", "stopReason": "END_TURN"}, 3)
+    sonic.finish()
+    assert data(llms(integration)[0])["meta"]["metadata"]["finish_reason"] == "INTERRUPTED"
+
+
+def test_prompt_tool_definitions_are_snapshotted_and_shared_across_turns():
+    sonic, integration = state()
+    spec = {"name": "weather", "description": "Forecast", "inputSchema": {"json": {"type": "object"}}}
+    sonic.sent("promptStart", {"promptName": "prompt", "toolConfiguration": {"tools": [{"toolSpec": spec}]}}, 1)
+    spec["inputSchema"]["json"]["type"] = "changed"
+    for i in range(2):
+        sonic.pending.user_text = "weather"
+        sonic.received("contentStart", {"contentId": str(i), "role": "TOOL", "type": "TOOL"}, i + 2)
+    sonic.finish()
+    assert len(llms(integration)) == 2
+    for response in llms(integration):
+        assert data(response)["meta"]["tool_definitions"] == [
+            {"name": "weather", "description": "Forecast", "schema": {"json": {"type": "object"}}}
+        ]
+
+
+@pytest.mark.parametrize(
+    "configuration", [None, [], {"tools": None}, {"tools": [None, {}, {"toolSpec": []}, {"toolSpec": {"name": 1}}]}]
+)
+def test_malformed_tool_definitions_do_not_drop_output(configuration):
+    sonic, integration = state()
+    sonic.sent("promptStart", {"promptName": "prompt", "toolConfiguration": configuration}, 1)
+    sonic.received("contentStart", {"contentId": "text", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    sonic.received("textOutput", {"contentId": "text", "content": "answer"}, 3)
+    sonic.finish()
+    meta = data(llms(integration)[0])["meta"]
+    assert "tool_definitions" not in meta
+    assert meta["output"]["messages"][0]["content"] == "answer"
+
+
+def test_tool_definitions_are_bounded_by_count_and_serialized_size(monkeypatch):
+    sonic, _ = state()
+    small = {"toolSpec": {"name": "weather"}}
+    sonic.sent("promptStart", {"toolConfiguration": {"tools": [small] * 17}}, 1)
+    assert len(sonic.tool_definitions) == 16
+    monkeypatch.setattr(_sonic, "MAX_TEXT", 200)
+    oversized = {"toolSpec": {"name": "huge", "inputSchema": {"json": "x" * 201}}}
+    sonic.sent("promptStart", {"toolConfiguration": {"tools": [oversized] + [small] * 15}}, 2)
+    assert 0 < len(sonic.tool_definitions) < 16
+    assert all(tool["name"] == "weather" for tool in sonic.tool_definitions)
+    assert sum(len(json.dumps(tool)) for tool in sonic.tool_definitions) <= 200
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("invalid", [None, -1, True, "20", 1.5, "absent"])
+@pytest.mark.parametrize("gap_turns", [1, 2])
+def test_aggregate_usage_gap_rebases_without_charging_later_turns(direction, invalid, gap_turns):
+    sonic, integration = state()
+    field = "totalInputTokens" if direction == "input" else "totalOutputTokens"
+    key = direction + "_tokens"
+    audio_key = direction + "_audio_tokens"
+    other = "output" if direction == "input" else "input"
+
+    def start(index):
+        sonic.pending.user_text = str(index)
+        sonic.received("contentStart", {"contentId": str(index), "role": "ASSISTANT", "type": "TEXT"}, index + 1)
+
+    start(0)
+    sonic.observe(usage_event(10, 10, 5, 5))
+    for i in range(gap_turns):
+        start(i + 1)
+        payload = {"totalInputTokens": 20, "totalOutputTokens": 20}
+        if invalid == "absent":
+            payload.pop(field)
+        else:
+            payload[field] = invalid
+        sonic.received("usageEvent", payload, i + 2)
+    start(gap_turns + 1)
+    sonic.observe(usage_event(30, 30, 15, 15))
+    # Later deltas in the recovery turn cannot turn its unknown total into a partial count.
+    sonic.observe(usage_event(35, 35, 17, 17))
+    start(gap_turns + 2)
+    sonic.observe(usage_event(40, 40, 20, 20))
+    sonic.observe(usage_event(40, 40, 20, 20))
+    sonic.finish()
+    metrics = [data(span)["metrics"] for span in llms(integration)]
+    assert metrics[0][key] == 10
+    for unknown in metrics[1:-1]:
+        assert key not in unknown
+        assert audio_key not in unknown
+        assert "total_tokens" not in unknown
+        assert other + "_tokens" in unknown
+    assert metrics[-1] == {
+        "input_tokens": 5,
+        "output_tokens": 5,
+        "total_tokens": 10,
+        "input_audio_tokens": 3,
+        "output_audio_tokens": 3,
+    }
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("recover", [False, True])
+def test_same_turn_usage_gap_recovers_complete_metrics_or_remains_unknown(direction, recover):
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.observe(usage_event(10, 10, 5, 5))
+    other_field = "totalOutputTokens" if direction == "input" else "totalInputTokens"
+    sonic.received(
+        "usageEvent",
+        {other_field: 10, "details": {"total": {"input": {"speechTokens": 5}, "output": {"speechTokens": 5}}}},
+        2,
+    )
+    if recover:
+        sonic.observe(usage_event(30, 30, 15, 15))
+    sonic.finish()
+    metrics = data(llms(integration)[0])["metrics"]
+    if recover:
+        assert metrics == {
+            "input_tokens": 30,
+            "output_tokens": 30,
+            "total_tokens": 60,
+            "input_audio_tokens": 15,
+            "output_audio_tokens": 15,
+        }
+    else:
+        assert direction + "_tokens" not in metrics
+        assert direction + "_audio_tokens" not in metrics
+        assert "total_tokens" not in metrics
+        other = "output" if direction == "input" else "input"
+        assert metrics[other + "_tokens"] == 10
+        assert metrics[other + "_audio_tokens"] == 5
+
+
+def test_input_gap_ownership_follows_pending_user_speech():
+    sonic, integration = state()
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "TEXT"}, 1)
+    sonic.observe(usage_event(10, 10, 5, 5))
+    sonic.pending.user_text = "next question"
+    sonic.observe(usage_event(None, 15, None, 7))
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "TEXT"}, 2)
+    sonic.observe(usage_event(20, 20, 10, 10))
+    sonic.finish()
+    first, second = [data(span)["metrics"] for span in llms(integration)]
+    assert first["input_tokens"] == 10
+    assert first["output_tokens"] == 15
+    assert second["input_tokens"] == 10
+    assert second["input_audio_tokens"] == 5
+    assert second["output_tokens"] == 5
+    assert second["total_tokens"] == 15
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("text", [2, 8])
+def test_named_usage_validates_combined_modality_delta(direction, text):
+    sonic, integration = state()
+    counts = dict(input_tokens=10, output_tokens=10, input_text=2, output_text=2, input_audio=8, output_audio=8)
+    counts[direction + "_text"] = text
+    sonic.observe(named_usage(**counts))
+    sonic.finish()
+    metrics = data(llms(integration)[0])["metrics"]
+    assert metrics.get(direction + "_text_tokens") == (2 if text == 2 else None)
+    assert metrics["input_audio_tokens"] == 8
+    assert metrics["output_audio_tokens"] == 8
+    other = "output" if direction == "input" else "input"
+    assert metrics[other + "_text_tokens"] == 2
+    assert metrics["total_tokens"] == 20
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+def test_conflicting_text_stays_absent_for_turn_and_recovers_later(direction):
+    sonic, integration = state()
+
+    def usage(total, audio, text):
+        counts = dict(input_tokens=0, output_tokens=0, input_text=0, output_text=0, input_audio=0, output_audio=0)
+        counts.update({direction + "_tokens": total, direction + "_audio": audio, direction + "_text": text})
+        return named_usage(**counts)
+
+    sonic.observe(usage(100, 10, 10))
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "AUDIO"}, 1)
+    sonic.observe(usage(110, 18, 18))
+    sonic.observe(usage(120, 26, 20))
+    sonic.pending.user_text = "next turn"
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "AUDIO"}, 2)
+    sonic.observe(usage(130, 34, 22))
+    sonic.finish()
+    metrics = [data(span)["metrics"] for span in llms(integration)]
+    assert [m.get(direction + "_text_tokens") for m in metrics] == [None, 2]
+    assert [m[direction + "_audio_tokens"] for m in metrics] == [26, 8]
+    assert [m[direction + "_tokens"] for m in metrics] == [120, 10]
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+def test_named_modalities_follow_unknown_aggregate_across_turns(direction):
+    sonic, integration = state()
+    field = "totalInputTokens" if direction == "input" else "totalOutputTokens"
+
+    def start(index):
+        sonic.pending.user_text = str(index)
+        sonic.received("contentStart", {"contentId": str(index), "role": "ASSISTANT", "type": "TEXT"}, index + 1)
+
+    start(0)
+    sonic.observe(named_usage(10, 10, 5, 5, 5, 5))
+    start(1)
+    payload = {
+        "totalInputTokens": 20,
+        "totalOutputTokens": 20,
+        "details": {
+            "total": {
+                "input": {"textTokens": 10, "speechTokens": 10},
+                "output": {"textTokens": 10, "speechTokens": 10},
+            }
+        },
+    }
+    payload[field] = None
+    sonic.received("usageEvent", payload, 2)
+    start(2)
+    sonic.observe(named_usage(30, 30, 15, 15, 15, 15))
+    start(3)
+    sonic.observe(named_usage(40, 40, 20, 20, 20, 20))
+    sonic.finish()
+    metrics = [data(span)["metrics"] for span in llms(integration)]
+    for unknown in metrics[1:3]:
+        for suffix in ("_tokens", "_audio_tokens", "_text_tokens"):
+            assert direction + suffix not in unknown
+        assert "total_tokens" not in unknown
+    assert metrics[-1][direction + "_tokens"] == 10
+    assert metrics[-1][direction + "_audio_tokens"] == 5
+    assert metrics[-1][direction + "_text_tokens"] == 5

@@ -32,7 +32,11 @@ class InputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy
             raise
 
     async def __aenter__(self) -> Any:
-        await self.__wrapped__.__aenter__()
+        try:
+            await self.__wrapped__.__aenter__()
+        except BaseException:
+            self._self_state.finish_error()
+            raise
         return self
 
     async def __aexit__(self, *args: Any) -> Any:
@@ -93,7 +97,11 @@ class OutputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed prox
             self._self_state.finish()
 
     async def __aenter__(self) -> Any:
-        await self.__wrapped__.__aenter__()
+        try:
+            await self.__wrapped__.__aenter__()
+        except BaseException:
+            self._self_state.finish_error()
+            raise
         return self
 
     async def __aexit__(self, *args: Any) -> Any:
@@ -149,7 +157,11 @@ class DuplexProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed prox
             self._self_state.finish()
 
     async def __aenter__(self) -> Any:
-        await self.__wrapped__.__aenter__()
+        try:
+            await self.__wrapped__.__aenter__()
+        except BaseException:
+            self._self_state.finish_error()
+            raise
         return self
 
     async def __aexit__(self, *args: Any) -> Any:

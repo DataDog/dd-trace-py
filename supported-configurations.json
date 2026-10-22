@@ -4458,6 +4458,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "400-499"
+      }
+    ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
       {
         "implementation": "A",
@@ -5136,7 +5143,7 @@
     ],
     "DD_TRACE_STATS_CARDINALITY_LIMIT": [
       {
-        "implementation": "C",
+        "implementation": "D",
         "type": "int",
         "default": "7000"
       }

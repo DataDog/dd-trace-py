@@ -47,12 +47,19 @@ class IntegrationRegistryUpdater:
             self.integrations[integration["integration_name"]] = Integration(**integration)
 
     def load_registry_data(self):
-        """Safely loads the main registry YAML using a file lock."""
+        """Loads the main registry YAML, holding the registry lock on success.
+
+        The lock stays held until write_registry_data() (or run()) releases it,
+        so concurrent updaters cannot interleave a read and a write. Raises on
+        failure — including lock-acquisition timeouts — because continuing with
+        an empty view of an existing registry would let a subsequent write drop
+        every entry the load failed to see.
+        """
+        self.lock.acquire(timeout=self.lock_timeout_seconds)
+        if not self.registry_yaml_path.exists():
+            self.raw_registry_data = {}
+            return
         try:
-            self.lock.acquire(timeout=self.lock_timeout_seconds)
-            if not self.registry_yaml_path.exists():
-                self.raw_registry_data = {}
-                return
             with open(self.registry_yaml_path, encoding="utf-8") as f:
                 self.raw_registry_data = yaml.safe_load(f)
                 if self.raw_registry_data:
@@ -60,6 +67,7 @@ class IntegrationRegistryUpdater:
         except Exception:
             if self.lock.is_locked:
                 self.lock.release()
+            raise
 
     def load_input_data(self, input_file_path_str: str) -> dict:
         """Loads the JSON data from the specified input file."""
@@ -120,6 +128,12 @@ class IntegrationRegistryUpdater:
 
     def write_registry_data(self) -> bool:
         """Safely writes the updated data back to registry YAML using a file lock."""
+        if not self.lock.is_locked:
+            print(
+                "\nIntegrationRegistryUpdater: Refusing to write registry data without holding the lock.",
+                file=sys.stderr,
+            )
+            return False
         # Convert Integration objects to dictionaries and sort by integration_name
         integrations_list = sorted(
             [integration.to_dict() for integration in self.integrations.values()],
@@ -141,17 +155,8 @@ class IntegrationRegistryUpdater:
             print(f"\nIntegrationRegistryUpdater: Failed to write updated registry data: {e}", file=sys.stderr)
             return False
         finally:
-            self._delete_lock_file()
             if self.lock.is_locked:
                 self.lock.release()
-
-    def _delete_lock_file(self):
-        """Deletes the lock file if it exists."""
-        try:
-            if self.registry_lock_path.exists():
-                self.registry_lock_path.unlink()
-        except OSError as e:
-            print(f"IntegrationRegistryUpdater: Failed to delete lock file: {e}", file=sys.stderr)
 
     def _get_test_suite_name(self):
         """Return the integration name when this runs inside a test suite."""
@@ -183,6 +188,8 @@ class IntegrationRegistryUpdater:
 
             # if no integrations were added or updated, we can skip the write step
             if added_integrations == 0 and updated_integrations == 0:
+                if self.lock.is_locked:
+                    self.lock.release()
                 return False
 
             changes_made = True
@@ -200,7 +207,9 @@ class IntegrationRegistryUpdater:
                 self.lock.release()
             return False
         finally:
-            # Ensure lock is always released and the lock file is deleted
+            # Release the lock if this instance holds it. The lock file's lifecycle is
+            # left to FileLock: unlinking it here — especially after a failed acquire,
+            # when a concurrent updater owns it — would let another updater lock a
+            # fresh inode at the same path while the current holder is still running.
             if self.lock.is_locked:
                 self.lock.release()
-            self._delete_lock_file()
