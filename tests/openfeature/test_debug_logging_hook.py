@@ -21,6 +21,7 @@ from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -126,7 +127,7 @@ def test_provider_logs_resolution_with_effective_context(caplog):
     with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature"):
         provider = DataDogProvider()
         process_ffe_configuration(create_config(create_boolean_flag("debug-flag", enabled=True, default_value=True)))
-        api.set_provider(provider)
+        set_openfeature_provider(provider)
         try:
             client = api.get_client()
             context = EvaluationContext(targeting_key="user-1", attributes={"plan": "pro"})
@@ -196,7 +197,7 @@ def test_provider_warns_once_about_raw_data_when_debug_enabled(caplog):
     with caplog.at_level(logging.DEBUG, logger=HOOK_LOGGER):
         provider = DataDogProvider()
         process_ffe_configuration(create_config(create_boolean_flag("debug-flag", enabled=True, default_value=True)))
-        api.set_provider(provider)
+        set_openfeature_provider(provider)
         try:
             client = api.get_client()
             assert client.get_boolean_value("debug-flag", False) is True
@@ -256,7 +257,7 @@ def test_evaluation_through_client_is_logged(caplog):
     with caplog.at_level(logging.DEBUG, logger=HOOK_LOGGER):
         provider = DataDogProvider()
         process_ffe_configuration(create_config(create_boolean_flag("debug-flag", enabled=True, default_value=True)))
-        api.set_provider(provider)
+        set_openfeature_provider(provider)
         try:
             client = api.get_client()
             assert client.get_boolean_value("debug-flag", False) is True
@@ -278,7 +279,7 @@ def test_sdk_fallback_logs_input_context_without_provider_resolution(caplog, not
     with caplog.at_level(logging.DEBUG, logger=HOOK_LOGGER):
         provider = DataDogProvider()
         process_ffe_configuration(create_config(create_boolean_flag("flag", default_value=True)))
-        api.set_provider(provider)
+        set_openfeature_provider(provider)
         try:
             client = api.get_client()
             with mock.patch.object(
@@ -311,7 +312,7 @@ def test_observation_does_not_claim_to_follow_application_finally_hooks(caplog):
     with caplog.at_level(logging.DEBUG, logger=HOOK_LOGGER):
         provider = DataDogProvider()
         process_ffe_configuration(create_config(create_boolean_flag("flag", default_value=True)))
-        api.set_provider(provider)
+        set_openfeature_provider(provider)
         try:
             assert (
                 api.get_client().get_boolean_value(

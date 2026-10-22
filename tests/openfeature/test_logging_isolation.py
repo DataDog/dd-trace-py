@@ -26,6 +26,7 @@ from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.conftest import set_openfeature_provider
 
 
 FFE_LOGGER = "ddtrace.internal.openfeature"
@@ -110,7 +111,7 @@ def test_evaluation_and_shutdown_survive_a_raising_handler(raising_handler):
     provider = DataDogProvider()
     assert provider._debug_logging_hook is not None
     process_ffe_configuration(create_config(create_boolean_flag("debug-flag", enabled=True, default_value=True)))
-    api.set_provider(provider)
+    set_openfeature_provider(provider)
     try:
         client = api.get_client()
         details = client.get_boolean_details("debug-flag", False, EvaluationContext(targeting_key="user-1"))
