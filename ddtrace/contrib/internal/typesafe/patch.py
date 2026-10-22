@@ -9,8 +9,11 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import TypeSafeIntegration
 
+
+log = get_logger(__name__)
 
 config._add("typesafe", {})  # type: ignore[no-untyped-call]
 
@@ -38,7 +41,7 @@ def _request_kwargs(instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
     try:
         request_kwargs[TypeSafeIntegration.ATTACHED_REFERENCES] = list(instance._attached.snapshot())
     except Exception:
-        pass
+        log.debug("Could not read the client's attached typesafe images", exc_info=True)
     return request_kwargs
 
 
