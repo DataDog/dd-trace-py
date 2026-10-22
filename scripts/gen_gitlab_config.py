@@ -1,7 +1,7 @@
 #!/usr/bin/env scripts/uv-run-script
 # -*- mode: python -*-
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "lxml>=4.9.0",
 #     "ruamel.yaml>=0.17.21",
@@ -78,7 +78,7 @@ def _wait_python(services: t.Iterable[str]) -> str:
         # The environment from the wait lockfile takes seconds to build, and the standard library is enough here.
         return "python"
     return (
-        f"uv run --no-project --python 3.9 --no-python-downloads --with-requirements {_wait_lockfile()} "
+        f"uv run --no-project --python 3.10 --no-python-downloads --with-requirements {_wait_lockfile()} "
         "--no-progress python"
     )
 
