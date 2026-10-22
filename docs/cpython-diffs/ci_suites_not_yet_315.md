@@ -1,50 +1,100 @@
-# CI suites not yet on 3.15
+# CI suites not yet on Python 3.15
 
-[#20627](https://github.com/DataDog/dd-trace-py/pull/20627) keeps 3.15 on the default matrix only for variants whose GitLab job passed on `f1b97fc` (`gh pr checks 20627`, 2026-09-29). A green job covers every venv in that shard. Variants below were taken back off 3.15 because the job failed, or the suite did not run. `requires-python` / `MAX_PY` stay `<3.15`. Where a suite still has other 3.15 variants, only the failing one is listed.
+**Deadline: 2026-10-28.** Owners have **6 days** from 2026-10-22 to put 3.15 on these suites before the next version cut. Suites still missing 3.15 after that date ship as-is for this cut; follow-ups stay on #17809.
 
-Ticket keys are existing Jira issues. "no existing ticket" means a summary search for `Python 3.15` did not name that suite.
+Refreshed from `main` @ `052acc726c`. `DEFAULT_PYTHON_VERSIONS` already includes `3.15`. A suite is listed when its matrix has no 3.15 environment (explicit `python:` list tops out at ≤3.14), a named variant still omits 3.15, or the suite is `skip: true`.
 
-## Registry drift (tests passed; fold into #20627)
+This is repo-wide CI, so #19273 should not carry it. Part of #17809.
 
-These 17 suites **passed every test**. The job failed afterwards on `./scripts/check-diff scripts/integration_registry/registry.yaml` ("Registry YAML file was modified") after the fresh 3.15 lockfiles pulled versions above the registry `max`. They are not Python 3.15 product failures — re-add `3.15`, regen locks, run `scripts/integration_registry/update_and_format_registry.py`, commit `registry.yaml` + `supported_versions.json` on #20627.
+## No 3.15 environment (50 suites)
 
-- `contrib::aiobotocore`, `contrib::aws_lambda`, `contrib::azure_cosmos`, `contrib::azure_servicebus`, `contrib::celery`, `contrib::elasticsearch`, `contrib::grpc` (plain), `contrib::mako`, `contrib::opensearch`, `contrib::protobuf`, `contrib::psycopg`, `contrib::snowflake`, `contrib::urllib3`
-- `llmobs::claude_agent_sdk`, `llmobs::google_genai`, `llmobs::llama_index`, `llmobs::openai_agents`
+| Suite | Why off 3.15 | Tracker / ticket |
+| --- | --- | --- |
+| `aiguard::ai_guard_anthropic` | python lists max 3.14 | — |
+| `aiguard::ai_guard_langchain` | python lists max 3.13 | #17823 |
+| `aiguard::ai_guard_litellm_guardrail` | python lists max 3.14 | — |
+| `appsec::appsec_iast_packages` | python lists max 3.14 | [APPSEC-69649](https://datadoghq.atlassian.net/browse/APPSEC-69649) |
+| `appsec::appsec_integrations_flask_testagent` | python lists max 3.13 | — |
+| `appsec::appsec_integrations_langchain` | python lists max 3.13 | — |
+| `appsec::appsec_integrations_packages` | python lists max 3.14 | [APPSEC-70511](https://datadoghq.atlassian.net/browse/APPSEC-70511) |
+| `appsec::appsec_integrations_pygoat` | python lists max 3.12 | — |
+| `appsec::appsec_threats_aiohttp_no_iast` | python lists max 3.14 | — |
+| `appsec::appsec_threats_aiohttp_rc` | python lists max 3.14 | — |
+| `appsec::appsec_threats_django_rc` | python lists max 3.13 | — |
+| `appsec::appsec_threats_fastapi_rc` | python lists max 3.13 | — |
+| `appsec::appsec_threats_flask_iast` | python lists max 3.13 | — |
+| `appsec::appsec_threats_flask_no_iast` | python lists max 3.13 | — |
+| `appsec::appsec_threats_flask_rc` | python lists max 3.13 | — |
+| `appsec::iast_aggregated_leak_testing` | python lists max 3.12 | — |
+| `ci_visibility::ci_visibility` | python lists max 3.13 | #17838 |
+| `ci_visibility::ci_visibility:snapshot` | python lists max 3.13 | #17838 |
+| `ci_visibility::selenium` | python lists max 3.12 | #17841 |
+| `contrib::azure_durable_functions` | python lists max 3.13 | #17837 |
+| `contrib::azure_eventhubs` | python lists max 3.13 | #17837 |
+| `contrib::azure_functions` | python lists max 3.13 | #17837 |
+| `contrib::azure_functions:cosmos` | python lists max 3.13 | #17837 |
+| `contrib::azure_functions:eventhubs` | python lists max 3.11 | #17837 |
+| `contrib::azure_functions:servicebus` | python lists max 3.11 | #17837 |
+| `contrib::django:djangorestframework` | python lists max 3.13 | #17829 |
+| `contrib::django_hosts` | python lists max 3.13 | #17829 |
+| `contrib::gevent` | python lists max 3.14 | [IDMPL-970](https://datadoghq.atlassian.net/browse/IDMPL-970) |
+| `contrib::graphql` | python lists max 3.14 | [IDMPL-971](https://datadoghq.atlassian.net/browse/IDMPL-971) |
+| `contrib::graphql:graphene` | python lists max 3.14 | [IDMPL-971](https://datadoghq.atlassian.net/browse/IDMPL-971) |
+| `contrib::kafka` | python lists max 3.14 | #17831, [IDMPL-415](https://datadoghq.atlassian.net/browse/IDMPL-415) |
+| `contrib::mlflow` | python lists max 3.14 | [IDMPL-972](https://datadoghq.atlassian.net/browse/IDMPL-972) |
+| `contrib::pytorch` | python lists max 3.14 | — |
+| `contrib::ray` | python lists max 3.13 | #17828 |
+| `contrib::ray_serve` | python lists max 3.13 | #17828 |
+| `contrib::redis` | python lists max 3.14 | [IDMPL-975](https://datadoghq.atlassian.net/browse/IDMPL-975) |
+| `internal` | python lists max 3.14 | [APPSEC-69961](https://datadoghq.atlassian.net/browse/APPSEC-69961) |
+| `llmobs::anthropic` | python lists max 3.14 | — |
+| `llmobs::crewai` | python lists max 3.12 | #17822 |
+| `llmobs::langchain` | python lists max 3.12 | #17819 |
+| `llmobs::langgraph` | python lists max 3.14 | #17820 |
+| `llmobs::litellm` | python lists max 3.14 | #17821 |
+| `llmobs::llmobs` | python lists max 3.13 | #17827 |
+| `llmobs::mcp` | python lists max 3.14 | — |
+| `llmobs::openai` | python lists max 3.13 | #17818 |
+| `llmobs::pydantic_ai` | python lists max 3.14 | — |
+| `llmobs::vertexai` | python lists max 3.12 | #17825 |
+| `llmobs::vllm` | python lists max 3.13 | — |
+| `profiling::profile-uwsgi` | python lists max 3.13 | — |
+| `tracer-uwsgi` | python lists max 3.13 | — |
 
-Note: earlier wording of `requires-python <3.15` for celery / aws_lambda / protobuf / snowflake / openai_agents (and mistakenly mlflow) was a uv warning about ddtrace's own `requires-python`, not an upstream gate.
+## Partial — some variants already on 3.15 (5 suites)
 
-## Still failing (real)
+| Suite | Gap | Tracker / ticket |
+| --- | --- | --- |
+| `contrib::django` | variants without 3.15: `django:celery` (max 3.9, 3.12) | #17829 |
+| `contrib::flask` | variants without 3.15: `flask_cache` (max 3.9, 3.11, 3.13) | — |
+| `contrib::grpc` | variants without 3.15: `grpc:grpc_aio` (max 3.9, 3.10, 3.11) | #17833 |
+| `contrib::stdlib` | variants without 3.15: `sqlite3` (max 3.12) | #17832 |
+| `tracer` | variants without 3.15: `tracer-legacy-attrs` (max 3.9) | — |
 
-- `crashtracker` — [PROF-15015](https://datadoghq.atlassian.net/browse/PROF-15015). Job `core/crashtracker` failed (missing `string_at` in the runtime stack). Closest also [PROF-14459](https://datadoghq.atlassian.net/browse/PROF-14459).
-- `internal` — [APPSEC-69961](https://datadoghq.atlassian.net/browse/APPSEC-69961) for the monitoring-path variants (`core/internal` 2/6 and 4/6: weakref / context-manager). The pyarmor variant (`core/internal` 3/6) has no existing ticket — `pyarmor gen` segfaults on 3.15 before ddtrace runs.
-- `runtime` — no existing ticket. Suite is `skip: true`; the new 3.15 env never ran.
-- `openfeature` — no existing ticket. Job `core/openfeature` failed (`openfeature-sdk` 0.10+ drift).
-- `debugging::debugger` — no existing ticket. Job `debugging/debugger` failed (frame capture via `sys._getframe(1)` hits injector frame on 3.15).
-- `profiling::profile` — [APPSEC-69961](https://datadoghq.atlassian.net/browse/APPSEC-69961). Jobs `profiling/profile` 9/25, 16/25, and 23/25 are 3.15-only and failed in `monitoring.py`. Closest build-path ticket: [PROF-15923](https://datadoghq.atlassian.net/browse/PROF-15923).
-- `profiling::profile-memalloc` — [APPSEC-69961](https://datadoghq.atlassian.net/browse/APPSEC-69961). Job `profiling/profile-memalloc` 7/7 is 3.15-only and failed.
-- `aiguard::ai_guard_anthropic` — no existing ticket. Job `aiguard/ai_guard_anthropic` failed (anthropic 1.x API drift).
-- `aiguard::ai_guard_litellm_guardrail` — no existing ticket. Job `aiguard/ai_guard_litellm_guardrail` 2/2 failed (`fastuuid` / PyO3 max 3.14).
-- `aiguard::ai_guard_openai` — no existing ticket. Job `aiguard/ai_guard_openai` 2/2 failed (openai 3.x API drift).
-- `appsec::appsec` — [APPSEC-70509](https://datadoghq.atlassian.net/browse/APPSEC-70509). Closest: [APPSEC-68821](https://datadoghq.atlassian.net/browse/APPSEC-68821), [APPSEC-68948](https://datadoghq.atlassian.net/browse/APPSEC-68948). Job `appsec/appsec` 1/2 failed (wrapping-storage leak on 3.15 when `__enter__` raises).
-- `appsec::appsec_iast_packages` — [APPSEC-69649](https://datadoghq.atlassian.net/browse/APPSEC-69649). Job `appsec/appsec_iast_packages` 5/5 is 3.15-only and was OOM-killed (one sample; rerun first).
-- `appsec::appsec_integrations_fastapi` — [APPSEC-69809](https://datadoghq.atlassian.net/browse/APPSEC-69809). Only job `appsec/appsec_integrations_fastapi` 7/8 failed; other 3.15 shards of this suite passed (`fastapi==0.86.0` / hypothesis `sre_constants`).
-- `appsec::appsec_integrations_packages` — [APPSEC-70511](https://datadoghq.atlassian.net/browse/APPSEC-70511). Closest: [APPSEC-68821](https://datadoghq.atlassian.net/browse/APPSEC-68821). Job `appsec/appsec_integrations_packages` 1/3 failed (`pymysql` 1.2+ drift).
-- `appsec::sca` — [APPSEC-70510](https://datadoghq.atlassian.net/browse/APPSEC-70510). Closest: [APPSEC-68821](https://datadoghq.atlassian.net/browse/APPSEC-68821). Job `appsec/sca` failed (`_first_instr_line` / `co_firstlineno` on 3.15).
-- `contrib::aws_durable_execution_sdk_python` — [IDMPL-965](https://datadoghq.atlassian.net/browse/IDMPL-965). Only job 2/2 failed; job 1/2 passed (`ExecutionState` API on SDK 2.x).
-- `contrib::gevent` — [IDMPL-970](https://datadoghq.atlassian.net/browse/IDMPL-970). Job `contrib/gevent` failed (`monitoring.py` / #20671).
-- `contrib::graphql` — [IDMPL-971](https://datadoghq.atlassian.net/browse/IDMPL-971). Jobs `contrib/graphql` 1/3 and 2/3 failed (`middlewares_arg` hard-coded; graphql-core 3.2.13).
-- `contrib::graphql:graphene` — [IDMPL-971](https://datadoghq.atlassian.net/browse/IDMPL-971). Job `contrib/graphql:graphene` failed (same middleware-arg issue).
-- `contrib::httpx2` — [IDMPL-1020](https://datadoghq.atlassian.net/browse/IDMPL-1020). Job `contrib/httpx2` 1/2 failed (snapshot ignore for `meta.http.useragent`).
-- `contrib::kafka` — [IDMPL-415](https://datadoghq.atlassian.net/browse/IDMPL-415). Job `contrib/kafka` 3/3 failed (`confluent-kafka` no cp315 wheel / librdkafka headers).
-- `contrib::mlflow` — [IDMPL-972](https://datadoghq.atlassian.net/browse/IDMPL-972). Job `contrib/mlflow` 2/2 failed (`pyarrow` no cp315 wheel).
-- `contrib::mysqlpython` — [IDMPL-1022](https://datadoghq.atlassian.net/browse/IDMPL-1022). Suite is `skip: true`; the new 3.15 env never ran.
-- `contrib::opentelemetry` — [IDMPL-1024](https://datadoghq.atlassian.net/browse/IDMPL-1024). Job `contrib/opentelemetry` 9/10 failed (exporter 1.45 urllib3 transport; tests still mock `requests`).
-- `contrib::pymongo` — [IDMPL-974](https://datadoghq.atlassian.net/browse/IDMPL-974). Jobs `contrib/pymongo` 1/4 and 2/4 failed; 3/4 passed (pymongo 4.18 dropped `Server.run_operation` / `checkout`).
-- `contrib::redis` — [IDMPL-975](https://datadoghq.atlassian.net/browse/IDMPL-975). Job `contrib/redis` 3/3 failed (`@pytest.mark.asyncio` on fixtures; pytest 9.1 rejects; collection aborted).
-- `contrib::sqlalchemy` — [IDMPL-1028](https://datadoghq.atlassian.net/browse/IDMPL-1028). Job `contrib/sqlalchemy` failed (SQLAlchemy 2.1 bare `postgresql://` → psycopg 3).
-- `llmobs::anthropic` — no existing ticket. Job `llmobs/anthropic` 1/2 failed (anthropic 1.x API drift).
-- `llmobs::google_adk` — no existing ticket. Only job `llmobs/google_adk` 4/5 failed; 2/5 passed (`_call_tool_async` moved in ADK 2.10).
-- `llmobs::langgraph` — no existing ticket. Jobs `llmobs/langgraph` 2/6, 4/6, and 6/6 failed (`ormsgpack` / PyO3).
-- `llmobs::litellm` — no existing ticket. Job `llmobs/litellm` 4/4 failed (`fastuuid` / PyO3).
-- `llmobs::mcp` — no existing ticket. Job `llmobs/mcp` 3/3 failed (mcp 2.x API drift).
-- `llmobs::pydantic_ai` — no existing ticket. Jobs `llmobs/pydantic_ai` 1/4 and 3/4 failed (`pydantic==2.12.0a1` / pydantic-core PyO3).
+## Skipped suites (2)
+
+- `contrib::mysqlpython` — `skip: true`; 3.15 never runs. [IDMPL-1022](https://datadoghq.atlassian.net/browse/IDMPL-1022)
+- `runtime` — `skip: true`; 3.15 never runs. —
+
+## Non-goals (from #17809; not part of this deadline)
+
+These were already capped below current Python long before 3.15. Listed only because suitespec still excludes 3.15:
+
+- `contrib::aredis` — python lists max 3.9
+- `contrib::asynctest` — python lists max 3.9
+- `contrib::rediscluster` — python lists max 3.11
+- `contrib::vertica` — skip: true
+
+## Infra / harness (not owner migration work)
+
+- `conftest` — python lists max 3.10
+- `contrib::integration_registry` — python lists max 3.13
+- `wait` — python lists max 3.9
+
+## Tracker rows that are already green on suitespec
+
+These open #17809 sub-issues no longer match a suitespec gap (suite already has a 3.15 environment on main). Close or re-scope the issue:
+
+- #17824 `google_generativeai` — `llmobs::google_genai` already includes 3.15
+- #17826 `openai_agents` — `llmobs::openai_agents` already includes 3.15
+- #17815 classifier / #17839–#17840 pytest rows — not a suitespec `python:` omission for the named suites (pytest / pytest_bdd / pytest_benchmark already include 3.15); keep only if the issue is about product behavior, not CI matrix coverage
