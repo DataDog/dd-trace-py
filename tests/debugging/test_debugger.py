@@ -578,6 +578,39 @@ def test_debugger_probe_survives_reimport(probe, stuff):
             ModuleCodeCollector.release(new_stuff, "test")
 
 
+def test_debugger_probe_survives_after_import_without_execution(stuff):
+    # Import hooks can run for a module without it having executed any new
+    # code, e.g. when a watchdog subclass collects a module and installs probes
+    # on it before handing it over to its parent class. Probes installed on the
+    # current code must be left alone, even on functions that can only be found
+    # via the code objects collected at compile time, like property getters.
+    from importlib import reload
+
+    with debugger() as d:
+        # Make sure that the module code is collected at compile time
+        reload(stuff)
+
+        probe = create_snapshot_function_probe(
+            probe_id="probe-property",
+            module="tests.submod.stuff",
+            func_qname="Stuff.propertystuff",
+            rate=float("inf"),
+        )
+        d.add_probes(probe)
+        assert d._probe_registry[probe.probe_id].installed
+
+        d.__watchdog__._instance.after_import(stuff)
+
+        entry = d._probe_registry[probe.probe_id]
+        assert entry.installed, entry.message
+
+        s = stuff.Stuff()
+        s.propertystuff = 42
+        s.propertystuff
+
+        assert sum(d.signal_state_counter.values()) >= 1
+
+
 @pytest.mark.parametrize(
     "probe,other_probe",
     [

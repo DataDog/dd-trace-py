@@ -534,6 +534,12 @@ class Debugger(Service):
         # again. The watchdog still maps the source to the latter, if alive,
         # until this hook returns. Modules without a cached discovery have
         # nothing to detach, and building one now would be premature.
+        if (discovery := FunctionDiscovery.cached(module)) is not None and not discovery.is_outdated():
+            # The module has not executed new code since its discovery was
+            # built, so any installed probes are already on the current code,
+            # e.g. because an earlier hook installed them.
+            return
+
         try:
             line_probes = self._probe_registry.reset_pending(str(o)) if (o := origin(module)) is not None else []
             function_probes = self._probe_registry.reset_pending(module.__name__)
