@@ -6,6 +6,7 @@ import logging
 import sys
 import typing
 from unittest import mock
+from wsgiref.util import setup_testing_defaults
 
 from fastapi import Cookie
 from fastapi import FastAPI
@@ -50,6 +51,7 @@ from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import find_exception
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
@@ -1330,7 +1332,10 @@ async def _invoke_asgi(application, path, query_string=b"", spec="2.4"):
     await application(scope, receive, send)
 
 
-def test_new_fastapi_request_inside_background_task(iast_fastapi):
+@pytest.mark.parametrize("protocol", ["asgi", "wsgi"])
+def test_new_request_inside_background_task(iast_fastapi, test_spans, protocol):
+    import sqlite3
+
     outer = iast_fastapi
     inner = FastAPI()
 
@@ -1340,11 +1345,38 @@ def test_new_fastapi_request_inside_background_task(iast_fastapi):
         assert get_tainted_ranges(request.query_params["value"])
         return PlainTextResponse("second")
 
+    def wsgi_app(environ, start_response):
+        context_id = IAST_CONTEXT.get()
+        assert context_id is not None and get_tainted_object_map_by_ctx_id(context_id)
+        with closing(sqlite3.connect(":memory:")) as connection:
+            connection.execute(taint_pyobject("SELECT 1", "query", "unsafe"))
+        start_response("200 OK", [])
+        return [b"second"]
+
+    def invoke_wsgi():
+        environ = {}
+        setup_testing_defaults(environ)
+        with closing(DDWSGIMiddleware(wsgi_app)(environ, mock.Mock())) as response:
+            assert list(response) == [b"second"]
+
     @outer.get("/first")
     async def first():
-        return PlainTextResponse("first", background=BackgroundTask(_invoke_asgi, inner, "/second", b"value=unsafe"))
+        background = (
+            BackgroundTask(_invoke_asgi, inner, "/second", b"value=unsafe")
+            if protocol == "asgi"
+            else BackgroundTask(invoke_wsgi)
+        )
+        return PlainTextResponse("first", background=background)
 
     asyncio.run(_invoke_asgi(outer, "/first"))
+    if protocol == "wsgi":
+        reports = [
+            load_iast_report(span)
+            for trace in test_spans.pop_traces()
+            for span in trace
+            if span.get_tag("component") == "wsgi"
+        ]
+        assert [v["type"] for report in reports if report for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
 
 
 def test_fastapi_analysis_survives_manual_spans_and_nested_legacy_request(tracer, iast_fastapi):

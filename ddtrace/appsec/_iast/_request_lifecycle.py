@@ -21,6 +21,7 @@ from ddtrace.appsec._iast._taint_tracking._context import get_tainted_object_map
 from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.contrib._events.web_request import WebRequestCompleting
 from ddtrace.contrib._events.web_request import WebRequestReady
+from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import SpanData
@@ -48,16 +49,22 @@ def find_request_owner(ctx: core.ExecutionContext[Event]) -> Optional[core.Execu
     current: Optional[core.ExecutionContext[Event]] = ctx
     new_request = False
     while current is not None:
-        if current.get_item(_REQUEST_STATE) is not None:
+        if (state := current.get_item(_REQUEST_STATE)) is not None:
             if new_request:
                 context_id = IAST_CONTEXT.get()
-                if context_id is None or not get_tainted_object_map_by_ctx_id(context_id):
+                if (
+                    context_id is None
+                    or context_id != state.context_id
+                    or not get_tainted_object_map_by_ctx_id(context_id)
+                ):
                     return None
             return current
         # Independent requests share live analysis, as legacy admission does.
-        # After it ends they can start afresh; mounted wrappers still share the
+        # After it ends they can start afresh; mounted ASGI wrappers still share the
         # original request's decision even when it was rejected or completed.
         if current.identifier == "asgi.request" and current.get_item("is_subapp") is False:
+            new_request = True
+        elif current.identifier != "asgi.request" and current.get_item("span_type") == SpanTypes.WEB:
             new_request = True
         current = current.parent
     return None
@@ -100,6 +107,7 @@ def on_request_ready(event: WebRequestReady) -> None:
         # expired identifier and its environment.
         context_id = IAST_CONTEXT.get()
         if context_id is not None and get_tainted_object_map_by_ctx_id(context_id):
+            state.context_id = context_id
             state.completed = True
             return
         environment = _get_iast_env()
