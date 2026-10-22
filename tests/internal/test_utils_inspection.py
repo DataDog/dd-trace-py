@@ -324,3 +324,27 @@ def test_module_code_collector_late_subscriber_is_not_pending():
 
     ModuleCodeCollector.release(custom_decorated_stuff, "a")
     assert custom_decorated_stuff not in ModuleCodeCollector._instance._code
+
+
+@pytest.mark.subprocess
+def test_module_code_collector_reload_keeps_unrelated_wrapped_functions():
+    # Reloading a module must not affect the lookup of functions in other
+    # modules whose code has been replaced by a wrapping context.
+    from importlib import reload
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    from ddtrace.internal.utils.inspection import functions_for_code
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    ModuleCodeCollector.register("test")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+    import tests.submod.stuff as stuff
+
+    original_code = stuff.modulestuff.__code__
+    WrappingContext(stuff.modulestuff).wrap()
+    assert stuff.modulestuff.__code__ is not original_code
+
+    reload(custom_decorated_stuff)
+
+    assert functions_for_code(original_code) == [stuff.modulestuff]
