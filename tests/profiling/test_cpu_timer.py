@@ -709,6 +709,75 @@ def test_cpu_timer_postfork_child_reinitializes_without_stale_altstack():
 
 @pytest.mark.subprocess(
     env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_postfork_worker",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_postfork_from_worker_keeps_inherited_altstack():
+    # The main thread reuses echion's alt stack, so only a worker thread owns a CPU-timer alt stack.
+    # The child must keep that stack mapped, since the forking thread still has it installed.
+    import faulthandler
+    import os
+    import signal
+    import threading
+    import time
+    import traceback
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def burn_cpu(duration_ns):
+        deadline = time.thread_time_ns() + duration_ns
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    # faulthandler installs its handler with SA_ONSTACK, so it runs on the inherited alt stack.
+    faulthandler.register(signal.SIGUSR1, file=open(os.devnull, "w"))
+
+    p = profiler.Profiler()
+    p.start()
+    result = []
+
+    def fork_from_profiled_worker():
+        assert burn_cpu(100_000_000) > 0
+        before = stack._cpu_timer_debug_stats()
+        pid = os.fork()
+        if pid == 0:
+            try:
+                signal.raise_signal(signal.SIGUSR1)
+                assert burn_cpu(100_000_000) > 0
+                stats = stack._cpu_timer_debug_stats()
+                assert stats["active"] is True, stats
+                assert stats["live_count"] >= 1, stats
+                # Counters are inherited from the parent. Adopting the inherited stack must not count it as
+                # an application-owned one.
+                # Without that, the freed mapping is reused as if it were an application alt stack. A crash is not
+                # guaranteed: the child's own allocations can land on the freed range, which signals then corrupt.
+                assert stats["app_altstack_present"] == before["app_altstack_present"], (before, stats)
+                assert stats["reused_altstack_count"] == before["reused_altstack_count"], (before, stats)
+                assert stats["leaked_altstack_count"] == 0, stats
+            except BaseException:
+                traceback.print_exc()
+                os._exit(1)
+            os._exit(0)
+        result.append(os.waitpid(pid, 0)[1])
+
+    thread = threading.Thread(target=fork_from_profiled_worker)
+    thread.start()
+    thread.join()
+    p.stop()
+
+    assert os.waitstatus_to_exitcode(result[0]) == 0, result[0]
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_preexisting_thread",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",

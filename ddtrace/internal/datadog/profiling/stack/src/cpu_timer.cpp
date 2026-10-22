@@ -29,6 +29,7 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -241,6 +242,9 @@ struct EngineState
     std::unordered_map<uint64_t, std::unique_ptr<CaptureState>> live_by_thread_id;
     std::vector<std::unique_ptr<CaptureState>> retired;
     std::vector<std::pair<void*, size_t>> leaked_altstacks;
+    // Alt stack that was still installed on the forking thread. It stays installed in the
+    // child until that thread registers again and its new CaptureState takes ownership.
+    std::optional<OwnedAltStack> postfork_altstack;
 
     CpuTimerTidTable<CaptureState> tid_table;
 
@@ -425,6 +429,35 @@ disable_current_thread_altstack(OwnedAltStack& altstack)
     munmap(altstack.mapping, altstack.mapping_size);
     altstack.mapping = nullptr;
     altstack.installed = false;
+}
+
+bool
+mapping_contains(void* mapping, size_t mapping_size, void* address)
+{
+    const auto begin = reinterpret_cast<uintptr_t>(mapping);
+    const auto addr = reinterpret_cast<uintptr_t>(address);
+    return addr >= begin && addr - begin < mapping_size;
+}
+
+// Hand the alt stack inherited by the forking thread to its new CaptureState, so it is not mistaken for
+// an application-owned stack and is released through the normal ownership path.
+bool
+adopt_postfork_altstack(OwnedAltStack& altstack)
+{
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    if (!g_state.postfork_altstack) {
+        return false;
+    }
+    stack_t current{};
+    if (sigaltstack(nullptr, &current) != 0 || (current.ss_flags & SS_DISABLE) ||
+        current.ss_sp != g_state.postfork_altstack->stack_sp ||
+        current.ss_size != g_state.postfork_altstack->stack_size) {
+        // Another thread, or the inherited stack was replaced on this thread. Leave it for its own thread.
+        return false;
+    }
+    altstack = *g_state.postfork_altstack;
+    g_state.postfork_altstack.reset();
+    return true;
 }
 
 bool
@@ -1198,27 +1231,46 @@ Engine::postfork_child()
     const bool was_active = g_state.active.load(std::memory_order_acquire);
     g_state.active.store(false, std::memory_order_release);
 
-    const pid_t current_tid = raw_gettid();
-    for (auto& item : g_state.live_by_thread_id) {
-        CaptureState& state = *item.second;
-        if (current_tid == static_cast<pid_t>(state.native_tid)) {
-            disable_current_thread_altstack(state.altstack);
-        } else if (state.altstack.installed && !state.altstack.using_existing && !state.altstack.detached &&
-                   state.altstack.mapping != nullptr) {
-            munmap(state.altstack.mapping, state.altstack.mapping_size);
-            state.altstack.mapping = nullptr;
+    // The forking thread gets a new TID in the child, so the parent's native_tid cannot identify it.
+    // The inherited sigaltstack setting can: the mapping it points into must stay mapped, or the next
+    // SA_ONSTACK signal on this thread runs on unmapped memory.
+    stack_t current_altstack{};
+    const bool have_current_altstack =
+      sigaltstack(nullptr, &current_altstack) == 0 && !(current_altstack.ss_flags & SS_DISABLE);
+    auto is_current_altstack = [&](void* mapping, size_t mapping_size) {
+        return have_current_altstack && mapping_contains(mapping, mapping_size, current_altstack.ss_sp);
+    };
+    std::optional<OwnedAltStack> inherited_altstack;
+    auto release_owned_altstack = [&](OwnedAltStack& altstack) {
+        if (!altstack.installed || altstack.using_existing || altstack.detached || altstack.mapping == nullptr) {
+            return;
         }
+        if (!inherited_altstack && is_current_altstack(altstack.mapping, altstack.mapping_size)) {
+            inherited_altstack = altstack;
+        } else {
+            munmap(altstack.mapping, altstack.mapping_size);
+        }
+        altstack.mapping = nullptr;
+        altstack.installed = false;
+    };
+
+    if (g_state.postfork_altstack) {
+        release_owned_altstack(*g_state.postfork_altstack);
+    }
+    for (auto& item : g_state.live_by_thread_id) {
+        release_owned_altstack(item.second->altstack);
     }
     for (auto& state : g_state.retired) {
-        if (state->altstack.installed && !state->altstack.using_existing && !state->altstack.detached &&
-            state->altstack.mapping != nullptr) {
-            munmap(state->altstack.mapping, state->altstack.mapping_size);
-            state->altstack.mapping = nullptr;
-        }
+        release_owned_altstack(state->altstack);
     }
     for (auto& leaked : g_state.leaked_altstacks) {
-        munmap(leaked.first, leaked.second);
+        // A leaked mapping has no recorded previous stack to restore, so keep it mapped for the
+        // life of the child rather than handing it to a new owner.
+        if (!is_current_altstack(leaked.first, leaked.second)) {
+            munmap(leaked.first, leaked.second);
+        }
     }
+    g_state.postfork_altstack = inherited_altstack;
     g_state.leaked_altstacks.clear();
     g_state.live_by_thread_id.clear();
     g_state.retired.clear();
@@ -1285,7 +1337,8 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
       reinterpret_cast<PyThreadState*>(static_cast<uintptr_t>(1)); // NOLINT(performance-no-int-to-ptr)
     state->tstate = g_state.fault_injection_enabled.load(std::memory_order_acquire) ? fault_injection_tstate : tstate;
 
-    if (current_thread && !install_current_thread_altstack(state->altstack)) {
+    if (current_thread && !adopt_postfork_altstack(state->altstack) &&
+        !install_current_thread_altstack(state->altstack)) {
         return;
     }
     if (!create_timer(*state)) {
