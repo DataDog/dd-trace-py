@@ -333,6 +333,18 @@ def test_server_tool_call_tagged_with_client_info(mcp_setup, mcp_llmobs, test_sp
     assert tags["mcp_client_version"] == "1.2.3"
 
 
+def test_client_info_tags_are_truncated():
+    from mcp.types import Implementation
+
+    from ddtrace.llmobs._integrations.mcp import MAX_CLIENT_INFO_TAG_LENGTH
+    from ddtrace.llmobs._integrations.mcp import get_client_info_tags
+
+    tags = get_client_info_tags(Implementation(name="n" * 10_000, title="t" * 10_000, version="1.2.3"))
+    assert tags["mcp_client_name"] == "n" * MAX_CLIENT_INFO_TAG_LENGTH
+    assert tags["mcp_client_title"] == "t" * MAX_CLIENT_INFO_TAG_LENGTH
+    assert tags["mcp_client_version"] == "1.2.3"
+
+
 def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
     """Test that distributed tracing is disabled when DD_MCP_DISTRIBUTED_TRACING=false."""
     env = os.environ.copy()

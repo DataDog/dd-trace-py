@@ -31,6 +31,8 @@ SERVER_REQUEST_OPERATION_NAME = "server_request"
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 DEFAULT_TOOL_ERROR_MESSAGE = "tool resulted in an error"
 CLIENT_INFO_META_KEY = "io.modelcontextprotocol/clientInfo"
+# Client identity is self-reported and repeated on every tool call span in a session
+MAX_CLIENT_INFO_TAG_LENGTH = 256
 
 
 TELEMETRY_KEY = "telemetry"
@@ -90,7 +92,7 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
     for field in ("name", "title", "version"):
         value = _get_attr(client_info, field, None)
         if value:
-            tags[f"mcp_client_{field}"] = str(value)
+            tags[f"mcp_client_{field}"] = str(value)[:MAX_CLIENT_INFO_TAG_LENGTH]
     return tags
 
 
