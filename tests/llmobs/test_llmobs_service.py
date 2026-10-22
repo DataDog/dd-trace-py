@@ -1915,6 +1915,17 @@ def test_llmobs_with_evaluator_runner(llmobs, mock_llmobs_evaluator_runner):
     assert llmobs._instance._evaluator_runner.enqueue.call_count == 1
 
 
+def test_llmobs_fixture_replaces_stale_enabled_instance(request, tracer):
+    stale_evaluator_runner = mock.MagicMock()
+    with mock.patch("ddtrace.llmobs._llmobs.EvaluatorRunner", return_value=stale_evaluator_runner):
+        with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False)
+
+    llmobs = request.getfixturevalue("llmobs")
+
+    assert llmobs._instance._evaluator_runner is not stale_evaluator_runner
+
+
 def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmobs_evaluator_runner, llmobs):
     with llmobs.workflow(name="test"):
         pass
