@@ -718,6 +718,7 @@ else:
             f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
         )
         config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
 
     # We also need to check if stack module is available, and turn if off
     # if it s not.
@@ -776,6 +777,14 @@ if config.stack.fast_copy and _is_python_embedded():
 # Report configuration after all availability overrides so telemetry
 # reflects the effective state.
 report_configuration(config)
+if config.install:
+    # The parsed value of DD_PROFILING_ENABLED is False in armed mode
+    telemetry_writer.add_configuration(
+        "DD_PROFILING_ENABLED",
+        "armed",
+        config.value_source("DD_PROFILING_ENABLED"),
+        config.config_id("DD_PROFILING_ENABLED"),
+    )
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]

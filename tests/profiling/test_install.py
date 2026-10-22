@@ -840,3 +840,48 @@ def test_install_enabled_fork_resets_gevent_tracking_state() -> None:
     assert stale_thread_ident in _gevent._original_greenlet_tracers
 
     print("OK")
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="armed"),
+    out="OK\n",
+    err=None,
+)
+def test_install_enabled_ddup_unavailable_installs_nothing() -> None:
+    import sys
+    import types
+
+    ddup_stub = types.ModuleType("ddtrace.internal.datadog.profiling.ddup")
+    ddup_stub.failure_msg = "ddup stub"  # type: ignore[attr-defined]
+    ddup_stub.is_available = False  # type: ignore[attr-defined]
+    sys.modules["ddtrace.internal.datadog.profiling.ddup"] = ddup_stub
+    sys.modules.pop("ddtrace.internal.settings.profiling", None)
+
+    from ddtrace.internal.settings.profiling import config
+
+    assert not config.install
+    assert not config.enabled
+
+    print("OK")
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="armed"),
+    out="OK\n",
+    err=None,
+)
+def test_install_enabled_reported_in_telemetry() -> None:
+    import sys
+    from unittest import mock
+
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    sys.modules.pop("ddtrace.internal.settings.profiling", None)
+    with mock.patch.object(telemetry_writer, "add_configuration") as add_configuration:
+        from ddtrace.internal.settings.profiling import config
+
+    assert config.install
+    values: list[object] = [c.args[1] for c in add_configuration.call_args_list if c.args[0] == "DD_PROFILING_ENABLED"]
+    assert values[-1] == "armed", values
+
+    print("OK")
