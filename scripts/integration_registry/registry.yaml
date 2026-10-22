@@ -1039,7 +1039,7 @@ integrations:
   tested_versions_by_dependency:
     typesafe-sdk:
       min: 0.6.0
-      max: 0.7.4
+      max: 0.7.5
 
 - integration_name: unittest
   is_external_package: false
