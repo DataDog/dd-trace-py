@@ -120,7 +120,6 @@ _OPT_IN_METADATA_TAGS = {
 }
 OPT_IN_TAGS = frozenset(_OPT_IN_METADATA_TAGS) | {"route", "destination", "service", "host"}
 _IDENTITY_KEYS = tuple(key for _, key in _OPT_IN_METADATA_TAGS.values())
-_STREAM_WRAPPER_CALLS = frozenset({"completion", "acompletion", "text_completion", "atext_completion"})
 
 # Providers whose usage LiteLLM counts itself on a call that is not streamed: it gets no count from them, or fills in
 # a missing one in a way a callback cannot tell apart from a reported count (Ollama, and Bedrock's invoke route).
@@ -545,7 +544,6 @@ class _Attempt:
         "provider",
         "model",
         "stream",
-        "checked_stream",
         "model_id",
         "closed",
         "streaming",
@@ -561,9 +559,6 @@ class _Attempt:
         call_type = kwargs.get("call_type")
         self.start = kwargs.get("api_call_start_time") or datetime.datetime.now()
         self.operation = operation_name(call_type)
-        # Chat and text completion calls pass through the integration's wrappers, which see an attempt fail before
-        # it streams; on the other routes only LiteLLM's failure event reports it.
-        self.checked_stream = str(getattr(call_type, "value", call_type)).rpartition(".")[2] in _STREAM_WRAPPER_CALLS
         llm_provider = kwargs.get("custom_llm_provider")
         self.llm_provider = llm_provider if isinstance(llm_provider, str) else None
         self.provider = provider_name(llm_provider)
@@ -699,17 +694,18 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 return attempt
         return UsageMetricsLogger._latest_open_attempt(request)
 
-    @staticmethod
-    def _close_unreported_attempts(request: _Request, keep: Optional[_Attempt]) -> None:
+    def _close_unreported_attempts(self, request: _Request, keep: Optional[_Attempt]) -> None:
         """Close the attempts of an ended request that no hook reported, other than keep, without recording them.
 
         On LiteLLM versions without async_post_call_failure_deployment_hook, nothing reports a failed retry of a route
         the integration's wrappers do not see. When it ended is unknown (the router may have waited before the next
         attempt), so it records no duration; the request still counts it among its provider operations.
         """
-        for attempt in request.attempts:
-            if not attempt.closed and attempt is not keep:
-                attempt.closed = True
+        # Under the lock _record_attempt claims attempts with, so that each attempt is either recorded or closed here.
+        with self._lock:
+            for attempt in request.attempts:
+                if not attempt.closed and attempt is not keep:
+                    attempt.closed = True
 
     @staticmethod
     def _latest_open_attempt(request: _Request) -> Optional[_Attempt]:
@@ -1015,7 +1011,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         # LiteLLM calls this once per request for non-streamed calls and once per attempt for streamed ones, and
         # possibly after the next attempt started. An attempt that fails before streaming is closed by the wrapper
         # or by async_post_call_failure_deployment_hook, so only an attempt that is still open and matches this
-        # event's start time is closed here: a failure mid-stream, or one of a route the wrapper does not see.
+        # event's start time is closed here: a stream that failed before or after its first chunk, or one of a route
+        # the wrapper does not see. Whichever hook closes an attempt first records it.
         try:
             call_id = kwargs.get("litellm_call_id")
             request = self._request(call_id, create=False)
@@ -1026,7 +1023,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 (a for a in reversed(request.attempts) if not a.closed and start is not None and a.start == start),
                 None,
             )
-            if attempt is None or (attempt.checked_stream and not attempt.streaming):
+            if attempt is None:
                 return
             payload = kwargs.get("standard_logging_object") or {}
             error_information = payload.get("error_information") or {}

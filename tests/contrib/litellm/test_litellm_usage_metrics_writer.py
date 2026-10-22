@@ -308,6 +308,21 @@ def test_retry_after_is_honored_up_to_a_bound(otlp_endpoint, sleeps):
     assert sleeps == [0.25, 5.0]
 
 
+def test_a_partial_success_is_read_from_the_response():
+    metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
+    response = metrics_service_pb2.ExportMetricsServiceResponse()
+    response.partial_success.rejected_data_points = 3
+    response.partial_success.error_message = "unit not allowed"
+    assert _usage_metrics_writer._partial_success(response.SerializeToString()) == (3, "unit not allowed")
+    assert (
+        _usage_metrics_writer._partial_success(metrics_service_pb2.ExportMetricsServiceResponse().SerializeToString())
+        is None
+    )
+    assert _usage_metrics_writer._partial_success(b"") is None
+    assert _usage_metrics_writer._partial_success(b"\x0a\x05\x08") is None
+    assert _usage_metrics_writer._partial_success(b"not protobuf") is None
+
+
 def test_retry_after_reads_an_http_date():
     later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=120)
     assert 100 < _usage_metrics_writer._retry_after(email.utils.format_datetime(later, usegmt=True)) <= 120

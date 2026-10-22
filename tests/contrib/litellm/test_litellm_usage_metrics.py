@@ -622,6 +622,22 @@ def test_midstream_provider_failure_is_charged(logger, writer, event_first):
     assert logger._requests == {}
 
 
+def test_a_stream_that_fails_before_its_first_chunk_is_recorded(logger, writer):
+    # The wrapper has returned the stream, so only LiteLLM's failure event reports the attempt; a fallback succeeds.
+    proxy = Proxy(logger, stream=True, route="primary")
+    proxy.start()
+    proxy.attempt(0, model_id="deployment-1")
+    proxy.failed_midstream(0.1, usage=None, cost=0.0, error_class="APIConnectionError")
+    proxy.attempt(0.2, model_id="deployment-2")
+    logger.observe_stream("call-1", True, True)
+    proxy.succeeded(1.0, first_chunk=0.3)
+    failed, succeeded = writer.of(PROVIDER_ATTEMPT)
+    assert failed[0]["error_type"] == "api_connection_error"
+    assert "error_type" not in succeeded[0]
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["provider_operations"] == 2
+
+
 def test_hooks_that_both_found_an_attempt_open_record_it_once(logger, writer):
     # LiteLLM can run the failure event and the failure hook of one broken stream on different threads, so both can
     # find the attempt and the request still open before either records them.

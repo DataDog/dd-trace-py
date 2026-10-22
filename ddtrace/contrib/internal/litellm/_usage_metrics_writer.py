@@ -125,6 +125,52 @@ def _retry_after(value: Optional[str]) -> Optional[float]:
     return max((when - datetime.datetime.now(datetime.timezone.utc)).total_seconds(), 0.0)
 
 
+def _varint(data: bytes, position: int) -> tuple[int, int]:
+    value = shift = 0
+    while True:
+        byte = data[position]
+        position += 1
+        value |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return value, position
+        shift += 7
+
+
+def _fields(data: bytes) -> Any:
+    """The (field number, value) pairs of a protobuf message: an int for a varint, bytes for a length-delimited
+    field. Other wire types end the walk.
+    """
+    position = 0
+    while position < len(data):
+        key, position = _varint(data, position)
+        if key & 7 == 0:
+            value, position = _varint(data, position)
+            yield key >> 3, value
+        elif key & 7 == 2:
+            length, position = _varint(data, position)
+            yield key >> 3, data[position : position + length]
+            position += length
+        else:
+            return
+
+
+def _partial_success(body: bytes) -> Optional[tuple[int, str]]:
+    """The rejected point count and message of an ExportMetricsServiceResponse's partial_success, if it states one."""
+    try:
+        for number, value in _fields(body):
+            if number == 1 and isinstance(value, bytes):
+                rejected, message = 0, ""
+                for inner, inner_value in _fields(value):
+                    if inner == 1 and isinstance(inner_value, int):
+                        rejected = inner_value
+                    elif inner == 2 and isinstance(inner_value, bytes):
+                        message = inner_value.decode("utf-8", errors="replace")
+                return (rejected, message) if rejected or message else None
+    except IndexError:
+        pass
+    return None
+
+
 def _timeout_ms() -> int:
     """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do.
     ddtrace's own settings already report both to telemetry. A value that is not a positive whole number of
@@ -209,6 +255,15 @@ class _OtlpSender:
             else:
                 status = response.status_code
                 if 200 <= status < 300:
+                    # A partial success is not retried: the endpoint has kept what it accepted.
+                    partial = _partial_success(response.body)
+                    if partial is not None:
+                        log.warning(
+                            "LiteLLM usage metrics: the OTLP endpoint at %s rejected %d data points: %s",
+                            self.endpoint,
+                            partial[0],
+                            partial[1][:200],
+                        )
                     return True
                 if status not in _RETRYABLE_STATUSES:
                     log.warning("LiteLLM usage metrics: OTLP export to %s failed with status %s", self.endpoint, status)
