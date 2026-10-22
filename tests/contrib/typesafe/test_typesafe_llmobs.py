@@ -194,12 +194,16 @@ def _sent_json_body(request):
     raise AssertionError("no request part in the multipart body")
 
 
-def _call_with_recording_transport(typesafe_sdk, test_spans, **kwargs):
+def _call_with_recording_transport(typesafe_sdk, test_spans, attach=(), **kwargs):
     transport = _RecordingTransport()
     with typesafe_sdk.TypeSafeClient(
         api_key="not-a-real-key", transport=transport, retry=typesafe_sdk.RetryPolicy(max_retries=0)
     ) as client:
-        client.system_one(model=MODEL, **kwargs)
+        if attach:
+            with client.attach_assets(list(attach)):
+                client.system_one(model=MODEL, **kwargs)
+        else:
+            client.system_one(model=MODEL, **kwargs)
     spans = test_spans.pop()
     assert len(spans) == 1
     assert len(transport.requests) == 1
@@ -273,4 +277,27 @@ def test_system_one_image_under_several_names(typesafe_sdk, typesafe_llmobs, tes
         assets={"original": photo, "thumbnail": photo},
     )
     assert input_body == sent_body
-    assert list(input_body["assets"]) == ["original", "thumbnail"]
+    assert input_body["assets"] == {
+        "original": {"type": "image", "part": "asset-0"},
+        "thumbnail": {"type": "image", "part": "asset-1"},
+    }
+
+
+def test_system_one_attached_image_referenced_in_text(typesafe_sdk, typesafe_llmobs, test_spans):
+    """Images attached to the client and referenced from text are listed under assets, as the SDK uploads them."""
+    if not hasattr(typesafe_sdk, "Image"):
+        pytest.skip("images require typesafe-sdk>=0.7.5")
+    photo = typesafe_sdk.Image(PNG_BYTES)
+    placed = typesafe_sdk.Image(PNG_BYTES)
+    _, input_body, sent_body, _ = _call_with_recording_transport(
+        typesafe_sdk,
+        test_spans,
+        attach=[photo],
+        state=[f"The customer says {photo} arrived scratched.", placed],
+        questions=build_questions(typesafe_sdk),
+    )
+    assert input_body == sent_body
+    assert input_body["assets"] == {
+        str(photo): {"type": "image", "part": "asset-0"},
+        str(placed): {"type": "image", "part": "asset-1"},
+    }

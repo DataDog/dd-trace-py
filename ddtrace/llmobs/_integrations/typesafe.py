@@ -1,5 +1,7 @@
 from collections.abc import Mapping
 from collections.abc import Sequence
+import json
+import re
 from typing import Any
 from typing import Optional
 
@@ -23,10 +25,14 @@ log = get_logger(__name__)
 MODEL = "typesafe.request.model"
 TYPESAFE_MODEL_PROVIDER = "typesafe"
 OPENROUTER_MODEL_PROVIDER = "openrouter"
+# Matches the SDK's own pattern for automatic image references, which it scans request bodies for
+IMAGE_REFERENCE = re.compile(r"<image:[0-9a-f]{32}>")
 
 
 class TypeSafeIntegration(BaseLLMIntegration):
     _integration_name = "typesafe"
+    # Request kwargs key under which the patch layer passes the references of client-attached images
+    ATTACHED_REFERENCES = "_dd.attached_references"
 
     def _set_base_span_tags(self, span: Span, model: Optional[str] = None, **kwargs: Any) -> None:
         base_url = self._get_base_url(**kwargs)
@@ -111,8 +117,8 @@ def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Rebuild the JSON body that system_one sends.
 
     Images (typesafe-sdk 0.7.5+) appear as their alias from assets= or their <image:...> reference, as on the wire,
-    and are listed under "assets" in the order the SDK uploads them; their bytes go in separate parts and are not
-    recorded.
+    and are listed under "assets" in the order the SDK uploads them, including images attached to the client and
+    referenced from text; their bytes go in separate parts and are not recorded.
     """
     assets = kwargs.get("assets") or {}
     # Like the SDK, an image passed under several names is written as its last name but uploaded once per name
@@ -122,7 +128,15 @@ def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
     body.update(kwargs.get("extra_body") or {})
     data: dict[str, Any] = _to_data(body, aliases, found)
     if "assets" not in body:
-        names = list(dict.fromkeys([*assets, *found]))
+        # Like the SDK: the passed names, then every known reference in order of appearance in the encoded body
+        known = {*found, *kwargs.get(TypeSafeIntegration.ATTACHED_REFERENCES, ())}
+        known.update(
+            reference for reference in (getattr(asset, "_reference", None) for asset in assets.values()) if reference
+        )
+        names = dict.fromkeys(assets)
+        for reference in IMAGE_REFERENCE.findall(json.dumps(data, separators=(",", ":"))):
+            if reference in known:
+                names.setdefault(reference)
         if names:
             data["assets"] = {name: {"type": "image", "part": f"asset-{i}"} for i, name in enumerate(names)}
     return data

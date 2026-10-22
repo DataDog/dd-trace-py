@@ -33,6 +33,12 @@ def _request_kwargs(instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
         request_kwargs["model"] = extra_body["model"]
     elif request_kwargs.get("model") is None:
         request_kwargs["model"] = getattr(getattr(instance, "_config", None), "default_model", None)
+    # Images attached with client.attach_assets() (typesafe-sdk 0.7.5+) are referenced from text, so the SDK only
+    # knows to upload them through this snapshot; read it now, while the attach block is still active
+    try:
+        request_kwargs[TypeSafeIntegration.ATTACHED_REFERENCES] = list(instance._attached.snapshot())
+    except Exception:
+        pass
     return request_kwargs
 
 
