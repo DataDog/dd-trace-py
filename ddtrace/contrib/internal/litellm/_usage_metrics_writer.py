@@ -542,6 +542,11 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         exit (with a deadline), try each once, as long as the shutdown time allows, since none can wait.
         """
         while self._pending:
+            # A periodic flush that close() interrupted starts no new request: the exit flush, which has the shutdown
+            # deadline, sends what is left. A request already in progress cannot be cancelled and ends within its
+            # timeout.
+            if deadline is None and self._stopping.is_set():
+                return
             if deadline is not None and time.monotonic() >= deadline:
                 log.debug("LiteLLM usage metrics: dropping %d unsent OTLP exports at exit", len(self._pending))
                 self._pending.clear()

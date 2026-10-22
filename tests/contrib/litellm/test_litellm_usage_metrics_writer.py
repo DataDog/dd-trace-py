@@ -345,6 +345,16 @@ def test_a_partial_success_is_reported_and_not_sent_again(otlp_endpoint, monkeyp
     assert [w[2:] for w in warnings] == [(2, "unit not allowed")]
 
 
+def test_a_periodic_flush_starts_no_export_once_close_began(otlp_endpoint):
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer._stopping.set()
+    writer.flush()
+    assert Collector.requests == []
+    writer.on_shutdown(time.monotonic() + 5)
+    assert len(Collector.requests) == 1
+
+
 def test_retry_after_reads_an_http_date():
     later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=120)
     assert 100 < _usage_metrics_writer._retry_after(email.utils.format_datetime(later, usegmt=True)) <= 120
@@ -422,7 +432,9 @@ def test_shutdown_time_is_bounded_behind_a_collector_that_does_not_answer(otlp_e
     writer.on_shutdown()
     # The request at exit gets what is left of the shutdown time, not the export timeout.
     assert time.monotonic() - started < 2
-    # Nor does the last flush wait out a periodic flush whose request the collector does not answer.
+    # Nor does the last flush wait out a periodic flush whose request the collector does not answer. A new writer:
+    # once shutting down, a writer's periodic flushes start no request.
+    writer = UsageMetricsWriter("otlp", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
     flushing = threading.Thread(target=writer.flush, daemon=True)
     flushing.start()
