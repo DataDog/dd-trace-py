@@ -1536,13 +1536,13 @@ suites:
       command: pytest {cmdargs} tests/contrib/graphene
       variants:
         - name: graphql:graphene
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [graphql-relay, pytest-randomly, 'graphene~=3.0.0', 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
     paths:
@@ -1559,10 +1559,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/graphql
       variants:
         - name: graphql
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', 'graphql-core~=3.2.0', pytest-randomly]
         - name: graphql
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', graphql-core, pytest-randomly]
   grpc:
     venvs_per_job: 9
