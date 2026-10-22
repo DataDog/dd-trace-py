@@ -419,17 +419,6 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     core.discard_local_item(_ASM_CONTEXT)
 
 
-def set_value(category: str, address: str, value: Any) -> None:
-    env = _get_asm_context()
-    if env is None:
-        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
-        logger.debug("asm_context::set_value::no_active_context", extra=extra, stack_info=True)
-        return
-    asm_context_attr = getattr(env, category, None)
-    if asm_context_attr is not None:
-        asm_context_attr[address] = value
-
-
 def set_headers_response(headers: Any) -> None:
     if headers is not None:
         set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers)
@@ -455,13 +444,17 @@ def set_body_response(body_response: Any) -> None:
 
 
 def set_waf_address(address: str, value: Any) -> None:
+    env = _get_asm_context()
+    if env is None:
+        extra = {"product": "appsec", "more_info": f"::{address}", "stack_limit": 4}
+        logger.debug("asm_context::set_waf_address::no_active_context", extra=extra, stack_info=True)
+        return
     if address == SPAN_DATA_NAMES.REQUEST_URI_RAW:
         parse_address = parse.urlparse(value)
         no_scheme = parse.ParseResult("", "", *parse_address[2:])
-        waf_value = parse.urlunparse(no_scheme)
-        set_value(_WAF_ADDRESSES, address, waf_value)
+        env.waf_addresses[address] = parse.urlunparse(no_scheme)
     else:
-        set_value(_WAF_ADDRESSES, address, value)
+        env.waf_addresses[address] = value
     if address in (SPAN_DATA_NAMES.REQUEST_HTTP_IP, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE):
         core.set_item(address, value)
 

@@ -10,7 +10,6 @@ from typing import Optional
 from typing import Union
 from typing import cast
 
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
@@ -28,6 +27,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import net
 from ddtrace.internal import core
+from ddtrace.internal._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -40,6 +40,11 @@ from ddtrace.internal.utils.time import Time
 
 
 log = get_logger(__name__)
+
+
+_SPECIAL_TAG_KEYS = frozenset(
+    (net.TARGET_PORT, MANUAL_KEEP_KEY, MANUAL_DROP_KEY, SERVICE_KEY, SERVICE_VERSION_KEY, _SPAN_MEASURED_KEY)
+)
 
 
 def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
@@ -159,6 +164,13 @@ class Span(SpanData):
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span."""
+        if type(key) is str and type(value) is str and key not in _SPECIAL_TAG_KEYS:
+            try:
+                self._set_attribute(key, value)
+            except Exception:
+                log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+            return
+
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
         if key == net.TARGET_PORT:

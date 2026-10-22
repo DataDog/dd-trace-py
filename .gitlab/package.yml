@@ -205,8 +205,8 @@ variables:
     set -euo pipefail
     # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
     # so resolve creds from the tart iam-proxy beforehand
-    role=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
-    creds=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+    role=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
+    creds=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
     export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
     export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
     export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
@@ -430,9 +430,8 @@ download_dependency_wheels:
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   rules:
-    # TODO(py-315): 3.15 cell skipped — registry.ddbuild.io/images/mirror/python has
-    # no 3.15 tag. When DataDog/images dest-tags rc2 or GA, bump PYTHON_IMAGE_TAG
-    # off 3.15.0rc1 and remove this never-rule.
+    # TODO(py-315): pip refuses the local ddtrace wheel on 3.15 while
+    # requires-python is <3.15. Remove this rule when requires-python allows 3.15.
     - if: '$PYTHON_VERSION == "3.15"'
       when: never
     - when: on_success
@@ -450,7 +449,7 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.13"
       - PYTHON_IMAGE_TAG: "3.14.0"
         PYTHON_VERSION: "3.14"
-      - PYTHON_IMAGE_TAG: "3.15.0rc1"
+      - PYTHON_IMAGE_TAG: "3.15.0"
         PYTHON_VERSION: "3.15"
   script:
     - .gitlab/download-dependency-wheels.sh

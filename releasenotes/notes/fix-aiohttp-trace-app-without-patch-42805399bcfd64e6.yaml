@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    aiohttp: Fixes an issue where every request to an application traced with ``trace_app`` failed with
+    ``KeyError: 'disable_stream_timing_for_mem_leak'`` when the aiohttp integration was not patched, for
+    example with ``DD_TRACE_ENABLED=false``.
