@@ -265,6 +265,9 @@ suites:
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
+    # TODO(py-315): the unpinned row resolves mcp 2.x, which renames FastMCP to
+    # MCPServer and the tests cannot import mcp.server.fastmcp. Re-add 3.15
+    # once the suite supports mcp 2.x (or pin mcp<2 here).
     paths:
       - '@bootstrap'
       - '@core'
@@ -282,7 +285,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'mcp~=1.10.0']
         - name: mcp
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, mcp]
   mistralai:
     paths:

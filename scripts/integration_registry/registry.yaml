@@ -12,7 +12,6 @@ integrations:
     botocore:
       min: 1.15.32
       max: 1.43.75
-
 - integration_name: aiohttp
   is_external_package: true
   is_tested: true
@@ -22,7 +21,6 @@ integrations:
     aiohttp:
       min: 3.7.4.post0
       max: 3.14.4
-
 - integration_name: aiohttp_jinja2
   is_external_package: true
   is_tested: true
@@ -36,7 +34,6 @@ integrations:
     aiohttp_jinja2:
       min: 1.5.1
       max: 1.6.0
-
 - integration_name: aiokafka
   is_external_package: true
   is_tested: true
@@ -46,7 +43,6 @@ integrations:
     aiokafka:
       min: 0.9.0
       max: 0.14.0
-
 - integration_name: aiomysql
   is_external_package: true
   is_tested: true
@@ -56,7 +52,6 @@ integrations:
     aiomysql:
       min: 0.1.1
       max: 0.3.2
-
 - integration_name: aiopg
   is_external_package: true
   is_tested: true
@@ -66,7 +61,6 @@ integrations:
     aiopg:
       min: 0.16.0
       max: 1.4.0
-
 - integration_name: algoliasearch
   is_external_package: true
   is_tested: true
@@ -76,7 +70,6 @@ integrations:
     algoliasearch:
       min: 2.6.3
       max: 3.0.0
-
 - integration_name: anthropic
   is_external_package: true
   is_tested: true
@@ -86,7 +79,6 @@ integrations:
     anthropic:
       min: 0.28.1
       max: 0.117.0
-
 - integration_name: anyio
   is_external_package: true
   is_tested: true
@@ -96,7 +88,6 @@ integrations:
     anyio:
       min: 3.4.0
       max: 4.15.1
-
 - integration_name: aredis
   is_external_package: true
   is_tested: true
@@ -106,15 +97,12 @@ integrations:
     aredis:
       min: 1.1.8
       max: 1.1.8
-
 - integration_name: asgi
   is_external_package: false
   is_tested: true
-
 - integration_name: asyncio
   is_external_package: false
   is_tested: true
-
 - integration_name: asyncpg
   is_external_package: true
   is_tested: true
@@ -124,7 +112,6 @@ integrations:
     asyncpg:
       min: 0.23.0
       max: 0.31.0
-
 - integration_name: avro
   is_external_package: true
   is_tested: true
@@ -134,7 +121,6 @@ integrations:
     avro:
       min: 1.12.1
       max: 1.12.2
-
 - integration_name: aws_durable_execution_sdk_python
   is_external_package: true
   is_tested: true
@@ -144,7 +130,6 @@ integrations:
     aws-durable-execution-sdk-python:
       min: 1.4.0
       max: 1.4.0
-
 - integration_name: aws_lambda
   is_external_package: true
   is_tested: true
@@ -158,7 +143,6 @@ integrations:
     datadog_lambda:
       min: 6.105.0
       max: 8.128.0
-
 - integration_name: azure_cosmos
   is_external_package: true
   is_tested: true
@@ -168,7 +152,6 @@ integrations:
     azure-cosmos:
       min: 4.9.0
       max: 4.17.1
-
 - integration_name: azure_durable_functions
   is_external_package: true
   is_tested: true
@@ -182,7 +165,6 @@ integrations:
     azure-functions-durable:
       min: 1.2.1
       max: 1.5.0
-
 - integration_name: azure_eventhubs
   is_external_package: true
   is_tested: true
@@ -191,8 +173,7 @@ integrations:
   tested_versions_by_dependency:
     azure-eventhub:
       min: 5.12.2
-      max: 5.15.0
-
+      max: 5.15.1
 - integration_name: azure_functions
   is_external_package: true
   is_tested: true
@@ -202,7 +183,6 @@ integrations:
     azure-functions:
       min: 1.10.1
       max: 2.0.0
-
 - integration_name: azure_servicebus
   is_external_package: true
   is_tested: true
@@ -212,7 +192,6 @@ integrations:
     azure-servicebus:
       min: 7.14.2
       max: 7.14.3
-
 - integration_name: boto
   is_external_package: true
   is_tested: true
@@ -222,7 +201,6 @@ integrations:
     boto:
       min: 2.49.0
       max: 2.49.0
-
 - integration_name: botocore
   is_external_package: true
   is_tested: true
@@ -236,7 +214,6 @@ integrations:
     botocore:
       min: 1.34.49
       max: 1.38.26
-
 - integration_name: bottle
   is_external_package: true
   is_tested: true
@@ -246,7 +223,6 @@ integrations:
     bottle:
       min: 0.12.25
       max: 0.13.4
-
 - integration_name: celery
   is_external_package: true
   is_tested: true
@@ -256,7 +232,6 @@ integrations:
     celery:
       min: 5.5.3
       max: 5.6.3
-
 - integration_name: cherrypy
   is_external_package: true
   is_tested: true
@@ -266,7 +241,6 @@ integrations:
     cherrypy:
       min: 17.0.0
       max: 18.10.0
-
 - integration_name: claude_agent_sdk
   is_external_package: true
   is_tested: true
@@ -276,7 +250,6 @@ integrations:
     claude-agent-sdk:
       min: 0.0.23
       max: 0.2.160
-
 - integration_name: consul
   is_external_package: true
   is_tested: true
@@ -286,7 +259,6 @@ integrations:
     python-consul:
       min: 1.1.0
       max: 1.1.0
-
 - integration_name: coverage
   is_external_package: true
   is_tested: true
@@ -296,7 +268,6 @@ integrations:
     coverage:
       min: 7.2.2
       max: 7.13.1
-
 - integration_name: crewai
   is_external_package: true
   is_tested: true
@@ -306,11 +277,9 @@ integrations:
     crewai:
       min: 0.102.0
       max: 0.157.0
-
 - integration_name: ddtrace_api
   is_external_package: false
   is_tested: true
-
 - integration_name: django
   is_external_package: true
   is_tested: true
@@ -320,7 +289,6 @@ integrations:
     django:
       min: 2.2.28
       max: 6.1.1
-
 - integration_name: dogpile_cache
   is_external_package: true
   is_tested: true
@@ -338,7 +306,6 @@ integrations:
     dogpile_cache:
       min: 0.6.8
       max: 1.5.0
-
 - integration_name: dramatiq
   is_external_package: true
   is_tested: true
@@ -348,7 +315,6 @@ integrations:
     dramatiq:
       min: 1.10.0
       max: 2.2.1
-
 - integration_name: elasticsearch
   is_external_package: true
   is_tested: true
@@ -386,7 +352,6 @@ integrations:
     opensearch-py:
       min: 1.1.0
       max: 3.2.0
-
 - integration_name: falcon
   is_external_package: true
   is_tested: true
@@ -396,7 +361,6 @@ integrations:
     falcon:
       min: 3.0.1
       max: 4.4.0
-
 - integration_name: fastapi
   is_external_package: true
   is_tested: true
@@ -406,7 +370,6 @@ integrations:
     fastapi:
       min: 0.64.0
       max: 0.141.1
-
 - integration_name: flask
   is_external_package: true
   is_tested: true
@@ -416,7 +379,6 @@ integrations:
     flask:
       min: 1.1.4
       max: 3.1.3
-
 - integration_name: flask_cache
   is_external_package: true
   is_tested: true
@@ -430,11 +392,9 @@ integrations:
     flask-caching:
       min: 1.10.1
       max: 2.3.0
-
 - integration_name: futures
   is_external_package: false
   is_tested: true
-
 - integration_name: gevent
   is_external_package: true
   is_tested: true
@@ -444,7 +404,6 @@ integrations:
     gevent:
       min: 21.1.2
       max: 26.9.0
-
 - integration_name: google_adk
   is_external_package: true
   is_tested: true
@@ -454,7 +413,6 @@ integrations:
     google-adk:
       min: 1.0.0
       max: 2.11.0
-
 - integration_name: google_cloud_pubsub
   is_external_package: true
   is_tested: true
@@ -464,7 +422,6 @@ integrations:
     google-cloud-pubsub:
       min: 2.10.0
       max: 2.41.0
-
 - integration_name: google_genai
   is_external_package: true
   is_tested: true
@@ -474,7 +431,6 @@ integrations:
     google-genai:
       min: 1.21.1
       max: 2.25.0
-
 - integration_name: graphql
   is_external_package: true
   is_tested: true
@@ -484,7 +440,6 @@ integrations:
     graphql-core:
       min: 3.1.7
       max: 3.2.6
-
 - integration_name: grpc
   is_external_package: true
   is_tested: true
@@ -494,7 +449,6 @@ integrations:
     grpcio:
       min: 1.34.1
       max: 1.84.0
-
 - integration_name: gunicorn
   is_external_package: true
   is_tested: true
@@ -504,11 +458,9 @@ integrations:
     gunicorn:
       min: 20.0.4
       max: 26.2.0
-
 - integration_name: httplib
   is_external_package: false
   is_tested: true
-
 - integration_name: httpx
   is_external_package: true
   is_tested: true
@@ -518,7 +470,6 @@ integrations:
     httpx:
       min: 0.25.2
       max: 0.28.1
-
 - integration_name: httpx2
   is_external_package: true
   is_tested: true
@@ -528,7 +479,6 @@ integrations:
     httpx2:
       min: 2.0.0
       max: 2.13.1
-
 - integration_name: jinja2
   is_external_package: true
   is_tested: true
@@ -538,7 +488,6 @@ integrations:
     jinja2:
       min: 2.10.3
       max: 3.1.6
-
 - integration_name: kafka
   is_external_package: true
   is_tested: true
@@ -548,7 +497,6 @@ integrations:
     confluent-kafka:
       min: 1.9.2
       max: 2.15.1
-
 - integration_name: kombu
   is_external_package: true
   is_tested: true
@@ -558,7 +506,6 @@ integrations:
     kombu:
       min: 4.6.11
       max: 5.6.2
-
 - integration_name: langchain
   is_external_package: true
   is_tested: true
@@ -568,7 +515,6 @@ integrations:
     langchain-core:
       min: 0.1.53
       max: 1.5.3
-
 - integration_name: langgraph
   is_external_package: true
   is_tested: true
@@ -579,14 +525,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.2.11
+      max: 1.2.16
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.2.0
+      max: 4.3.0
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.1.0
-
+      max: 1.1.1
 - integration_name: litellm
   is_external_package: true
   is_tested: true
@@ -596,7 +541,6 @@ integrations:
     litellm:
       min: 1.65.4
       max: 1.80.16
-
 - integration_name: llama_index
   is_external_package: true
   is_tested: true
@@ -614,7 +558,6 @@ integrations:
     llama_index:
       min: 0.11.23
       max: 0.14.25
-
 - integration_name: logbook
   is_external_package: true
   is_tested: true
@@ -624,11 +567,9 @@ integrations:
     logbook:
       min: 1.0.0
       max: 1.10.1
-
 - integration_name: logging
   is_external_package: false
   is_tested: true
-
 - integration_name: loguru
   is_external_package: true
   is_tested: true
@@ -638,7 +579,6 @@ integrations:
     loguru:
       min: 0.4.1
       max: 0.7.3
-
 - integration_name: mako
   is_external_package: true
   is_tested: true
@@ -648,7 +588,6 @@ integrations:
     mako:
       min: 1.0.14
       max: 1.4.3
-
 - integration_name: mariadb
   is_external_package: true
   is_tested: true
@@ -658,7 +597,6 @@ integrations:
     mariadb:
       min: 1.0.11
       max: 1.1.14
-
 - integration_name: mcp
   is_external_package: true
   is_tested: true
@@ -668,7 +606,6 @@ integrations:
     mcp:
       min: 1.10.1
       max: 1.28.1
-
 - integration_name: mistralai
   is_external_package: true
   is_tested: true
@@ -678,7 +615,6 @@ integrations:
     mistralai:
       min: 2.0.5
       max: 2.10.1
-
 - integration_name: mlflow
   is_external_package: true
   is_tested: true
@@ -696,7 +632,6 @@ integrations:
     mlflow-tracing:
       min: 3.17.0
       max: 3.17.0
-
 - integration_name: molten
   is_external_package: true
   is_tested: true
@@ -706,7 +641,6 @@ integrations:
     molten:
       min: 1.0.2
       max: 1.0.2
-
 - integration_name: mysql
   is_external_package: true
   is_tested: true
@@ -716,7 +650,6 @@ integrations:
     mysql-connector-python:
       min: 8.0.33
       max: 26.7.0
-
 - integration_name: mysqldb
   is_external_package: true
   is_tested: true
@@ -726,7 +659,6 @@ integrations:
     mysqlclient:
       min: 2.2.1
       max: 2.2.6
-
 - integration_name: openai
   is_external_package: true
   is_tested: true
@@ -736,7 +668,6 @@ integrations:
     openai:
       min: 1.0.0
       max: 3.29.0
-
 - integration_name: openai_agents
   is_external_package: true
   is_tested: true
@@ -746,7 +677,6 @@ integrations:
     openai-agents:
       min: 0.0.16
       max: 0.22.3
-
 - integration_name: protobuf
   is_external_package: true
   is_tested: true
@@ -756,7 +686,6 @@ integrations:
     protobuf:
       min: 6.33.6
       max: 7.36.2
-
 - integration_name: psycopg
   is_external_package: true
   is_tested: true
@@ -770,7 +699,6 @@ integrations:
     psycopg2-binary:
       min: 2.9.10
       max: 2.9.13
-
 - integration_name: pydantic_ai
   is_external_package: true
   is_tested: true
@@ -780,7 +708,6 @@ integrations:
     pydantic-ai-slim:
       min: 0.8.1
       max: 1.63.0
-
 - integration_name: pylibmc
   is_external_package: true
   is_tested: true
@@ -790,7 +717,6 @@ integrations:
     pylibmc:
       min: 1.6.3
       max: 1.6.3
-
 - integration_name: pymemcache
   is_external_package: true
   is_tested: true
@@ -800,7 +726,6 @@ integrations:
     pymemcache:
       min: 3.4.4
       max: 4.0.0
-
 - integration_name: pymongo
   is_external_package: true
   is_tested: true
@@ -810,7 +735,6 @@ integrations:
     pymongo:
       min: 3.8.0
       max: 4.18.3
-
 - integration_name: pymysql
   is_external_package: true
   is_tested: true
@@ -820,7 +744,6 @@ integrations:
     pymysql:
       min: 0.10.1
       max: 1.2.3
-
 - integration_name: pynamodb
   is_external_package: true
   is_tested: true
@@ -830,7 +753,6 @@ integrations:
     pynamodb:
       min: 5.5.1
       max: 5.5.1
-
 - integration_name: pyodbc
   is_external_package: true
   is_tested: true
@@ -840,7 +762,6 @@ integrations:
     pyodbc:
       min: 4.0.39
       max: 5.3.0
-
 - integration_name: pyramid
   is_external_package: true
   is_tested: true
@@ -850,7 +771,6 @@ integrations:
     pyramid:
       min: 1.10.8
       max: 2.1.0
-
 - integration_name: pytest
   is_external_package: true
   is_tested: true
@@ -860,7 +780,6 @@ integrations:
     pytest:
       min: 6.2.5
       max: 9.1.1
-
 - integration_name: pytest_bdd
   is_external_package: true
   is_tested: true
@@ -870,13 +789,11 @@ integrations:
     pytest-bdd:
       min: 4.1.0
       max: 6.0.1
-
 - integration_name: pytest_benchmark
   is_external_package: true
   is_tested: false
   dependency_names:
   - pytest_benchmark
-
 - integration_name: pytorch
   is_external_package: true
   is_tested: true
@@ -886,7 +803,6 @@ integrations:
     torch:
       min: 2.0.1
       max: 2.14.0
-
 - integration_name: ray
   is_external_package: true
   is_tested: false
@@ -896,7 +812,6 @@ integrations:
     ray:
       min: 2.46.0
       max: 2.54.1
-
 - integration_name: ray_serve
   is_external_package: true
   is_tested: true
@@ -906,7 +821,6 @@ integrations:
     ray:
       min: 2.47.1
       max: 2.54.1
-
 - integration_name: redis
   is_external_package: true
   is_tested: true
@@ -915,8 +829,7 @@ integrations:
   tested_versions_by_dependency:
     redis:
       min: 4.6.0
-      max: 6.4.0
-
+      max: 8.1.0
 - integration_name: rediscluster
   is_external_package: true
   is_tested: true
@@ -926,7 +839,6 @@ integrations:
     redis-py-cluster:
       min: 2.0.0
       max: 2.1.3
-
 - integration_name: requests
   is_external_package: true
   is_tested: true
@@ -936,7 +848,6 @@ integrations:
     requests:
       min: 2.25.1
       max: 2.34.2
-
 - integration_name: rq
   is_external_package: true
   is_tested: true
@@ -946,7 +857,6 @@ integrations:
     rq:
       min: 1.8.1
       max: 2.12.0
-
 - integration_name: sanic
   is_external_package: true
   is_tested: true
@@ -956,13 +866,11 @@ integrations:
     sanic:
       min: 20.12.7
       max: 25.12.1
-
 - integration_name: selenium
   is_external_package: true
   is_tested: false
   dependency_names:
   - selenium
-
 - integration_name: snowflake
   is_external_package: true
   is_tested: true
@@ -972,7 +880,6 @@ integrations:
     snowflake-connector-python:
       min: 2.4.6
       max: 4.0.0
-
 - integration_name: sqlalchemy
   is_external_package: true
   is_tested: true
@@ -982,11 +889,9 @@ integrations:
     sqlalchemy:
       min: 1.3.24
       max: 2.1.4
-
 - integration_name: sqlite3
   is_external_package: false
   is_tested: true
-
 - integration_name: starlette
   is_external_package: true
   is_tested: true
@@ -996,7 +901,6 @@ integrations:
     starlette:
       min: 0.14.2
       max: 1.8.0
-
 - integration_name: structlog
   is_external_package: true
   is_tested: true
@@ -1006,11 +910,9 @@ integrations:
     structlog:
       min: 20.2.0
       max: 26.1.0
-
 - integration_name: subprocess
   is_external_package: false
   is_tested: true
-
 - integration_name: tornado
   is_external_package: true
   is_tested: true
@@ -1020,7 +922,6 @@ integrations:
     tornado:
       min: 6.1.0
       max: 6.5.1
-
 - integration_name: trio
   is_external_package: true
   is_tested: true
@@ -1030,15 +931,12 @@ integrations:
     trio:
       min: 0.21.0
       max: 0.34.0
-
 - integration_name: unittest
   is_external_package: false
   is_tested: true
-
 - integration_name: urllib
   is_external_package: false
   is_tested: true
-
 - integration_name: urllib3
   is_external_package: true
   is_tested: true
@@ -1048,7 +946,6 @@ integrations:
     urllib3:
       min: 1.25.8
       max: 2.8.0
-
 - integration_name: valkey
   is_external_package: true
   is_tested: true
@@ -1058,7 +955,6 @@ integrations:
     valkey:
       min: 6.0.2
       max: 6.1.1
-
 - integration_name: vertexai
   is_external_package: true
   is_tested: true
@@ -1072,7 +968,6 @@ integrations:
     vertexai:
       min: 1.71.1
       max: 1.71.1
-
 - integration_name: vertica
   is_external_package: true
   is_tested: true
@@ -1082,7 +977,6 @@ integrations:
     vertica-python:
       min: 0.6.14
       max: 0.7.4
-
 - integration_name: vllm
   is_external_package: true
   is_tested: true
@@ -1092,15 +986,12 @@ integrations:
     vllm:
       min: 0.10.2
       max: 0.27.1
-
 - integration_name: webbrowser
   is_external_package: false
   is_tested: true
-
 - integration_name: wsgi
   is_external_package: false
   is_tested: true
-
 - integration_name: yaaredis
   is_external_package: true
   is_tested: true
