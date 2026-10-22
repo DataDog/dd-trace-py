@@ -1,7 +1,8 @@
 variables:
-  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v134534459-a190793-testrunner@sha256:d0d692805509330d068d544d6e15182428ff87984ba8de4c0f863edc1aa30170
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v146133718-fc07212-testrunner@sha256:89e0c0087aacecd42805ad9547434bf115d1ab019aab8fe007b86609e8d64f20
 
 .testrunner:
+  extends: .retry_on_infrastructure_failure
   image:
     name: ${TESTRUNNER_IMAGE}
     docker:
@@ -12,13 +13,10 @@ variables:
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
-    # 3.15 ships as "3.15-dev", but its executable is still python3.15.
-    # TODO(vlad): Drop the -dev suffix once the testrunner image installs GA 3.15.
-    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
+    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh
-  retry: 0
   variables:
     # Default to 4 when `-n auto` is used
     # DEV: auto/logical doesn't work well in k8s so we manually set it

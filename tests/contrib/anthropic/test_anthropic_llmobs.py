@@ -26,6 +26,8 @@ from tests.llmobs._utils import next_stream
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
+WEB_SEARCH_PROMPT = "Use web search to find the latest released version of the Python package requests on PyPI."
+WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
 WEATHER_OUTPUT_MESSAGE_1 = '<thinking>\nThe get_weather tool is directly relevant for answering this \
 question about the weather in a specific location. \n\nThe get_weather tool requires a "location" \
 parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
@@ -422,6 +424,40 @@ class TestLLMObsAnthropic:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "google"
+
+    def test_completion_web_search(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
+        """web_search_count is read from usage.server_tool_use.web_search_requests."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_web_search.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+                tools=[WEB_SEARCH_TOOL],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
+        assert metrics["web_search_count"] == 1
+        # Web fetch has no per-call price, so it is not recorded.
+        assert not any("fetch" in key for key in metrics)
+
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_completion_web_search_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
+        """Streamed usage keeps server_tool_use from the final message_delta event."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_web_search_stream.yaml"):
+            stream = llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": WEB_SEARCH_PROMPT}],
+                tools=[WEB_SEARCH_TOOL],
+                stream=True,
+            )
+            consume_stream(stream)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["metrics"]["web_search_count"] == 1
 
     def test_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -2003,6 +2039,7 @@ def test_shadow_tags_chat_when_llmobs_disabled(tracer):
     response.usage.output_tokens = 8
     response.usage.cache_creation_input_tokens = None
     response.usage.cache_read_input_tokens = None
+    response.usage.server_tool_use = None
 
     with tracer.trace("anthropic.request") as span:
         span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
@@ -2030,6 +2067,7 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
     response.usage.output_tokens = 8
     response.usage.cache_creation_input_tokens = 5
     response.usage.cache_read_input_tokens = 3
+    response.usage.server_tool_use = None
 
     with tracer.trace("anthropic.request") as span:
         span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")

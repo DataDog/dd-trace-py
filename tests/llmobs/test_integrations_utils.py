@@ -1,4 +1,5 @@
 import base64
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -8,7 +9,10 @@ from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_FRAMEWORK_NAME
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_MANIFEST_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
+from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import prune_empty
 from ddtrace.llmobs._integrations.agent_manifest import wire_value
@@ -30,9 +34,11 @@ from ddtrace.llmobs._integrations.utils import _inline_image_budget
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_messages
+from ddtrace.llmobs._integrations.utils import capture_plain_text_tool_usage
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
+from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
@@ -496,6 +502,75 @@ def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
     tool_results = input_messages[0].get("tool_results", [])
     assert len(tool_results) == 1
     assert tool_results[0]["result"] == "from-input"
+
+
+@pytest.mark.parametrize(
+    "content,expected_name,expected_arguments,expected_observation",
+    [
+        ("Action: search\nAction Input: weather", "search", {"value": "weather"}, None),
+        (
+            'Thought: look it up\nAction: **search**\nAction Input: `{"q": "paris"}`\nObservation: sunny',
+            "search",
+            {"q": "paris"},
+            "sunny",
+        ),
+        ('Action 1: calc\nAction 1 Input 1: "2+2"\nObservation: 4', "calc", {"value": "2+2"}, "4"),
+        ("Action:  search \n\n Action Input:\n  weather\nObservation: done", "search", {"value": "weather"}, "done"),
+        (
+            "Action: first\nAction Input: a\nObservation: 1\nAction: second\nAction Input: b",
+            "first",
+            {"value": "a"},
+            "1\nAction: second\nAction Input: b",
+        ),
+    ],
+)
+def test_capture_plain_text_tool_usage_parses_react_content(
+    tracer, content, expected_name, expected_arguments, expected_observation
+):
+    tool_calls, tool_results = [], []
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        capture_plain_text_tool_usage(tool_calls, tool_results, content, span, is_input=True)
+
+    assert [(call["name"], call["arguments"]) for call in tool_calls] == [(expected_name, expected_arguments)]
+    assert [result["result"] for result in tool_results] == ([expected_observation] if expected_observation else [])
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Action: search but no input",
+        "Action Input: weather",
+        "no markers at all",
+    ],
+)
+def test_capture_plain_text_tool_usage_ignores_non_react_content(tracer, content):
+    tool_calls, tool_results = [], []
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        capture_plain_text_tool_usage(tool_calls, tool_results, content, span, is_input=True)
+
+    assert tool_calls == []
+    assert tool_results == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Action:" + " " * 3_000,
+        "Action:" + "\n" * 3_000 + "x",
+        "Action: " * 5_000,
+        "Action" + " " * 60_000,
+    ],
+    ids=["action-colon-spaces", "action-colon-newlines-text", "repeated-action-colon", "action-spaces"],
+)
+def test_capture_plain_text_tool_usage_stays_fast_on_crafted_content(tracer, content):
+    tool_calls, tool_results = [], []
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        start = time.monotonic()
+        capture_plain_text_tool_usage(tool_calls, tool_results, content, span, is_input=True)
+        elapsed = time.monotonic() - start
+
+    assert tool_calls == []
+    assert elapsed < 1.0
 
 
 def _chat_choice(finish_reason, content="hi"):
@@ -1339,6 +1414,300 @@ class TestAgentManifestPrimitives:
         }
 
 
+class TestManualAgentManifest:
+    """The manifest a caller declares by hand: what is reported and what is refused."""
+
+    def test_declared_configuration_is_reported(self):
+        manifest = build_manual_agent_manifest(
+            {
+                "version": "v1",
+                "name": "travel_desk",
+                "instructions": "Book travel.",
+                "model": "gpt-4o",
+                "model_settings": {"temperature": 0.1, "max_tokens": 1024, "top_p": 0.85},
+                "tools": [
+                    {
+                        "name": "get_weather",
+                        "description": "Look up the weather.",
+                        "parameters": {"city": {"type": "string", "required": True}},
+                    }
+                ],
+            }
+        )
+
+        assert manifest == {
+            "framework": MANUAL_FRAMEWORK_NAME,
+            "name": "travel_desk",
+            "instructions": "Book travel.",
+            "model": "gpt-4o",
+            "model_settings": {"temperature": 0.1, "max_tokens": 1024, "top_p": 0.85},
+            "tools": [
+                {
+                    "name": "get_weather",
+                    "description": "Look up the weather.",
+                    "parameters": {"city": {"type": "string", "required": True}},
+                }
+            ],
+        }
+        assert "version" not in manifest, "version identifies the agent as a tag, not as manifest content"
+
+    def test_a_single_declared_field_is_enough(self):
+        """Every key is optional, so a partial declaration reports what it has rather than nothing."""
+        assert build_manual_agent_manifest({"instructions": "Be brief."}) == {
+            "framework": MANUAL_FRAMEWORK_NAME,
+            "instructions": "Be brief.",
+        }
+
+    def test_caller_supplied_framework_is_not_read(self):
+        """framework names where the document came from, so the SDK owns it."""
+        assert build_manual_agent_manifest({"framework": "TotallyRealFramework", "name": "a"}) == {
+            "framework": MANUAL_FRAMEWORK_NAME,
+            "name": "a",
+        }
+
+    @pytest.mark.parametrize("agent", [{}, {"version": "v1"}, "not_a_dict", 42, None, []])
+    def test_nothing_declared_reports_no_manifest(self, agent):
+        """framework alone would render an empty manifest panel, so it does not ship on its own."""
+        assert build_manual_agent_manifest(agent) == {}
+
+    def test_non_string_labels_are_dropped_not_repred(self):
+        """A repr can carry whatever the object holds, so a non-str is dropped, not repr'd."""
+
+        class Connection:
+            def __repr__(self):
+                return "postgres://user:hunter2@db.internal/prod"
+
+        manifest = build_manual_agent_manifest(
+            {"name": Connection(), "instructions": Connection(), "model": Connection()}
+        )
+
+        assert manifest == {}
+        assert "hunter2" not in safe_json(manifest)
+
+    def test_model_settings_outside_the_allowlist_are_dropped(self):
+        """model_settings is the one field whose key set the caller controls."""
+        manifest = build_manual_agent_manifest(
+            {"model_settings": {"temperature": 0.2, "api_key": "sk-secret", "extra_headers": {"x": "y"}}}
+        )
+
+        assert manifest["model_settings"] == {"temperature": 0.2}
+        assert "sk-secret" not in safe_json(manifest)
+
+    def test_model_settings_nested_values_are_dropped(self):
+        """No allowlisted setting nests in its declared type, so a nested one should not arrive."""
+        manifest = build_manual_agent_manifest(
+            {"model_settings": {"temperature": 0.2, "tool_choice": {"function": {"name": "x"}}}}
+        )
+
+        assert manifest["model_settings"] == {"temperature": 0.2}
+
+    def test_model_settings_keeps_zero_and_false(self):
+        """A configured temperature of 0 is not an absent one, which truthiness filtering loses."""
+        manifest = build_manual_agent_manifest(
+            {"model_settings": {"temperature": 0, "parallel_tool_calls": False, "stop_sequences": ["\n"]}}
+        )
+
+        assert manifest["model_settings"] == {
+            "temperature": 0,
+            "parallel_tool_calls": False,
+            "stop_sequences": ["\n"],
+        }
+
+    @pytest.mark.parametrize("tools", [{"name": "x"}, "get_weather", 7])
+    def test_tools_that_are_not_a_list_are_dropped(self, tools):
+        manifest = build_manual_agent_manifest({"name": "a", "tools": tools})
+
+        assert "tools" not in manifest
+        assert manifest["name"] == "a", "one malformed section must not blank the rest"
+
+    def test_unnamed_tools_are_dropped(self):
+        """A tool the manifest cannot name is not identifiable once it ships."""
+        manifest = build_manual_agent_manifest(
+            {"tools": [{"description": "no name"}, {"name": ""}, {"name": 42}, "not_a_dict", {"name": "kept"}]}
+        )
+
+        assert manifest["tools"] == [{"name": "kept"}]
+
+    def test_tool_required_is_omitted_when_false(self):
+        """Optional is the default, so only a required parameter carries the key."""
+        manifest = build_manual_agent_manifest(
+            {
+                "tools": [
+                    {
+                        "name": "book",
+                        "parameters": {
+                            "city": {"type": "string", "required": True},
+                            "when": {"type": "string", "required": False},
+                            "note": {"type": "string"},
+                        },
+                    }
+                ]
+            }
+        )
+
+        assert manifest["tools"] == [
+            {
+                "name": "book",
+                "parameters": {
+                    "city": {"type": "string", "required": True},
+                    "when": {"type": "string"},
+                    "note": {"type": "string"},
+                },
+            }
+        ]
+
+    def test_tool_parameter_type_is_string_only(self):
+        """wire_value coerces rather than drops, so an ungated type would ship a nested mapping."""
+        manifest = build_manual_agent_manifest(
+            {
+                "tools": [
+                    {
+                        "name": "book",
+                        "parameters": {
+                            "city": {"type": "string"},
+                            "count": {"type": 123},
+                            "blob": {"type": {"secret": "hunter2"}},
+                            "flag": {"type": True, "required": True},
+                        },
+                    }
+                ]
+            }
+        )
+
+        assert manifest["tools"] == [
+            {"name": "book", "parameters": {"city": {"type": "string"}, "flag": {"required": True}}}
+        ]
+        assert "hunter2" not in safe_json(manifest)
+
+    def test_tool_parameters_accept_a_json_schema(self):
+        """The shape an OpenAI, Gemini or MCP tool definition carries, flattened like the
+        integrations already flatten it, rather than reported as a tool with no parameters.
+        """
+        manifest = build_manual_agent_manifest(
+            {
+                "tools": [
+                    {
+                        "name": "book",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"city": {"type": "string"}, "note": {"type": "string"}},
+                            "required": ["city"],
+                        },
+                    }
+                ]
+            }
+        )
+
+        assert manifest["tools"] == [
+            {"name": "book", "parameters": {"city": {"type": "string", "required": True}, "note": {"type": "string"}}}
+        ]
+
+    def test_tool_parameters_accept_a_json_schema_without_required(self):
+        """type: object alone marks a schema, so all-optional parameters still flatten."""
+        manifest = build_manual_agent_manifest(
+            {"tools": [{"name": "book", "parameters": {"type": "object", "properties": {"city": {"type": "string"}}}}]}
+        )
+
+        assert manifest["tools"] == [{"name": "book", "parameters": {"city": {"type": "string"}}}]
+
+    def test_a_parameter_named_properties_is_not_read_as_a_schema(self):
+        """Two markers, not properties alone, so the documented mapping keeps working."""
+        manifest = build_manual_agent_manifest(
+            {"tools": [{"name": "book", "parameters": {"properties": {"type": "string", "required": True}}}]}
+        )
+
+        assert manifest["tools"] == [
+            {"name": "book", "parameters": {"properties": {"type": "string", "required": True}}}
+        ]
+
+    def test_tool_parameters_that_cannot_ship_are_dropped(self):
+        """An unencodable value does not fail politely: the encoder reprs it into the payload."""
+        manifest = build_manual_agent_manifest(
+            {"tools": [{"name": "book", "description": object(), "parameters": {"city": {"type": object()}}}]}
+        )
+
+        assert manifest["tools"] == [{"name": "book"}]
+
+    def test_manual_manifest_keys_match_the_builder(self):
+        """A key a section reads but this set omits would silently stop being reported."""
+        declared = {
+            "name": "travel_desk",
+            "instructions": "Book travel.",
+            "model": "gpt-4o",
+            "model_settings": {"temperature": 0.1},
+            "tools": [{"name": "get_weather"}],
+        }
+
+        assert set(declared) == set(MANUAL_MANIFEST_KEYS)
+        for key, value in declared.items():
+            assert build_manual_agent_manifest({key: value}), f"{key} is in the key set but reports nothing"
+        assert build_manual_agent_manifest({"version": "v1", "framework": "X"}) == {}
+
+    def test_a_malformed_section_costs_only_that_section(self):
+        """An escaping error would cost the whole span event, not just the manifest."""
+
+        class ExplodingSettings(dict):
+            def items(self):
+                raise RuntimeError("boom")
+
+        manifest = build_manual_agent_manifest({"name": "travel_desk", "model_settings": ExplodingSettings(a=1)})
+
+        assert manifest == {"framework": MANUAL_FRAMEWORK_NAME, "name": "travel_desk"}
+
+    def test_malformed_model_settings_does_not_drop_valid_model(self):
+        """model and model_settings are independent sections; a bad settings dict must not discard
+        a valid model string that was already validated before the settings loop ran.
+        """
+
+        class ExplodingSettings(dict):
+            def items(self):
+                raise RuntimeError("boom")
+
+        manifest = build_manual_agent_manifest({"model": "gpt-4o", "model_settings": ExplodingSettings(a=1)})
+
+        assert manifest["model"] == "gpt-4o", "valid model must survive a malformed model_settings"
+        assert "model_settings" not in manifest
+
+    def test_non_string_tool_parameter_names_are_dropped(self):
+        """Non-string parameter names are dropped rather than coerced via str(), which would invoke
+        __repr__ and can serialize secrets embedded in a custom object's string representation.
+        """
+
+        class CredentialKey:
+            def __repr__(self):
+                return "api_key=sk-secret"
+
+            def __str__(self):
+                return "api_key=sk-secret"
+
+        manifest = build_manual_agent_manifest(
+            {
+                "tools": [
+                    {
+                        "name": "book",
+                        "parameters": {
+                            "city": {"type": "string"},
+                            CredentialKey(): {"type": "string"},
+                            42: {"type": "string"},
+                        },
+                    }
+                ]
+            }
+        )
+
+        assert manifest["tools"] == [{"name": "book", "parameters": {"city": {"type": "string"}}}]
+        assert "sk-secret" not in safe_json(manifest)
+
+    def test_tools_key_absent_when_all_entries_are_invalid(self):
+        """When every tool entry fails validation the tools key must be absent, not null."""
+        manifest = build_manual_agent_manifest(
+            {"name": "a", "tools": [{"description": "no name"}, "not_a_dict", {"name": ""}]}
+        )
+
+        assert "tools" not in manifest
+        assert manifest["name"] == "a", "other fields must survive"
+
+
 class TestAnthropicContentBlocks:
     """Anthropic Messages responses are a list of tagged content blocks.
 
@@ -1619,3 +1988,92 @@ class TestAnthropicToolDefinitions:
         assert get_tool_definitions_from_anthropic_tools(tools) == [
             {"name": "deferred", "description": "", "schema": {}}
         ]
+
+
+def _web_search_call(status="completed", action_type="search"):
+    return {"type": "web_search_call", "id": "ws_1", "status": status, "action": {"type": action_type}}
+
+
+def _file_search_call(status="completed", queries=("company holiday policy",)):
+    return {"type": "file_search_call", "id": "fs_1", "status": status, "queries": list(queries), "results": None}
+
+
+_MESSAGE_ITEM = {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "hi"}]}
+
+
+class TestOpenAIServerToolUsageMetrics:
+    """Server-side web/file search calls are counted from tool_usage or the Responses output array."""
+
+    def test_no_tool_calls_omits_metrics(self):
+        assert get_openai_server_tool_usage_metrics({"output": [_MESSAGE_ITEM]}) == {}
+        assert get_openai_server_tool_usage_metrics({"output": []}) == {}
+        assert get_openai_server_tool_usage_metrics({}) == {}
+        assert get_openai_server_tool_usage_metrics(None) == {}
+
+    def test_chat_completion_has_no_output(self):
+        assert get_openai_server_tool_usage_metrics({"choices": [{"message": {"content": "hi"}}]}) == {}
+
+    def test_both_tools_interleaved_with_messages(self):
+        # Observed real-world order: tool calls are not grouped ahead of the messages.
+        resp = {"output": [_web_search_call(), _MESSAGE_ITEM, _file_search_call(), _MESSAGE_ITEM]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1, "storage_search_count": 1}
+
+    def test_only_search_actions_counted(self):
+        # Only search actions incur a tool call cost; reasoning models' open_page / find_in_page
+        # steps are free. Observed: 2 search + 3 open_page reported tool_usage num_requests=2.
+        resp = {
+            "output": [
+                _web_search_call(action_type="search"),
+                _web_search_call(action_type="open_page"),
+                _web_search_call(action_type="open_page"),
+                _web_search_call(action_type="find_in_page"),
+                _web_search_call(action_type="search"),
+            ]
+        }
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 2}
+
+    def test_only_non_search_actions_omits_metric(self):
+        resp = {"output": [_web_search_call(action_type="open_page"), _web_search_call(action_type="find_in_page")]}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    def test_web_search_without_action_counted(self):
+        resp = {"output": [{"type": "web_search_call", "id": "ws_1", "status": "completed"}]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}
+
+    def test_multiple_queries_count_as_one_call(self):
+        resp = {"output": [_file_search_call(queries=("a", "b", "c"))]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"storage_search_count": 1}
+
+    @pytest.mark.parametrize("status", ["in_progress", "searching", "incomplete", "failed", None])
+    def test_non_completed_not_counted(self, status):
+        resp = {"output": [_web_search_call(status=status), _file_search_call(status=status)]}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    def test_sdk_response_objects(self):
+        # _get_attr reads both dicts and SDK model attributes.
+        resp = SimpleNamespace(
+            output=[
+                SimpleNamespace(type="web_search_call", status="completed"),
+                SimpleNamespace(type="message", status="completed"),
+                SimpleNamespace(type="file_search_call", status="completed"),
+            ]
+        )
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1, "storage_search_count": 1}
+
+    def test_tool_usage_web_search_takes_precedence(self):
+        resp = {
+            "output": [_web_search_call(), _file_search_call()],
+            "tool_usage": {"image_gen": {"total_tokens": 0}, "web_search": {"num_requests": 3}},
+        }
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 3, "storage_search_count": 1}
+
+    def test_tool_usage_zero_web_search_omits_metric(self):
+        resp = {"output": [_web_search_call()], "tool_usage": {"web_search": {"num_requests": 0}}}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    @pytest.mark.parametrize(
+        "tool_usage", [None, {}, {"image_gen": {"total_tokens": 0}}, {"web_search": {}}, {"web_search": None}]
+    )
+    def test_tool_usage_without_web_search_count_falls_back(self, tool_usage):
+        resp = {"output": [_web_search_call(), _web_search_call(action_type="open_page")], "tool_usage": tool_usage}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}

@@ -4,10 +4,15 @@ stages:
   - exploration
 
 variables:
+  POSTGRES_IMAGE: registry.ddbuild.io/images/mirror/postgres:12-alpine
   REPO_LANG: python # "python" is used everywhere rather than "py"
   # CI_DEBUG_SERVICES: "true"
 
 include:
+  - local: ".gitlab/retry-policies.yml"
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 
@@ -80,12 +85,14 @@ extract_test_artifacts:
         echo "No test environments found for ${TEST_SUITE}"
         exit 1
       fi
+      # Use one run-tests process for the shard because each run-tests start parses every suitespec file.
+      venv_args=()
       for environment_hash in "${environment_hashes[@]}"
       do
-        echo "Running test environment: ${environment_hash}"
-        scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
+        venv_args+=(--venv "${environment_hash}")
       done
-      ./scripts/check-diff ".riot/requirements/" \
+      scripts/run-tests "${venv_args[@]}" -- --ddtrace
+      ./scripts/check-diff "tests/requirements_locks/" \
         "Changes detected in test dependency locks. Run scripts/test-requirements lock and commit the result."
       ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
         "Registry YAML file was modified. Run scripts/integration_registry/update_and_format_registry.py and commit the result."

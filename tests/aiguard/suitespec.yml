@@ -18,13 +18,10 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/api/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_api
           dependencies: [requests]
   ai_guard_langchain:
-    venvs_per_job: 10
     paths:
       - '@bootstrap'
       - '@core'
@@ -38,8 +35,6 @@ suites:
       - testagent
     matrix:
       command: pytest {cmdargs} tests/aiguard/langchain/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_langchain
           python: ['3.9', '3.10', '3.11']
@@ -51,7 +46,6 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.23.7', langchain, langchain-core, langchain-openai, openai]
   ai_guard_openai:
-    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@core'
@@ -64,8 +58,6 @@ suites:
       - testagent
     matrix:
       command: pytest {cmdargs} tests/aiguard/openai/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_openai
           python: ['3.9', '3.10', '3.11', '3.12']
@@ -74,7 +66,8 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.23.7', 'openai==1.102.0']
         - name: ai_guard_openai
-          dependencies: ['pytest-asyncio==0.23.7', openai]
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: ['pytest-asyncio==0.23.7', 'openai<3']
   ai_guard_anthropic:
     paths:
       - '@bootstrap'
@@ -88,13 +81,13 @@ suites:
       - testagent
     matrix:
       command: pytest {cmdargs} tests/aiguard/anthropic/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_anthropic
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.23.7', pyyaml, 'anthropic==0.28.0', 'httpx~=0.27.0']
         - name: ai_guard_anthropic
-          dependencies: ['pytest-asyncio==0.23.7', pyyaml, anthropic, 'httpx<0.28.0']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: ['pytest-asyncio==0.23.7', pyyaml, 'anthropic<1', 'httpx<0.28.0']
   ai_guard_strands:
     paths:
       - '@bootstrap'
@@ -107,14 +100,11 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/strands_hooks/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
-      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: ai_guard_strands
           dependencies: ['strands-agents>=1.29.0']
   ai_guard_litellm_guardrail:
-    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -126,8 +116,6 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_litellm_guardrail
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']

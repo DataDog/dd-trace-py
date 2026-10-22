@@ -21,7 +21,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        pytest -v --capture=no
         --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py'
         {cmdargs} tests/profiling
       env:
@@ -30,6 +30,9 @@ suites:
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # The suite has more environments than jobs, so some jobs build two.
+        UV_NO_CACHE: '1'
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
@@ -71,8 +74,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
-        {cmdargs} tests/profiling/test_uwsgi.py
+        pytest -v --capture=no {cmdargs} tests/profiling/test_uwsgi.py
       env:
         CPUCOUNT: '12'
         DD_CIVISIBILITY_ITR_ENABLED: 'false'
@@ -99,7 +101,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        pytest -v --capture=no --benchmark-disable
         {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
       env:
         CPUCOUNT: '12'

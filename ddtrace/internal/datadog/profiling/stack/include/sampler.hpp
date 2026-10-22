@@ -138,6 +138,7 @@ class Sampler
     std::atomic<uint64_t> greenlet_native_id_generation_{ 0 };
 
     void atfork_child();
+    void register_current_thread_if_missing();
     friend void stack_atfork_prepare();
     friend void stack_atfork_parent();
     friend void stack_atfork_child();
@@ -153,6 +154,7 @@ class Sampler
     void stop();
     PauseResult pause();
     void resume();
+    void register_fork_cleanup();
     void register_thread(uint64_t id, uint64_t native_id, const char* name, PyThreadState* tstate = nullptr);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
