@@ -52,17 +52,15 @@ class MetricSample(LogSignal):
             value = 1.0
         else:
             try:
-                value = float(probe.value(scope))
-            except (DDExpressionEvaluationError, TypeError, ValueError) as e:
-                # Report like a condition error: escaping here drops the failure silently.
-                if isinstance(e, DDExpressionEvaluationError):
-                    self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
-                else:
-                    self.errors.append(EvaluationError(expr=probe.value.dsl, message=f"Value is not a number: {e}"))
-                if cast(ProbeConditionMixin, self.probe).condition_error_limiter.limit() is RateLimitExceeded:
-                    self.state = SignalState.SKIP_COND_ERROR
-                else:
-                    self.state = SignalState.COND_ERROR
+                raw = probe.value(scope)
+            except DDExpressionEvaluationError as e:
+                self._value_error(e.dsl, e.error)
+                return
+            try:
+                value = float(raw)
+            except (TypeError, ValueError, OverflowError):
+                # Name only the type: the value itself may be sensitive and has not been redacted.
+                self._value_error(probe.value.dsl, f"Value is not a number: {type(raw).__name__}")
                 return
 
         # TODO[perf]: We know the tags in advance so we can avoid the
@@ -75,6 +73,14 @@ class MetricSample(LogSignal):
             self.meter.histogram(probe.name, value, tags)
         elif probe.kind == MetricProbeKind.DISTRIBUTION:
             self.meter.distribution(probe.name, value, tags)
+
+    def _value_error(self, expr: str, message: str) -> None:
+        # Report like a condition error: escaping the signal drops the failure silently.
+        self.errors.append(EvaluationError(expr=expr, message=message))
+        if cast(ProbeConditionMixin, self.probe).condition_error_limiter.limit() is RateLimitExceeded:
+            self.state = SignalState.SKIP_COND_ERROR
+        else:
+            self.state = SignalState.COND_ERROR
 
     @property
     def message(self) -> Optional[str]:

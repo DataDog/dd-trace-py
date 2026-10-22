@@ -762,18 +762,20 @@ def test_debugger_metric_function_probe_fires_once_not_twice(mock_metrics, stuff
 
 
 @pytest.mark.parametrize(
-    "value,message",
+    "value,arg,message",
     [
-        ({"getmember": [{"ref": "bar"}, "x"]}, "'dict' object has no attribute 'x'"),
-        ({"ref": "bar"}, "Value is not a number"),
+        ({"getmember": [{"ref": "bar"}, "x"]}, {"x": 420}, "'dict' object has no attribute 'x'"),
+        ({"ref": "bar"}, {"x": 420}, "Value is not a number: dict"),
+        ({"ref": "bar"}, "customer-secret", "Value is not a number: str"),
+        ({"ref": "bar"}, 10**400, "Value is not a number: int"),
     ],
 )
-def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, message):
+def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, arg, message):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, value))
 
         for _ in range(100):
-            stuff.Stuff().instancestuff({"x": 420})
+            stuff.Stuff().instancestuff(arg)
 
         (payload,) = d.uploader.wait_for_payloads()
 
@@ -783,7 +785,8 @@ def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, 
         assert SignalState.DONE not in d.signal_state_counter
         (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
         assert error["expr"] == "test"
-        assert message in error["message"]
+        assert error["message"] == message or message in error["message"]
+        assert "customer-secret" not in error["message"]
 
 
 def test_debugger_metric_function_probe_exit_value_error_reported(mock_metrics, stuff):
