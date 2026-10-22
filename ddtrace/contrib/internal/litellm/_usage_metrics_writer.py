@@ -8,6 +8,8 @@ protobuf ExportMetricsServiceRequest (delta temporality) or as DogStatsD lines.
 from __future__ import annotations
 
 from collections import deque
+import datetime
+import email.utils
 import errno
 import random
 import socket
@@ -107,11 +109,20 @@ def _parse_headers(raw: str) -> list[tuple[str, str]]:
 
 
 def _retry_after(value: Optional[str]) -> Optional[float]:
-    """The delay a Retry-After header asks for, in seconds. Only the delay-seconds form is read."""
-    try:
-        return max(float(value), 0.0) if value else None
-    except ValueError:
+    """The delay a Retry-After header asks for, in seconds, from its delay-seconds or its HTTP-date form."""
+    if not value:
         return None
+    try:
+        return max(float(value), 0.0)
+    except ValueError:
+        pass
+    try:
+        when = email.utils.parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if when.tzinfo is None:
+        return None
+    return max((when - datetime.datetime.now(datetime.timezone.utc)).total_seconds(), 0.0)
 
 
 def _timeout_ms() -> int:
@@ -250,6 +261,8 @@ class _DogStatsdSender:
         # Failed sends so far: each makes the next connection start at the next address the host resolves to.
         self._failed_sends = 0
         self._deadline: Optional[float] = None
+        # Set by the writer's close(), so that a send already in progress, which was given no deadline, stops too.
+        self._stop_deadline: Optional[float] = None
 
     def _connect(self) -> socket.socket:
         if self._socket is None:
@@ -290,6 +303,14 @@ class _DogStatsdSender:
         self._deadline = deadline
         self._send_lines([line.encode("utf-8") for line in lines])
 
+    def stop_by(self, deadline: Optional[float]) -> None:
+        """Make every send, the one in progress included, stop when deadline, a time.monotonic() value, passes."""
+        self._stop_deadline = deadline
+
+    def _past_deadline(self) -> bool:
+        now = time.monotonic()
+        return any(d is not None and now >= d for d in (self._deadline, self._stop_deadline))
+
     def _send_lines(self, lines: list[bytes]) -> None:
         packet: list[bytes] = []
         size = 0
@@ -312,13 +333,13 @@ class _DogStatsdSender:
         data = b"\n".join(packet)
         for attempt in range(_SEND_ATTEMPTS):
             # Checked before every attempt: a full buffer makes this loop wait between retries.
-            if self._deadline is not None and time.monotonic() >= self._deadline:
+            if self._past_deadline():
                 log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
                 return
             try:
                 sock = self._connect()
                 # Resolving the host name is not bounded by the socket timeout and can outlast the deadline.
-                if self._deadline is not None and time.monotonic() >= self._deadline:
+                if self._past_deadline():
                     log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
                     self.close()
                     return
@@ -409,8 +430,11 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         time.
         """
         deadline = self._shutdown_deadline = time.monotonic() + _SHUTDOWN_SECONDS
-        # A flush in progress stops retrying; the worker flushes once more as it stops.
+        # A flush in progress stops retrying, and a DogStatsD send in progress stops at the deadline; the worker
+        # flushes once more as it stops.
         self._stopping.set()
+        if self._dogstatsd is not None:
+            self._dogstatsd.stop_by(deadline)
         self.stop()
         self.join(max(deadline - time.monotonic(), 0.0))
         self.on_shutdown(deadline)
@@ -426,6 +450,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         if self._otlp is not None:
             self._otlp = _OtlpSender()
         if self._dogstatsd is not None:
+            self._dogstatsd.stop_by(None)
             self._dogstatsd.close()
 
     def flush(self, retry: bool = True, deadline: Optional[float] = None) -> None:

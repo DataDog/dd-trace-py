@@ -966,8 +966,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         try:
             request = self._proxy_request(kwargs)
             if request is not None:
-                request.attempts.append(_Attempt(kwargs))
-                _mark_current_span(ATTEMPT_PROFILES)
+                attempt = _Attempt(kwargs)
+                request.attempts.append(attempt)
+                # An attempt with no known operation or provider records nothing, so the backend still derives it.
+                if attempt.operation is not None and attempt.provider is not None:
+                    _mark_current_span(ATTEMPT_PROFILES)
         except Exception:
             log.debug("LiteLLM usage metrics: log_pre_api_call failed", exc_info=True)
 

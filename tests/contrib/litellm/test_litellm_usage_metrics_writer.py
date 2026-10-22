@@ -1,3 +1,5 @@
+import datetime
+import email.utils
 import errno
 import http.server
 import os
@@ -304,6 +306,13 @@ def test_retry_after_is_honored_up_to_a_bound(otlp_endpoint, sleeps):
     writer.record(PROVIDER_ATTEMPT, *observation())
     writer.flush()
     assert sleeps == [0.25, 5.0]
+
+
+def test_retry_after_reads_an_http_date():
+    later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=120)
+    assert 100 < _usage_metrics_writer._retry_after(email.utils.format_datetime(later, usegmt=True)) <= 120
+    assert _usage_metrics_writer._retry_after("Wed, 21 Oct 2015 07:28:00 GMT") == 0.0
+    assert _usage_metrics_writer._retry_after("soon") is None
 
 
 def test_pending_exports_are_bounded(otlp_endpoint, monkeypatch, sleeps):
@@ -703,6 +712,30 @@ def test_dogstatsd_stops_sending_at_the_shutdown_deadline(monkeypatch):
     writer.flush(deadline=time.monotonic() + 30)
     lines = [line for packet in receiver.stop() for line in packet.decode().split("\n")]
     assert lines and all("user.id:user-on-time" in line for line in lines)
+
+
+def test_a_dogstatsd_send_in_progress_stops_at_the_close_deadline(monkeypatch):
+    # A periodic flush, given no deadline, is sending when close() starts: it stops at close()'s deadline and does
+    # not open the socket again afterwards.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{sock.getsockname()[1]}")
+    receiver = Receiver(sock)
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    sender = writer._dogstatsd
+    sender._max_packet = 1
+    connect = sender._connect
+
+    def connect_then_close_starts():
+        connected = connect()
+        sender.stop_by(time.monotonic() - 1)
+        return connected
+
+    monkeypatch.setattr(sender, "_connect", connect_then_close_starts)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert receiver.stop() == []
+    assert sender._socket is None
 
 
 def test_dogstatsd_host_that_resolves_to_ipv6_only(monkeypatch):

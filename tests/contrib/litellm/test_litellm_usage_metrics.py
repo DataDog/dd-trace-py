@@ -368,6 +368,10 @@ def test_attempt_span_is_marked(logger):
     with tracer.trace("other") as other:
         proxy.attempt(0.1)
     assert other.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) is None
+    # An attempt with a provider the integration cannot name records nothing, so its span is left for the backend.
+    with tracer.trace("litellm.request", resource="acompletion") as unnamed:
+        proxy.attempt(0.2, provider="1custom")
+    assert unnamed.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) is None
 
 
 def test_a_proxy_router_span_is_marked_before_its_request_exists(logger, monkeypatch):
