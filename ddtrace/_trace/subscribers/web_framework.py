@@ -4,6 +4,9 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
+from ddtrace.contrib._events.http import HttpRequestDataEvent
+from ddtrace.contrib._events.http import HttpRequestPhase
+from ddtrace.contrib._events.http import HttpRequestSnapshot
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import http
@@ -15,13 +18,68 @@ from ddtrace.internal.span_bus import span_from_context
 log = get_logger(__name__)
 
 
-class WebFrameworkRequestSubscriber(TracingSubscriber):
-    """Shared tracing logic for web framework integrations."""
+class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
+    """Shared tracing lifecycle and HTTP snapshot hooks for web framework integrations.
+
+    Snapshot correlation and enrichment are placeholders. Existing integrations
+    continue to supply HTTP metadata through WebFrameworkRequestEvent.
+    """
 
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def register(cls) -> None:
+        super().register()
+        core.on(
+            HttpRequestDataEvent.event_name,
+            cls._on_http_data,
+            name=f"{cls.__name__}.http_data",
+        )
+
+    @classmethod
+    def unregister(cls) -> None:
+        core.reset_listeners(HttpRequestDataEvent.event_name, cls._on_http_data)
+        super().unregister()
+
+    @classmethod
+    def _on_http_data(cls, event: HttpRequestDataEvent) -> None:
+        snapshot = event.snapshot
+        ctx = cls._find_request_context(snapshot.request_id)
+        if ctx is None:
+            return
+
+        if snapshot.phase == HttpRequestPhase.ROUTE_RESOLVED:
+            cls.on_route_resolved(ctx, snapshot)
+        elif snapshot.phase == HttpRequestPhase.COMPLETED:
+            cls.on_completed(ctx, snapshot)
+
+    @classmethod
+    def _find_request_context(cls, request_id: str) -> Optional[core.ExecutionContext[WebFrameworkRequestEvent]]:
+        """Placeholder for resolving a request ID to its owning web request context.
+
+        Correlation must associate IDs with the owner, preserve ownership across
+        nested wrappers and tasks, and remove associations when requests end.
+        """
+        return None
+
+    @classmethod
+    def on_route_resolved(
+        cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent], snapshot: HttpRequestSnapshot
+    ) -> None:
+        """Placeholder for enriching the existing span with the resolved route."""
+        pass
+
+    @classmethod
+    def on_completed(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent], snapshot: HttpRequestSnapshot) -> None:
+        """Placeholder for applying final HTTP attributes before the existing span finishes.
+
+        Snapshot enrichment must be reconciled with on_ended so legacy event
+        fields do not overwrite metadata supplied by migrated integrations.
+        """
+        pass
+
+    @classmethod
+    def on_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
         event: WebFrameworkRequestEvent = ctx.event
 
         if event.allow_default_resource:
@@ -30,7 +88,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: WebFrameworkRequestEvent = ctx.event
