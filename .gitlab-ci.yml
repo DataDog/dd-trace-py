@@ -644,6 +644,17 @@ test_resolve_base_branch:
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
 
+# Runs in the image of package-oci, so that the tests use the same python3 and
+# GNU realpath as prepare-oci-package.sh.
+test_make_symlinks_relative:
+  stage: tests
+  needs: []
+  image: $PACKAGING_IMAGE
+  tags: [ "arch:amd64" ]
+  timeout: 5m
+  script:
+    - python3 .gitlab/scripts/test_make_symlinks_relative.py -v
+
 
 "summarize failures":
   stage: .post
