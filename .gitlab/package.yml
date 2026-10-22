@@ -125,8 +125,8 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-  # TODO(py-315): Linux cp315 builds are required. PyPI prune may still list
-  # cp315 until the un-prune PR lands — parent #17809.
+  # TODO(py-315): Linux cp315 builds are required. Windows 3.15 wheels and PyPI
+  # prune (`prune-unsupported-wheels.sh`) still lag — parent #17809.
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -377,14 +377,6 @@ variables:
   tags: ["windows-v2:2022"]
   parallel:
     matrix:
-      # TODO(py-315): do not add 3.15 until Windows builds work. On cpython
-      # 3.15.0a8 both arches fail today: amd64 dies in Cython
-      # ("unknown slot ID 84"); x86 links pyo3 and hits unresolved
-      # PyType_FromSlots. uv already downloads 3.15 at build time, so a
-      # WINDOWS_BUILD_IMAGE rebuild alone is not enough — need a Cython that
-      # loads on 3.15 and a CPython/pyo3 pair whose win32 import lib exports
-      # PyType_FromSlots. Dockerfile.windows already installs 3.15 for the
-      # next image rebuild + digest pin.
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         WINDOWS_ARCH: ["amd64", "x86"]
   variables:
