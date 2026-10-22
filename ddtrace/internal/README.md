@@ -197,12 +197,12 @@ agent, signalling that this client wants to receive configurations for it.
 `register_callback()` must be called first so that the agent's responses can be
 dispatched to a handler.
 
-The poller sends no requests while no product is enabled. Once no new product
-has been enabled for a short while (`RemoteConfigPoller._PRODUCT_COLLECTION_WINDOW`),
-a single early request advertises all of them. This way the first request on
-boot carries all the products started by the product manager, and products
-enabled later get their configuration without waiting for the next poll, without
-a request for each one.
+The poller sends no requests while no product is enabled. Enabling a new product
+wakes the poller up, which then waits until no new product has been enabled for
+a short while (`RemoteConfigPoller._PRODUCT_COLLECTION_WINDOW`) before sending a
+request, so that it advertises all of them. This way the first request on boot
+carries all the products started by the product manager, and products enabled
+later get their configuration without waiting for the next poll.
 
 ```python
 remoteconfig_poller.enable_product("MY_PRODUCT")

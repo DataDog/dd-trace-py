@@ -422,9 +422,10 @@ def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
     assert order == ["native", "before_fork", "start"], order
 
 
-def test_poller_skips_requests_without_enabled_products():
+def test_poller_skips_requests_without_enabled_products(monkeypatch):
     from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
+    monkeypatch.setattr(RemoteConfigPoller, "_PRODUCT_COLLECTION_WINDOW", 0.01)
     requests = []
     poller = RemoteConfigPoller()
     poller._state = lambda: requests.append(1)
@@ -437,114 +438,91 @@ def test_poller_skips_requests_without_enabled_products():
     assert requests == [1]
 
 
-@pytest.fixture
-def collecting_poller(monkeypatch):
-    """A poller that looks running and records the early requests it is woken up for."""
+def test_product_enablements_are_collected_into_one_request(monkeypatch):
     from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
-    from ddtrace.internal.service import ServiceStatus
 
-    monkeypatch.setattr(RemoteConfigPoller, "_PRODUCT_COLLECTION_WINDOW", 0.05)
+    window = 0.2
+    monkeypatch.setattr(RemoteConfigPoller, "_PRODUCT_COLLECTION_WINDOW", window)
     poller = RemoteConfigPoller()
-    poller.status = ServiceStatus.RUNNING
-    poller.awakened = threading.Event()
-    poller.requests = []
-
-    def awake():
-        poller.requests.append(set(poller._client._enabled_products))
-        poller.awakened.set()
-
-    monkeypatch.setattr(poller, "awake", awake)
-    yield poller
-    poller.disable()
-
-
-def test_product_enablements_are_collected_into_one_early_request(collecting_poller):
-    poller = collecting_poller
-    burst = {RemoteConfigProduct.AgentConfig, RemoteConfigProduct.AsmFeatures, RemoteConfigProduct.ApmTracing}
-
-    for product in burst:
-        poller.enable_product(product)
-
-    assert poller.awakened.wait(5)
-    # Leave time for any extra request the burst could have caused.
-    time.sleep(0.2)
-    assert poller.requests == [burst]
-
-    # Products that are already enabled do not cause a new request.
-    poller.awakened.clear()
-    poller.enable_product(RemoteConfigProduct.AsmFeatures)
-    assert not poller.awakened.wait(0.2)
-
-    poller.enable_product(RemoteConfigProduct.FfeFlags)
-    assert poller.awakened.wait(5)
-    assert poller.requests == [burst, burst | {RemoteConfigProduct.FfeFlags}]
-
-
-def test_product_collection_is_cancelled_on_disable(collecting_poller):
-    poller = collecting_poller
-
-    poller.enable_product(RemoteConfigProduct.ApmTracing)
-    poller.disable()
-
-    assert not poller.awakened.wait(0.2)
-    assert poller.requests == []
-
-
-def test_product_collection_does_not_wake_the_poller_in_a_forked_child(collecting_poller):
-    poller = collecting_poller
-    # What the remote configuration product does when it restarts in a child.
-    poller.reset_at_fork()
-
-    poller.enable_product(RemoteConfigProduct.ApmTracing)
-
-    assert not poller.awakened.wait(0.2)
-    assert poller.requests == []
-
-
-@pytest.mark.subprocess(timeout=30)
-def test_fork_during_product_collection_window():
-    import os
-    import sys
-    import time
-
-    from ddtrace.internal.native import RemoteConfigProduct
-    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
-    from ddtrace.internal.service import ServiceStatus
-
-    RemoteConfigPoller._PRODUCT_COLLECTION_WINDOW = 0.2
-    poller = RemoteConfigPoller()
-    poller.status = ServiceStatus.RUNNING
     requests = []
-    poller.awake = lambda: requests.append(set(poller._client._enabled_products))
+    poller._state = lambda: requests.append(set(poller._client._enabled_products))
 
+    burst = [RemoteConfigProduct.AgentConfig, RemoteConfigProduct.AsmFeatures, RemoteConfigProduct.ApmTracing]
+    poller.enable_product(burst[0])
+
+    # Each product is enabled within the window of the previous one, while the
+    # poller is collecting them.
+    def enable_the_rest():
+        for product in burst[1:]:
+            time.sleep(window / 2)
+            poller.enable_product(product)
+
+    enabler = threading.Thread(target=enable_the_rest)
+    enabler.start()
+    poller.periodic()
+    enabler.join()
+
+    assert requests == [set(burst)]
+
+    # A wake-up with no new product, like the one caused by the products enabled
+    # while collecting, does not repeat the request, and products that are
+    # already enabled do not make the poller wait.
     poller.enable_product(RemoteConfigProduct.AsmFeatures)
+    start = time.monotonic()
+    poller.periodic()
+    assert time.monotonic() - start < window
+    assert requests == [set(burst)]
 
-    # Fork with the timer lock held, as if another thread was enabling a
-    # product at the time: the child inherits it locked and must not need it.
-    lock = poller._collection_timer._worker_lock
-    lock.acquire()
-    pid = os.fork()
+    # The regular poll does.
+    poller._last_request -= poller.interval
+    poller.periodic()
+    assert requests == [set(burst)] * 2
 
-    if pid == 0:
-        # The remote configuration product restarts first in the child.
-        poller.reset_at_fork()
-        poller.enable_product(RemoteConfigProduct.ApmTracing)
-        # Outlive the window, and the restart of the timer thread after the fork.
-        time.sleep(0.6)
-        # Exit normally so that a timer thread stuck on an inherited lock would
-        # hang the child at exit.
-        sys.exit(0 if not requests else 1)
 
-    lock.release()
+def test_remoteconfig_product_start_failure_disables_the_poller(monkeypatch):
+    # The product manager only marks a product that fails to start as failed,
+    # so the remote configuration product must not leave the poller running.
+    from ddtrace.internal.remoteconfig import worker as worker_module
+    from ddtrace.internal.remoteconfig.products import client as product
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+    from ddtrace.internal.service import ServiceStatus
+    from tests.utils import override_global_config
 
-    _, status = os.waitpid(pid, 0)
-    assert os.WEXITSTATUS(status) == 0, "the child must not wake the poller"
+    poller = RemoteConfigPoller()
+    fork_events = []
+    starts = []
+    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
+    monkeypatch.setattr(worker_module.forksafe, "register_before_fork", lambda hook: fork_events.append("register"))
+    monkeypatch.setattr(worker_module.forksafe, "unregister_before_fork", lambda hook: fork_events.append("unregister"))
 
-    deadline = time.monotonic() + 5
-    while not requests and time.monotonic() < deadline:
-        time.sleep(0.01)
-    # The window that was open at fork time still closes in the parent.
-    assert requests == [{RemoteConfigProduct.AsmFeatures}], requests
+    def start():
+        starts.append(1)
+        poller.status = ServiceStatus.RUNNING
+
+    monkeypatch.setattr(poller, "start", start)
+
+    def fail_after_partial_registration():
+        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
+        poller.enable_product(RemoteConfigProduct.AgentConfig)
+        raise RuntimeError("registration failed")
+
+    monkeypatch.setattr(product, "_register_rc_products", fail_after_partial_registration)
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        with pytest.raises(RuntimeError, match="registration failed"):
+            product.start()
+
+        assert poller.status == ServiceStatus.STOPPED
+        assert poller._client._product_callbacks == {}
+        assert poller._client._enabled_products == set()
+        assert poller._before_fork_registered is False
+        assert fork_events == ["register", "unregister"]
+
+        # A later registration can start the poller again.
+        assert poller.enable() is True
+
+    assert starts == [1, 1]
 
 
 @contextlib.contextmanager

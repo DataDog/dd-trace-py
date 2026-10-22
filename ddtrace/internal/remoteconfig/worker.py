@@ -1,6 +1,6 @@
 from collections.abc import Iterable  # noqa:F401
-from contextlib import suppress
 import os
+from time import monotonic
 from typing import TYPE_CHECKING
 from typing import Optional  # noqa:F401
 
@@ -14,6 +14,7 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.threads import Event
 from ddtrace.internal.utils.time import StopWatch
 
 
@@ -26,17 +27,6 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-class _ProductCollectionTimer(periodic.Timer):
-    """Wake the poller once no new product has been enabled for a while."""
-
-    def __init__(self, poller: "RemoteConfigPoller", interval: float) -> None:
-        super().__init__(interval)
-        self._poller = poller
-
-    def timeout(self) -> None:
-        self._poller._products_collected()
-
-
 class RemoteConfigPoller(periodic.AwakeablePeriodicService):
     """Remote configuration worker.
 
@@ -47,16 +37,18 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
     _enable = True
     _MAX_CONSECUTIVE_FAILURES = 3
     # Products are usually enabled in bursts, e.g. while the product manager
-    # starts them on boot. An early request is sent once no new product has
-    # been enabled for this long, so that a single one advertises all of them.
+    # starts them on boot. A request waits until no new product has been
+    # enabled for this long, so that a single one advertises all of them.
     _PRODUCT_COLLECTION_WINDOW = 0.1
 
     def __init__(self) -> None:
-        # The first request is triggered by the product collection timer rather
-        # than at start, so that it carries the products enabled on boot.
-        super().__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=False, autorestart=False)
+        super().__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False)
         self._client = RemoteConfigClient()
-        self._collection_timer = _ProductCollectionTimer(self, self._PRODUCT_COLLECTION_WINDOW)
+        self._products_enabled = Event()
+        # The poller starts on the first callback registration, before the
+        # products are enabled: make its first request collect them.
+        self._products_enabled.set()
+        self._last_request = 0.0
         # Agentless fetches go straight to the Remote Config backend, so there is
         # no agent to negotiate the v0.7/config endpoint with.
         self._state = self._online if self._client.agentless else self._agent_check
@@ -124,23 +116,30 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
         # Run product housekeeping every cycle, before the fetch, so stale-state
         # timeouts still fire when the agent is down or a fetch fails.
         self._client.run_periodic()
+        collected = self._collect_products()
         # A request without products cannot receive any configuration.
         if not self._client._enabled_products:
             return None
+        # Products enabled while collecting wake the poller up again once this
+        # call returns, but the request below already advertises them.
+        now = monotonic()
+        if not collected and now - self._last_request < self.interval:
+            return None
+        self._last_request = now
         return self._state()
 
-    def _in_polling_process(self) -> bool:
-        # Forked children do not poll (reset_at_fork clears _enable): they
-        # consume what the polling process fetches.
-        return self._enable and self.status == ServiceStatus.RUNNING
+    def _collect_products(self) -> bool:
+        """Wait until no new product has been enabled for a while.
 
-    def _products_collected(self) -> None:
-        # The timer thread is restarted in forked children too.
-        if self._in_polling_process():
-            # If a fork deferred the start of the poller thread, its first
-            # periodic call picks up the products instead.
-            with suppress(RuntimeError):
-                self.awake()
+        This way a single request advertises all the products enabled in a
+        burst. Returns whether any product was enabled.
+        """
+        collected = False
+        while self._products_enabled.is_set():
+            collected = True
+            self._products_enabled.clear()
+            self._products_enabled.wait(self._PRODUCT_COLLECTION_WINDOW)
+        return collected
 
     def enable(self) -> bool:
         # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
@@ -236,10 +235,6 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
         self.stop_subscriber(join=join)
         self._client.reset_products()
 
-        # The timer may have never started, or a fork deferred its start.
-        with suppress(RuntimeError):
-            self._collection_timer.stop()
-
         if self._before_fork_registered:
             forksafe.unregister_before_fork(self._before_fork)
             self._before_fork_registered = False
@@ -322,9 +317,10 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
 
         When a product is enabled, it will be added to the 'products' list
         in payloads sent to the agent, indicating that this client wants
-        to receive configurations for this product. Once no new product has been
-        enabled for a short while, a single early request advertises them all,
-        rather than waiting for the next poll.
+        to receive configurations for this product. The poller is woken up to
+        request it right away, once no new product has been enabled for a short
+        while, so that a single request advertises all the products enabled in a
+        burst.
 
         Args:
             product: Product name to enable
@@ -332,9 +328,10 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
         if product in self._client._enabled_products:
             return
         self._client.enable_product(product)
-        # Children must not touch the timer: a fork can leave its lock held.
-        if self._in_polling_process():
-            self._collection_timer.reset()
+        self._products_enabled.set()
+        # Forked children do not poll (reset_at_fork clears _enable).
+        if self._enable:
+            self.awake()
 
     def disable_product(self, product: "RemoteConfigProduct") -> None:
         """Disable a product, removing it from client payloads.

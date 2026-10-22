@@ -350,6 +350,8 @@ def _remotely_startable_products():
         # but must not receive anything.
         DD_REMOTE_CONFIGURATION_ENABLED="true",
         DD_TRACE_AGENT_URL="http://127.0.0.1:1",
+        # Products that cannot reach the agent fall back to agentless mode.
+        DD_API_KEY="0" * 32,
         # Coverage preloads modules that import threading, which would hide the issue.
         COVERAGE_PROCESS_START=None,
         COVERAGE_PROCESS_CONFIG=None,
@@ -380,18 +382,28 @@ def test_remote_product_start_does_not_import_threading():
 
     assert "threading" not in sys.modules
 
-    worker = Thread(manager.__products__[name].start, name="remote-config")
+    errors = []
+
+    def start():
+        try:
+            manager.__products__[name].start()
+        except Exception as e:
+            errors.append(e)
+
+    worker = Thread(start, name="remote-config")
     worker.start()
     worker.join()
 
+    # A product that fails to start does not exercise its start-up path.
+    assert not errors, errors
+
     imported = "threading" in sys.modules
 
-    # TODO: Enabling LLMObs runs git through a fresh copy of subprocess.
-    if name == "llmobs":
-        if imported:
-            import pytest
+    # TODO: Enabling LLMObs runs git through a fresh copy of subprocess, which
+    # imports threading on some Python versions (e.g. 3.10).
+    if name == "llmobs" and imported:
+        import pytest
 
-            pytest.xfail("starting LLMObs imports subprocess, and with it threading")
-        raise AssertionError("starting LLMObs no longer imports threading: remove this exception")
+        pytest.xfail("starting LLMObs imports subprocess, and with it threading")
 
     assert not imported

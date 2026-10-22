@@ -47,7 +47,12 @@ def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     remoteconfig_poller.enable()
-    _register_rc_products()
+    try:
+        _register_rc_products()
+    except Exception:
+        # The product manager marks the product as failed without stopping it.
+        remoteconfig_poller.disable()
+        raise
 
 
 def restart(join=False):
