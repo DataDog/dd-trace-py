@@ -126,8 +126,7 @@ variables:
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
   # TODO(py-315): Linux cp315 builds are required (allow_failure removed). macOS/
-  # Windows 3.15 wheels and PyPI prune (`prune-unsupported-wheels.sh`) still lag —
-  # parent #17809.
+  # Windows 3.15 wheels still lag — parent #17809.
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
