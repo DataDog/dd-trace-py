@@ -159,7 +159,6 @@ class ExecutionContext(Generic[ContextEventType_co]):
     """A context's event reference can be cleared on completion, but its event type must stay fixed."""
 
     __slots__ = (
-        "__weakref__",
         "identifier",
         "_data",
         "_event",

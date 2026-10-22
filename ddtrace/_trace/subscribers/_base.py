@@ -68,7 +68,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx.get_item("headers", getattr(event, "request_headers", None)),
+            request_headers=getattr(event, "request_headers", None),
             override=getattr(event, "distributed_headers_config_override", None),
         )
 

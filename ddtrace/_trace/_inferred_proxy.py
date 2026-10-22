@@ -6,9 +6,6 @@ from typing import Optional
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import _INFERRED_SPAN_KEY
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_STACK
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -217,25 +214,3 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
 
 def normalize_headers(headers) -> dict[str, str]:
     return {key.lower(): value for key, value in headers.items()}
-
-
-def set_inferred_proxy_tags(span: Span, status_code: Optional[int]) -> None:
-    """Propagate a child web span's outcome up to its inferred proxy parent.
-
-    The proxy span stands in for a hop the tracer never saw, so the status and error it
-    reports can only come from the span that did handle the request.
-    """
-    if not (span._parent and span._parent.name in INFERRED_SPAN_NAMES):
-        return
-    inferred_span = span._parent
-    reported_status = status_code or span._get_attribute("http.status_code")
-    if reported_status:
-        inferred_span._set_attribute("http.status_code", reported_status)
-    if span.error == 1:
-        inferred_span.error = span.error
-        if (error_msg := span._get_attribute(ERROR_MSG)) is not None:
-            inferred_span._set_attribute(ERROR_MSG, error_msg)
-        if (error_type := span._get_attribute(ERROR_TYPE)) is not None:
-            inferred_span._set_attribute(ERROR_TYPE, error_type)
-        if (error_stack := span._get_attribute(ERROR_STACK)) is not None:
-            inferred_span._set_attribute(ERROR_STACK, error_stack)

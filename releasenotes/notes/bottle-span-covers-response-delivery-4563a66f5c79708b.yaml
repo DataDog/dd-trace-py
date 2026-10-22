@@ -1,7 +1,0 @@
----
-features:
-  - |
-    bottle: The ``bottle.request`` span now stays open until response iteration finishes,
-    fails, or is explicitly closed, so its duration includes response streaming and ``after_request``
-    hooks, its ``http.status_code`` reflects any status those hooks set, and errors raised
-    while streaming a response are recorded on it.

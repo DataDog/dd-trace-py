@@ -33,8 +33,7 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
 Bottle's TracePlugin.apply wraps only the route callback and emits
 WebFrameworkRequestEvent. WebFrameworkRequestSubscriber owns span creation,
-metadata handling, and completion for that event, alongside its separate support
-for HttpServerRequestEvent. Bottle manages plugin ordering, skip settings,
+metadata handling, and completion for that event. Bottle manages plugin ordering, skip settings,
 installation, removal, and callback-cache resets.
 
 Read request metadata from Bottle's request at callback entry. The span ends when
@@ -42,7 +41,5 @@ the callback returns or raises, including when it returns an unconsumed iterable
 Later response hooks, streaming failures, and transport delivery are outside this
 boundary. Do not wrap router.match, _cast, or _make_callback to extend it.
 
-The experimental HttpLifecycle and WsgiLifecycleDriver remain separate shared
-infrastructure. Bottle does not install that driver, publish HTTP phase events,
-or emit block checks. Its plugin bypasses tracing when tracing is disabled.
-See docs/contributing-integrations.rst for the separate HTTP contract.
+
+The plugin bypasses instrumentation when tracing is disabled.

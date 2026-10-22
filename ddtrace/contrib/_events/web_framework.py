@@ -46,8 +46,7 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Use to add additional tags after the span was created
     additional_tags: dict[str, str] = event_field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        # The schema implementation is selected from a heterogeneous function table.
-        self.operation_name = schematize_url_operation(  # type: ignore[operator]
+    def __post_init__(self):
+        self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND
         )

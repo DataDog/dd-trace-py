@@ -15,21 +15,11 @@ plugin to your app::
 Request lifecycle
 ~~~~~~~~~~~~~~~~~
 
-When installed on an application, the plugin traces matched requests from route
-selection through response iteration. The span finishes when the response is exhausted,
-raises an error, or is explicitly closed. WSGI servers must close response
-iterables when a request is interrupted. The final response status and headers
-are recorded after Bottle processes the handler result and response hooks.
-Unmatched requests do not create a Bottle request span.
-
-Bottle's ``skip=['trace']`` setting suppresses the request span while leaving
-HTTP observations and blocking checks active. The span is created only after
-routing confirms that the trace plugin applies. ``before_request`` hooks run
-without a Bottle request span.
-Skipping the plugin also leaves incoming trace headers unactivated; independently
-instrumented operations retain their existing tracing context.
-
-Plugins applied only to an individual route retain callback-scoped tracing.
+The plugin traces the matched route callback. The span finishes when the callback
+returns or raises, including when it returns a response iterator. Response
+iteration, later response hooks, and transport delivery occur outside this span.
+Bottle manages plugin ordering, route skip settings, and callback-cache resets.
+Unmatched requests and routes that skip the plugin do not create a Bottle span.
 
 Configuration
 ~~~~~~~~~~~~~
