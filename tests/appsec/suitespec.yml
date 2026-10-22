@@ -251,6 +251,8 @@ suites:
         - name: appsec_integrations_stripe
           dependencies: ['stripe~=13.0']
   appsec_integrations_langchain:
+    # TODO(py-315): the pinned langchain versions declare python <3.15 and
+    # fail at import. Re-add 3.15 with langchain releases that support it.
     paths:
       - '@bootstrap'
       - '@core'
@@ -271,13 +273,13 @@ suites:
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
         - name: appsec_integrations_langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.1', 'langchain-experimental~=0.1']
         - name: appsec_integrations_langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.2', 'langchain-community~=0.2', 'langchain-experimental~=0.2']
         - name: appsec_integrations_langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.3', 'langchain-community~=0.3', 'langchain-experimental~=0.3']
   appsec_integrations_flask:
     pattern: appsec_integrations_flask$
@@ -861,7 +863,7 @@ suites:
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
         - name: appsec_threats_aiohttp_no_iast
-          python: ['3.9', '3.11', '3.15']
+          python: ['3.9', '3.11']
           dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'aiohttp~=3.8.0', 'yarl<1.10']
         - name: appsec_threats_aiohttp_no_iast
           python: ['3.10', '3.14', '3.15']

@@ -56,6 +56,9 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
   profile-uwsgi:
+    # TODO(py-315): uwsgi 2.0.29 does not build on 3.15 (PyThreadState has no
+    # c_recursion_remaining member). Re-add 3.15 once uwsgi supports it or the
+    # <2.0.30 pin is lifted.
     venvs_per_job: 1
     env:
       DD_TRACE_AGENT_URL: ''
@@ -78,7 +81,7 @@ suites:
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
       variants:
         - name: profile-uwsgi
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, 'uwsgi<2.0.30', protobuf]

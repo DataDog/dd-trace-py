@@ -170,6 +170,9 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
+    # TODO(py-315): every variant pins greenlet==3.0.3, which requires python
+    # <3.15, so the 3.15 environments fail to build. Re-add 3.15 with a
+    # greenlet pin that supports it.
     venvs_per_job: 4
     retry: 2
     paths:
@@ -187,13 +190,13 @@ suites:
       command: pytest -v {cmdargs} tests/contrib/langchain
       variants:
         - name: langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, 'langchain-core~=0.1.0', 'langchain-openai~=0.1.0', 'langchain-anthropic~=0.1.0', 'langchain-aws~=0.1.0', 'langchain-cohere~=0.1.0']
         - name: langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, 'langchain-core~=0.3.0', 'langchain-openai~=0.3.0', 'langchain-anthropic~=0.3.0', 'langchain-aws~=0.2.0', 'langchain-cohere~=0.3.0', 'langchain-google-genai~=2.0.0']
         - name: langchain
-          python: ['3.10', '3.11', '3.12', '3.15']
+          python: ['3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
   litellm:
     venvs_per_job: 3
@@ -297,6 +300,10 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, mistralai]
   openai:
+    # TODO(py-315): the old openai rows fail to build on 3.15 (requires-python
+    # <3.15 in the dependency chain) and the newest rows hit openai SDK pydantic
+    # model construction errors on 3.15. Re-add 3.15 once the openai SDK
+    # supports it.
     venvs_per_job: 5
     paths:
       - '@bootstrap'
@@ -314,25 +321,25 @@ suites:
       command: pytest {cmdargs} tests/contrib/openai
       variants:
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.0.0', 'pillow==9.5.0', 'httpx==0.27.2']
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.15']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.30.1', 'pillow==9.5.0', 'httpx==0.27.2']
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
         - name: openai
-          python: ['3.10', '3.13', '3.15']
+          python: ['3.10', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai<2.0.0', pillow]
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=1.76.2', pillow]
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai==1.66.0', pillow]
   langgraph:
     venvs_per_job: 8
@@ -453,10 +460,10 @@ suites:
           python: ['3.9']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==0.8.1', 'pydantic==2.12.0a1']
         - name: pydantic_ai
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==0.8.1', 'pydantic==2.12.0a1']
         - name: pydantic_ai
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==1.0.0', 'pydantic==2.12.0a1']
         - name: pydantic_ai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
