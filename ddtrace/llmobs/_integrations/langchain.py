@@ -238,7 +238,7 @@ class LangChainIntegration(BaseLLMIntegration):
         }
         span_kind = span_kind_map.get(operation, "workflow")
         metrics = {}
-        if operation in ("llm", "chat") and response is not None and not span.error:
+        if operation in ("llm", "chat") and response is not None:
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(response)
             if total_tokens > 0:
                 metrics = {
@@ -496,7 +496,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._llmobs_set_metadata(span, kwargs)
 
-        if span.error:
+        if completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
@@ -565,7 +565,7 @@ class LangChainIntegration(BaseLLMIntegration):
             **cast(dict[str, Any], {input_key: input_messages}),
         )
 
-        if span.error:
+        if chat_completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 

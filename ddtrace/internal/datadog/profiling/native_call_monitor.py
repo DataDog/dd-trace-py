@@ -53,7 +53,7 @@ def start() -> None:
     _started = True
 
 
-def stop():
+def stop() -> None:
     """Stop sys.monitoring-based native call tracking."""
     global _started
     if not _started:

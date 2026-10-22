@@ -147,8 +147,7 @@ def test_failed_step_attempt_consistent_across_replay(test_spans):
         assert span.get_metrics().get(aws_durable.TAG_OPERATION_ATTEMPT) == 1
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_parallel_propagates_trace_context():
+def test_parallel_propagates_trace_context(test_spans):
     """context.parallel uses TracedThreadPoolExecutor so child step spans inherit the
     trace_id and parent span_id from the parallel span across worker threads.
     """
@@ -168,6 +167,13 @@ def test_parallel_propagates_trace_context():
 
     with DurableFunctionTestRunner(workflow) as runner:
         runner.run()
+
+    parallel_span = test_spans.find_span(name=aws_durable.SPAN_PARALLEL)
+    step_spans = list(test_spans.filter_spans(name=aws_durable.SPAN_STEP))
+    assert sorted(span.get_tag(aws_durable.TAG_NAME) for span in step_spans) == ["a", "b"]
+    for step_span in step_spans:
+        assert step_span.trace_id == parallel_span.trace_id
+        assert step_span.parent_id == parallel_span.span_id
 
 
 def test_replay_transitions_to_new_with_datadog_checkpoint():

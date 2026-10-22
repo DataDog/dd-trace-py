@@ -258,7 +258,11 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
             "mcp_tool": "failing_tool",
             "mcp_tool_kind": "server",
         },
-        error={"type": "ToolError", "message": "tool resulted in an error", "stack": ""},
+        error={
+            "type": "ToolError",
+            "message": "Error executing tool failing_tool: Tool execution failed",
+            "stack": "",
+        },
         name="failing_tool",
         parent_id=mock.ANY,
     )
@@ -314,10 +318,8 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
             """
         import asyncio
         import logging
-        import warnings
 
         logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
-        warnings.filterwarnings("ignore", message="OpenTelemetry configuration.*not supported by Datadog")
 
         from ddtrace.llmobs import LLMObs
         LLMObs.enable()

@@ -25,6 +25,8 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import _opentelemetry
+from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.utils import _human_size
@@ -32,6 +34,7 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
 from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
+from ddtrace.internal.writer.writer import HTTPWriter
 from ddtrace.internal.writer.writer import compute_agentless_intake_url
 from ddtrace.trace import Span
 from tests.utils import AnyInt
@@ -620,10 +623,6 @@ class _IncompleteReadRequestHandlerTest(_BaseHTTPRequestHandler):
 
 
 _HOST = "0.0.0.0"
-_PORT = 8743
-_TIMEOUT_PORT = _PORT + 1
-_RESET_PORT = _TIMEOUT_PORT + 1
-_INCOMPLETE_READ_PORT = _RESET_PORT + 1
 
 
 class UDSHTTPServer(socketserver.UnixStreamServer, http.server.HTTPServer):
@@ -667,8 +666,10 @@ def endpoint_uds_server():
         os.unlink(socket_name)
 
 
-def _make_server(port, request_handler):
-    server = http.server.HTTPServer((_HOST, port), request_handler)
+def _make_server(request_handler):
+    # Port 0 lets the OS pick a free port. When pytest-xdist workers run this module at the same time on one host,
+    # a fixed port fails with "Address already in use".
+    server = http.server.HTTPServer((_HOST, 0), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True
@@ -678,9 +679,9 @@ def _make_server(port, request_handler):
 
 @pytest.fixture(scope="module")
 def endpoint_test_timeout_server():
-    server, thread = _make_server(_TIMEOUT_PORT, _TimeoutAPIEndpointRequestHandlerTest)
+    server, thread = _make_server(_TimeoutAPIEndpointRequestHandlerTest)
     try:
-        yield thread
+        yield server.server_port
     finally:
         server.shutdown()
         thread.join()
@@ -688,9 +689,9 @@ def endpoint_test_timeout_server():
 
 @pytest.fixture(scope="module")
 def endpoint_test_reset_server():
-    server, thread = _make_server(_RESET_PORT, _ResetAPIEndpointRequestHandlerTest)
+    server, thread = _make_server(_ResetAPIEndpointRequestHandlerTest)
     try:
-        yield thread
+        yield server.server_port
     finally:
         server.shutdown()
         thread.join()
@@ -698,9 +699,9 @@ def endpoint_test_reset_server():
 
 @pytest.fixture(scope="module")
 def endpoint_test_incomplete_read_server():
-    server, thread = _make_server(_INCOMPLETE_READ_PORT, _IncompleteReadRequestHandlerTest)
+    server, thread = _make_server(_IncompleteReadRequestHandlerTest)
     try:
-        yield thread
+        yield server.server_port
     finally:
         server.shutdown()
         thread.join()
@@ -709,11 +710,11 @@ def endpoint_test_incomplete_read_server():
 @pytest.fixture
 def endpoint_assert_path():
     handler = _APIEndpointRequestHandlerTest
-    server, thread = _make_server(_PORT, handler)
+    server, thread = _make_server(handler)
 
     def configure(expected_path_prefix=None):
         handler.expected_path_prefix = expected_path_prefix
-        return thread
+        return server.server_port
 
     try:
         yield configure
@@ -728,19 +729,19 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer_class, path = writer_and_path
         # test without base path
-        endpoint_assert_path(path)
-        with managed_writer(writer_class, "http://%s:%s/" % (_HOST, _PORT)) as writer:
+        port = endpoint_assert_path(path)
+        with managed_writer(writer_class, "http://%s:%s/" % (_HOST, port)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test without base path nor trailing slash
-        with managed_writer(writer_class, "http://%s:%s" % (_HOST, _PORT)) as writer:
+        with managed_writer(writer_class, "http://%s:%s" % (_HOST, port)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test with a base path
         endpoint_assert_path("/test%s" % path)
-        with managed_writer(writer_class, "http://%s:%s/test/" % (_HOST, _PORT)) as writer:
+        with managed_writer(writer_class, "http://%s:%s/test/" % (_HOST, port)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -761,7 +762,7 @@ def test_flush_connection_timeout_connect(writer_class):
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        managed_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
+        managed_writer(writer_class, "http://%s:%s" % (_HOST, endpoint_test_timeout_server)) as writer,
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
         with pytest.raises((socket.timeout, IoError, HttpClientError)):
@@ -842,7 +843,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        managed_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
+        managed_writer(writer_class, "http://%s:%s" % (_HOST, endpoint_test_reset_server)) as writer,
     ):
         exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
@@ -854,7 +855,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
 @pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, writer_class):
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
-    with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
+    with managed_writer(writer_class, f"http://{_HOST}:{endpoint_test_incomplete_read_server}") as writer:
         # IncompleteRead should be raised when the server sends an incomplete chunked response
         exc_types = (httplib.IncompleteRead, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
@@ -901,7 +902,10 @@ def test_flush_queue_raise(writer_class):
 
 
 def test_racing_start():
-    with managed_writer(NativeWriter, "http://dne:1234") as writer:
+    writer = NativeWriter("http://dne:1234")
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(writer, "periodic"))
+        stack.callback(writer.stop, 3.0)
 
         def do_write(i):
             writer.write([Span(str(i))])
@@ -1088,6 +1092,106 @@ def test_writer_recreate_keeps_response_callback():
     assert writer._response_cb is response_callback
 
 
+def test_native_writer_closed_microvm_writer_rejects_writes_without_restarting(monkeypatch):
+    """A writer closed by the identity refresh drops later spans and is not restarted by them."""
+    from ddtrace.internal.service import ServiceStatus
+
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    try:
+        writer._clients[0].encoder.put([Span("buffered")])
+
+        writer._stop_accepting_writes()
+        writer.write([Span("late")])
+
+        # Spans buffered before the close stay for the final flush; the late span is dropped.
+        assert len(writer._clients[0].encoder) == 1
+        assert writer.status == ServiceStatus.STOPPED
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_native_writer_microvm_close_waits_for_in_flight_sync_flush(monkeypatch):
+    """Refresh shuts a sync writer's exporter down after closing it, so closing must wait out a flush."""
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    flush_entered = threading.Event()
+    release_flush = threading.Event()
+
+    def blocking_send(payload):
+        flush_entered.set()
+        release_flush.wait()
+        return "{}"
+
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock(send=mock.Mock(side_effect=blocking_send))
+    try:
+        write = threading.Thread(target=writer.write, args=([Span("in-flight")],), daemon=True)
+        write.start()
+        assert flush_entered.wait(5)
+
+        close = threading.Thread(target=writer._stop_accepting_writes, daemon=True)
+        close.start()
+        close.join(0.2)
+        assert close.is_alive()
+
+        release_flush.set()
+        write.join(5)
+        close.join(5)
+        assert not write.is_alive()
+        assert not close.is_alive()
+        assert exporter.send.call_count == 1
+        assert writer._accepting_writes is False
+
+        # Nothing is flushed through the closed writer.
+        writer.write([Span("late")])
+        assert exporter.send.call_count == 1
+    finally:
+        release_flush.set()
+        real_exporter.drop()
+
+
+def test_native_writer_stop_accepting_writes_is_noop_outside_microvm(monkeypatch):
+    monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
+    writer = NativeWriter("http://dne:1234")
+    try:
+        assert writer._writer_lock is None
+
+        writer._stop_accepting_writes()
+        with mock.patch.object(writer, "start"):
+            writer.write([Span("span")])
+
+        assert writer._accepting_writes is True
+        assert len(writer._clients[0].encoder) == 1
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_http_writer_closed_microvm_writer_rejects_writes(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+
+    class Writer(HTTPWriter):
+        def recreate(self):
+            return self
+
+    client = mock.Mock()
+    writer = Writer("http://dne:1234", [client])
+
+    writer._stop_accepting_writes()
+    writer.write([Span("late")])
+
+    assert writer._accepting_writes is False
+    client.encoder.put.assert_not_called()
+
+
+def test_log_writer_stop_accepting_writes_is_noop():
+    writer = LogWriter()
+
+    writer._stop_accepting_writes()
+
+    assert not hasattr(writer, "_accepting_writes")
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
@@ -1265,7 +1369,7 @@ def test_writer_telemetry_enabled_on_linux(
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
         if expected_enabled:
-            mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
+            mock_builder.enable_telemetry.assert_called_once_with(60000, config._debug_mode)
         else:
             mock_builder.enable_telemetry.assert_not_called()
         mock_builder.set_restart_after_fork.assert_called_once_with(False)
@@ -1529,22 +1633,45 @@ def test_agentless_writer_no_api_key():
 
 def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_case_insensitive():
     with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_by_default():
     with override_env({"OTEL_TRACES_EXPORTER": ""}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_when_trace_api_version_set():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_API_VERSION": "v0.4"}):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_semantics_override_agent_protocol_version():
+    with override_env(
+        {
+            "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+            "OTEL_TRACES_EXPORTER": "none",
+            "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+            "DD_TRACE_API_VERSION": "v0.4",
+        }
+    ):
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_native_writer_stores_otlp_endpoint():

@@ -67,4 +67,4 @@ class HttpRequestBaseEvent(HttpBaseEvent):
     """Base event for traced HTTP requests."""
 
     http_operation: str = event_field()
-    query: str = event_field()
+    query: Optional[str] = event_field(default=None)

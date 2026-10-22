@@ -2,8 +2,8 @@ import datetime
 import logging
 import platform
 import sys
-from typing import Any  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Union
 
 from ddtrace import _monkey
 from ddtrace.internal import agent

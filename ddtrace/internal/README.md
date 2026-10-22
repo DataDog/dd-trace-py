@@ -6,6 +6,26 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Span attribute limits
+
+`ddtrace.internal._limits` defines the span attribute size limits used by span
+producers and encoders. Products that attach payloads to spans use these shared
+limits to keep their output within the encoding limits.
+
+## Coverage collection contexts
+
+`ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
+collection scope, such as a test or an import. A `ContextVar` holds an immutable
+tuple of these collectors. Copying an execution context shares the collectors
+and their data, while entering or exiting a scope replaces only that context's
+stack. Collectors compare by identity so context restoration can distinguish
+scopes even when both have empty coverage. Exiting a collector marks it closed
+in all inherited stacks; writes resolve to the nearest collector still active.
+
+On Python 3.14+, monitoring callbacks can observe a snapshot that does not see
+current `ContextVar` values. Thread-local storage (TLS) provides a fallback stack
+for these callbacks, using the same rules to skip completed collectors.
+
 
 ## The Product Protocol
 
@@ -39,6 +59,8 @@ gets extended to add support for additional features.
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
+| `post_start() -> None` | Called after the product's `start()` succeeds and the manager finishes the complete start pass; use for work that requires all enabled products to register first |
+| `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
 | `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
@@ -143,6 +165,14 @@ Installs a callback for a product.  The callback will receive all payloads
 dispatched by the RC subscriber, as well as periodic calls.  If this is the
 first callback being registered, the RC poller is started automatically (if
 `DD_REMOTE_CONFIGURATION_ENABLED` is set).
+
+During automatic instrumentation bootstrap, the remote-configuration product
+temporarily defers that automatic start. The product manager releases the
+barrier through the product's optional `post_start()` hook, after all enabled
+products have started. This lets dependent products register and enable their
+RC subscriptions before the poller's immediate first request, including when
+products start after a uWSGI fork. Outside product bootstrap, first-callback
+registration continues to start the poller immediately.
 
 Registering a callback **does not** enable the product: the product name will
 **not** appear in client payloads until `enable_product()` is called.
@@ -344,7 +374,7 @@ machinery in a well-defined order.
 
 `sys.monitoring` (PEP 669, Python 3.12+) grants a limited number of tool IDs.
 `ddtrace.internal.monitoring` claims one ID on behalf of ddtrace subsystems and
-fans local events out per code object.
+fans local events out per code object and global events out process-wide.
 
 
 ### The `MonitoringEventHandler` Interface
@@ -377,15 +407,37 @@ monitoring.register(code, handler)
 monitoring.unregister(code, handler)
 ```
 
-> [!WARNING]
-> Do not call `register()` or `unregister()` from inside a handler method —
-> doing so mutates the handler list while it is being iterated.
+Global handlers use the same interface without a code object:
 
-### Local Events
+```python
+class ExceptionHandler(monitoring.MonitoringEventHandler):
+    def on_exception_handled(self, code, instruction_offset, exception): ...
+
+
+handler = ExceptionHandler()
+monitoring.register_global(handler)
+...
+monitoring.unregister_global(handler)
+```
+
+Each supported global event has one owner. Registering the same handler is
+idempotent; registering a different handler for an occupied event is rejected.
+
+The multiplexer keeps the tool claimed while registrations exist and releases
+it after the final local or global registration is removed. Releasing first
+disables events and removes callbacks, so another monitoring consumer can safely
+reuse the scarce slot.
+
+> [!WARNING]
+> Do not call registration APIs from inside a handler method — doing so mutates
+> the handler list while it is being iterated.
+
+### Local vs. Global Events
 
 PY_START, PY_RETURN, LINE, and Python 3.15+'s PY_UNWIND are enabled locally
-per code object. On Python 3.12–3.14, PY_UNWIND is not available as a local
-event, so the multiplexer rejects handlers that request it.
+per code object. EXCEPTION_HANDLED is enabled globally only while at least one
+global handler is registered. On Python 3.12–3.14, PY_UNWIND is not available
+as a local event, so the multiplexer rejects handlers that request it.
 
 ### `DISABLE` and `refresh()`
 
@@ -405,7 +457,7 @@ interested in those event bits again.
 
 ### Error Isolation
 
-LINE handler failures are logged and isolated so one subsystem cannot disrupt
-another. PY_START, PY_RETURN, and PY_UNWIND handler failures propagate to the
-monitored frame; handlers for those lifecycle events must handle their own
-failures when isolation is required.
+LINE and global handler failures are logged and isolated so one subsystem
+cannot disrupt another. PY_START, PY_RETURN, and PY_UNWIND handler failures
+propagate to the monitored frame; handlers for those lifecycle events must
+handle their own failures when isolation is required.

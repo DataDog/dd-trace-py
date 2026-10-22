@@ -58,7 +58,7 @@ class ManagedPrompt:
             )
         return object.__getattribute__(self, name)
 
-    def format(self, **variables: str) -> Union[str, list[Message]]:
+    def format(self, **variables: Any) -> Union[str, list[Message]]:
         """
         Render the template with variables.
 
@@ -68,7 +68,7 @@ class ManagedPrompt:
         Uses safe substitution: missing variables are left as placeholders.
 
         Args:
-            **variables: Template variables to substitute
+            **variables: Text variables and message-list placeholder values.
 
         Returns:
             str (for text templates) or list[Message] (for chat templates)
@@ -96,7 +96,14 @@ class ManagedPrompt:
             "version": self.version,
         }
         if variables:
-            result["variables"] = variables
+            placeholder_names = (
+                set()
+                if isinstance(self.template, str)
+                else {item.get("name") for item in self.template if item.get("type") == "placeholder"}
+            )
+            scalar_variables = {name: value for name, value in variables.items() if name not in placeholder_names}
+            if scalar_variables:
+                result["variables"] = scalar_variables
         label = object.__getattribute__(self, "label")
         if label:
             result["label"] = label
