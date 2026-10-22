@@ -130,6 +130,10 @@ class _Test_Aiohttp_Base:
         return response.headers["location"]
 
 
+_ATTACK = b"yqrweytqwreasldhkuqwgervflnmlnli"
+_UTF7_ATTACK = ("+" + base64.b64encode(_ATTACK.decode().encode("utf-16-be")).decode().rstrip("=") + "-").encode()
+
+
 def _multipart_body(fields: dict[str, bytes]) -> tuple[bytes, str]:
     boundary = "52d1fb4eb9c021e53ac2846190e4ac72"
     body = b"".join(
@@ -163,6 +167,43 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             else:
                 assert self.status(response) == 200, self.body(response)
                 assert json.loads(self.body(response)) == {"field": value, "other": "other_value"}
+
+    @pytest.mark.parametrize(
+        ("parts", "blocked"),
+        [
+            ([("Content-Transfer-Encoding: base64", base64.b64encode(_ATTACK), None)], True),
+            (
+                [("Content-Transfer-Encoding: quoted-printable", "".join(f"={b:02X}" for b in _ATTACK).encode(), None)],
+                True,
+            ),
+            ([("Content-Type: text/plain; charset=utf-7", _UTF7_ATTACK, None)], True),
+            ([("Content-Type: application/json", b"{bad", None), ("Content-Type: text/plain", _ATTACK, None)], True),
+            ([("Content-Type: text/plain", _ATTACK, "f.txt")], False),
+        ],
+        ids=["base64", "quoted_printable", "utf7", "after_malformed_json_part", "file"],
+    )
+    def test_multipart_parts_decoded_as_aiohttp(self, interface, entry_span, get_entry_span_tag, parts, blocked):
+        boundary = "52d1fb4eb9c021e53ac2846190e4ac72"
+        body = (
+            b"".join(
+                f'--{boundary}\r\nContent-Disposition: form-data; name="f{i}"'.encode()
+                + (f'; filename="{filename}"'.encode() if filename else b"")
+                + f"\r\n{header}\r\n\r\n".encode()
+                + value
+                + b"\r\n"
+                for i, (header, value, filename) in enumerate(parts)
+            )
+            + f"--{boundary}--\r\n".encode()
+        )
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                "/asm/", data=body, content_type=f"multipart/form-data; boundary={boundary}"
+            )
+            if blocked:
+                self.assert_blocked(response, entry_span, get_entry_span_tag, "tst-037-003")
+            else:
+                assert self.status(response) == 200, self.body(response)
 
     def test_x_url_encoded_body(self, interface, entry_span, get_entry_span_tag):
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):

@@ -26,7 +26,6 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import _get_blocked_template
 from ddtrace.internal.utils.http import classify_media_type
-from ddtrace.internal.utils.http import parse_form_multipart
 import ddtrace.vendor.xmltodict as xmltodict
 
 
@@ -150,6 +149,20 @@ def _on_request_start(ctx: core.ExecutionContext[Any], request: Any, max_body_si
     ctx.set_item("aiohttp_request_body", _analyze_body(request, media_type))
 
 
+async def _multipart_fields(request: Any, raw_body: bytes) -> dict[str, Union[str, list[str]]]:
+    from ddtrace.contrib.internal.aiohttp.middlewares import _restore_request_body
+
+    _restore_request_body(request, raw_body)
+    fields: dict[str, list[str]] = {}
+    for key, value in (await request.post()).items():
+        if isinstance(value, (bytes, bytearray)):
+            value = bytes(value).decode("utf-8", errors="replace")
+        elif not isinstance(value, str):
+            continue
+        fields.setdefault(key, []).append(value)
+    return {key: values[0] if len(values) == 1 else values for key, values in fields.items()}
+
+
 async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
     try:
         raw_body: bytes = await request.content.read()
@@ -164,15 +177,14 @@ async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
                 body = json.loads(raw_body.decode(charset)) if raw_body else None
             elif media_type is MediaType.XML:
                 body = xmltodict.parse(raw_body)
-            else:
+            elif media_type is MediaType.FORM_URLENCODED:
+                form: dict[str, list[str]] = {}
                 text_body = raw_body.decode(charset, errors="replace")
-                if media_type is MediaType.FORM_URLENCODED:
-                    form: dict[str, list[str]] = {}
-                    for key, value in parse_qsl(text_body.rstrip(), keep_blank_values=True, encoding=charset):
-                        form.setdefault(key, []).append(value)
-                    body = {key: values[0] if len(values) == 1 else values for key, values in form.items()}
-                else:
-                    body = parse_form_multipart(text_body, request.headers)
+                for key, value in parse_qsl(text_body.rstrip(), keep_blank_values=True, encoding=charset):
+                    form.setdefault(key, []).append(value)
+                body = {key: values[0] if len(values) == 1 else values for key, values in form.items()}
+            else:
+                body = await _multipart_fields(request, raw_body)
     except Exception:
         logger.debug("aiohttp::failed to parse request body", exc_info=True)
         return raw_body
