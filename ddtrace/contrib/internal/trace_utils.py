@@ -7,21 +7,21 @@ from __future__ import annotations
 from collections import deque
 import ipaddress
 import re
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Callable
-from typing import Generator
-from typing import Iterator
-from typing import Mapping
-from typing import MutableMapping
-from typing import Optional
-from typing import Sequence
-from typing import Union
-from typing import cast
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import Iterator  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import MutableMapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Sequence  # noqa:F401
+from typing import Union  # noqa:F401
 from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
@@ -35,11 +35,9 @@ from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_he
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.internal import _service_state
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
-from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import _WEB_REQUEST_STARTING_DISPATCHED
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
@@ -49,6 +47,12 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
+
+# Re-exported for backwards compatibility; the real implementations live in
+# ddtrace.internal.utils.service since they have no contrib-specific dependencies.
+from ddtrace.internal.utils.service import ext_service  # noqa:F401
+from ddtrace.internal.utils.service import int_service  # noqa:F401
+from ddtrace.internal.utils.service import set_service_and_source  # noqa:F401
 from ddtrace.internal.utils.wrappers import iswrapped  # noqa: F401
 from ddtrace.internal.utils.wrappers import unwrap  # noqa: F401
 from ddtrace.propagation.http import HTTPPropagator
@@ -371,91 +375,6 @@ def distributed_tracing_enabled(int_config: IntegrationConfig, default: bool = F
     return default
 
 
-def int_service(pin: Optional[Pin], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
-    """Returns the service name for an integration which is internal
-    to the application. Internal meaning that the work belongs to the
-    user's application. Eg. Web framework, sqlalchemy, web servers.
-
-    For internal integrations we prioritize overrides, then global defaults and
-    lastly the default provided by the integration.
-    """
-    # Pin has top priority since it is user defined in code
-    if pin is not None and pin.service:
-        return pin.service
-
-    # Config is next since it is also configured via code
-    # Note that both service and service_name are used by
-    # integrations.
-    if "service" in int_config and int_config.service is not None:
-        return cast(str, int_config.service)
-    if "service_name" in int_config and int_config.service_name is not None:
-        return cast(str, int_config.service_name)
-
-    global_service = int_config.global_config._get_service()
-    # We check if global_service != _inferred_base_service since global service (config.service)
-    # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
-    # use the inferred base service value, and instead use the integration default service. If we
-    # didn't do this, we would have a massive breaking change from adding inferred_base_service.
-    if global_service and global_service != int_config.global_config._inferred_base_service:
-        return cast(str, global_service)
-
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return cast(str, int_config._default_service)
-
-    if default is None and global_service:
-        return cast(str, global_service)
-
-    return default
-
-
-def ext_service(pin: Optional[Pin], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
-    """Returns the service name for an integration which is external
-    to the application. External meaning that the integration generates
-    spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
-    """
-    if pin is not None and pin.service:
-        return pin.service
-
-    if "service" in int_config and int_config.service is not None:
-        return cast(str, int_config.service)
-    if "service_name" in int_config and int_config.service_name is not None:
-        return cast(str, int_config.service_name)
-
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return cast(str, int_config._default_service)
-
-    # A default is required since it's an external service.
-    return default
-
-
-def set_service_and_source(
-    span: Span,
-    service: str,
-    int_config: Union[IntegrationConfig, dict],
-    default_service_key: str = "_default_service",
-) -> None:
-    service_source = ""
-    mapped_service = config.service_mapping.get(service, service)
-    if service != mapped_service:
-        service_source = "opt.service_mapping"
-        service = mapped_service
-    elif int_config.get("split_by_domain", False):
-        service_source = "opt.split_by_domain"
-    # NB "not service" here makes svc_src make sense in cases of service inheritance
-    elif not service or service == int_config.get(default_service_key):
-        service_source = getattr(
-            int_config,
-            "integration_name",
-            int_config.get("integration_name", "") if hasattr(int_config, "get") else "",
-        )
-    elif _service_state.is_user_provided_service():
-        service_source = "m"
-    if service_source:
-        span.set_tag(_SERVICE_SOURCE, service_source)
-    if service:
-        span.service = service
-
-
 def set_http_meta(
     span: Span,
     integration_config: IntegrationConfig,
@@ -471,7 +390,7 @@ def set_http_meta(
     response_headers: Optional[Mapping[str, str]] = None,
     retries_remain: Optional[Union[int, str]] = None,
     raw_uri: Optional[str] = None,
-    request_cookies: Optional[dict[str, str]] = None,
+    request_cookies: Optional[Mapping[str, Union[str, list[str]]]] = None,
     request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]] = None,
     request_body: Optional[Union[str, dict[str, list[str]]]] = None,
     peer_ip: Optional[str] = None,
@@ -497,41 +416,39 @@ def set_http_meta(
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
         ``resolver_match.args``, Tornado ``path_args``).
     """
-    if method is not None:
-        span._set_attribute(http.METHOD, method)
-
-    if url is not None:
-        url = _sanitized_url(url)
-        _set_url_tag(integration_config, span, url, query)
-
-    if target_host is not None:
-        span._set_attribute(net.TARGET_HOST, target_host)
-
-    if server_address is not None:
-        span._set_attribute(net.SERVER_ADDRESS, server_address)
-
-    if status_code is not None:
-        try:
-            int_status_code = int(status_code)
-        except (TypeError, ValueError):
-            log.debug("failed to convert http status code %r to int", status_code)
-        else:
-            span._set_attribute(http.STATUS_CODE, str(status_code))
-            if config._http_server.is_error_code(int_status_code):
-                span.error = 1
+    otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
+    if otel_http is not None and otel_http.is_client:
+        _set_http_meta_otel(
+            otel_http,
+            method,
+            url,
+            target_host,
+            server_address,
+            status_code,
+            query,
+            request_headers,
+            headers_are_case_sensitive,
+            route,
+        )
+    else:
+        _set_http_meta(
+            span,
+            integration_config,
+            method,
+            url,
+            target_host,
+            server_address,
+            status_code,
+            query,
+            request_headers,
+            headers_are_case_sensitive,
+        )
 
     if status_msg is not None:
         span._set_attribute(http.STATUS_MSG, status_msg)
 
-    if query is not None and integration_config.trace_query_string:
-        span._set_attribute(http.QUERY_STRING, query)
-
     request_ip = peer_ip
     if request_headers:
-        user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
-        if user_agent:
-            span._set_attribute(http.USER_AGENT, user_agent)
-
         # Extract referrer host if referer header is present
         referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
         if referrer_host:
@@ -590,6 +507,72 @@ def set_http_meta(
 
     if route is not None:
         span._set_attribute(http.ROUTE, route)
+
+
+def _set_http_meta(
+    span: Span,
+    integration_config: IntegrationConfig,
+    method: Optional[str],
+    url: Optional[str],
+    target_host: Optional[str],
+    server_address: Optional[str],
+    status_code: Optional[Union[int, str]],
+    query: Optional[str],
+    request_headers: Optional[Mapping[str, str]],
+    headers_are_case_sensitive: bool,
+) -> None:
+    """Set the tags whose names or semantics differ from OTel's, using the Datadog conventions."""
+    if method is not None:
+        span._set_attribute(http.METHOD, method)
+
+    if url is not None:
+        url = _sanitized_url(url)
+        _set_url_tag(integration_config, span, url, query)
+
+    if target_host is not None:
+        span._set_attribute(net.TARGET_HOST, target_host)
+
+    if server_address is not None:
+        span._set_attribute(net.SERVER_ADDRESS, server_address)
+
+    if status_code is not None:
+        try:
+            int_status_code = int(status_code)
+        except (TypeError, ValueError):
+            log.debug("failed to convert http status code %r to int", status_code)
+        else:
+            span._set_attribute(http.STATUS_CODE, str(status_code))
+            if config._http_server.is_error_code(int_status_code):
+                span.error = 1
+
+    if query is not None and integration_config.trace_query_string:
+        span._set_attribute(http.QUERY_STRING, query)
+
+    if request_headers:
+        user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
+        if user_agent:
+            span._set_attribute(http.USER_AGENT, user_agent)
+
+
+def _set_http_meta_otel(
+    otel_http: OTelHTTPSpanAttributes,
+    method: Optional[str],
+    url: Optional[str],
+    target_host: Optional[str],
+    server_address: Optional[str],
+    status_code: Optional[Union[int, str]],
+    query: Optional[str],
+    request_headers: Optional[Mapping[str, str]],
+    headers_are_case_sensitive: bool,
+    route: Optional[str],
+) -> None:
+    """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
+    otel_http.set_method(method)
+    otel_http.set_url(url, query=query, server_address=server_address, fallback_server_address=target_host)
+    otel_http.set_status_code(status_code)
+    if request_headers:
+        otel_http.set_user_agent(_get_request_header_user_agent(request_headers, headers_are_case_sensitive))
+    otel_http.set_resource(route)
 
 
 def activate_distributed_headers(

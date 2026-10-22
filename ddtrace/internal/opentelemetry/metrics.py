@@ -81,11 +81,15 @@ def _build_resource() -> Optional[Any]:
         from opentelemetry.util.types import AttributeValue
 
         resource_attributes: dict[str, AttributeValue | None] = {
-            **config.tags,
-            "service.name": config.service,
-            "service.version": config.version,
-            "deployment.environment.name": config.env,
+            k: v for k, v in config.tags.items() if k not in ("service", "version", "env")
         }
+        resource_attributes.update(
+            {
+                "service.name": config.service,
+                "service.version": config.version,
+                "deployment.environment.name": config.env,
+            }
+        )
 
         if config._report_hostname and "host.name" not in resource_attributes:
             resource_attributes["host.name"] = get_hostname()

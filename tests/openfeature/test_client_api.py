@@ -20,6 +20,7 @@ from tests.openfeature.config_helpers import create_float_flag
 from tests.openfeature.config_helpers import create_integer_flag
 from tests.openfeature.config_helpers import create_json_flag
 from tests.openfeature.config_helpers import create_string_flag
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -28,7 +29,7 @@ def setup_provider():
     """Setup DataDog provider and OpenFeature API."""
     with override_global_config({"experimental_flagging_provider_enabled": True}):
         provider = DataDogProvider()
-        api.set_provider(provider)
+        set_openfeature_provider(provider)
         yield
         # Cleanup
         api.clear_providers()

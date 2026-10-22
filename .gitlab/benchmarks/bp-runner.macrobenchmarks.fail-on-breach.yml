@@ -57,3 +57,193 @@ experiments:
             thresholds:
               - throughput > 35.0 op/s
               - agg_http_req_duration_p99 < 160 ms
+
+          # Tracing (server utilization)
+          - name: normal_operation/tracing-runtime-metrics-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 199 %
+              - rss < 1021 MB
+          - name: high_load/tracing-runtime-metrics-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 297 %
+              - rss < 1026 MB
+          - name: normal_operation/tracing-rc-disabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 199 %
+              - rss < 1019 MB
+          - name: high_load/tracing-rc-disabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 289 %
+              - rss < 1027 MB
+          - name: normal_operation/tracing-rc-disabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 200 %
+              - rss < 1031 MB
+          - name: high_load/tracing-rc-disabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 289 %
+              - rss < 1044 MB
+          - name: normal_operation/tracing-rc-enabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 201 %
+              - rss < 1023 MB
+          - name: high_load/tracing-rc-enabled-telemetry-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 292 %
+              - rss < 1037 MB
+          - name: normal_operation/tracing-rc-enabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 200 %
+              - rss < 1033 MB
+          - name: high_load/tracing-rc-enabled-telemetry-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 295 %
+              - rss < 1041 MB
+          - name: normal_operation/tracing-native-writer-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 201 %
+              - rss < 1029 MB
+          - name: high_load/tracing-native-writer-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 293 %
+              - rss < 1033 MB
+          - name: normal_operation/tracing-native-writer-enabled-stats-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 200 %
+              - rss < 1028 MB
+          - name: high_load/tracing-native-writer-enabled-stats-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 290 %
+              - rss < 1045 MB
+          - name: high_load/tracing-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 294 %
+              - rss < 1121 MB
+          - name: normal_operation/appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 224 %
+              - rss < 1179 MB
+          - name: high_load/appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 294 %
+              - rss < 1182 MB
+          - name: normal_operation/appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 234 %
+              - rss < 1268 MB
+          - name: high_load/appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 298 %
+              - rss < 1275 MB
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 210 %
+              - rss < 1143 MB
+          - name: high_load/appsec-enabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 295 %
+              - rss < 1155 MB
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 228 %
+              - rss < 1237 MB
+          - name: high_load/appsec-enabled-iast-disabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 302 %
+              - rss < 1247 MB
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 239 %
+              - rss < 1139 MB
+          - name: high_load/appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 300 %
+              - rss < 1163 MB
+          - name: normal_operation/appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 222 %
+              - rss < 1286 MB
+          - name: high_load/appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 292 %
+              - rss < 1291 MB
+          - name: normal_operation/attack-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 199 %
+              - rss < 1021 MB
+          - name: high_load/attack-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 293 %
+              - rss < 1025 MB
+          - name: normal_operation/attack-appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 241 %
+              - rss < 1155 MB
+          - name: high_load/attack-appsec-enabled-iast-disabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 300 %
+              - rss < 1178 MB
+          - name: normal_operation/attack-appsec-enabled-iast-disabled-ep-enabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 245 %
+              - rss < 1244 MB
+          - name: high_load/attack-appsec-enabled-iast-disabled-ep-enabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 308 %
+              - rss < 1257 MB
+          - name: normal_operation/attack-appsec-enabled-iast-enabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 248 %
+              - rss < 1303 MB
+          - name: high_load/attack-appsec-enabled-iast-enabled-ep-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 293 %
+              - rss < 1304 MB
+          - name: normal_operation/baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 150 %
+              - rss < 728 MB
+          - name: high_load/baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 278 %
+              - rss < 736 MB
+          - name: normal_operation/vuln-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 231 %
+              - rss < 1026 MB
+          - name: high_load/vuln-appsec-disabled-iast-disabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 283 %
+              - rss < 1039 MB
+          - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 246 %
+              - rss < 1178 MB
+          - name: high_load/vuln-appsec-disabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 280 %
+              - rss < 1191 MB
+          - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 247 %
+              - rss < 1265 MB
+          - name: high_load/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 285 %
+              - rss < 1284 MB
+          - name: normal_operation/vuln-appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 245 %
+              - rss < 1285 MB
+          - name: high_load/vuln-appsec-enabled-iast-enabled-ep-disabled/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 283 %
+              - rss < 1301 MB
+          - name: normal_operation/vuln-baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 182 %
+              - rss < 732 MB
+          - name: high_load/vuln-baseline/python-server-utilization
+            thresholds:
+              - cpu_usage_percentage < 271 %
+              - rss < 741 MB

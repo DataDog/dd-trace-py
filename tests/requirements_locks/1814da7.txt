@@ -6,7 +6,7 @@ autobahn==24.4.2
 automat==25.4.16
 backports-asyncio-runner==1.2.0
 bcrypt==4.2.1
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.1.1
 channels==4.3.2
 charset-normalizer==3.5.1

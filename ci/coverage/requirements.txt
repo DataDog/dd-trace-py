@@ -4,7 +4,7 @@
 #
 #    pip-compile --config=pyproject.toml --no-annotate --output-file=ci/coverage/requirements.txt ci/coverage/requirements.in
 #
-certifi==2023.5.7
+certifi==2026.10.19
 chardet==5.1.0
 charset-normalizer==3.2.0
 codecov==2.1.13

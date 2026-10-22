@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    MCP: Server tool call spans now use the tool result's error text as the error message instead of a generic
+    ``tool resulted in an error`` message.

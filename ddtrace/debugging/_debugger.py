@@ -36,12 +36,14 @@ from ddtrace.debugging._probe.remoteconfig import DebuggerRCCallback
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._sampling import DebuggerSampler
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
+from ddtrace.internal.bytecode_injection import HOOK_FRAME_DEPTH
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
@@ -51,7 +53,6 @@ from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.native import RemoteConfigProduct
-from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
@@ -234,6 +235,8 @@ class Debugger(Service):
 
         cls._instance = debugger = cls()
 
+        DebuggerSampler.start()
+
         debugger.start()
 
         register_post_run_module_hook(cls._on_run_module)
@@ -272,6 +275,8 @@ class Debugger(Service):
         cls._instance.stop(join=join)
         cls._instance = None
 
+        DebuggerSampler.stop()
+
         cls.__watchdog__.uninstall()
 
         if di_config.metrics:
@@ -292,14 +297,6 @@ class Debugger(Service):
         self._probe_registry = ProbeRegistry(status_logger=status_logger)
 
         self._function_store = FunctionStore()
-
-        log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
-        self._global_rate_limiter = RateLimiter(
-            limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
-            on_exceed=lambda: log_limiter.limit(log.debug, "Global rate limit exceeded"),
-            call_once=True,
-            raise_on_exceed=False,
-        )
 
         self.probe_file = di_config.probe_file
 
@@ -355,7 +352,7 @@ class Debugger(Service):
             try:
                 signal = Signal.from_probe(
                     probe,
-                    frame=sys._getframe(1),
+                    frame=sys._getframe(HOOK_FRAME_DEPTH),
                     thread=threading.current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,
@@ -364,7 +361,7 @@ class Debugger(Service):
                 log.error("Unsupported probe type: %r", type(probe), exc_info=True)
                 return
 
-            signal.do_line(self._global_rate_limiter if probe.is_global_rate_limited() else None)
+            signal.do_line()
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)

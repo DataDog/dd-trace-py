@@ -6,6 +6,26 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Span attribute limits
+
+`ddtrace.internal._limits` defines the span attribute size limits used by span
+producers and encoders. Products that attach payloads to spans use these shared
+limits to keep their output within the encoding limits.
+
+## Coverage collection contexts
+
+`ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
+collection scope, such as a test or an import. A `ContextVar` holds an immutable
+tuple of these collectors. Copying an execution context shares the collectors
+and their data, while entering or exiting a scope replaces only that context's
+stack. Collectors compare by identity so context restoration can distinguish
+scopes even when both have empty coverage. Exiting a collector marks it closed
+in all inherited stacks; writes resolve to the nearest collector still active.
+
+On Python 3.14+, monitoring callbacks can observe a snapshot that does not see
+current `ContextVar` values. Thread-local storage (TLS) provides a fallback stack
+for these callbacks, using the same rules to skip completed collectors.
+
 
 ## The Product Protocol
 
@@ -437,7 +457,7 @@ interested in those event bits again.
 
 ### Error Isolation
 
-LINE handler failures are logged and isolated so one subsystem cannot disrupt
-another. Global, PY_START, PY_RETURN, and PY_UNWIND handler failures propagate
-to the monitored frame; those handlers must contain their own failures when
-isolation is required.
+LINE and global handler failures are logged and isolated so one subsystem
+cannot disrupt another. PY_START, PY_RETURN, and PY_UNWIND handler failures
+propagate to the monitored frame; handlers for those lifecycle events must
+handle their own failures when isolation is required.

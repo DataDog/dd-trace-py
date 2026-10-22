@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from ddtrace.internal.opentelemetry.utils import set_http_exporter_marker
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -74,6 +75,7 @@ class HTTPMetricsExporter(_MetricsExporterProxy):
         from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 
         self._exporter = OTLPMetricExporter(*args, **kwargs)
+        set_http_exporter_marker(self._exporter)
 
 
 class _LogsExporterProxy(_ExporterProxy):
@@ -101,3 +103,4 @@ class HTTPLogsExporter(_LogsExporterProxy):
         from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
         self._exporter = OTLPLogExporter(*args, **kwargs)
+        set_http_exporter_marker(self._exporter)
