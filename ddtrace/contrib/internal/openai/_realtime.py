@@ -1151,7 +1151,7 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     if total_tokens is not None:
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
 
-    # Audio and cached counts are subsets of the totals, not additional tokens.
+    # Modality and cached counts are subsets of the totals, not additional tokens.
     # Preserve missing fields: an unknown cached-audio split is not zero audio.
     input_details = _get_attr(usage, "input_token_details", None)
     output_details = _get_attr(usage, "output_token_details", None)
@@ -1159,8 +1159,13 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     for key, value in (
         (CACHE_READ_INPUT_TOKENS_METRIC_KEY, _get_attr(input_details, "cached_tokens", None)),
         ("input_audio_tokens", _get_attr(input_details, "audio_tokens", None)),
+        ("input_text_tokens", _get_attr(input_details, "text_tokens", None)),
+        ("input_image_tokens", _get_attr(input_details, "image_tokens", None)),
         ("output_audio_tokens", _get_attr(output_details, "audio_tokens", None)),
+        ("output_text_tokens", _get_attr(output_details, "text_tokens", None)),
         ("cache_audio_read_tokens", _get_attr(cached_details, "audio_tokens", None)),
+        ("cache_text_read_tokens", _get_attr(cached_details, "text_tokens", None)),
+        ("cache_image_read_tokens", _get_attr(cached_details, "image_tokens", None)),
     ):
         if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
             metrics[key] = value

@@ -605,6 +605,33 @@ def test_realtime_state_usage_total_tokens_fallback():
     assert integration.responses[0]["metrics"] == {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
 
 
+@pytest.mark.parametrize("value", [0, 2, None, -1, True, False, 1.5, "2"])
+def test_realtime_usage_named_counts(value):
+    details = {
+        "input_token_details": {
+            "text_tokens": value,
+            "image_tokens": value,
+            "cached_tokens_details": {"text_tokens": value, "image_tokens": value},
+        },
+        "output_token_details": {"text_tokens": value},
+    }
+    expected = {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
+    if type(value) is int and value >= 0:
+        expected.update(
+            {
+                key: value
+                for key in (
+                    "input_text_tokens",
+                    "input_image_tokens",
+                    "output_text_tokens",
+                    "cache_text_read_tokens",
+                    "cache_image_read_tokens",
+                )
+            }
+        )
+    assert _realtime._usage_metrics({"input_tokens": 4, "output_tokens": 6, **details}) == expected
+
+
 @pytest.mark.parametrize(
     "details, expected",
     [
@@ -1261,7 +1288,8 @@ def _server_messages():
                             "text_tokens": 200,
                             "audio_tokens": 4800,
                             "cached_tokens": 4000,
-                            "cached_tokens_details": {"text_tokens": 100, "audio_tokens": 3900},
+                            "image_tokens": 0,
+                            "cached_tokens_details": {"text_tokens": 100, "audio_tokens": 3900, "image_tokens": 0},
                         },
                         "output_token_details": {"text_tokens": 100, "audio_tokens": 1200},
                     },
@@ -1331,6 +1359,11 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
             "output_audio_tokens": 1200,
             "cache_read_input_tokens": 4000,
             "cache_audio_read_tokens": 3900,
+            "input_text_tokens": 200,
+            "input_image_tokens": 0,
+            "output_text_tokens": 100,
+            "cache_text_read_tokens": 100,
+            "cache_image_read_tokens": 0,
         },
         # session config rides on each turn span as metadata now.
         metadata={"voice": "alloy", "output_audio_format": "audio/pcm", "input_audio_format": "audio/pcm"},
@@ -1502,6 +1535,11 @@ async def test_realtime_async_integration_spans(openai, openai_llmobs, test_span
             "output_audio_tokens": 1200,
             "cache_read_input_tokens": 4000,
             "cache_audio_read_tokens": 3900,
+            "input_text_tokens": 200,
+            "input_image_tokens": 0,
+            "output_text_tokens": 100,
+            "cache_text_read_tokens": 100,
+            "cache_image_read_tokens": 0,
         },
     )
     assert data.get("session_id")
