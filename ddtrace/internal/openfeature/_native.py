@@ -86,11 +86,10 @@ def _log_flag_summary(config: Any, native_config: ffe.Configuration) -> None:
             if details.error_code == ffe.ErrorCode.ParseError:
                 rejected.append((key, details.error_message or "configuration error"))
                 log.debug(
-                    "Feature Flags: rejected flag %s: %s; definition=%r "
+                    "Feature Flags: rejected flag %s: %s "
                     "(native evaluator does not expose field-level rejection details)",
                     key,
                     details.error_message,
-                    flags[key],
                 )
         log.debug(
             "Feature Flags: configuration parsed: %d flag(s), %d usable, %d rejected%s",

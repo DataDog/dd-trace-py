@@ -330,7 +330,7 @@ def test_debug_logs_configuration_restored_after_removal(caplog):
     assert caplog.messages.count("Feature Flags: remote_config configuration recovered after removal") == 1
 
 
-def test_debug_logs_all_rejected_flags_and_their_definitions(caplog):
+def test_debug_logs_all_rejected_flags_without_their_definitions(caplog):
     broken = create_boolean_flag("broken")
     broken["variations"] = {"true": {"key": "true", "value": "invalid-boolean"}}
     with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._native"):
@@ -339,7 +339,8 @@ def test_debug_logs_all_rejected_flags_and_their_definitions(caplog):
         "Feature Flags: configuration parsed: 1 flag(s), 0 usable, 1 rejected "
         "(invalid flag configuration: broken: configuration error)" in caplog.messages
     )
-    assert "invalid-boolean" in caplog.text
+    # The definition holds variation values and targeting rules, which may be sensitive.
+    assert "invalid-boolean" not in caplog.text
     assert "native evaluator does not expose field-level rejection details" in caplog.text
 
 

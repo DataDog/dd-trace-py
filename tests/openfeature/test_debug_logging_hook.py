@@ -208,7 +208,7 @@ def test_provider_warns_once_about_raw_data_when_debug_enabled(caplog):
     assert warning.getMessage() == (
         "Feature Flags: debug logging is enabled, so feature flag logs include raw evaluation data (targeting keys, "
         "evaluation context attributes, flag values, and default values) that may contain personal or sensitive "
-        "information. Unset DD_TRACE_DEBUG when you no longer need it."
+        "information. Disable debug logging (DD_TRACE_DEBUG, or a DEBUG DD_TRACE_LOG_LEVEL) when you no longer need it."
     )
 
 
