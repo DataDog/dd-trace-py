@@ -506,6 +506,9 @@ suites:
           python: ['3.11']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.27']
   asynctest:
+    # TODO(py-315): asynctest 0.13.0 is unmaintained and its suite fails at
+    # collection on 3.15 (module 'ast' has no attribute 'Str'). Re-add 3.15 only
+    # if asynctest ever supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -515,7 +518,7 @@ suites:
       env:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       command: pytest {cmdargs} tests/contrib/asynctest/
-      python: ['3.9', '3.15']
+      python: ['3.9']
       variants:
         - name: asynctest
           dependencies: ['pytest>=6.0,<7.0', pytest-randomly, 'asynctest==0.13.0']
@@ -1015,6 +1018,9 @@ suites:
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, sqlalchemy, django]
           command: pytest {cmdargs} tests/contrib/django_celery
   django_hosts:
+    # TODO(py-315): the pinned django/pytest-django stack imports cgi (removed
+    # in Python 3.13), so every variant fails at collection on 3.15. Re-add
+    # 3.15 with dependency rows that support it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1028,13 +1034,13 @@ suites:
       command: pytest {cmdargs} tests/contrib/django_hosts
       variants:
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.15']
+          python: ['3.9', '3.10']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, 'django_hosts~=4.0', 'django~=3.2']
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, 'django_hosts~=5.0', 'django~=4.0']
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, django_hosts, 'django~=4.0']
   django:djangorestframework:
     env:
@@ -1055,16 +1061,16 @@ suites:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/djangorestframework
       variants:
         - name: django:djangorestframework
-          python: ['3.9', '3.15']
+          python: ['3.9']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django>=2.2,<2.3', 'djangorestframework==3.12.4']
         - name: django:djangorestframework
-          python: ['3.9', '3.15']
+          python: ['3.9']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django>=2.2,<2.3', 'djangorestframework==3.13.1']
         - name: django:djangorestframework
-          python: ['3.9', '3.10', '3.15']
+          python: ['3.9', '3.10']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=3.2', 'djangorestframework>=3.11,<3.12']
         - name: django:djangorestframework
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', 'djangorestframework~=3.13']
         - name: django:djangorestframework
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
@@ -1379,13 +1385,13 @@ suites:
       command: pytest {cmdargs} tests/contrib/gevent
       variants:
         - name: gevent
-          python: ['3.9', '3.15']
+          python: ['3.9']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=21.1.0', 'greenlet~=1.0']
         - name: gevent
-          python: ['3.9', '3.15']
+          python: ['3.9']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent<21.8.0', 'greenlet~=1.0']
         - name: gevent
-          python: ['3.10', '3.15']
+          python: ['3.10']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=21.12.0']
         - name: gevent
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
@@ -1652,7 +1658,7 @@ suites:
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
         - name: kafka
-          python: ['3.9', '3.10', '3.15']
+          python: ['3.9', '3.10']
           dependencies: [pytest-randomly, pytest-xdist, 'confluent-kafka~=1.9.2']
         - name: kafka
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
@@ -1762,7 +1768,7 @@ suites:
       variants:
         - name: mlflow
           # mlflow 2.11 imports sqlalchemy.pool.FallbackAsyncAdaptedQueuePool, which SQLAlchemy 2.1 removed.
-          python: ['3.10', '3.11', '3.15']
+          python: ['3.10', '3.11']
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.

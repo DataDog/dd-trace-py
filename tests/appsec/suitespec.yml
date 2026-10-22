@@ -236,6 +236,8 @@ suites:
         - name: appsec_integrations_stripe
           dependencies: ['stripe~=13.0']
   appsec_integrations_langchain:
+    # TODO(py-315): the pinned langchain versions declare python <3.15 and
+    # fail at import. Re-add 3.15 with langchain releases that support it.
     paths:
       - '@bootstrap'
       - '@appsec'
