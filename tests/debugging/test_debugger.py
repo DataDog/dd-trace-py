@@ -578,6 +578,60 @@ def test_debugger_probe_survives_reimport(probe, stuff):
             ModuleCodeCollector.release(new_stuff, "test")
 
 
+def test_debugger_probe_added_during_reimport(stuff):
+    # A probe that arrives from another thread (e.g. remote configuration)
+    # while a module is being imported again must not be installed on the
+    # module being replaced, nor leave the replacement uninstrumented.
+    from importlib import import_module
+    from threading import Thread
+
+    instance_probe = create_snapshot_line_probe(
+        probe_id="probe-instance-method",
+        source_file="tests/submod/stuff.py",
+        line=36,
+        rate=float("inf"),
+    )
+    static_probe = create_snapshot_line_probe(
+        probe_id="probe-static-method",
+        source_file="tests/submod/stuff.py",
+        line=29,
+        rate=float("inf"),
+    )
+
+    with debugger() as d:
+        d.add_probes(instance_probe)
+
+        threads = []
+        on_module_import = d._on_module_import
+
+        def import_hook(module):
+            on_module_import(module)
+            if module.__name__ == "tests.submod.stuff":
+                # Give the other thread the chance to register the new probe
+                # while this import is still being processed.
+                thread = Thread(target=d.add_probes, args=(static_probe,))
+                thread.start()
+                thread.join(0.2)
+                threads.append(thread)
+
+        d.__watchdog__.unregister_import_hook(on_module_import)
+        d.__watchdog__.register_import_hook(import_hook)
+        try:
+            del sys.modules["tests.submod.stuff"]
+            new_stuff = import_module("tests.submod.stuff")
+        finally:
+            d.__watchdog__.unregister_import_hook(import_hook)
+            d.__watchdog__.register_import_hook(on_module_import)
+
+        (thread,) = threads
+        thread.join()
+
+        new_stuff.Stuff().instancestuff(42)
+        new_stuff.Stuff.staticstuff(42)
+
+        assert {s.probe.probe_id for s in d.test_queue} == {instance_probe.probe_id, static_probe.probe_id}
+
+
 def test_debugger_probe_survives_after_import_without_execution(stuff):
     # Import hooks can run for a module without it having executed any new
     # code, e.g. when a watchdog subclass collects a module and installs probes
