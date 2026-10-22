@@ -68,6 +68,7 @@ class AwakeablePeriodicService(PeriodicService):
     """A service that runs periodically but that can also be awakened on demand."""
 
     def awake(self) -> None:
+        """Request a run of periodic() as soon as possible, without waiting for it."""
         if self._worker:
             self._worker.awake()
 
