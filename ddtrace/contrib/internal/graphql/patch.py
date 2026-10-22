@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from collections.abc import Iterable
+import inspect
 from io import StringIO
 import re
 import sys
@@ -76,6 +77,19 @@ config._add(
 _GRAPHQL_SOURCE = "graphql.source"
 _GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
 _GRAPHQL_OPERATION_NAME = "graphql.operation.name"
+
+try:
+    from graphql.execution import execute as _execute
+
+    # graphql-core 3.2.10 inserted a `max_coercion_errors` parameter before
+    # `middleware` in execute(), shifting `middleware`'s positional index,
+    # so the index cannot be hardcoded. Introspect the installed signature
+    # before patching replaces the function object.
+    _MIDDLEWARE_ARG_INDEX = tuple(inspect.signature(_execute).parameters).index("middleware")
+except (ImportError, ValueError):
+    # Older graphql-core layouts: `middleware` was the 10th positional
+    # argument from 3.2 onward and the 9th before that.
+    _MIDDLEWARE_ARG_INDEX = 9 if _graphql_version >= (3, 2) else 8
 
 
 def patch():
@@ -244,14 +258,9 @@ def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kw
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
-    middlewares_arg = 8
-    if _graphql_version >= (3, 2):
-        # middleware is the 10th argument graphql.execute(..) version 3.2+
-        middlewares_arg = 9
-
     # get middlewares from args or kwargs
     try:
-        middlewares = get_argument_value(args, kwargs, middlewares_arg, "middleware") or []
+        middlewares = get_argument_value(args, kwargs, _MIDDLEWARE_ARG_INDEX, "middleware") or []
         if isinstance(middlewares, MiddlewareManager):
             # First we must get the middlewares iterable from the MiddlewareManager then append
             # trace_middleware. For the trace_middleware to be called a new MiddlewareManager will
@@ -266,7 +275,7 @@ def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kw
     middlewares = list(middlewares) + [trace_middleware]
 
     # update args and kwargs to contain trace_middleware
-    args, kwargs = set_argument_value(args, kwargs, middlewares_arg, "middleware", middlewares)
+    args, kwargs = set_argument_value(args, kwargs, _MIDDLEWARE_ARG_INDEX, "middleware", middlewares)
     return args, kwargs
 
 
