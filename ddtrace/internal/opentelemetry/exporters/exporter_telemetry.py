@@ -1,3 +1,4 @@
+from functools import cache
 import logging
 from typing import Any
 
@@ -41,66 +42,51 @@ def record_metrics_export_result(result: Any, protocol: str) -> None:
     )
 
 
-class _ExporterProxy:
-    _exporter: Any
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._exporter, name)
-
-
-class _MetricsExporterProxy(_ExporterProxy):
+class _MetricsExporterTelemetry:
     _protocol: str
 
     def export(self, metrics_data: Any, timeout_millis: Any = 10_000, *args: Any, **kwargs: Any) -> Any:
         record_metrics_export_attempt(self._protocol)
         log.debug("Exporting OpenTelemetry Metrics with %s protocol and protobuf encoding", self._protocol)
-        result = self._exporter.export(metrics_data, timeout_millis, *args, **kwargs)
+        result = super().export(metrics_data, timeout_millis, *args, **kwargs)  # type: ignore[misc]
         record_metrics_export_result(result, self._protocol)
         return result
 
 
-class GRPCMetricsExporter(_MetricsExporterProxy):
-    _protocol = "grpc"
+@cache
+def metrics_exporter_with_telemetry(exporter_class: type[Any], protocol: str) -> type[Any]:
+    class MetricsExporter(_MetricsExporterTelemetry, exporter_class):  # type: ignore[misc]
+        _protocol = protocol
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            if protocol == "http":
+                set_http_exporter_marker(self)
 
-        self._exporter = OTLPMetricExporter(*args, **kwargs)
-
-
-class HTTPMetricsExporter(_MetricsExporterProxy):
-    _protocol = "http"
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-
-        self._exporter = OTLPMetricExporter(*args, **kwargs)
-        set_http_exporter_marker(self._exporter)
+    MetricsExporter.__name__ = exporter_class.__name__
+    MetricsExporter.__qualname__ = exporter_class.__qualname__
+    return MetricsExporter
 
 
-class _LogsExporterProxy(_ExporterProxy):
+class _LogsExporterTelemetry:
     _protocol: str
 
     def export(self, batch: Any, *args: Any, **kwargs: Any) -> Any:
         record_log_records(len(batch), self._protocol)
         log.debug("Exporting %d OpenTelemetry Logs with %s protocol and protobuf encoding", len(batch), self._protocol)
-        return self._exporter.export(batch, *args, **kwargs)
+        return super().export(batch, *args, **kwargs)  # type: ignore[misc]
 
 
-class GRPCLogsExporter(_LogsExporterProxy):
-    _protocol = "grpc"
+@cache
+def logs_exporter_with_telemetry(exporter_class: type[Any], protocol: str) -> type[Any]:
+    class LogsExporter(_LogsExporterTelemetry, exporter_class):  # type: ignore[misc]
+        _protocol = protocol
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            if protocol == "http":
+                set_http_exporter_marker(self)
 
-        self._exporter = OTLPLogExporter(*args, **kwargs)
-
-
-class HTTPLogsExporter(_LogsExporterProxy):
-    _protocol = "http"
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-
-        self._exporter = OTLPLogExporter(*args, **kwargs)
-        set_http_exporter_marker(self._exporter)
+    LogsExporter.__name__ = exporter_class.__name__
+    LogsExporter.__qualname__ = exporter_class.__qualname__
+    return LogsExporter

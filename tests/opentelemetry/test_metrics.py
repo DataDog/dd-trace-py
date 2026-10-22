@@ -335,12 +335,20 @@ def test_exporter_resolution_without_proto_package_returns_none(monkeypatch, pro
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="Test requires the lightweight exporter selection path")
 def test_grpc_protocol_without_grpclib_falls_back_to_upstream_exporter(monkeypatch):
     from ddtrace.internal.opentelemetry import exporters
-    from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCMetricsExporter
+
+    class UpstreamMetricsExporter:
+        pass
 
     monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter", None)
-    monkeypatch.setattr(exporters, "import_module", lambda name: SimpleNamespace())
+    monkeypatch.setattr(
+        exporters,
+        "import_module",
+        lambda name: SimpleNamespace(OTLPMetricExporter=UpstreamMetricsExporter),
+    )
 
-    assert exporters.get_metrics_exporter("grpc") is GRPCMetricsExporter
+    exporter = exporters.get_metrics_exporter("grpc")
+    assert exporter is not None
+    assert issubclass(exporter, UpstreamMetricsExporter)
 
 
 @skipif(exporter_not_installed=True)
@@ -373,7 +381,10 @@ def test_upstream_exporter_fallback_records_telemetry(monkeypatch):
     )
 
     exporter = get_metrics_exporter("grpc")(endpoint="http://127.0.0.1:4317")
-    monkeypatch.setattr(exporter._exporter, "export", lambda *args, **kwargs: MetricExportResult.SUCCESS)
+    upstream_exporter = next(
+        cls for cls in type(exporter).__mro__ if cls.__module__.startswith("opentelemetry.exporter.otlp.")
+    )
+    monkeypatch.setattr(upstream_exporter, "export", lambda *args, **kwargs: MetricExportResult.SUCCESS)
     try:
         assert exporter.export(object()) is MetricExportResult.SUCCESS
     finally:

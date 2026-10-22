@@ -4,10 +4,8 @@ from importlib.metadata import version
 from typing import Any
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCLogsExporter
-from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import GRPCMetricsExporter
-from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import HTTPLogsExporter
-from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import HTTPMetricsExporter
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import logs_exporter_with_telemetry
+from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import metrics_exporter_with_telemetry
 
 
 log = get_logger(__name__)
@@ -39,8 +37,8 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
                     return GRPCMetricExporter
                 except ImportError:
                     pass
-            import_module("opentelemetry.exporter.otlp.proto.grpc.metric_exporter")
-            return GRPCMetricsExporter
+            module = import_module("opentelemetry.exporter.otlp.proto.grpc.metric_exporter")
+            return metrics_exporter_with_telemetry(module.OTLPMetricExporter, "grpc")
 
         if protocol == "http/protobuf":
             if _supports_lightweight_exporter(exporter_version):
@@ -49,8 +47,8 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
                 )
 
                 return HTTPMetricExporter
-            import_module("opentelemetry.exporter.otlp.proto.http.metric_exporter")
-            return HTTPMetricsExporter
+            module = import_module("opentelemetry.exporter.otlp.proto.http.metric_exporter")
+            return metrics_exporter_with_telemetry(module.OTLPMetricExporter, "http")
 
         log.warning(
             "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
@@ -90,8 +88,8 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
                     return GRPCLogExporter
                 except ImportError:
                     pass
-            import_module("opentelemetry.exporter.otlp.proto.grpc._log_exporter")
-            return GRPCLogsExporter
+            module = import_module("opentelemetry.exporter.otlp.proto.grpc._log_exporter")
+            return logs_exporter_with_telemetry(module.OTLPLogExporter, "grpc")
 
         if protocol == "http/protobuf":
             if _supports_lightweight_exporter(exporter_version):
@@ -100,8 +98,8 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
                 )
 
                 return HTTPLogExporter
-            import_module("opentelemetry.exporter.otlp.proto.http._log_exporter")
-            return HTTPLogsExporter
+            module = import_module("opentelemetry.exporter.otlp.proto.http._log_exporter")
+            return logs_exporter_with_telemetry(module.OTLPLogExporter, "http")
 
         log.warning(
             "OpenTelemetry Logs exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
