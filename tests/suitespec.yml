@@ -183,7 +183,7 @@ suites:
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82']
           python: ['3.9', '3.10', '3.11']
         - name: crashtracker
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
@@ -203,7 +203,7 @@ suites:
       python: ['3.10']
       variants: [{name: meta-testing}]
   ddtracerun:
-    venvs_per_job: 3
+    venvs_per_job: 4
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -241,7 +241,7 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants: [{name: detect_global_locks}]
   integration_agent:
-    venvs_per_job: 1
+    venvs_per_job: 4
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     paths:
@@ -266,7 +266,7 @@ suites:
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   integration_testagent:
-    venvs_per_job: 1
+    venvs_per_job: 4
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
@@ -295,7 +295,7 @@ suites:
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   internal:
-    venvs_per_job: 4
+    venvs_per_job: 6
     retry: 2
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
@@ -310,6 +310,7 @@ suites:
       - ddtrace/internal/*
       - scripts/check_no_new_aidev_anchors.py
       - scripts/gen_gitlab_config.py
+      - scripts/run-tests
       - scripts/update-libddwaf-checksums.py
       - tests/internal/*
       - tests/submod/*
@@ -398,7 +399,6 @@ suites:
       command: pytest {cmdargs} tests/runtime/
       variants:
         - name: runtime
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [msgpack, pytest-randomly]
   openfeature:
     paths:
@@ -445,7 +445,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
-    venvs_per_job: 1
+    venvs_per_job: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
       DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
@@ -467,7 +467,7 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     matrix:
-      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
+      command: pytest -v -n auto --dist=worksteal {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
       env:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
@@ -476,17 +476,17 @@ suites:
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
         - name: tracer-python-optimize
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
           env:
             PYTHONOPTIMIZE: '1'
         - name: tracer-legacy-attrs
           python: ['3.9']
-          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
+          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun, 'cattrs<23.2.0']
         - name: tracer-128-bit-traceid-disabled
           python: ['3.14', '3.15']
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:

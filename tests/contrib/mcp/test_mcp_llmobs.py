@@ -258,7 +258,11 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
             "mcp_tool": "failing_tool",
             "mcp_tool_kind": "server",
         },
-        error={"type": "ToolError", "message": "tool resulted in an error", "stack": ""},
+        error={
+            "type": "ToolError",
+            "message": "Error executing tool failing_tool: Tool execution failed",
+            "stack": "",
+        },
         name="failing_tool",
         parent_id=mock.ANY,
     )
