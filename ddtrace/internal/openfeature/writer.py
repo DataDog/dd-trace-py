@@ -121,8 +121,6 @@ class ExposureWriter(PeriodicService):
         self._lock = RLock()
         self._buffer: list[ExposureEvent] = []
         self._buffer_size: int = 0
-        self._in_flight_count = 0
-        self._shutdown_complete = False
         self._timeout: float = timeout
         self._enabled: bool = enabled
         self._route_selector = route_selector or get_feature_flag_evp_route_selector()
@@ -152,7 +150,6 @@ class ExposureWriter(PeriodicService):
             logger.debug("ExposureWriter disabled, not starting")
             return
 
-        self._shutdown_complete = False
         super().start()
         logger.debug("started ExposureWriter to %s", self._url)
         atexit.register(self.on_shutdown)
@@ -162,16 +159,6 @@ class ExposureWriter(PeriodicService):
             return
 
         super().stop(timeout=timeout)
-        budget = DEFAULT_TIMEOUT if timeout is None else timeout
-        self.join(timeout=budget)
-        if not self._shutdown_complete:
-            logger.debug(
-                "Feature Flags: exposure shutdown wait timed out after %.1fs: %d queued event(s) not flushed, "
-                "%d in-flight event(s) with delivery unknown; background work may finish after provider shutdown",
-                budget,
-                len(self._buffer),
-                self._in_flight_count,
-            )
         atexit.unregister(self.on_shutdown)
 
     def on_shutdown(self):
@@ -180,7 +167,6 @@ class ExposureWriter(PeriodicService):
         logger.debug("Feature Flags: flushing %d pending exposure event(s) before shutdown", pending)
         count, outcome = self._flush()
         logger.debug("Feature Flags: exposure writer shutdown flush outcome: %d event(s) %s", count, outcome)
-        self._shutdown_complete = True
 
     def enqueue(self, event: ExposureEvent) -> None:
         """
@@ -221,7 +207,6 @@ class ExposureWriter(PeriodicService):
             events = self._buffer
             self._buffer = []
             self._buffer_size = 0
-            self._in_flight_count += len(events)
 
         try:
             logger.debug("Feature Flags: flushing %d exposure event(s)", len(events))
@@ -249,9 +234,6 @@ class ExposureWriter(PeriodicService):
                 "failed to send %d exposure events to %s; dropping them", len(events), self._intake, exc_info=True
             )
             return len(events), "dropped after a delivery error"
-        finally:
-            with self._lock:
-                self._in_flight_count -= len(events)
 
     def _send_payload_with_retry(self, payload: bytes, num_events: int, route: EVPRoute) -> Response:
         if self._route_selector.configuration_source != REMOTE_CONFIG:

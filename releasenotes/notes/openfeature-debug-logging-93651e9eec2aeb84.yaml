@@ -15,6 +15,3 @@ fixes:
   - |
     openfeature: A logging handler, filter, or record factory that raises no longer interrupts feature flagging provider
     initialization, configuration updates, flag evaluation, or shutdown.
-  - |
-    openfeature: Provider shutdown now waits up to two seconds for exposure delivery to finish.
-    With ``DD_TRACE_DEBUG=true``, logs report the flush outcome or any queued and in-flight work still unfinished.
