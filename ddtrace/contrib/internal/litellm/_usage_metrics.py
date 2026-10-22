@@ -482,9 +482,15 @@ def _sse_data(chunks: Any) -> Any:
                 yield line
 
 
-def _sse_events(chunks: Any) -> Any:
-    """The JSON events of server-sent event chunks."""
+def _sse_events(chunks: Any, kinds: tuple[str, ...]) -> Any:
+    """The JSON events of server-sent event chunks whose text names one of kinds. Only those are decoded: content
+    events, which hold the generated output, are skipped. A quote inside a JSON string is escaped, so generated text
+    cannot name a kind.
+    """
+    quoted = tuple(f'"{kind}"' for kind in kinds)
     for line in _sse_data(chunks):
+        if not any(kind in line for kind in quoted):
+            continue
         try:
             event = json.loads(line)
         except ValueError:
@@ -501,7 +507,7 @@ def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str]]:
     """
     input_reported = output_reported = False
     model = None
-    for event in _sse_events(chunks):
+    for event in _sse_events(chunks, ("message_start", "message_delta")):
         kind = event.get("type")
         if kind == "message_start":
             message = event.get("message") or {}
@@ -784,7 +790,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         payload: Optional[dict[str, Any]],
         response: Any = None,
     ) -> None:
-        attempt.closed = True
+        # Hooks for one stream can run on different LiteLLM threads; only the one that closes the attempt records it.
+        with self._lock:
+            if attempt.closed:
+                return
+            attempt.closed = True
         if attempt.operation is None or attempt.provider is None:
             return
         duration = _seconds(attempt.start, end)
@@ -852,9 +862,10 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         """Record the gateway request. failed marks a request that failed for good, whose cost is what the
         proxy charged for it, zero included.
         """
-        if request.ended:
-            return
-        request.ended = True
+        with self._lock:
+            if request.ended:
+                return
+            request.ended = True
         if request.start is None or request.operation is None:
             return
         observation: dict[str, Any] = {

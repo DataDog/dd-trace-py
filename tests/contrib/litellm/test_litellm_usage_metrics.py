@@ -326,6 +326,10 @@ def test_anthropic_stream_usage_reads_the_raw_events():
     assert _usage_metrics.anthropic_stream_usage([MESSAGE_START]) == (True, False, "claude-haiku-4-5-20251001")
     assert _usage_metrics.anthropic_stream_usage([MESSAGE_START + MESSAGE_DELTA.decode()])[:2] == (True, True)
     assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None)
+    # Generated text that names an event kind is not an event of that kind.
+    text = {"type": "text_delta", "text": '{"type": "message_delta", "usage": {"output_tokens": 9}}'}
+    delta = "data: " + json.dumps({"type": "content_block_delta", "index": 0, "delta": text})
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, delta])[:2] == (True, False)
 
 
 @pytest.mark.parametrize("final_usage, output_source", [(True, None), (False, "estimated")])
@@ -612,6 +616,21 @@ def test_midstream_provider_failure_is_charged(logger, writer, event_first):
     assert request["estimated_cost_usd"] == 1.8e-6
     assert request["error_type"] == "exception"
     assert logger._requests == {}
+
+
+def test_hooks_that_both_found_an_attempt_open_record_it_once(logger, writer):
+    # LiteLLM can run the failure event and the failure hook of one broken stream on different threads, so both can
+    # find the attempt and the request still open before either records them.
+    proxy = Proxy(logger, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    request = logger._requests["call-1"]
+    [attempt] = request.attempts
+    for _ in range(2):
+        logger._record_attempt(request, attempt, {}, at(0.4), "exception", None)
+        logger._record_request("call-1", request, {}, "exception", False, 0.0, failed=True)
+    assert len(writer.of(PROVIDER_ATTEMPT)) == 1
+    assert len(writer.of(GATEWAY_REQUEST)) == 1
 
 
 def test_failed_stream_without_a_failure_event(logger, writer):
