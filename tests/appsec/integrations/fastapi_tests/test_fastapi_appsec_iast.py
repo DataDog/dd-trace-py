@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import closing
 import io
 import json
 import logging
@@ -13,10 +14,12 @@ from fastapi import Request
 from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
+from fastapi.testclient import TestClient
 import pytest
 import requests.utils
 from starlette.background import BackgroundTask
 from starlette.responses import PlainTextResponse
+from starlette.responses import Response
 from starlette.responses import StreamingResponse
 
 from ddtrace.appsec._iast._constants import IAST
@@ -1213,6 +1216,73 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
         assert len(list_vulnerabilities) == 16, (
             f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
         )
+
+
+@pytest.mark.parametrize("mounted", [False, True])
+@pytest.mark.parametrize("inferred_proxy", [False, True])
+def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted, inferred_proxy):
+    import sqlite3
+
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _iast_request_sampling=100,
+            _iast_deduplication_enabled=False,
+            _inferred_proxy_services_enabled=inferred_proxy,
+        )
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        baseline = debug_context_array_free_slots_number()
+        child = FastAPI()
+        application = FastAPI() if mounted else child
+        if mounted:
+            application.mount("/child", child)
+        owners = []
+
+        @child.get("/")
+        async def endpoint(request: Request):
+            request.state.query = request.query_params["query"]
+
+            async def response_sent():
+                request.state.response_sent.set()
+
+            return PlainTextResponse("ok", background=BackgroundTask(response_sent))
+
+        @application.middleware("http")
+        async def inspect_response(request, call_next):
+            request.state.response_sent = asyncio.Event()
+            owner = tracer.current_span()
+            owners.append(owner)
+            response = await call_next(request)
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            # The child has sent its response; the outer middleware is still running.
+            await asyncio.wait_for(request.state.response_sent.wait(), timeout=5)
+            assert not owner.finished
+            assert get_tainted_ranges(request.state.query)
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(request.state.query)
+            return Response(body, status_code=response.status_code, headers=dict(response.headers))
+
+        with TestClient(application) as client:
+            headers = (
+                {
+                    "x-dd-proxy": "aws-apigateway",
+                    "x-dd-proxy-request-time-ms": "1736973768000",
+                    "x-dd-proxy-domain-name": "gateway.example",
+                }
+                if inferred_proxy
+                else {}
+            )
+            response = client.get("/child/" if mounted else "/", params={"query": "SELECT 1"}, headers=headers)
+        assert response.status_code == 200
+        reports = [(span, load_iast_report(span)) for trace in test_spans.pop_traces() for span in trace]
+        findings = [(span, report) for span, report in reports if report]
+        assert len(findings) == 1
+        span, report = findings[0]
+        assert span.span_id == owners[0].span_id
+        assert span.get_tag("component") == "fastapi"
+        assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+        assert debug_context_array_free_slots_number() == baseline
 
 
 def test_streaming_background_work_cannot_taint_a_later_request(tracer):
