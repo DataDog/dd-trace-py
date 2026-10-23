@@ -1515,12 +1515,22 @@ class TestPrivateMethods:
         mock_manager.retry_handlers = [handler1, handler2]
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        mock_test = Mock()
+        mock_test = Mock(no_auto_retry=False)
         result = plugin._check_applicable_retry_handlers(mock_test)
 
         assert result == handler2
         handler1.should_apply.assert_called_once_with(mock_test)
         handler2.should_apply.assert_called_once_with(mock_test)
+
+    def test_automation_exclusions_skip_all_retry_handlers(self) -> None:
+        manager = session_manager_mock().build_mock()
+        handler = Mock()
+        handler.should_apply.return_value = True
+        manager.retry_handlers = [handler]
+        plugin = TestOptPlugin(session_manager=manager)
+
+        assert plugin._check_applicable_retry_handlers(Mock(no_auto_retry=True)) is None
+        handler.should_apply.assert_not_called()
 
     def test_check_applicable_retry_handlers_none_found(self) -> None:
         """Test _check_applicable_retry_handlers when no handler applies."""
@@ -1537,7 +1547,7 @@ class TestPrivateMethods:
         mock_manager.retry_handlers = [handler1, handler2]
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        mock_test = Mock()
+        mock_test = Mock(no_auto_retry=False)
         result = plugin._check_applicable_retry_handlers(mock_test)
 
         assert result is None
@@ -1989,6 +1999,22 @@ class TestXdistCrashRequeue:
         report.outcome = "failed"
         report.user_properties = []
         return report
+
+    def test_automation_exclusions_prevent_crash_requeue(self) -> None:
+        from ddtrace.testing.internal.pytest._xdist import no_auto_retry_path
+
+        plugin = self._build_plugin(atr=True)
+        report = self._make_report()
+        sched = Mock()
+        assert plugin._crash_retry_state_path is not None
+        no_auto_retry_path(plugin._crash_retry_state_path, report.nodeid).touch()
+
+        plugin.pytest_runtest_logstart(report.nodeid, None)
+        plugin.pytest_handlecrashitem(report.nodeid, report, sched)
+
+        sched.mark_test_pending.assert_not_called()
+        assert report.outcome == "failed"
+        plugin.pytest_sessionfinish()
 
     def test_requeues_crash_with_atr(self) -> None:
         plugin = self._build_plugin(atr=True)
@@ -2506,3 +2532,72 @@ class TestRetryReportsTeardownTracking:
         # Degraded report — the bug's symptom.
         assert final_report.outcome == "failed"
         assert final_report.longrepr is None
+
+
+@pytest.mark.parametrize("excluded", [True, False])
+def test_automation_exclusions_legacy_external_lifecycle(monkeypatch: pytest.MonkeyPatch, excluded: bool) -> None:
+    from ddtrace.testing.internal.pytest.plugin import _ExcludedTestProtocolWrapper
+
+    callback = Mock(_dd_no_auto_retry=excluded)
+    item = Mock(obj=callback)
+    main_plugin = Mock()
+    lifecycle: list[str] = []
+
+    def protocol(plugin, item, nextitem):
+        assert plugin is main_plugin
+        lifecycle.append("start")
+        yield
+        lifecycle.append("finish")
+
+    monkeypatch.setattr(TestOptPlugin, "pytest_runtest_protocol", protocol, raising=False)
+    wrapper = _ExcludedTestProtocolWrapper(main_plugin).pytest_runtest_protocol(item, None)
+    next(wrapper)
+    assert lifecycle == (["start"] if excluded else [])
+    with pytest.raises(StopIteration):
+        next(wrapper)
+    assert lifecycle == (["start", "finish"] if excluded else [])
+
+
+@pytest.mark.parametrize("shared", [False, True])
+def test_automation_exclusions_unshared_crash_ledger(tmp_path: Path, shared: bool) -> None:
+    from ddtrace.testing import no_auto_retry
+
+    manager = session_manager_mock().build_mock()
+    manager.collected_tests = set()
+    plugin = TestOptPlugin(session_manager=manager)
+    ledger_dir = tmp_path if shared else tmp_path / "controller-only"
+    plugin.xdist_atr_crash_state_path = ledger_dir / "crash_retries.json"
+    plugin.xdist_atr_collection_ready_path = tmp_path / "worker-ready"
+    item = pytest_item_mock("test_suite.py::test_excluded").build()
+    item.obj = no_auto_retry(lambda: None)
+    session = Mock(items=[item])
+
+    plugin.pytest_collection_finish(session)
+
+    manager.finish_collection.assert_called_once()
+    assert item_to_test_ref(item) in manager.collected_tests
+    assert plugin.xdist_atr_collection_ready_path.is_file() is shared
+
+
+@pytest.mark.parametrize("popen,via,shared", [(True, None, True), (False, None, False), (True, "ssh-gateway", False)])
+def test_automation_exclusions_remote_crash_fallback(popen: bool, via: t.Optional[str], shared: bool) -> None:
+    from types import SimpleNamespace
+
+    plugin = TestXdistCrashRequeue._build_plugin(atr=True)
+    node = Mock(workerinput={})
+    node.gateway.spec = SimpleNamespace(popen=popen, via=via)
+    plugin.pytest_configure_node(node)
+    if shared and (ready_path := node.workerinput.get("dd_atr_crash_collection_ready")):
+        Path(ready_path).touch()
+    report = TestXdistCrashRequeue._make_report("test_remote.py::test_excluded")
+    sched = Mock()
+    budget = plugin._remaining_session_retries
+    try:
+        # No shared marker can reach the controller when the worker's filesystem is isolated.
+        plugin.pytest_handlecrashitem(report.nodeid, report, sched)
+
+        assert sched.mark_test_pending.call_count == int(shared)
+        assert report.outcome == ("rerun" if shared else "failed")
+        assert plugin._remaining_session_retries == budget - int(shared)
+    finally:
+        plugin.pytest_sessionfinish()

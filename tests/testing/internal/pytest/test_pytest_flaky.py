@@ -5,6 +5,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -228,3 +229,79 @@ class TestPytestFlakyPlugin:
         [no_skip_event] = list(event_capture.events_by_test_name("test_no_skip"))
         assert skip_event["content"]["meta"].get("test.status") == "skip"
         assert no_skip_event["content"]["meta"].get("test.status") == "pass"
+
+
+def test_explicit_flaky_retries_preserved(pytester: Pytester) -> None:
+    pytest.importorskip("flaky")
+    pytester.makepyfile(
+        test_foo="""
+        from flaky import flaky
+        from ddtrace.testing import no_auto_retry
+        count = 0
+        @flaky(max_runs=2)
+        @no_auto_retry
+        def test_retry():
+            global count
+            count += 1
+            assert count == 2
+    """
+    )
+    with (
+        patch(
+            "ddtrace.testing.internal.session_manager.APIClient",
+            return_value=mock_api_client_settings(auto_retries_enabled=True),
+        ),
+        setup_standard_mocks(),
+        EventCapture.capture() as capture,
+    ):
+        result = pytester.inline_run("--ddtrace", "-p", "flaky", "-q")
+    assert result.ret == 0
+    [event] = capture.events_by_test_name("test_retry")
+    assert event["content"]["meta"]["test.test_management.no_auto_retry"] == "true"
+    assert "test.retry_reason" not in event["content"]["meta"]
+
+
+def test_excluded_quarantined_failure_retains_outcome(pytester: Pytester) -> None:
+    pytest.importorskip("flaky")
+    pytester.makepyfile(
+        test_foo="""
+        from flaky import flaky
+        from pathlib import Path
+        from ddtrace.testing import no_auto_retry
+        count = 0
+        @flaky(max_runs=2)
+        @no_auto_retry
+        def test_quarantined():
+            global count
+            count += 1
+            Path(__file__).with_suffix(".count").write_text(str(count))
+            assert False
+    """
+    )
+    known = _known_tests("test_quarantined")
+    with (
+        patch(
+            "ddtrace.testing.internal.session_manager.APIClient",
+            return_value=mock_api_client_settings(
+                auto_retries_enabled=True,
+                test_management_enabled=True,
+                known_tests_enabled=True,
+                known_tests=known,
+                test_management_properties={
+                    ref: TestProperties(quarantined=True, attempt_to_fix=True) for ref in known
+                },
+            ),
+        ),
+        setup_standard_mocks(),
+        EventCapture.capture() as capture,
+    ):
+        result = pytester.inline_run("--ddtrace", "-p", "flaky", "-q")
+    assert result.ret == 0
+    assert (pytester.path / "test_foo.count").read_text() == "2"
+    [event] = capture.events_by_test_name("test_quarantined")
+    meta = event["content"]["meta"]
+    assert meta["test.status"] == "fail"
+    assert meta["test.test_management.no_auto_retry"] == "true"
+    assert meta["test.test_management.is_quarantined"] == "true"
+    assert meta["test.test_management.is_attempt_to_fix"] == "true"
+    assert "test.retry_reason" not in meta
