@@ -1035,10 +1035,18 @@ class ai_usage:
             ...
         def is_empty(self) -> bool: ...
         def take_otlp(
-            self, scope_name: str, scope_version: str, start_time_unix_nano: int, time_unix_nano: int
+            self,
+            scope_name: str,
+            scope_version: str,
+            start_time_unix_nano: int,
+            time_unix_nano: int,
+            datadog: bool = False,
         ) -> Optional[bytes]:
             """
             Take the points recorded so far as an OTLP ExportMetricsServiceRequest in protobuf, or None.
+
+            datadog selects the Datadog binding, for an export Datadog stores as it arrives: cost in USD and
+            versioned values with "/", as over DogStatsD.
             """
             ...
         def take_dogstatsd(self) -> list[str]:

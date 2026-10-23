@@ -154,7 +154,9 @@ def test_otlp_export_posts_protobuf_with_headers(otlp_endpoint):
     assert headers["content-type"] == "application/x-protobuf"
     assert headers["dd-api-key"] == "abc"
     assert headers["x-team"] == "a,b"
-    for text in (b"gen_ai.client.inference.duration", b"trajectory.profile", PROVIDER_ATTEMPT.encode(), b"u1", b"u2"):
+    # The default destination is Datadog: the profile's version is set apart with "/".
+    profile = PROVIDER_ATTEMPT.replace("@", "/").encode()
+    for text in (b"gen_ai.client.inference.duration", b"trajectory.profile", profile, b"u1", b"u2"):
         assert text in body
     # Nothing new: nothing is sent.
     writer.flush()
@@ -171,8 +173,9 @@ def test_otlp_export_decodes(otlp_endpoint):
     request.ParseFromString(Collector.requests[0][2])
     [scope_metrics] = request.resource_metrics[0].scope_metrics
     assert scope_metrics.scope.name == "ddtrace.contrib.litellm"
+    # The default destination is Datadog, which keeps "/" and not "@" in tag values.
     assert [(a.key, a.value.string_value) for a in scope_metrics.scope.attributes] == [
-        ("trajectory.profile", PROVIDER_ATTEMPT)
+        ("trajectory.profile", PROVIDER_ATTEMPT.replace("@", "/"))
     ]
     [metric] = scope_metrics.metrics
     assert metric.name == "gen_ai.client.inference.usage.input_tokens"
@@ -181,6 +184,59 @@ def test_otlp_export_decodes(otlp_endpoint):
     [point] = metric.sum.data_points
     assert point.as_int == 42
     assert point.start_time_unix_nano < point.time_unix_nano
+
+
+COST = "trajectory.gen_ai.client.inference.usage.cost"
+
+
+def _otlp_cost(body):
+    metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
+    request = metrics_service_pb2.ExportMetricsServiceRequest()
+    request.ParseFromString(body)
+    for scope_metrics in request.resource_metrics[0].scope_metrics:
+        profile = scope_metrics.scope.attributes[0].value.string_value
+        for metric in scope_metrics.metrics:
+            if metric.name == COST:
+                [point] = metric.sum.data_points
+                value = point.as_double if point.HasField("as_double") else point.as_int
+                return metric.unit, value, profile
+    raise AssertionError("no cost metric")
+
+
+def test_datadog_destinations_store_cost_as_dogstatsd_does(otlp_endpoint, monkeypatch):
+    # With no endpoint configured, the export goes to the Agent's receiver or the intake, which store values as they
+    # arrive: cost is sent in USD, the same value the DogStatsD exporter sends under the same name.
+    writer = UsageMetricsWriter("otlp", interval=60, metrics=[COST])
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    unit, otlp_value, profile = _otlp_cost(Collector.requests[0][2])
+    assert unit == "USD"
+    assert profile == PROVIDER_ATTEMPT.replace("@", "/")
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{sock.getsockname()[1]}")
+    receiver = Receiver(sock)
+    dogstatsd = UsageMetricsWriter("dogstatsd", interval=60, metrics=[COST])
+    dogstatsd.record(PROVIDER_ATTEMPT, *observation())
+    dogstatsd.record(PROVIDER_ATTEMPT, *observation())
+    dogstatsd.flush()
+    [line] = [line for packet in receiver.stop() for line in packet.decode().split("\n")]
+    assert line.startswith(COST + ":")
+    assert otlp_value == float(line.split(":", 1)[1].split("|", 1)[0])
+    assert otlp_value == pytest.approx(2 * 5.7e-6)
+
+
+def test_a_configured_endpoint_gets_the_opentelemetry_encoding(collector, monkeypatch):
+    # A collector converts units itself: it gets the OpenTelemetry encoding, cost in integer nano-USD.
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
+    )
+    writer = UsageMetricsWriter("otlp", interval=60, metrics=[COST])
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    assert _otlp_cost(Collector.requests[0][2]) == ("{nanoUSD}", 5700, PROVIDER_ATTEMPT)
 
 
 def test_a_wall_clock_set_back_does_not_invert_the_window(otlp_endpoint):

@@ -14,7 +14,7 @@ pub mod ai_usage {
 
     use libdd_ai_usage::{
         project_result, with_deployment_attributes, Json, JsonObject, MetricBatch, MetricError,
-        OtlpScope, OtlpWindow, Profile,
+        OtlpBinding, OtlpScope, OtlpWindow, Profile,
     };
     use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
     use pyo3::prelude::*;
@@ -183,6 +183,10 @@ pub mod ai_usage {
         /// Take the points recorded so far as an OTLP
         /// `ExportMetricsServiceRequest` in protobuf, or `None` when there are
         /// none. Delta points cover `start_time_unix_nano` to `time_unix_nano`.
+        /// `datadog` selects the Datadog binding, for an export Datadog stores as
+        /// it arrives: cost in USD and versioned values with `/`, as over
+        /// DogStatsD.
+        #[pyo3(signature = (scope_name, scope_version, start_time_unix_nano, time_unix_nano, datadog=false))]
         fn take_otlp<'py>(
             &self,
             py: Python<'py>,
@@ -190,13 +194,19 @@ pub mod ai_usage {
             scope_version: &str,
             start_time_unix_nano: u64,
             time_unix_nano: u64,
+            datadog: bool,
         ) -> PyResult<Option<Bound<'py, PyBytes>>> {
+            let binding = if datadog {
+                OtlpBinding::Datadog
+            } else {
+                OtlpBinding::OpenTelemetry
+            };
             let batch = self.take()?;
             if batch.is_empty() {
                 return Ok(None);
             }
             let payload = py.detach(|| {
-                batch.encode_otlp(
+                batch.encode_otlp_with(
                     OtlpScope {
                         name: scope_name,
                         version: scope_version,
@@ -205,6 +215,7 @@ pub mod ai_usage {
                         start_time_unix_nano,
                         time_unix_nano,
                     },
+                    binding,
                 )
             });
             Ok(Some(PyBytes::new(py, &payload)))

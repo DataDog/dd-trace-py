@@ -202,6 +202,10 @@ class _OtlpSender:
         endpoint = _setting("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
         # Whether the export goes to the local Agent's OTLP receiver, which the Agent does not enable by default.
         self._to_agent = False
+        # Whether Datadog stores the export as it arrives (the Agent's receiver or the agentless intake). It then
+        # follows the Datadog binding, cost in USD, so that metrics hold the same values as over DogStatsD; a
+        # configured endpoint, such as a collector, gets the OpenTelemetry encoding.
+        self.to_datadog = False
         headers = _parse_headers(
             _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
         )
@@ -213,6 +217,7 @@ class _OtlpSender:
             else:
                 endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
                 self._to_agent = not agentless_config.enabled
+                self.to_datadog = True
                 # The API key goes only to the Datadog intake, the default when no endpoint is configured anywhere.
                 api_key = agentless_config.api_key
                 if agentless_config.enabled and api_key and all(name.lower() != "dd-api-key" for name, _ in headers):
@@ -526,7 +531,9 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             end_ns = max(time.time_ns(), self._window_start_ns)
             start_ns, self._window_start_ns = self._window_start_ns, end_ns
             if self._otlp is not None:
-                payload = self._usage.take_otlp(SCOPE_NAME, __version__, start_ns, end_ns)
+                payload = self._usage.take_otlp(
+                    SCOPE_NAME, __version__, start_ns, end_ns, datadog=self._otlp.to_datadog
+                )
                 if payload:
                     if len(self._pending) == self._pending.maxlen:
                         log.debug("LiteLLM usage metrics: dropping the oldest unsent OTLP export")

@@ -1384,7 +1384,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libdd-ai-usage"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=770d8a3b26a067bc40dd5a17d8ce91e5e76b3b30#770d8a3b26a067bc40dd5a17d8ce91e5e76b3b30"
+source = "git+https://github.com/DataDog/libdatadog?rev=4e9412f91f3283b8afaa12c0fb7e84a76bcbc723#4e9412f91f3283b8afaa12c0fb7e84a76bcbc723"
 dependencies = [
  "prost",
  "serde",
