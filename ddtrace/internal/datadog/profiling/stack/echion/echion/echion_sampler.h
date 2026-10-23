@@ -5,13 +5,13 @@
 #include <Python.h>
 
 #include <algorithm>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <random>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 #include <echion/cache.h>
@@ -93,7 +93,16 @@ class EchionSampler
     StringTable string_table_;
     LRUCache<uintptr_t, Frame> frame_cache_;
 #if PY_VERSION_HEX >= 0x030e0000
-    std::vector<std::pair<int64_t, uint64_t>> code_object_generations_;
+    struct InterpreterCodeGeneration
+    {
+        int64_t interpreter_id = 0;
+        uint64_t generation = 0;
+
+        auto operator<=>(const InterpreterCodeGeneration&) const = default;
+    };
+
+    // Snapshot from the previous sampling cycle, sorted so each interpreter can be looked up by binary search.
+    std::vector<InterpreterCodeGeneration> code_object_generations_;
 #endif
 
     // Stack renderer for outputting samples
@@ -176,11 +185,8 @@ class EchionSampler
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
-    // Drops every cache whose key is a CPython object address that frame metadata depends on: the frame cache (code
-    // object addresses), the string table and rendered string IDs (co_name and co_filename addresses, which CPython
-    // 3.14 interns mortally and frees with the code object), and the asyncio/uvloop boundary keys taken from that
-    // table. Clearing only the frame cache would let a rebuilt frame resolve a reused string address to a stale name.
-    // Must run on the sampling thread between unwinds, because string lookups hand out references into the table.
+    // Clears every cache keyed by a CPython object address (code objects and their name/filename strings), since
+    // CPython 3.14 can free and reuse them together. Sampling thread only: lookups return references into the table.
     void invalidate_frame_identity_cache()
     {
         frame_cache_.clear();
@@ -203,7 +209,7 @@ class EchionSampler
         bool generations_changed = interpreters.size() != code_object_generations_.size();
         if (!generations_changed) {
             for (const auto& interpreter : interpreters) {
-                const std::pair<int64_t, uint64_t> generation{ interpreter.id, interpreter.code_object_generation };
+                const InterpreterCodeGeneration generation{ interpreter.id, interpreter.code_object_generation };
                 if (!std::binary_search(code_object_generations_.begin(), code_object_generations_.end(), generation)) {
                     generations_changed = true;
                     break;
@@ -216,7 +222,7 @@ class EchionSampler
             code_object_generations_.clear();
             code_object_generations_.reserve(interpreters.size());
             for (const auto& interpreter : interpreters) {
-                code_object_generations_.emplace_back(interpreter.id, interpreter.code_object_generation);
+                code_object_generations_.push_back({ interpreter.id, interpreter.code_object_generation });
             }
             std::sort(code_object_generations_.begin(), code_object_generations_.end());
         }
@@ -239,7 +245,7 @@ class EchionSampler
         // took its snapshot. Traversing a corrupted list to free nodes would crash.
         frame_cache_.postfork_child();
 #if PY_VERSION_HEX >= 0x030e0000
-        new (&code_object_generations_) std::vector<std::pair<int64_t, uint64_t>>();
+        new (&code_object_generations_) std::vector<InterpreterCodeGeneration>();
 #endif
 
         // Also use placement new for all containers touched by the sampling thread.
