@@ -7,9 +7,11 @@ import logging
 import os
 import socket
 import ssl
+from threading import Thread as ResolverThread
 from time import monotonic
 from time import sleep
 from typing import Any
+from typing import cast
 from urllib.parse import ParseResult
 from urllib.parse import urlparse
 import warnings
@@ -181,6 +183,9 @@ def _environment(signal_name: str, global_name: str, default: str) -> str:
 
 
 def _resolve_insecure(endpoint: str, insecure: bool | None, signal_name: str) -> bool:
+    scheme = _parse_endpoint(endpoint).scheme
+    if scheme:
+        return scheme == "http"
     if insecure is not None:
         return insecure
     configured = env.get(signal_name)
@@ -188,7 +193,7 @@ def _resolve_insecure(endpoint: str, insecure: bool | None, signal_name: str) ->
         configured = env.get("OTEL_EXPORTER_OTLP_INSECURE")
     if configured is not None:
         return configured.strip().lower() == "true"
-    return _parse_endpoint(endpoint).scheme == "http"
+    return False
 
 
 def _resolve_headers(
@@ -229,7 +234,36 @@ async def _getaddrinfo(
     port: int,
     **kwargs: int,
 ) -> list[tuple[Any, ...]]:
-    return socket.getaddrinfo(host, port, **kwargs)
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[list[tuple[Any, ...]]] = loop.create_future()
+
+    def resolve() -> None:
+        result: list[tuple[Any, ...]] | None = None
+        error: Exception | None = None
+        try:
+            result = cast(list[tuple[Any, ...]], socket.getaddrinfo(host, port, **kwargs))
+        except Exception as exception:
+            error = exception
+        try:
+            loop.call_soon_threadsafe(_complete_resolution, future, result, error)
+        except RuntimeError:
+            pass
+
+    ResolverThread(target=resolve, name="ddtrace-otel-dns", daemon=True).start()
+    return await future
+
+
+def _complete_resolution(
+    future: asyncio.Future[list[tuple[Any, ...]]],
+    result: list[tuple[Any, ...]] | None,
+    error: Exception | None,
+) -> None:
+    if future.done():
+        return
+    if error is not None:
+        future.set_exception(error)
+    else:
+        future.set_result(cast(list[tuple[Any, ...]], result))
 
 
 def _run_until_complete(loop: asyncio.AbstractEventLoop, coroutine: Any) -> Any:

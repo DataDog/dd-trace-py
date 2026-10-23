@@ -1,3 +1,4 @@
+import asyncio
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
@@ -246,6 +247,8 @@ def test_grpclib_exporter_tls_defaults_and_configuration(monkeypatch):
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_CLIENT_KEY", "client.key")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_INSECURE", "false")
 
+    assert grpclib_exporter._resolve_insecure("http://collector.example:4317", False, "unused") is True
+    assert grpclib_exporter._resolve_insecure("https://collector.example:4317", True, "unused") is False
     assert (
         grpclib_exporter._resolve_insecure("collector.example:4317", None, "OTEL_EXPORTER_OTLP_METRICS_INSECURE")
         is False
@@ -257,19 +260,29 @@ def test_grpclib_exporter_tls_defaults_and_configuration(monkeypatch):
 
 @skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
-def test_grpclib_exporter_resolves_hosts_without_asyncio_executor(monkeypatch):
+def test_grpclib_exporter_dns_resolution_does_not_block_the_event_loop(monkeypatch):
+    from threading import Event
+
     from ddtrace.internal.opentelemetry.exporters import grpclib_exporter
     from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
 
     addresses = [(2, 1, 6, "", ("127.0.0.1", 4317))]
-    monkeypatch.setattr(grpclib_exporter.socket, "getaddrinfo", lambda *args, **kwargs: addresses)
+    release = Event()
+
+    def resolve(*args, **kwargs):
+        release.wait()
+        return addresses
+
+    monkeypatch.setattr(grpclib_exporter.socket, "getaddrinfo", resolve)
     exporter = OTLPMetricExporter(endpoint="http://collector.example:4317")
     try:
-        resolved = exporter._loop.run_until_complete(exporter._loop.getaddrinfo("collector.example", 4317))
+        with pytest.raises(TimeoutError):
+            exporter._loop.run_until_complete(
+                asyncio.wait_for(exporter._loop.getaddrinfo("collector.example", 4317), timeout=0.01)
+            )
     finally:
+        release.set()
         exporter.shutdown()
-
-    assert resolved == addresses
 
 
 @skipif(exporter_not_installed=True)
@@ -342,9 +355,11 @@ def test_http_exporter_uses_proxy_without_following_redirects(monkeypatch):
     from ddtrace.internal.opentelemetry.exporters.http_metric_exporter import OTLPMetricExporter
 
     monkeypatch.setattr(http_exporter, "getproxies", lambda: {"http": "http://proxy.example.com:8080"})
-    monkeypatch.setattr(http_exporter, "proxy_bypass", lambda hostname: False)
+    bypass_hosts = []
+    monkeypatch.setattr(http_exporter, "proxy_bypass", lambda hostname: bypass_hosts.append(hostname) or False)
     exporter = OTLPMetricExporter(endpoint="http://collector.example.com:4318/v1/metrics")
     try:
+        assert bypass_hosts == ["collector.example.com:4318"]
         assert exporter._client is None
         assert any(isinstance(handler, ProxyHandler) for handler in exporter._opener.handlers)
         assert any(isinstance(handler, http_exporter._NoRedirectHandler) for handler in exporter._opener.handlers)

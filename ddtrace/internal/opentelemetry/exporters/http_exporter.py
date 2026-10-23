@@ -185,7 +185,10 @@ def _resolve_endpoint(prefix: str, path: str) -> str:
 def _proxy_handler(endpoint: str) -> ProxyHandler | None:
     parsed = urlsplit(endpoint)
     proxies = getproxies()
-    if not parsed.hostname or proxy_bypass(parsed.hostname):
+    if not parsed.hostname:
+        return None
+    bypass_host = parsed.netloc.rsplit("@", 1)[-1]
+    if proxy_bypass(bypass_host):
         return None
     proxy = proxies.get(parsed.scheme) or proxies.get("all")
     if proxy is None:
