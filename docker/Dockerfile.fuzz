@@ -20,8 +20,31 @@
 # (one thin layer each with the correct FUZZ_APP, FUZZ_BUILD_ID, and symlink).
 
 # ── Build stage ───────────────────────────────────────────────────────────────
-ARG FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py/fuzz_base:latest
-FROM ${FUZZ_BASE_IMAGE} AS build
+ARG FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py:v146235341-f921d57-fuzz_base
+FROM ${FUZZ_BASE_IMAGE} AS ca-remediated
+
+# The newest published fuzz base still contains NSS's built-in roots.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends p11-kit-modules \
+    && update-ca-certificates -f \
+    && ln -sf /usr/lib/x86_64-linux-gnu/pkcs11/p11-kit-trust.so \
+         /usr/lib/x86_64-linux-gnu/libnssckbi.so \
+    && rm -rf /var/lib/apt/lists/*
+
+# Older pyenv interpreters need the updated certifi bundle copied into pip's
+# vendored copy, since pip 26 does not support Python 3.9.
+RUN set -eu; \
+    for python in /root/.pyenv/versions/*/bin/python; do \
+      "$python" -m pip install --no-cache-dir -U 'certifi>=2026.10.19'; \
+      if "$python" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then \
+        "$python" -m pip install --no-cache-dir -U 'pip>=26.2.2'; \
+      fi; \
+      cp "$("$python" -c 'import certifi; print(certifi.where())')" \
+        "$("$python" -c 'import pathlib, pip; print(pathlib.Path(pip.__file__).parent / "_vendor/certifi/cacert.pem")')"; \
+    done; \
+    find /tmp -maxdepth 1 -type f -name 'tmp*cacert.pem' -delete
+
+FROM ca-remediated AS build
 
 # Select the Python version for this build (major.minor, e.g. "3.10").
 # Must match one of the versions installed by pyenv in fuzz_base.
