@@ -8,9 +8,10 @@ cases marked with @run_in_subprocess in a separate python interpreter.
 
 import inspect
 import os
-import subprocess
 import sys
 import unittest
+
+from tests.process import run_process
 
 
 SUBPROC_TEST_ATTR = "_subproc_test"
@@ -113,16 +114,10 @@ class SubprocessTestCase(unittest.TestCase):
         sp_test_env.update(env_overrides)
         sp_test_env[SUBPROC_ENV_VAR] = "True"
         test_framework = "pytest" if use_pytest else "unittest"
-        sp_test_cmd = ["python", "-m", test_framework, full_testcase_name]
-        sp = subprocess.Popen(
-            sp_test_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=sp_test_env,
-        )
-        stdout, stderr = sp.communicate()
-        stdout = stdout.decode()
-        stderr = stderr.decode()
+        sp_test_cmd = [sys.executable, "-m", test_framework, full_testcase_name]
+        sp = run_process(*sp_test_cmd, env=sp_test_env, strip_test_options=False)
+        stdout = sp.stdout.decode()
+        stderr = sp.stderr.decode()
 
         if sp.returncode and "_pytest.outcomes.xfailed" not in stderr.lower():
             try:

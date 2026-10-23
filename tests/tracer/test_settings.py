@@ -151,16 +151,6 @@ class TestIntegrationConfig(BaseTestCase):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service is None
 
-    @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_FOO_SERVICE="foo-svc"))
-    def test_service_env_var(self):
-        ic = IntegrationConfig(self.config, "foo")
-        assert ic.service == "foo-svc"
-
-    @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_FOO_SERVICE_NAME="foo-svc"))
-    def test_service_name_env_var(self):
-        ic = IntegrationConfig(self.config, "foo")
-        assert ic.service == "foo-svc"
-
     def test_app_analytics_property(self):
         # test default values
         assert self.integration_config.analytics_enabled is False
@@ -200,3 +190,21 @@ def test_x_datadog_tags(env, expected):
     with override_env(env):
         _ = Config()
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+
+
+@pytest.mark.subprocess(env=dict(DD_FOO_SERVICE="foo-svc"), out=None, err=None)
+def test_TestIntegrationConfig_service_env_var():
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    ic = IntegrationConfig(Config(), "foo")
+    assert ic.service == "foo-svc"
+
+
+@pytest.mark.subprocess(env=dict(DD_FOO_SERVICE_NAME="foo-svc"), out=None, err=None)
+def test_TestIntegrationConfig_service_name_env_var():
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    ic = IntegrationConfig(Config(), "foo")
+    assert ic.service == "foo-svc"

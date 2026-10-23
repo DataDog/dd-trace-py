@@ -353,3 +353,66 @@ environment variables. For example, to enable debug logs just for
 ``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
 will set the ``DEBUG`` log level for any logger whose name is prefixed with
 ``ddtrace.debugging``.
+
+Isolated Python scenarios
+-------------------------
+
+Use ordinary pytest for independent objects and algorithms. Use
+``@pytest.mark.subprocess`` when environment variables, imports, or global state
+require a fresh interpreter. Set the environment on the marker before importing
+anything in the body. Each independent configuration needs its own child.
+
+.. code-block:: python
+
+    @pytest.mark.subprocess(env={"DD_SERVICE": "example"})
+    def test_startup():
+        from ddtrace import config
+
+        assert config.service == "example"
+
+The marker executes the body as a script. Use ``command=True`` when the scenario
+requires an unnamed command entry point, as with the former unittest launcher.
+Module globals, ``self``, parent fixtures,
+and the parent's event loop are unavailable. Async scenarios need an explicit
+entry point in the child. The parent still manages snapshot markers and services.
+
+Use the typed ``python_process`` fixture for generated applications and parent-side
+assertions. It returns a result with ``stdout``, ``stderr``, ``returncode``, and
+``pid`` attributes. Output is bytes unless ``text=True`` is requested.
+
+.. code-block:: python
+
+    def test_application(python_process):
+        result = python_process(
+            "from ddtrace import config; print(config.service)",
+            env_overrides={"DD_SERVICE": "example"},
+        )
+        result.check_returncode()
+        assert result.stdout == b"example\n"
+
+``env_overrides`` overlays the inherited environment; ``None`` removes a variable.
+``env`` replaces the entire environment. ``ddtrace_run=True`` explicitly selects
+the launcher. Use ``.file(path)`` or ``.module(name)`` when the filename, module
+execution, or working directory is part of the behavior under test. Pass ``cwd``
+explicitly when needed. Generated source lives under ``ddtrace_subprocess_dir``
+to preserve service-name inference.
+
+Commands time out after 60 seconds by default and terminate, then kill if needed,
+before reporting failure. Set a suitable explicit timeout for longer scenarios.
+For interactive applications, use ``with python_process.start(source) as child``
+and ``child.wait_until(readiness_check)``. The context closes the process even if
+the parent assertion fails. ``descendants=True`` explicitly creates a POSIX process
+group for descendant cleanup; it must not be used when inherited groups or signals
+are part of the test contract.
+
+Existing unittest setup can be reused explicitly inside the child with
+``tests.process.case_context``. This runs setup and cleanup without
+starting a nested test runner. Async scenarios must execute on the loop created by
+their setup. Prefer ordinary child-side setup for new tests.
+
+Repository coverage requires coverage startup in each child (for example a
+``sitecustomize`` calling ``coverage.process_startup()`` with
+``COVERAGE_PROCESS_START`` configured), parallel data files, and a combine step.
+This is separate from testing the product's coverage collection. Subprocess
+markers and tests requesting ``python_process`` cannot be skipped until per-test
+coverage attribution is independently verified.

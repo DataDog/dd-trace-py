@@ -58,6 +58,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
 from tests import utils
+from tests.process import PythonProcess
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
 from tests.utils import request_token
@@ -296,6 +297,11 @@ def ddtrace_tmp_path(tmp_path):
 
 
 @pytest.fixture
+def python_process(tmp_path):
+    return PythonProcess(tmp_path / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
+
+
+@pytest.fixture
 def run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
         pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
@@ -393,7 +399,9 @@ class FunctionDefFinder(ast.NodeVisitor):
 
         t = ast.parse(path.read_text())
         self.visit(t)
-        t.body = self._body or []
+        if self._body is None:
+            raise ValueError(f"No synchronous subprocess scenario named {self.func_name} in {file}")
+        t.body = self._body
         return t
 
 
@@ -422,7 +430,7 @@ def run_function_from_file(item, params=None):
 
     args = [sys.executable]
 
-    timeout = marker.kwargs.get("timeout", None)
+    timeout = marker.kwargs.get("timeout", 60.0)
     check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
@@ -462,13 +470,27 @@ def run_function_from_file(item, params=None):
 
     try:
         with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
-            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+            scenario = FunctionDefFinder(func).find(file)
+            if marker.kwargs.get("test_assertions", False):
+                scenario.body[:0] = ast.parse(
+                    "from tests.process import enable_test_assertions; enable_test_assertions()"
+                ).body
+            dump_code_to_file(compile(scenario, file, "exec", optimize=0), fp.file)
 
             # If running a module with -m, we change directory to the module's
             # folder and run the module directly.
             if run_module:
                 cwd, module = split(splitext(fp.name)[0])
                 args.append(module)
+            elif marker.kwargs.get("command", False):
+                cwd = None
+                args.extend(
+                    [
+                        "-c",
+                        "import importlib.machinery; "
+                        f"exec(importlib.machinery.SourcelessFileLoader('__main__', {fp.name!r}).get_code('__main__'))",
+                    ]
+                )
             else:
                 cwd = None
                 args.append(fp.name)
@@ -480,6 +502,14 @@ def run_function_from_file(item, params=None):
                 out: Union[bytes, str]
                 err: Union[bytes, str]
                 out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
+
+                error_text = err.decode("utf-8", errors="replace") if isinstance(err, bytes) else err
+                if status == 1 and (
+                    "unittest.case.SkipTest:" in error_text
+                    or "unittest.SkipTest:" in error_text
+                    or "_pytest.outcomes.Skipped:" in error_text
+                ):
+                    pytest.skip(error_text.splitlines()[-1])
 
                 xfailed = (
                     "_pytest.outcomes.XFailed" in err if isinstance(err, str) else b"_pytest.outcomes.XFailed" in err
@@ -532,7 +562,9 @@ def pytest_collection_modifyitems(session, config, items):
     """
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
-        if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
+        if any(
+            item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS
+        ) or "python_process" in getattr(item, "fixturenames", ()):
             item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 
         # Store original name and nodeid before modification
