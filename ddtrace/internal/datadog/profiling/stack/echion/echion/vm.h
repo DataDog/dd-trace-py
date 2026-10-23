@@ -67,6 +67,9 @@ inline bool fast_copy_user_disabled = false;
 // Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
 inline bool fast_copy_syscall_fallback = false;
 
+// Sticky foreign-takeover: sampling thread writes; uninstall/reinstall reads.
+inline std::atomic<bool> fast_copy_foreign_takeover{ false };
+
 inline void
 mark_fast_copy_syscall_fallback()
 {
@@ -74,13 +77,15 @@ mark_fast_copy_syscall_fallback()
 }
 
 // Install/reclaim while we still want memcpy recovery, or while memcpy is still
-// the active copy method. desired covers warmup (desired set, active cleared).
-// Once syscall fallback is latched (usually a foreign handler), do not reclaim
-// through the desired-only path — that would steal the foreign owner's handler.
+// the active copy method, and no foreign takeover.
+// desired covers warmup (desired set, active cleared). active covers the brief
+// window in set_fast_copy(false) after desired is cleared and before
+// set_fast_copy_enabled finishes clearing active — keep ops enabled so a
+// coordinated uninstall can still drop a live recovery handler.
 inline bool
 fast_copy_handler_ops_enabled()
 {
-    return fast_copy_active || (fast_copy_desired && !fast_copy_syscall_fallback);
+    return (fast_copy_desired || fast_copy_active) && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
 }
 
 // Set at init; survives toggling fast_copy_active.
