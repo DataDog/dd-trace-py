@@ -761,6 +761,55 @@ def test_weak_cleanup_tolerates_registry_lock_cleared_at_shutdown() -> None:
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_gc_collecting_last_registration_during_register_is_contained() -> None:
+    """Cyclic GC collecting the last registration mid-register must not free the tool.
+
+    The old code registration is only reachable through a reference cycle, so
+    its weakref cleanup runs inside gc.collect() rather than at refcount zero.
+    Without publishing the registry entry before claiming the tool, a GC pass
+    triggered by _CodeHandlers() construction after _setup() returned freed the
+    tool and register() raised ValueError: tool 3 is not in use.
+    """
+    import gc
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    # Force the reviewer-reproduced GC window: cyclic GC runs while register()
+    # builds the per-code handler table.
+    class CollectOnConstruct(monitoring._CodeHandlers):
+        def __init__(self) -> None:
+            super().__init__()
+            gc.collect()
+
+    original_cls = monitoring._CodeHandlers
+    monitoring._CodeHandlers = CollectOnConstruct
+    try:
+        # Leave behind an unreachable-but-uncollected registration: the code
+        # object is only reachable through a cycle, so the registry weakref
+        # fires only when the next cyclic GC pass breaks it.
+        holder: dict = {}
+        holder["self"] = holder
+        holder["code"] = compile("a = 1", "<gc-during-register-old>", "exec")
+        monitoring.register(holder["code"], Handler())
+        del holder
+
+        new_code = compile("b = 2", "<gc-during-register-new>", "exec")
+        # Constructing the handler table for new_code runs gc.collect(),
+        # which collects the old registration. With the tool freed under the
+        # in-flight registration, this raised ValueError.
+        monitoring.register(new_code, Handler())
+
+        assert monitoring._tool_id is not None
+    finally:
+        monitoring._CodeHandlers = original_cls
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_get_tool_id_does_not_fall_back_to_profiler_slot() -> None:
     """An occupied slot 3 is preserved without claiming the profiler's slot 4."""
     import sys

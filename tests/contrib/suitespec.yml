@@ -651,10 +651,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['azure.eventhub~=5.12.0', 'pytest-asyncio==0.23.7']
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [azure.eventhub, 'pytest-asyncio==0.23.7']
   azure_durable_functions:
     venvs_per_job: 6
@@ -1709,7 +1709,7 @@ suites:
     snapshot: false
     matrix:
       command: pytest {cmdargs} tests/contrib/integration_registry
-      python: ['3.13']
+      python: ['3.13', '3.14']
       variants:
         - name: integration_registry
           dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema, filelock]

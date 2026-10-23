@@ -31,6 +31,7 @@ PATCH_MODULES = {
     "aredis": True,
     "asyncio": True,
     "avro": True,
+    "aws_sdk_bedrock_runtime": True,
     "boto": True,
     "botocore": True,
     "bottle": True,
@@ -72,6 +73,7 @@ PATCH_MODULES = {
     "snowflake": False,
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,
+    "typesafe": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
     "aiohttp_jinja2": True,
     "aiopg": True,
@@ -182,6 +184,7 @@ _MODULES_FOR_CONTRIB = {
     "mistralai": ("mistralai.client",),
     "openai_agents": ("agents",),
     "pytorch": ("torch",),
+    "typesafe": ("typesafe_sdk",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}

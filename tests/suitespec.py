@@ -164,11 +164,16 @@ def _requirement_key(requirement: str) -> str:
     return f"{name}{extras or ''}".lower().replace("_", "-")
 
 
+# Was: int(sha256(payload), 16) % ((1 << 61) - 1), hex truncated to 7 chars
+# (Riot-compatible). That modulo skewed leading digits (~52% of locks started
+# with 1). Now: 12 hex chars of sha256 over name, python, and deps sorted
+# case-insensitive, original string as tie-breaker — order-stable and unbiased.
+_HASH_LENGTH: int = 12
+
+
 def _test_environment_hash(name: str, python: str, dependencies: tuple[str, ...]) -> str:
-    packages = " ".join(f"'{dependency}'" for dependency in dependencies)
-    payload = f"{name!r}Interpreter(_hint={python!r}){packages}".encode()
-    digest = int(hashlib.sha256(payload).hexdigest(), 16)
-    return f"{digest % ((1 << 61) - 1):x}"[:7]
+    payload: str = "\n".join((name, python, *sorted(dependencies, key=lambda dep: (dep.casefold(), dep))))
+    return hashlib.sha256(payload.encode()).hexdigest()[:_HASH_LENGTH]
 
 
 def _merge_dependencies(*groups: tuple[str, ...]) -> tuple[str, ...]:

@@ -99,7 +99,7 @@ def _is_protected_ci_branch() -> bool:
 
 def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
     python_version = _python_hint_to_version(python_hint)
-    tags = f"test.configuration.riot_hash:{environment_hash}"
+    tags = f"test.configuration.env_hash:{environment_hash}"
     env["_CI_DD_TAGS"] = f"{tags},test.configuration.python:{python_hint}" if python_hint else tags
 
     if (
@@ -597,6 +597,9 @@ class TestRunner:
 
         unpin_dependencies = os.environ.get("UNPIN_DEPENDENCIES", "").lower() == "true"
         for environment in environments:
+            # People and tools that read CI job logs use this line to find where each environment starts.
+            # Flush it so that it precedes the output of the build and test subprocesses.
+            print(f"Running test environment: {environment.hash}", flush=True)
             try:
                 build_env = dict(forwarded_env)
                 if environment.runs:
