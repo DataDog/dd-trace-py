@@ -88,6 +88,16 @@ def otlp_endpoint_is_grpc() -> bool:
     return protocol.strip().lower() == "grpc"
 
 
+# The domains of Datadog's sites. Their OTLP intake is otlp.<site>.
+_DATADOG_DOMAINS = (".datadoghq.com", ".datadoghq.eu", ".ddog-gov.com", ".datad0g.com")
+
+
+def _is_datadog_intake(url: str) -> bool:
+    """Whether url is Datadog's OTLP intake, which stores an export as it arrives."""
+    host = (parse.urlsplit(url).hostname or "").lower()
+    return host.startswith("otlp.") and host.endswith(_DATADOG_DOMAINS)
+
+
 def _redacted(url: str) -> str:
     """The URL's scheme, host and port, for logs: its credentials, path and query can all hold secrets."""
     parts = parse.urlsplit(url)
@@ -204,7 +214,7 @@ class _OtlpSender:
         self._to_agent = False
         # Whether Datadog stores the export as it arrives (the Agent's receiver or the agentless intake). It then
         # follows the Datadog binding, cost in USD, so that metrics hold the same values as over DogStatsD; a
-        # configured endpoint, such as a collector, gets the OpenTelemetry encoding.
+        # configured endpoint, such as a collector, gets the OpenTelemetry encoding, unless it is the intake itself.
         self.to_datadog = False
         headers = _parse_headers(
             _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
@@ -222,6 +232,7 @@ class _OtlpSender:
                 api_key = agentless_config.api_key
                 if agentless_config.enabled and api_key and all(name.lower() != "dd-api-key" for name, _ in headers):
                     headers.append(("dd-api-key", api_key))
+        self.to_datadog = self.to_datadog or _is_datadog_intake(endpoint)
         url = parse.urlsplit(endpoint)
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = _redacted(endpoint)

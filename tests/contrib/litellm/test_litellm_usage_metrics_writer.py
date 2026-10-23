@@ -239,6 +239,22 @@ def test_a_configured_endpoint_gets_the_opentelemetry_encoding(collector, monkey
     assert _otlp_cost(Collector.requests[0][2]) == ("{nanoUSD}", 5700, PROVIDER_ATTEMPT)
 
 
+@pytest.mark.parametrize(
+    "url, datadog",
+    [
+        ("https://otlp.datadoghq.com/v1/metrics", True),
+        ("https://otlp.us5.datadoghq.com/v1/metrics", True),
+        ("https://OTLP.datadoghq.eu/v1/metrics", True),
+        ("https://otlp.ddog-gov.com/v1/metrics", True),
+        ("http://localhost:4318/v1/metrics", False),
+        ("https://otlp.example.com/v1/metrics", False),
+        ("https://otlp.datadoghq.com.example.com/v1/metrics", False),
+    ],
+)
+def test_an_explicitly_configured_intake_gets_the_datadog_binding(url, datadog):
+    assert _usage_metrics_writer._is_datadog_intake(url) is datadog
+
+
 def test_a_wall_clock_set_back_does_not_invert_the_window(otlp_endpoint):
     metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
     writer = UsageMetricsWriter("otlp", interval=60, metrics=["gen_ai.client.inference.usage.input_tokens"])

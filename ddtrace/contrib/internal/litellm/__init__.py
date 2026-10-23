@@ -76,9 +76,9 @@ against its budgets. The two cost metrics describe the same spend and are never 
    that fails with status 429, 502, 503 or 504, a refused connection or a timeout is retried, and kept for later exports
    while the endpoint stays unavailable. ``dogstatsd`` sends the same series to the Datadog Agent's DogStatsD endpoint.
 
-   Without a configured endpoint, Datadog stores the export as it arrives, so cost is sent in USD, the same values
-   ``dogstatsd`` sends. An export to a configured endpoint, such as an OpenTelemetry Collector, follows the semantic
-   conventions and sends cost in integer nano-USD (unit ``{nanoUSD}``).
+   Without a configured endpoint, or with Datadog's OTLP intake configured, Datadog stores the export as it arrives,
+   so cost is sent in USD, the same values ``dogstatsd`` sends. An export to another configured endpoint, such as an
+   OpenTelemetry Collector, follows the semantic conventions and sends cost in integer nano-USD (unit ``{nanoUSD}``).
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_EXPORTER`` environment variable.
 
