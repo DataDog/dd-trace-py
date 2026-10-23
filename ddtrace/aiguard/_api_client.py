@@ -394,7 +394,7 @@ class AIGuardClient:
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        from ddtrace.trace import tracer
+        tracer = core.root.get_item("tracer")
 
         # Classifies the error metric when a raise below escapes. Transport and response paths
         # each set their own type, so anything still holding the default failed inside our own
