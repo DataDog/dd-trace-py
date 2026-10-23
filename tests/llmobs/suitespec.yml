@@ -56,7 +56,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
       variants:
         - name: aws_sdk_bedrock_runtime
-          python: ["3.12", "3.13"]
+          python: ["3.12", "3.13", '3.14']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
     venvs_per_job: 6
@@ -270,7 +270,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1', deepeval, 'pydantic-evals>=1.31']
         - name: llmobs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
@@ -362,7 +362,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
         - name: openai
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
         - name: openai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
