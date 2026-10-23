@@ -33,7 +33,7 @@ def get_config(
     envs: t.Union[str, list[str]],
     default: t.Any = None,
     modifier: t.Optional[t.Callable[[t.Any], t.Any]] = None,
-    otel_env: t.Optional[str] = None,
+    otel_env: t.Optional[t.Union[str, list[str]]] = None,
     report_telemetry=True,
 ) -> t.Any:
     """Retrieve a configuration value in order of precedence:
@@ -43,10 +43,12 @@ def get_config(
     4. Local stable config
     5. Default value (lowest)
 
+    When multiple OpenTelemetry variables are provided, later entries take precedence.
     Reports telemetry for every detected configuration source.
     """
     if isinstance(envs, str):
         envs = [envs]
+    otel_envs = [otel_env] if isinstance(otel_env, str) else otel_env or []
 
     # Expand with registered aliases of the canonical name (envs[0]) so all
     # config sources (LOCAL_CONFIG, env, FLEET_CONFIG) honor legacy renames.
@@ -75,19 +77,20 @@ def get_config(
             effective_val = val
             break
 
-    if otel_env is not None and otel_env in env:
-        raw_val, parsed_val = parse_otel_env(otel_env)
-        if parsed_val is not None:
-            val = parsed_val
-            if modifier:
-                val = modifier(val)
+    for otel_env_name in otel_envs:
+        if otel_env_name in env:
+            raw_val, parsed_val = parse_otel_env(otel_env_name)
+            if parsed_val is not None:
+                val = parsed_val
+                if modifier:
+                    val = modifier(val)
 
-            if report_telemetry:
-                # OpenTelemetry configurations always report the raw value
-                telemetry_writer.add_configuration(telemetry_name, raw_val, "otel_env_var")
-            effective_val = val
-        else:
-            _invalid_otel_config(otel_env)
+                if report_telemetry:
+                    # OpenTelemetry configurations always report the raw value
+                    telemetry_writer.add_configuration(telemetry_name, raw_val, "otel_env_var")
+                effective_val = val
+            else:
+                _invalid_otel_config(otel_env_name)
 
     for env_name in envs:
         if env_name in env:
@@ -97,8 +100,9 @@ def get_config(
 
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "env_var")
-                if otel_env is not None and otel_env in env:
-                    _hiding_otel_config(otel_env, env_name)
+                for otel_env_name in otel_envs:
+                    if otel_env_name in env:
+                        _hiding_otel_config(otel_env_name, env_name)
             effective_val = val
             break
 
@@ -111,8 +115,9 @@ def get_config(
 
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "fleet_stable_config", config_id)
-                if otel_env is not None and otel_env in env:
-                    _hiding_otel_config(otel_env, env_name)
+                for otel_env_name in otel_envs:
+                    if otel_env_name in env:
+                        _hiding_otel_config(otel_env_name, env_name)
             effective_val = val
             break
 
@@ -181,13 +186,6 @@ def validate_otel_envs():
             and otel_env not in SUPPORTED_OTEL_ENV_VARS
         ):
             _unsupported_otel_config(otel_env)
-        elif otel_env == "OTEL_LOGS_EXPORTER":
-            # check for invalid values
-            otel_value = env.get(otel_env, "none").lower()
-            if otel_value != "none":
-                _invalid_otel_config(otel_env)
-            # TODO: Separate from validation
-            telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
         elif otel_env == "OTEL_METRICS_EXPORTER":
             # defer validation to validate_and_report_otel_metrics_exporter_enabled
             pass
