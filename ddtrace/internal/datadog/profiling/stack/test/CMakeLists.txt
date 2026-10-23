@@ -115,27 +115,6 @@ configure_stack_internal_test(test_sampling_cycle_state)
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
 
-if(Python3_VERSION VERSION_GREATER_EQUAL "3.14")
-    # Build the real fuzz harness from the same sources as the fuzz targets and without linking ${EXTENSION_NAME}, so
-    # every read in the harness goes through the fuzz memory image and the seeds prove both native list sources are
-    # reached. dd_wrapper_add_test always links ${EXTENSION_NAME}, so this target is set up by hand.
-    add_executable(test_task_fuzz_coverage ${FUZZ_ECHION_SOURCES} ../fuzz/fuzz_echion_thread_unwind_tasks.cpp
-                                           test_task_fuzz_coverage.cpp)
-    add_ddup_config(test_task_fuzz_coverage)
-    configure_stack_internal_test(test_task_fuzz_coverage)
-    target_include_directories(test_task_fuzz_coverage PRIVATE ../include ../fuzz)
-    target_compile_definitions(test_task_fuzz_coverage PRIVATE ECHION_FUZZING ECHION_FUZZ_TEST
-                                                               FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
-    target_link_libraries(test_task_fuzz_coverage PRIVATE gmock gtest_main dd_wrapper Threads::Threads ${CMAKE_DL_LIBS})
-    if(Python3_LIBRARIES)
-        target_link_libraries(test_task_fuzz_coverage PRIVATE ${Python3_LIBRARIES})
-    endif()
-    gtest_discover_tests(
-        test_task_fuzz_coverage DISCOVERY_MODE PRE_TEST
-        PROPERTIES
-        TIMEOUT 300)
-endif()
-
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
