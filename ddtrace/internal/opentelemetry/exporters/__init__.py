@@ -8,6 +8,7 @@ from typing import Any
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import logs_exporter_with_telemetry
 from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import metrics_exporter_with_telemetry
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
@@ -36,7 +37,7 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
             return None
 
         if protocol == "grpc":
-            if _supports_lightweight_exporter(exporter_version):
+            if _supports_lightweight_exporter(exporter_version) and not _grpc_compression_configured("metrics"):
                 try:
                     from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import (
                         OTLPMetricExporter as GRPCMetricExporter,
@@ -89,7 +90,7 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
             return None
 
         if protocol == "grpc":
-            if _supports_lightweight_exporter(exporter_version):
+            if _supports_lightweight_exporter(exporter_version) and not _grpc_compression_configured("logs"):
                 try:
                     from ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter import (
                         OTLPLogExporter as GRPCLogExporter,
@@ -140,6 +141,13 @@ def _is_supported(exporter_version: str) -> bool:
 
 def _supports_lightweight_exporter(exporter_version: str) -> bool:
     return _parse_version(exporter_version) >= _MINIMUM_LIGHTWEIGHT_VERSION
+
+
+def _grpc_compression_configured(signal: str) -> bool:
+    configured = env.get(f"OTEL_EXPORTER_OTLP_{signal.upper()}_COMPRESSION")
+    if configured is None:
+        configured = env.get("OTEL_EXPORTER_OTLP_COMPRESSION")
+    return configured is not None and configured.strip().lower() not in ("", "none")
 
 
 def _parse_version(exporter_version: str) -> tuple[int, int, int]:

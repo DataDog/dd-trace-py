@@ -518,6 +518,29 @@ def test_exporter_version_falls_back_to_protocol_package(monkeypatch, protocol, 
 
 
 @skipif(exporter_not_installed=True)
+def test_grpc_compression_uses_upstream_exporter(monkeypatch):
+    from ddtrace.internal.opentelemetry import exporters
+
+    class UpstreamExporter:
+        pass
+
+    imported = []
+
+    def import_exporter(module_name):
+        imported.append(module_name)
+        return SimpleNamespace(OTLPMetricExporter=UpstreamExporter)
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_COMPRESSION", "gzip")
+    monkeypatch.setattr(exporters, "_exporter_version", lambda protocol: "1.41.0")
+    monkeypatch.setattr(exporters, "import_module", import_exporter)
+
+    exporter_class = exporters.get_metrics_exporter("grpc")
+
+    assert UpstreamExporter in exporter_class.__mro__
+    assert imported == ["opentelemetry.exporter.otlp.proto.grpc.metric_exporter"]
+
+
+@skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="Test requires the lightweight exporter selection path")
 def test_grpc_protocol_without_grpclib_falls_back_to_upstream_exporter(monkeypatch):
     from ddtrace.internal.opentelemetry import exporters
