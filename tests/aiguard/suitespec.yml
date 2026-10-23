@@ -22,6 +22,8 @@ suites:
         - name: ai_guard_api
           dependencies: [requests]
   ai_guard_langchain:
+    # TODO(py-315): the 3.15 environment produces request hashes with no
+    # committed VCR cassettes. Record cassettes for 3.15 before re-adding it.
     paths:
       - '@bootstrap'
       - '@core'
@@ -83,10 +85,10 @@ suites:
       command: pytest {cmdargs} tests/aiguard/anthropic/
       variants:
         - name: ai_guard_anthropic
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.23.7', pyyaml, 'anthropic==0.28.0', 'httpx~=0.27.0']
         - name: ai_guard_anthropic
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.23.7', pyyaml, 'anthropic<1', 'httpx<0.28.0']
   ai_guard_strands:
     paths:
@@ -105,6 +107,9 @@ suites:
         - name: ai_guard_strands
           dependencies: ['strands-agents>=1.29.0']
   ai_guard_litellm_guardrail:
+    # TODO(py-315): litellm resolves fastuuid 0.14.0 (PyO3 supports up to 3.14),
+    # so the environments fail to build on 3.15. Re-add 3.15 once litellm drops
+    # or updates fastuuid.
     paths:
       - '@bootstrap'
       - '@core'

@@ -205,7 +205,7 @@ integrations:
   tested_versions_by_dependency:
     azure-eventhub:
       min: 5.12.2
-      max: 5.15.0
+      max: 5.15.1
 
 - integration_name: azure_functions
   is_external_package: true
@@ -593,13 +593,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.2.11
+      max: 1.2.16
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.2.0
+      max: 4.3.0
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.1.0
+      max: 1.1.1
 
 - integration_name: litellm
   is_external_package: true
@@ -929,7 +929,7 @@ integrations:
   tested_versions_by_dependency:
     redis:
       min: 4.6.0
-      max: 6.4.0
+      max: 8.1.0
 
 - integration_name: rediscluster
   is_external_package: true
