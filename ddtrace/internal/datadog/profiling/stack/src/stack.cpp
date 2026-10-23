@@ -17,6 +17,7 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <iostream>
 #include <string_view>
 #include <utility>
 
@@ -40,15 +41,22 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         return nullptr;
     }
 
+    // Seed before start() launches the sampling thread. Seeding after return races
+    // with that thread writing non-atomic fast_copy_* strategy flags.
+    seed_fast_copy_profiler_stats();
+
     if (Sampler::get().start()) {
         // Enable only after start() succeeds so one_time_setup() has completed
         // before executor work can mutate the origin-task map.
         Py_BEGIN_ALLOW_THREADS;
         OriginTaskLinks::get_instance().enable();
         Py_END_ALLOW_THREADS;
-        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
+
+    // start() may have latched failed_safe_copy / cleared active without launching;
+    // reseed so uploads do not keep the pre-start snapshot.
+    seed_fast_copy_profiler_stats();
 
     if (Sampler::get().gc_enabled() && !GCFrameTracker::get().uninstall_current_interpreter()) {
         // Do not surface the error, start() should return False in this case.
@@ -1026,10 +1034,13 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     const bool want = static_cast<bool>(enabled);
-    if (!want) {
-        fast_copy_user_disabled = true;
-    }
+    // Runtime set_fast_copy(True) clears a prior set_fast_copy(False) latch so
+    // metadata does not report both "user disabled" and "desired". Env/embedded
+    // init still leave safe_memcpy_initialized false, so desired stays off.
+    fast_copy_user_disabled = !want;
+    fast_copy_desired = want && safe_memcpy_initialized;
     set_fast_copy_enabled(want);
+    seed_fast_copy_profiler_stats();
 
     Py_RETURN_NONE;
 }
@@ -1037,25 +1048,19 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 static PyObject*
 stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Temporarily remove our SIGSEGV/SIGBUS handlers, restoring the saved
-    // previous handlers. Call this before letting another component (e.g.,
-    // faulthandler) install its own handler so it doesn't record ours as its
-    // previous handler (which would create a signal-handler cycle).
-    // Follow with stack_reinstall_segv_handler to reinstall on top.
-    if (fast_copy_active) {
-        uninstall_segv_handler();
+    // Step out before a coordinated install (e.g. faulthandler) so it doesn't chain to us.
+    if (!fast_copy_handler_ops_enabled()) {
+        Py_RETURN_NONE;
     }
+    uninstall_segv_handler();
     Py_RETURN_NONE;
 }
 
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
-    // This is used to reclaim the handler after another component (e.g., Python's
-    // faulthandler module) overwrites it. Our handler chains to the previous one
-    // for non-recovery faults, so both systems coexist correctly.
-    if (fast_copy_active) {
+    // Reclaim after coordinated swap when we still want or hold memcpy recovery.
+    if (fast_copy_handler_ops_enabled()) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;
