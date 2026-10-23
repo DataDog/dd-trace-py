@@ -131,6 +131,10 @@ suites:
         - name: iast_aggregated_leak_testing
           dependencies: [anyio, pydantic, pydantic-settings, pytest-asyncio, requests]
   appsec_iast_packages:
+    # TODO(py-315): the taint-propagation matrix pip-installs dozens of packages
+    # at runtime; almost none publish cp315 wheels yet, so building them from
+    # source OOMs the job container. Re-add 3.15 once the ecosystem ships
+    # cp315 wheels (or cap the install matrix on 3.15).
     venvs_per_job: 1
     paths:
       - '@appsec_iast'
@@ -146,7 +150,7 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         PYTHONDONTWRITEBYTECODE: '1'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec
-      python: ['3.11', '3.12', '3.13', '3.14', '3.15']
+      python: ['3.11', '3.12', '3.13', '3.14']
       variants:
         - name: appsec_iast_packages
           dependencies: [requests, flask, 'pip==26.2.1', pytest-xdist, 'psutil==7.1.3']
