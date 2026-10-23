@@ -1,18 +1,22 @@
 import gzip
 import logging
 import os
+import random
+import struct
 import time
 from unittest import mock
 
 import msgpack
 import pytest
 
+from ddtrace.internal import process_tags
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
+from ddtrace.internal.utils.fnv import fnv1_64
 
 
 processor = DataStreamsProcessor("http://localhost:8126")
@@ -149,6 +153,57 @@ def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
     hash_with_base = ctx_with_base.hash
 
     assert hash_with_base is not None
+
+
+def _reference_pathway_hash(service, env, base_hash_bytes, tags, parent_hash):
+    def get_bytes(s):
+        return bytes(s, encoding="utf-8")
+
+    b = get_bytes(service) + get_bytes(env) + base_hash_bytes
+    for t in tags:
+        b += get_bytes(t)
+    node_hash = fnv1_64(b)
+    return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+
+
+def test_compute_hash_matches_uncached_reference():
+    rng = random.Random(1234)
+    alphabet = "abcXYZ019:_-é漢🙂"
+
+    def random_text():
+        return "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 12)))
+
+    ctx = processor.new_pathway()
+    for base_hash_bytes in (b"", struct.pack("<Q", 0xDEADBEEFCAFEF00D)):
+        with mock.patch.object(process_tags, "base_hash_bytes", base_hash_bytes):
+            for _ in range(500):
+                ctx.service = random_text()
+                ctx.env = random_text()
+                tags = [random_text() for _ in range(rng.randint(0, 6))]
+                parent_hash = rng.randrange(2**64)
+                expected = _reference_pathway_hash(ctx.service, ctx.env, base_hash_bytes, tags, parent_hash)
+                # Twice: the second call is served from the cache.
+                assert ctx._compute_hash(tags, parent_hash) == expected
+                assert ctx._compute_hash(tags, parent_hash) == expected
+
+
+def test_compute_hash_cache_tracks_every_input():
+    ctx = processor.new_pathway()
+    tags = ["direction:out", "topic:topicA", "type:kafka"]
+    base = ctx._compute_hash(tags, 7)
+
+    assert ctx._compute_hash(list(tags), 7) == base
+    assert ctx._compute_hash(tags, 8) != base
+    assert ctx._compute_hash(list(reversed(tags)), 7) != base
+    with mock.patch.object(process_tags, "base_hash_bytes", struct.pack("<Q", 42)):
+        assert ctx._compute_hash(tags, 7) != base
+    assert ctx._compute_hash(tags, 7) == base
+
+    ctx.service = "other-service"
+    assert ctx._compute_hash(tags, 7) != base
+    ctx.service = processor.new_pathway().service
+    ctx.env = "other-env"
+    assert ctx._compute_hash(tags, 7) != base
 
 
 def test_data_streams_loop_protection():
