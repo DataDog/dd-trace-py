@@ -147,6 +147,27 @@ if(LIB_INSTALL_DIR)
         RUNTIME DESTINATION ${LIB_INSTALL_DIR})
 endif()
 
+# Echion + profiling sources shared by all fuzz targets (everything except vm.cc, which conflicts with the fuzz
+# copy_memory hook in vm.h). Defined here so test/ can also use it; the paths are relative to the fuzz/ and test/
+# directories that use them.
+set(FUZZ_ECHION_SOURCES
+    ../src/echion/danger.cc
+    ../src/echion/frame.cc
+    ../src/echion/greenlets.cc
+    ../src/echion/interp.cc
+    ../src/echion/long.cc
+    ../src/echion/mirrors.cc
+    ../src/echion/stack_chunk.cc
+    ../src/echion/stacks.cc
+    ../src/echion/strings.cc
+    ../src/echion/tasks.cc
+    ../src/echion/threads.cc
+    ../src/gc_frame_tracker.cpp
+    ../src/origin_task_links.cpp
+    ../src/stack_renderer.cpp
+    ../src/sampler.cpp
+    ../src/span_links.cpp)
+
 if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
