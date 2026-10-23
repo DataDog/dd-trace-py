@@ -4,9 +4,11 @@ from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 
+from ._iast_env import _get_iast_env
 from ._iast_request_context import _iast_end_request
 from ._iast_request_context_base import _iast_start_request
 
@@ -42,6 +44,13 @@ class AppSecIastSpanProcessor(SpanProcessor):
             return
 
         _iast_start_request(span)
+        inferred_proxy_span = core.current.get_item("inferred_proxy_span")
+        if inferred_proxy_span is not None and span._parent is inferred_proxy_span:
+            # The inferred parent starts analysis before the application span exists.
+            # Transfer ownership once the actual request span starts.
+            environment = _get_iast_env()
+            if environment is not None and environment.span is inferred_proxy_span:
+                environment.span = span
 
     def on_span_finish(self, span: SpanData) -> None:
         """Report reported vulnerabilities.
