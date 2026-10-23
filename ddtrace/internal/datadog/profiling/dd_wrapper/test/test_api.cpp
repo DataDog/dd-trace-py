@@ -1,3 +1,4 @@
+#include "constants.hpp"
 #include "ddup_interface.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
@@ -162,6 +163,30 @@ lotsa_frames_lotsa_samples()
 TEST(UploadDeathTest, LotsaSamplesLotsaFrames)
 {
     EXPECT_EXIT(lotsa_frames_lotsa_samples(), ::testing::ExitedWithCode(0), "");
+}
+
+TEST(SampleLocations, ShallowStackCapacityDoesNotScaleWithMaxNframes)
+{
+    constexpr int shallow_depth = 10;
+    Datadog::Sample small_limit(Datadog::SampleType::Wall, g_default_max_nframes);
+    Datadog::Sample large_limit(Datadog::SampleType::Wall, g_backend_max_nframes);
+    for (int i = 0; i < shallow_depth; i++) {
+        small_limit.push_frame(Datadog::function_id{}, 0, i);
+        large_limit.push_frame(Datadog::function_id{}, 0, i);
+    }
+
+    EXPECT_EQ(small_limit.locations_capacity(), large_limit.locations_capacity());
+    EXPECT_LE(large_limit.locations_capacity(), static_cast<size_t>(g_default_max_nframes + 1));
+}
+
+TEST(SampleLocations, DeepStackStillReachesMaxNframes)
+{
+    Datadog::Sample sample(Datadog::SampleType::Wall, g_backend_max_nframes);
+    for (unsigned int i = 0; i < g_backend_max_nframes + 10; i++) {
+        sample.push_frame(Datadog::function_id{}, 0, i);
+    }
+
+    EXPECT_GE(sample.locations_capacity(), static_cast<size_t>(g_backend_max_nframes));
 }
 
 int

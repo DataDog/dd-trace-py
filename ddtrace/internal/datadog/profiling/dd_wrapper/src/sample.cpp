@@ -108,7 +108,7 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
     std::fill(values.begin(), values.end(), 0);
 
     // Initialize other state
-    locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
+    locations.reserve(DEFAULT_LOCATIONS_RESERVE);
 }
 
 void

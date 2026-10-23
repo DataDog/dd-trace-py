@@ -82,6 +82,11 @@ class Sample
     SampleType type_mask;
     std::string errmsg;
 
+    // Initial capacity of `locations`. Kept independent of max_nframes so that
+    // raising the frame limit does not grow memory for shallow stacks; deeper
+    // stacks grow the vector on demand.
+    static constexpr size_t DEFAULT_LOCATIONS_RESERVE = 65;
+
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location2> locations;
     size_t dropped_frames = 0;
@@ -107,6 +112,7 @@ class Sample
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
     void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
     void clear();
+    size_t locations_capacity() const { return locations.capacity(); }
 
     // Add values
     bool push_walltime(int64_t walltime, int64_t count);
