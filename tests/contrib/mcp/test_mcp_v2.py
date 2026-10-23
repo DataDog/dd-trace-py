@@ -3,6 +3,8 @@ import json
 
 import pytest
 
+from ddtrace.contrib.internal.mcp.patch import patch
+from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -85,6 +87,7 @@ def test_tool_call(mcp_llmobs, test_spans, run_client, mode):
     assert server_input["method"] == "tools/call"
     assert server_input["params"]["arguments"] == {"operation": "add", "a": 1, "b": 2}
     assert "_dd_trace_context" not in server_input["params"].get("_meta", {})
+    assert not [key for key in server_input["params"].get("_meta", {}) if key.startswith("io.modelcontextprotocol/")]
 
     assert get_llmobs_span_kind(client_span) == "tool"
     assert get_llmobs_span_name(client_span) == "MCP Client Tool Call: calculator"
@@ -148,3 +151,66 @@ def test_intent_capture_disabled_by_default(mcp_llmobs, run_client):
 
     schema = next(tool for tool in tools.tools if tool.name == "calculator").input_schema
     assert "telemetry" not in schema["properties"]
+
+
+def _run_over_streams(server):
+    """Client(server) runs the server inside the client's contextvars, which parents server spans even
+    without _meta propagation. Separate streams and a server task started up front isolate the two sides.
+    """
+    import anyio
+    from mcp.client.session import ClientSession
+    from mcp.shared.message import SessionMessage
+
+    async def run():
+        client_write, server_read = anyio.create_memory_object_stream[SessionMessage | Exception](10)
+        server_write, client_read = anyio.create_memory_object_stream[SessionMessage | Exception](10)
+        lowlevel_server = server._lowlevel_server
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                lowlevel_server.run, server_read, server_write, lowlevel_server.create_initialization_options()
+            )
+            async with ClientSession(client_read, client_write) as session:
+                await session.initialize()
+                await session.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+            tg.cancel_scope.cancel()
+
+    asyncio.run(run())
+
+
+def test_distributed_tracing_over_streams(mcp_llmobs, test_spans, mcp_server):
+    _run_over_streams(mcp_server)
+
+    spans = _pop_spans(test_spans)
+    client_span = _only(spans, "client_tool_call")
+    server_span = _only(spans, "server_tool_call")
+    assert server_span.trace_id == client_span.trace_id
+    assert server_span.parent_id == client_span.span_id
+
+
+def test_distributed_tracing_disabled(mcp_llmobs, test_spans, mcp_server):
+    with override_config("mcp", dict(distributed_tracing=False)):
+        _run_over_streams(mcp_server)
+
+    spans = _pop_spans(test_spans)
+    client_span = _only(spans, "client_tool_call")
+    server_span = _only(spans, "server_tool_call")
+    assert server_span.trace_id != client_span.trace_id
+    assert server_span.parent_id is None
+
+
+def test_server_constructed_before_patch(mcp_llmobs, test_spans):
+    unpatch()
+    from mcp.server.mcpserver import MCPServer
+
+    server = MCPServer(name="TestServer")
+
+    @server.tool(description="A simple calculator tool")
+    def calculator(operation: str, a: int, b: int) -> dict:
+        return {"result": a + b}
+
+    patch()
+    _run_over_streams(server)
+    _run_over_streams(server)
+
+    spans = _pop_spans(test_spans)
+    assert len([span for span in spans if span.resource == "server_tool_call"]) == 2

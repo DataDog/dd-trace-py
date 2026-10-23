@@ -308,8 +308,9 @@ class _DatadogServerMiddleware:
 
     async def __call__(self, ctx, call_next):
         integration: Optional[MCPIntegration] = getattr(mcp, "_datadog_integration", None)
-        method = ctx.method
-        if integration is None or ctx.request_id is None:
+        # Server.middleware is provisional upstream, so ctx fields are read defensively
+        method = getattr(ctx, "method", None)
+        if integration is None or getattr(ctx, "request_id", None) is None:
             return await call_next(ctx)
 
         if method == "tools/list":
@@ -322,18 +323,11 @@ class _DatadogServerMiddleware:
         if method not in ("initialize", "tools/call"):
             return await call_next(ctx)
 
-        if (
-            method == "tools/call"
-            and config.mcp.distributed_tracing
-            and (headers := (ctx.meta or {}).get(DD_TRACE_CONTEXT_META_KEY))
-        ):
-            activate_distributed_headers(tracer, config.mcp, headers)
-
-        operation_name = SERVER_TOOL_CALL_OPERATION_NAME if method == "tools/call" else SERVER_REQUEST_OPERATION_NAME
-        span = integration.trace(operation_name, submit_to_llmobs=True, span_name=f"mcp.{method}")
-
-        if method == "tools/call":
-            ctx = _strip_telemetry_argument(integration, span, ctx)
+        try:
+            span, ctx = _start_server_span(integration, method, ctx)
+        except Exception:
+            log.debug("Error starting MCP server span", exc_info=True)
+            return await call_next(ctx)
 
         result = None
         try:
@@ -347,6 +341,26 @@ class _DatadogServerMiddleware:
                 span, args=[], kwargs={"ctx": ctx}, response=result, operation=SERVER_MIDDLEWARE_OPERATION_NAME
             )
             span.finish()
+
+
+def _start_server_span(integration: MCPIntegration, method: str, ctx):
+    if (
+        method == "tools/call"
+        and config.mcp.distributed_tracing
+        and (headers := (getattr(ctx, "meta", None) or {}).get(DD_TRACE_CONTEXT_META_KEY))
+    ):
+        activate_distributed_headers(tracer, config.mcp, headers)
+
+    operation_name = SERVER_TOOL_CALL_OPERATION_NAME if method == "tools/call" else SERVER_REQUEST_OPERATION_NAME
+    span = integration.trace(operation_name, submit_to_llmobs=True, span_name=f"mcp.{method}")
+
+    if method == "tools/call":
+        try:
+            ctx = _strip_telemetry_argument(integration, span, ctx)
+        except Exception:
+            span.finish()
+            raise
+    return span, ctx
 
 
 def _strip_telemetry_argument(integration: MCPIntegration, span: Span, ctx):
@@ -363,19 +377,29 @@ def _strip_telemetry_argument(integration: MCPIntegration, span: Span, ctx):
 
 
 def traced_client_session_adopt(func, instance, args: tuple, kwargs: dict):
-    """mcp>=2 stateless sessions skip initialize. Every stateless flow (discover(), Client's auto
-    negotiation, a pinned protocol version) installs the server's identity through adopt().
+    """mcp>=2 stateless sessions skip initialize and install the server's identity through adopt()
+    (discover(), Client's auto negotiation, a pinned protocol version). A pinned version without a
+    prior DiscoverResult carries no server identity, so those sessions get no mcp_server_name.
     """
     result = func(*args, **kwargs)
     integration: MCPIntegration = mcp._datadog_integration
-    integration.set_client_session_server_info(tracer.current_span(), _get_attr(instance, "server_info", None))
+    span = getattr(instance, "_dd_span", None) or tracer.current_span()
+    integration.set_client_session_server_info(span, _get_attr(instance, "server_info", None))
     return result
 
 
-def traced_server_init(func, instance, args: tuple, kwargs: dict):
+def traced_server_runner_init(func, instance, args: tuple, kwargs: dict):
+    """Every mcp>=2 transport builds a ServerRunner per connection, which reads Server.middleware
+    at call time. Hooking here also covers servers constructed before patch().
+    """
     result = func(*args, **kwargs)
-    # Outermost, so the span also covers params validation and the SDK's OpenTelemetry middleware
-    instance.middleware.insert(0, _DatadogServerMiddleware())
+    try:
+        middleware = instance.server.middleware
+        if not any(isinstance(m, _DatadogServerMiddleware) for m in middleware):
+            # Outermost, so the span also covers params validation and the SDK's OpenTelemetry middleware
+            middleware.insert(0, _DatadogServerMiddleware())
+    except Exception:
+        log.debug("Error installing Datadog MCP server middleware", exc_info=True)
     return result
 
 
@@ -407,11 +431,11 @@ def patch():
         from mcp.shared.session import RequestResponder
     except ImportError:
         # mcp>=2 removed mcp.shared.session
-        from mcp.server.lowlevel.server import Server
+        from mcp.server.runner import ServerRunner
 
         wrap(ClientSession, "send_request", traced_send_request)
         wrap(ClientSession, "adopt", traced_client_session_adopt)
-        wrap(Server, "__init__", traced_server_init)
+        wrap(ServerRunner, "__init__", traced_server_runner_init)
         return
 
     wrap(BaseSession, "send_request", traced_send_request)
@@ -441,11 +465,11 @@ def unpatch():
 
     # Only wrapped on mcp>=2, see patch().
     if iswrapped(ClientSession, "adopt"):
-        from mcp.server.lowlevel.server import Server
+        from mcp.server.runner import ServerRunner
 
         unwrap(ClientSession, "send_request")
         unwrap(ClientSession, "adopt")
-        unwrap(Server, "__init__")
+        unwrap(ServerRunner, "__init__")
     else:
         from mcp.shared.session import BaseSession
         from mcp.shared.session import RequestResponder

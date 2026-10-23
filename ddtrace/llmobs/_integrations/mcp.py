@@ -26,6 +26,7 @@ SERVER_MIDDLEWARE_OPERATION_NAME = "server_middleware"
 DEFAULT_TOOL_ERROR_MESSAGE = "tool resulted in an error"
 MCP_SESSION_ID_HEADER = "mcp-session-id"
 DD_TRACE_CONTEXT_META_KEY = "_dd_trace_context"
+MCP_RESERVED_META_KEY_PREFIX = "io.modelcontextprotocol/"
 # Client identity is self-reported and repeated on every tool call span in a session
 MAX_CLIENT_INFO_TAG_LENGTH = 256
 
@@ -316,8 +317,14 @@ class MCPIntegration(BaseLLMIntegration):
         request = {"method": ctx.method, "params": params}
 
         meta = params.get("_meta")
-        if isinstance(meta, dict) and DD_TRACE_CONTEXT_META_KEY in meta:
-            params = {**params, "_meta": {k: v for k, v in meta.items() if k != DD_TRACE_CONTEXT_META_KEY}}
+        if isinstance(meta, dict):
+            # Stateless requests repeat the client's identity and capabilities under reserved keys on every call
+            meta = {
+                k: v
+                for k, v in meta.items()
+                if k != DD_TRACE_CONTEXT_META_KEY and not k.startswith(MCP_RESERVED_META_KEY_PREFIX)
+            }
+            params = {**params, "_meta": meta} if meta else {k: v for k, v in params.items() if k != "_meta"}
         input_obj = {"method": ctx.method, "params": params, "jsonrpc": "2.0", "id": ctx.request_id}
 
         headers = _get_attr(ctx.request, "headers", None)

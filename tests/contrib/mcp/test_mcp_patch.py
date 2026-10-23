@@ -18,9 +18,9 @@ def _patched_functions():
         from mcp.shared.session import BaseSession
         from mcp.shared.session import RequestResponder
     except ImportError:
-        from mcp.server.lowlevel.server import Server
+        from mcp.server.runner import ServerRunner
 
-        return functions + [ClientSession.send_request, ClientSession.adopt, Server.__init__]
+        return functions + [ClientSession.send_request, ClientSession.adopt, ServerRunner.__init__]
     return functions + [
         BaseSession.send_request,
         RequestResponder.__enter__,
