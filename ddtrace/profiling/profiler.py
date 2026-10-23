@@ -153,7 +153,7 @@ class Profiler:
         except service.ServiceStatusError:
             pass
         except Exception:
-            LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
+            LOG.debug("[profiling] Exception while stopping profiler on exit signal", exc_info=True)
         finally:
             if Profiler._active_instance is self:
                 Profiler._active_instance = None
@@ -281,24 +281,24 @@ class _ProfilerInstance(service.Service):
             info_payload = {"profiler": {"settings": settings}}
             ddup.set_profiler_settings_json(json.dumps(info_payload))
         except Exception:
-            LOG.debug("Failed to publish profiler settings to info channel", exc_info=True)
+            LOG.debug("[profiling] Failed to publish profiler settings to info channel", exc_info=True)
 
     def __post_init__(self) -> None:
         if self._exception_profiling_enabled:
-            LOG.debug("Profiling collector (exception) enabled")
+            LOG.debug("[profiling] Profiling ExceptionCollector enabled")
             try:
                 self._collectors.append(exception.ExceptionCollector())
-                LOG.debug("Profiling collector (exception) initialized")
+                LOG.debug("[profiling] Profiling ExceptionCollector initialized")
             except Exception:
-                LOG.error("Failed to start exception collector, disabling.", exc_info=True)
+                LOG.error("[profiling] Failed to start ExceptionCollector, disabling.", exc_info=True)
 
         if self._stack_collector_enabled:
-            LOG.debug("Profiling collector (stack) enabled")
+            LOG.debug("[profiling] Profiling StackCollector enabled")
             try:
                 self._collectors.append(stack.StackCollector(tracer=self.tracer))
-                LOG.debug("Profiling collector (stack) initialized")
+                LOG.debug("[profiling] Profiling StackCollector initialized")
             except Exception:
-                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
+                LOG.error("[profiling] Failed to start StackCollector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
@@ -313,13 +313,13 @@ class _ProfilerInstance(service.Service):
                         # The profiler is already running so we need to start the collector
                         try:
                             col.start()
-                            LOG.debug("Started collector %r", col)
+                            LOG.debug("[profiling] Started collector %r", col)
                         except collector.CollectorUnavailable:
-                            LOG.debug("Collector %r is unavailable, disabling", col)
+                            LOG.debug("[profiling] Collector %r is unavailable, disabling", col)
                             self._rollback_collector_start(col)
                             return
                         except Exception:
-                            LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                            LOG.error("[profiling] Failed to start collector %r, disabling.", col, exc_info=True)
                             self._rollback_collector_start(col)
                             return
 
@@ -349,13 +349,15 @@ class _ProfilerInstance(service.Service):
                         # The profiler is already running so we need to start the collector
                         try:
                             col.start()
-                            LOG.debug("Started pytorch collector %r", col)
+                            LOG.debug("[profiling] Started pytorch collector %r", col)
                         except collector.CollectorUnavailable:
-                            LOG.debug("Collector %r pytorch is unavailable, disabling", col)
+                            LOG.debug("[profiling] Collector %r pytorch is unavailable, disabling", col)
                             self._rollback_collector_start(col)
                             return
                         except Exception:
-                            LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
+                            LOG.error(
+                                "[profiling] Failed to start collector %r pytorch, disabling.", col, exc_info=True
+                            )
                             self._rollback_collector_start(col)
                             return
 
@@ -398,7 +400,9 @@ class _ProfilerInstance(service.Service):
                 # registered after a failure. Take it back off to avoid raising an exception
                 # if the module is imported again later.
                 ModuleWatchdog.unregister_module_hook(module, hook)
-                LOG.error("Failed to watch for module %r to collect from, disabling.", module, exc_info=True)
+                LOG.error(
+                    "[profiling] Failed to watch for module %r to collect from, disabling.", module, exc_info=True
+                )
             else:
                 self._collectors_on_import_armed.append((module, hook))
 
@@ -420,7 +424,7 @@ class _ProfilerInstance(service.Service):
             try:
                 c.snapshot()
             except Exception:
-                LOG.error("Error while snapshotting collector %r", c, exc_info=True)
+                LOG.error("[profiling] Error while snapshotting collector %r", c, exc_info=True)
 
     _COPY_IGNORE_ATTRIBUTES = {"status", "process_tags"}
     # Constructor arguments that are stored under a private name, so the generic filter below would drop them.
@@ -471,7 +475,7 @@ class _ProfilerInstance(service.Service):
             try:
                 col.start()
             except collector.CollectorUnavailable:
-                LOG.debug("Collector %r is unavailable, disabling", col)
+                LOG.debug("[profiling] Collector %r is unavailable, disabling", col)
                 self._rollback_collector_start(col)
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
@@ -486,7 +490,7 @@ class _ProfilerInstance(service.Service):
         try:
             col._rollback_start()
         except Exception:
-            LOG.debug("Failed to clean up partially started collector %r", col, exc_info=True)
+            LOG.debug("[profiling] Failed to clean up partially started collector %r", col, exc_info=True)
 
     def _rollback_start_service(self) -> None:
         # Best effort: Service.start leaves the status STOPPED when _start_service raises, so
@@ -495,7 +499,7 @@ class _ProfilerInstance(service.Service):
             try:
                 self._scheduler._rollback_start()
             except Exception:
-                LOG.debug("Failed to clean up partially started scheduler", exc_info=True)
+                LOG.debug("[profiling] Failed to clean up partially started scheduler", exc_info=True)
 
         for col in reversed(self._collectors):
             if col.status != service.ServiceStatus.STOPPED:
@@ -525,7 +529,7 @@ class _ProfilerInstance(service.Service):
 
         :param flush: Flush a last profile.
         """
-        LOG.debug("Stopping profiler")
+        LOG.debug("[profiling] Stopping profiler")
 
         # Prevent doing more initialisation now that we are shutting down.
         self._unregister_collectors_on_import()

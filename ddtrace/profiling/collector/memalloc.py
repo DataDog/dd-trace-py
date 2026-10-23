@@ -89,7 +89,7 @@ class MemoryCollector:
             try:
                 _memalloc.stop()
             except RuntimeError:
-                LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
+                LOG.debug("[profiling] Failed to stop memalloc profiling on shutdown", exc_info=True)
 
     def _rollback_start(self) -> None:
         if _memalloc is not None and _memalloc.is_started():
@@ -104,7 +104,7 @@ class MemoryCollector:
             _memalloc.heap()  # Samples are exported directly to pprof, no return value needed
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
+            LOG.debug("[profiling] Unable to collect heap events from process %d", os.getpid(), exc_info=True)
 
     def snapshot_and_parse_pprof(self, output_filename: str, assert_samples: bool = True) -> pprof_pb2.Profile:
         """Export samples to profile, upload, and parse the pprof profile.
