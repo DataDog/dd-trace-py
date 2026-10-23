@@ -616,6 +616,22 @@ def _validate_positive_int(value: int) -> None:
         raise ValueError("value must be >= 1")
 
 
+class ProfilingConfigGC(DDConfig):
+    __item__ = __prefix__ = "gc"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to record CPython garbage-collection pause samples and "
+            "explicit collect() counts. Disabled by default; enable with "
+            "DD_PROFILING_GC_ENABLED=true."
+        ),
+    )
+
+
 class ProfilingConfigPytorch(DDConfig):
     __item__ = __prefix__ = "pytorch"
 
@@ -685,6 +701,7 @@ ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigNativeHeap, namespace="native_heap")
+ProfilingConfig.include(ProfilingConfigGC, namespace="gc")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
@@ -805,6 +822,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("heap")
     if config.native_heap.enabled:
         configured_features.append("nativeheap")
+    if config.gc.enabled:
+        configured_features.append("gc")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
     if config.exception.enabled:

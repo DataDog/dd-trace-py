@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    profiling: Records CPython GC pause samples and explicit ``gc.collect()``
+    counts when ``DD_PROFILING_GC_ENABLED=true``.
