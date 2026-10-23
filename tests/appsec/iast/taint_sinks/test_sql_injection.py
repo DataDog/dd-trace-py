@@ -5,14 +5,17 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast.constants import DBAPI_INTEGRATIONS
+from ddtrace.appsec._iast.constants import DBAPI_SQLITE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
 
 
 def test_checked_tainted_args(iast_context_deduplication_enabled):
     cursor = mock.Mock()
     cursor.execute.__name__ = "execute"
-    cursor.executemany.__name__ = "executemany"
+    cursor.callproc.__name__ = "callproc"
 
     arg = "nobody expects the spanish inquisition"
 
@@ -29,7 +32,7 @@ def test_checked_tainted_args(iast_context_deduplication_enabled):
     assert not _on_report_sqli((tainted_arg,), None, "nosqlite", cursor.execute)
 
     # Returns False: Wrong function name
-    assert not _on_report_sqli((tainted_arg,), None, "sqlite", cursor.executemany)
+    assert not _on_report_sqli((tainted_arg,), None, "sqlite", cursor.callproc)
 
     # Returns True:
     assert _on_report_sqli((tainted_arg, untainted_arg), None, "sqlite", cursor.execute)
@@ -39,6 +42,18 @@ def test_checked_tainted_args(iast_context_deduplication_enabled):
 
     # Returns False: No more QUOTA
     assert not _on_report_sqli((tainted_arg, untainted_arg), None, "psycopg", cursor.execute)
+
+
+@pytest.mark.parametrize("integration", [name for name in DBAPI_INTEGRATIONS if name != DBAPI_SQLITE])
+@pytest.mark.parametrize("method_name", ["executemany", "executescript"])
+def test_sqlite_only_methods_do_not_report_for_other_drivers(iast_context_defaults, integration, method_name):
+    method = mock.Mock(__name__=method_name)
+    query = "SELECT * FROM items"
+    query = taint_pyobject(query, source_name="query", source_value=query, source_origin=OriginType.PARAMETER)
+    assert SqlInjection.has_quota()
+    with mock.patch.object(SqlInjection, "report") as report:
+        assert not _on_report_sqli((query,), {}, integration, method)
+        report.assert_not_called()
 
 
 @pytest.mark.parametrize(

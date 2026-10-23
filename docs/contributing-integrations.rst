@@ -96,6 +96,10 @@ Are there norms for integrating with database libraries?
 `ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/dbapi/__init__.py>`_
 module.
 
+Connection shortcuts must preserve driver-specific overrides and argument validation.
+Reuse the DBAPI query-event and SQL span-tag helpers when tracing an original connection
+method, and wrap returned cursors only once using the integration's configured cursor wrapper.
+
 Check out existing database integrations for examples of using the `dbapi`:
 
     - `mariadb <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mariadb>`_

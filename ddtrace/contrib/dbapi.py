@@ -2,8 +2,11 @@
 Generic dbapi tracing code.
 """
 
+from collections.abc import Callable
 from collections.abc import Mapping
+from typing import Any
 from typing import Optional
+from typing import cast
 
 import wrapt
 
@@ -17,6 +20,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
 from ..constants import _SPAN_MEASURED_KEY
@@ -45,6 +49,47 @@ config._add(
 
 def get_version() -> str:
     return ""
+
+
+def _dispatch_query_event(
+    query: Any, span_name_prefix: str, get_encoding: Optional[Callable[[], Optional[str]]] = None
+) -> None:
+    if isinstance(query, (str, bytes, bytearray, memoryview)):
+        core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=span_name_prefix, get_encoding=get_encoding))
+
+
+def _set_query_span_tags(
+    span: Span,
+    cfg: Any,
+    db_tags: dict[str, str],
+    extra_tags: dict[str, Any],
+    measured: bool = True,
+) -> None:
+    """Share SQL span attributes between cursor queries and connection shortcuts."""
+    if measured:
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    # No reason to tag the query since it is set as the resource by the agent. See:
+    # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
+    span.set_tags(db_tags)
+    span.set_tags(extra_tags)
+    span._set_attribute(COMPONENT, cfg.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+
+
+def _set_query_rowcount(span: Span, cursor: Any) -> None:
+    # rowcount is in the dbapi specification (https://peps.python.org/pep-0249/#rowcount)
+    # but some database drivers (cassandra-driver specifically) don't implement it.
+    row_count = getattr(cursor, "rowcount", None)
+    if row_count is None:
+        return
+    span._set_attribute(db.ROWCOUNT, row_count)
+    # Necessary for django integration backward compatibility. Django integration used to provide its own
+    # implementation of the TracedCursor, which used to store the row count into a tag instead of
+    # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
+    # this tag has been added since.
+    # Check row count is an integer type to avoid comparison type error
+    if isinstance(row_count, int) and row_count >= 0:
+        span.set_tag(db.ROWCOUNT, cast(Any, row_count))
 
 
 class TracedCursor(wrapt.ObjectProxy):
@@ -110,17 +155,7 @@ class TracedCursor(wrapt.ObjectProxy):
         with tracer.trace(
             name, service=ext_service(None, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
-            if measured:
-                s._set_attribute(_SPAN_MEASURED_KEY, 1)
-            # No reason to tag the query since it is set as the resource by the agent. See:
-            # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            s.set_tags(self._self_db_tags)
-            s.set_tags(extra_tags)
-
-            s._set_attribute(COMPONENT, self._self_config.integration_name)
-
-            # set span.kind to the type of request being performed
-            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+            _set_query_span_tags(s, self._self_config, self._self_db_tags, extra_tags, measured=measured)
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
 
@@ -143,17 +178,13 @@ class TracedCursor(wrapt.ObjectProxy):
         """Return the connection's Python codec, or None when it is unknown."""
         return None
 
+    def _dispatch_query_event(self, query: Any) -> None:
+        _dispatch_query_event(query, self._self_dbapi_span_name_prefix, self._dbapi_query_encoding)
+
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
-        if isinstance(query, (str, bytes, bytearray, memoryview)):
-            core.dispatch_event(
-                DbQueryEvent(
-                    query=query,
-                    span_name_prefix=self._self_dbapi_span_name_prefix,
-                    get_encoding=self._dbapi_query_encoding,
-                )
-            )
+        self._dispatch_query_event(query)
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -173,14 +204,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        if isinstance(query, (str, bytes, bytearray, memoryview)):
-            core.dispatch_event(
-                DbQueryEvent(
-                    query=query,
-                    span_name_prefix=self._self_dbapi_span_name_prefix,
-                    get_encoding=self._dbapi_query_encoding,
-                )
-            )
+        self._dispatch_query_event(query)
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -202,19 +226,7 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, None, proc, *args)
 
     def _set_post_execute_tags(self, span):
-        # rowcount is in the dbapi specification (https://peps.python.org/pep-0249/#rowcount)
-        # but some database drivers (cassandra-driver specifically) don't implement it.
-        row_count = getattr(self.__wrapped__, "rowcount", None)
-        if row_count is None:
-            return
-        span._set_attribute(db.ROWCOUNT, row_count)
-        # Necessary for django integration backward compatibility. Django integration used to provide its own
-        # implementation of the TracedCursor, which used to store the row count into a tag instead of
-        # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
-        # this tag has been added since.
-        # Check row count is an integer type to avoid comparison type error
-        if isinstance(row_count, int) and row_count >= 0:
-            span.set_tag(db.ROWCOUNT, row_count)
+        _set_query_rowcount(span, self.__wrapped__)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
