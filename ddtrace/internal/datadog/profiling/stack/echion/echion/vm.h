@@ -92,7 +92,7 @@ fast_copy_handler_ops_enabled()
 inline bool safe_memcpy_initialized = false;
 
 #if defined PL_LINUX
-// Whether the process_vm_readv probe succeeded at constructor time.
+// Set by the constructor probe. Tests may override before the sampler starts.
 inline bool process_vm_readv_available = false;
 
 // True when neither safe_memcpy nor process_vm_readv could be initialized.
