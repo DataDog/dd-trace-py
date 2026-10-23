@@ -1,0 +1,4 @@
+fixes:
+  - |
+    google-adk: Fixes an ``AttributeError`` when enabling tracing with some older
+    Google ADK releases, including 1.39.1.
