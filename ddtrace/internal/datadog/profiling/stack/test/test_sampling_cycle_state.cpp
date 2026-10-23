@@ -201,6 +201,15 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
     EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 
+    // Same size with every entry present in the previous snapshot is not enough; the snapshots must match exactly.
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(1, 1) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
     EXPECT_FALSE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, false));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
