@@ -36,7 +36,7 @@ suites:
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
-          python: ['3.9', '3.10', '3.15']
+          python: ['3.9', '3.10']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==3.19.0']
         - name: profile
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
