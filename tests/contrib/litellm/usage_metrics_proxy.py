@@ -2,7 +2,8 @@
 
 The fake provider answers like OpenAI and Anthropic with fixed usage numbers, and can fail on purpose:
 a model name containing fail429 or fail500 always fails, flaky fails every other call with a 429,
-and nousage streams without usage. Nothing leaves localhost.
+and nousage streams without usage. Like the real providers, it names the account and project that served a call in
+its response headers, and the service tier in its response. Nothing leaves localhost.
 """
 
 import collections
@@ -43,6 +44,22 @@ KEYS = {
 }
 PROVIDER_KEYS = ("fake-openai-key", "fake-anthropic-key")
 
+# The response headers that name the account and project at the provider, as OpenAI and Anthropic send them.
+# OpenAI's organization header is the organization's name, not its org- identifier.
+OPENAI_ORGANIZATION = "Fake-Org-Staging"
+OPENAI_PROJECT = "proj_FakeProject0001"
+ANTHROPIC_ORGANIZATION = "4257e925-ee99-4ee8-9c62-8e53716d5203"
+OPENAI_HEADERS = {"openai-organization": OPENAI_ORGANIZATION, "openai-project": OPENAI_PROJECT}
+ANTHROPIC_HEADERS = {"anthropic-organization-id": ANTHROPIC_ORGANIZATION}
+# Headers a provider also sends that are never read.
+OTHER_HEADERS = {"x-request-id": "req_fake_secret_0001", "openai-processing-ms": "12"}
+OPENAI_SERVICE_TIER = "default"
+ANTHROPIC_SERVICE_TIER = "standard"
+# The ids an operator declares in a deployment's model_info, from the provider's console.
+DECLARED_KEY_ID = "key_FakeDeclared0001"
+DECLARED_ACCOUNT = "declared-anthropic-org"
+DECLARED_PROJECT = "wrkspc_FakeDeclared01"
+
 
 def free_port():
     with socket.socket() as sock:
@@ -73,11 +90,13 @@ class _Provider(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _stream(self, chunks):
+    def _stream(self, chunks, headers=None):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         for chunk in chunks:
             self.wfile.write(chunk)
@@ -125,9 +144,12 @@ class _Provider(http.server.BaseHTTPRequestHandler):
                         "model": model,
                         "usage": {"prompt_tokens": 3, "total_tokens": 3},
                     },
+                    dict(OPENAI_HEADERS, **OTHER_HEADERS),
                 )
         elif self.path.endswith("/messages"):
             self._messages(body, model)
+        elif self.path.endswith("/responses"):
+            self._responses(body, model)
         else:
             self._json(404, {"error": "not found"})
 
@@ -136,7 +158,13 @@ class _Provider(http.server.BaseHTTPRequestHandler):
             return
         # LiteLLM prices a call by the model its response names, so a model it has no price for answers as itself.
         response_model = f"{model}-2024-07-18"
-        base = {"id": "chatcmpl-fake", "created": int(time.time()), "model": response_model}
+        base = {
+            "id": "chatcmpl-fake",
+            "created": int(time.time()),
+            "model": response_model,
+            "service_tier": OPENAI_SERVICE_TIER,
+        }
+        headers = dict(OPENAI_HEADERS, **OTHER_HEADERS)
         if not body.get("stream"):
             self._json(
                 200,
@@ -148,6 +176,7 @@ class _Provider(http.server.BaseHTTPRequestHandler):
                     ],
                     usage=OPENAI_USAGE,
                 ),
+                headers,
             )
             return
         usage = bool((body.get("stream_options") or {}).get("include_usage")) and "nousage" not in model
@@ -165,7 +194,61 @@ class _Provider(http.server.BaseHTTPRequestHandler):
         if usage:
             chunks.append(_sse(dict(chunk({}, choices=False), usage=OPENAI_USAGE)))
         chunks.append(_sse("[DONE]"))
-        self._stream(chunks)
+        self._stream(chunks, headers)
+
+    def _responses(self, body, model):
+        if self._fail(model, False):
+            return
+        response = {
+            "id": "resp_fake",
+            "object": "response",
+            "created_at": int(time.time()),
+            "status": "completed",
+            "model": f"{model}-2024-07-18",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg_fake",
+                    "status": "completed",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "hello", "annotations": []}],
+                }
+            ],
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+            "service_tier": OPENAI_SERVICE_TIER,
+            "usage": {
+                "input_tokens": OPENAI_USAGE["prompt_tokens"],
+                "input_tokens_details": {"cached_tokens": OPENAI_USAGE["prompt_tokens_details"]["cached_tokens"]},
+                "output_tokens": OPENAI_USAGE["completion_tokens"],
+                "output_tokens_details": {
+                    "reasoning_tokens": OPENAI_USAGE["completion_tokens_details"]["reasoning_tokens"]
+                },
+                "total_tokens": OPENAI_USAGE["total_tokens"],
+            },
+        }
+        headers = dict(OPENAI_HEADERS, **OTHER_HEADERS)
+        if not body.get("stream"):
+            self._json(200, response, headers)
+            return
+        created = dict(response, status="in_progress", output=[], usage=None)
+        chunks = [
+            _sse({"type": "response.created", "sequence_number": 0, "response": created}, "response.created"),
+            _sse(
+                {
+                    "type": "response.output_text.delta",
+                    "sequence_number": 1,
+                    "item_id": "msg_fake",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "hello",
+                },
+                "response.output_text.delta",
+            ),
+            _sse({"type": "response.completed", "sequence_number": 2, "response": response}, "response.completed"),
+        ]
+        self._stream(chunks, headers)
 
     def _messages(self, body, model):
         if self._fail(model, True):
@@ -177,13 +260,17 @@ class _Provider(http.server.BaseHTTPRequestHandler):
             "model": "claude-haiku-4-5-20251001",
             "stop_sequence": None,
         }
+        headers = dict(ANTHROPIC_HEADERS, **OTHER_HEADERS)
+        start_usage = dict(ANTHROPIC_START_USAGE, service_tier=ANTHROPIC_SERVICE_TIER)
         if not body.get("stream"):
-            usage = dict(ANTHROPIC_START_USAGE, output_tokens=ANTHROPIC_OUTPUT)
+            usage = dict(start_usage, output_tokens=ANTHROPIC_OUTPUT)
             self._json(
-                200, dict(message, content=[{"type": "text", "text": "hello"}], stop_reason="end_turn", usage=usage)
+                200,
+                dict(message, content=[{"type": "text", "text": "hello"}], stop_reason="end_turn", usage=usage),
+                headers,
             )
             return
-        start = dict(message, content=[], stop_reason=None, usage=dict(ANTHROPIC_START_USAGE))
+        start = dict(message, content=[], stop_reason=None, usage=start_usage)
         chunks = [
             _sse({"type": "message_start", "message": start}, "message_start"),
             _sse(
@@ -206,7 +293,7 @@ class _Provider(http.server.BaseHTTPRequestHandler):
             )
         )
         chunks.append(_sse({"type": "message_stop"}, "message_stop"))
-        self._stream(chunks)
+        self._stream(chunks, headers)
 
 
 class _OtlpCollector(http.server.BaseHTTPRequestHandler):
@@ -294,11 +381,16 @@ class DogStatsdCollector:
 def _config(provider_port):
     openai = f"api_base: http://127.0.0.1:{provider_port}/v1, api_key: {PROVIDER_KEYS[0]}"
     anthropic = f"api_base: http://127.0.0.1:{provider_port}, api_key: {PROVIDER_KEYS[1]}"
+    key_id = f"model_info: {{datadog_api_key_id: {DECLARED_KEY_ID}}}"
+    declared = (
+        f"model_info: {{datadog_provider_account_id: {DECLARED_ACCOUNT}, datadog_project_id: {DECLARED_PROJECT}}}"
+    )
     return textwrap.dedent(
         f"""
         model_list:
           - model_name: gpt-4o-mini
             litellm_params: {{model: openai/gpt-4o-mini, {openai}}}
+            {key_id}
           - model_name: gpt-4o-mini-nousage
             litellm_params: {{model: openai/gpt-4o-mini-nousage, {openai}}}
           - model_name: flaky-gpt
@@ -311,10 +403,19 @@ def _config(provider_port):
             litellm_params: {{model: openai/gpt-4o-mini-fail500-always, {openai}}}
           - model_name: text-embedding-3-small
             litellm_params: {{model: openai/text-embedding-3-small, {openai}}}
+            {key_id}
           - model_name: claude-haiku-4-5
             litellm_params: {{model: anthropic/claude-haiku-4-5, {anthropic}}}
+            {key_id}
+          - model_name: claude-messages
+            litellm_params: {{model: anthropic/claude-haiku-4-5, {anthropic}}}
+            {key_id}
           - model_name: claude-chat
             litellm_params: {{model: anthropic/claude-haiku-4-5, {anthropic}}}
+            {declared}
+          - model_name: gpt-responses
+            litellm_params: {{model: openai/gpt-4o-mini, {openai}}}
+            {key_id}
           - model_name: custom-unpriced
             litellm_params: {{model: openai/my-custom-model-xyz, {openai}}}
         litellm_settings:
@@ -368,7 +469,7 @@ class Proxy:
             PYTHONPATH=os.pathsep.join([self.workdir, os.getcwd(), env.get("PYTHONPATH", "")]),
             DD_LITELLM_USAGE_METRICS_ENABLED="true",
             DD_LITELLM_USAGE_METRICS_EXPORTER=exporter,
-            DD_LITELLM_USAGE_METRICS_TAGS="user,team,key_alias,route,destination",
+            DD_LITELLM_USAGE_METRICS_TAGS="user,team,key_alias,route,destination,provider_account,project",
             OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=f"http://127.0.0.1:{otlp_port}/v1/metrics",
             OTEL_METRIC_EXPORT_INTERVAL="500",
             DD_DOGSTATSD_URL=f"udp://127.0.0.1:{dogstatsd_port}",

@@ -19,7 +19,16 @@ from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
 from ddtrace.contrib.internal.litellm._usage_metrics import RECORDED_PROFILES_TAG
 from ddtrace.contrib.internal.litellm._usage_metrics import TOKEN_BREAKDOWN
 from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
+from tests.contrib.litellm.usage_metrics_proxy import ANTHROPIC_ORGANIZATION
+from tests.contrib.litellm.usage_metrics_proxy import ANTHROPIC_SERVICE_TIER
+from tests.contrib.litellm.usage_metrics_proxy import DECLARED_ACCOUNT
+from tests.contrib.litellm.usage_metrics_proxy import DECLARED_KEY_ID
+from tests.contrib.litellm.usage_metrics_proxy import DECLARED_PROJECT
 from tests.contrib.litellm.usage_metrics_proxy import KEYS
+from tests.contrib.litellm.usage_metrics_proxy import OPENAI_ORGANIZATION
+from tests.contrib.litellm.usage_metrics_proxy import OPENAI_PROJECT
+from tests.contrib.litellm.usage_metrics_proxy import OPENAI_SERVICE_TIER
+from tests.contrib.litellm.usage_metrics_proxy import OTHER_HEADERS
 from tests.contrib.litellm.usage_metrics_proxy import PROVIDER_KEYS
 from tests.contrib.litellm.usage_metrics_proxy import Gateway
 
@@ -34,6 +43,12 @@ pytestmark = pytest.mark.skipif(ai_usage is None, reason="native ai_usage module
 
 LITELLM_VERSION = tuple(int(part) for part in importlib.metadata.version("litellm").split(".")[:2])
 ALICE = {"user.id": "user-alice", "trajectory.team.id": "team-ml", "trajectory.gateway.key.alias": "alice-key"}
+ACCOUNT = "trajectory.request.provider_account_id"
+PROJECT = "trajectory.request.project_id"
+KEY_ID = "trajectory.request.api_key_id"
+TIER = "trajectory.request.service_tier"
+# The Responses route, proxied to the provider's own Responses API.
+RESPONSES = LITELLM_VERSION >= (1, 80)
 
 
 def run_scenarios(proxy):
@@ -56,6 +71,9 @@ def run_scenarios(proxy):
     for _ in range(2):
         assert proxy.chat("gpt-4o-mini", key="sk-bob-0002", cache={"use-cache": True})[0] == 200
     assert proxy.chat("custom-unpriced")[0] == 200
+    assert proxy.request("/v1/messages", dict(messages, model="claude-messages", stream=False))[0] == 200
+    if RESPONSES:
+        assert proxy.request("/v1/responses", {"model": "gpt-responses", "input": "hi"})[0] == 200
     # LiteLLM delivers its logging callbacks after the response; let them run and the writer flush (every 0.5 s)
     # before the proxy is stopped.
     time.sleep(2)
@@ -305,8 +323,10 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
         export.total("trajectory.gen_ai.client.inference.usage.cost", **ALICE), rel=1e-9
     )
 
-    # No key, key hash or provider key leaves the process.
-    secrets = list(KEYS) + list(PROVIDER_KEYS) + ["sk-master-0000"]
+    check_provider_ids(export)
+
+    # No key, key hash or provider key leaves the process, nor any other provider header.
+    secrets = list(KEYS) + list(PROVIDER_KEYS) + ["sk-master-0000", OTHER_HEADERS["x-request-id"]]
     secrets += [hashlib.sha256(key.encode()).hexdigest() for key in KEYS]
     payload = b"".join(bodies)
     for secret in secrets:
@@ -342,5 +362,72 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
     lines = gateway.close()
     assert lines, f"no DogStatsD line received:\n{proxy.output()}"
     assert dogstatsd_series(lines) == export.datadog_series()
+    # DogStatsD tag values are in lower case.
+    tagged = [line for line in lines if line.startswith("gen_ai.client.inference.usage.input_tokens:")]
+    assert any(
+        f"{ACCOUNT}:{OPENAI_ORGANIZATION.lower()}" in line
+        and f"{PROJECT}:{OPENAI_PROJECT.lower()}" in line
+        and f"{KEY_ID}:{DECLARED_KEY_ID.lower()}" in line
+        and f"{TIER}:{OPENAI_SERVICE_TIER}" in line
+        for line in tagged
+    ), tagged
     for secret in secrets:
         assert all(secret not in line for line in lines), secret
+
+
+def _ids(series):
+    return [{k: v for k, v in s.items() if k.startswith("trajectory.request")} for s in series]
+
+
+def check_provider_ids(export):
+    """The provider account, project and key ids, and the service tier, are on the series of the right calls."""
+    openai_ids = {ACCOUNT: OPENAI_ORGANIZATION, PROJECT: OPENAI_PROJECT, KEY_ID: DECLARED_KEY_ID}
+    input_tokens = "gen_ai.client.inference.usage.input_tokens"
+
+    # Chat, streamed or not: every series carries the ids from the provider's headers, and the key id the
+    # operator declared. The served tier is on the token and cost counters of the call that was not streamed only:
+    # a stream's assembled response has none.
+    gpt = {"trajectory.gateway.route": "gpt-4o-mini", "user.id": "user-alice"}
+    for name in (
+        "gen_ai.client.inference.duration",
+        input_tokens,
+        "trajectory.gen_ai.client.inference.usage.cost",
+        "trajectory.gen_ai.gateway.request.estimated_cost",
+    ):
+        series = export.series(name, **gpt)
+        assert series and all(openai_ids.items() <= s.items() for s in series), (name, series)
+    assert export.total(input_tokens, trajectory__request__service_tier=OPENAI_SERVICE_TIER, **gpt) == 12
+    assert export.total(input_tokens, trajectory__request__service_tier=None, **gpt) == 12
+    assert all(TIER not in s for s in export.series("gen_ai.client.inference.duration"))
+    assert all(TIER not in s for s in export.series("trajectory.gen_ai.gateway.request.estimated_cost"))
+
+    embeddings = export.series("gen_ai.client.operation.duration")
+    assert embeddings and all(openai_ids.items() <= s.items() for s in embeddings), embeddings
+
+    # A deployment without declared ids sends none, and a failed attempt has no response headers.
+    flaky = {"trajectory.gateway.route": "flaky-gpt"}
+    assert all(KEY_ID not in s for s in export.series("gen_ai.client.inference.duration", **flaky))
+    failed = export.series("gen_ai.client.inference.duration", error__type="*", **flaky)
+    assert all(ACCOUNT not in s and PROJECT not in s for s in failed), failed
+
+    # The operator's ids win over the provider's headers.
+    claude_chat = export.series("gen_ai.client.inference.duration", trajectory__gateway__route="claude-chat")
+    assert claude_chat and all(
+        s[ACCOUNT] == DECLARED_ACCOUNT and s[PROJECT] == DECLARED_PROJECT and KEY_ID not in s for s in claude_chat
+    ), _ids(claude_chat)
+
+    # The Anthropic Messages route: the organization from the provider's headers, streamed or not. LiteLLM 1.104
+    # keeps Anthropic's tier in the usage object; earlier versions drop it.
+    if LITELLM_VERSION >= (1, 80):
+        anthropic_ids = {ACCOUNT: ANTHROPIC_ORGANIZATION, KEY_ID: DECLARED_KEY_ID}
+        for route, tier in (("claude-haiku-4-5", None), ("claude-messages", ANTHROPIC_SERVICE_TIER)):
+            series = export.series(input_tokens, trajectory__gateway__route=route)
+            assert series and all(anthropic_ids.items() <= s.items() and PROJECT not in s for s in series), _ids(series)
+            expected = tier if LITELLM_VERSION >= (1, 104) else None
+            assert {s.get(TIER) for s in series} == {expected}, (route, _ids(series))
+
+    if RESPONSES:
+        series = export.series(input_tokens, trajectory__gateway__route="gpt-responses")
+        assert series and all(openai_ids.items() <= s.items() and s.get(TIER) == OPENAI_SERVICE_TIER for s in series), (
+            series
+        )

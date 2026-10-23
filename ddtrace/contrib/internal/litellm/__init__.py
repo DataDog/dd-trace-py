@@ -49,6 +49,10 @@ For each request from the proxy to a model provider, including each retry and fa
 - ``trajectory.gen_ai.client.inference.usage.cost``: the proxy's own price for the call, tagged
   ``trajectory.cost.source:estimated``.
 
+The token and cost metrics of a call carry ``trajectory.request.service_tier`` when the provider's response names the
+tier it served the call at, in the provider's own words (for example ``default`` or ``flex`` for OpenAI, ``standard``
+for Anthropic). The tier a request asked for is never used, and a streamed chat completion has none.
+
 For each client request to the proxy, ``trajectory.gen_ai.gateway.request.estimated_cost`` is the amount the proxy charged
 against its budgets. The two cost metrics describe the same spend and are never added together. Every point is tagged
 ``gen_ai.operation.name``, ``gen_ai.request.model`` and ``trajectory.observation.point:gateway``; provider metrics also carry
@@ -94,11 +98,43 @@ against its budgets. The two cost metrics describe the same spend and are never 
    - ``key_alias``: ``trajectory.gateway.key.alias``, the alias of the proxy key. Keys and key hashes are never sent.
    - ``route``: ``trajectory.gateway.route``, the model group the client asked for.
    - ``destination``: ``trajectory.gateway.destination.id``, the deployment the proxy chose.
+   - ``provider_account``: ``trajectory.request.provider_account_id``, the account at the provider that served the
+     call: the ``anthropic-organization-id`` response header for Anthropic, the ``openai-organization`` response header
+     for OpenAI, which is the organization's name rather than its ``org-`` identifier, and the AWS account of a
+     Bedrock model given as an ARN, such as an inference profile's.
+   - ``project``: ``trajectory.request.project_id``, the provider's project: the ``openai-project`` response header
+     for OpenAI.
    - ``service``, ``host``: ``service.name`` and ``host.name`` of this process.
+
+   No other response header is read. Ids that a deployment declares in its ``model_info`` are always sent, and take
+   the place of the ones found here.
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_TAGS`` environment variable.
 
    Default: ``None``
+
+To join these metrics to a provider's bill, a deployment can declare the ids that the proxy cannot discover in its
+``model_info``, as the provider's console shows them. Each is sent, exactly as written, on the metrics of every call to
+that deployment:
+
+- ``datadog_api_key_id``: ``trajectory.request.api_key_id``, the provider's identifier of the API key the deployment
+  uses. Write the identifier the provider's console lists for the key, never the key itself: the integration does not
+  derive it from the key.
+- ``datadog_provider_account_id``: ``trajectory.request.provider_account_id``, the account at the provider.
+- ``datadog_project_id``: ``trajectory.request.project_id``, the provider's project or workspace.
+
+For example, in the proxy's ``config.yaml``::
+
+    model_list:
+      - model_name: gpt-4o
+        litellm_params:
+          model: openai/gpt-4o
+          api_key: os.environ/OPENAI_API_KEY
+        model_info:
+          datadog_api_key_id: key_AbC123dEf456
+          datadog_project_id: proj_AbC123dEf456
+
+A value must be a string of 1 to 128 characters.
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_client_source"]
 

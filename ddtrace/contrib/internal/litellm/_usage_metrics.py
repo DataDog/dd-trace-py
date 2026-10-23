@@ -12,6 +12,13 @@ module turns into OpenTelemetry metric points:
 The adapter only copies fields. It does no arithmetic on usage, knows no metric names, and never reads
 prompts, responses, keys or key hashes.
 
+The provider account and project an attempt was billed to come from, in order: the ids the operator declared in the
+deployment's model_info; the provider's own response headers (Anthropic's anthropic-organization-id, OpenAI's
+openai-organization and openai-project), of which only these are read; and a Bedrock model given as an ARN, which
+names the AWS account. LiteLLM keeps the provider's headers in the response's hidden additional_headers, prefixed
+llm_provider-, on every route but native Anthropic Messages streams, whose headers are only on the call's
+httpx_response.
+
 How LiteLLM's hooks map to the two grains (verified against a running proxy, litellm 1.104):
 
 - async_pre_call_hook starts a gateway request, keyed by litellm_call_id, which every later hook
@@ -118,8 +125,36 @@ _OPT_IN_METADATA_TAGS = {
     "team": ("trajectory.team.id", "user_api_key_team_id"),
     "key_alias": ("trajectory.gateway.key.alias", "user_api_key_alias"),
 }
-OPT_IN_TAGS = frozenset(_OPT_IN_METADATA_TAGS) | {"route", "destination", "service", "host"}
 _IDENTITY_KEYS = tuple(key for _, key in _OPT_IN_METADATA_TAGS.values())
+
+PROVIDER_ACCOUNT_ID = "trajectory.request.provider_account_id"
+PROJECT_ID = "trajectory.request.project_id"
+API_KEY_ID = "trajectory.request.api_key_id"
+# Opt-in tags for the ids the integration finds itself: (configuration name) -> attribute.
+_OPT_IN_PROVIDER_ID_TAGS = {"provider_account": PROVIDER_ACCOUNT_ID, "project": PROJECT_ID}
+OPT_IN_TAGS = frozenset((*_OPT_IN_METADATA_TAGS, *_OPT_IN_PROVIDER_ID_TAGS, "route", "destination", "service", "host"))
+
+# The ids an operator declares in a deployment's model_info, for what the integration cannot find: (model_info key,
+# attribute). They are copied as written, and sent whenever declared. The provider's API key id is only ever one of
+# these: it is never derived from a key.
+_OPERATOR_IDS = (
+    ("datadog_api_key_id", API_KEY_ID),
+    ("datadog_provider_account_id", PROVIDER_ACCOUNT_ID),
+    ("datadog_project_id", PROJECT_ID),
+)
+_MAX_ID_LENGTH = 128
+# The response headers that name the account and project at a provider: (provider, attribute, header). No other
+# header is read.
+_ID_HEADERS = (
+    ("anthropic", PROVIDER_ACCOUNT_ID, "anthropic-organization-id"),
+    # The organization's name, not its org- id.
+    ("openai", PROVIDER_ACCOUNT_ID, "openai-organization"),
+    ("openai", PROJECT_ID, "openai-project"),
+)
+# The AWS account a Bedrock model ARN names, such as an inference profile's.
+_BEDROCK_ARN_ACCOUNT = re.compile(r"(?:^|/)arn:aws[a-z-]*:bedrock:[a-z0-9-]+:([0-9]{12}):")
+# A service tier, in the provider's own words: what the native module accepts.
+_SERVICE_TIER = re.compile(r"[A-Za-z0-9._-]{1,32}")
 
 # Providers whose usage LiteLLM counts itself on a call that is not streamed: it gets no count from them, or fills in
 # a missing one in a way a callback cannot tell apart from a reported count (Ollama, and Bedrock's invoke route).
@@ -399,6 +434,86 @@ def _metadata(kwargs: dict[str, Any]) -> dict[str, Any]:
     return metadata if isinstance(metadata, dict) else {}
 
 
+def _model_info(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """The deployment's model_info, custom keys included. LiteLLM before 1.104 keeps it only under litellm_metadata on
+    the Anthropic Messages and Responses routes, and under litellm_params.model_info on every route but Responses.
+    """
+    params = kwargs.get("litellm_params") or {}
+    for bucket in (params, _metadata(kwargs), params.get("litellm_metadata")):
+        model_info = bucket.get("model_info") if isinstance(bucket, dict) else None
+        if isinstance(model_info, dict) and model_info:
+            return model_info
+    return {}
+
+
+def _billing_id(value: Any) -> Optional[str]:
+    """An account, project or key id as written: a non-empty string of bounded length."""
+    return value if isinstance(value, str) and 0 < len(value) <= _MAX_ID_LENGTH and value.strip() else None
+
+
+def _operator_ids(model_info: dict[str, Any]) -> dict[str, str]:
+    """The ids the operator declared in the deployment's model_info."""
+    ids = {}
+    for key, attribute in _OPERATOR_IDS:
+        value = _billing_id(model_info.get(key))
+        if value is not None:
+            ids[attribute] = value
+    return ids
+
+
+def _bedrock_account(*models: Any) -> Optional[str]:
+    """The AWS account of the first Bedrock model ARN among models."""
+    for model in models:
+        if isinstance(model, str):
+            match = _BEDROCK_ARN_ACCOUNT.search(model)
+            if match:
+                return match.group(1)
+    return None
+
+
+def _header(headers: Any, name: str) -> Optional[str]:
+    """One header's value from a mapping of headers. httpx gives header names in lower case."""
+    get = getattr(headers, "get", None)
+    if get is None:
+        return None
+    try:
+        return _billing_id(get(name))
+    except Exception:
+        return None
+
+
+def _response_header(
+    name: str, kwargs: dict[str, Any], payload: Optional[dict[str, Any]], response: Any
+) -> Optional[str]:
+    """One of the provider's response headers, wherever this LiteLLM version keeps it for the callback."""
+    prefixed = "llm_provider-" + name
+    hidden = getattr(response, "_hidden_params", None)
+    if isinstance(hidden, dict):
+        value = _header(hidden.get("additional_headers"), prefixed)
+        if value is not None:
+            return value
+    payload_hidden = (payload or {}).get("hidden_params")
+    if isinstance(payload_hidden, dict):
+        value = _header(payload_hidden.get("additional_headers"), prefixed)
+        if value is not None:
+            return value
+    value = _header(kwargs.get("response_headers"), name)
+    if value is not None:
+        return value
+    return _header(getattr(kwargs.get("httpx_response"), "headers", None), name)
+
+
+def service_tier(payload: dict[str, Any]) -> Optional[str]:
+    """The tier the provider served the call at, as LiteLLM's payload states it: the response's own service_tier
+    (OpenAI's shapes, Bedrock), else the usage object's (Anthropic). The tier a request asked for is never used.
+    """
+    response = payload.get("response")
+    tier = _get(response, "service_tier") if isinstance(response, dict) else None
+    if not isinstance(tier, str) or not tier:
+        tier = _get((payload.get("metadata") or {}).get("usage_object"), "service_tier")
+    return tier if isinstance(tier, str) and _SERVICE_TIER.fullmatch(tier) else None
+
+
 def _now_like(start: Any) -> datetime.datetime:
     """Now, in the time zone of start: LiteLLM's timestamps can be timezone-aware, and an aware and a naive
     datetime cannot be subtracted.
@@ -552,10 +667,11 @@ class _Attempt:
         "output_reported",
         "reasoning_reported",
         "response_model",
+        "operator_ids",
+        "provider_ids",
     )
 
     def __init__(self, kwargs: dict[str, Any]) -> None:
-        metadata = _metadata(kwargs)
         call_type = kwargs.get("call_type")
         self.start = kwargs.get("api_call_start_time") or datetime.datetime.now()
         self.operation = operation_name(call_type)
@@ -564,7 +680,8 @@ class _Attempt:
         self.provider = provider_name(llm_provider)
         self.model = kwargs.get("model") if isinstance(kwargs.get("model"), str) else None
         self.stream = bool(kwargs.get("stream"))
-        self.model_id = (metadata.get("model_info") or {}).get("id") or kwargs.get("model_id")
+        model_info = _model_info(kwargs)
+        self.model_id = model_info.get("id") or kwargs.get("model_id")
         self.closed = False
         # What the integration's stream wrappers saw of this attempt's stream: whether it streamed, which counts the
         # provider reported in it, and the model it named.
@@ -573,6 +690,9 @@ class _Attempt:
         self.output_reported = False
         self.reasoning_reported = False
         self.response_model: Optional[str] = None
+        self.operator_ids = _operator_ids(model_info)
+        # The provider account, project and key ids of the attempt: the operator's until it is recorded.
+        self.provider_ids: dict[str, str] = dict(self.operator_ids)
 
     @property
     def claude(self) -> bool:
@@ -758,10 +878,37 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
 
     # Deployment attributes
 
+    def _provider_ids(
+        self, attempt: _Attempt, kwargs: dict[str, Any], payload: Optional[dict[str, Any]], response: Any
+    ) -> dict[str, str]:
+        """The provider account, project and key ids of an attempt. The operator's win; the ones found here are
+        sent only when their tag is enabled.
+        """
+        found: dict[str, str] = {}
+        enabled = {attribute for tag, attribute in _OPT_IN_PROVIDER_ID_TAGS.items() if tag in self._tags}
+        if enabled:
+            for provider, attribute, header in _ID_HEADERS:
+                if attempt.provider == provider and attribute in enabled and attribute not in found:
+                    value = _response_header(header, kwargs, payload, response)
+                    if value is not None:
+                        found[attribute] = value
+            if attempt.provider == "aws.bedrock" and PROVIDER_ACCOUNT_ID in enabled:
+                params = kwargs.get("litellm_params") or {}
+                account = _bedrock_account(attempt.model, params.get("model_id"), kwargs.get("model_id"))
+                if account is not None:
+                    found.setdefault(PROVIDER_ACCOUNT_ID, account)
+        found.update(attempt.operator_ids or _operator_ids(_model_info(kwargs)))
+        return found
+
     def _deployment_attributes(
-        self, metadata: dict[str, Any], route: Optional[str], destination: Any
+        self,
+        metadata: dict[str, Any],
+        route: Optional[str],
+        destination: Any,
+        provider_ids: Optional[dict[str, str]] = None,
     ) -> dict[str, str]:
         attributes = dict(self._resource)
+        attributes.update(provider_ids or {})
         for tag, (attribute, key) in _OPT_IN_METADATA_TAGS.items():
             value = metadata.get(key)
             if tag in self._tags and isinstance(value, str) and value:
@@ -835,11 +982,15 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             if isinstance(cost, (int, float)) and not isinstance(cost, bool) and (cost > 0 or _priced_at_zero(kwargs)):
                 observation["cost_usd"] = float(cost)
                 observation["cost_source"] = "estimated"
+            tier = service_tier(payload)
+            if tier is not None:
+                observation["service_tier"] = tier
         metadata = _metadata(kwargs)
         identity = dict(request.identity)
         identity.update({key: metadata[key] for key in _IDENTITY_KEYS if metadata.get(key)})
+        attempt.provider_ids = self._provider_ids(attempt, kwargs, payload, response)
         attributes = self._deployment_attributes(
-            identity, request.route or metadata.get("original_model_group"), attempt.model_id
+            identity, request.route or metadata.get("original_model_group"), attempt.model_id, attempt.provider_ids
         )
         self._writer.record(PROVIDER_ATTEMPT, observation, attributes)
         if "input_tokens" in observation:
@@ -886,8 +1037,14 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             observation["estimated_cost_usd"] = float(cost)
         if error:
             observation["error_type"] = error
-        destination = request.attempts[-1].model_id if request.attempts else None
-        attributes = self._deployment_attributes(request.identity, request.route, destination)
+        # Like the destination, the provider ids are those of the request's last attempt.
+        last = request.attempts[-1] if request.attempts else None
+        attributes = self._deployment_attributes(
+            request.identity,
+            request.route,
+            last.model_id if last is not None else None,
+            last.provider_ids if last is not None else None,
+        )
         self._writer.record(GATEWAY_REQUEST, observation, attributes)
 
     # LiteLLM hooks. Each catches its own errors and returns what LiteLLM expects from a no-op hook.
