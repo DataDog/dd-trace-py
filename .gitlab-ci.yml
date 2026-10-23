@@ -649,7 +649,7 @@ test_resolve_base_branch:
 
 # Runs in the image of package-oci, so that the tests use the same python3 and
 # GNU realpath as prepare-oci-package.sh.
-test_make_symlinks_relative:
+test_oci_package_scripts:
   stage: tests
   needs: []
   image: $PACKAGING_IMAGE
@@ -657,6 +657,7 @@ test_make_symlinks_relative:
   timeout: 5m
   script:
     - python3 .gitlab/scripts/test_make_symlinks_relative.py -v
+    - python3 .gitlab/scripts/test_dl_wheels.py -v
 
 
 "summarize failures":
@@ -903,10 +904,6 @@ package-oci:
       artifacts: true
     - job: "build linux"
       artifacts: true
-    - job: "download_dependency_wheels"
-      artifacts: true
-      # 3.15 cell is when: never until the python image is mirrored
-      optional: true
 
 configure_system_tests:
   # The job only renders the child pipeline from environment variables and the
