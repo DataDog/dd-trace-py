@@ -12,8 +12,8 @@ from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
-from ..._constants import IAST
-from ..._constants import IAST_SPAN_TAGS
+from .._constants import IAST
+from .._constants import IAST_SPAN_TAGS
 from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter

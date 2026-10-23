@@ -6,6 +6,32 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Span attribute limits
+
+`ddtrace.internal._limits` defines the span attribute size limits used by span
+producers and encoders. Products that attach payloads to spans use these shared
+limits to keep their output within the encoding limits.
+
+## HTTP endpoint normalization
+
+`ddtrace.internal.utils.endpoint.SimplifiedEndpointComputer` normalizes URL paths
+for both tracing resource names and API Security endpoint grouping. It operates on
+URLs independently of span processing.
+
+## Coverage collection contexts
+
+`ModuleCodeCollector.CollectInContext` owns the line and file coverage for one
+collection scope, such as a test or an import. A `ContextVar` holds an immutable
+tuple of these collectors. Copying an execution context shares the collectors
+and their data, while entering or exiting a scope replaces only that context's
+stack. Collectors compare by identity so context restoration can distinguish
+scopes even when both have empty coverage. Exiting a collector marks it closed
+in all inherited stacks; writes resolve to the nearest collector still active.
+
+On Python 3.14+, monitoring callbacks can observe a snapshot that does not see
+current `ContextVar` values. Thread-local storage (TLS) provides a fallback stack
+for these callbacks, using the same rules to skip completed collectors.
+
 
 ## The Product Protocol
 
@@ -40,6 +66,7 @@ gets extended to add support for additional features.
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `post_start() -> None` | Called after the product's `start()` succeeds and the manager finishes the complete start pass; use for work that requires all enabled products to register first |
+| `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
 | `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
@@ -436,7 +463,7 @@ interested in those event bits again.
 
 ### Error Isolation
 
-LINE handler failures are logged and isolated so one subsystem cannot disrupt
-another. Global, PY_START, PY_RETURN, and PY_UNWIND handler failures propagate
-to the monitored frame; those handlers must contain their own failures when
-isolation is required.
+LINE and global handler failures are logged and isolated so one subsystem
+cannot disrupt another. PY_START, PY_RETURN, and PY_UNWIND handler failures
+propagate to the monitored frame; handlers for those lifecycle events must
+handle their own failures when isolation is required.
