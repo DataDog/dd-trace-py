@@ -78,7 +78,8 @@ against its budgets. The two cost metrics describe the same spend and are never 
 
    Without a configured endpoint, or with Datadog's OTLP intake configured, Datadog stores the export as it arrives,
    so cost is sent in USD, the same values ``dogstatsd`` sends. An export to another configured endpoint, such as an
-   OpenTelemetry Collector, follows the semantic conventions and sends cost in integer nano-USD (unit ``{nanoUSD}``).
+   OpenTelemetry Collector, follows the semantic conventions and sends cost as an integer number of billionths of a
+   dollar (unit ``{nanoUSD}``).
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_EXPORTER`` environment variable.
 
