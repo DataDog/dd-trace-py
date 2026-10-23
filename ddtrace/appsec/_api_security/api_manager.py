@@ -9,7 +9,6 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
 import ddtrace.appsec._asm_request_context as _asm_request_context
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
@@ -24,6 +23,7 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.standalone import standalone_config
+from ddtrace.internal.utils.endpoint import SimplifiedEndpointComputer
 
 
 log = ddlogger.get_logger(__name__)
