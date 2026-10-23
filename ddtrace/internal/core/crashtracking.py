@@ -304,6 +304,9 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             except Exception:  # nosec: B110
                 pass
         crashtracker_init(config, receiver_config, metadata)
+        if not is_started():
+            log.error("Failed to start crashtracker: native initialization did not succeed")
+            return False
         excepthook.register(_unhandled_exception_reporter)
         core.on("trace.span_start", _on_span_start)
         core.on("trace.span_finish", _on_span_finish)
@@ -315,22 +318,15 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 pass
 
         def crashtracker_fork_handler():
-            # Clear stale span and trace IDs inherited from the parent process
-            # then re-register any spans still active in the child.
+            # Clear stale span and trace IDs inherited from the parent process.
+            # Parent spans will only be finished in the parent process, so
+            # re-registering them here would leave permanent stale entries that
+            # pollute subsequent crash reports with incorrect correlation data.
             try:
                 crashtracker_clear_span_ids()
                 crashtracker_clear_trace_ids()
             except Exception:
                 log.debug("Failed to clear crashtracker span/trace IDs after fork", exc_info=True)
-            try:
-                from ddtrace import tracer
-
-                span = tracer.current_span()
-                while span is not None:
-                    _on_span_start(span)
-                    span = span._parent
-            except Exception:
-                log.debug("Failed to re-register active spans after fork", exc_info=True)
             # We recreate the args here mainly to pass updated runtime_id after
             # fork
             config, receiver_config, metadata = _get_args(additional_tags)
