@@ -236,3 +236,31 @@ def test_periodic_thread_cancel_if_not_started_drops_start_queued_during_fork():
         threads._forking = original_forking
         threads.ThreadRestartTimer.clear()
         threads._threads_to_start_after_fork.clear()
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_thread_identity_follows_the_application_threading_module():
+    """Thread identities come from the copy of threading the application imports.
+
+    With module cloning, only that copy knows the threads the application
+    starts, e.g. their names. Before the application imports it, the identities
+    come from the copy ddtrace was loaded with, without importing threading.
+    """
+    import sys
+
+    import ddtrace.auto  # noqa:F401
+    from ddtrace.internal import threads
+
+    assert threads.current_thread() is threads.main_thread()
+    assert "threading" not in sys.modules
+
+    import threading
+
+    names = []
+    worker = threading.Thread(target=lambda: names.append(threads.current_thread().name), name="app-worker")
+    worker.start()
+    worker.join()
+
+    assert names == ["app-worker"]
+    assert threads.current_thread() is threading.current_thread()
+    assert threads.main_thread() is threading.main_thread()

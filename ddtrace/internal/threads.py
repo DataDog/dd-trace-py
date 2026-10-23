@@ -1,4 +1,9 @@
+from _queue import SimpleQueue
+import threading as _threading
+from threading import Event
+from threading import local
 from time import monotonic_ns
+from types import ModuleType
 import typing as t
 
 from ddtrace.internal import forksafe
@@ -8,6 +13,7 @@ from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.locks import Lock
 from ddtrace.internal.locks import RLock
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 
 
 log = get_logger(__name__)
@@ -18,7 +24,39 @@ __all__ = [
     "Thread",
     "PeriodicThread",
     "RLock",
+    "Event",
+    "SimpleQueue",
+    "current_thread",
+    "local",
+    "main_thread",
 ]
+
+
+# Module cloning makes the application import a copy of threading distinct from
+# the one ddtrace was loaded with, and only the former knows about the threads
+# the application starts. Follow it once it is imported. Until then use ours,
+# rather than importing threading from wherever we are, which could be one of
+# our own threads.
+_current_thread: t.Callable[[], _threading.Thread] = _threading.current_thread
+_main_thread: t.Callable[[], _threading.Thread] = _threading.main_thread
+
+
+@ModuleWatchdog.after_module_imported("threading")
+def _(threading: ModuleType) -> None:
+    global _current_thread, _main_thread
+
+    _current_thread = threading.current_thread
+    _main_thread = threading.main_thread
+
+
+def current_thread() -> _threading.Thread:
+    """The current thread, as known to the application."""
+    return _current_thread()
+
+
+def main_thread() -> _threading.Thread:
+    """The main thread, as known to the application."""
+    return _main_thread()
 
 
 # Forking state management. This is a barrier to either prevent new threads

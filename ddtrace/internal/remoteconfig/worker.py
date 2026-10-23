@@ -1,5 +1,6 @@
 from collections.abc import Iterable  # noqa:F401
 import os
+from time import monotonic
 from typing import TYPE_CHECKING
 from typing import Optional  # noqa:F401
 
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-class RemoteConfigPoller(periodic.PeriodicService):
+class RemoteConfigPoller(periodic.AwakeablePeriodicService):
     """Remote configuration worker.
 
     This implements a finite-state machine that allows checking the agent for
@@ -34,10 +35,18 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     _enable = True
     _MAX_CONSECUTIVE_FAILURES = 3
+    # Products are usually enabled in bursts, e.g. while the product manager
+    # starts them on boot. A request waits until no new product has been
+    # enabled for this long, so that a single one advertises all of them.
+    _PRODUCT_COLLECTION_WINDOW = 0.1
 
     def __init__(self) -> None:
         super().__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False)
         self._client = RemoteConfigClient()
+        # The interval between requests, which the poller shortens while it
+        # collects the products enabled in a burst.
+        self._poll_interval = self.interval
+        self._products_enabled_at = self._last_request = 0.0
         # Agentless fetches go straight to the Remote Config backend, so there is
         # no agent to negotiate the v0.7/config endpoint with.
         self._state = self._online if self._client.agentless else self._agent_check
@@ -48,7 +57,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         # single-process case, where the poller dispatches directly.
         self._subscriber: Optional[RemoteConfigSubscriber] = None
         self._before_fork_registered = False
-        self._start_deferred = False
 
     def _agent_check(self) -> None:
         try:
@@ -80,9 +88,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
         # The interval is the backend's to decide in agentless mode: it recommends
         # a cadence on every successful fetch and a backoff after a failed one.
         interval = self._client.refresh_interval()
-        if interval is not None and interval != self.interval:
+        if interval is not None and interval != self._poll_interval:
             log.debug("Remote Config poll interval set to %.3fs by the backend", interval)
-            self.interval = interval
+            self.interval = self._poll_interval = interval
 
         if not succeeded:
             self._consecutive_failures += 1
@@ -103,9 +111,30 @@ class RemoteConfigPoller(periodic.PeriodicService):
         )
 
     def periodic(self) -> None:
+        now = monotonic()
+
+        # Wait until no new product has been enabled for a while, so that a
+        # single request advertises all the products enabled in a burst. The
+        # thread does the waiting, so that stopping it does not have to wait.
+        if (collecting := now - self._products_enabled_at) < self._PRODUCT_COLLECTION_WINDOW:
+            self.interval = self._PRODUCT_COLLECTION_WINDOW - collecting
+            return None
+        self.interval = self._poll_interval
+
         # Run product housekeeping every cycle, before the fetch, so stale-state
         # timeouts still fire when the agent is down or a fetch fails.
         self._client.run_periodic()
+
+        # A request without products cannot receive any configuration.
+        if not self._client._enabled_products:
+            return None
+
+        # Products enabled while collecting wake the poller up again, but an
+        # earlier request may already have advertised them.
+        if self._products_enabled_at <= self._last_request and now - self._last_request < self._poll_interval:
+            return None
+
+        self._last_request = now
         return self._state()
 
     def enable(self) -> bool:
@@ -116,15 +145,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             if not self._before_fork_registered:
-                # NOTE: Initialize and register the fork hook before honoring
-                # the startup barrier. Polling can wait for product registration,
-                # but fork safety must be established as early as possible.
+                # Initialize early to avoid race-conditions with forking operations.
                 self._client.ensure_native()
                 forksafe.register_before_fork(self._before_fork)
                 self._before_fork_registered = True
-
-            if self._start_deferred:
-                return False
 
             self.start()
 
@@ -143,19 +167,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._state = self._online
         log.debug("Remote configuration switched to the intake")
         return True
-
-    def defer_start(self) -> None:
-        """Delay polling so bootstrap can register every enabled product first."""
-        if self.status != ServiceStatus.RUNNING:
-            self._start_deferred = True
-
-    def start_deferred(self) -> bool:
-        """Release the bootstrap barrier and start polling."""
-        if not self._start_deferred:
-            return self.status == ServiceStatus.RUNNING
-
-        self._start_deferred = False
-        return self.enable()
 
     def _before_fork(self) -> None:
         """Origin hook: enable SHM before forking so children inherit the SHM."""
@@ -219,7 +230,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def disable(self, join: bool = False) -> None:
         self.stop_subscriber(join=join)
         self._client.reset_products()
-        self._start_deferred = False
 
         if self._before_fork_registered:
             forksafe.unregister_before_fork(self._before_fork)
@@ -303,12 +313,21 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         When a product is enabled, it will be added to the 'products' list
         in payloads sent to the agent, indicating that this client wants
-        to receive configurations for this product.
+        to receive configurations for this product. The poller is woken up to
+        request it right away, once no new product has been enabled for a short
+        while, so that a single request advertises all the products enabled in a
+        burst.
 
         Args:
             product: Product name to enable
         """
+        if product in self._client._enabled_products:
+            return
         self._client.enable_product(product)
+        self._products_enabled_at = monotonic()
+        # Forked children do not poll (reset_at_fork clears _enable).
+        if self._enable:
+            self.awake()
 
     def disable_product(self, product: "RemoteConfigProduct") -> None:
         """Disable a product, removing it from client payloads.
