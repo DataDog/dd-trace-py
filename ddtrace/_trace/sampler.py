@@ -10,14 +10,11 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
-from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.rate_sampler import RateSampler
 from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
-from ..internal.constants import MAX_UINT_64BITS
 from ..internal.constants import PROBABILISTIC_SAMPLING_MECHANISMS
-from ..internal.constants import SAMPLING_HASH_MODULO
-from ..internal.constants import SAMPLING_KNUTH_FACTOR
 from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
@@ -30,30 +27,6 @@ PROVENANCE_ORDER = ["customer", "dynamic", "default"]
 
 
 log = get_logger(__name__)
-
-
-class RateSampler:
-    """Sampler based on a rate
-
-    Keep (100 * `sample_rate`)% of the traces.
-    It samples randomly, its main purpose is to reduce the instrumentation footprint.
-    """
-
-    def __init__(self, sample_rate: float = 1.0) -> None:
-        """sample_rate is clamped between 0 and 1 inclusive"""
-        sample_rate = min(1, max(0, sample_rate))
-        self.set_sample_rate(sample_rate)
-
-    def set_sample_rate(self, sample_rate: float) -> None:
-        self.sample_rate = float(sample_rate)
-        self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
-
-    def sample(self, span: SpanData) -> bool:
-        sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
-        return sampled
-
-    def __repr__(self):
-        return f"RateSampler(sample_rate={self.sample_rate})"
 
 
 class DatadogSampler:
