@@ -1,4 +1,4 @@
-"""Bottle supplies metadata while the shared request API owns tracing execution."""
+"""Bottle supplies request metadata to the shared tracing subscriber."""
 
 from unittest.mock import Mock
 
@@ -8,6 +8,7 @@ import webtest
 
 from ddtrace.contrib.internal.bottle import trace
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
+from ddtrace.internal import core
 from tests.utils import assert_span_http_status_code
 
 
@@ -53,22 +54,41 @@ def test_bottle_outcomes_reach_shared_tracing_subscriber(app, tracer, test_spans
     assert tracer.current_span() is None
 
 
-def test_disabled_tracing_does_not_read_bottle_metadata(app, tracer, test_spans, monkeypatch):
+def test_disabled_tracing_publishes_request_metadata(app, tracer, test_spans, monkeypatch):
     monkeypatch.setattr(tracer, "enabled", False)
+    observations = []
+    calls = []
 
-    class UnreadableMetadata:
-        def __getattr__(self, name):
-            pytest.fail("disabled plugin extracted metadata")
+    def on_started(ctx):
+        event = ctx.event
+        observations.append(("started", event.request_method, event.request_route, event.query))
 
-    monkeypatch.setattr(trace, "request", UnreadableMetadata())
-    monkeypatch.setattr(trace, "response", UnreadableMetadata())
+    def on_ended(ctx, exc_info):
+        event = ctx.event
+        observations.append(("ended", event.response_status_code, event.response_headers.get("X-Response")))
 
-    @app.route("/hello")
-    def hello():
-        return "hello"
+    @app.route("/hello/<name>")
+    def hello(name):
+        calls.append(name)
+        return bottle.HTTPResponse("hello", status=201, headers={"X-Response": "observed"})
 
-    assert webtest.TestApp(app).get("/hello").text == "hello"
+    core.on("context.started.web.request", on_started)
+    core.on("context.ended.web.request", on_ended)
+    try:
+        response = webtest.TestApp(app).get("/hello/world?key=value")
+    finally:
+        core.reset_listeners("context.started.web.request", on_started)
+        core.reset_listeners("context.ended.web.request", on_ended)
+
+    assert response.status_int == 201
+    assert response.text == "hello"
+    assert calls == ["world"]
+    assert observations == [
+        ("started", "GET", "/hello/<name>", "key=value"),
+        ("ended", 201, "observed"),
+    ]
     assert test_spans.pop() == []
+    assert tracer.current_span() is None
 
 
 @pytest.mark.parametrize("stage", ["_prepare_request", "_complete_request"])

@@ -32,23 +32,36 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 ## Bottle plugin boundary
 
 Bottle's TracePlugin.apply wraps only the route callback using
-trace_utils.run_web_framework_request. The integration supplies a prepare hook that
-creates WebFrameworkRequestEvent and a complete hook that interprets Bottle's
-result or exception and updates response fields. The shared helper owns tracing
-enablement and context entry/exit; the existing tracing subscribers own propagation,
-span creation, HTTP tagging, error recording, and span completion.
+the private bottle.trace._run_request helper. The integration supplies a prepare
+hook that creates WebFrameworkRequestEvent and a complete hook that interprets
+Bottle's result or exception and updates response fields. The Bottle helper owns
+context entry/exit regardless of tracing enablement. The existing tracing
+subscribers own propagation, span creation, HTTP tagging, error recording, and
+span completion; the tracer controls span processing and export.
 
 Prepare runs before span creation. Complete runs inside the context before HTTP
 metadata is applied: do not move metadata extraction to a subclass's on_ended
 handler, because base handlers run first. Ordinary hook exceptions must not replace
-the application's result or exception. Disabled tracing skips both extraction hooks.
+the application's result or exception. Disabled tracing must not skip metadata
+hooks or context events.
 
 Read request metadata from Bottle's request at callback entry. The span ends when
 the callback returns or raises, including when it returns an unconsumed iterable.
 Later response hooks, streaming failures, and transport delivery are outside this
 boundary. Do not wrap router.match, _cast, or _make_callback to extend it. Bottle
 manages plugin ordering, skip settings, installation, removal, and callback-cache
-resets. The shared helper only supports synchronous callback lifetimes.
+resets. The helper is specific to Bottle's synchronous callback lifetime and is
+not a shared integration API.
+
+Bottle emits bottle.request.start/response/block/end hooks inside its request
+context. AppSec listeners own WAF evaluation, the block_request callable, response
+selection, and security-context cleanup. The plugin catches BlockingException
+(including exception groups), converts the chosen response to HTTPResponse, and
+updates event metadata before tracing finishes. Never catch blocking exceptions
+as ordinary metadata failures or let them escape past the request context.
+Response inspection uses headers from a returned or raised HTTPResponse when
+present. Replaced iterables must be closed without being consumed. Request and
+response bodies and work outside the plugin callback boundary are not inspected.
 
 ## Specialized duplex SDKs
 

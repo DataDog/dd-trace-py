@@ -842,6 +842,8 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@bottle'
+      - ddtrace/appsec/_contrib/bottle/*
+      - ddtrace/appsec/_listeners.py
       - tests/contrib/bottle/*
     snapshot: true
     matrix:

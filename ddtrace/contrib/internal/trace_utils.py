@@ -26,7 +26,6 @@ from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -365,52 +364,6 @@ def with_traced_module(func):
 def is_tracing_enabled() -> bool:
     tracer = core.root.get_item("tracer")
     return tracer is not None and (tracer.enabled or standalone_config.apm_opt_out)
-
-
-def run_web_framework_request(
-    callback: Callable[..., Any],
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-    *,
-    prepare: Callable[[], WebFrameworkRequestEvent],
-    complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
-) -> Any:
-    """Run a synchronous framework callback through the shared tracing lifecycle.
-
-    prepare supplies metadata before context entry; complete updates it before
-    the tracing subscriber applies HTTP tags and finishes the span. Hooks must
-    only extract metadata: they neither manage spans nor consume response bodies.
-    Ordinary hook errors are isolated from the application's result or exception.
-    """
-    if not is_tracing_enabled():
-        return callback(*args, **kwargs)
-
-    event: Optional[WebFrameworkRequestEvent]
-    try:
-        event = prepare()
-    except Exception:
-        log.debug("Failed to prepare web framework request metadata", exc_info=True)
-        event = None
-    if event is None:
-        return callback(*args, **kwargs)
-
-    with core.context_with_event(event):
-        result = None
-        error: Optional[BaseException] = None
-        try:
-            result = callback(*args, **kwargs)
-            return result
-        except BaseException as exc:
-            error = exc
-            raise
-        finally:
-            try:
-                complete(event, result, error)
-            except Exception:
-                log.debug("Failed to complete web framework request metadata", exc_info=True)
-            finally:
-                # Do not retain the application's traceback through this frame.
-                error = None
 
 
 def distributed_tracing_enabled(int_config: IntegrationConfig, default: bool = False) -> bool:

@@ -11,10 +11,18 @@ from bottle import response
 
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal.trace_utils import run_web_framework_request
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.http import _format_template
+
+
+log = get_logger(__name__)
 
 
 class TracePlugin:
@@ -45,9 +53,102 @@ class TracePlugin:
         prepare = partial(_prepare_request, self, route)
 
         def wrapped(*args: Any, **kwargs: Any) -> Any:
-            return run_web_framework_request(callback, args, kwargs, prepare=prepare, complete=_complete_request)
+            return _run_request(callback, args, kwargs, prepare=prepare, complete=_complete_request)
 
         return wrapped
+
+
+def _run_request(
+    callback: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    *,
+    prepare: Callable[[], WebFrameworkRequestEvent],
+    complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
+) -> Any:
+    """Run a Bottle route callback through the core context lifecycle.
+
+    prepare supplies metadata before context entry; complete updates it before
+    the tracing subscriber applies HTTP tags and finishes the span. Hooks must
+    only extract metadata: they neither manage spans nor consume response bodies.
+    Ordinary hook errors are isolated from the application's result or exception.
+    """
+    event: Optional[WebFrameworkRequestEvent]
+    try:
+        event = prepare()
+    except Exception:
+        log.debug("Failed to prepare web framework request metadata", exc_info=True)
+        event = None
+    if event is None:
+        return callback(*args, **kwargs)
+
+    with core.context_with_event(event) as ctx:
+        result = None
+        error: Optional[BaseException] = None
+        blocking: Optional[BlockingException] = None
+        try:
+            try:
+                core.dispatch("bottle.request.start", (ctx, request, kwargs))
+                result = callback(*args, **kwargs)
+                return result
+            except BaseException as exc:
+                error = exc
+                raise
+            finally:
+                _complete_request_safely(complete, event, result, error)
+                core.dispatch("bottle.request.response", (ctx,))
+        except BaseException as exc:
+            blocking = find_exception(exc, BlockingException)
+            if blocking is None:
+                raise
+            if isinstance(result, HTTPResponse):
+                discarded_body = result.body
+            elif isinstance(error, HTTPResponse):
+                discarded_body = error.body
+            else:
+                discarded_body = result
+            close = getattr(discarded_body, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    log.debug("Failed to close blocked Bottle response", exc_info=True)
+            result = _blocked_response(ctx, blocking.args[0])
+            _complete_request_safely(complete, event, result, None)
+            return result
+        finally:
+            try:
+                core.dispatch("bottle.request.end", (ctx, (None, None, None)))
+            finally:
+                # Do not retain the application's traceback through this frame.
+                error = None
+                blocking = None
+
+
+def _complete_request_safely(
+    complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
+    event: WebFrameworkRequestEvent,
+    result: Any,
+    error: Optional[BaseException],
+) -> None:
+    try:
+        complete(event, result, error)
+    except Exception:
+        log.debug("Failed to complete web framework request metadata", exc_info=True)
+
+
+def _blocked_response(ctx: core.ExecutionContext[WebFrameworkRequestEvent], block: Any) -> HTTPResponse:
+    core.dispatch("bottle.request.block", (ctx, block))
+    block_response = ctx.get_item("bottle.block_response")
+    ctx.discard_local_item("bottle.block_response")
+    if block_response is None:
+        body = _format_template(BLOCKED_RESPONSE_JSON, "default").encode("utf-8")
+        block_response = (403, {"Content-Type": "application/json", "Content-Length": str(len(body))}, body)
+    status, headers, body = block_response
+    blocked = HTTPResponse(body=body, status=status, headers=headers)
+    # Completion hooks must see the replacement headers, without the application's headers or cookies.
+    blocked.apply(response)
+    return blocked
 
 
 def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEvent:
@@ -71,12 +172,12 @@ def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEven
 
 def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optional[BaseException]) -> None:
     if isinstance(result, HTTPResponse):
-        status = result.status_code
+        response_data = result
     elif isinstance(error, HTTPResponse):
-        status = error.status_code
-    elif isinstance(error, Exception):
-        status = 500
+        response_data = error
     else:
-        status = response.status_code  # Bottle's local response has not yet been updated from the callback result.
-    event.response_status_code = status
-    event.response_headers = response.headers
+        response_data = response
+    event.response_status_code = (
+        500 if isinstance(error, Exception) and not isinstance(error, HTTPResponse) else response_data.status_code
+    )
+    event.response_headers = response_data.headers
