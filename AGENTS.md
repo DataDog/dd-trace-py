@@ -23,9 +23,25 @@ Paths below are relative to the repository root.
 
 ## Docstrings and Comments
 
-Use reStructuredText for Sphinx-rendered docstrings: public interfaces and modules named by
-`automodule` directives in `docs/`, including integration `__init__.py` files.
-Use plain prose elsewhere; avoid rST emphasis and double backticks in private docstrings and comments.
+Choose the style by **whether Sphinx renders the docstring**, not whether the symbol or module
+is private. Check directives and member options in `docs/` when unsure; an underscore alone does
+not establish that a docstring is unrendered. Integration `__init__.py` docstrings under
+`ddtrace/contrib/internal/` are rendered through `docs/integrations.rst` despite their private path.
+
+Rendered docstrings use reStructuredText, including parameter and exception fields when useful:
+
+```python
+def enable(self, flush_interval: float = 1.0) -> None:
+    """Start the writer, flushing every ``flush_interval`` seconds.
+
+    :param flush_interval: Seconds between flushes.
+    :raises RuntimeError: If the writer is already running.
+    """
+```
+
+Unrendered helpers (for example, `_flush()` when not included in the docs) and inline comments
+use plain prose: write parameter names as-is, without rST emphasis or double backticks.
+A short summary is usually enough; field lists are optional for unrendered docstrings.
 Explain non-obvious invariants, not the next line of code. Do not add `AIDEV-*` anchors;
 `scripts/check_no_new_aidev_anchors.py` enforces this.
 
@@ -61,8 +77,10 @@ for the task, rather than loading every guide. Source code defines current signa
 
 Follow the Pull Request Requirements in `docs/contributing.rst` and use
 `.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
-Include validation, risks, and relevant issues. Use `releasenote` before opening a PR;
-apply `changelog/no-changelog` when no customer-facing note is needed.
+Include validation, risks, and relevant issues. Before deciding or answering whether a release
+note is needed, invoke `releasenote` (or read `.claude/skills/releasenote/SKILL.md` if skill
+invocation is unavailable), including for internal-only refactors. Follow its decision workflow;
+when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
 
 This repository is public. PR text, commits, and release notes must describe the change itself.
 Keep internal discussions, other teams' tickets, backend/data-pipeline names, and open internal
