@@ -26,7 +26,7 @@ variables:
   artifacts:
     when: always
     paths:
-      - core.*
+      - core-dumps/
     reports:
       junit: test-results/junit*.xml
     expire_in: 1 week
