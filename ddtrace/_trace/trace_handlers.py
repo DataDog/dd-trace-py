@@ -11,7 +11,6 @@ from typing import Protocol
 from urllib import parse
 
 from ddtrace import config
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
@@ -74,6 +73,8 @@ from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.inferred_spans import PUBSUB_PUSH_SPAN_NAME
+from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -285,7 +286,7 @@ def _on_web_framework_finish_request(
 
 
 def _set_inferred_proxy_tags(span: Span, status_code):
-    if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
+    if span._parent and is_inferred_span(span._parent):
         inferred_span = span._parent
         status_code = status_code or span._get_attribute("http.status_code")
         if status_code:
@@ -337,7 +338,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContex
     )
 
     span = tracer.start_span(
-        "gcp.pubsub.receive",
+        PUBSUB_PUSH_SPAN_NAME,
         service=config._get_service(),
         resource=subscription_id,
         span_type=SpanTypes.WORKER,
