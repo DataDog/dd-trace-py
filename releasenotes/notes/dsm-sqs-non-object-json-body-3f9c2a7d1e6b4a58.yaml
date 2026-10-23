@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    botocore: Fixes an issue in Data Streams Monitoring where receiving an SQS message whose body is a JSON array,
-    string, number, or ``null``, and that has no ``_datadog`` message attribute, did not record a consume checkpoint.
+    botocore: Fixes an issue where Data Streams Monitoring did not track SQS messages consumed
+    with a JSON body that is not an object, such as an array, string, or number.
