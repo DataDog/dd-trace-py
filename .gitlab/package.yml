@@ -427,8 +427,6 @@ download_dependency_wheels:
   needs:
     - job: "build linux"
       artifacts: true
-  variables:
-    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   rules:
     # TODO(py-315): pip refuses the local ddtrace wheel on 3.15 while
     # requires-python is <3.15. Remove this rule when requires-python allows 3.15.
@@ -453,10 +451,6 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.15"
   script:
     - .gitlab/download-dependency-wheels.sh
-  cache:
-    - key: v0-download-dep-wheels-cache
-      paths:
-        - ${CI_PROJECT_DIR}/.cache/
   artifacts:
     when: always
     paths:
