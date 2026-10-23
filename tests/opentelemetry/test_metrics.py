@@ -114,32 +114,37 @@ def test_otel_metrics_disabled_and_unset():
     )
 
 
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
-        "DD_LOGS_OTEL_ENABLED": "true",
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4317",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:14318/v1/traces",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
         "OTEL_TRACES_EXPORTER": "otlp",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.example:4318",
     },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", "http/protobuf"]},
 )
-def test_otlp_export_requests_are_not_traced():
-    """OTLP exporter requests must not be traced.
+def test_otel_metrics_export_does_not_generate_client_spans():
+    import os
 
-    The OTLP HTTP metrics exporter omits the OTLP user-agent header that the trace and log
-    exporters set, so detection falls back to matching the enabled export URLs by full path.
-    """
-    import requests
+    from opentelemetry.metrics import get_meter
+    from opentelemetry.metrics import get_meter_provider
 
-    from ddtrace.contrib.internal.requests.connection import is_otlp_export
+    from ddtrace.trace import tracer
+    from tests.opentelemetry.utils import capture_otlp_metrics
+    from tests.opentelemetry.utils import capture_otlp_traces
+    from tests.opentelemetry.utils import metric_names
 
-    def prepared(url):
-        return requests.Request("POST", url, headers={"User-Agent": "python-requests/2.34.2"}).prepare()
+    with (
+        capture_otlp_metrics(os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]) as metric_requests,
+        capture_otlp_traces("http/protobuf", port=14318) as trace_requests,
+    ):
+        get_meter("test.metrics").create_counter("test.metric").add(1)
+        assert get_meter_provider().force_flush()
+        tracer.flush()
 
-    # Exports for enabled signals are matched by their full URL.
-    assert is_otlp_export(prepared("http://collector.example:4318/v1/logs")) is True
-    assert is_otlp_export(prepared("http://collector.example:4318/v1/traces")) is True
-    # A disabled signal's endpoint, a different path or scheme, and other hosts are user traffic.
-    assert is_otlp_export(prepared("http://collector.example:4318/v1/metrics")) is False
-    assert is_otlp_export(prepared("http://collector.example:4318/api/data")) is False
-    assert is_otlp_export(prepared("https://collector.example:4318/v1/logs")) is False
-    assert is_otlp_export(prepared("http://api.example:8080/v1/logs")) is False
+    assert "test.metric" in metric_names(metric_requests)
+    assert trace_requests == []
