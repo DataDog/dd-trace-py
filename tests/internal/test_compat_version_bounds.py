@@ -72,9 +72,13 @@ def test_max_py_matches_requires_python_upper_bound() -> None:
 
 
 def test_version_bound_helpers() -> None:
+    # NEXT_MAX_PY equals MAX_PY between release cycles and leads it by one during
+    # the next version's development, so the boundary assertions use a version
+    # strictly beyond MAX_PY rather than NEXT_MAX_PY.
+    beyond_max_py: tuple[int, int] = (MAX_PY[0], MAX_PY[1] + 1)
     assert is_at_most_py(*MAX_PY, version=MAX_PY)
-    assert not is_at_most_py(*MAX_PY, version=NEXT_MAX_PY)
-    assert not is_at_least_py(*NEXT_MAX_PY, version=MAX_PY)
+    assert not is_at_most_py(*MAX_PY, version=beyond_max_py)
+    assert not is_at_least_py(*beyond_max_py, version=MAX_PY)
     assert is_at_least_py(*NEXT_MAX_PY, version=NEXT_MAX_PY)
     assert is_supported_python_version(version=NEXT_MAX_PY)
     assert is_supported_python_version(version=(3, 15))

@@ -21,13 +21,16 @@ __all__ = [
 
 PYTHON_VERSION_INFO = sys.version_info
 
-# Last officially supported CPython. Matches requires-python <3.15.
-# TODO(py-315): bump MAX_PY to (3, 15) after 3.15 GAs
-MAX_PY: tuple[int, int] = (3, 14)
+# Last officially supported CPython. Matches requires-python <3.16.
+MAX_PY: tuple[int, int] = (3, 15)
 
-# Next CPython: packaging exclusive ceiling and wrap-live inclusive ceiling.
-# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.16 dies.
-# TODO(py-315): bump NEXT_MAX_PY to (3, 16) after 3.15 GAs
+# Runtime compatibility ceiling (not the packaging ceiling, which is
+# requires-python / MAX_PY): wrap() / lazy are live through NEXT_MAX_PY
+# (`is_supported_python_version()`); 3.16 dies. Equals MAX_PY between release
+# cycles, and leads it by one once the next CPython enters development.
+# TODO(py-316): bump NEXT_MAX_PY to (3, 16) once 3.16-dev is scheduled in the
+# testrunner image and the wrap assemblies have been adapted, extending
+# DEFAULT_PYTHON_VERSIONS and the smoke_test matrix in the same change.
 NEXT_MAX_PY: tuple[int, int] = (3, 15)
 
 NEXT_PY_UNSUPPORTED_MSG: str = (
