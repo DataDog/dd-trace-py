@@ -543,27 +543,43 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
 
     def _send_pending(self, sender: _OtlpSender, deadline: Optional[float]) -> None:
         """Send the pending exports in order. Normally stop at the first that has to wait for a later flush; at
-        exit (with a deadline), try each once, as long as the shutdown time allows, since none can wait.
+        exit (with a deadline), try each once, as long as the shutdown time allows, since none can wait. Exports that
+        still failed are discarded only by close(): on_shutdown() also runs when an application shuts the global
+        tracer down and keeps serving, and its later flushes send them.
         """
+        if deadline is None:
+            while self._pending:
+                # A periodic flush that close() interrupted starts no new request: the exit flush, which has the
+                # shutdown deadline, sends what is left. A request already in progress cannot be cancelled and ends
+                # within its timeout.
+                if self._closing:
+                    return
+                if not self._send_one(sender, self._pending[0], None):
+                    return
+                self._pending.popleft()
+            return
+        failed: list[bytes] = []
         while self._pending:
-            # A periodic flush that close() interrupted starts no new request: the exit flush, which has the shutdown
-            # deadline, sends what is left. A request already in progress cannot be cancelled and ends within its
-            # timeout.
-            if deadline is None and self._closing:
-                return
-            if deadline is not None and time.monotonic() >= deadline:
-                log.debug("LiteLLM usage metrics: dropping %d unsent OTLP exports at exit", len(self._pending))
+            if time.monotonic() >= deadline:
+                failed.extend(self._pending)
                 self._pending.clear()
-                return
-            try:
-                done = sender.send(self._pending[0], self._stopping, retry=deadline is None, deadline=deadline)
-            except Exception:
-                # A failure that a retry would not fix, such as an invalid endpoint: drop the export.
-                log.debug("LiteLLM usage metrics: OTLP export failed", exc_info=True)
-                done = True
-            if not done and deadline is None:
-                return
-            self._pending.popleft()
+                break
+            payload = self._pending.popleft()
+            if not self._send_one(sender, payload, deadline):
+                failed.append(payload)
+        if failed and self._closing:
+            log.debug("LiteLLM usage metrics: dropping %d unsent OTLP exports at exit", len(failed))
+        elif failed:
+            self._pending.extendleft(reversed(failed))
+
+    def _send_one(self, sender: _OtlpSender, payload: bytes, deadline: Optional[float]) -> bool:
+        """Send one export; False when it failed in a way worth trying again later."""
+        try:
+            return sender.send(payload, self._stopping, retry=deadline is None, deadline=deadline)
+        except Exception:
+            # A failure that a retry would not fix, such as an invalid endpoint: drop the export.
+            log.debug("LiteLLM usage metrics: OTLP export failed", exc_info=True)
+            return True
 
 
 def _count_codes(metric: str, profile_id: str, codes: Any) -> None:

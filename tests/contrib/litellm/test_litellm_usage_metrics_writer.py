@@ -396,9 +396,23 @@ def test_on_shutdown_tries_pending_exports_once_without_waiting(otlp_endpoint, s
     sent, waited = len(Collector.requests), len(sleeps)
     writer.record(PROVIDER_ATTEMPT, *observation(user="u2"))
     writer.on_shutdown()
-    # Each export is tried once, the kept one first; none can wait for a later flush.
+    # Each export is tried once, the kept one first; none waits. The application may keep serving after a tracer
+    # shutdown, so both stay queued for a later flush.
     assert len(Collector.requests) == sent + 2
     assert len(sleeps) == waited
+    assert len(writer._pending) == 2
+    Collector.status = 200
+    writer.flush()
+    assert not writer._pending
+
+
+def test_close_discards_exports_that_still_failed(otlp_endpoint, sleeps):
+    Collector.status = 503
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.start()
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    writer.close()
     assert not writer._pending
 
 
@@ -426,9 +440,9 @@ def test_shutdown_time_is_bounded(otlp_endpoint, monkeypatch, sleeps):
     writer.flush()
     sent = len(Collector.requests)
     writer.on_shutdown()
-    # Out of time: what is left is dropped, not sent.
+    # Out of time: what is left is not sent, and stays queued for a later flush unless the writer is closing.
     assert len(Collector.requests) == sent
-    assert not writer._pending
+    assert len(writer._pending) == 1
 
 
 def test_shutdown_time_is_bounded_behind_a_collector_that_does_not_answer(otlp_endpoint, monkeypatch):
