@@ -66,7 +66,7 @@ class FlagEvalMetrics:
             return
 
         try:
-            from opentelemetry import metrics as otel_metrics
+            import opentelemetry.metrics as otel_metrics
 
             # Get the global meter provider (set up by ddtrace OTel metrics infrastructure)
             meter = otel_metrics.get_meter(METER_NAME)

@@ -5567,6 +5567,13 @@
         "sensitive": true
       }
     ],
+    "OTEL_EXPORTER_OTLP_INSECURE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "OTEL_EXPORTER_OTLP_LOGS_CLIENT_CERTIFICATE": [
       {
         "implementation": "A",
