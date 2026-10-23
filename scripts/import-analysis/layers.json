@@ -79,13 +79,15 @@
       "Same-zone edges, and edges into/out of unclassified (foundation) modules, are never flagged.",
       "'exceptions' lists zone-pairs that are exempt from the above -- e.g. if we later decide a",
       "product may import a security product directly, add {\"from_zone\": \"product:x\", \"to_zone\":",
-      "\"product:aap\"} here rather than changing the detection logic."
+      "\"product:aap\"} here rather than changing the detection logic.",
+      "Either side of an exception may use 'from_module'/'to_module' (a module prefix) instead of a zone,",
+      "to exempt only part of a zone."
     ],
     "forbid_from_zones_into_products": ["internal-core", "contrib"],
     "exceptions": [
       {"from_zone": "contrib", "to_zone": "product:tracing", "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"},
-      {"from_zone": "contrib", "to_zone": "product:llmobs", "//": "LLMObs-backed contrib integrations construct and call their BaseLLMIntegration subclass from ddtrace.llmobs._integrations by design"},
-      {"from_zone": "product:llmobs", "to_zone": "product:tracing", "//": "LLMObs is built on tracer spans; its integrations annotate the Span created by the tracer"}
+      {"from_module": "ddtrace.contrib.internal", "to_module": "ddtrace.llmobs._integrations", "//": "LLMObs-backed contrib integrations construct and call their BaseLLMIntegration subclass from ddtrace.llmobs._integrations by design"},
+      {"from_module": "ddtrace.llmobs._integrations", "to_zone": "product:tracing", "//": "LLMObs integrations annotate the Span created by the tracer"}
     ]
   }
 }

@@ -33,6 +33,9 @@ _EXCLUDED_PREFIXES = {"ddtrace.vendor"}
 
 _CONFIG_PATH = Path(__file__).with_name("layers.json")
 
+# (from_zone, from_module, to_zone, to_module): each side names a zone or a module prefix
+_Exception = tuple[str | None, str | None, str | None, str | None]
+
 # Base severity per rule kind, before per-edge structural adjustments. A
 # layer that's supposed to be foundational (internal-core, contrib) reaching
 # up into a product is architecturally worse than two products leaking into
@@ -50,11 +53,14 @@ _PRODUCT_PRODUCT_WEIGHT = 1
 _CYCLE_BONUS = 5
 
 
-def _load_zones(config_path: Path) -> tuple[dict[str, str], set[str], set[tuple[str, str]], set[str]]:
+def _load_zones(config_path: Path) -> tuple[dict[str, str], set[str], list[_Exception], set[str]]:
     config = json.loads(config_path.read_text())
     zones: dict[str, str] = config["zones"]
     forbid_from: set[str] = set(config["rules"]["forbid_from_zones_into_products"])
-    exceptions: set[tuple[str, str]] = {(e["from_zone"], e["to_zone"]) for e in config["rules"]["exceptions"]}
+    exceptions: list[_Exception] = [
+        (e.get("from_zone"), e.get("from_module"), e.get("to_zone"), e.get("to_module"))
+        for e in config["rules"]["exceptions"]
+    ]
     foundation_top_level: set[str] = set(config["foundation"]["top_level"])
     return zones, forbid_from, exceptions, foundation_top_level
 
@@ -83,13 +89,30 @@ def _uncovered_top_level(root: Path, zones: dict[str, str], foundation_top_level
 
 def _zone_of(module: str, zones: dict[str, str], prefixes: list[str]) -> str | None:
     for prefix in prefixes:
-        if module == prefix or module.startswith(prefix + "."):
+        if _in_module(module, prefix):
             return zones[prefix]
     return None
 
 
-def _violates(from_zone: str, to_zone: str, forbid_from: set[str], exceptions: set[tuple[str, str]]) -> bool:
-    if from_zone == to_zone or (from_zone, to_zone) in exceptions:
+def _in_module(module: str, prefix: str) -> bool:
+    return module == prefix or module.startswith(prefix + ".")
+
+
+def _matches(module: str, zone: str, want_zone: str | None, want_module: str | None) -> bool:
+    if want_module is not None:
+        return _in_module(module, want_module)
+    return zone == want_zone
+
+
+def _excepted(importer: str, from_zone: str, imported: str, to_zone: str, exceptions: list[_Exception]) -> bool:
+    return any(
+        _matches(importer, from_zone, ez_from, em_from) and _matches(imported, to_zone, ez_to, em_to)
+        for ez_from, em_from, ez_to, em_to in exceptions
+    )
+
+
+def _violates(from_zone: str, to_zone: str, forbid_from: set[str]) -> bool:
+    if from_zone == to_zone:
         return False
     is_product = to_zone.startswith("product:")
     if from_zone in forbid_from:
@@ -120,7 +143,9 @@ def analyze(args: argparse.Namespace) -> None:
             continue
         for imported in imports:
             to_zone = _zone_of(imported, zones, prefixes)
-            if to_zone is None or not _violates(from_zone, to_zone, forbid_from, exceptions):
+            if to_zone is None or not _violates(from_zone, to_zone, forbid_from):
+                continue
+            if _excepted(importer, from_zone, imported, to_zone, exceptions):
                 continue
             target = metrics.get(imported)
             violations.append(
