@@ -1,5 +1,4 @@
 from typing import Optional
-from typing import Union
 from unittest import mock
 
 import pytest
@@ -25,33 +24,26 @@ from tests.utils import scoped_tracer
 from ..utils import override_global_config
 
 
-class _Unchecked:
-    pass
-
-
-_UNCHECKED = _Unchecked()
-
-
 def assert_sampling_decision_tags(
     span: Span,
-    agent: Union[float, None, _Unchecked] = _UNCHECKED,
-    limit: Union[float, None, _Unchecked] = _UNCHECKED,
-    rule: Union[float, None, _Unchecked] = _UNCHECKED,
-    sampling_priority: Union[int, None, _Unchecked] = _UNCHECKED,
+    agent: Optional[float] = None,
+    limit: Optional[float] = None,
+    rule: Optional[float] = None,
+    sampling_priority: Optional[int] = None,
     trace_tag: Optional[str] = None,
 ) -> None:
-    """Omitted metrics are unchecked; None requires absence and zero requires zero."""
+    """Check supplied metric expectations, including zero; None leaves a metric unchecked."""
     metric_agent = span.get_metric(_SAMPLING_AGENT_DECISION)
     metric_limit = span.get_metric(_SAMPLING_LIMIT_DECISION)
     metric_rule = span.get_metric(_SAMPLING_RULE_DECISION)
     metric_sampling_priority = span.get_metric(_SAMPLING_PRIORITY_KEY)
-    if agent is not _UNCHECKED:
+    if agent is not None:
         assert metric_agent == agent
-    if limit is not _UNCHECKED:
+    if limit is not None:
         assert metric_limit == limit
-    if rule is not _UNCHECKED:
+    if rule is not None:
         assert metric_rule == rule
-    if sampling_priority is not _UNCHECKED:
+    if sampling_priority is not None:
         assert metric_sampling_priority == sampling_priority
 
     if trace_tag:
@@ -654,12 +646,12 @@ def test_datadog_sampler_sample_no_rules(tracer, test_spans):
     assert len(spans) == 1, "Span should have been written"
     assert_sampling_decision_tags(
         spans[0],
-        agent=None,
-        limit=None,
-        rule=None,
         sampling_priority=AUTO_KEEP,
         trace_tag=f"-{SamplingMechanism.DEFAULT}",
     )
+    assert spans[0].get_metric(_SAMPLING_AGENT_DECISION) is None
+    assert spans[0].get_metric(_SAMPLING_LIMIT_DECISION) is None
+    assert spans[0].get_metric(_SAMPLING_RULE_DECISION) is None
 
 
 @pytest.mark.parametrize(
@@ -818,9 +810,9 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
         "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
     )
     trace_tag = "-%d" % sampling_mechanism if sampling_mechanism is not None else None
-    assert_sampling_decision_tags(
-        span, rule=rule, limit=limit, sampling_priority=sampling_priority, trace_tag=trace_tag
-    )
+    assert_sampling_decision_tags(span, sampling_priority=sampling_priority, trace_tag=trace_tag)
+    assert span.get_metric(_SAMPLING_RULE_DECISION) == rule
+    assert span.get_metric(_SAMPLING_LIMIT_DECISION) == limit
 
 
 def test_datadog_sampler_tracer_child(tracer, test_spans):
@@ -842,11 +834,11 @@ def test_datadog_sampler_tracer_child(tracer, test_spans):
     )
     assert_sampling_decision_tags(
         spans[1],
-        agent=None,
-        rule=None,
-        limit=None,
         trace_tag=f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
     )
+    assert spans[1].get_metric(_SAMPLING_AGENT_DECISION) is None
+    assert spans[1].get_metric(_SAMPLING_RULE_DECISION) is None
+    assert spans[1].get_metric(_SAMPLING_LIMIT_DECISION) is None
 
 
 def test_datadog_sampler_tracer_start_span(tracer, test_spans):
@@ -966,15 +958,22 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
         ("sampling_priority", _SAMPLING_PRIORITY_KEY),
     ],
 )
-@pytest.mark.parametrize("expected", [0, None], ids=["zero", "absent"])
-def test_sampling_assertions_reject_unexpected_metrics(argument: str, key: str, expected: Optional[int]) -> None:
+def test_sampling_assertions_check_zero(argument: str, key: str) -> None:
     span = Span("assertion-check")
     span._set_attribute(key, 1)
     with pytest.raises(AssertionError):
         assert_sampling_decision_tags(
             span,
-            agent=expected if argument == "agent" else _UNCHECKED,
-            limit=expected if argument == "limit" else _UNCHECKED,
-            rule=expected if argument == "rule" else _UNCHECKED,
-            sampling_priority=expected if argument == "sampling_priority" else _UNCHECKED,
+            agent=0 if argument == "agent" else None,
+            limit=0 if argument == "limit" else None,
+            rule=0 if argument == "rule" else None,
+            sampling_priority=0 if argument == "sampling_priority" else None,
         )
+
+
+def test_sampling_assertions_skip_unspecified_metrics() -> None:
+    span = Span("assertion-check")
+    for key in (_SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION, _SAMPLING_RULE_DECISION, _SAMPLING_PRIORITY_KEY):
+        span._set_attribute(key, 1)
+    assert_sampling_decision_tags(span)
+    assert_sampling_decision_tags(span, agent=None, limit=None, rule=None, sampling_priority=None)
