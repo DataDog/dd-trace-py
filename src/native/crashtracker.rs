@@ -4,7 +4,8 @@ use std::sync::Once;
 use std::time::Duration;
 
 use libdd_crashtracker::{
-    register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
+    clear_spans, clear_traces, insert_span, insert_trace, register_runtime_frame_callback,
+    register_runtime_stacktrace_string_callback, remove_span, remove_trace,
     report_unhandled_exception, CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata,
     StackFrame, StackTrace, StacktraceCollection,
 };
@@ -353,6 +354,38 @@ pub fn crashtracker_report_unhandled_exception_py(
     let stacktrace = StackTrace::from_frames(stack_frames, false);
     report_unhandled_exception(exception_type, exception_message, stacktrace)?;
     Ok(())
+}
+
+#[pyfunction(name = "crashtracker_insert_span_id")]
+pub fn crashtracker_insert_span_id(span_id: u64) -> anyhow::Result<usize> {
+    // dd-trace-py span IDs are 64-bit
+    Ok(insert_span(span_id as u128)?)
+}
+
+#[pyfunction(name = "crashtracker_remove_span_id")]
+pub fn crashtracker_remove_span_id(span_id: u64, handle: usize) -> anyhow::Result<()> {
+    Ok(remove_span(span_id as u128, handle)?)
+}
+
+#[pyfunction(name = "crashtracker_insert_trace_id")]
+pub fn crashtracker_insert_trace_id(trace_id: u128) -> anyhow::Result<usize> {
+    // trace IDs can be 128-bit
+    Ok(insert_trace(trace_id)?)
+}
+
+#[pyfunction(name = "crashtracker_remove_trace_id")]
+pub fn crashtracker_remove_trace_id(trace_id: u128, handle: usize) -> anyhow::Result<()> {
+    Ok(remove_trace(trace_id, handle)?)
+}
+
+#[pyfunction(name = "crashtracker_clear_span_ids")]
+pub fn crashtracker_clear_span_ids() -> anyhow::Result<()> {
+    Ok(clear_spans()?)
+}
+
+#[pyfunction(name = "crashtracker_clear_trace_ids")]
+pub fn crashtracker_clear_trace_ids() -> anyhow::Result<()> {
+    Ok(clear_traces()?)
 }
 
 // We expose the receiver_entry_point_stdin to use from Python script, _dd_crashtracker_receiver

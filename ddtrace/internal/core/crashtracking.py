@@ -9,6 +9,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace import version
+from ddtrace.internal import core
 from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
@@ -32,8 +33,14 @@ try:
     from ddtrace.internal.native._native import CrashtrackerReceiverConfig
     from ddtrace.internal.native._native import CrashtrackerStatus
     from ddtrace.internal.native._native import StacktraceCollection
+    from ddtrace.internal.native._native import crashtracker_clear_span_ids
+    from ddtrace.internal.native._native import crashtracker_clear_trace_ids
     from ddtrace.internal.native._native import crashtracker_init
+    from ddtrace.internal.native._native import crashtracker_insert_span_id
+    from ddtrace.internal.native._native import crashtracker_insert_trace_id
     from ddtrace.internal.native._native import crashtracker_on_fork
+    from ddtrace.internal.native._native import crashtracker_remove_span_id
+    from ddtrace.internal.native._native import crashtracker_remove_trace_id
     from ddtrace.internal.native._native import crashtracker_report_unhandled_exception
     from ddtrace.internal.native._native import crashtracker_status
 
@@ -248,6 +255,25 @@ def _unhandled_exception_reporter(
         log.debug("Failed to report unhandled exception to crashtracker", exc_info=True)
 
 
+def _on_span_start(span) -> None:
+    try:
+        span_handle = crashtracker_insert_span_id(span.span_id)
+        trace_handle = crashtracker_insert_trace_id(span.trace_id)
+        span._set_ctx_item("_crashtracker_handles", (span_handle, trace_handle))
+    except Exception:
+        log.debug("Failed to register span with crashtracker", exc_info=True)
+
+
+def _on_span_finish(span) -> None:
+    try:
+        handles = span._get_ctx_item("_crashtracker_handles")
+        if handles is not None:
+            crashtracker_remove_span_id(span.span_id, handles[0])
+            crashtracker_remove_trace_id(span.trace_id, handles[1])
+    except Exception:
+        log.debug("Failed to unregister span from crashtracker", exc_info=True)
+
+
 def is_started() -> bool:
     if not is_available:
         return False
@@ -282,6 +308,8 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 pass
         crashtracker_init(config, receiver_config, metadata)
         excepthook.register(_unhandled_exception_reporter)
+        core.on("trace.span_start", _on_span_start)
+        core.on("trace.span_finish", _on_span_finish)
 
         if stack_mod is not None:
             try:
@@ -290,6 +318,11 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 pass
 
         def crashtracker_fork_handler():
+            try:
+                crashtracker_clear_span_ids()
+                crashtracker_clear_trace_ids()
+            except Exception:
+                log.debug("Failed to clear crashtracker span/trace IDs after fork", exc_info=True)
             # We recreate the args here mainly to pass updated runtime_id after
             # fork
             config, receiver_config, metadata = _get_args(additional_tags)
