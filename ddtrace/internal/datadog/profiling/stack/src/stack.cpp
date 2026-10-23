@@ -16,7 +16,12 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <atomic>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -358,6 +363,53 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+#if PY_VERSION_HEX >= 0x030e0000
+// One more than the loaded-binaries generation at the last failed discovery, or 0 before any failure. Atomic rather
+// than mutex-guarded so a fork during discovery cannot leave the child holding a lock.
+static std::atomic<uint64_t> g_failed_asyncio_discovery_generation{ 0 };
+
+// Where the published task-list head offsets came from, for diagnostics and tests.
+enum class AsyncioOffsetsSource : uint8_t
+{
+    None,
+    RuntimeTable,
+    CompileTime,
+};
+static std::atomic<AsyncioOffsetsSource> g_asyncio_offsets_source{ AsyncioOffsetsSource::None };
+
+// Runs without the GIL. Concurrent callers may both run discovery; results are equivalent, so that is harmless.
+static std::optional<std::pair<AsyncioOffsets, AsyncioOffsetsSource>>
+discover_asyncio_offsets()
+{
+    // Read the generation before discovery so that a binary loaded during discovery causes a retry next time.
+    const auto generation = loaded_binaries_generation();
+    if (generation && g_failed_asyncio_discovery_generation.load(std::memory_order_relaxed) == *generation + 1) {
+        return std::nullopt;
+    }
+
+    if (auto offsets = find_asyncio_debug_offsets()) {
+        if (offsets->task_layout && !EchionSampler::asyncio_task_layout_matches_mirror(*offsets->task_layout)) {
+            // The runtime's TaskObj differs from the mirror, so compile-time offsets would be wrong too.
+            g_failed_asyncio_discovery_generation.store(generation ? *generation + 1 : 0, std::memory_order_relaxed);
+            return std::nullopt;
+        }
+        return std::pair{ *offsets, AsyncioOffsetsSource::RuntimeTable };
+    }
+
+    // Discovery can fail where compile-time offsets are still right, for example when process_vm_readv is denied or a
+    // loaded binary was replaced on disk. They describe the runtime only on the exact release this extension was
+    // built against.
+    if (Py_Version == PY_VERSION_HEX) {
+        return std::pair{ AsyncioOffsets{ offsetof(PyInterpreterState, asyncio_tasks_head),
+                                          offsetof(_PyThreadStateImpl, asyncio_tasks_head) },
+                          AsyncioOffsetsSource::CompileTime };
+    }
+
+    g_failed_asyncio_discovery_generation.store(generation ? *generation + 1 : 0, std::memory_order_relaxed);
+    return std::nullopt;
+}
+#endif
+
 static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
@@ -369,9 +421,59 @@ stack_init_asyncio(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    auto& echion = Sampler::get().get_echion();
+    // Successful offsets remain valid for the process lifetime. Failures are retried on later initialization calls
+    // once the set of loaded binaries changes. Discovery is optional, so do not release and reacquire the GIL once
+    // finalization is visible. CPython 3.14+ may hang a non-finalizing thread that tries to reacquire it.
+    if ((echion.asyncio_thread_tasks_head_offset() == 0 || echion.asyncio_interpreter_tasks_head_offset() == 0) &&
+        !Py_IsFinalizing()) {
+        std::optional<std::pair<AsyncioOffsets, AsyncioOffsetsSource>> offsets;
+        // Linux discovery reads ELF metadata from the filesystem. Release the GIL so a slow read does not prevent
+        // unrelated Python threads from running. The calling initialization thread still waits for the result.
+        Py_BEGIN_ALLOW_THREADS;
+        offsets = discover_asyncio_offsets();
+        Py_END_ALLOW_THREADS;
+        if (offsets) {
+            echion.set_asyncio_offsets(offsets->first);
+            g_asyncio_offsets_source.store(offsets->second, std::memory_order_relaxed);
+        }
+    }
+    const bool native_task_lists =
+      echion.asyncio_thread_tasks_head_offset() != 0 && echion.asyncio_interpreter_tasks_head_offset() != 0;
+#else
+    // Older runtimes have no native task lists to locate.
+    const bool native_task_lists = true;
+#endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
-    Py_RETURN_NONE;
+    return PyBool_FromLong(native_task_lists);
+}
+
+// Test and diagnostic introspection. A zero offset means native task-list attribution is off for that list.
+static PyObject*
+stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+#if PY_VERSION_HEX >= 0x030e0000
+    auto& echion = Sampler::get().get_echion();
+    const char* source = "none";
+    switch (g_asyncio_offsets_source.load(std::memory_order_relaxed)) {
+        case AsyncioOffsetsSource::None:
+            break;
+        case AsyncioOffsetsSource::RuntimeTable:
+            source = "runtime-table";
+            break;
+        case AsyncioOffsetsSource::CompileTime:
+            source = "compile-time";
+            break;
+    }
+    return Py_BuildValue("(nns)",
+                         static_cast<Py_ssize_t>(echion.asyncio_interpreter_tasks_head_offset()),
+                         static_cast<Py_ssize_t>(echion.asyncio_thread_tasks_head_offset()),
+                         source);
+#else
+    return Py_BuildValue("(nns)", Py_ssize_t{ 0 }, Py_ssize_t{ 0 }, "none");
+#endif
 }
 
 static PyObject*
@@ -1168,6 +1270,10 @@ static PyMethodDef stack_methods[] = {
     // asyncio task support
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
+    { "_asyncio_task_lists",
+      stack_asyncio_task_lists,
+      METH_NOARGS,
+      "Get the asyncio task-list head offsets (0 when unavailable) and where they came from" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support
