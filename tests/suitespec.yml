@@ -15,7 +15,6 @@ components:
     - tests/suitespec.py
     - tests/meta/*
     - tests/smoke_test.py
-    - tests/subprocesstest.py
     - tests/process.py
     - tests/contrib/patch_scenarios.py
     - tests/wait-for-services.py

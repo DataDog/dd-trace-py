@@ -17,6 +17,7 @@ from typing import Any
 from typing import Optional
 from typing import TypedDict
 from typing import cast
+from unittest import TestCase
 from urllib import parse
 import urllib.parse
 
@@ -55,7 +56,6 @@ from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.process import run_process
-from tests.subprocesstest import SubprocessTestCase
 
 
 NO_CHILDREN = object()
@@ -427,7 +427,7 @@ def override_sys_modules(modules):
         sys.modules.update(original)
 
 
-class BaseTestCase(SubprocessTestCase):
+class BaseTestCase(TestCase):
     """
     BaseTestCase extends ``unittest.TestCase`` to provide some useful helpers/assertions
 

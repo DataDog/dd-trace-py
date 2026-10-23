@@ -80,53 +80,137 @@ class TestSchematization(SQLAlchemyTestBase, TracerTestCase):
 
         return span
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_service_name_default(self):
+    def _scenario_test_schematized_service_name_default(self):
         span = self._generate_span()
 
         self.assertEqual(span.service, "mysql")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_service_name_v0(self):
+    def _scenario_test_schematized_service_name_v0(self):
         span = self._generate_span()
 
         self.assertEqual(span.service, "mysql")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_service_name_v1(self):
+    def _scenario_test_schematized_service_name_v1(self):
         span = self._generate_span()
 
         self.assertEqual(span.service, "mysvc")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_name_default(self):
+    def _scenario_test_schematized_unspecified_service_name_default(self):
         span = self._generate_span()
 
         self.assertEqual(span.service, "mysql")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_name_v0(self):
+    def _scenario_test_schematized_unspecified_service_name_v0(self):
         span = self._generate_span()
 
         self.assertEqual(span.service, "mysql")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_name_v1(self):
+    def _scenario_test_schematized_unspecified_service_name_v1(self):
         span = self._generate_span()
 
         self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_operation_name_v0(self):
+    def _scenario_test_schematized_operation_name_v0(self):
         span = self._generate_span()
 
         self.assertEqual(span.name, "mysql.query")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_operation_name_v1(self):
+    def _scenario_test_schematized_operation_name_v1(self):
         span = self._generate_span()
 
         self.assertEqual(span.name, "mysql.query")
 
     def test_engine_connect_execute(self):
         pass
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestSchematization_schematized_service_name_default():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_service_name_default") as case:
+        case._scenario_test_schematized_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSchematization_schematized_service_name_v0():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_service_name_v0") as case:
+        case._scenario_test_schematized_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSchematization_schematized_service_name_v1():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_service_name_v1") as case:
+        case._scenario_test_schematized_service_name_v1()
+
+
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True, test_assertions=True)
+def test_TestSchematization_schematized_unspecified_service_name_default():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_unspecified_service_name_default") as case:
+        case._scenario_test_schematized_unspecified_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_unspecified_service_name_v0():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_unspecified_service_name_v0") as case:
+        case._scenario_test_schematized_unspecified_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_unspecified_service_name_v1():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_unspecified_service_name_v1") as case:
+        case._scenario_test_schematized_unspecified_service_name_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_operation_name_v0():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_operation_name_v0") as case:
+        case._scenario_test_schematized_operation_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_operation_name_v1():
+    from tests.contrib.sqlalchemy.test_mysql import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_operation_name_v1") as case:
+        case._scenario_test_schematized_operation_name_v1()

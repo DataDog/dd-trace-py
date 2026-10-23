@@ -368,8 +368,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
 
 
 class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         """
         v0 schema: When a user specifies a service for the app
             The pylibmc integration should not use it.
@@ -385,8 +384,7 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         """
         v1 schema: When a user specifies a service for the app
             The pylibmc integration should use it.
@@ -402,8 +400,7 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_operation_name_v0_schema(self):
+    def _scenario_test_operation_name_v0_schema(self):
         """
         v0 schema: memcached.cmd
         """
@@ -413,8 +410,7 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
         assert len(spans) == 1
         assert spans[0].name == "memcached.cmd"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_operation_name_v1_schema(self):
+    def _scenario_test_operation_name_v1_schema(self):
         """
         v1 schema: memcached.command
         """
@@ -423,3 +419,43 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
         spans = self.get_spans()
         assert len(spans) == 1
         assert spans[0].name == "memcached.command"
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_TestPylibmcPatchSchematization_user_specified_service_v0():
+    from tests.contrib.pylibmc.test import TestPylibmcPatchSchematization
+    from tests.process import case_context
+
+    with case_context(TestPylibmcPatchSchematization, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_TestPylibmcPatchSchematization_user_specified_service_v1():
+    from tests.contrib.pylibmc.test import TestPylibmcPatchSchematization
+    from tests.process import case_context
+
+    with case_context(TestPylibmcPatchSchematization, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TestPylibmcPatchSchematization_operation_name_v0_schema():
+    from tests.contrib.pylibmc.test import TestPylibmcPatchSchematization
+    from tests.process import case_context
+
+    with case_context(TestPylibmcPatchSchematization, "_scenario_test_operation_name_v0_schema") as case:
+        case._scenario_test_operation_name_v0_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TestPylibmcPatchSchematization_operation_name_v1_schema():
+    from tests.contrib.pylibmc.test import TestPylibmcPatchSchematization
+    from tests.process import case_context
+
+    with case_context(TestPylibmcPatchSchematization, "_scenario_test_operation_name_v1_schema") as case:
+        case._scenario_test_operation_name_v1_schema()

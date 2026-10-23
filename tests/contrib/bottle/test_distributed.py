@@ -1,4 +1,5 @@
 import bottle
+import pytest
 import webtest
 
 import ddtrace
@@ -95,8 +96,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert 123 != s.trace_id
         assert 456 != s.parent_id
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTTLE_DISTRIBUTED_TRACING="False"))
-    def test_distributed_tracing_disabled_via_env_var(self):
+    def _scenario_test_distributed_tracing_disabled_via_env_var(self):
         @self.app.route("/hi/<name>")
         def hi(name):
             return "hi %s" % name
@@ -124,8 +124,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert 123 != s.trace_id
         assert 456 != s.parent_id
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"))
-    def test_inferred_spans_api_gateway_distributed_tracing_enabled(self):
+    def _scenario_test_inferred_spans_api_gateway_distributed_tracing_enabled(self):
         @self.app.route("/")
         def default_endpoint():
             return bottle.HTTPResponse("", status=200)
@@ -172,8 +171,7 @@ class TraceBottleDistributedTest(TracerTestCase):
             distributed_sampling_priority=USER_KEEP,
         )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
-    def test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
+    def _scenario_test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
         @self.app.route("/")
         def default_endpoint():
             return bottle.HTTPResponse("", status=200)
@@ -201,3 +199,40 @@ class TraceBottleDistributedTest(TracerTestCase):
         web_span = traces[0][0]
         assert web_span.name == "bottle.request"
         assert web_span._parent is None
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_BOTTLE_DISTRIBUTED_TRACING="False"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TraceBottleDistributedTest_distributed_tracing_disabled_via_env_var():
+    from tests.contrib.bottle.test_distributed import TraceBottleDistributedTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleDistributedTest, "_scenario_test_distributed_tracing_disabled_via_env_var") as case:
+        case._scenario_test_distributed_tracing_disabled_via_env_var()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TraceBottleDistributedTest_inferred_spans_api_gateway_distributed_tracing_enabled():
+    from tests.contrib.bottle.test_distributed import TraceBottleDistributedTest
+    from tests.process import case_context
+
+    with case_context(
+        TraceBottleDistributedTest, "_scenario_test_inferred_spans_api_gateway_distributed_tracing_enabled"
+    ) as case:
+        case._scenario_test_inferred_spans_api_gateway_distributed_tracing_enabled()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TraceBottleDistributedTest_inferred_spans_api_gateway_distributed_tracing_disabled():
+    from tests.contrib.bottle.test_distributed import TraceBottleDistributedTest
+    from tests.process import case_context
+
+    with case_context(
+        TraceBottleDistributedTest, "_scenario_test_inferred_spans_api_gateway_distributed_tracing_disabled"
+    ) as case:
+        case._scenario_test_inferred_spans_api_gateway_distributed_tracing_disabled()

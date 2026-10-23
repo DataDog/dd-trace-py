@@ -139,12 +139,7 @@ class LoggingTestCase(TracerTestCase):
             output, _ = capture_function_log(func, fmt="%(message)s")
             assert output == "Hello!"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False",
-        )
-    )
-    def test_log_trace(self):
+    def _scenario_test_log_trace(self):
         """
         Check logging patched and formatter including trace info when 64bit trace ids are generated.
         """
@@ -157,8 +152,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env", service="")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
-    def test_log_trace_128bit_trace_ids(self):
+    def _scenario_test_log_trace_128bit_trace_ids(self):
         """
         Check if 128bit trace ids are logged using hex
         """
@@ -182,8 +176,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
-    def test_log_DD_TAGS(self):
+    def _scenario_test_log_DD_TAGS(self):
         def create_span():
             return self.tracer.trace("test.logging")
 
@@ -328,3 +321,44 @@ log.info("Hello!")
 
     assert stdout == b"", stderr
     assert stderr == b"Hello! - dd.service=ddtrace_subprocess_dir dd.version= dd.env= dd.trace_id=0 dd.span_id=0\n"
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_LoggingTestCase_log_trace():
+    from tests.contrib.logging.test_logging import LoggingTestCase
+    from tests.process import case_context
+
+    with case_context(LoggingTestCase, "_scenario_test_log_trace") as case:
+        case._scenario_test_log_trace()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_LoggingTestCase_log_trace_128bit_trace_ids():
+    from tests.contrib.logging.test_logging import LoggingTestCase
+    from tests.process import case_context
+
+    with case_context(LoggingTestCase, "_scenario_test_log_trace_128bit_trace_ids") as case:
+        case._scenario_test_log_trace_128bit_trace_ids()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_LoggingTestCase_log_DD_TAGS():
+    from tests.contrib.logging.test_logging import LoggingTestCase
+    from tests.process import case_context
+
+    with case_context(LoggingTestCase, "_scenario_test_log_DD_TAGS") as case:
+        case._scenario_test_log_DD_TAGS()

@@ -273,8 +273,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "clients"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_service_name_default(self):
+    def _scenario_test_schematized_service_name_default(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -285,8 +284,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_service_name_v0(self):
+    def _scenario_test_schematized_service_name_v0(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -297,8 +295,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_service_name_v1(self):
+    def _scenario_test_schematized_service_name_v1(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -309,8 +306,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess()
-    def test_schematized_unspecified_service_name_default(self):
+    def _scenario_test_schematized_unspecified_service_name_default(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -321,8 +317,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_name_v0(self):
+    def _scenario_test_schematized_unspecified_service_name_v0(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -333,8 +328,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_name_v1(self):
+    def _scenario_test_schematized_unspecified_service_name_v1(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -345,8 +339,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_operation_name_v0(self):
+    def _scenario_test_schematized_operation_name_v0(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -357,8 +350,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.name == "urllib3.request"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_operation_name_v1(self):
+    def _scenario_test_schematized_operation_name_v1(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
             out = self.http.request("GET", URL_200)
@@ -547,3 +539,95 @@ def test_urllib3_poolmanager_snapshot(patch_urllib3):
 def test_urllib3_connectionpool_snapshot(patch_urllib3):
     pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
     pool.request("GET", "/status/200")
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestUrllib3_schematized_service_name_default():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_service_name_default") as case:
+        case._scenario_test_schematized_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestUrllib3_schematized_service_name_v0():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_service_name_v0") as case:
+        case._scenario_test_schematized_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestUrllib3_schematized_service_name_v1():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_service_name_v1") as case:
+        case._scenario_test_schematized_service_name_v1()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True, test_assertions=True)
+def test_TestUrllib3_schematized_unspecified_service_name_default():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_unspecified_service_name_default") as case:
+        case._scenario_test_schematized_unspecified_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestUrllib3_schematized_unspecified_service_name_v0():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_unspecified_service_name_v0") as case:
+        case._scenario_test_schematized_unspecified_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestUrllib3_schematized_unspecified_service_name_v1():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_unspecified_service_name_v1") as case:
+        case._scenario_test_schematized_unspecified_service_name_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestUrllib3_schematized_operation_name_v0():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_operation_name_v0") as case:
+        case._scenario_test_schematized_operation_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestUrllib3_schematized_operation_name_v1():
+    from tests.contrib.urllib3.test_urllib3 import TestUrllib3
+    from tests.process import case_context
+
+    with case_context(TestUrllib3, "_scenario_test_schematized_operation_name_v1") as case:
+        case._scenario_test_schematized_operation_name_v1()

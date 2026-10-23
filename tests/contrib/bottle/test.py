@@ -1,4 +1,5 @@
 import bottle
+import pytest
 import webtest
 
 import ddtrace
@@ -310,8 +311,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("span.kind") == "server"
         assert s.get_tag("http.route") == "/home/"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service_default_schema(self):
+    def _scenario_test_user_specified_service_default_schema(self):
         """
         default/v0: When a service name is specified by the user
             The bottle integration should use it as the service name
@@ -327,8 +327,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="mysvc")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0_schema(self):
+    def _scenario_test_user_specified_service_v0_schema(self):
         """
         v0: When a service name is specified by the user
             The bottle integration should use it as the service name
@@ -344,8 +343,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="mysvc")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1_schema(self):
+    def _scenario_test_user_specified_service_v1_schema(self):
         """
         v1: When a service name is specified by the user
             The bottle integration should use it as the service name
@@ -361,8 +359,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="mysvc")
 
-    @TracerTestCase.run_in_subprocess()
-    def test_unspecified_service_default_schema(self):
+    def _scenario_test_unspecified_service_default_schema(self):
         """
         default/v0: When a service name is not specified by the user
             The bottle integration should use the applications name as the service name (or "bottle")
@@ -379,8 +376,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="bottle")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_unspecified_service_v0_schema(self):
+    def _scenario_test_unspecified_service_v0_schema(self):
         """
         default/v0: When a service name is not specified by the user
             The bottle integration should use "bottle" as the service name
@@ -397,8 +393,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="bottle")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v1_schema(self):
+    def _scenario_test_unspecified_service_v1_schema(self):
         """
         v1: When a service name is not specified by the user
             The bottle integration should use internal.schema.DEFAULT_SERVICE_SPAN as the service name
@@ -414,8 +409,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service=DEFAULT_SPAN_SERVICE_NAME)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_operation_name_v0_schema(self):
+    def _scenario_test_operation_name_v0_schema(self):
         """
         v0: When a service name is not specified by the user
             Then we expect 'bottle.request'
@@ -431,8 +425,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(name="bottle.request")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_operation_name_v1_schema(self):
+    def _scenario_test_operation_name_v1_schema(self):
         """
         v1: When a service name is not specified by the user
             Then we expect 'http.server.request'
@@ -565,3 +558,79 @@ class TraceBottleTest(TracerTestCase):
                     web_span = traces[0][0]
                     assert web_span.name == "bottle.request"
                     assert web_span._parent is None
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_TraceBottleTest_user_specified_service_default_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_user_specified_service_default_schema") as case:
+        case._scenario_test_user_specified_service_default_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_TraceBottleTest_user_specified_service_v0_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_user_specified_service_v0_schema") as case:
+        case._scenario_test_user_specified_service_v0_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_TraceBottleTest_user_specified_service_v1_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_user_specified_service_v1_schema") as case:
+        case._scenario_test_user_specified_service_v1_schema()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True)
+def test_TraceBottleTest_unspecified_service_default_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_unspecified_service_default_schema") as case:
+        case._scenario_test_unspecified_service_default_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TraceBottleTest_unspecified_service_v0_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_unspecified_service_v0_schema") as case:
+        case._scenario_test_unspecified_service_v0_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TraceBottleTest_unspecified_service_v1_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_unspecified_service_v1_schema") as case:
+        case._scenario_test_unspecified_service_v1_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TraceBottleTest_operation_name_v0_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_operation_name_v0_schema") as case:
+        case._scenario_test_operation_name_v0_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TraceBottleTest_operation_name_v1_schema():
+    from tests.contrib.bottle.test import TraceBottleTest
+    from tests.process import case_context
+
+    with case_context(TraceBottleTest, "_scenario_test_operation_name_v1_schema") as case:
+        case._scenario_test_operation_name_v1_schema()

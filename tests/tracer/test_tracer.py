@@ -33,7 +33,6 @@ from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
@@ -1115,16 +1114,14 @@ def test_tracer_with_env(tracer):
 class EnvTracerTestCase(TracerTestCase):
     """Tracer test cases requiring environment variables."""
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_name_env(self):
+    def _scenario_test_service_name_env(self):
         with self.start_span("") as span:
             pass
         span.assert_matches(
             service="mysvc",
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_name_env_global_config(self):
+    def _scenario_test_service_name_env_global_config(self):
         # Global config should have higher precedence than the environment variable
         with self.override_global_config(dict(service="overridesvc")):
             with self.start_span("") as span:
@@ -1133,8 +1130,7 @@ class EnvTracerTestCase(TracerTestCase):
             service="overridesvc",
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_VERSION="0.1.2"))
-    def test_version_no_global_service(self):
+    def _scenario_test_version_no_global_service(self):
         # Version should be set if no service name is present
         with self.trace("") as span:
             span.assert_matches(
@@ -1150,8 +1146,7 @@ class EnvTracerTestCase(TracerTestCase):
             with self.trace("child") as span:
                 assert VERSION_KEY not in span.get_tags()
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2"))
-    def test_version_service(self):
+    def _scenario_test_version_service(self):
         # Fleshed out example of service and version tagging
 
         # Our app is called django, we provide DD_SERVICE=django and DD_VERSION=0.1.2
@@ -1174,8 +1169,7 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "mysql"
                     assert VERSION_KEY not in child2.get_tags()
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2", DD_SERVICE_MAPPING="mysql:django"))
-    def test_version_service_mapping(self):
+    def _scenario_test_version_service_mapping(self):
         """When using DD_SERVICE_MAPPING we properly add version tag to appropriate spans"""
 
         # Our app is called django, we provide DD_SERVICE=django and DD_VERSION=0.1.2
@@ -1200,44 +1194,31 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
-    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
-    def test_detect_agent_config(self):
+    def _scenario_test_detect_agent_config(self):
         assert isinstance(global_tracer._span_aggregator.writer, AgentWriterInterface)
 
-    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
-    def test_dd_tags(self):
+    def _scenario_test_dd_tags(self):
         assert self.tracer._tags.get("key1") == "value1"
         assert self.tracer._tags.get("key2") == "value2"
 
-    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2, key3"))
-    def test_dd_tags_invalid(self):
+    def _scenario_test_dd_tags_invalid(self):
         assert self.tracer._tags.get("key1")
         assert self.tracer._tags.get("key2")
         assert not self.tracer._tags.get("key3")
 
-    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
-    def test_tags_from_DD_TAGS(self):
+    def _scenario_test_tags_from_DD_TAGS(self):
         with self.tracer.trace("test") as s:
             assert s.service == "mysvc"
             assert s.get_tag("env") == "myenv"
             assert s.get_tag("version") == "myvers"
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TAGS="service:s,env:e,version:v",
-            DD_ENV="env",
-            DD_SERVICE="svc",
-            DD_VERSION="0.123",
-        )
-    )
-    def test_tags_from_DD_TAGS_precedence(self):
+    def _scenario_test_tags_from_DD_TAGS_precedence(self):
         with global_tracer.trace("test") as s:
             assert s.service == "svc"
             assert s.get_tag("env") == "env"
             assert s.get_tag("version") == "0.123"
 
-    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
-    def test_tags_from_DD_TAGS_override(self):
+    def _scenario_test_tags_from_DD_TAGS_override(self):
         ddtrace.config.env = "env"
         ddtrace.config.service = "service"
         ddtrace.config.version = "0.123"
@@ -1529,10 +1510,7 @@ def test_early_exit(tracer, test_spans):
 
 
 class TestPartialFlush(TracerTestCase):
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5")
-    )
-    def test_partial_flush(self):
+    def _scenario_test_partial_flush(self):
         root = self.tracer.trace("root")
         for i in range(5):
             self.tracer.trace("child%s" % i).finish()
@@ -1548,10 +1526,7 @@ class TestPartialFlush(TracerTestCase):
         assert len(traces[0]) == 1
         assert traces[0][0].name == "root"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="1")
-    )
-    def test_partial_flush_too_many(self):
+    def _scenario_test_partial_flush_too_many(self):
         root = self.tracer.trace("root")
         for i in range(5):
             self.tracer.trace("child%s" % i).finish()
@@ -1569,10 +1544,7 @@ class TestPartialFlush(TracerTestCase):
         assert len(traces) == 1
         assert traces[0][0].name == "root"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6")
-    )
-    def test_partial_flush_too_few(self):
+    def _scenario_test_partial_flush_too_few(self):
         root = self.tracer.trace("root")
         for i in range(5):
             self.tracer.trace("child%s" % i).finish()
@@ -1584,10 +1556,7 @@ class TestPartialFlush(TracerTestCase):
         assert len(traces) == 1
         assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2")
-    )
-    def test_partial_flush_shares_trace_level_state(self):
+    def _scenario_test_partial_flush_shares_trace_level_state(self):
         """A partial-flushed chunk's root must share trace-level state with the
         trace's local root. Sampling is applied to the local root during processing
         and read back off the chunk root, so both must reference the same _metrics
@@ -2340,3 +2309,190 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_EnvTracerTestCase_service_name_env():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_service_name_env") as case:
+        case._scenario_test_service_name_env()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_EnvTracerTestCase_service_name_env_global_config():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_service_name_env_global_config") as case:
+        case._scenario_test_service_name_env_global_config()
+
+
+@pytest.mark.subprocess(env=dict(DD_VERSION="0.1.2"), out=None, err=None, command=True, test_assertions=True)
+def test_EnvTracerTestCase_version_no_global_service():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_version_no_global_service") as case:
+        case._scenario_test_version_no_global_service()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="django", DD_VERSION="0.1.2"), out=None, err=None, command=True, test_assertions=True
+)
+def test_EnvTracerTestCase_version_service():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_version_service") as case:
+        case._scenario_test_version_service()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_SERVICE="django", DD_VERSION="0.1.2", DD_SERVICE_MAPPING="mysql:django"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_EnvTracerTestCase_version_service_mapping():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_version_service_mapping") as case:
+        case._scenario_test_version_service_mapping()
+
+
+@pytest.mark.subprocess(
+    env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_EnvTracerTestCase_detect_agent_config():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_detect_agent_config") as case:
+        case._scenario_test_detect_agent_config()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TAGS="key1:value1,key2:value2"), out=None, err=None, command=True, test_assertions=True
+)
+def test_EnvTracerTestCase_dd_tags():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_dd_tags") as case:
+        case._scenario_test_dd_tags()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TAGS="key1:value1,key2:value2, key3"), out=None, err=None, command=True, test_assertions=True
+)
+def test_EnvTracerTestCase_dd_tags_invalid():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_dd_tags_invalid") as case:
+        case._scenario_test_dd_tags_invalid()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"), out=None, err=None, command=True, test_assertions=True
+)
+def test_EnvTracerTestCase_tags_from_DD_TAGS():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_tags_from_DD_TAGS") as case:
+        case._scenario_test_tags_from_DD_TAGS()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TAGS="service:s,env:e,version:v", DD_ENV="env", DD_SERVICE="svc", DD_VERSION="0.123"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_EnvTracerTestCase_tags_from_DD_TAGS_precedence():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_tags_from_DD_TAGS_precedence") as case:
+        case._scenario_test_tags_from_DD_TAGS_precedence()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"), out=None, err=None, command=True, test_assertions=True
+)
+def test_EnvTracerTestCase_tags_from_DD_TAGS_override():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import EnvTracerTestCase
+
+    with case_context(EnvTracerTestCase, "_scenario_test_tags_from_DD_TAGS_override") as case:
+        case._scenario_test_tags_from_DD_TAGS_override()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestPartialFlush_partial_flush():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import TestPartialFlush
+
+    with case_context(TestPartialFlush, "_scenario_test_partial_flush") as case:
+        case._scenario_test_partial_flush()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="1"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestPartialFlush_partial_flush_too_many():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import TestPartialFlush
+
+    with case_context(TestPartialFlush, "_scenario_test_partial_flush_too_many") as case:
+        case._scenario_test_partial_flush_too_many()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestPartialFlush_partial_flush_too_few():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import TestPartialFlush
+
+    with case_context(TestPartialFlush, "_scenario_test_partial_flush_too_few") as case:
+        case._scenario_test_partial_flush_too_few()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestPartialFlush_partial_flush_shares_trace_level_state():
+    from tests.process import case_context
+    from tests.tracer.test_tracer import TestPartialFlush
+
+    with case_context(TestPartialFlush, "_scenario_test_partial_flush_shares_trace_level_state") as case:
+        case._scenario_test_partial_flush_shares_trace_level_state()

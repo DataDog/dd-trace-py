@@ -2,6 +2,7 @@ import os
 import threading
 
 from google.cloud import pubsub_v1
+import pytest
 
 from ddtrace.contrib.internal.google_cloud_pubsub.patch import patch
 from ddtrace.contrib.internal.google_cloud_pubsub.patch import unpatch
@@ -62,8 +63,7 @@ class PubSubDSMTest(TracerTestCase):
             unpatch()
         super().tearDown()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_dsm_payload_size_produce(self):
+    def _scenario_test_dsm_payload_size_produce(self):
         """Producer pathway records a payload size that accounts for data, attributes,
         and the injected pathway header.
         """
@@ -84,8 +84,7 @@ class PubSubDSMTest(TracerTestCase):
                         found_produce_sketch = True
         assert found_produce_sketch, "expected producer pathway sketch not recorded"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_dsm_pathway_linkage(self):
+    def _scenario_test_dsm_pathway_linkage(self):
         """Publishing then subscribing produces linked producer->consumer pathway hashes
         with the expected tag schema.
         """
@@ -118,8 +117,7 @@ class PubSubDSMTest(TracerTestCase):
         assert (parent_hash, 0) in hash_pairs, f"producer hash missing; saw {hash_pairs}"
         assert (child_hash, parent_hash) in hash_pairs, f"consumer hash missing; saw {hash_pairs}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_dsm_pathway_header_injected_on_publish(self):
+    def _scenario_test_dsm_pathway_header_injected_on_publish(self):
         """The dd-pathway-ctx-base64 attribute is injected into published messages and survives the round trip."""
         self.publisher.publish(self.topic_path, b"data streams hello", custom_key="custom_value").result(timeout=10)
 
@@ -131,8 +129,7 @@ class PubSubDSMTest(TracerTestCase):
         # User-provided attributes are preserved alongside the injected pathway key.
         assert attributes["custom_key"] == "custom_value"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_dsm_payload_size_matches_expected(self):
+    def _scenario_test_dsm_payload_size_matches_expected(self):
         """With distributed tracing disabled, payload size = data + attrs + injected pathway key + path header bytes."""
         from tests.utils import override_config
 
@@ -159,3 +156,47 @@ class PubSubDSMTest(TracerTestCase):
         for stats in produce_stats:
             assert stats.payload_size.count >= 1
             assert stats.payload_size.to_proto() == expected_proto
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PubSubDSMTest_dsm_payload_size_produce():
+    from tests.contrib.google_cloud_pubsub.test_google_cloud_pubsub_dsm import PubSubDSMTest
+    from tests.process import case_context
+
+    with case_context(PubSubDSMTest, "_scenario_test_dsm_payload_size_produce") as case:
+        case._scenario_test_dsm_payload_size_produce()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PubSubDSMTest_dsm_pathway_linkage():
+    from tests.contrib.google_cloud_pubsub.test_google_cloud_pubsub_dsm import PubSubDSMTest
+    from tests.process import case_context
+
+    with case_context(PubSubDSMTest, "_scenario_test_dsm_pathway_linkage") as case:
+        case._scenario_test_dsm_pathway_linkage()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PubSubDSMTest_dsm_pathway_header_injected_on_publish():
+    from tests.contrib.google_cloud_pubsub.test_google_cloud_pubsub_dsm import PubSubDSMTest
+    from tests.process import case_context
+
+    with case_context(PubSubDSMTest, "_scenario_test_dsm_pathway_header_injected_on_publish") as case:
+        case._scenario_test_dsm_pathway_header_injected_on_publish()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PubSubDSMTest_dsm_payload_size_matches_expected():
+    from tests.contrib.google_cloud_pubsub.test_google_cloud_pubsub_dsm import PubSubDSMTest
+    from tests.process import case_context
+
+    with case_context(PubSubDSMTest, "_scenario_test_dsm_payload_size_matches_expected") as case:
+        case._scenario_test_dsm_payload_size_matches_expected()

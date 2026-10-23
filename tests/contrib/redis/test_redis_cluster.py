@@ -36,8 +36,7 @@ class TestRedisClusterPatch(TracerTestCase):
         unpatch()
         super().tearDown()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_span_service_name_v1(self):
+    def _scenario_test_span_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
         span = find_redis_span(self.get_spans(), resource="GET")
@@ -136,8 +135,7 @@ class TestRedisClusterPatch(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         """
         When a user specifies a service for the app
             The rediscluster integration should not use it.
@@ -153,8 +151,7 @@ class TestRedisClusterPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         """
         When a user specifies a service for the app
             The rediscluster integration should use it.
@@ -170,36 +167,24 @@ class TestRedisClusterPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
-    def test_env_user_specified_rediscluster_service_v0(self):
+    def _scenario_test_env_user_specified_rediscluster_service_v0(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         assert span.service == "myrediscluster", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
-    def test_env_user_specified_rediscluster_service_v1(self):
+    def _scenario_test_env_user_specified_rediscluster_service_v1(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "myrediscluster", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
-    def test_service_precedence_v0(self):
+    def _scenario_test_service_precedence_v0(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         assert span.service == "myrediscluster"
 
         self.reset()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
-    def test_service_precedence_v1(self):
+    def _scenario_test_service_precedence_v1(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "myrediscluster"
@@ -253,3 +238,111 @@ class TestClusterConnTagsUnit:
         tags = _build_tags(None, types.SimpleNamespace(), "redis")
         assert net.TARGET_HOST not in tags
         assert net.SERVER_ADDRESS not in tags
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestRedisClusterPatch_span_service_name_v1():
+    from tests.contrib.redis.test_redis_cluster import TestRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisClusterPatch, "_scenario_test_span_service_name_v1") as case:
+        case._scenario_test_span_service_name_v1()
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisClusterPatch_user_specified_service_v0():
+    from tests.contrib.redis.test_redis_cluster import TestRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisClusterPatch, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisClusterPatch_user_specified_service_v1():
+    from tests.contrib.redis.test_redis_cluster import TestRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisClusterPatch, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestRedisClusterPatch_env_user_specified_rediscluster_service_v0():
+    from tests.contrib.redis.test_redis_cluster import TestRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisClusterPatch, "_scenario_test_env_user_specified_rediscluster_service_v0") as case:
+        case._scenario_test_env_user_specified_rediscluster_service_v0()
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestRedisClusterPatch_env_user_specified_rediscluster_service_v1():
+    from tests.contrib.redis.test_redis_cluster import TestRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisClusterPatch, "_scenario_test_env_user_specified_rediscluster_service_v1") as case:
+        case._scenario_test_env_user_specified_rediscluster_service_v1()
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisClusterPatch_service_precedence_v0():
+    from tests.contrib.redis.test_redis_cluster import TestRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisClusterPatch, "_scenario_test_service_precedence_v0") as case:
+        case._scenario_test_service_precedence_v0()
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisClusterPatch_service_precedence_v1():
+    from tests.contrib.redis.test_redis_cluster import TestRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisClusterPatch, "_scenario_test_service_precedence_v1") as case:
+        case._scenario_test_service_precedence_v1()

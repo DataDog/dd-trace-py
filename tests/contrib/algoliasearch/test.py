@@ -2,6 +2,8 @@ import importlib
 import sys
 from unittest import mock
 
+import pytest
+
 from ddtrace import config
 from ddtrace._monkey import _patch_all
 from ddtrace.contrib.internal.algoliasearch.patch import V4
@@ -207,8 +209,7 @@ class AlgoliasearchTest(TracerTestCase):
         spans = self.get_spans()
         assert not spans, spans
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service_default(self):
+    def _scenario_test_user_specified_service_default(self):
         """
         When a service name is specified by the user
             The algoliasearch integration shouldn't use it as the service name
@@ -222,8 +223,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].service == "algoliasearch"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         """
         When a service name is specified by the user
             The algoliasearch integration shouldn't use it as the service name
@@ -237,8 +237,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].service == "algoliasearch"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         """
         In the v1 service name schema, services default to $DD_SERVICE,
             so make sure that is used and not the v0 schema 'algoliasearch'
@@ -252,8 +251,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].service == "mysvc"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_span_name_v0_schema(self):
+    def _scenario_test_span_name_v0_schema(self):
         _patch_all()
         self.perform_search("test search")
         spans = self.get_spans()
@@ -263,8 +261,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].name == "algoliasearch.search"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_span_name_v1_schema(self):
+    def _scenario_test_span_name_v1_schema(self):
         _patch_all()
         self.perform_search("test search")
         spans = self.get_spans()
@@ -312,3 +309,52 @@ def test_upper_bound_excludes_4x_prereleases():
 
     for version in ("2.6.3", "3.0.0", "3.0.0b1", "3.9.9"):
         assert parse_version(version) < V4, version
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_AlgoliasearchTest_user_specified_service_default():
+    from tests.contrib.algoliasearch.test import AlgoliasearchTest
+    from tests.process import case_context
+
+    with case_context(AlgoliasearchTest, "_scenario_test_user_specified_service_default") as case:
+        case._scenario_test_user_specified_service_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"), out=None, err=None, command=True
+)
+def test_AlgoliasearchTest_user_specified_service_v0():
+    from tests.contrib.algoliasearch.test import AlgoliasearchTest
+    from tests.process import case_context
+
+    with case_context(AlgoliasearchTest, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"), out=None, err=None, command=True
+)
+def test_AlgoliasearchTest_user_specified_service_v1():
+    from tests.contrib.algoliasearch.test import AlgoliasearchTest
+    from tests.process import case_context
+
+    with case_context(AlgoliasearchTest, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_AlgoliasearchTest_span_name_v0_schema():
+    from tests.contrib.algoliasearch.test import AlgoliasearchTest
+    from tests.process import case_context
+
+    with case_context(AlgoliasearchTest, "_scenario_test_span_name_v0_schema") as case:
+        case._scenario_test_span_name_v0_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_AlgoliasearchTest_span_name_v1_schema():
+    from tests.contrib.algoliasearch.test import AlgoliasearchTest
+    from tests.process import case_context
+
+    with case_context(AlgoliasearchTest, "_scenario_test_span_name_v1_schema") as case:
+        case._scenario_test_span_name_v1_schema()

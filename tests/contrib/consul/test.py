@@ -1,6 +1,7 @@
 import os
 
 import consul
+import pytest
 from wrapt import BoundFunctionWrapper
 
 from ddtrace.contrib.internal.consul.patch import patch
@@ -176,8 +177,7 @@ class TestSchematization(TracerTestCase):
         unpatch()
         super().tearDown()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
-    def test_schematize_service_name_default(self):
+    def _scenario_test_schematize_service_name_default(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -189,10 +189,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
-    def test_schematize_service_name_v0(self):
+    def _scenario_test_schematize_service_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -204,10 +201,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
-    def test_schematize_service_name_v1(self):
+    def _scenario_test_schematize_service_name_v1(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -219,8 +213,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
-    def test_schematize_unspecified_service_name_default(self):
+    def _scenario_test_schematize_unspecified_service_name_default(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -232,10 +225,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
-    def test_schematize_unspecified_service_name_v0(self):
+    def _scenario_test_schematize_unspecified_service_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -247,10 +237,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
-    def test_schematize_unspecified_service_name_v1(self):
+    def _scenario_test_schematize_unspecified_service_name_v1(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -262,10 +249,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
-    def test_schematize_operation_name_v0(self):
+    def _scenario_test_schematize_operation_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -277,10 +261,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.name == consulx.CMD
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
-    def test_schematize_operation_name_v1(self):
+    def _scenario_test_schematize_operation_name_v1(self):
         key = "test/put/consul"
         value = "test_value"
 
@@ -291,3 +272,95 @@ class TestSchematization(TracerTestCase):
         span = spans[0]
 
         assert span.name == "http.client.request"
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR), out=None, err=None, command=True
+)
+def test_TestSchematization_schematize_service_name_default():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_service_name_default") as case:
+        case._scenario_test_schematize_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR),
+    out=None,
+    err=None,
+    command=True,
+)
+def test_TestSchematization_schematize_service_name_v0():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_service_name_v0") as case:
+        case._scenario_test_schematize_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR),
+    out=None,
+    err=None,
+    command=True,
+)
+def test_TestSchematization_schematize_service_name_v1():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_service_name_v1") as case:
+        case._scenario_test_schematize_service_name_v1()
+
+
+@pytest.mark.subprocess(env=dict(CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR), out=None, err=None, command=True)
+def test_TestSchematization_schematize_unspecified_service_name_default():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_unspecified_service_name_default") as case:
+        case._scenario_test_schematize_unspecified_service_name_default()
+
+
+@pytest.mark.subprocess(
+    command=True, env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR), out=None, err=None
+)
+def test_TestSchematization_schematize_unspecified_service_name_v0():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_unspecified_service_name_v0") as case:
+        case._scenario_test_schematize_unspecified_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    command=True, env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR), out=None, err=None
+)
+def test_TestSchematization_schematize_unspecified_service_name_v1():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_unspecified_service_name_v1") as case:
+        case._scenario_test_schematize_unspecified_service_name_v1()
+
+
+@pytest.mark.subprocess(
+    command=True, env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR), out=None, err=None
+)
+def test_TestSchematization_schematize_operation_name_v0():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_operation_name_v0") as case:
+        case._scenario_test_schematize_operation_name_v0()
+
+
+@pytest.mark.subprocess(
+    command=True, env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR), out=None, err=None
+)
+def test_TestSchematization_schematize_operation_name_v1():
+    from tests.contrib.consul.test import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematize_operation_name_v1") as case:
+        case._scenario_test_schematize_operation_name_v1()

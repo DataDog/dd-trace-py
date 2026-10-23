@@ -14,7 +14,6 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 
 
@@ -459,9 +458,7 @@ class AsyncPgTestCase(AsyncioTestCase):
 
         unpatch()
 
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
-    async def test_asyncpg_dbm_propagation_enabled(self):
+    async def _scenario_test_asyncpg_dbm_propagation_enabled(self):
         conn = await self._get_conn()
 
         await conn.execute("SELECT 1")
@@ -473,16 +470,7 @@ class AsyncPgTestCase(AsyncioTestCase):
 
         assert query_span.get_tag("_dd.dbm_trace_injected") == "true"
 
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-        )
-    )
-    async def test_asyncpg_dbm_propagation_comment_with_global_service_name_configured(self):
+    async def _scenario_test_asyncpg_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
         conn = await self._get_conn()
@@ -509,17 +497,7 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
 
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_ASYNCPG_SERVICE="service-name-override",
-        )
-    )
-    async def test_asyncpg_dbm_propagation_comment_integration_service_name_override(self):
+    async def _scenario_test_asyncpg_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
         conn = await self._get_conn()
@@ -546,17 +524,7 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
 
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True",
-        )
-    )
-    async def test_asyncpg_dbm_propagation_comment_peer_service_enabled(self):
+    async def _scenario_test_asyncpg_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
         conn = await self._get_conn()
@@ -582,3 +550,81 @@ class AsyncPgTestCase(AsyncioTestCase):
             assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DBM_PROPAGATION_MODE="full"), out=None, err=None, command=True, test_assertions=True
+)
+def test_AsyncPgTestCase_asyncpg_dbm_propagation_enabled():
+    from tests.contrib.asyncpg.test_asyncpg import AsyncPgTestCase
+    from tests.process import case_context
+
+    with case_context(AsyncPgTestCase, "_scenario_test_asyncpg_dbm_propagation_enabled") as case:
+        case.loop.run_until_complete(case._scenario_test_asyncpg_dbm_propagation_enabled())
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_AsyncPgTestCase_asyncpg_dbm_propagation_comment_with_global_service_name_configured():
+    from tests.contrib.asyncpg.test_asyncpg import AsyncPgTestCase
+    from tests.process import case_context
+
+    with case_context(
+        AsyncPgTestCase, "_scenario_test_asyncpg_dbm_propagation_comment_with_global_service_name_configured"
+    ) as case:
+        case.loop.run_until_complete(
+            case._scenario_test_asyncpg_dbm_propagation_comment_with_global_service_name_configured()
+        )
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_ASYNCPG_SERVICE="service-name-override",
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_AsyncPgTestCase_asyncpg_dbm_propagation_comment_integration_service_name_override():
+    from tests.contrib.asyncpg.test_asyncpg import AsyncPgTestCase
+    from tests.process import case_context
+
+    with case_context(
+        AsyncPgTestCase, "_scenario_test_asyncpg_dbm_propagation_comment_integration_service_name_override"
+    ) as case:
+        case.loop.run_until_complete(
+            case._scenario_test_asyncpg_dbm_propagation_comment_integration_service_name_override()
+        )
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True",
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_AsyncPgTestCase_asyncpg_dbm_propagation_comment_peer_service_enabled():
+    from tests.contrib.asyncpg.test_asyncpg import AsyncPgTestCase
+    from tests.process import case_context
+
+    with case_context(AsyncPgTestCase, "_scenario_test_asyncpg_dbm_propagation_comment_peer_service_enabled") as case:
+        case.loop.run_until_complete(case._scenario_test_asyncpg_dbm_propagation_comment_peer_service_enabled())

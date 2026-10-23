@@ -18,7 +18,6 @@ from tests.contrib import shared_tests_async
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import assert_is_measured
 
 
@@ -197,8 +196,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
 
     @pytest.mark.asyncio
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    async def test_user_specified_service_v0(self):
+    async def _scenario_test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
             The aiopg integration does use it.
@@ -221,8 +219,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans[0].service == "mysvc"
 
     @pytest.mark.asyncio
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_user_specified_service_v1(self):
+    async def _scenario_test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The aiopg integration should use it.
@@ -242,8 +239,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans[0].service == "mysvc"
 
     @pytest.mark.asyncio
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_unspecified_service_v1(self):
+    async def _scenario_test_unspecified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The aiopg integration should use it.
@@ -259,8 +255,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     @pytest.mark.asyncio
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    async def test_trace_span_name_v0_schema(self):
+    async def _scenario_test_trace_span_name_v0_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
@@ -271,8 +266,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans[0].name == "postgres.query"
 
     @pytest.mark.asyncio
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_trace_span_name_v1_schema(self):
+    async def _scenario_test_trace_span_name_v1_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
@@ -283,10 +277,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans[0].name == "postgresql.query"
 
     @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
-    async def test_user_specified_service_integration_v0(self):
+    async def _scenario_test_user_specified_service_integration_v0(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
 
         cursor = await conn.cursor()
@@ -297,10 +288,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.service == "mysvc"
 
     @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
-    async def test_user_specified_service_integration_v1(self):
+    async def _scenario_test_user_specified_service_integration_v1(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
 
         cursor = await conn.cursor()
@@ -311,8 +299,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.service == "mysvc"
 
     @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    async def test_user_specified_service_env_var_v0(self):
+    async def _scenario_test_user_specified_service_env_var_v0(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
 
         cursor = await conn.cursor()
@@ -323,8 +310,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.service == "aiopg"
 
     @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_user_specified_service_env_var_v1(self):
+    async def _scenario_test_user_specified_service_env_var_v1(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
 
         cursor = await conn.cursor()
@@ -335,8 +321,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.service == "mysvc"
 
     @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    async def test_span_name_v0_schema(self):
+    async def _scenario_test_span_name_v0_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
 
         cursor = await conn.cursor()
@@ -347,8 +332,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.name == "postgres.query"
 
     @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_span_name_v1_schema(self):
+    async def _scenario_test_span_name_v1_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
 
         cursor = await conn.cursor()
@@ -392,3 +376,225 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
         await self._test_cursor_ctx_manager()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_AiopgTestCase_user_specified_service_v0():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_user_specified_service_v0") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_v0())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_AiopgTestCase_user_specified_service_v1():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_user_specified_service_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_v1())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_AiopgTestCase_unspecified_service_v1():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_unspecified_service_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_unspecified_service_v1())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_AiopgTestCase_trace_span_name_v0_schema():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_trace_span_name_v0_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_trace_span_name_v0_schema())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_AiopgTestCase_trace_span_name_v1_schema():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_trace_span_name_v1_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_trace_span_name_v1_schema())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_AiopgTestCase_user_specified_service_integration_v0():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_user_specified_service_integration_v0") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_integration_v0())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_AiopgTestCase_user_specified_service_integration_v1():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_user_specified_service_integration_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_integration_v1())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_AiopgTestCase_user_specified_service_env_var_v0():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_user_specified_service_env_var_v0") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_env_var_v0())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_AiopgTestCase_user_specified_service_env_var_v1():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_user_specified_service_env_var_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_env_var_v1())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_AiopgTestCase_span_name_v0_schema():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_span_name_v0_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_span_name_v0_schema())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_AiopgTestCase_span_name_v1_schema():
+    from tests.contrib.aiopg.test import AiopgTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgTestCase, "_scenario_test_span_name_v1_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_span_name_v1_schema())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_AiopgAnalyticsTestCase_user_specified_service_v0():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_user_specified_service_v0") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_v0())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_AiopgAnalyticsTestCase_user_specified_service_v1():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_user_specified_service_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_v1())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_AiopgAnalyticsTestCase_unspecified_service_v1():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_unspecified_service_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_unspecified_service_v1())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_AiopgAnalyticsTestCase_trace_span_name_v0_schema():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_trace_span_name_v0_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_trace_span_name_v0_schema())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_AiopgAnalyticsTestCase_trace_span_name_v1_schema():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_trace_span_name_v1_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_trace_span_name_v1_schema())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_AiopgAnalyticsTestCase_user_specified_service_integration_v0():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_user_specified_service_integration_v0") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_integration_v0())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_AiopgAnalyticsTestCase_user_specified_service_integration_v1():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_user_specified_service_integration_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_integration_v1())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_AiopgAnalyticsTestCase_user_specified_service_env_var_v0():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_user_specified_service_env_var_v0") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_env_var_v0())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_AiopgAnalyticsTestCase_user_specified_service_env_var_v1():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_user_specified_service_env_var_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_service_env_var_v1())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_AiopgAnalyticsTestCase_span_name_v0_schema():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_span_name_v0_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_span_name_v0_schema())
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_AiopgAnalyticsTestCase_span_name_v1_schema():
+    from tests.contrib.aiopg.test import AiopgAnalyticsTestCase
+    from tests.process import case_context
+
+    with case_context(AiopgAnalyticsTestCase, "_scenario_test_span_name_v1_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_span_name_v1_schema())

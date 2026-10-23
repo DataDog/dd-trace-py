@@ -97,22 +97,19 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
-    def test_service_name_v1(self):
+    def _scenario_test_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_operation_name_v0_schema(self):
+    def _scenario_test_operation_name_v0_schema(self):
         us = self.r.get("cheese")
         assert us is None
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.name == "redis.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_operation_name_v1_schema(self):
+    def _scenario_test_operation_name_v1_schema(self):
         us = self.r.get("cheese")
         assert us is None
         span = find_redis_span(self.get_spans(), resource="GET")
@@ -351,8 +348,7 @@ class TestRedisPatch(TracerTestCase):
         for command in multi_key_get_commands:
             self.command_test_rowcount(command, 0, expect_result=False)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service_default(self):
+    def _scenario_test_user_specified_service_default(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -361,8 +357,7 @@ class TestRedisPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "redis"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -371,8 +366,7 @@ class TestRedisPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "redis"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -381,10 +375,7 @@ class TestRedisPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_REDIS_SERVICE="myredis", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
-    def test_env_user_specified_redis_service_v0(self):
+    def _scenario_test_env_user_specified_redis_service_v0(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "myredis", span.service
@@ -397,12 +388,7 @@ class TestRedisPatch(TracerTestCase):
             span = find_redis_span(self.get_spans(), resource="GET")
             assert span.service == "cfg-redis", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
-        )
-    )
-    def test_service_precedence_v0(self):
+    def _scenario_test_service_precedence_v0(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "env-specified-redis-svc", span.service
@@ -488,18 +474,16 @@ class TestRedisPatchSnapshot(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    @snapshot()
-    def test_user_specified_service(self):
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_user_specified_service")
+    def _scenario_test_user_specified_service(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
 
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
-    @snapshot()
-    def test_env_user_specified_redis_service(self):
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_env_user_specified_redis_service")
+    def _scenario_test_env_user_specified_redis_service(self):
         self.r.get("cheese")
 
         self.reset()
@@ -511,17 +495,15 @@ class TestRedisPatchSnapshot(TracerTestCase):
         self.reset()
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
-    @snapshot()
-    def test_service_precedence(self):
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_service_precedence")
+    def _scenario_test_service_precedence(self):
         self.r.get("cheese")
 
         self.reset()
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_CMD_MAX_LENGTH="10"))
-    @snapshot()
-    def test_custom_cmd_length_env(self):
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_custom_cmd_length_env")
+    def _scenario_test_custom_cmd_length_env(self):
         self.r.get("here-is-a-long-key-name")
 
     @snapshot()
@@ -529,9 +511,8 @@ class TestRedisPatchSnapshot(TracerTestCase):
         with self.override_config("redis", dict(cmd_max_length=7)):
             self.r.get("here-is-a-long-key-name")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
-    @snapshot()
-    def test_full_command_in_resource_env(self):
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_full_command_in_resource_env")
+    def _scenario_test_full_command_in_resource_env(self):
         self.r.get("put_key_in_resource")
         p = self.r.pipeline(transaction=False)
         p.set("pipeline-cmd1", 1)
@@ -546,3 +527,158 @@ class TestRedisPatchSnapshot(TracerTestCase):
             p.set("pipeline-cmd1", 1)
             p.set("pipeline-cmd2", 2)
             p.execute()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisPatch_service_name_v1():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_service_name_v1") as case:
+        case._scenario_test_service_name_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestRedisPatch_operation_name_v0_schema():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_operation_name_v0_schema") as case:
+        case._scenario_test_operation_name_v0_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestRedisPatch_operation_name_v1_schema():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_operation_name_v1_schema") as case:
+        case._scenario_test_operation_name_v1_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestRedisPatch_user_specified_service_default():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_user_specified_service_default") as case:
+        case._scenario_test_user_specified_service_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisPatch_user_specified_service_v0():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisPatch_user_specified_service_v1():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_REDIS_SERVICE="myredis", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisPatch_env_user_specified_redis_service_v0():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_env_user_specified_redis_service_v0") as case:
+        case._scenario_test_env_user_specified_redis_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestRedisPatch_service_precedence_v0():
+    from tests.contrib.redis.test_redis import TestRedisPatch
+    from tests.process import case_context
+
+    with case_context(TestRedisPatch, "_scenario_test_service_precedence_v0") as case:
+        case._scenario_test_service_precedence_v0()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestRedisPatchSnapshot_user_specified_service():
+    from tests.contrib.redis.test_redis import TestRedisPatchSnapshot
+    from tests.process import case_context
+
+    with case_context(TestRedisPatchSnapshot, "_scenario_test_user_specified_service") as case:
+        case._scenario_test_user_specified_service()
+
+
+@pytest.mark.subprocess(env=dict(DD_REDIS_SERVICE="myredis"), out=None, err=None, command=True, test_assertions=True)
+def test_TestRedisPatchSnapshot_env_user_specified_redis_service():
+    from tests.contrib.redis.test_redis import TestRedisPatchSnapshot
+    from tests.process import case_context
+
+    with case_context(TestRedisPatchSnapshot, "_scenario_test_env_user_specified_redis_service") as case:
+        case._scenario_test_env_user_specified_redis_service()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestRedisPatchSnapshot_service_precedence():
+    from tests.contrib.redis.test_redis import TestRedisPatchSnapshot
+    from tests.process import case_context
+
+    with case_context(TestRedisPatchSnapshot, "_scenario_test_service_precedence") as case:
+        case._scenario_test_service_precedence()
+
+
+@pytest.mark.subprocess(env=dict(DD_REDIS_CMD_MAX_LENGTH="10"), out=None, err=None, command=True, test_assertions=True)
+def test_TestRedisPatchSnapshot_custom_cmd_length_env():
+    from tests.contrib.redis.test_redis import TestRedisPatchSnapshot
+    from tests.process import case_context
+
+    with case_context(TestRedisPatchSnapshot, "_scenario_test_custom_cmd_length_env") as case:
+        case._scenario_test_custom_cmd_length_env()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestRedisPatchSnapshot_full_command_in_resource_env():
+    from tests.contrib.redis.test_redis import TestRedisPatchSnapshot
+    from tests.process import case_context
+
+    with case_context(TestRedisPatchSnapshot, "_scenario_test_full_command_in_resource_env") as case:
+        case._scenario_test_full_command_in_resource_env()

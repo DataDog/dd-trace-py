@@ -4,6 +4,7 @@ import time
 import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
+import pytest
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
@@ -183,8 +184,7 @@ class PsycopgCore(AsyncioTestCase):
             dict(name="postgres.query", resource=query.as_string(db)),
         )
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    async def test_user_specified_app_service_v0(self):
+    async def _scenario_test_user_specified_app_service_v0(self):
         """
         v0: When a user specifies a service for the app
             The psycopg integration should not use it.
@@ -201,8 +201,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_user_specified_app_service_v1(self):
+    async def _scenario_test_user_specified_app_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The psycopg integration should use it.
@@ -219,8 +218,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    async def test_span_name_v0_schema(self):
+    async def _scenario_test_span_name_v0_schema(self):
         conn = await self._get_conn()
         await conn.cursor().execute("""select 'blah'""")
 
@@ -228,8 +226,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].name == "postgres.query"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_span_name_v1_schema(self):
+    async def _scenario_test_span_name_v1_schema(self):
         conn = await self._get_conn()
         await conn.cursor().execute("""select 'blah'""")
 
@@ -306,3 +303,55 @@ class PsycopgCore(AsyncioTestCase):
                     assert spans[1].name == "postgres.query"
                     assert spans[1].resource == "select ?"
                     assert spans[1].service == "postgres"
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_PsycopgCore_user_specified_app_service_v0():
+    from tests.contrib.psycopg.test_psycopg_async import PsycopgCore
+    from tests.process import case_context
+
+    with case_context(PsycopgCore, "_scenario_test_user_specified_app_service_v0") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_app_service_v0())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_PsycopgCore_user_specified_app_service_v1():
+    from tests.contrib.psycopg.test_psycopg_async import PsycopgCore
+    from tests.process import case_context
+
+    with case_context(PsycopgCore, "_scenario_test_user_specified_app_service_v1") as case:
+        case.loop.run_until_complete(case._scenario_test_user_specified_app_service_v1())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PsycopgCore_span_name_v0_schema():
+    from tests.contrib.psycopg.test_psycopg_async import PsycopgCore
+    from tests.process import case_context
+
+    with case_context(PsycopgCore, "_scenario_test_span_name_v0_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_span_name_v0_schema())
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PsycopgCore_span_name_v1_schema():
+    from tests.contrib.psycopg.test_psycopg_async import PsycopgCore
+    from tests.process import case_context
+
+    with case_context(PsycopgCore, "_scenario_test_span_name_v1_schema") as case:
+        case.loop.run_until_complete(case._scenario_test_span_name_v1_schema())

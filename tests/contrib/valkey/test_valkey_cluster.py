@@ -1,3 +1,4 @@
+import pytest
 import valkey
 
 from ddtrace.contrib.internal.valkey.patch import patch
@@ -28,8 +29,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         unpatch()
         super().tearDown()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_span_service_name_v1(self):
+    def _scenario_test_span_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
         span = find_redis_span(
@@ -133,8 +133,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         )
         assert span is not None
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         """
         When a user specifies a service for the app
             The valkeycluster integration should not use it.
@@ -152,8 +151,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         )
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         """
         When a user specifies a service for the app
             The valkeycluster integration should use it.
@@ -171,32 +169,21 @@ class TestValkeyClusterPatch(TracerTestCase):
         )
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
-    def test_env_user_specified_valkeycluster_service_v0(self):
+    def _scenario_test_env_user_specified_valkeycluster_service_v0(self):
         self.r.get("cheese")
         span = find_redis_span(
             self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
         )
         assert span.service == "myvalkeycluster", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
-    def test_env_user_specified_valkeycluster_service_v1(self):
+    def _scenario_test_env_user_specified_valkeycluster_service_v1(self):
         self.r.get("cheese")
         span = find_redis_span(
             self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
         )
         assert span.service == "myvalkeycluster", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="app-svc", DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
-        )
-    )
-    def test_service_precedence_v0(self):
+    def _scenario_test_service_precedence_v0(self):
         self.r.get("cheese")
         span = find_redis_span(
             self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
@@ -205,12 +192,7 @@ class TestValkeyClusterPatch(TracerTestCase):
 
         self.reset()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="app-svc", DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"
-        )
-    )
-    def test_service_precedence_v1(self):
+    def _scenario_test_service_precedence_v1(self):
         self.r.get("cheese")
         span = find_redis_span(
             self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
@@ -218,3 +200,104 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert span.service == "myvalkeycluster"
 
         self.reset()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestValkeyClusterPatch_span_service_name_v1():
+    from tests.contrib.valkey.test_valkey_cluster import TestValkeyClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestValkeyClusterPatch, "_scenario_test_span_service_name_v1") as case:
+        case._scenario_test_span_service_name_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestValkeyClusterPatch_user_specified_service_v0():
+    from tests.contrib.valkey.test_valkey_cluster import TestValkeyClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestValkeyClusterPatch, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestValkeyClusterPatch_user_specified_service_v1():
+    from tests.contrib.valkey.test_valkey_cluster import TestValkeyClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestValkeyClusterPatch, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestValkeyClusterPatch_env_user_specified_valkeycluster_service_v0():
+    from tests.contrib.valkey.test_valkey_cluster import TestValkeyClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestValkeyClusterPatch, "_scenario_test_env_user_specified_valkeycluster_service_v0") as case:
+        case._scenario_test_env_user_specified_valkeycluster_service_v0()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestValkeyClusterPatch_env_user_specified_valkeycluster_service_v1():
+    from tests.contrib.valkey.test_valkey_cluster import TestValkeyClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestValkeyClusterPatch, "_scenario_test_env_user_specified_valkeycluster_service_v1") as case:
+        case._scenario_test_env_user_specified_valkeycluster_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestValkeyClusterPatch_service_precedence_v0():
+    from tests.contrib.valkey.test_valkey_cluster import TestValkeyClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestValkeyClusterPatch, "_scenario_test_service_precedence_v0") as case:
+        case._scenario_test_service_precedence_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="myvalkeycluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestValkeyClusterPatch_service_precedence_v1():
+    from tests.contrib.valkey.test_valkey_cluster import TestValkeyClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestValkeyClusterPatch, "_scenario_test_service_precedence_v1") as case:
+        case._scenario_test_service_precedence_v1()

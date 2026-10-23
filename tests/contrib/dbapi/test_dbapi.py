@@ -38,8 +38,7 @@ class TestTracedCursor(TracerTestCase):
 
             getattr(self.cursor, method).assert_not_called()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
-    def test_dbm_propagation_not_supported(self):
+    def _scenario_test_dbm_propagation_not_supported(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
         # By default _dbm_propagator attribute should not be set or have a value of None.
@@ -50,15 +49,7 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor.execute("SELECT * FROM db;")
         cursor.execute.assert_called_once_with("SELECT * FROM db;")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-        )
-    )
-    def test_cursor_execute_with_dbm_injection(self):
+    def _scenario_test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "query"))
         traced_cursor = TracedCursor(cursor, cfg=cfg)
@@ -368,15 +359,7 @@ class TestFetchTracedCursor(TracerTestCase):
         assert len(spans) == 1
         self.reset()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="full",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-        )
-    )
-    def test_cursor_execute_fetch_with_dbm_injection(self):
+    def _scenario_test_cursor_execute_fetch_with_dbm_injection(self):
         cursor = self.cursor
         dbm_propagator = _DBM_Propagator(0, "query")
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagator=dbm_propagator)
@@ -616,3 +599,46 @@ class TestTracedConnection(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 0
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DBM_PROPAGATION_MODE="full"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestTracedCursor_dbm_propagation_not_supported():
+    from tests.contrib.dbapi.test_dbapi import TestTracedCursor
+    from tests.process import case_context
+
+    with case_context(TestTracedCursor, "_scenario_test_dbm_propagation_not_supported") as case:
+        case._scenario_test_dbm_propagation_not_supported()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTracedCursor_cursor_execute_with_dbm_injection():
+    from tests.contrib.dbapi.test_dbapi import TestTracedCursor
+    from tests.process import case_context
+
+    with case_context(TestTracedCursor, "_scenario_test_cursor_execute_with_dbm_injection") as case:
+        case._scenario_test_cursor_execute_with_dbm_injection()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DBM_PROPAGATION_MODE="full", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestFetchTracedCursor_cursor_execute_fetch_with_dbm_injection():
+    from tests.contrib.dbapi.test_dbapi import TestFetchTracedCursor
+    from tests.process import case_context
+
+    with case_context(TestFetchTracedCursor, "_scenario_test_cursor_execute_fetch_with_dbm_injection") as case:
+        case._scenario_test_cursor_execute_fetch_with_dbm_injection()
