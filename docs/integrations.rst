@@ -23,12 +23,6 @@ algoliasearch
 ^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.algoliasearch
 
-.. _aredis:
-
-aredis
-^^^^^^
-.. automodule:: ddtrace.contrib.internal.aredis
-
 .. _asgi:
 
 asgi
@@ -677,12 +671,6 @@ vertexai
 ^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.vertexai
 
-
-.. _vertica:
-
-Vertica
-^^^^^^^
-.. automodule:: ddtrace.contrib.internal.vertica
 
 .. _webbrowser:
 

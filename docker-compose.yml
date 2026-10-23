@@ -105,12 +105,6 @@ services:
         ports:
             - "127.0.0.1:${TESTAGENT_HOST_PORT:-9126}:8126"
             - "127.0.0.1:${TESTAGENT_OTLP_HOST_PORT:-4318}:4318"
-    vertica:
-        extends:
-            file: docker-compose.base.yml
-            service: vertica
-        ports:
-          - "127.0.0.1:5433:5433"
     azurecosmosemulator:
         extends:
             file: docker-compose.base.yml

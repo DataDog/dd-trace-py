@@ -59,7 +59,7 @@ def test_inject_llmobs_parent_id_simple(llmobs):
 
 
 def test_inject_llmobs_ml_app_override(llmobs):
-    with llmobs.workflow(name="LLMObs span", ml_app="test-ml-app") as span:
+    with llmobs.workflow(name="LLMObs span", agent_service="test-ml-app") as span:
         llmobs._inject_llmobs_context(span.context, {})
     assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-ml-app"
 
@@ -166,7 +166,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
+    env.update({"DD_SERVICE": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
 
@@ -198,7 +198,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
+    env.update({"DD_SERVICE": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
 
@@ -232,7 +232,7 @@ with tracer.trace("Non-LLMObs span") as span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
+    env.update({"DD_SERVICE": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
 
@@ -284,7 +284,7 @@ from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 
-LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+LLMObs.enable(agent_service="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
 with LLMObs.workflow("LLMObs span") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
@@ -322,7 +322,7 @@ import json
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+LLMObs.enable(agent_service="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
 with LLMObs.workflow("LLMObs span") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
@@ -357,9 +357,9 @@ import json
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+LLMObs.enable(agent_service="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
-with LLMObs.workflow(name="LLMObs span", ml_app="local-ml-app") as root_span:
+with LLMObs.workflow(name="LLMObs span", agent_service="local-ml-app") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
         headers = LLMObs.inject_distributed_headers({}, span=child_span)
 
@@ -389,7 +389,7 @@ import json
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+LLMObs.enable(agent_service="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
 with tracer.trace("Non-LLMObs span") as root_span:
     root_span.context._meta["_dd.p.llmobs_ml_app"] = "twice-propagated-ml-app"
@@ -419,7 +419,7 @@ import json
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+LLMObs.enable(agent_service="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
 with LLMObs.workflow(name="LLMObs span", session_id="session-from-service-a") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
@@ -446,7 +446,7 @@ import json
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+LLMObs.enable(agent_service="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
 with LLMObs.workflow(name="LLMObs span", session_id="session-from-service-a") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
@@ -477,7 +477,7 @@ import json
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+LLMObs.enable(agent_service="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
 with LLMObs.workflow(name="root"):  # no session; the first child sets the trace default
     with LLMObs.llm(name="first", session_id="trace-session"):
@@ -520,7 +520,7 @@ with tracer.trace("Non-LLMObs span") as root_span:
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
+    env.update({"DD_SERVICE": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
     stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
 

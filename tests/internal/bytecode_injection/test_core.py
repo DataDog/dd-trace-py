@@ -4,12 +4,12 @@ import sys
 import pytest
 
 
-if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 12):
+if sys.version_info[:2] < (3, 12):
     from ddtrace.internal.bytecode_injection.core import InjectionContext
     from ddtrace.internal.bytecode_injection.core import inject_invocation
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),
+    sys.version_info[:2] > (3, 11),
     reason="Injection is currently only supported for 3.10 and 3.11",
 )
 

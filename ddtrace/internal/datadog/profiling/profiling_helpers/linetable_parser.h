@@ -6,7 +6,7 @@
 /* Shared line table parsing for profiling.
  *
  * Provides allocation-free, GIL-free line number resolution from
- * CPython's co_linetable (3.10+ PEP 626/657) and co_lnotab (3.9).
+ * CPython's co_linetable (3.10+ PEP 626/657).
  *
  * All functions perform pure byte-parsing with no Python API calls,
  * making them safe for both:
@@ -77,7 +77,6 @@ read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
  *   lasti       — last instruction index:
  *                   Python 3.11+: in _Py_CODEUNIT units
  *                   Python 3.10:  in _Py_CODEUNIT units (converted internally)
- *                   Python 3.9:   byte offset
  *   firstlineno — co_firstlineno from the code object
  *
  * The caller is responsible for obtaining the table bytes and lasti
@@ -131,7 +130,7 @@ parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int first
             break;
     }
 
-#elif PY_VERSION_HEX >= 0x030a0000
+#else
     /* Python 3.10: PEP 626 line table in co_linetable.
      * Pairs of (sdelta, ldelta) bytes.  lasti is in codeunit units;
      * the table bytecode deltas are in byte units, so convert. */
@@ -158,25 +157,6 @@ parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int first
         lineno += ldelta;
         if (bc > lasti)
             break;
-    }
-
-#else
-    /* Python 3.9: co_lnotab format — pairs of (bytecode_delta, line_delta)
-     * unsigned bytes.  lasti is a byte offset. */
-
-    /* Check for even-ness as we expect pairs of (bytecode_delta, line_delta) bytes.
-     * This precondition is not guaranteed when using data copied from
-     * the process and not "actual" code objects. */
-    if (len % 2 != 0)
-        return 0;
-
-    for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
-        bc += table[i++];
-        if (bc > lasti)
-            break;
-        if (table[i] >= 0x80)
-            lineno -= 0x100;
-        lineno += table[i];
     }
 
 #endif /* PY_VERSION_HEX >= 0x030b0000 */

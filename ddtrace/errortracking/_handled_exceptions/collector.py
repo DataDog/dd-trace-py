@@ -63,7 +63,7 @@ class HandledExceptionCollector(Service):
                 we need to add a filtering step which can be time efficient.
                 """
                 _install_sys_monitoring_reporting()
-            elif is_at_least_py(3, 10):
+            else:
                 from ddtrace.errortracking._handled_exceptions.bytecode_reporting import (
                     _install_bytecode_injection_reporting,
                 )
@@ -75,8 +75,6 @@ class HandledExceptionCollector(Service):
                 3.12 (before handled exception events are not supported)
                 """
                 _install_bytecode_injection_reporting()
-            else:
-                return
         except Exception:
             log.error("Failed to enable HandledExceptionCollector", exc_info=True)
 

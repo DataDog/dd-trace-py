@@ -62,8 +62,6 @@ from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils import _get_metas_to_propagate
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
@@ -103,16 +101,6 @@ def _default_wrap_span_name(f: Callable) -> str:
     if config._trace_wrap_span_name_include_class:
         return _wrap_span_name_with_class(f)
 
-    deprecate(
-        prefix="The default span name for @tracer.wrap on methods does not include the class name",
-        message=(
-            "In a future major release the span name will be "
-            f"'{_wrap_span_name_with_class(f)}' instead of '{f.__module__}.{f.__name__}'. "
-            "Opt in now by setting DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true."
-        ),
-        removal_version="5.0.0",
-        category=DDTraceDeprecationWarning,
-    )
     return f"{f.__module__}.{f.__name__}"
 
 
@@ -263,26 +251,6 @@ class Tracer:
             if context is not None:
                 context._reactivate = False
             self.context_provider.activate(prev_active)
-
-    @property
-    def data_streams_processor(self):
-        from ddtrace.internal.datastreams import data_streams_processor
-
-        deprecate(
-            prefix="Tracer.data_streams_processor is deprecated",
-            message="Use ddtrace.data_streams.data_streams_processor() instead.",
-            removal_version="5.0.0",
-            category=DDTraceDeprecationWarning,
-        )
-        return data_streams_processor()
-
-    @data_streams_processor.setter
-    def data_streams_processor(self, value):
-        deprecate(
-            prefix="Setting Tracer.data_streams_processor is unsupported",
-            removal_version="5.0.0",
-            category=DDTraceDeprecationWarning,
-        )
 
     @property
     def _sampler(self):

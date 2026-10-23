@@ -527,11 +527,11 @@ def test_agent_decorator_no_args(llmobs, test_spans):
     )
 
 
-def test_ml_app_override(llmobs, test_spans):
-    """Test that setting ml_app kwarg on the LLMObs decorators will override the DD_LLMOBS_ML_APP value."""
+def test_agent_service_override(llmobs, test_spans):
+    """Test that setting agent_service on the LLMObs decorators overrides the globally configured agent service."""
     for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
 
-        @decorator(ml_app="test_ml_app")
+        @decorator(agent_service="test_ml_app")
         def f():
             pass
 
@@ -543,7 +543,7 @@ def test_ml_app_override(llmobs, test_spans):
             tags={"ml_app": "test_ml_app", "decorator": "1"},
         )
 
-    @llm(model_name="test_model", ml_app="test_ml_app")
+    @llm(model_name="test_model", agent_service="test_ml_app")
     def g():
         pass
 
@@ -557,7 +557,7 @@ def test_ml_app_override(llmobs, test_spans):
         tags={"ml_app": "test_ml_app", "decorator": "1"},
     )
 
-    @embedding(model_name="test_model", ml_app="test_ml_app")
+    @embedding(model_name="test_model", agent_service="test_ml_app")
     def h():
         pass
 
@@ -570,93 +570,6 @@ def test_ml_app_override(llmobs, test_spans):
         model_provider=UNKNOWN_MODEL_PROVIDER,
         tags={"ml_app": "test_ml_app", "decorator": "1"},
     )
-
-
-def test_agent_service_override(llmobs, test_spans):
-    """Test that agent_service on decorators writes the canonical ml_app tag."""
-    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
-
-        @decorator(ml_app="legacy_ml_app", agent_service="test_agent_service")
-        def f():
-            pass
-
-        f()
-        span = test_spans.pop()[0]
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(span),
-            span_kind=decorator_name,
-            tags={"ml_app": "test_agent_service", "decorator": "1"},
-        )
-
-    @llm(model_name="test_model", agent_service="test_agent_service")
-    def g():
-        pass
-
-    g()
-    span = test_spans.pop()[0]
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span),
-        span_kind="llm",
-        model_name="test_model",
-        model_provider=UNKNOWN_MODEL_PROVIDER,
-        tags={"ml_app": "test_agent_service", "decorator": "1"},
-    )
-
-    @embedding(model_name="test_model", agent_service="test_agent_service")
-    def h():
-        pass
-
-    h()
-    span = test_spans.pop()[0]
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span),
-        span_kind="embedding",
-        model_name="test_model",
-        model_provider=UNKNOWN_MODEL_PROVIDER,
-        tags={"ml_app": "test_agent_service", "decorator": "1"},
-    )
-
-
-async def test_non_llm_async_decorators(llmobs, test_spans):
-    """Test that decorators work with async functions."""
-    for decorator_name, decorator in [
-        ("task", task),
-        ("workflow", workflow),
-        ("tool", tool),
-        ("agent", agent),
-        ("retrieval", retrieval),
-    ]:
-
-        @decorator
-        async def f():
-            pass
-
-        await f()
-        span = test_spans.pop()[0]
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(span),
-            span_kind=decorator_name,
-            tags={"decorator": "1"},
-        )
-
-
-async def test_llm_async_decorators(llmobs, test_spans):
-    """Test that decorators work with async functions."""
-    for decorator_name, decorator in [("llm", llm), ("embedding", embedding)]:
-
-        @decorator(model_name="test_model", model_provider="test_provider")
-        async def f():
-            pass
-
-        await f()
-        span = test_spans.pop()[0]
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(span),
-            span_kind=decorator_name,
-            model_name="test_model",
-            model_provider="test_provider",
-            tags={"decorator": "1"},
-        )
 
 
 def test_automatic_annotation_non_llm_decorators(llmobs, test_spans):

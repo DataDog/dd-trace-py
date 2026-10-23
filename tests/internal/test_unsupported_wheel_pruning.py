@@ -22,9 +22,9 @@ _RELEASE_YML = _GITLAB_DIR / "release.yml"
 
 VERSION = "9.9.9"
 
-# Transcribed from .gitlab/validate-ddtrace-package.py: 6 Python tags x 8 base platforms,
+# Transcribed from .gitlab/validate-ddtrace-package.py: 5 Python tags x 8 base platforms,
 # plus win_arm64 for 3.11+, plus the sdist.
-SUPPORTED_TAGS = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314"]
+SUPPORTED_TAGS = ["cp310", "cp311", "cp312", "cp313", "cp314"]
 WIN_ARM64_TAGS = ["cp311", "cp312", "cp313", "cp314"]
 BASE_PLATFORMS = [
     "macosx_14_0_arm64",

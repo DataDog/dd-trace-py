@@ -10,13 +10,6 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
 
-skipif_errortracking_not_supported = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 10),
-    reason="Injection is only supported for 3.10+",
-)
-
-
-@skipif_errortracking_not_supported
 class ErrorTestCases(TracerTestCase):
     """
     This class contains all the cases testing the feature itself (without
@@ -186,7 +179,6 @@ class ErrorTestCases(TracerTestCase):
         )
 
 
-@skipif_errortracking_not_supported
 class UserCodeErrorTestCases(TracerTestCase):
     """
     This class contains all the tests testing the filtering capabilities of the feature

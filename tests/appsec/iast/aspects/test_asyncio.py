@@ -1,6 +1,5 @@
 from collections.abc import AsyncIterable
 from collections.abc import Coroutine
-import sys
 
 import pytest
 
@@ -53,7 +52,6 @@ def test_no_async_function():
     assert ranges_result[0].length == 11
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="anext was introduced in version 3.10")
 @pytest.mark.asyncio
 async def test_async_yield_function():
     obj1 = taint_pyobject(
@@ -87,7 +85,6 @@ async def test_async_yield_function():
         _ = await anext(async_iterator)  # noqa: F821
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="anext was introduced in version 3.10")
 @pytest.mark.asyncio
 async def test_async_yield_function_2():
     obj1 = taint_pyobject(

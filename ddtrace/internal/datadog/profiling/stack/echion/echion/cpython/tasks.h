@@ -127,37 +127,6 @@ extern "C"
     PyObject* prefix##_weakreflist;                                                                                    \
     _PyErr_StackItem prefix##_cancelled_exc_state;
 
-#elif PY_VERSION_HEX >= 0x03090000
-#define FutureObj_HEAD(prefix)                                                                                         \
-    PyObject_HEAD PyObject* prefix##_loop;                                                                             \
-    PyObject* prefix##_callback0;                                                                                      \
-    PyObject* prefix##_context0;                                                                                       \
-    PyObject* prefix##_callbacks;                                                                                      \
-    PyObject* prefix##_exception;                                                                                      \
-    PyObject* prefix##_result;                                                                                         \
-    PyObject* prefix##_source_tb;                                                                                      \
-    PyObject* prefix##_cancel_msg;                                                                                     \
-    fut_state prefix##_state;                                                                                          \
-    int prefix##_log_tb;                                                                                               \
-    int prefix##_blocking;                                                                                             \
-    PyObject* dict;                                                                                                    \
-    PyObject* prefix##_weakreflist;                                                                                    \
-    _PyErr_StackItem prefix##_cancelled_exc_state;
-
-#else
-#define FutureObj_HEAD(prefix)                                                                                         \
-    PyObject_HEAD PyObject* prefix##_loop;                                                                             \
-    PyObject* prefix##_callback0;                                                                                      \
-    PyObject* prefix##_context0;                                                                                       \
-    PyObject* prefix##_callbacks;                                                                                      \
-    PyObject* prefix##_exception;                                                                                      \
-    PyObject* prefix##_result;                                                                                         \
-    PyObject* prefix##_source_tb;                                                                                      \
-    fut_state prefix##_state;                                                                                          \
-    int prefix##_log_tb;                                                                                               \
-    int prefix##_blocking;                                                                                             \
-    PyObject* dict;                                                                                                    \
-    PyObject* prefix##_weakreflist;
 #endif
 
     typedef struct
@@ -206,16 +175,6 @@ extern "C"
         int task_num_cancels_requested;
     } TaskObj;
 
-#else
-    typedef struct
-    {
-        FutureObj_HEAD(task) PyObject* task_fut_waiter;
-        PyObject* task_coro;
-        PyObject* task_name;
-        PyObject* task_context;
-        int task_must_cancel;
-        int task_log_destroy_pending;
-    } TaskObj;
 #endif
 
     // ---- cr_await ----
@@ -463,47 +422,5 @@ extern "C"
         return yf;
     }
 
-#else
-    inline PyObject* PyGen_yf(PyGenObject* Py_UNUSED(gen), PyObject* frame_addr)
-    {
-        PyObject* yf = NULL;
-        PyFrameObject* f = (PyFrameObject*)frame_addr;
-
-        if (frame_addr == NULL)
-            return NULL;
-
-        PyFrameObject frame;
-        if (copy_type(f, frame))
-            return NULL;
-
-        if (frame.f_stacktop) {
-            if (frame.f_lasti < 0)
-                return NULL;
-
-            PyCodeObject code;
-            if (copy_type(frame.f_code, code))
-                return NULL;
-
-            Py_ssize_t s = 0;
-            auto c = pybytes_to_bytes_and_size(code.co_code, &s);
-            if (c == nullptr)
-                return NULL;
-
-            Py_ssize_t idx = frame.f_lasti + sizeof(_Py_CODEUNIT);
-            if (idx < 0 || idx >= s)
-                return NULL;
-
-            if (c[idx] != YIELD_FROM)
-                return NULL;
-
-            auto stacktop = std::make_unique<PyObject*>();
-            if (copy_generic(frame.f_stacktop - 1, stacktop.get(), sizeof(PyObject*)))
-                return NULL;
-
-            yf = *stacktop;
-        }
-
-        return yf;
-    }
 #endif
 }

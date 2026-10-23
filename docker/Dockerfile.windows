@@ -7,7 +7,7 @@
 #   - 32-bit VC++ redistributable (required for x86 wheel builds)
 #   - uv (Python package manager)
 #   - Rust stable + i686-pc-windows-msvc cross-compile target
-#   - Python 3.9-3.14 for windows-x86_64 and windows-x86
+#   - Python 3.10-3.14 for windows-x86_64 and windows-x86
 
 # ltsc2022
 FROM mcr.microsoft.com/windows/servercore@sha256:ba95f404a7f05eb4a827d2175e225e6d77200b4431dd24668255bdb954973810
@@ -83,10 +83,10 @@ RUN $env:CARGO_HOME = 'C:\tools\rust\cargo'; `
         'C:\tools\rust\cargo\bin;' + [Environment]::GetEnvironmentVariable('PATH', 'Machine'), `
         'Machine')
 
-# Install Python 3.9-3.14 for both windows-x86_64 and windows-x86 via uv
+# Install Python 3.10-3.14 for both windows-x86_64 and windows-x86 via uv
 ENV UV_PYTHON_INSTALL_DIR="C:\tools\uv-python"
 RUN $env:PATH = 'C:\tools\uv;' + $env:PATH; `
-    $versions = @('3.9', '3.10', '3.11', '3.12', '3.13', '3.14'); `
+    $versions = @('3.10', '3.11', '3.12', '3.13', '3.14'); `
     $platforms = @('windows-x86_64', 'windows-x86'); `
     foreach ($v in $versions) { `
         foreach ($p in $platforms) { `

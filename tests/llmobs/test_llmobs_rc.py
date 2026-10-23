@@ -19,7 +19,7 @@ def test_rc_enables_llmobs_and_sets_ml_app():
 
     assert ddtrace.config._llmobs_enabled is True
     assert ddtrace.config._llmobs_ml_app == "my-llm-app"
-    mock_enable.assert_called_once_with(ml_app="my-llm-app", _auto=True)
+    mock_enable.assert_called_once_with(agent_service="my-llm-app", _auto=True)
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_REMOTE_CONFIGURATION_ENABLED": "false", "DD_LLMOBS_ENABLED": "true"})

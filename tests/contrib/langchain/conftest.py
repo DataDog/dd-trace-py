@@ -27,7 +27,7 @@ def langchain_llmobs(tracer, monkeypatch):
             "_llmobs_instrumented_proxy_urls": "http://localhost:4000",
         }
     ):
-        LLMObs.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
+        LLMObs.enable(_tracer=tracer, agent_service="langchain_test", integrations_enabled=False)
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         yield LLMObs

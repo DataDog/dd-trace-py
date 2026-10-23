@@ -15,8 +15,6 @@ from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -143,13 +141,6 @@ class TraceTool(cherrypy.Tool):
 
 
 class TraceMiddleware:
-    def __init__(self, app, tracer=None, service="cherrypy", distributed_tracing=None):
+    def __init__(self, app, service="cherrypy", distributed_tracing=None):
         self.app = app
-        if tracer is not None:
-            deprecate(
-                "The tracer parameter is deprecated",
-                message="The global tracer will be used instead.",
-                category=DDTraceDeprecationWarning,
-                removal_version="5.0.0",
-            )
         self.app.tools.tracer = TraceTool(app, service, distributed_tracing)

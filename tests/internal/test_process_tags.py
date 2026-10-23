@@ -1,4 +1,3 @@
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -129,17 +128,9 @@ def test_svc_auto_compound_argv0_produces_module_name(tracer):
         assert "svc.auto:unittest" in process_tags.process_tags
 
 
-@pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="sys.orig_argv is not available on Python 3.9")
 def test_get_entrypoint_name_module_mode_uses_orig_argv_when_sys_argv_is_incomplete():
     with patch("sys.argv", ["-m"]), patch("sys.orig_argv", ["python", "-m", "myapp"]):
         assert _get_entrypoint_name() == "myapp"
-        assert _get_entrypoint_type() == ENTRYPOINT_TYPE_MODULE
-
-
-@pytest.mark.skipif(sys.version_info[:2] != (3, 9), reason="sys.orig_argv fallback behavior is specific to Python 3.9")
-def test_get_entrypoint_name_module_mode_falls_back_to_main_module_on_py39():
-    with patch("sys.argv", ["-m"]):
-        assert _get_entrypoint_name() == "__main__"
         assert _get_entrypoint_type() == ENTRYPOINT_TYPE_MODULE
 
 

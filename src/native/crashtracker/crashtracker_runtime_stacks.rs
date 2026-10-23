@@ -282,11 +282,6 @@ unsafe fn thread_top_frame(tstate: *mut pyo3_ffi::PyThreadState) -> *mut pyo3_ff
     if tstate.is_null() {
         ptr::null_mut()
     } else {
-        // We won't support Python 3.9
-        #[cfg(not(Py_3_10))]
-        let frame: *mut pyo3_ffi::PyFrameObject = ptr::null_mut();
-
-        #[cfg(Py_3_10)]
         let frame = pyo3_ffi::PyThreadState_GetFrame(tstate);
 
         #[cfg(not(Py_3_11))]

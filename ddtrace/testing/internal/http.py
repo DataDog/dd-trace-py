@@ -363,7 +363,7 @@ class BackendConnector(threading.local):
                     result.error_type = ErrorType.CODE_4XX
                 else:
                     result.error_type = ErrorType.NETWORK
-        except (TimeoutError, socket.timeout) as e:
+        except TimeoutError as e:
             result.error_type = ErrorType.TIMEOUT
             result.error_description = str(e)
         except (ConnectionError, http.client.HTTPException) as e:

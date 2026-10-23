@@ -461,23 +461,6 @@
         "sensitive": true
       }
     ],
-    "DD_AREDIS_CMD_MAX_LENGTH": [
-      {
-        "implementation": "A",
-        "type": "int",
-        "default": "1000"
-      }
-    ],
-    "DD_AREDIS_SERVICE": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": "redis",
-        "aliases": [
-          "DD_AREDIS_SERVICE_NAME"
-        ]
-      }
-    ],
     "DD_ASGI_OBFUSCATE_404_RESOURCE": [
       {
         "implementation": "A",
@@ -1956,14 +1939,6 @@
         ]
       }
     ],
-    "DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null,
-        "deprecated": true
-      }
-    ],
     "DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED": [
       {
         "implementation": "A",
@@ -2462,13 +2437,6 @@
     "DD_LLMOBS_INSTRUMENTED_PROXY_URLS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LLMOBS_ML_APP": [
-      {
-        "implementation": "B",
         "type": "string",
         "default": null
       }
@@ -3846,13 +3814,6 @@
         ]
       }
     ],
-    "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
     "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED": [
       {
         "implementation": "B",
@@ -3977,13 +3938,6 @@
         "implementation": "A",
         "type": "string",
         "default": ""
-      }
-    ],
-    "DD_TRACE_AREDIS_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
       }
     ],
     "DD_TRACE_ASGI_ENABLED": [
@@ -4483,10 +4437,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false",
-        "aliases": [
-          "DD_TRACE_INFERRED_SPANS_ENABLED"
-        ]
+        "default": "false"
       }
     ],
     "DD_TRACE_JINJA2_ENABLED": [
@@ -5242,13 +5193,6 @@
         "default": "true"
       }
     ],
-    "DD_TRACE_VERTICA_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
     "DD_TRACE_VLLM_ENABLED": [
       {
         "implementation": "A",
@@ -5281,7 +5225,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": [
@@ -5447,16 +5391,6 @@
         "default": null,
         "aliases": [
           "DD_VERTEXAI_SERVICE_NAME"
-        ]
-      }
-    ],
-    "DD_VERTICA_SERVICE": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": "vertica",
-        "aliases": [
-          "DD_VERTICA_SERVICE_NAME"
         ]
       }
     ],

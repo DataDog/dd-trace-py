@@ -117,45 +117,7 @@ def test_log_no_trace():
     _test_logging(None, config.env, config.service, config.version)
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False"))
-def test_log_trace():
-    """
-    Check logging patched and formatter including trace info when 64bit trace ids are generated.
-    """
-
-    import logbook
-    from logbook import TestHandler
-
-    from ddtrace import config
-    from ddtrace.contrib.internal.logbook.patch import patch
-    from ddtrace.contrib.internal.logbook.patch import unpatch
-    from ddtrace.trace import tracer
-
-    config.service = "logging"
-    config.env = "global.env"
-    config.version = "global.version"
-
-    handler = TestHandler()
-
-    patch()
-    handler.push_application()
-
-    span = tracer.trace("test.logging")
-    logbook.info("Hello!")
-    span.finish()
-
-    assert handler.records[0].message == "Hello!"
-    assert handler.records[0].extra["dd.trace_id"] == str(span.trace_id)
-    assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
-    assert handler.records[0].extra["dd.env"] == config.env
-    assert handler.records[0].extra["dd.service"] == config.service
-    assert handler.records[0].extra["dd.version"] == config.version
-
-    handler.records.clear()
-    unpatch()
-
-
-@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
+@pytest.mark.subprocess()
 def test_log_trace_128bit_trace_ids():
     """
     Check if 128bit trace ids are logged using hex

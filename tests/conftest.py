@@ -528,7 +528,7 @@ def pytest_collection_modifyitems(session, config, items):
 
     Subprocess coverage collection is broken, and snapshot tests must run to validate test-agent output.
 
-    Also: add py39 - py314 suffix as parametrization in test names
+    Also: add py310 - py314 suffix as parametrization in test names
     """
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:

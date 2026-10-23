@@ -2,7 +2,6 @@ import contextvars
 from dataclasses import InitVar
 from dataclasses import dataclass
 import gc
-import sys
 from typing import Any
 import weakref
 
@@ -111,7 +110,6 @@ def test_deferred_context_event_is_released_after_manual_end_dispatch():
         ctx.event
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
 def test_context_event_enforce_kwargs_error():
     """Test that missing required fields raise TypeError.
     On Python 3.9, we create a default value to every attributes because kw_only

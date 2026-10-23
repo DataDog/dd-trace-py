@@ -16,27 +16,17 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
 
 
-def trace_engine(engine, tracer=None, service=None):
+def trace_engine(engine, service=None):
     """
     Add tracing instrumentation to the given sqlalchemy engine or instance.
 
     :param sqlalchemy.Engine engine: a SQLAlchemy engine class or instance
-    :param ddtrace.trace.Tracer tracer: a tracer instance. will default to the global
     :param str service: the name of the service to trace.
     """
 
-    if tracer is not None:
-        deprecate(
-            "The tracer parameter is deprecated",
-            message="The global tracer will be used instead.",
-            category=DDTraceDeprecationWarning,
-            removal_version="5.0.0",
-        )
     EngineTracer.attach(service, engine)
 
 

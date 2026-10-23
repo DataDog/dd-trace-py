@@ -21,8 +21,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
 
 
@@ -37,21 +35,11 @@ class TracedClient(ObjectProxy):
     """TracedClient is a proxy for a pylibmc.Client that times its network operations."""
 
     def __init__(self, client=None, service=None, tracer=None, *args, **kwargs):
-        """Create a traced client that wraps the given memcached client."""
-        # The client instance/service/tracer attributes are kept for compatibility
-        # with the old interface: TracedClient(client=pylibmc.Client(['localhost:11211']))
+        """Create a traced client in place of pylibmc.Client once patched."""
+        # TracedClient replaces pylibmc.Client when patched, so client holds the servers argument,
+        # not a client instance. The service/tracer parameters are kept for signature compatibility.
         # TODO(Benjamin): Remove these in favor of patching.
-        if not isinstance(client, _Client):
-            # We are in the patched situation, just pass down all arguments to the pylibmc.Client
-            # Note that, in that case, client isn't a real client (just the first argument)
-            client = _Client(kwargs.get("servers", client), **{k: v for k, v in kwargs.items() if k != "servers"})
-        else:
-            deprecate(
-                "TracedClient instantiation is deprecated",
-                message="Use ddtrace.patch(pylibmc=True) or ddtrace.patch_all() instead.",
-                removal_version="5.0.0",
-                category=DDTraceDeprecationWarning,
-            )
+        client = _Client(kwargs.get("servers", client), **{k: v for k, v in kwargs.items() if k != "servers"})
 
         super().__init__(client)
         self._configure_client(client, service)

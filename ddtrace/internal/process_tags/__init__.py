@@ -67,14 +67,12 @@ def _get_entrypoint_name() -> str:
     argv0 = sys.argv[0]
     if argv0 == "-m":
         # When executing a python program like `python -m myapp`, sys.argv
-        # can be only ["-m"] so we are using sys.orig_argv when available (python3.9+)
-        orig_argv = getattr(sys, "orig_argv", None)
-        if isinstance(orig_argv, list):
-            for i, arg in enumerate(orig_argv[:-1]):
-                if arg == "-m" and orig_argv[i + 1]:
-                    return orig_argv[i + 1]
+        # can be only ["-m"] so we recover the module name from sys.orig_argv
+        orig_argv = sys.orig_argv
+        for i, arg in enumerate(orig_argv[:-1]):
+            if arg == "-m" and orig_argv[i + 1]:
+                return orig_argv[i + 1]
 
-        # In python3.9, without access to sys.orig_argv, we fallback to __main__
         main_module = sys.modules.get("__main__")
         return getattr(main_module, __name__, "__main__")
 

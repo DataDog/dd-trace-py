@@ -1,5 +1,4 @@
 from http.client import RemoteDisconnected
-import socket
 from typing import TYPE_CHECKING
 from typing import Optional
 
@@ -254,7 +253,7 @@ class CIVisibilityWriter(HTTPWriter):
                 response = super()._put(data, headers, client, no_trace)
                 if response.status >= 400:
                     request_error = REQUEST_ERROR_TYPE.STATUS_CODE
-            except (TimeoutError, socket.timeout):
+            except TimeoutError:
                 request_error = REQUEST_ERROR_TYPE.TIMEOUT
                 raise
             except RemoteDisconnected:

@@ -41,11 +41,7 @@ Frame::infer_location(PyCodeObject* code_obj, int instr_offset)
 {
     Py_ssize_t len = 0;
 
-#if PY_VERSION_HEX >= 0x030a0000
     auto table = pybytes_to_bytes_and_size(code_obj->co_linetable, &len);
-#else
-    auto table = pybytes_to_bytes_and_size(code_obj->co_lnotab, &len);
-#endif
 
     if (table == nullptr) {
         return ErrorKind::LocationError;

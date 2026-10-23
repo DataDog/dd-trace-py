@@ -56,10 +56,6 @@ Configuration
    This option can be set by adding ``google_cloud_pubsub`` to the comma-separated
    ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS`` environment variable.
 
-   The per-integration ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS`` environment
-   variable is deprecated in favor of ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS`` and will be
-   removed in a future release.
-
    Default: ``False``
 
 """

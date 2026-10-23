@@ -409,37 +409,6 @@ elif is_at_least_py(3, 10):
         """
     )
 
-elif is_at_least_py(3, 9):
-    CONTEXT_HEAD.parse(
-        r"""
-            load_const                  {context}
-            setup_with                  @_except
-            pop_top
-        _except:
-        """
-    )
-
-    CONTEXT_RETURN.parse(
-        r"""
-            pop_block
-            load_const                  {context}
-            load_method                 $__return__
-            rot_three
-            rot_three
-            call_method                 1
-            rot_two
-            pop_top
-        """
-    )
-
-    CONTEXT_FOOT.parse(
-        r"""
-            with_except_start
-            pop_top
-            reraise
-        """
-    )
-
 
 # On the bytecode path __enter__ is invoked directly from inside the wrapped
 # function, so the monitored frame is one level up. On the monitoring path
@@ -1245,7 +1214,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 # first line of the function: bytecode would otherwise fold the head below, which
                 # is on that line, into the line-less range of GEN_START.
                 i = 0
-                if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR)):
+                if code.co_flags & (CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR):
                     for i, instr in enumerate(bc, 1):
                         if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
                             instr.lineno = code.co_firstlineno
