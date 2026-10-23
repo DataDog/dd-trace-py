@@ -16,6 +16,7 @@ from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.settings.aiguard import ENV_TIMEOUT
 from ddtrace.internal.settings.aiguard import AIGuardConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.aiguard.utils import assert_ai_guard_span
@@ -760,7 +761,7 @@ def test_configured_timeout_reaching_the_transport(raw_timeout, expected_timeout
         def request(self, *args, **kwargs):
             raise ConnectionFailedError("refused")
 
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         timeout = AIGuardConfig()._ai_guard_timeout
 
     with override_ai_guard_config(
@@ -781,18 +782,18 @@ def test_configured_timeout_reaching_the_transport(raw_timeout, expected_timeout
 
 @pytest.mark.parametrize("raw_timeout", ["999", "500", "0", "-1"])
 def test_timeout_flooring_to_zero_warns_and_uses_the_default(raw_timeout):
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         with patch("ddtrace.internal.settings.aiguard.log") as log:
             config = AIGuardConfig()
 
     assert config._ai_guard_timeout == 10_000
     log.warning.assert_called_once()
-    assert AI_GUARD.ENV_TIMEOUT in log.warning.call_args[0]
+    assert ENV_TIMEOUT in log.warning.call_args[0]
 
 
 @pytest.mark.parametrize("raw_timeout", ["1000", "1500"])
 def test_timeout_of_at_least_one_second_is_kept_without_warning(raw_timeout):
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         with patch("ddtrace.internal.settings.aiguard.log") as log:
             config = AIGuardConfig()
 
