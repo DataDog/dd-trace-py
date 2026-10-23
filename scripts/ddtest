@@ -169,11 +169,10 @@ else
     CONTAINER_SCRIPT="(git config --global --add safe.directory /home/bits/project || true) && $CMD"
     DOCKER_USER_ARGS=()
 
-    # The image runs as `bits` (uid 1000). On Linux, Docker bind mounts keep the
-    # host's ownership, so when the checkout is owned by a uid other than 1000,
-    # `bits` cannot write build artifacts or test environments. Docker Desktop on
-    # macOS maps ownership itself, so only Linux needs this. Override with
-    # DD_TEST_USER=uid:gid, or set it empty to keep the image's default user.
+    # The image runs as `bits` (uid 1000), which cannot write to a Linux bind
+    # mount owned by another uid, so run as the host user instead. Docker
+    # Desktop on macOS maps ownership itself. Override with DD_TEST_USER=uid:gid,
+    # or set it empty to keep `bits`.
     DEFAULT_RUN_AS_USER=""
     if [ "$(uname -s)" = "Linux" ] && [ "$(id -u)" != "1000" ]; then
         DEFAULT_RUN_AS_USER="$(id -u):$(id -g)"
@@ -182,16 +181,10 @@ else
     if [ -n "$RUN_AS_USER" ]; then
         RUN_AS_UID="${RUN_AS_USER%%:*}"
         RUN_AS_GID="${RUN_AS_USER##*:}"
-        # Remapping `bits` with usermod would re-chown the whole home directory,
-        # including the large Python and Rust toolchains, on every run. Instead,
-        # start as root and drop to the requested ids; the toolchains stay owned
-        # by uid 1000 and are only read. Before dropping privileges, hand over
-        # the few paths that must be writable: the home directory itself (not its
-        # contents) for dotfiles such as ~/.gitconfig, and ~/.cargo, which is
-        # small and is where `cargo install` puts tools the build runs from
-        # ~/.cargo/bin. Also give the uid a passwd entry so user lookups
-        # (whoami, getpass.getuser, ssh) work. The container is removed after the
-        # run, so none of this persists.
+        # usermod would re-chown the large toolchains on every run. Instead, start
+        # as root, hand over only what must be writable (the home directory for
+        # dotfiles, and the small ~/.cargo for `cargo install`), add a passwd
+        # entry for user lookups, then drop privileges.
         SETUP_SCRIPT="chown ${RUN_AS_UID}:${RUN_AS_GID} /home/bits && chown -R ${RUN_AS_UID}:${RUN_AS_GID} /home/bits/.cargo"
         SETUP_SCRIPT+=" && { getent group ${RUN_AS_GID} >/dev/null || echo 'ddtest:x:${RUN_AS_GID}:' >> /etc/group; }"
         SETUP_SCRIPT+=" && { getent passwd ${RUN_AS_UID} >/dev/null || echo 'ddtest:x:${RUN_AS_UID}:${RUN_AS_GID}::/home/bits:/bin/bash' >> /etc/passwd; }"
