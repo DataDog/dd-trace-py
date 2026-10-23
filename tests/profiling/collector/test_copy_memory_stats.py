@@ -544,3 +544,45 @@ def test_fast_copy_reenable_clears_failed_safe_copy() -> None:
     p.start()
     assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after re-enable"
     p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fast-copy recovery handlers are not used on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_successful_disable_uninstalls_handler",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_successful_disable_uninstalls_handler() -> None:
+    """Successful set_fast_copy(False) must drop a dormant recovery handler.
+
+    After disable, handler ops are off so uninstall_segv_handler is a no-op for
+    coordinated installs. Leaving the handler installed lets faulthandler chain
+    to it; set_fast_copy(True) would then reclaim over that chain and form a cycle.
+    """
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    p.stop()
+    assert _stack.segv_handler_installed(), "stop should leave the recovery handler installed"
+
+    _stack.set_fast_copy(False)
+    assert not _stack.is_safe_copy_failed(), "platform syscall fallback should make disable succeed"
+    assert not _stack.segv_handler_installed(), "successful disable must uninstall the dormant recovery handler"
+
+    faulthandler.enable()
+    _stack.set_fast_copy(True)
+    assert _stack.segv_handler_installed(), "re-enable must reclaim cleanly after faulthandler.enable()"
+
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after re-enable"
+    p.stop()

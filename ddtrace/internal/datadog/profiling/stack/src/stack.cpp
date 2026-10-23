@@ -1039,15 +1039,18 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     if (want && !enable_fast_copy) {
         mark_fast_copy_syscall_fallback();
     }
-    if (!set_fast_copy_enabled(enable_fast_copy)) {
-        // Failed disable (no process_vm_readv) clears active/desired but can leave
-        // the recovery handler installed after stop. Drop it so a later faulthandler
-        // or crashtracker install does not skip uninstall and sit above us.
+    const bool switched = set_fast_copy_enabled(enable_fast_copy);
+    if (!enable_fast_copy || !switched) {
+        // Disable (success or failed) or a failed enable can leave the recovery
+        // handler installed after stop. Drop it: once desired/active are clear,
+        // uninstall_segv_handler is a no-op for coordinated installs, so a dormant
+        // handler lets faulthandler/crashtracker chain to us; set_fast_copy(True)
+        // would then reclaim over that chain and form a cycle.
         if (segv_handler_installed()) {
             uninstall_segv_handler();
         }
-    } else if (enable_fast_copy && safe_memcpy_initialized && !segv_handler_installed()) {
-        // A prior failed-disable path uninstalled the recovery handler. Reinstall
+    } else if (safe_memcpy_initialized && !segv_handler_installed()) {
+        // A prior disable path uninstalled the recovery handler. Reinstall
         // here: sampling_thread's once_flag was already consumed on the first start,
         // so a later start cannot put the handler back.
         init_segv_catcher();
