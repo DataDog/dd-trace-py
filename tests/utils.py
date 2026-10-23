@@ -55,7 +55,6 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-from tests.process import run_process
 
 
 NO_CHILDREN = object()
@@ -1470,19 +1469,6 @@ class AnyExc:
 class AnyFloat:
     def __eq__(self, other):
         return isinstance(other, float)
-
-
-# ddtest sets PYTEST_ADDOPTS="--ddtrace" globally for pytest workers. It leaks
-# into test-spawned subprocesses, enabling CI Visibility which logs to stderr
-# (breaking tests that assert err == b"") and computes stats (breaking
-# snapshot tests). All ddtest-specific env stripping is encapsulated in
-# _ddtest_env_helpers so it can be removed cleanly if ddtest support is
-# dropped.
-
-
-def call_program(*args, **kwargs):
-    result = run_process(*args, terminate_on_timeout=True, **kwargs)
-    return result.stdout, result.stderr, result.returncode, result.pid
 
 
 def request_token(request: pytest.FixtureRequest) -> str:

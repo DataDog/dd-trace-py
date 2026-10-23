@@ -1181,7 +1181,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
     "schema_version, service_name",
     [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
 )
-def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+def test_schematized_service_name(python_process, schema_version, service_name):
     """
     v0/Default: expect the service name to be "flask"
     v1: expect the service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME
@@ -1219,13 +1219,16 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
         env["DD_SERVICE"] = service_name
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (out, err)
     assert err == b""
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_schematized_operation_name(python_process, schema_version):
     """
     v0/Default: expect the service name to be "flask.request"
     v1: expect the service name to be "http.server.request"
@@ -1259,7 +1262,10 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (out, err)
     assert err == b"", (out, err)
 

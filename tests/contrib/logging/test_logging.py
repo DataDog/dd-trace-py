@@ -298,7 +298,7 @@ class LoggingTestCase(TracerTestCase):
 
 
 @pytest.mark.parametrize("dd_logs_enabled", ["true", "structured"])
-def test_manual_log_formatter_injection(dd_logs_enabled: str, run_python_code_in_subprocess):
+def test_manual_log_formatter_injection(dd_logs_enabled: str, python_process):
     code = """
 import ddtrace.auto
 
@@ -316,7 +316,10 @@ log.info("Hello!")
 
     env = os.environ.copy()
     env["DD_LOGS_INJECTION"] = dd_logs_enabled
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, stderr
 
     assert stdout == b"", stderr

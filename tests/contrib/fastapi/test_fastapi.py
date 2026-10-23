@@ -910,7 +910,7 @@ def test_tracing_in_middleware(snapshot_app_with_middleware):
         "9": parse_version(fastapi.__version__) >= (0, 90),  # 0.90+ has an extra serialize step
     }
 )
-def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
+def test_schematization(python_process, schema_tuples):
     service_override, schema_version, expected_service, expected_operation = schema_tuples
     code = """
 import pytest
@@ -931,7 +931,9 @@ if __name__ == "__main__":
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     env["DD_TRACE_REQUESTS_ENABLED"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    status = _process_result.returncode
     assert status == 0, out.decode()
 
 

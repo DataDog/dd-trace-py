@@ -1,6 +1,7 @@
 import gzip
 import logging
 import os
+import signal
 import time
 from unittest import mock
 
@@ -248,7 +249,7 @@ def test_kafka_offset_serialization_cluster_id_tag():
         assert all(not t.startswith("kafka_cluster_id:") for t in b["Tags"])
 
 
-def test_processor_atexit(ddtrace_run_python_code_in_subprocess):
+def test_processor_atexit(python_process, tmp_path):
     code = """
 import pytest
 import sys
@@ -288,11 +289,17 @@ run_test()
 
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
-    assert out.decode().strip() == "Fake flush called"
+    ready = tmp_path / "ready"
+    code = code.replace("    counter = 0", f"    open({str(ready)!r}, 'w').close()\n    counter = 0")
+    with python_process.start(code, env=env, ddtrace_run=True) as child:
+        child.wait_until(ready.exists)
+        child.process.terminate()
+        result = child.wait()
+    result.check_returncode(-signal.SIGTERM)
+    assert result.stdout.decode().strip() == "Fake flush called"
 
 
-def test_processor_flushes_on_sigint(ddtrace_run_python_code_in_subprocess):
+def test_processor_flushes_on_sigint(python_process):
     """DataStreamsProcessor must flush on SIGINT without producing a ddtrace traceback."""
     code = """
 import os
@@ -311,12 +318,14 @@ os.kill(os.getpid(), signal.SIGINT)
 """
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    _process_result = python_process(code, env=env, timeout=5, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
     assert "Fake flush called" in out.decode()
     assert b"wrap_signals" not in err
 
 
-def test_processor_flushes_on_sigint_asyncio(ddtrace_run_python_code_in_subprocess):
+def test_processor_flushes_on_sigint_asyncio(python_process):
     """DataStreamsProcessor must flush via atexit when SIGINT interrupts asyncio.run().
 
     Under asyncio.Runner, SIGINT is consumed by asyncio's own handler rather than
@@ -346,12 +355,14 @@ asyncio.run(main())
 """
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    _process_result = python_process(code, env=env, timeout=5, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
     assert "Fake flush called" in out.decode()
     assert b"wrap_signals" not in err
 
 
-def test_threaded_import(ddtrace_run_python_code_in_subprocess):
+def test_threaded_import(python_process):
     code = """
 import pytest
 import sys
@@ -373,7 +384,8 @@ t.join()
 
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    _process_result = python_process(code, env=env, timeout=5, ddtrace_run=True)
+    err = _process_result.stderr
     assert err.decode().strip() == ""
 
 

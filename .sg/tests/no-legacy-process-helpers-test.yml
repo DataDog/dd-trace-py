@@ -1,0 +1,36 @@
+id: no-legacy-process-helpers
+valid:
+  - |
+    @pytest.mark.subprocess(env={"DD_SERVICE": "example"})
+    def test_startup():
+        from ddtrace import config
+        assert config.service == "example"
+  - |
+    def test_application(python_process):
+        python_process("pass").check_returncode()
+  - |
+    def test_instrumentation():
+        subprocess.run(["echo", "hello"], check=True)
+  - |
+    # run_in_subprocess is retired.
+    description = "call_program"
+invalid:
+  - |
+    from tests.subprocesstest import run_in_subprocess as isolated
+  - |
+    @TracerTestCase.run_in_subprocess(env_overrides={})
+    def test_old(self):
+        pass
+  - |
+    class TestOld(SubprocessTestCase):
+        pass
+  - |
+    class TestPatch(PatchTestCase.Base):
+        pass
+  - |
+    def test_old(run_python_code_in_subprocess):
+        pass
+  - |
+    result = ddtrace_run_python_code_in_subprocess("pass")
+  - |
+    result = call_program("python", "app.py")

@@ -6,7 +6,7 @@ from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_schematized_service_name(python_process, schema_version):
     expected_service_name = {None: "falcon", "v0": "falcon", "v1": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME}[
         schema_version
     ]
@@ -46,15 +46,15 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (out, err)
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_schematized_operation_name(python_process, schema_version):
     expected_operation_name = {None: "falcon.request", "v0": "falcon.request", "v1": "http.server.request"}[
         schema_version
     ]
@@ -94,8 +94,8 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (out, err)

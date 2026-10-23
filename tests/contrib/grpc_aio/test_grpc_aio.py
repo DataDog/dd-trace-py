@@ -847,7 +847,7 @@ async def test_bidi_streaming_cancelled_after_rpc(server_info, tracer):
         ("mysvc", "v1"),
     ],
 )
-def test_schematization_of_operation(ddtrace_run_python_code_in_subprocess, service_schema):
+def test_schematization_of_operation(python_process, service_schema):
     service, schema = service_schema
     expected_operation_name_format = {
         None: ("grpc"),
@@ -895,7 +895,10 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service
     if schema:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 

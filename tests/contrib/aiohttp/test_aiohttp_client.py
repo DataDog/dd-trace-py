@@ -132,7 +132,7 @@ async def test_200_request_distributed_tracing_with_headers(headers, expected_he
 
 
 @pytest.mark.asyncio
-async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subprocess):
+async def test_distributed_tracing_disabled(python_process):
     code = """
 import asyncio
 import sys
@@ -152,14 +152,16 @@ asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING"] = "false"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert err == b""
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.snapshot()
-def test_configure_global_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_configure_global_service_name_env(python_process, schema_version):
     """
     default/v0/v1 schemas: When only setting DD_SERVICE
         The value from DD_SERVICE is used for all schemas
@@ -180,14 +182,16 @@ asyncio.run(test())
     env["DD_SERVICE"] = "global-service-name"
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert err == b""
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.snapshot()
-def test_unspecified_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_unspecified_service_name_env(python_process, schema_version):
     """
     default (v0 schema): When only setting DD_SERVICE
         The value from DD_SERVICE is used
@@ -207,7 +211,9 @@ asyncio.run(test())
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert err == b""
 

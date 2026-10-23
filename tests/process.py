@@ -76,7 +76,6 @@ def run_process(
     env_overrides: Optional[Mapping[str, Optional[str]]] = None,
     timeout: Optional[float] = DEFAULT_TIMEOUT,
     strip_test_options: bool = True,
-    terminate_on_timeout: bool = False,
     **kwargs: Any,
 ) -> ProcessResult:
     """Run a command without changing its session, process group, or working directory."""
@@ -107,8 +106,6 @@ def run_process(
                 process.wait(timeout=CLEANUP_TIMEOUT)
         if isinstance(error, subprocess.TimeoutExpired):
             error.output, error.stderr = stdout, stderr
-            if terminate_on_timeout:
-                return ProcessResult(stdout, stderr, process.returncode, process.pid)
         raise
     return ProcessResult(stdout, stderr, process.returncode, process.pid)
 
@@ -226,7 +223,14 @@ class PythonProcess:
     def start(
         self, code: str, *, args: tuple[str, ...] = (), ddtrace_run: bool = False, **kwargs: Any
     ) -> Iterator[ManagedProcess]:
-        process = ManagedProcess(self._command(str(self._source(code)), args, ddtrace_run), **kwargs)
+        with self.start_file(self._source(code), args=args, ddtrace_run=ddtrace_run, **kwargs) as process:
+            yield process
+
+    @contextmanager
+    def start_file(
+        self, path: Union[str, Path], *, args: tuple[str, ...] = (), ddtrace_run: bool = False, **kwargs: Any
+    ) -> Iterator[ManagedProcess]:
+        process = ManagedProcess(self._command(str(path), args, ddtrace_run), **kwargs)
         try:
             yield process
         finally:

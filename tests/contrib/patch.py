@@ -15,7 +15,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 from tests.process import case_context
-from tests.utils import call_program
+from tests.process import run_process
 
 
 TRACER_VERSION = __version__
@@ -74,7 +74,7 @@ class PatchMixin(unittest.TestCase):
 
 def raise_if_no_attrs(f):
     """
-    A helper for PatchTestCase test methods that will check if there are any
+    A helper for patch scenario methods that will check if there are any
     modules to use else raise a NotImplementedError.
 
     :param f: method to wrap with a check
@@ -97,7 +97,7 @@ def raise_if_no_attrs(f):
 
 def noop_if_no_unpatch(f):
     """
-    A helper for PatchTestCase test methods that will no-op the test if the
+    A helper for patch scenario methods that will no-op the test if the
     __unpatch_func__ attribute is None
     """
 
@@ -771,7 +771,9 @@ class PatchScenario(PatchMixin):
             env = os.environ.copy()
             env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+            _process_result = run_process("ddtrace-run", sys.executable, f.name, env=env)
+            out = _process_result.stdout
+            err = _process_result.stderr
 
             self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
@@ -900,7 +902,9 @@ class PatchScenario(PatchMixin):
             env["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
             env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+            _process_result = run_process("ddtrace-run", sys.executable, f.name, env=env)
+            out = _process_result.stdout
+            err = _process_result.stderr
             assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()
 
 

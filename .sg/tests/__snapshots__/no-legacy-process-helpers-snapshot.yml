@@ -1,0 +1,56 @@
+id: no-legacy-process-helpers
+snapshots:
+  ? |
+    @TracerTestCase.run_in_subprocess(env_overrides={})
+    def test_old(self):
+        pass
+  : labels:
+    - source: run_in_subprocess
+      style: primary
+      start: 16
+      end: 33
+  ? |
+    class TestOld(SubprocessTestCase):
+        pass
+  : labels:
+    - source: SubprocessTestCase
+      style: primary
+      start: 14
+      end: 32
+  ? |
+    class TestPatch(PatchTestCase.Base):
+        pass
+  : labels:
+    - source: PatchTestCase
+      style: primary
+      start: 16
+      end: 29
+  ? |
+    def test_old(run_python_code_in_subprocess):
+        pass
+  : labels:
+    - source: run_python_code_in_subprocess
+      style: primary
+      start: 13
+      end: 42
+  ? |
+    from tests.subprocesstest import run_in_subprocess as isolated
+  : labels:
+    - source: subprocesstest
+      style: primary
+      start: 11
+      end: 25
+  ? |
+    result = call_program("python", "app.py")
+  : labels:
+    - source: call_program
+      style: primary
+      start: 9
+      end: 21
+  ? |
+    result = ddtrace_run_python_code_in_subprocess("pass")
+  : labels:
+    - source: ddtrace_run_python_code_in_subprocess
+      style: primary
+      start: 9
+      end: 46

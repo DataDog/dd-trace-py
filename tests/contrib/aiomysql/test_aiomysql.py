@@ -125,7 +125,7 @@ async def test_patch_unpatch(tracer, test_spans):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_user_specified_service_v0(ddtrace_run_python_code_in_subprocess):
+async def test_user_specified_service_v0(python_process):
     """
     v0: When a user specifies a service for the app
         The aiomysql integration should not use it.
@@ -133,7 +133,7 @@ async def test_user_specified_service_v0(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SERVICE"] = "my-service-name"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    _process_result = python_process(
         """
 import asyncio
 import aiomysql
@@ -147,14 +147,18 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert out == err == b""
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_user_specified_service_v1(ddtrace_run_python_code_in_subprocess):
+async def test_user_specified_service_v1(python_process):
     """
     v1: When a user specifies a service for the app
         The aiomysql integration should use it.
@@ -162,7 +166,7 @@ async def test_user_specified_service_v1(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SERVICE"] = "my-service-name"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    _process_result = python_process(
         """
 import asyncio
 import aiomysql
@@ -176,21 +180,25 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert out == err == b""
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_unspecified_service_v1(ddtrace_run_python_code_in_subprocess):
+async def test_unspecified_service_v1(python_process):
     """
     v1: When a user specifies nothing for a service,
         it should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    _process_result = python_process(
         """
 import asyncio
 import aiomysql
@@ -203,7 +211,11 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert out == err == b""
 
@@ -211,14 +223,14 @@ asyncio.run(test())""",
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 @pytest.mark.parametrize("version", ["v0", "v1"])
-async def test_schematized_span_name(ddtrace_run_python_code_in_subprocess, version):
+async def test_schematized_span_name(python_process, version):
     """
     When a user specifies a service for the app
         The aiomysql integration should not use it.
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    _process_result = python_process(
         """
 import asyncio
 import aiomysql
@@ -230,7 +242,11 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert out == err == b""
 

@@ -372,6 +372,9 @@ anything in the body. Each independent configuration needs its own child.
 
 The marker executes the body as a script. Use ``command=True`` when the scenario
 requires an unnamed command entry point, as with the former unittest launcher.
+Class-backed scenarios use ``test_assertions=True`` to preserve assertions in
+imported ``tests.*`` helpers under ``PYTHONOPTIMIZE``, while product modules keep
+the requested optimization mode. Set this before importing the helper class.
 Module globals, ``self``, parent fixtures,
 and the parent's event loop are unavailable. Async scenarios need an explicit
 entry point in the child. The parent still manages snapshot markers and services.
@@ -400,7 +403,7 @@ to preserve service-name inference.
 Commands time out after 60 seconds by default and terminate, then kill if needed,
 before reporting failure. Set a suitable explicit timeout for longer scenarios.
 For interactive applications, use ``with python_process.start(source) as child``
-and ``child.wait_until(readiness_check)``. The context closes the process even if
+or ``.start_file(path)`` and ``child.wait_until(readiness_check)``. The context closes the process even if
 the parent assertion fails. ``descendants=True`` explicitly creates a POSIX process
 group for descendant cleanup; it must not be used when inherited groups or signals
 are part of the test contract.
@@ -416,3 +419,23 @@ Repository coverage requires coverage startup in each child (for example a
 This is separate from testing the product's coverage collection. Subprocess
 markers and tests requesting ``python_process`` cannot be skipped until per-test
 coverage attribution is independently verified.
+
+Process behavior exceptions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Keep direct process operations when they are the subject of the test: subprocess
+instrumentation, fork inheritance, exec replacement, signals, and crashes. Keep
+``pytester`` for pytest/plugin behavior. Preserve the original command, filename,
+working directory, and process group when those affect the asserted behavior.
+Every parent-managed application must have bounded readiness and shutdown; do not
+use an execution timeout as an implicit instruction to send a signal.
+
+Integration patch scenarios are listed in ``tests/contrib/patch_scenarios.py``.
+Their collected tests pass a support-module path, class name, and scenario name
+into the child. The corresponding ``_test_*_scenarios.py`` modules hold existing
+integration assertions and are imported only in that child. Keep each ordering
+scenario and any custom override independently selectable.
+
+The ``no-legacy-process-helpers`` check in ``scripts/lint sg`` rejects retired
+runners and fixture names, including aliased imports. It permits explicit
+``subprocess`` operations for the exceptions above.

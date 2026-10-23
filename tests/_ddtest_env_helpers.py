@@ -2,7 +2,7 @@
 
 Encapsulates env var stripping so that removing ddtest support is a simple
 matter of deleting this file and reverting the import + call site in
-tests/utils.py.
+tests/process.py.
 """
 
 # PYTEST_ADDOPTS is set to "--ddtrace" by ddtest's platform env (ddtest/internal/
@@ -12,7 +12,7 @@ tests/utils.py.
 # don't activate CI Visibility. The leaked --ddtrace makes a nested
 # pytest.main() enable the plugin, which logs INFO to stderr (breaking tests
 # that assert err == b"") and computes stats (breaking snapshot tests). No
-# test sets PYTEST_ADDOPTS via call_program's env kwarg, so stripping it here
+# test sets PYTEST_ADDOPTS via the process runner's env argument, so stripping it here
 # is safe. (ddtest's main.go also sets DD_CIVISIBILITY_ENABLED=1 globally, but
 # that var is inert on its own — the pytest plugin needs --ddtrace to activate
 # — so stripping PYTEST_ADDOPTS is sufficient to keep subprocesses

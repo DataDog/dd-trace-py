@@ -5,7 +5,7 @@ import pytest
 
 
 @pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
-def test_config_extra_service_names_fork(run_python_code_in_subprocess):
+def test_config_extra_service_names_fork(python_process):
     code = """
 import ddtrace.auto
 import ddtrace
@@ -46,11 +46,14 @@ if extra_services != expected:
 
     env = os.environ.copy()
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr, status)
 
 
-def test_config_extra_service_names_duplicates(run_python_code_in_subprocess):
+def test_config_extra_service_names_duplicates(python_process):
     code = """
 import ddtrace.auto
 import ddtrace
@@ -69,11 +72,14 @@ assert extra_services == {"extra_service_1"}, extra_services
 
     env = os.environ.copy()
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr, status)
 
 
-def test_config_extra_service_names_rc_disabled(run_python_code_in_subprocess):
+def test_config_extra_service_names_rc_disabled(python_process):
     code = """
 import ddtrace.auto
 import ddtrace
@@ -91,11 +97,14 @@ assert len(extra_services) == 0
 
     env = os.environ.copy()
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr, status)
 
 
-def test_config_extra_service_names_customer_changes(run_python_code_in_subprocess):
+def test_config_extra_service_names_customer_changes(python_process):
     code = """
 import ddtrace.auto
 import ddtrace
@@ -116,5 +125,8 @@ assert "child_service" in extra_services
 
     env = os.environ.copy()
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr, status)

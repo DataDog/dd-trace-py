@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.langgraph.patch import get_version
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
 from tests.contrib.patch import PatchScenario
-from tests.utils import call_program
+from tests.process import run_process
 
 
 class TestLangGraphPatch(PatchScenario):
@@ -129,7 +129,9 @@ if not patched and (
             env = os.environ.copy()
             env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+            _process_result = run_process("ddtrace-run", sys.executable, f.name, env=env)
+            out = _process_result.stdout
+            err = _process_result.stderr
 
             self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
@@ -193,5 +195,7 @@ if not supported_versions_called and (
             env["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
             env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+            _process_result = run_process("ddtrace-run", sys.executable, f.name, env=env)
+            out = _process_result.stdout
+            err = _process_result.stderr
             assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()

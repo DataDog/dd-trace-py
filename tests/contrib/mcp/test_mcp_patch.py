@@ -3,7 +3,7 @@ import pytest
 from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-def test_mcp_auto_patch_during_experiment_import(run_python_code_in_subprocess):
+def test_mcp_auto_patch_during_experiment_import(python_process):
     """MCP auto-patching must not recursively import a partial LLMObs experiment module."""
     code = """
 import sys
@@ -35,7 +35,9 @@ except ModuleNotFoundError as error:
         raise
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    stderr = _process_result.stderr
+    status = _process_result.returncode
 
     assert status == 0, stderr.decode()
     assert b"failed to enable ddtrace support for mcp" not in stderr
