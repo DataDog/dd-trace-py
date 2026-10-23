@@ -147,6 +147,28 @@ if(LIB_INSTALL_DIR)
         RUNTIME DESTINATION ${LIB_INSTALL_DIR})
 endif()
 
+# Echion and profiling sources for binaries built with ECHION_FUZZING, which route every remote read through a fuzz
+# memory image. vm.cc is left out because it defines copy_memory(), which conflicts with the fuzz hook in vm.h, and
+# stack.cpp because it is the Python module entry point. fuzz/fuzz_common.h stubs the vm.cc symbols that sampler.cpp
+# references.
+set(STACK_FUZZ_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/danger.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/frame.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/greenlets.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/interp.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/long.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/mirrors.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/stack_chunk.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/stacks.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/strings.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/tasks.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/echion/threads.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gc_frame_tracker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/origin_task_links.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/stack_renderer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sampler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/span_links.cpp)
+
 if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
