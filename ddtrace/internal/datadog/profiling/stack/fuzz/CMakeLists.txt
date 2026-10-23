@@ -6,7 +6,7 @@ option(STACK_USE_LIBFUZZER "Link fuzz targets with libFuzzer (-fsanitize=fuzzer)
 
 # Helper function: register a single fuzz target with all shared build settings.
 function(add_fuzz_target TARGET_NAME)
-    add_executable(${TARGET_NAME} ${STACK_FUZZ_SOURCES} ${TARGET_NAME}.cpp)
+    add_executable(${TARGET_NAME} ${FUZZ_ECHION_SOURCES} ${TARGET_NAME}.cpp)
 
     # Include paths: ../.. is the profiling root (for "dd_wrapper/include/..." paths), ../include is for stack headers.
     target_include_directories(${TARGET_NAME} PRIVATE ../.. ../include)

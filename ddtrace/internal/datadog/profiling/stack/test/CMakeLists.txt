@@ -119,7 +119,7 @@ if(Python3_VERSION VERSION_GREATER_EQUAL "3.14")
     # Build the real fuzz harness from the same sources as the fuzz targets and without linking ${EXTENSION_NAME}, so
     # every read in the harness goes through the fuzz memory image and the seeds prove both native list sources are
     # reached. dd_wrapper_add_test always links ${EXTENSION_NAME}, so this target is set up by hand.
-    add_executable(test_task_fuzz_coverage ${STACK_FUZZ_SOURCES} ../fuzz/fuzz_echion_thread_unwind_tasks.cpp
+    add_executable(test_task_fuzz_coverage ${FUZZ_ECHION_SOURCES} ../fuzz/fuzz_echion_thread_unwind_tasks.cpp
                                            test_task_fuzz_coverage.cpp)
     add_ddup_config(test_task_fuzz_coverage)
     configure_stack_internal_test(test_task_fuzz_coverage)
