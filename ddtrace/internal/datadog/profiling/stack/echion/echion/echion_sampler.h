@@ -5,7 +5,6 @@
 #include <Python.h>
 
 #include <algorithm>
-#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -97,14 +96,10 @@ class EchionSampler
     {
         int64_t interpreter_id = 0;
         uint64_t generation = 0;
-
-        auto operator<=>(const InterpreterCodeGeneration&) const = default;
     };
 
-    // Snapshot from the previous sampling cycle, sorted by interpreter ID so it can be matched in one pass.
+    // Code object generation of each interpreter seen in the previous sampling cycle.
     std::vector<InterpreterCodeGeneration> code_object_generations_;
-    // Reused buffer for building the current cycle's snapshot.
-    std::vector<InterpreterCodeGeneration> next_code_object_generations_;
 #endif
 
     // Stack renderer for outputting samples
@@ -211,27 +206,22 @@ class EchionSampler
             return false;
         }
 
-        next_code_object_generations_.clear();
-        for (const auto& interpreter : interpreters) {
-            next_code_object_generations_.push_back({ interpreter.id, interpreter.code_object_generation });
-        }
-        std::sort(next_code_object_generations_.begin(), next_code_object_generations_.end());
-
         // Invalidate only if a previously seen interpreter is gone or its generation changed. A newly added interpreter
         // has nothing cached yet, so it is only recorded.
-        auto next = next_code_object_generations_.cbegin();
-        const auto next_end = next_code_object_generations_.cend();
         for (const auto& previous : code_object_generations_) {
-            next = std::lower_bound(next, next_end, previous.interpreter_id, [](const auto& entry, int64_t id) {
-                return entry.interpreter_id < id;
+            const auto current = std::find_if(interpreters.begin(), interpreters.end(), [&](const auto& interpreter) {
+                return interpreter.id == previous.interpreter_id;
             });
-            if (next == next_end || next->interpreter_id != previous.interpreter_id ||
-                next->generation != previous.generation) {
+            if (current == interpreters.end() || current->code_object_generation != previous.generation) {
                 invalidate_frame_identity_cache();
                 break;
             }
         }
-        code_object_generations_.swap(next_code_object_generations_);
+
+        code_object_generations_.clear();
+        for (const auto& interpreter : interpreters) {
+            code_object_generations_.push_back({ interpreter.id, interpreter.code_object_generation });
+        }
         return true;
     }
 #endif
@@ -252,7 +242,6 @@ class EchionSampler
         frame_cache_.postfork_child();
 #if PY_VERSION_HEX >= 0x030e0000
         new (&code_object_generations_) std::vector<InterpreterCodeGeneration>();
-        new (&next_code_object_generations_) std::vector<InterpreterCodeGeneration>();
 #endif
 
         // Also use placement new for all containers touched by the sampling thread.
