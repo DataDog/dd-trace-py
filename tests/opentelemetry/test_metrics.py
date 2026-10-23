@@ -200,6 +200,79 @@ def test_grpclib_exporter_preserves_attribute_types_and_headers(monkeypatch):
 
 
 @skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
+@pytest.mark.asyncio
+async def test_grpclib_exporter_runs_from_active_event_loop(monkeypatch):
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
+
+    requests = []
+
+    async def export(request, *, timeout, metadata):
+        requests.append(request)
+
+    provider, metrics_data = _metrics_data()
+    exporter = OTLPMetricExporter(endpoint="http://127.0.0.1:4317")
+    monkeypatch.setattr(exporter, "_method", export)
+    try:
+        assert exporter.export(metrics_data) is MetricExportResult.SUCCESS
+    finally:
+        exporter.shutdown()
+        provider.shutdown()
+
+    assert len(requests) == 1
+
+
+@skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
+def test_grpclib_exporter_tls_defaults_and_global_configuration(monkeypatch):
+    from ddtrace.internal.opentelemetry.exporters import grpclib_exporter
+
+    class Context:
+        def __init__(self):
+            self.alpn_protocols = None
+            self.cert_chain = None
+
+        def set_alpn_protocols(self, protocols):
+            self.alpn_protocols = protocols
+
+        def load_cert_chain(self, certificate, key):
+            self.cert_chain = (certificate, key)
+
+    context = Context()
+    monkeypatch.setattr(grpclib_exporter.ssl, "create_default_context", lambda cafile: context)
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE", "client.crt")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_KEY", "client.key")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_INSECURE", "false")
+
+    assert (
+        grpclib_exporter._resolve_insecure("collector.example:4317", None, "OTEL_EXPORTER_OTLP_METRICS_INSECURE")
+        is False
+    )
+    assert grpclib_exporter._build_ssl_context("OTEL_EXPORTER_OTLP_METRICS", None, None, None) is context
+    assert context.alpn_protocols == ["h2"]
+    assert context.cert_chain == ("client.crt", "client.key")
+
+
+@skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
+def test_grpclib_exporter_resolves_hosts_without_asyncio_executor(monkeypatch):
+    from ddtrace.internal.opentelemetry.exporters import grpclib_exporter
+    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
+
+    addresses = [(2, 1, 6, "", ("127.0.0.1", 4317))]
+    monkeypatch.setattr(grpclib_exporter.socket, "getaddrinfo", lambda *args, **kwargs: addresses)
+    exporter = OTLPMetricExporter(endpoint="http://collector.example:4317")
+    try:
+        resolved = exporter._loop.run_until_complete(exporter._loop.getaddrinfo("collector.example", 4317))
+    finally:
+        exporter.shutdown()
+
+    assert resolved == addresses
+
+
+@skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
 def test_http_exporter_preserves_attribute_types_headers_and_compression(monkeypatch):
     import gzip
@@ -275,6 +348,31 @@ def test_http_exporter_uses_proxy_without_following_redirects(monkeypatch):
         assert exporter._client is None
         assert any(isinstance(handler, ProxyHandler) for handler in exporter._opener.handlers)
         assert any(isinstance(handler, http_exporter._NoRedirectHandler) for handler in exporter._opener.handlers)
+    finally:
+        exporter.shutdown()
+
+
+@skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
+def test_http_exporter_uses_global_mtls_configuration(monkeypatch):
+    from ddtrace.internal.opentelemetry.exporters import http_exporter
+    from ddtrace.internal.opentelemetry.exporters.http_metric_exporter import OTLPMetricExporter
+
+    class Context:
+        cert_chain = None
+
+        def load_cert_chain(self, certificate, key):
+            self.cert_chain = (certificate, key)
+
+    context = Context()
+    monkeypatch.setattr(http_exporter.ssl, "create_default_context", lambda cafile: context)
+    monkeypatch.setattr(http_exporter, "getproxies", lambda: {})
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE", "client.crt")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_KEY", "client.key")
+    exporter = OTLPMetricExporter(endpoint="https://collector.example:4318/v1/metrics")
+    try:
+        assert exporter._client is None
+        assert context.cert_chain == ("client.crt", "client.key")
     finally:
         exporter.shutdown()
 

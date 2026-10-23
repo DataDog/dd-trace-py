@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 import logging
 import os
+import socket
 import ssl
 from time import monotonic
 from time import sleep
@@ -22,6 +23,7 @@ from opentelemetry.util.re import parse_env_headers
 from ddtrace.internal import forksafe
 from ddtrace.internal.settings import env
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import Thread
 
 
 log = logging.getLogger(__name__)
@@ -92,6 +94,7 @@ class GrpclibExporter:
     def _initialize_transport(self) -> None:
         parsed = _parse_endpoint(self._endpoint)
         self._loop = asyncio.new_event_loop()
+        setattr(self._loop, "getaddrinfo", _getaddrinfo)
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="The loop argument is deprecated", category=DeprecationWarning)
             self._channel = Channel(
@@ -127,7 +130,10 @@ class GrpclibExporter:
                     remaining = deadline - monotonic()
                     if remaining <= 0:
                         return failure
-                    self._loop.run_until_complete(self._method(request, timeout=remaining, metadata=self._headers))
+                    _run_until_complete(
+                        self._loop,
+                        self._method(request, timeout=remaining, metadata=self._headers),
+                    )
                 return success
             except (GRPCError, OSError) as error:
                 remaining = deadline - monotonic()
@@ -178,9 +184,11 @@ def _resolve_insecure(endpoint: str, insecure: bool | None, signal_name: str) ->
     if insecure is not None:
         return insecure
     configured = env.get(signal_name)
+    if configured is None:
+        configured = env.get("OTEL_EXPORTER_OTLP_INSECURE")
     if configured is not None:
         return configured.strip().lower() == "true"
-    return _parse_endpoint(endpoint).scheme != "https"
+    return _parse_endpoint(endpoint).scheme == "http"
 
 
 def _resolve_headers(
@@ -208,8 +216,44 @@ def _build_ssl_context(
 ) -> ssl.SSLContext:
     certificate = certificate_file or env.get(f"{prefix}_CERTIFICATE") or env.get("OTEL_EXPORTER_OTLP_CERTIFICATE")
     context = ssl.create_default_context(cafile=certificate)
-    client_certificate = client_certificate_file or env.get(f"{prefix}_CLIENT_CERTIFICATE")
-    client_key = client_key_file or env.get(f"{prefix}_CLIENT_KEY")
+    context.set_alpn_protocols(["h2"])
+    client_certificate = (
+        client_certificate_file
+        or env.get(f"{prefix}_CLIENT_CERTIFICATE")
+        or env.get("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE")
+    )
+    client_key = client_key_file or env.get(f"{prefix}_CLIENT_KEY") or env.get("OTEL_EXPORTER_OTLP_CLIENT_KEY")
     if client_certificate:
         context.load_cert_chain(client_certificate, client_key)
     return context
+
+
+async def _getaddrinfo(
+    host: str,
+    port: int,
+    **kwargs: int,
+) -> list[tuple[Any, ...]]:
+    return socket.getaddrinfo(host, port, **kwargs)
+
+
+def _run_until_complete(loop: asyncio.AbstractEventLoop, coroutine: Any) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return loop.run_until_complete(coroutine)
+
+    result: list[Any] = []
+    errors: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            result.append(loop.run_until_complete(coroutine))
+        except BaseException as error:
+            errors.append(error)
+
+    thread = Thread(target=run, name="ddtrace-otel-grpc-export")
+    thread.start()
+    thread.join()
+    if errors:
+        raise errors[0]
+    return result[0]

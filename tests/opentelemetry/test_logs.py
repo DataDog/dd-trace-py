@@ -782,6 +782,7 @@ def test_otel_logs_exporter_excludes_self_telemetry():
         # exporter's export-failure warning/error logs -- both must be excluded.
         getLogger("ddtrace.internal.opentelemetry.logs").warning("ddtrace_self_telemetry_log_record")
         getLogger("opentelemetry.exporter.otlp").warning("opentelemetry_self_telemetry_log_record")
+        getLogger("hpack.hpack").warning("http2_transport_log_record")
         # A normal application log record must still be captured and exported.
         getLogger("my_application_logger").warning("application_log_record")
         get_logger_provider().force_flush()
@@ -804,6 +805,9 @@ def test_otel_logs_exporter_excludes_self_telemetry():
     )
     assert not any("opentelemetry_self_telemetry_log_record" in message for message in exported_messages), (
         f"OpenTelemetry self-telemetry log record must not be exported but was found in: {exported_messages}"
+    )
+    assert not any("http2_transport_log_record" in message for message in exported_messages), (
+        f"HTTP/2 transport log record must not be exported but was found in: {exported_messages}"
     )
 
 

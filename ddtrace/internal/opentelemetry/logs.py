@@ -118,7 +118,7 @@ class _SelfTelemetryLogFilter(logging.Filter):
     feed its own telemetry-pipeline logs back into its own telemetry export.
     """
 
-    _EXCLUDED_NAMESPACES = ("ddtrace", "opentelemetry")
+    _EXCLUDED_NAMESPACES = ("ddtrace", "opentelemetry", "grpclib", "h2", "hpack", "hyperframe")
 
     def filter(self, record: logging.LogRecord) -> bool:
         name = record.name

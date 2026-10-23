@@ -78,8 +78,15 @@ class HttpExporter:
             self._headers.append(("Content-Encoding", self._compression))
 
         certificate = certificate_file or _environment(f"{prefix}_CERTIFICATE", "OTEL_EXPORTER_OTLP_CERTIFICATE", "")
-        client_certificate = client_certificate_file or env.get(f"{prefix}_CLIENT_CERTIFICATE") or ""
-        client_key = client_key_file or env.get(f"{prefix}_CLIENT_KEY") or ""
+        client_certificate = (
+            client_certificate_file
+            or env.get(f"{prefix}_CLIENT_CERTIFICATE")
+            or env.get("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE")
+            or ""
+        )
+        client_key = (
+            client_key_file or env.get(f"{prefix}_CLIENT_KEY") or env.get("OTEL_EXPORTER_OTLP_CLIENT_KEY") or ""
+        )
         proxy_handler = _proxy_handler(self._endpoint)
         if certificate or client_certificate or client_key or proxy_handler is not None:
             self._client = None
