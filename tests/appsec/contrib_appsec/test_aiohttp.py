@@ -15,7 +15,6 @@ from aiohttp import ClientError
 from aiohttp import ClientSession
 from aiohttp import web
 import aiohttp.connector
-from aiohttp.multipart import BodyPartReader
 from aiohttp.test_utils import TestServer
 from multidict import CIMultiDict
 import pytest
@@ -196,6 +195,24 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             ({"j": ("\r\nContent-Type: application/json", b"[" * 100000), "f": _ATTACK.encode()}, "POST"),
             ({"q": ("; filename=\"x\"; filename*=UTF-8''", _ATTACK.encode())}, "POST"),
             (
+                {
+                    "f": (
+                        "\r\nContent-Transfer-Encoding: base64\r\nContent-Type: text/plain; charset=idna",
+                        base64.b64encode(_ATTACK.encode()),
+                    )
+                },
+                "POST",
+            ),
+            (
+                {
+                    "f": (
+                        "\r\nContent-Transfer-Encoding: base64\r\nContent-Type: application/json",
+                        base64.b64encode(_ATTACK.encode()),
+                    )
+                },
+                "POST",
+            ),
+            (
                 {"n": ("\r\nContent-Type: multipart/mixed; boundary=in", f"--in\r\n\r\n{_ATTACK}\r\n--in--".encode())},
                 "POST",
             ),
@@ -210,6 +227,8 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             "after_idna_charset",
             "after_deep_json",
             "empty_filename_star",
+            "base64_then_idna_charset",
+            "base64_then_invalid_json",
             "nested",
             "get",
         ],
@@ -242,12 +261,17 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
                 "u": {"c": "d"},
             }
 
-    def test_multipart_gzip_part_follows_aiohttp(self, interface, entry_span, get_entry_span_tag):
-        body, content_type = _multipart_body({"f": ("\r\nContent-Encoding: gzip", gzip.compress(_ATTACK.encode()))})
+    @pytest.mark.parametrize("large_first_part", [False, True])
+    def test_multipart_gzip_part_follows_aiohttp(self, interface, entry_span, get_entry_span_tag, large_first_part):
+        fields: dict[str, Union[bytes, tuple[str, bytes]]] = {}
+        if large_first_part:
+            fields["big"] = ("\r\nContent-Encoding: gzip", gzip.compress(b"a" * 2 * 1024**2))
+        fields["f"] = ("\r\nContent-Encoding: gzip", gzip.compress(_ATTACK.encode()))
+        body, content_type = _multipart_body(fields)
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.post("/stream_upload/", data=body, content_type=content_type)
-            if hasattr(BodyPartReader, "_needs_content_decoding"):
+            if AIOHTTP_VERSION >= (3, 9):
                 assert self.status(response) == 200, self.body(response)
             else:
                 self.assert_blocked(response, entry_span, get_entry_span_tag, "tst-037-003")

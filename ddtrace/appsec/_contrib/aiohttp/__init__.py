@@ -150,10 +150,10 @@ def _on_request_start(ctx: core.ExecutionContext[Any], request: Any, max_body_si
         return
     if request.headers.get("Content-Encoding", "identity").lower() != "identity":
         return
-    ctx.set_item("aiohttp_request_body", _analyze_body(request, media_type, max_body_size))
+    ctx.set_item("aiohttp_request_body", _analyze_body(request, media_type))
 
 
-async def _analyze_body(request: Any, media_type: MediaType, max_body_size: int) -> Optional[bytes]:
+async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
     try:
         raw_body: bytes = await request.content.read()
     except Exception:
@@ -181,7 +181,7 @@ async def _analyze_body(request: Any, media_type: MediaType, max_body_size: int)
             else:
                 from ddtrace.appsec._contrib.aiohttp._multipart import multipart_fields
 
-                body = await multipart_fields(request, raw_body, max_body_size)
+                body = await multipart_fields(request, raw_body)
     except Exception:
         logger.debug("aiohttp::failed to parse request body", exc_info=True)
         return raw_body
