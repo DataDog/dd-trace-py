@@ -67,7 +67,6 @@ inline bool fast_copy_user_disabled = false;
 // Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
 inline bool fast_copy_syscall_fallback = false;
 
-
 inline void
 mark_fast_copy_syscall_fallback()
 {
@@ -76,10 +75,12 @@ mark_fast_copy_syscall_fallback()
 
 // Install/reclaim while we still want memcpy recovery, or while memcpy is still
 // the active copy method. desired covers warmup (desired set, active cleared).
+// Once syscall fallback is latched (usually a foreign handler), do not reclaim
+// through the desired-only path — that would steal the foreign owner's handler.
 inline bool
 fast_copy_handler_ops_enabled()
 {
-    return fast_copy_desired || fast_copy_active;
+    return fast_copy_active || (fast_copy_desired && !fast_copy_syscall_fallback);
 }
 
 // Set at init; survives toggling fast_copy_active.

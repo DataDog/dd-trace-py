@@ -127,7 +127,6 @@ Datadog::ProfilerStats::get_fast_copy_memory_desired() const
     return fast_copy_memory_desired;
 }
 
-
 void
 Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
 {

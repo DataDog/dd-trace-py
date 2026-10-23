@@ -1105,7 +1105,6 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
-
 static PyObject*
 stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
