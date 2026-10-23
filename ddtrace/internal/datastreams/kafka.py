@@ -1,10 +1,12 @@
 import time
 from typing import Any
+from typing import Optional
 
 from confluent_kafka import TopicPartition
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
@@ -23,11 +25,11 @@ disable_header_injection = False
 log = get_logger(__name__)
 
 
-def _headers_byte_size(headers: Any) -> int:
+def _headers_byte_size(headers: Any, exclude: Optional[str] = None) -> int:
     """Size of headers given as a dict or as confluent-kafka's list of (key, value) pairs."""
     entries = headers.items() if isinstance(headers, dict) else headers
     try:
-        return sum(_calculate_byte_size(key) + _calculate_byte_size(value) for key, value in entries)
+        return sum(_calculate_byte_size(key) + _calculate_byte_size(value) for key, value in entries if key != exclude)
     except (TypeError, ValueError):
         return 0
 
@@ -56,7 +58,8 @@ def dsm_kafka_message_produce(
     payload_size = 0
     payload_size += _calculate_byte_size(message)
     payload_size += _calculate_byte_size(key)
-    payload_size += _headers_byte_size(headers)
+    # set_checkpoint adds the size of the pathway header that replaces any forwarded one
+    payload_size += _headers_byte_size(headers, exclude=PROPAGATION_KEY_BASE_64)
 
     edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
     if cluster_id:

@@ -334,6 +334,46 @@ def test_headers_byte_size(headers, expected):
     assert _headers_byte_size(headers) == expected
 
 
+@pytest.mark.parametrize(
+    "headers",
+    [[(PROPAGATION_KEY_BASE_64, b"stale"), ("a", b"b")], {PROPAGATION_KEY_BASE_64: b"stale", "a": b"b"}],
+    ids=["list", "dict"],
+)
+def test_headers_byte_size_exclude(headers):
+    assert _headers_byte_size(headers, exclude=PROPAGATION_KEY_BASE_64) == 2
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [[(PROPAGATION_KEY_BASE_64, b"stale"), ("a", b"b")], {PROPAGATION_KEY_BASE_64: b"stale", "a": b"b"}],
+    ids=["list", "dict"],
+)
+def test_data_streams_produce_payload_size_ignores_forwarded_pathway_header(
+    dsm_processor, producer, empty_kafka_topic, headers
+):
+    """A forwarded pathway header is replaced on produce, so only the new one counts toward payload size."""
+    payload, key = b"payload", "key"
+    expected_payload_size = len(payload) + len(key) + len("a") + len(b"b")
+    expected_payload_size += len(PROPAGATION_KEY_BASE_64) + DSM_TEST_PATH_HEADER_SIZE
+    expected_sketch = DDSketch()
+    expected_sketch.add(float(expected_payload_size))
+
+    with override_config("kafka", dict(distributed_tracing_enabled=False)):
+        producer.produce(empty_kafka_topic, payload, key=key, headers=headers)
+        producer.flush()
+
+    with dsm_processor._lock:
+        produce_stats = [
+            stats
+            for bucket in dsm_processor._buckets.values()
+            for stat_key, stats in bucket.pathway_stats.items()
+            if "direction:out" in stat_key[0]
+        ]
+    assert produce_stats, "no DSM produce checkpoint recorded"
+    for stats in produce_stats:
+        assert stats.payload_size.to_proto() == expected_sketch.to_proto()
+
+
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
 @pytest.mark.parametrize(
     "headers",
