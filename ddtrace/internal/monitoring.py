@@ -111,12 +111,13 @@ class MonitoringEventHandler(ABC):
         being iterated, which produces undefined behavior.
 
     .. warning::
-        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` and
-        ``on_exception_handled`` are not caught -- they propagate into the
-        monitored frame, exactly as sys.monitoring itself would deliver a
-        callback failure. Catch your own exceptions if a handler must not
-        affect the monitored function's behavior. ``on_py_line`` exceptions
-        are caught and logged instead so one sub-system cannot disrupt another.
+        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` are
+        not caught -- they propagate into the monitored frame and skip any
+        later handler for the same event, exactly as sys.monitoring itself
+        would deliver a callback failure. Catch your own exceptions if a
+        handler must not affect the monitored function's behavior.
+        ``on_py_line`` and ``on_exception_handled`` are caught and logged
+        instead so one sub-system cannot disrupt another.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -338,7 +339,10 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
     h = _global_exception_handler
     if h is not None:
-        h.on_exception_handled(code, instruction_offset, exception)
+        try:
+            h.on_exception_handled(code, instruction_offset, exception)
+        except Exception:
+            log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -380,10 +384,15 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
-        tool_id: int = _setup()
         handlers: Optional[_CodeHandlers] = _registry.get(code)
+        created: bool = False
         if handlers is None:
+            # Publish the registration before claiming the tool: while the
+            # registry is non-empty, weakref cleanup cannot release the tool,
+            # so a GC pass during the claim cannot free it under this
+            # registration.
             _registry[code] = handlers = _CodeHandlers()
+            created = True
 
         # Events already provided by an existing handler may have been DISABLE'd by
         # that handler's callback return (LINE, or PY_START when a handler opts in).
@@ -395,11 +404,19 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
         handlers.disabled_events &= local_events
 
-        rearm_events = handler_events & existing_events & handlers.disabled_events
-        if rearm_events:
-            _rearm_local_events(tool_id, code, local_events, rearm_events)
-        else:
-            _set_local_events(tool_id, code, local_events)
+        try:
+            tool_id: int = _setup()
+            rearm_events = handler_events & existing_events & handlers.disabled_events
+            if rearm_events:
+                _rearm_local_events(tool_id, code, local_events, rearm_events)
+            else:
+                _set_local_events(tool_id, code, local_events)
+        except Exception:
+            # A registration published above must not survive a failed claim.
+            if created:
+                del _registry[code]
+            _release_tool_if_unused()
+            raise
 
 
 def refresh(code: CodeType, events: int) -> None:

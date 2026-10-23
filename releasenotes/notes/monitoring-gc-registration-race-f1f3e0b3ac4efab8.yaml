@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where features that use ``sys.monitoring`` (such as Error
+    Tracking handled-exception monitoring) could fail to enable with a ``ValueError`` on
+    Python 3.12 and later when a garbage collection ran during startup.

@@ -1,6 +1,7 @@
 #pragma once
 #include <pybind11/stl.h>
 
+#include <cstdint>
 #include <optional>
 #include <sstream>
 #include <utility>
@@ -156,20 +157,22 @@ SetRangesResult
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map);
 
 bool
-api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid);
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const std::uint64_t contextid);
 
 TaintRangeRefs
-api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id = std::nullopt);
+api_get_ranges(const py::handle& string_input, std::optional<std::uint64_t> context_id = std::nullopt);
 
 void
-api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2, std::optional<size_t> context_id = std::nullopt);
+api_copy_ranges_from_strings(py::handle& str_1,
+                             py::handle& str_2,
+                             std::optional<std::uint64_t> context_id = std::nullopt);
 
 inline void
 api_copy_and_shift_ranges_from_strings(py::handle& str_1,
                                        py::handle& str_2,
                                        int offset,
                                        int new_length = -1,
-                                       std::optional<size_t> context_id = std::nullopt);
+                                       std::optional<std::uint64_t> context_id = std::nullopt);
 
 PyObject*
 api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);

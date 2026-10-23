@@ -188,8 +188,45 @@ LIBDDWAF_CHECKSUMS = {
 }
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v45.0.0 requires rust 1.87.0.
+# libdatadog v46.1.0 requires rust 1.87.0.
 RUST_MINIMUM_VERSION = "1.87.0"
+
+
+SCCACHE_START_MAX_ATTEMPTS = 3
+SCCACHE_START_TIMEOUT = 60
+
+
+def start_sccache_server(sccache_path):
+    """
+    Start the sccache server up front and report whether it is usable.
+
+    The server health-checks the storage backend (S3 in CI) when it starts, and SCCACHE_IGNORE_SERVER_IO_ERROR does
+    not cover that check. Without this, a transient backend error fails the first compile instead of just the cache.
+
+    --dist-status rather than --start-server or --show-stats: it connects to a running server or starts one, and exits
+    nonzero if the storage check fails, as the first compile would. --start-server exits nonzero with "Address in use"
+    when a server is already running, and --show-stats exits 0 with default stats even when no server can start.
+    """
+    for attempt in range(1, SCCACHE_START_MAX_ATTEMPTS + 1):
+        try:
+            subprocess.run(
+                [str(sccache_path), "--dist-status"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=SCCACHE_START_TIMEOUT,
+            )
+            return True
+        except (subprocess.SubprocessError, OSError) as e:
+            # sccache reports why it failed on stderr, not in the exception text
+            reason = (getattr(e, "stderr", None) or "").strip() or e
+            print(
+                "WARNING: sccache server unavailable (attempt %d/%d): %s"
+                % (attempt, SCCACHE_START_MAX_ATTEMPTS, reason)
+            )
+            if attempt < SCCACHE_START_MAX_ATTEMPTS:
+                time.sleep(2**attempt)
+    return False
 
 
 def interpose_sccache():
@@ -207,6 +244,9 @@ def interpose_sccache():
         return
     sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
+        if not start_sccache_server(sccache_path):
+            print("WARNING: sccache server did not start, building without sccache")
+            return
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
         # a wrapper
