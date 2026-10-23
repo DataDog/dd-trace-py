@@ -710,7 +710,7 @@ class DataDogProvider(AbstractProvider):
         if not was_ready:
             return
 
-        # AIDEV-NOTE: The snapshot is already cleared. Update availability before
+        # The snapshot is already cleared. Update availability before
         # dispatch so event handlers see default values and the matching status.
         self._status = ProviderStatus.ERROR
         if hasattr(self, "emit_provider_error") and ProviderEventDetails is not None:
