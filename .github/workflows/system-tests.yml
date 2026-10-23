@@ -15,6 +15,11 @@ permissions:
   contents: read
   packages: write
 
+# Only PR runs are cancelled when a newer commit is pushed; main, merge queue, and scheduled runs always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   should-run:
     runs-on: ubuntu-latest
