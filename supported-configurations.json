@@ -552,6 +552,16 @@
         ]
       }
     ],
+    "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_AWS_TAG_NO_PARAMS": [
       {
         "implementation": "A",
@@ -4025,6 +4035,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AZURE_COSMOS_ENABLED": [
       {
         "implementation": "A",
@@ -5197,6 +5214,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_TYPESAFE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_UNITTEST_ENABLED": [
       {
         "implementation": "A",
@@ -5314,6 +5338,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TYPESAFE_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_TYPESAFE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_UNITTEST_OPERATION_NAME": [
