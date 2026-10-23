@@ -9,7 +9,7 @@ from tests.utils import override_global_config
 
 
 @pytest.fixture(autouse=True)
-def elevenlabs_llmobs(tracer):
+def elevenlabs_llmobs(tracer, monkeypatch):
     LLMObs.disable()
     with override_global_config({"_llmobs_ml_app": "elevenlabs-tests", "_dd_api_key": "test-key"}):
         # Preserve the tracer fixture's DummyWriter; agentless mode replaces it.

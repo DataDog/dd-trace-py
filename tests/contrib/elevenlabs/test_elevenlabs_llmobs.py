@@ -16,7 +16,6 @@ import pytest
 from ddtrace import config
 from ddtrace.contrib.internal.elevenlabs import patch as patch_module
 from ddtrace.contrib.internal.elevenlabs._state import _CURRENT_STATE
-from ddtrace.contrib.trace_utils import wrap
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
@@ -313,7 +312,7 @@ class Socket:
         try:
             value = next(self.events)
         except StopIteration:
-            self.instance._should_stop.set()
+            self.instance.end_session()
             return json.dumps({"type": "end"})
         if value["type"] == "user_transcript":
             self.instance.audio_interface.input_callback(PCM)
@@ -349,8 +348,9 @@ def test_ordinary_sync_sdk_with_normal_event_subset(monkeypatch, test_spans, def
         event("agent_response", 37, agent_response="Answer"),
     ]
     raw = Socket(instance, events, clock)
+    patch_module.unpatch()
     monkeypatch.setattr(conversation, "connect", lambda *args, **kwargs: raw)
-    wrap("elevenlabs.conversational_ai.conversation", "connect", patch_module.traced_connect)
+    patch_module.patch()
     try:
         instance.start_session()
         instance.wait_for_session_end()
@@ -407,7 +407,7 @@ async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans,
             try:
                 value = next(events)
             except StopIteration:
-                instance._should_stop.set()
+                await instance.end_session()
                 return json.dumps({"type": "end"})
             if value["type"] == "user_transcript":
                 await instance.audio_interface.input_callback(PCM)
@@ -420,7 +420,9 @@ async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans,
         async def __aexit__(self, *args):
             return False
 
-    monkeypatch.setattr(patch_module._original_websockets, "connect", lambda *args, **kw: AsyncConnect())
+    import websockets
+
+    monkeypatch.setattr(websockets, "connect", lambda *args, **kw: AsyncConnect())
     try:
         await instance.start_session()
         await instance.wait_for_session_end()
@@ -669,8 +671,9 @@ def test_concurrent_sdk_workers_keep_identical_event_ids_separate(monkeypatch, t
         "time_ns",
         lambda: getattr(worker_clock, "now", BASE_NS),
     )
+    patch_module.unpatch()
     monkeypatch.setattr(conversation, "connect", lambda *args, **kwargs: sockets[_CURRENT_STATE.get().agent_id])
-    wrap("elevenlabs.conversational_ai.conversation", "connect", patch_module.traced_connect)
+    patch_module.patch()
     try:
         for instance in instances:
             instance.start_session()
@@ -996,13 +999,6 @@ def test_captured_parent_is_independent_of_event_processing_context(monkeypatch,
     assert all(span.parent_id == root.span_id and span.trace_id == root.trace_id for span, _ in children)
 
 
-def emit_startup_turn(instance):
-    value = instance._dd_elevenlabs_state
-    receive(value, metadata())
-    receive(value, event("agent_response", 37, agent_response="Retry answer"))
-    value.close()
-
-
 def test_sync_start_failure_retry_captures_new_parent(monkeypatch, tracer, test_spans):
     instance = conversation.Conversation(
         ElevenLabs(api_key="test-key"), "test-agent", requires_auth=True, audio_interface=ScriptAudio()
@@ -1021,7 +1017,10 @@ def test_sync_start_failure_retry_captures_new_parent(monkeypatch, tracer, test_
         assert failed_state.closed
         assert tracer.context_provider.active() is first
     monkeypatch.setattr(instance, "_get_signed_url", lambda: "wss://synthetic")
-    monkeypatch.setattr(conversation.Conversation, "_run", lambda instance, url: emit_startup_turn(instance))
+    patch_module.unpatch()
+    socket = Socket(instance, [metadata(), event("agent_response", 37, agent_response="Retry answer")], Clock())
+    monkeypatch.setattr(conversation, "connect", lambda *args, **kwargs: socket)
+    patch_module.patch()
     with LLMObs.workflow(name="retry-start") as second:
         instance.start_session()
         instance.wait_for_session_end()
@@ -1072,10 +1071,29 @@ async def test_async_start_failure_retry_captures_new_parent(monkeypatch, tracer
     monkeypatch.setattr(loop, "run_in_executor", run_in_executor)
     monkeypatch.setattr(instance, "_get_signed_url", lambda: "wss://synthetic")
 
-    async def run(instance, url):
-        emit_startup_turn(instance)
+    class RetrySocket:
+        def __init__(self):
+            self.events = iter([metadata(), event("agent_response", 37, agent_response="Retry answer")])
 
-    monkeypatch.setattr(conversation.AsyncConversation, "_run", run)
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def send(self, message):
+            pass
+
+        async def recv(self):
+            try:
+                return json.dumps(next(self.events))
+            except StopIteration:
+                await instance.end_session()
+                return json.dumps({"type": "end"})
+
+    import websockets
+
+    monkeypatch.setattr(websockets, "connect", lambda *args, **kwargs: RetrySocket())
     with LLMObs.workflow(name="retry-start") as second:
         await instance.start_session()
         await instance.wait_for_session_end()
@@ -1494,3 +1512,36 @@ def test_tool_result_budget_preserves_conversation_content(state, test_spans, so
         assert len(json.dumps(row)) < config._llmobs_event_size_limit
         if row["meta"]["span"]["kind"] == "tool":
             assert len(row["meta"]["output"]["value"]) <= _state._MAX_TOOL_RESULT_CHARS
+
+
+@pytest.mark.parametrize("ending", ["transport_error", "final_response", "completion"])
+def test_streamed_response_duration_uses_last_accepted_observation(state, test_spans, ending):
+    value, clock = state
+    receive(value, event("agent_chat_response_part", 37, response_id="response", type="start", text="Hello"))
+    clock.advance(2)
+    receive(value, event("agent_chat_response_part", 37, response_id="response", type="delta", text=" world"))
+    expected_duration = 2_000_000_000
+    if ending != "transport_error":
+        clock.advance(3)
+        if ending == "final_response":
+            receive(value, event("agent_response", 37, response_id="response", agent_response="Hello world"))
+        else:
+            receive(value, event("agent_chat_response_part", 37, response_id="response", type="stop", text=""))
+            receive(value, event("agent_response_complete", 37))
+        expected_duration = 5_000_000_000
+        clock.advance(3)
+        receive(value, event("agent_chat_response_part", 37, response_id="response", type="delta", text=" ignored"))
+    else:
+        clock.advance(3)
+
+        class FailingSocket:
+            def recv(self):
+                raise RuntimeError("Stream transport failure")
+
+        with pytest.raises(RuntimeError, match="Stream transport failure"):
+            patch_module._Socket(FailingSocket(), value).recv()
+    value.close()
+    span, data = llm_rows(test_spans)[0]
+    assert span.duration_ns == expected_duration
+    assert data["meta"]["output"]["messages"][0]["content"] == "Hello world"
+    assert data["status"] == ("error" if ending == "transport_error" else "ok")

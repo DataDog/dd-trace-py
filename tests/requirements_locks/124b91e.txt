@@ -7,7 +7,7 @@
 annotated-types==0.7.0
 anyio==4.9.0
 attrs==25.3.0
-certifi==2025.4.26
+certifi==2026.10.19
 charset-normalizer==3.4.2
 click==8.2.1
 colorama==0.4.6

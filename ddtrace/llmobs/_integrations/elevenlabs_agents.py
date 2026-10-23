@@ -259,16 +259,16 @@ class Turn:
         self.tool_results[call_id] = ToolResult(tool_id=call_id, result=text, type="tool_result")
         return text
 
-    def update_response(self, kind: str, data: dict[str, Any]) -> None:
+    def update_response(self, kind: str, data: dict[str, Any]) -> bool:
         response_id = data.get("response_id")
         key = response_id if isinstance(response_id, str) else ""
         if key not in self.responses:
             if len(self.responses) >= _MAX_RESPONSES:
-                return
+                return False
             self.responses[key] = ""
         if kind == "agent_chat_response_part":
             if key in self.completed_responses:
-                return
+                return False
             part = str(data.get("text") or "")
             self.responses[key] = (part if data.get("type") == "start" else self.responses[key] + part)[:100_000]
             if key and data.get("type") == "stop":
@@ -277,6 +277,7 @@ class Turn:
             field = "corrected_agent_response" if kind == "agent_response_correction" else "agent_response"
             self.responses[key] = str(data.get(field) or "")[:100_000]
             self.completed_responses.add(key)
+        return True
 
     def response_text(self) -> str:
         return "\n".join(text for text in self.responses.values() if text)[:100_000]
@@ -289,6 +290,7 @@ class ConversationState:
         self.parent = parent
         self.llmobs_parent = integration.capture_context()
         self.routing_context = get_routing_context()
+        # Bootstrap fallback; initiation metadata supplies the provider conversation ID.
         self.session_id = str(uuid4())
         self.input_rate = 0
         self.output_rate = 0
@@ -483,8 +485,9 @@ class ConversationState:
                 turn.output_audio.append(data.get("audio_base_64"), now, self.output_rate)
                 self._bound_audio(turn)
             elif kind in ("agent_response", "agent_response_correction", "agent_chat_response_part"):
-                turn.update_response(kind, data)
-                if kind != "agent_chat_response_part":
+                # Accepted stream parts are the end-time fallback when
+                # transport stops before a final response; ignored late parts must not extend it.
+                if turn.update_response(kind, data):
                     turn.response_ns = now
             elif kind == "agent_response_complete":
                 turn.response_ns = now

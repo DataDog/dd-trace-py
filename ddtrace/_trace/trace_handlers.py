@@ -15,7 +15,6 @@ from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -59,6 +58,7 @@ from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -1918,6 +1918,7 @@ def listen():
         "django.traced_get_response",
         "django.process_exception",
         "django.func.wrapped",
+        "django.contrib.auth.login",
         # non web frameworks
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
@@ -1969,6 +1970,7 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
+        "django.contrib.auth.login",
         "redis.execute_pipeline",
         "redis.command",
         "azure.durable_functions.patched_activity",

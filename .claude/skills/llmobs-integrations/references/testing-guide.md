@@ -166,7 +166,7 @@ def test_chat_completion(self, anthropic, anthropic_llmobs, test_spans, request_
 | `input_messages` | list[dict] | Input message dicts |
 | `output_messages` | list[dict] | Output message dicts |
 | `metadata` | dict | Request metadata |
-| `metrics` | dict | Token usage metrics |
+| `metrics` | dict | Usage metrics (tokens, server-side tool calls) |
 | `tags` | dict | Additional tags |
 | `tool_definitions` | list[dict] | Tool definition dicts (optional) |
 
@@ -246,6 +246,6 @@ Cover these scenarios for every LLMObs integration:
 3. **Tool use** -- request with tools, verify tool calls in output and tool results in input
 4. **Error handling** -- API error, verify span has error info and LLMObs still records
 5. **Multi-turn** -- conversation with history, verify all messages captured
-6. **Token counting** -- verify all token metrics are correct (including cache tokens)
+6. **Usage metrics** -- verify all token metrics are correct (including cache tokens), and server-side tool counts when the provider runs tools
 7. **Model extraction** -- verify model name is captured from various sources
 8. **Async** -- async client calls, same assertions as sync
