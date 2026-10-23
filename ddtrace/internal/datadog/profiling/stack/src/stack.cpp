@@ -1050,10 +1050,29 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
             uninstall_segv_handler();
         }
     } else if (safe_memcpy_initialized && !segv_handler_installed()) {
-        // A prior disable path uninstalled the recovery handler. Reinstall
-        // here: sampling_thread's once_flag was already consumed on the first start,
-        // so a later start cannot put the handler back.
-        init_segv_catcher();
+        // A prior disable path uninstalled the recovery handler (released), or
+        // both signals are still default/ignored. Reinstall here: sampling_thread's
+        // once_flag was already consumed on the first start, so a later start
+        // cannot put the handler back.
+        //
+        // If a foreign owner took the signals while ours were still notionally
+        // installed (stop left them up; no uninstall), do not overwrite — that
+        // builds us→foreign→us. Sticky takeover + syscall fallback instead.
+        if (!segv_handler_released() && !segv_handlers_are_absent()) {
+            mark_fast_copy_foreign_takeover();
+            if (!set_fast_copy_enabled(false)) {
+                // No syscall fallback: failed_safe_copy is latched; start() will refuse.
+            }
+        } else if (init_segv_catcher() != 0) {
+            // set_fast_copy_enabled(true) already armed safe_memcpy; without both
+            // recovery handlers that would crash on a copy fault.
+            if (!set_fast_copy_enabled(false)) {
+                // failed_safe_copy latched when process_vm_readv is also unavailable.
+            }
+            if (segv_handler_installed()) {
+                uninstall_segv_handler();
+            }
+        }
     }
     seed_fast_copy_profiler_stats();
 

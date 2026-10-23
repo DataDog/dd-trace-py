@@ -313,12 +313,6 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             crashtracker_init(config, receiver_config, metadata)
             excepthook.register(_unhandled_exception_reporter)
 
-            if stack_mod is not None:
-                try:
-                    stack_mod.reinstall_segv_handler()
-                except Exception:  # nosec: B110
-                    pass
-
             def crashtracker_fork_handler() -> None:
                 # We recreate the args here mainly to pass updated runtime_id after
                 # fork
@@ -332,6 +326,14 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
 
             forksafe.register(crashtracker_fork_handler)
         finally:
+            # Reinstall before resume even when init/register raised: uninstall ran
+            # above, and sampling must not resume without the recovery handler.
+            # Idempotent when the success path already left us installed.
+            if stack_mod is not None:
+                try:
+                    stack_mod.reinstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
             if stack_mod is not None and pause_result is True:
                 try:
                     stack_mod.resume_sampling()

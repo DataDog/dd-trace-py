@@ -586,3 +586,48 @@ def test_fast_copy_successful_disable_uninstalls_handler() -> None:
     p.start()
     assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after re-enable"
     p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fast-copy recovery handlers are not used on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_foreign_while_stopped",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_set_true_does_not_overwrite_foreign_while_stopped() -> None:
+    """set_fast_copy(True) must not reclaim over a foreign owner after stop.
+
+    Stop leaves our handlers installed. A library can take SIGSEGV/SIGBUS before
+    the next start; overwriting that owner would build us→foreign→us and skip
+    sticky takeover. Fall back instead.
+    """
+    import signal
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    def _foreign_handler(signum: int, frame: object) -> None:
+        return None
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    p.stop()
+    assert _stack.segv_handler_installed(), "stop should leave the recovery handler installed"
+
+    signal.signal(signal.SIGSEGV, _foreign_handler)
+    signal.signal(signal.SIGBUS, _foreign_handler)
+    assert _stack.segv_handler_installed() is False, "expected foreign owner after stop"
+
+    _stack.set_fast_copy(True)
+    assert _stack.segv_handler_installed() is False, "set_fast_copy(True) must not overwrite a foreign owner"
+    assert _stack.fast_copy_memory_active() is False, "foreign owner must force syscall fallback"
+
+    p.start()
+    assert _stack.fast_copy_memory_active() is False, "sticky foreign takeover must block safe_memcpy after restart"
+    p.stop()
