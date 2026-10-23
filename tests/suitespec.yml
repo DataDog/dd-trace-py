@@ -200,11 +200,9 @@ suites:
       env:
         DD_CIVISIBILITY_FLAKY_RETRY_ENABLED: '0'
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      python: ['3.10']
+      python: ['3.14']
       variants:
         - name: meta-testing
-        - name: meta-testing
-          python: ['3.14']
           dependencies: ['pytest>=9.1.1,<10']
   ddtracerun:
     venvs_per_job: 4
