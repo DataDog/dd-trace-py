@@ -1,5 +1,10 @@
 ---
 components:
+  aws_sdk_bedrock_runtime:
+    - ddtrace/contrib/internal/aws_sdk_bedrock_runtime/*
+    - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime.py
+    - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime_utils.py
+    - ddtrace/contrib/_events/aws_sdk_bedrock_runtime.py
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
   claude_agent_sdk:
@@ -36,6 +41,21 @@ components:
   vllm:
     - ddtrace/contrib/internal/vllm/*
 suites:
+  aws_sdk_bedrock_runtime:
+    paths:
+      - "@bootstrap"
+      - "@core"
+      - "@tracing"
+      - "@contrib"
+      - "@aws_sdk_bedrock_runtime"
+      - "@llmobs"
+      - tests/contrib/aws_sdk_bedrock_runtime/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
+      variants:
+        - name: aws_sdk_bedrock_runtime
+          python: ["3.12", "3.13"]
+          dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
     venvs_per_job: 6
     paths:
@@ -84,9 +104,17 @@ suites:
           dependencies: ['claude-agent-sdk==0.1.49', pytest-asyncio]
         - name: claude_agent_sdk
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: [claude-agent-sdk, pytest-asyncio]
+          # Pinned: claude-agent-sdk deletes old releases from PyPI (to free project
+          # storage), which breaks unpinned locks once the resolved version is gone.
+          # 0.1.22 is the closest surviving release to the previously resolved 0.1.21.
+          dependencies: ['claude-agent-sdk==0.1.22', pytest-asyncio]
+        - name: claude_agent_sdk
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
+          # current SDK line stays covered without latest-tracking (see above).
+          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
   google_adk:
-    venvs_per_job: 3
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -104,7 +132,6 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -138,7 +165,7 @@ suites:
         - name: vertexai
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
-    venvs_per_job: 3
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -230,7 +257,7 @@ suites:
       - tests/cassettes/tests.llmobs.*
     snapshot: true
     no_proxy: true
-    venvs_per_job: 2
+    venvs_per_job: 4
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
       variants:
@@ -255,7 +282,6 @@ suites:
       - tests/contrib/mcp/*
       - tests/snapshots/tests.contrib.mcp.*
     snapshot: true
-    venvs_per_job: 5
     matrix:
       command: pytest {cmdargs} tests/contrib/mcp
       variants:
@@ -287,7 +313,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, mistralai]
   openai:
-    venvs_per_job: 3
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -325,7 +351,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai==1.66.0', pillow]
   langgraph:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -387,7 +413,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
   openai_agents:
-    venvs_per_job: 4
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -421,7 +447,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
   pydantic_ai:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'

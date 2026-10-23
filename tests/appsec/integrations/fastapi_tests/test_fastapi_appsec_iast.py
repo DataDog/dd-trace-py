@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import logging
@@ -5,6 +6,7 @@ import sys
 import typing
 
 from fastapi import Cookie
+from fastapi import FastAPI
 from fastapi import Form
 from fastapi import Header
 from fastapi import Request
@@ -13,13 +15,17 @@ from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
 import requests.utils
+from starlette.background import BackgroundTask
 from starlette.responses import PlainTextResponse
+from starlette.responses import StreamingResponse
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
@@ -1207,3 +1213,70 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
         assert len(list_vulnerabilities) == 16, (
             f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
         )
+
+
+def test_streaming_background_work_cannot_taint_a_later_request(tracer):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100)):
+        _aux_appsec_prepare_tracer(tracer)
+        baseline = debug_context_array_free_slots_number()
+        application = FastAPI()
+
+        async def run():
+            late_work_started = asyncio.Event()
+            replacement_started = asyncio.Event()
+            late_work_done = asyncio.Event()
+            late_values = []
+
+            async def background():
+                late_work_started.set()
+                await replacement_started.wait()
+                late_values.append(taint_pyobject("finished-request", "old-request", "finished-request"))
+                late_work_done.set()
+
+            @application.get("/first")
+            async def first():
+                async def body():
+                    yield b"ok"
+
+                return StreamingResponse(body(), background=BackgroundTask(background))
+
+            @application.get("/replacement")
+            async def replacement(request: Request):
+                own_value = request.query_params["value"]
+                assert get_tainted_ranges(own_value)
+                replacement_started.set()
+                await late_work_done.wait()
+                assert not get_tainted_ranges(late_values[0])
+                assert get_tainted_ranges(own_value)
+                return PlainTextResponse("ok")
+
+            async def invoke(path):
+                async def receive():
+                    await asyncio.Event().wait()
+
+                async def send(message):
+                    pass
+
+                scope = dict(
+                    type="http",
+                    asgi=dict(version="3.0", spec_version="2.3"),
+                    http_version="1.1",
+                    method="GET",
+                    scheme="http",
+                    path=path,
+                    root_path="",
+                    query_string=b"value=own-request",
+                    headers=[],
+                    server=("localhost", 80),
+                    client=("127.0.0.1", 1234),
+                )
+                await application(scope, receive, send)
+
+            first_task = asyncio.create_task(invoke("/first"))
+            await late_work_started.wait()
+            # This task inherits the clean caller context, not the first request's.
+            second_task = asyncio.create_task(invoke("/replacement"))
+            await asyncio.gather(first_task, second_task)
+
+        asyncio.run(asyncio.wait_for(run(), timeout=10))
+        assert debug_context_array_free_slots_number() == baseline

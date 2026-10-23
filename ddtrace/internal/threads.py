@@ -5,26 +5,12 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal.locks import Lock
+from ddtrace.internal.locks import RLock
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-# We try to import the stdlib locks from the _thread module, where they are
-# implemented in C for CPython for most platforms. If that fails, we fall back
-# to the threading module, which provides a pure Python implementation that
-# should work on all platforms. We also make sure to grab a reference to the
-# original lock classes, in case they get patched by monkey-patching libraries
-# like gevent.
-try:
-    from _thread import allocate_lock as Lock
-except ImportError:
-    from threading import Lock
-
-try:
-    from _thread import RLock
-except ImportError:
-    from threading import RLock
 
 
 __all__ = [
@@ -37,7 +23,8 @@ __all__ = [
 
 # Forking state management. This is a barrier to either prevent new threads
 # from being started while forking, or to allow a thread to be started
-# completely if a fork comes in the middle of it.
+# completely if a fork comes in the middle of it. The forksafe hooks are
+# serialized, so at most one fork is in progress at any time.
 _forking = False
 _forking_lock = Lock()
 
@@ -82,6 +69,19 @@ class PeriodicThread(_PeriodicThread):
                 super().start()
             else:
                 _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
+
+    def cancel_if_not_started(self) -> bool:
+        """Return True if the thread is not running, cancelling any start deferred by a fork so it never runs.
+
+        ThreadRestartTimer runs deferred starts under _forking_lock, so holding it here makes the check and the
+        cancellation atomic: the thread cannot start in between.
+        """
+        with _forking_lock:
+            if self.is_started():
+                return False
+
+            _threads_to_start_after_fork[:] = [s for s in _threads_to_start_after_fork if s.__self__ is not self]
+            return True
 
 
 class Thread(PeriodicThread):
