@@ -89,46 +89,43 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
-Web framework callback notifications
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Web framework request hooks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Bottle emits ``WebFrameworkCallbackStartedEvent`` and
-``WebFrameworkCallbackCompletedEvent`` from ``ddtrace.contrib._events.web_framework_callback``
-around its plugin callback. Subscribe using ``core.on(EventClass.event_name, listener)``.
-Register before the callback starts to receive a paired lifecycle. Notifications
-remain active with tracing disabled when either event has a registered listener.
+Synchronous callback integrations can use
+``ddtrace.contrib.internal.trace_utils.run_web_framework_request`` to delegate
+request execution to the shared tracing lifecycle. Bottle uses this helper from
+its supported plugin callback::
 
-These synchronous notifications carry direct metadata fields and an opaque
-``callback_id`` shared by the two events. Nested invocations have distinct IDs.
-The events inherit the common HTTP fields from ``HttpBaseEvent``. Request and
-response header mappings are copied separately for each event. The additional
-``response_header_items`` tuple preserves repeated headers such as ``Set-Cookie``;
-the response mapping contains the last value for each exact header name. Compare
-header names case-insensitively. When constructing an event, nonempty header items
-are authoritative for its response mapping. The inherited response status is
-``None`` when unavailable, including at callback entry.
+    return run_web_framework_request(
+        callback, args, kwargs, prepare=prepare_request, complete=complete_request
+    )
 
-The callback override of ``set_response`` copies the supplied response mapping;
-producers with duplicate response headers should supply ``response_header_items``
-at construction, as Bottle does. Request bodies, response iterators, exception
-objects, and tracebacks are not included. Treat event envelopes as read-only.
-Listener return values are ignored; these events provide no blocking mechanism.
-Ordinary listener exceptions follow core's isolation policy.
+The integration owns framework hooks and metadata extraction. The shared helper
+owns tracing enablement and context entry/exit. ``TracingSubscriber`` and
+``WebFrameworkRequestSubscriber`` own propagation, span creation, HTTP tagging,
+error recording, and span completion through ``core.context_with_event``.
 
-Started runs inside the tracing context, if enabled, before the wrapped callback.
-Completed runs in its finally path, before that context exits, on returns and
-exceptions. Returned or raised Bottle HTTP responses supply their own status and
-headers; ordinary exceptions report a 500 status and a textual error description.
-Raised HTTP responses represent framework control flow, not callback errors.
-Consumers own their setup and cleanup; neither event creates a span or activates
-security products. A completion-only listener is supported.
+``prepare()`` returns a new ``WebFrameworkRequestEvent`` for each invocation,
+before span creation. It supplies request fields and integration-specific tracing
+inputs such as the operation, service, and route. ``complete(event, result, error)``
+runs inside the context after the callback returns or raises, before HTTP tags are
+applied. The error is the original exception, or ``None`` on success; the result is
+``None`` when the callback raised. Hooks update event fields without accessing spans.
+They must not consume response bodies or retain exceptions and tracebacks.
 
-Completion means the plugin callback boundary has exited. It does not mean the
-response was streamed or delivered, and it precedes later Bottle response hooks.
-Notifications follow Bottle's plugin ordering and skip settings. Unmatched routes,
-pre-callback failures, and routes that skip the plugin produce no notifications.
-``WebFrameworkRequestEvent`` and ``WebFrameworkRequestSubscriber`` continue to own
-tracing, with the existing callback-scoped span lifetime.
+When tracing is disabled under the shared enablement policy, the helper invokes the
+callback without running either hook. An ordinary preparation error skips tracing
+and invokes the callback once. An ordinary completion error leaves the callback's
+result or exception intact, and the existing subscriber still completes tracing.
+Process-control exceptions from hooks are not suppressed. These hooks provide
+metadata, not an enforcement or blocking channel.
+
+For Bottle, completion remains at the matched route callback boundary, before
+response iteration and later response hooks. Returned iterables are passed through
+unchanged. Bottle continues to manage plugin ordering, skip settings, installation,
+and callback-cache resets. This helper is synchronous; asynchronous handlers and
+request lifetimes spanning multiple framework callbacks need a separate adapter.
 
 
 Are there norms for integrating with database libraries?
