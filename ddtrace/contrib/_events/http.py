@@ -2,6 +2,8 @@ from collections.abc import Mapping
 from collections.abc import MutableMapping
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import Enum
+from typing import Callable
 from typing import Optional
 from typing import Protocol
 from typing import Union
@@ -68,3 +70,87 @@ class HttpRequestBaseEvent(HttpBaseEvent):
 
     http_operation: str = event_field()
     query: Optional[str] = event_field(default=None)
+
+
+Headers = tuple[tuple[str, str], ...]
+
+
+class HttpRequestPhase(str, Enum):
+    ROUTE_RESOLVED = "route_resolved"
+    COMPLETED = "completed"
+    # Add other phases when their timing and guarantees are defined.
+
+
+@dataclass(frozen=True)
+class HttpRequestData:
+    method: Optional[str] = None
+    url: Optional[str] = None
+    headers: Optional[Headers] = None
+    query: Optional[str] = None
+    route: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class HttpResponseData:
+    status_code: Optional[int] = None
+    headers: Optional[Headers] = None
+
+
+@dataclass(frozen=True)
+class HttpErrorData:
+    type_name: str
+    message: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class HttpRequestSnapshot:
+    """Immutable HTTP data captured at a defined request phase."""
+
+    request_id: str
+    phase: HttpRequestPhase
+    request: HttpRequestData
+    response: Optional[HttpResponseData] = None
+    errors: Optional[tuple[HttpErrorData, ...]] = None
+
+
+@dataclass
+class HttpRequestDataEvent(Event):
+    """Share a request snapshot with APM, AppSec, and other HTTP observers."""
+
+    event_name = "http.request.data"
+    snapshot: HttpRequestSnapshot
+
+
+class HttpEnforcementAction(str, Enum):
+    RESPOND = "respond"
+
+
+@dataclass(frozen=True)
+class HttpBlockingResponse:
+    status_code: int
+    headers: Headers = ()
+    body: bytes = b""
+
+
+@dataclass(frozen=True)
+class HttpInspectionDecision:
+    action: HttpEnforcementAction
+    response: Optional[HttpBlockingResponse] = None
+
+
+class HttpDecisionAcceptance(str, Enum):
+    ACCEPTED = "accepted"
+    INVALID = "invalid"
+    UNSUPPORTED = "unsupported"
+    ALREADY_DECIDED = "already_decided"
+    CLOSED = "closed"
+
+
+@dataclass
+class HttpRequestInspectionEvent(Event):
+    """Offer a request snapshot and decision callback to HTTP inspection consumers."""
+
+    event_name = "http.request.inspect"
+    snapshot: HttpRequestSnapshot
+    supported_actions: frozenset[HttpEnforcementAction]
+    submit: Callable[[HttpInspectionDecision], HttpDecisionAcceptance]
