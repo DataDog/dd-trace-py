@@ -860,12 +860,13 @@
                 "supportedRange": ">=0.0.23",
                 "tested": [
                     "0.0.23",
-                    "0.1.21",
+                    "0.1.22",
                     "0.1.29",
                     "0.1.49"
                 ]
             }
-        ]
+        ],
+        "pinned": true
     },
     {
         "dependencyName": "python-consul",
