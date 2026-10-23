@@ -49,9 +49,10 @@ suites:
           env:
             USE_UVLOOP: '1'
         # TODO(py-315): protobuf 4.22.0 has no cp315 wheels and its sdist does not
-        # build for the test jobs, so the environment fails at setup on 3.15. The
-        # protobuf 3.19.0 row and the unpinned row (7.x) both cover 3.15. Re-add
-        # 3.15 here only with a protobuf 4.x pin that supports it.
+        # build for the test jobs, so the environment fails at setup on 3.15.
+        # Only the unpinned protobuf row (7.x) covers 3.15; the 3.19.0 row stays
+        # on 3.9 and 3.10. Re-add 3.15 here only with a protobuf 4.x pin that
+        # supports it.
         - name: profile
           python: ['3.11', '3.12', '3.13']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
