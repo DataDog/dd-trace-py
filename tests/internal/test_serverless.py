@@ -139,6 +139,7 @@ import {package}
         ("ddtrace.debugging._exception.replay", "SpanExceptionHandler"),
         ("ddtrace.debugging._uploader", "SignalUploader"),
         ("ddtrace.internal", "core"),
+        ("ddtrace.internal.openfeature", "_telemetry"),
         ("ddtrace.internal._exceptions", "BlockingException"),
         ("ddtrace.internal.appsec.product", "start"),
         ("ddtrace.internal.telemetry", "telemetry_writer"),
@@ -174,4 +175,23 @@ def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
     stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
     assert stdout.decode() == ""
     assert stderr.decode() == ""
+    assert status == 0
+
+
+def test_feature_flag_flush_does_not_import_optional_sdk(run_python_code_in_subprocess):
+    code = """
+import sys
+
+class BlockOpenFeature:
+    def find_spec(self, fullname, *args):
+        if fullname == "openfeature" or fullname.startswith("openfeature."):
+            raise ImportError("OpenFeature is not installed")
+
+sys.meta_path.insert(0, BlockOpenFeature())
+from ddtrace.internal.openfeature import _telemetry
+assert _telemetry.FLUSH_API_VERSION == 1
+assert _telemetry.flush(0.01) == "completed"
+assert _telemetry._coordinator.worker is None
+"""
+    _, _, status, _ = run_python_code_in_subprocess(code)
     assert status == 0

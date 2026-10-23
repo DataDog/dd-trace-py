@@ -51,6 +51,8 @@ from ddtrace.internal.openfeature._evp_transport import get_feature_flag_evp_rou
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_pii import normalize_targeting_key
 from ddtrace.internal.openfeature._flageval_pii import prefixed_targeting_key_digest
+from ddtrace.internal.openfeature._telemetry import Progress
+from ddtrace.internal.openfeature._telemetry import register
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -752,6 +754,9 @@ class _WriterProcessState:
         # value inherited from a parent mid-shutdown would close the child intake
         # permanently.
         self.accepting_events = True
+        self.drained = 0
+        self.batch_target = 0
+        self.aggregation_failed = False
 
 
 # ---------------------------------------------------------------------------
@@ -805,6 +810,10 @@ class FlagEvaluationWriter(PeriodicService):
         self._lock = forksafe.Lock()
         self._lifecycle_lock = forksafe.Lock()
         self._counter_lock = forksafe.Lock()
+        self._drain_lock = forksafe.RLock()
+        self._flush_lock = forksafe.Lock()
+        self._progress = typing.cast(Progress, forksafe.ResetObject(Progress))
+        register(self)
 
         self._drain_worker: typing.Optional[PeriodicThread] = None
 
@@ -955,6 +964,7 @@ class FlagEvaluationWriter(PeriodicService):
                             self._context_truncated[reason] = self._context_truncated.get(reason, 0) + 1
                 try:
                     self._queue.put_nowait(bounded_event)
+                    self._progress.accept()
                 except queue.Full:
                     with self._counter_lock:
                         self._dropped_queue += 1
@@ -1004,26 +1014,40 @@ class FlagEvaluationWriter(PeriodicService):
         super()._stop_service(*args, **kwargs)
 
     def periodic(self) -> None:
+        # Serialize through endpoint acknowledgement, including overlapping
+        # invocation, periodic, and shutdown flushes.
+        with self._flush_lock:
+            success = False
+            try:
+                success = self._flush()
+            finally:
+                self._progress.finish(self._process_state.batch_target, success)
+
+    def _flush(self) -> bool:
         """
         Drain the queue, aggregate, and flush to the EVP proxy.
 
         Called periodically by the PeriodicService thread (every DEFAULT_FLUSH_INTERVAL).
         Also callable directly in tests.
         """
-        # 1. Drain the queue into the aggregation maps.
-        self._drain_queue()
+        with self._drain_lock:
+            # 1. Drain the queue into the aggregation maps.
+            self._drain_queue()
 
-        # 2. Atomically snapshot/reset aggregation and hook-path counters under their
-        # independent locks. Enqueue never contends on aggregation serialization.
-        with self._lock:
-            dropped_degraded = self._dropped_degraded_overflow
-            full = self._full
-            degraded = self._degraded
-            self._full = {}
-            self._degraded = {}
-            self._per_flag_count = {}
-            self._global_count = 0
-            self._dropped_degraded_overflow = 0
+            # 2. Atomically snapshot/reset aggregation and hook-path counters under their
+            # independent locks. Enqueue never contends on aggregation serialization.
+            with self._lock:
+                dropped_degraded = self._dropped_degraded_overflow
+                full = self._full
+                degraded = self._degraded
+                self._full = {}
+                self._degraded = {}
+                self._per_flag_count = {}
+                self._global_count = 0
+                self._dropped_degraded_overflow = 0
+            self._process_state.batch_target = self._process_state.drained
+            aggregation_failed = self._process_state.aggregation_failed
+            self._process_state.aggregation_failed = False
         with self._counter_lock:
             dropped_pre_queue = self._dropped_pre_queue
             dropped_queue = self._dropped_queue
@@ -1061,7 +1085,7 @@ class FlagEvaluationWriter(PeriodicService):
         _count_metric(FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC, targeting_key_omitted, "invalid")
 
         if not full and not degraded:
-            return
+            return not (dropped_degraded or aggregation_failed)
 
         # 3. Build payload.
         flush_time_ms = int(time.time() * 1000)
@@ -1108,7 +1132,7 @@ class FlagEvaluationWriter(PeriodicService):
         _count_metric(FLAG_EVALUATION_DEGRADED_METRIC, degraded_count, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
 
         if not events:
-            return
+            return not (dropped_degraded or aggregation_failed)
 
         # 4. Encode under the EVP payload limit and POST.
         context: dict[str, str] = {}
@@ -1138,14 +1162,23 @@ class FlagEvaluationWriter(PeriodicService):
         if len(result.payloads) > 1:
             _count_metric(FLAG_EVALUATION_SPLITS_METRIC, len(result.payloads) - 1)
 
+        success = not (
+            aggregation_failed or dropped_degraded or result.dropped_payload_limit or result.dropped_serialization_error
+        )
         for payload, num_events in result.payloads:
-            self._send_payload(payload, num_events)
+            success = self._send_payload(payload, num_events) and success
+        return success
 
     def on_shutdown(self) -> None:  # type: ignore[override]
         """Close intake and flush without joining another periodic worker."""
         with self._lifecycle_lock:
             self._accepting_events = False
         self._request_drain_worker_stop()
+        # A stopped drain worker owns its dequeued event and final callback.
+        # Do not turn the application's bounded join into an unbounded wait.
+        if not self._drain_lock.acquire(blocking=False):
+            return
+        self._drain_lock.release()
         self.periodic()
 
     # ------------------------------------------------------------------
@@ -1158,12 +1191,21 @@ class FlagEvaluationWriter(PeriodicService):
 
     def _drain_queue(self) -> None:
         """Drain all pending events from the queue and aggregate them."""
-        while True:
-            try:
-                event = self._queue.get_nowait()
-            except queue.Empty:
-                break
-            self._aggregate(event)
+        with self._drain_lock:
+            while True:
+                try:
+                    event = self._queue.get_nowait()
+                except queue.Empty:
+                    break
+                try:
+                    self._aggregate(event)
+                except Exception as exc:
+                    self._process_state.aggregation_failed = True
+                    # Caller-defined values can raise; do not log their contents.
+                    logger.debug("FlagEvaluationWriter: aggregation error (%s)", type(exc).__name__)
+                finally:
+                    # Every dequeued event must settle, including failed aggregation.
+                    self._process_state.drained += 1
 
     def _request_drain_worker_stop(self) -> bool:
         worker = self._drain_worker
@@ -1307,11 +1349,11 @@ class FlagEvaluationWriter(PeriodicService):
             observe_full_evaluation_data=event.observe_full_evaluation_data is True,
         )
 
-    def _send_payload(self, payload: bytes, num_events: int) -> None:
+    def _send_payload(self, payload: bytes, num_events: int) -> bool:
         """POST the encoded payload through the selected EVP route."""
         route = self._route_selector.select()
         if route is None:
-            return
+            return False
 
         def send_once(active_route: EVPRoute) -> httplib.HTTPResponse:
             endpoint = active_route.endpoint("/api/v2/flagevaluation")
@@ -1344,9 +1386,11 @@ class FlagEvaluationWriter(PeriodicService):
                 conn.close()
 
         try:
-            self._route_selector.send(route, send_once)
+            response = self._route_selector.send(route, send_once)
+            return 200 <= response.status < 300
         except Exception:
             logger.debug("FlagEvaluationWriter: error sending %d events", num_events, exc_info=True)
+            return False
 
 
 # ---------------------------------------------------------------------------
