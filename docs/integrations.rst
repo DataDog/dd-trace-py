@@ -271,6 +271,13 @@ google-adk
 .. automodule:: ddtrace.contrib.internal.google_adk
 
 
+.. _aws_sdk_bedrock_runtime:
+
+aws-sdk-bedrock-runtime
+^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aws_sdk_bedrock_runtime
+
+
 .. _google_genai:
 
 google-genai
@@ -634,6 +641,13 @@ Tornado
 Trio
 ^^^^
 .. automodule:: ddtrace.contrib.internal.trio
+
+
+.. _typesafe:
+
+TypeSafe
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.typesafe
 
 
 .. _unittest:
