@@ -60,11 +60,19 @@ Add to `INTEGRATION_CONFIGS` frozenset in `ddtrace/internal/settings/_config.py`
 in alphabetical order — this allows users to configure the integration before
 it's patched. **Without this entry, integration config settings are silently ignored.**
 
+Add `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` describing the
+integration's packages, categories, and systems. Its `packages` must match the
+registry `dependency_names` you just added. See "What is an integration manifest?" in
+[Contributing Integrations](../../../../docs/contributing-integrations.rst) for
+the field rules and for the rare cases where modifying an existing integration requires a manifest update.
+
 ## 3. Create LLMObs integration (LLM only)
 
 Create `ddtrace/llmobs/_integrations/{name}.py` subclassing `BaseLLMIntegration`.
 Read `ddtrace/llmobs/_integrations/anthropic.py` for the canonical pattern.
 Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__`).
+Connect it to the contrib with `LlmEvents` subscribers in `ddtrace/llmobs/_contrib/{name}/`
+(see `ddtrace/llmobs/_contrib/anthropic/`) so the contrib does not import `ddtrace.llmobs`.
 
 See the **llmobs-integrations** skill for the full LLM-specific implementation guide.
 
@@ -127,6 +135,7 @@ Every new integration must complete ALL applicable items:
 - [ ] `ddtrace/_monkey.py` -- `PATCH_MODULES` entry in alphabetical order
 - [ ] `scripts/integration_registry/registry.yaml` -- dependency names and tested version range
 - [ ] `ddtrace/internal/settings/_config.py` -- `INTEGRATION_CONFIGS` frozenset entry
+- [ ] `ddtrace/contrib/internal/{name}/{name}.manifest.yaml` -- integration manifest (see "What is an integration manifest?" in [Contributing Integrations](../../../../docs/contributing-integrations.rst))
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` -- import + `__all__` entry (LLM only)
 
 ### Patch Code
@@ -163,3 +172,11 @@ Every new integration must complete ALL applicable items:
 - [ ] `docs/integrations.rst` -- automodule entry in alphabetical order (non-LLM only)
 - [ ] `docs/index.rst` -- add integration to the docs index
 - [ ] Release note -- use the **releasenote** skill
+
+## OpenTelemetry HTTP semantics
+
+Shared HTTP span attributes live in ddtrace/_trace/otel/http/tags.py; resource
+naming and ownership live in ddtrace/_trace/otel/http/resource.py.
+set_http_meta writes the OTel attributes through _set_http_meta_otel when the
+semantics flag is enabled, and the Datadog ones through _set_http_meta
+otherwise. Preserve user resource replacements with the resource helpers.

@@ -1,9 +1,9 @@
 import pytest
 
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
-from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.utils.endpoint import SimplifiedEndpointComputer
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import override_global_config
@@ -101,13 +101,33 @@ class TestResourceRenaming:
         processor.on_span_finish(span)
         assert span.get_tag(http.ENDPOINT) is None
 
-    def test_processor_without_route(self):
+    @pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS])
+    @pytest.mark.parametrize(
+        "url,expected", [("https://example.com/api/users/123", "/api/users/{param:int}"), ("https://example.com/", "/")]
+    )
+    def test_processor_without_route(self, span_type, url, expected):
         processor = ResourceRenamingProcessor()
-        span = Span("test", context=Context(), span_type=SpanTypes.WEB)
-        span.set_tag(http.URL, "https://example.com/api/users/123")
+        span = Span("test", context=Context(), span_type=span_type)
+        span.set_tag(http.URL, url)
 
         processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+        assert span.get_tag(http.ENDPOINT) == expected
+
+    @pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS])
+    @pytest.mark.parametrize("url", [None, ""])
+    @pytest.mark.parametrize("always_simplified_endpoint", [False, True])
+    def test_processor_without_url(self, span_type, url, always_simplified_endpoint):
+        processor = ResourceRenamingProcessor()
+        span = Span("test", context=Context(), span_type=span_type)
+        if url is not None:
+            span.set_tag(http.URL, url)
+
+        with override_global_config(
+            dict(_trace_resource_renaming_always_simplified_endpoint=always_simplified_endpoint)
+        ):
+            processor.on_span_finish(span)
+
+        assert span.get_tag(http.ENDPOINT) is None
 
     def test_processor_always_simplified_endpoint(self):
         processor = ResourceRenamingProcessor()
@@ -119,3 +139,37 @@ class TestResourceRenaming:
             processor.on_span_finish(span)
         # Should use simplified endpoint even when route exists
         assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_processor_reads_otel_client_span_attributes():
+    from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
+    from ddtrace.ext import SpanTypes
+    from ddtrace.ext import http
+    from ddtrace.internal.otel_semantics import http as otel_http
+    from ddtrace.trace import Span
+
+    processor = ResourceRenamingProcessor()
+
+    span = Span("test", span_type=SpanTypes.HTTP)
+    span._set_attribute(otel_http.URL_FULL, "https://example.com/api/users/123")
+    span._set_attribute(otel_http.RESPONSE_STATUS_CODE, 200)
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+
+    span = Span("test", span_type=SpanTypes.HTTP)
+    span._set_attribute(otel_http.URL_FULL, "https://example.com/missing")
+    span._set_attribute(otel_http.RESPONSE_STATUS_CODE, 404)
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) is None
+
+    span = Span("test", span_type=SpanTypes.WEB)
+    span.set_tag(http.URL, "https://example.com/api/orders/456")
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/orders/{param:int}"
+
+    # A relative http.url set by user code drops its query and fragment like an absolute one.
+    span = Span("test", span_type=SpanTypes.WEB)
+    span.set_tag(http.URL, "/api/orders/456?view=full#top")
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/orders/{param:int}"

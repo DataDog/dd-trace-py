@@ -1,4 +1,3 @@
-import hashlib
 import os
 import subprocess
 import sys
@@ -97,9 +96,3 @@ def run_subcommunicatenoshell():
     subp.wait()
     ret = subp.returncode
     return str(ret), 200
-
-
-@app.route("/md5sum")
-def md5sum():
-    data = request.args.get("q").encode()
-    return hashlib.md5(data).hexdigest()

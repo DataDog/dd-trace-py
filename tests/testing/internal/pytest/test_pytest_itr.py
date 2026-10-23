@@ -7,6 +7,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -83,6 +84,10 @@ class TestITR:
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+
     def test_itr_disabled(self, pytester: Pytester) -> None:
         """Test that IntelligentTestRunner does not skip tests when ITR is disabled."""
         # Create a test file with multiple tests
@@ -140,6 +145,10 @@ class TestITR:
         assert session["content"]["meta"].get("_dd.ci.itr.tests_skipped") is None
         assert session["content"]["meta"].get("test.itr.tests_skipping.type") is None
         assert session["content"]["metrics"].get("test.itr.tests_skipping.count") is None
+
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert "test.itr.tests_skipping.count" not in suite["content"]["metrics"]
+        assert "_dd.ci.itr.tests_skipped" not in suite["content"]["meta"]
 
     def test_itr_unskippable_not_emitted_when_skipping_disabled(self, pytester: Pytester) -> None:
         """Regression: unskippable tag and telemetry must not be emitted when ITR skipping is disabled."""
@@ -317,7 +326,18 @@ class TestITR:
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
 
-    def test_itr_suite_level_emits_skip_events(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        # File-level coverage is the default on Python 3.12+: every file reports only the line-0 sentinel.
+        file_level_bitmap = bytes(CoverageLines.from_list([0]).to_bytes())
+        bitmaps = {f["filename"]: bytes(f["bitmap"]) for f in coverage_events[0]["files"]}
+        if sys.version_info >= (3, 12):
+            assert all(bitmap == file_level_bitmap for bitmap in bitmaps.values())
+        else:
+            assert bitmaps["/test_foo.py"] != file_level_bitmap
+
+    @pytest.mark.parametrize("skip_all", [False, True])
+    def test_itr_suite_level_emits_skip_events(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, skip_all: bool
+    ) -> None:
         """Suite-level ITR: ignored file gets a test_suite_end with status=skip, no test events inside."""
         pytester.makepyfile(
             test_skippable="""
@@ -333,6 +353,8 @@ class TestITR:
         skippable_items: set[t.Union[TestRef, SuiteRef]] = {
             SuiteRef(ModuleRef(""), "test_skippable.py"),
         }
+        if skip_all:
+            skippable_items.add(SuiteRef(ModuleRef(""), "test_running.py"))
 
         monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
 
@@ -347,12 +369,13 @@ class TestITR:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        # Only test_running.py::test_passes ran; test_skippable.py was ignored before import.
-        result.assertoutcome(passed=1)
+        running_tests = 0 if skip_all else 1
+        result.assertoutcome(passed=running_tests)
+        assert len(list(event_capture.events_by_type("test"))) == running_tests
 
         all_events = list(event_capture.events())
-        # 1 test + 2 suites + 1 module + 1 session = 5 (no test events for the skipped suite)
-        assert len(all_events) == 5
+        # 2 suites + 1 module + 1 session, plus any test that was not skipped before collection.
+        assert len(all_events) == 4 + running_tests
 
         suite_events = list(event_capture.events_by_type("test_suite_end"))
         assert len(suite_events) == 2
@@ -360,14 +383,19 @@ class TestITR:
         skipped_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_skippable.py")
         assert skipped_suite["content"]["meta"]["test.status"] == "skip"
         assert skipped_suite["content"]["meta"]["test.skipped_by_itr"] == "true"
+        assert skipped_suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert skipped_suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
 
         running_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_running.py")
-        assert running_suite["content"]["meta"]["test.status"] == "pass"
-        assert running_suite["content"]["meta"].get("test.skipped_by_itr") is None
+        assert running_suite["content"]["meta"]["test.status"] == ("skip" if skip_all else "pass")
+        assert running_suite["content"]["meta"].get("test.skipped_by_itr") == ("true" if skip_all else None)
+        assert running_suite["content"]["metrics"]["test.itr.tests_skipping.count"] == (1 if skip_all else 0)
+        assert running_suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == ("true" if skip_all else "false")
 
         [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"]["test.status"] == ("skip" if skip_all else "pass")
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "suite"
-        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == (2 if skip_all else 1)
         assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
         assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
 

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    falcon: Fixes an issue where a Falcon application returns a 500 Internal Server Error
+    instead of the intended response when ``resp.status`` is set to an integer, an
+    ``http.HTTPStatus`` member, or bytes, or when ``resp.status_code`` is set (Falcon 4).

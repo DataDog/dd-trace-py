@@ -7,6 +7,8 @@ components:
   dd_coverage:
     - ddtrace/internal/coverage/*
   pytest:
+    - ddtrace/testing/internal/pytest/*
+    - ddtrace/testing/internal/*
     - ddtrace/contrib/internal/pytest/*
     - ddtrace/contrib/internal/pytest_bdd/*
     - ddtrace/contrib/internal/pytest_benchmark/*
@@ -36,7 +38,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
       variants:
         - name: ci_visibility
           dependencies: [msgpack, pytest-randomly, pytest-xdist, gevent]
@@ -60,7 +62,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
       variants:
         - name: ci_visibility:snapshot
           dependencies: [msgpack, pytest-randomly, gevent]
@@ -74,87 +76,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest --no-cov {cmdargs} tests/coverage -s
-      variants: [{name: dd_coverage}]
-  pytest:
-    venvs_per_job: 9
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@pytest'
-      - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
-      - '@testing'
-      - tests/contrib/pytest/*
-      - tests/contrib/internal/coverage/*
-    snapshot: true
-    pattern: 'pytest$'
-    matrix:
-      command: >-
-        pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/contrib/pytest/
-        --ignore=tests/contrib/pytest/snapshot/
-      env:
-        DD_AGENT_PORT: '9126'
-        DD_PYTEST_USE_NEW_PLUGIN: 'false'
-        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      variants:
-        - name: pytest
-          python: ['3.9']
-          dependencies: ['pytest~=6.0', 'pytest-mock==2.0.0', 'pytest-cov==2.9.0', pytest-randomly, pytest-xdist, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest
-          python: ['3.9']
-          dependencies: ['pytest~=7.0', 'pytest-mock==2.0.0', 'pytest-cov==2.12.0', pytest-randomly, pytest-xdist, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest
-          python: ['3.9']
-          dependencies: ['pytest-mock==2.0.0', 'pytest-cov==2.12.0', pytest-randomly, pytest-xdist, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest
-          python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: ['pytest~=6.0', pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest
-          python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: ['pytest~=7.0', pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest
-          python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
-  pytest:snapshot:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@pytest'
-      - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
-      - '@testing'
-      - tests/contrib/pytest/snapshot/*
-      - tests/snapshots/tests.contrib.pytest.*
-    snapshot: true
-    pattern: 'pytest:snapshot'
-    matrix:
-      command: pytest {cmdargs} --ddtrace tests/contrib/pytest/snapshot/
-      env:
-        DD_AGENT_PORT: '9126'
-        DD_PYTEST_USE_NEW_PLUGIN: 'false'
-        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      variants:
-        - name: pytest:snapshot
-          python: ['3.9']
-          dependencies: ['pytest~=7.2', pytest-randomly, pytest-xdist, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest:snapshot
-          python: ['3.9']
-          dependencies: ['pytest~=8.0', pytest-randomly, pytest-xdist, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest:snapshot
-          python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: ['pytest~=7.2', pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest:snapshot
-          python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: ['pytest~=8.0', pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
-        - name: pytest:snapshot
-          python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
+      variants: [{name: dd_coverage, dependencies: [asgiref]}]
   pytest_benchmark:
     paths:
       - '@bootstrap'
@@ -166,10 +88,8 @@ suites:
       - '@coverage'
       - '@codeowners'
       - '@testing'
-      - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_benchmark.py
       - tests/contrib/internal/coverage/*
-      - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
     matrix:
       command: pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py
@@ -189,10 +109,8 @@ suites:
       - '@coverage'
       - '@codeowners'
       - '@testing'
-      - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_bdd.py
       - tests/contrib/internal/coverage/*
-      - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py
@@ -215,10 +133,8 @@ suites:
       - '@coverage'
       - '@codeowners'
       - '@testing'
-      - tests/contrib/pytest/*
       - tests/testing/internal/pytest/test_pytest_flaky.py
       - tests/contrib/internal/coverage/*
-      - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
     pattern: 'pytest:flaky'
     matrix:
@@ -230,7 +146,7 @@ suites:
           integration: pytest
           dependencies: [flaky, pytest-randomly]
   testing:
-    venvs_per_job: 4
+    venvs_per_job: 6
     retry: 2
     paths:
       - '@bootstrap'
@@ -255,21 +171,27 @@ suites:
       variants:
         - name: testing
           python: ['3.9']
+          integration: pytest
           dependencies: ['pytest==6.2.5', pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: testing
           python: ['3.9']
+          integration: pytest
           dependencies: ['pytest~=7.2', pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: testing
           python: ['3.9']
+          integration: pytest
           dependencies: ['pytest~=8.0', pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: testing
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          integration: pytest
           dependencies: ['pytest~=7.2', pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: testing
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          integration: pytest
           dependencies: ['pytest~=8.0', pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: testing
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          integration: pytest
           dependencies: [pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   selenium:
     env:
@@ -296,9 +218,8 @@ suites:
       variants:
         - name: selenium-pytest
           dependencies: ['selenium~=4.0', webdriver-manager]
-          python: ['3.10', '3.12']
+          python: ['3.10', '3.12', '3.14']
   unittest:
-    venvs_per_job: 5
     paths:
       - '@contrib'
       - '@unittest'

@@ -1,3 +1,4 @@
+from contextlib import closing
 from unittest import mock
 
 import pymysql
@@ -276,6 +277,11 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             self.conn = pymysql.connect(**MYSQL_CONFIG)
             assert not self.conn._closed
         return self.conn
+
+    def test_byte_query_uses_connection_encoding(self):
+        for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+            with closing(pymysql.connect(**MYSQL_CONFIG, charset=charset)) as conn:
+                shared_tests._test_byte_query_event(conn.cursor(), codec, "pymysql")
 
     def test_patch_unpatch(self):
         unpatch()

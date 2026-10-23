@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+from collections.abc import Iterator
 from collections.abc import Mapping
 import functools
 import sys
@@ -8,14 +10,11 @@ from typing import Optional
 from typing import Protocol
 from urllib import parse
 
-import wrapt
-
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -57,14 +56,9 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
-from ddtrace.ext.kafka import MESSAGE_KEY
-from ddtrace.ext.kafka import MESSAGE_OFFSET
-from ddtrace.ext.kafka import PARTITION
-from ddtrace.ext.kafka import RECEIVED_MESSAGE
-from ddtrace.ext.kafka import TOMBSTONE
-from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -96,27 +90,39 @@ _WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
 
-class _TracedIterable(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False):
-        self._self_wrapped_is_iterator = wrapped_is_iterator
-        if self._self_wrapped_is_iterator:
-            super().__init__(wrapped)
-            self._wrapped_iterator = iter(wrapped)
-        else:
-            super().__init__(iter(wrapped))
+class _TracedIterableSpan(Protocol):
+    def finish(self) -> None: ...
+
+    def set_exc_info(
+        self,
+        exc_type: type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+    ) -> None: ...
+
+
+class _TracedIterable:
+    __slots__ = ("__wrapped__", "_wrapped_iterator", "_self_span", "_self_parent_span", "_self_span_finished")
+
+    def __init__(
+        self,
+        wrapped: Iterable[Any],
+        span: _TracedIterableSpan,
+        parent_span: _TracedIterableSpan,
+        wrapped_is_iterator: bool = False,
+    ) -> None:
+        self._wrapped_iterator: Iterator[Any] = iter(wrapped)
+        self.__wrapped__ = wrapped if wrapped_is_iterator else self._wrapped_iterator
         self._self_span = span
         self._self_parent_span = parent_span
         self._self_span_finished = False
 
-    def __iter__(self):
+    def __iter__(self) -> "_TracedIterable":
         return self
 
-    def __next__(self):
+    def __next__(self) -> Any:
         try:
-            if self._self_wrapped_is_iterator:
-                return next(self._wrapped_iterator)
-            else:
-                return next(self.__wrapped__)
+            return next(self._wrapped_iterator)
         except StopIteration:
             self._finish_spans()
             raise
@@ -125,24 +131,38 @@ class _TracedIterable(wrapt.ObjectProxy):
             self._finish_spans()
             raise
 
-    def close(self):
-        if getattr(self.__wrapped__, "close", None):
-            self.__wrapped__.close()
+    def close(self) -> None:
+        if (close := getattr(self.__wrapped__, "close", None)) is not None:
+            close()
         self._finish_spans()
 
-    def _finish_spans(self):
+    def _finish_spans(self) -> None:
         if not self._self_span_finished:
             self._self_span.finish()
             self._self_parent_span.finish()
             self._self_span_finished = True
 
-    def __getattribute__(self, name):
+    @property  # type: ignore[misc]
+    def __class__(self) -> type[Any]:
+        return self.__wrapped__.__class__
+
+    def __getattr__(self, name: str) -> Any:
         if name == "__len__":
-            # __len__ is defined by the parent class, wrapt.ObjectProxy.
-            # However this attribute should not be defined for iterables.
-            # By definition, iterables should not support len(...).
+            # WSGI iterables must not expose the wrapped object's length.
             raise AttributeError("__len__ is not supported")
-        return super().__getattribute__(name)
+        return getattr(self.__wrapped__, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in self.__slots__:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self.__wrapped__, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in self.__slots__:
+            object.__delattr__(self, name)
+        else:
+            delattr(self.__wrapped__, name)
 
 
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
@@ -478,7 +498,9 @@ def _on_app_exception(ctx):
     req_span.finish()
 
 
-def _on_request_complete(ctx, closing_iterable, app_is_iterator):
+def _on_request_complete(
+    ctx: core.ExecutionContext, closing_iterable: Iterable[Any], app_is_iterator: bool
+) -> _TracedIterable:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
@@ -1349,137 +1371,6 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         _init_websocket_message_counters(scope)
 
 
-def _on_aiokafka_send_start(
-    _topic: str,
-    send_value: Optional[bytes],
-    send_key: Optional[bytes],
-    headers: list[tuple[str, bytes]],
-    ctx: core.ExecutionContext,
-    partition: Optional[int],
-) -> None:
-    span = span_from_context(ctx)
-
-    span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
-    span._set_attribute(TOMBSTONE, str(send_value is None))
-    span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    if partition is not None:
-        span._set_attribute(PARTITION, partition)
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if config.aiokafka.distributed_tracing_enabled:
-        # inject headers with Datadog tags:
-        tracing_headers: dict[str, str] = {}
-        HTTPPropagator.inject(span.context, tracing_headers)
-        for key, value in tracing_headers.items():
-            headers.append((key, value.encode("utf-8")))
-
-
-def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext,
-    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    record_metadata: Optional[Any],
-) -> None:
-    span = span_from_context(ctx)
-    if span is not None and record_metadata is not None:
-        partition = getattr(record_metadata, "partition", None)
-        offset = getattr(record_metadata, "offset", None)
-        if isinstance(partition, int):
-            span._set_attribute(PARTITION, partition)
-        if isinstance(offset, int):
-            span._set_attribute(MESSAGE_OFFSET, offset)
-    _finish_span(ctx, exc_info)
-
-
-def _on_aiokafka_getone_message(
-    _instance: Any,
-    ctx: core.ExecutionContext,
-    start_ns: int,
-    message: Optional[Any],
-    err: Optional[BaseException],
-) -> None:
-    span = span_from_context(ctx)
-
-    span.start_ns = start_ns
-    span._set_attribute(RECEIVED_MESSAGE, str(message is not None))
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if message is not None:
-        message_key = message.key.decode("utf-8") if message.key else None
-        topic = str(message.topic)
-        span._set_attribute(TOPIC, topic)
-        span._set_attribute(TOMBSTONE, str(message.value is None))
-
-        if isinstance(message_key, str):
-            span.set_tag(MESSAGE_KEY, message_key)
-
-        if message.partition is not None:
-            span._set_attribute(PARTITION, message.partition)
-        if message.offset is not None:
-            span._set_attribute(MESSAGE_OFFSET, message.offset)
-
-    if err is not None:
-        span.set_exc_info(type(err), err, err.__traceback__)
-
-
-def _on_aiokafka_getmany_message(
-    _instance: Any,
-    ctx: core.ExecutionContext,
-    messages: Optional[dict[Any, list[Any]]],
-) -> None:
-    span = span_from_context(ctx)
-
-    span._set_attribute(RECEIVED_MESSAGE, str(messages is not None))
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if messages is not None:
-        first_topic = next(iter(messages)).topic
-        span._set_attribute(MESSAGING_DESTINATION_NAME, first_topic)
-
-        topics_partitions: dict[str, list[int]] = {}
-        for topic_partition in messages.keys():
-            topic = topic_partition.topic
-            partition = topic_partition.partition
-            if topic not in topics_partitions:
-                topics_partitions[topic] = []
-            topics_partitions[topic].append(partition)
-
-        all_topics = list(topics_partitions.keys())
-        span.set_tag(TOPIC, ",".join(all_topics))
-
-        for topic, partitions in topics_partitions.items():
-            partition_list = ",".join(map(str, sorted(partitions)))
-            span._set_attribute(f"kafka.partitions.{topic}", partition_list)
-
-        for topic_partition, records in messages.items():
-            for record in records:
-                if config.aiokafka.distributed_tracing_enabled and record.headers:
-                    dd_headers = {
-                        key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-                        for key, val in record.headers
-                        if val is not None
-                    }
-                    context = HTTPPropagator.extract(dd_headers)
-
-                    span.link_span(context)
-
-
-def _on_kafka_consume_link_spans(span: "Span", links: list) -> None:
-    for link_ctx in links:
-        span.link_span(link_ctx)
-        # extract() stores secondary/conflicting propagation styles (e.g. a message
-        # carrying both Datadog and W3C tracecontext with different trace ids) as span
-        # links on the context. link_span only adds the primary context, so copy these
-        # extracted links explicitly to avoid dropping them.
-        for extracted_link in link_ctx._span_links:
-            span.set_link(
-                trace_id=extracted_link.trace_id,
-                span_id=extracted_link.span_id,
-                tracestate=extracted_link.tracestate,
-                flags=extracted_link.flags,
-                attributes=extracted_link.attributes,
-            )
-
-
 def _inject_context_into_ray_serve_grpc_context(span: Span, grpc_context: Any) -> None:
     trace_headers: dict[str, str] = {}
     HTTPPropagator.inject(span.context, trace_headers)
@@ -1965,11 +1856,6 @@ def listen():
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
-    core.on("aiokafka.send.start", _on_aiokafka_send_start)
-    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
-    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
-    core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
-    core.on("kafka.consume.link_spans", _on_kafka_consume_link_spans)
     core.on("context.started.google_cloud_pubsub.request", _on_pubsub_request_start)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
@@ -2010,7 +1896,6 @@ def listen():
 
     for context_name in (
         # web frameworks
-        "cherrypy.request",
         "pyramid.request",
         "tornado.request",
         "flask.call",
@@ -2033,6 +1918,7 @@ def listen():
         "django.traced_get_response",
         "django.process_exception",
         "django.func.wrapped",
+        "django.contrib.auth.login",
         # non web frameworks
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
@@ -2063,9 +1949,6 @@ def listen():
         "azure.servicebus.patched_producer_schedule",
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
-        "aiokafka.send",
-        "aiokafka.getone",
-        "aiokafka.getmany",
         "mlflow.run",
         "ray.proxy.request",
         "ray.serve.deployment",
@@ -2087,6 +1970,7 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
+        "django.contrib.auth.login",
         "redis.execute_pipeline",
         "redis.command",
         "azure.durable_functions.patched_activity",
@@ -2104,8 +1988,6 @@ def listen():
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",
-        "aiokafka.getone",
-        "aiokafka.getmany",
         "google_cloud_pubsub.receive",
         "google_cloud_pubsub.request",
         "ray.assign.request",

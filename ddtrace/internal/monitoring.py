@@ -14,18 +14,17 @@ object to the corresponding unregister function to remove it.
 """
 
 from abc import ABC
+import atexit
 import sys
 from types import CodeType
 from typing import Any
-from typing import Callable
 from typing import NamedTuple
 from typing import Optional
-import weakref
 
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 
 
 if not is_at_least_py(3, 12):
@@ -61,98 +60,42 @@ _MULTIPLEXER_TOOL_NAME = "ddtrace"
 _CANDIDATE_TOOL_IDS = (3,)
 
 _tool_id: Optional[int] = None
-_tool_lock = Lock()
+# Reentrant because _release_tool_if_unused takes it from unregister(), which
+# weakref.finalize callbacks call (e.g. when a wrapped function is collected),
+# and a GC pass can run those on the same thread while _setup() holds the lock.
+_tool_lock = RLock()
 
 _registry_lock = RLock()
 
 
-class _IdentityWeakKeyDictionary:
-    """Weak mapping keyed by object identity (not equality).
-
-    Unlike ``weakref.WeakKeyDictionary``, lookups use ``is`` rather than
-    ``CodeType.__eq__``, so distinct code objects for the same source remain
-    separate entries.
-    """
-
-    # NOTE: CodeType equality is structural. Keep identity semantics here and in
-    # every code-object registry built on this class, or separately compiled/reloaded
-    # copies of the same code will overwrite each other.
-
-    __slots__ = ("_data", "_on_remove")
-
-    def __init__(self, on_remove: Optional[Callable[[], None]] = None) -> None:
-        self._data: dict[int, tuple[weakref.ref[Any], Any]] = {}
-        self._on_remove = on_remove
-
-    def _make_remove(self, key_id: int) -> Any:
-        def remove(ref: weakref.ref[Any]) -> None:
-            item = self._data.get(key_id)
-            if item is not None and item[0] is ref:
-                self._data.pop(key_id, None)
-                if self._on_remove is not None:
-                    self._on_remove()
-
-        return remove
-
-    def get(self, key: CodeType, default: Any = None) -> Any:
-        item = self._data.get(id(key))
-        if item is None:
-            return default
-        ref, value = item
-        if ref() is key:
-            return value
-        return default
-
-    def __contains__(self, key: CodeType) -> bool:
-        item = self._data.get(id(key))
-        return item is not None and item[0]() is key
-
-    def __iter__(self) -> Any:
-        for ref, _value in tuple(self._data.values()):
-            key = ref()
-            if key is not None:
-                yield key
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __getitem__(self, key: CodeType) -> Any:
-        item = self._data.get(id(key))
-        if item is None or item[0]() is not key:
-            raise KeyError(key)
-        return item[1]
-
-    def __setitem__(self, key: CodeType, value: Any) -> None:
-        key_id = id(key)
-        self._data[key_id] = (weakref.ref(key, self._make_remove(key_id)), value)
-
-    def __delitem__(self, key: CodeType) -> None:
-        key_id = id(key)
-        if key_id not in self._data:
-            raise KeyError(key)
-        del self._data[key_id]
-
-    def pop(self, key: CodeType, *default: Any) -> Any:
-        try:
-            value = self[key]
-        except KeyError:
-            if default:
-                return default[0]
-            raise
-        del self[key]
-        return value
-
-    def clear(self) -> None:
-        self._data.clear()
-
-
 def _on_code_registration_collected() -> None:
-    """Release tool ownership when weak cleanup removes the final local registration."""
+    """Release tool ownership when weak cleanup removes the final local registration.
+
+    Interpreter shutdown clears single-underscore module globals to None before
+    this weakref callback runs. The lock is already gone, and the process is
+    exiting, so there is no tool left to release.
+    """
+    if _registry_lock is None:
+        return
     with _registry_lock:
         _release_tool_if_unused()
 
 
-_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_registration_collected)
+# NOTE: CodeType equality is structural. Keep identity semantics here and in
+# every code-object registry built on this class, or separately compiled/reloaded
+# copies of the same code will overwrite each other.
+_registry: IdentityWeakKeyDictionary[CodeType, Any] = IdentityWeakKeyDictionary(_on_code_registration_collected)
+
+
+def _disarm_registry_cleanup() -> None:
+    global _registry
+
+    with _registry_lock:
+        registry, _registry = _registry, IdentityWeakKeyDictionary()
+        registry.clear()
+
+
+atexit.register(_disarm_registry_cleanup)
 
 
 class MonitoringEventHandler(ABC):
@@ -168,12 +111,13 @@ class MonitoringEventHandler(ABC):
         being iterated, which produces undefined behavior.
 
     .. warning::
-        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` and
-        ``on_exception_handled`` are not caught -- they propagate into the
-        monitored frame, exactly as sys.monitoring itself would deliver a
-        callback failure. Catch your own exceptions if a handler must not
-        affect the monitored function's behavior. ``on_py_line`` exceptions
-        are caught and logged instead so one sub-system cannot disrupt another.
+        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` are
+        not caught -- they propagate into the monitored frame and skip any
+        later handler for the same event, exactly as sys.monitoring itself
+        would deliver a callback failure. Catch your own exceptions if a
+        handler must not affect the monitored function's behavior.
+        ``on_py_line`` and ``on_exception_handled`` are caught and logged
+        instead so one sub-system cannot disrupt another.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -395,7 +339,10 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
     h = _global_exception_handler
     if h is not None:
-        h.on_exception_handled(code, instruction_offset, exception)
+        try:
+            h.on_exception_handled(code, instruction_offset, exception)
+        except Exception:
+            log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -437,10 +384,15 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
-        tool_id: int = _setup()
         handlers: Optional[_CodeHandlers] = _registry.get(code)
+        created: bool = False
         if handlers is None:
+            # Publish the registration before claiming the tool: while the
+            # registry is non-empty, weakref cleanup cannot release the tool,
+            # so a GC pass during the claim cannot free it under this
+            # registration.
             _registry[code] = handlers = _CodeHandlers()
+            created = True
 
         # Events already provided by an existing handler may have been DISABLE'd by
         # that handler's callback return (LINE, or PY_START when a handler opts in).
@@ -452,11 +404,19 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
         handlers.disabled_events &= local_events
 
-        rearm_events = handler_events & existing_events & handlers.disabled_events
-        if rearm_events:
-            _rearm_local_events(tool_id, code, local_events, rearm_events)
-        else:
-            _set_local_events(tool_id, code, local_events)
+        try:
+            tool_id: int = _setup()
+            rearm_events = handler_events & existing_events & handlers.disabled_events
+            if rearm_events:
+                _rearm_local_events(tool_id, code, local_events, rearm_events)
+            else:
+                _set_local_events(tool_id, code, local_events)
+        except Exception:
+            # A registration published above must not survive a failed claim.
+            if created:
+                del _registry[code]
+            _release_tool_if_unused()
+            raise
 
 
 def refresh(code: CodeType, events: int) -> None:

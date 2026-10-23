@@ -36,7 +36,8 @@ def _dispatch_query_event(patch_routine, args, kwargs):
     else:
         return
 
-    if isinstance(query, str):
+    if isinstance(query, (str, bytes, bytearray, memoryview)):
+        # Vertica only uses UTF-8, the default encoding of byte queries
         core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="vertica"))
 
 
