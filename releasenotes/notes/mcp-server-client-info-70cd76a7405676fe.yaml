@@ -3,3 +3,5 @@ features:
   - |
     mcp: MCP server spans now include the calling client's self-reported name, title, and version
     as the ``mcp_client_name``, ``mcp_client_title``, and ``mcp_client_version`` tags, including on tool call spans.
+    Tool call spans are tagged only when the client's identity is available to the server. Servers using
+    ``mcp`` 1.x with stateless streamable HTTP (``stateless_http=True``) do not receive it on tool calls.
