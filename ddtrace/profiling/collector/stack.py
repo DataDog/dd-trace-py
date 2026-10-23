@@ -93,7 +93,7 @@ class StackCollector(collector.Collector):
                 native_call_monitor.start()
                 self._native_call_monitor = native_call_monitor
             except Exception:
-                LOG.debug("Failed to start native call monitor", exc_info=True)
+                LOG.debug("[profiling] Failed to start native call monitor", exc_info=True)
 
         # Now patch the Threading module and register existing threads/asyncio loops.
         # TODO take the `threading` import out of here and just handle it in v2 startup
@@ -162,22 +162,22 @@ class StackCollector(collector.Collector):
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
-        LOG.debug("Profiling StackCollector starting")
+        LOG.debug("[profiling] StackCollector starting")
         self._init()
-        LOG.debug("Profiling StackCollector started")
+        LOG.debug("[profiling] StackCollector started")
 
     def _stop_service(self) -> None:
-        LOG.debug("Profiling StackCollector stopping")
+        LOG.debug("[profiling] StackCollector stopping")
         if self._native_call_monitor is not None:
             try:
                 self._native_call_monitor.stop()
             except Exception:
-                LOG.debug("Failed to stop native call monitor", exc_info=True)
+                LOG.debug("[profiling] Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
             core.reset_listeners("trace.span_finish", _unlink_finished_span)
-        LOG.debug("Profiling StackCollector stopped")
+        LOG.debug("[profiling] StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
         stack.stop()

@@ -51,7 +51,7 @@ def report_stack(
     if asm_config._ep_max_stack_traces and total_length >= asm_config._ep_max_stack_traces:
         return False
 
-    stack = inspect.stack()
+    stack = inspect.stack(0)
     crop_index = 0
     if crop_stack is not None:
         for i, frame in enumerate(stack):

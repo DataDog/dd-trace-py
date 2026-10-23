@@ -1,6 +1,7 @@
 import abc
 import cProfile
 import dataclasses
+import gc
 from pathlib import Path
 import time
 import typing
@@ -44,11 +45,19 @@ def _register(scenario_cls: type["Scenario"]) -> None:
     if scenario._cprofile_loops and parsed_args.append:
         pstats_output = str(Path(parsed_args.append).parent / f"{scenario.scenario_name}.pstats")
 
-        with cProfile.Profile() as pr:
-            try:
-                scenario._pyperf(scenario._cprofile_loops)
-            finally:
-                pr.dump_stats(pstats_output)
+        pr = cProfile.Profile()
+        try:
+            if type(scenario)._pyperf is Scenario._pyperf:
+                scenario._timed_run(scenario._cprofile_loops, profiler=pr)
+            else:
+                # A scenario that overrides _pyperf has no separate timed region to profile
+                pr.enable()
+                try:
+                    scenario._pyperf(scenario._cprofile_loops)
+                finally:
+                    pr.disable()
+        finally:
+            pr.dump_stats(pstats_output)
 
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
 
@@ -87,11 +96,27 @@ class Scenario:
         pass
 
     def _pyperf(self, loops: int) -> float:
+        return self._timed_run(loops)
+
+    def _timed_run(self, loops: int, profiler: typing.Optional[cProfile.Profile] = None) -> float:
         rungen = self.run()
         run = next(rungen)
-        t0 = time.perf_counter()
-        run(loops)
-        dt = time.perf_counter() - t0
+        # Move the import-time and setup heap out of the collector's reach. Otherwise each full
+        # collection inside the timed region rescans it, and the number of full collections per
+        # value varies, which makes allocation-heavy scenarios noisy.
+        gc.collect()
+        gc.freeze()
+        try:
+            # Profile only the timed region, so setup and the collection above don't dominate the pstats
+            if profiler is not None:
+                profiler.enable()
+            t0 = time.perf_counter()
+            run(loops)
+            dt = time.perf_counter() - t0
+        finally:
+            if profiler is not None:
+                profiler.disable()
+            gc.unfreeze()
         try:
             # perform any teardown
             next(rungen)

@@ -11,6 +11,7 @@ from typing import Any
 
 _INTEGRATION_MODULES = {
     "AnthropicIntegration": ".anthropic",
+    "AwsSdkBedrockRuntimeIntegration": ".aws_sdk_bedrock_runtime",
     "BaseLLMIntegration": ".base",
     "BedrockIntegration": ".bedrock",
     "ClaudeAgentSdkIntegration": ".claude_agent_sdk",
@@ -22,6 +23,7 @@ _INTEGRATION_MODULES = {
     "MistralAIIntegration": ".mistralai",
     "OpenAIIntegration": ".openai",
     "PydanticAIIntegration": ".pydantic_ai",
+    "TypeSafeIntegration": ".typesafe",
     "VertexAIIntegration": ".vertexai",
 }
 
