@@ -150,10 +150,10 @@ def _on_request_start(ctx: core.ExecutionContext[Any], request: Any, max_body_si
         return
     if request.headers.get("Content-Encoding", "identity").lower() != "identity":
         return
-    ctx.set_item("aiohttp_request_body", _analyze_body(request, media_type))
+    ctx.set_item("aiohttp_request_body", _analyze_body(request, media_type, max_body_size))
 
 
-async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
+async def _analyze_body(request: Any, media_type: MediaType, max_body_size: int) -> Optional[bytes]:
     try:
         raw_body: bytes = await request.content.read()
     except Exception:
@@ -169,14 +169,19 @@ async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
                 body = xmltodict.parse(raw_body)
             elif media_type is MediaType.FORM_URLENCODED:
                 form: dict[str, list[str]] = {}
-                text_body = raw_body.decode(charset, errors="replace")
-                for key, value in parse_qsl(text_body.rstrip(), keep_blank_values=True, encoding=charset):
+                try:
+                    pairs = parse_qsl(
+                        raw_body.decode(charset, errors="replace").rstrip(), keep_blank_values=True, encoding=charset
+                    )
+                except Exception:
+                    pairs = parse_qsl(raw_body.decode("utf-8", errors="replace").rstrip(), keep_blank_values=True)
+                for key, value in pairs:
                     form.setdefault(key, []).append(value)
                 body = _single_or_list(form)
             else:
                 from ddtrace.appsec._contrib.aiohttp._multipart import multipart_fields
 
-                body = await multipart_fields(request, raw_body, getattr(request, "_client_max_size", 0) or 1024**2)
+                body = await multipart_fields(request, raw_body, max_body_size)
     except Exception:
         logger.debug("aiohttp::failed to parse request body", exc_info=True)
         return raw_body
