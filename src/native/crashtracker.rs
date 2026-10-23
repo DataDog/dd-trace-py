@@ -356,26 +356,29 @@ pub fn crashtracker_report_unhandled_exception_py(
     Ok(())
 }
 
-#[pyfunction(name = "crashtracker_insert_span_id")]
-pub fn crashtracker_insert_span_id(span_id: u64) -> anyhow::Result<usize> {
-    // dd-trace-py span IDs are 64-bit
-    Ok(insert_span(span_id as u128)?)
+/// Register an active span and trace ID with the crashtracker. Return (span_handle, trace_handle) for later removal
+#[pyfunction(name = "crashtracker_register_span")]
+pub fn crashtracker_register_span(span_id: u64, trace_id: u128) -> anyhow::Result<(usize, usize)> {
+    let span_handle = insert_span(span_id as u128)?;
+    match insert_trace(trace_id) {
+        Ok(trace_handle) => Ok((span_handle, trace_handle)),
+        Err(e) => {
+            let _ = remove_span(span_id as u128, span_handle);
+            Err(e.into())
+        }
+    }
 }
 
-#[pyfunction(name = "crashtracker_remove_span_id")]
-pub fn crashtracker_remove_span_id(span_id: u64, handle: usize) -> anyhow::Result<()> {
-    Ok(remove_span(span_id as u128, handle)?)
-}
-
-#[pyfunction(name = "crashtracker_insert_trace_id")]
-pub fn crashtracker_insert_trace_id(trace_id: u128) -> anyhow::Result<usize> {
-    // trace IDs can be 128-bit
-    Ok(insert_trace(trace_id)?)
-}
-
-#[pyfunction(name = "crashtracker_remove_trace_id")]
-pub fn crashtracker_remove_trace_id(trace_id: u128, handle: usize) -> anyhow::Result<()> {
-    Ok(remove_trace(trace_id, handle)?)
+#[pyfunction(name = "crashtracker_unregister_span")]
+pub fn crashtracker_unregister_span(
+    span_id: u64,
+    span_handle: usize,
+    trace_id: u128,
+    trace_handle: usize,
+) -> anyhow::Result<()> {
+    remove_span(span_id as u128, span_handle)?;
+    remove_trace(trace_id, trace_handle)?;
+    Ok(())
 }
 
 #[pyfunction(name = "crashtracker_clear_span_ids")]

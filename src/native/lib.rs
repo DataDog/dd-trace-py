@@ -64,19 +64,11 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
             m
         )?)?;
         m.add_function(wrap_pyfunction!(
-            crashtracker::crashtracker_insert_span_id,
+            crashtracker::crashtracker_register_span,
             m
         )?)?;
         m.add_function(wrap_pyfunction!(
-            crashtracker::crashtracker_remove_span_id,
-            m
-        )?)?;
-        m.add_function(wrap_pyfunction!(
-            crashtracker::crashtracker_insert_trace_id,
-            m
-        )?)?;
-        m.add_function(wrap_pyfunction!(
-            crashtracker::crashtracker_remove_trace_id,
+            crashtracker::crashtracker_unregister_span,
             m
         )?)?;
         m.add_function(wrap_pyfunction!(
