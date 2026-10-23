@@ -1,0 +1,7 @@
+start-finish:
+  nspans: 1000
+  crashtracking: true
+
+start-finish-no-crashtracking:
+  nspans: 1000
+  crashtracking: false

@@ -57,3 +57,9 @@ experiments:
           - name: exceptionprofilermonitoring-bare-reraise-interval-1
             thresholds:
               - execution_time < 0.016 ms
+          - name: crashtrackerspans-start-finish
+            thresholds:
+              - execution_time < 65 ms
+          - name: crashtrackerspans-start-finish-no-crashtracking
+            thresholds:
+              - execution_time < 65 ms

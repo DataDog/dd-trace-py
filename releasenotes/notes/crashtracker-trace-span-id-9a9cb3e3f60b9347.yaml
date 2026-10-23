@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    crashtracking: APM trace and span ID are now included in the crashtracker crash report.
