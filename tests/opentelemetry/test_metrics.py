@@ -276,7 +276,7 @@ def test_grpclib_exporter_dns_resolution_does_not_block_the_event_loop(monkeypat
     monkeypatch.setattr(grpclib_exporter.socket, "getaddrinfo", resolve)
     exporter = OTLPMetricExporter(endpoint="http://collector.example:4317")
     try:
-        with pytest.raises(TimeoutError):
+        with pytest.raises(asyncio.TimeoutError):
             exporter._loop.run_until_complete(
                 asyncio.wait_for(exporter._loop.getaddrinfo("collector.example", 4317), timeout=0.01)
             )
