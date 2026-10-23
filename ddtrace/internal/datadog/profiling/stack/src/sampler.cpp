@@ -53,6 +53,15 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
     stats.set_fast_copy_memory_enabled(fast_copy_active);
     stats.set_fast_copy_memory_desired(fast_copy_desired);
+    stats.set_fast_copy_memory_foreign_takeover(fast_copy_foreign_takeover.load(std::memory_order_relaxed));
+}
+
+void
+Datadog::mark_fast_copy_foreign_takeover()
+{
+    fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
+    mark_fast_copy_syscall_fallback();
+    update_fast_copy_stats(Sample::profile_borrow().stats());
 }
 
 void
@@ -413,7 +422,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto interval_adjust_time_prev = sample_time_prev;
 
     // Warm up on syscall copy; upgrade only if we still own both handlers.
-    // Fork mid-warmup must re-decide from fast_copy_desired.
+    // Fork mid-warmup must re-decide; foreign-takeover parents must not reclaim in the child.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
@@ -460,7 +469,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         set_fast_copy_enabled(true);
                     } else {
                         // Foreign owner: stay on syscall copy for this process and forks.
-                        mark_fast_copy_syscall_fallback();
+                        mark_fast_copy_foreign_takeover();
                         const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
                         std::cerr << "ddtrace stack profiler: "
                                   << lost_ownership_clause("does not own", ownership.foreign)
@@ -470,7 +479,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 }
             } else if (fast_copy_active && !segv_handler_installed()) {
                 // Post-upgrade foreign takeover: permanent syscall fallback beats crashing.
-                mark_fast_copy_syscall_fallback();
+                mark_fast_copy_foreign_takeover();
                 const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
                 std::cerr << "ddtrace stack profiler: " << lost_ownership_clause("no longer owns", ownership.foreign)
                           << "; falling back to syscall-based memory copy to avoid crashing. "
@@ -480,7 +489,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
                                  "stopping stack sampling to avoid crashing. "
                               << "Handler owners: " << ownership.owners << std::endl;
-                    // mark_fast_copy_syscall_fallback() snapshotted enabled while still
+                    // mark_fast_copy_foreign_takeover() snapshotted enabled while still
                     // active; we break before the end-of-cycle update, so reseed here.
                     seed_fast_copy_profiler_stats();
                     sampler_active_.store(false);

@@ -4,6 +4,7 @@ import os
 import platform
 import sys
 import traceback
+from types import ModuleType
 from types import TracebackType
 from typing import Optional
 
@@ -274,31 +275,70 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         # (profiler -> crashtracker -> default) with no cycle. We only touch the
         # stack module if it is already imported: importing it here would load the
         # native extension and install signal handlers even when profiling is off.
-        stack_mod = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        #
+        # Pause the sampler before the swap (same contract as profiling/_faulthandler.py).
+        # uninstall_segv_handler may call set_fast_copy_enabled(false) / Sampler::stop()
+        # on the sticky-foreign path; doing that while the sampling thread is in
+        # safe_memcpy races with fast_copy_active and the handler transition.
+        # pause_sampling returns:
+        #   True  — paused (safe to swap; must resume)
+        #   False — not running (safe to swap)
+        #   None  — timeout: refuse init so we do not install crashtracking over an
+        #           in-flight safe_memcpy or build a handler cycle.
+        # Gate on is_available, not mere presence in sys.modules: importing
+        # profiling_config can leave the stack package loaded with
+        # is_available=False when the native extension failed. Coordinating
+        # against that stub would treat a missing pause_sampling as a timeout
+        # and disable crash reporting.
+        stack_mod: Optional[ModuleType] = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        if stack_mod is not None and not getattr(stack_mod, "is_available", False):
+            stack_mod = None
+        pause_result: Optional[bool] = None
+        safe_to_swap: bool = True
         if stack_mod is not None:
+            try:
+                pause_result = stack_mod.pause_sampling()
+                safe_to_swap = pause_result is not None
+            except Exception:  # nosec: B110
+                pause_result = None
+                safe_to_swap = False
+            if not safe_to_swap:
+                log.error("Failed to start crashtracker: could not pause stack sampler for handler swap")
+                return False
             try:
                 stack_mod.uninstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
-        crashtracker_init(config, receiver_config, metadata)
-        excepthook.register(_unhandled_exception_reporter)
+        try:
+            crashtracker_init(config, receiver_config, metadata)
+            excepthook.register(_unhandled_exception_reporter)
 
-        if stack_mod is not None:
-            try:
-                stack_mod.reinstall_segv_handler()
-            except Exception:  # nosec: B110
-                pass
+            def crashtracker_fork_handler() -> None:
+                # We recreate the args here mainly to pass updated runtime_id after
+                # fork
+                config, receiver_config, metadata = _get_args(additional_tags)
+                if config is None or receiver_config is None or metadata is None:
+                    log.error(
+                        "Failed to restart crashtracker after fork: failed to construct crashtracker configuration"
+                    )
+                    return
+                crashtracker_on_fork(config, receiver_config, metadata)
 
-        def crashtracker_fork_handler():
-            # We recreate the args here mainly to pass updated runtime_id after
-            # fork
-            config, receiver_config, metadata = _get_args(additional_tags)
-            if config is None or receiver_config is None or metadata is None:
-                log.error("Failed to restart crashtracker after fork: failed to construct crashtracker configuration")
-                return
-            crashtracker_on_fork(config, receiver_config, metadata)
-
-        forksafe.register(crashtracker_fork_handler)
+            forksafe.register(crashtracker_fork_handler)
+        finally:
+            # Reinstall before resume even when init/register raised: uninstall ran
+            # above, and sampling must not resume without the recovery handler.
+            # Idempotent when the success path already left us installed.
+            if stack_mod is not None:
+                try:
+                    stack_mod.reinstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
+            if stack_mod is not None and pause_result is True:
+                try:
+                    stack_mod.resume_sampling()
+                except Exception:  # nosec: B110
+                    pass
     except Exception:
         log.exception("Failed to start crashtracker")
         return False

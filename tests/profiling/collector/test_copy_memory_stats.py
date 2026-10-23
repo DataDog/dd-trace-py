@@ -238,3 +238,222 @@ def test_fast_copy_fork_during_warmup() -> None:
 
     assert os.WIFEXITED(status), f"child did not exit normally: {status}"
     assert os.WEXITSTATUS(status) == 0, "child forked mid-warmup never upgraded to safe_memcpy"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_faulthandler_after_foreign_warmup",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_faulthandler_enable_after_foreign_during_warmup() -> None:
+    """Foreign handler then faulthandler.enable during warmup must not reclaim.
+
+    If a foreign handler sits on top of ours, uninstall is a no-op. Reclaiming after
+    faulthandler.enable would loop (us -> faulthandler -> foreign -> us) and the
+    warmup deadline would upgrade to safe_memcpy over that chain.
+    """
+    import faulthandler
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    _stack._set_fast_copy_warmup_seconds(3.0)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    assert wait_for_fast_copy_state(_stack, False), "sampler never dropped to the syscall copy"
+
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    faulthandler.enable()
+    assert _stack.segv_handler_installed() is False, (
+        "reclaimed over foreign handler after faulthandler.enable during warmup"
+    )
+
+    # Past the warmup deadline: must stay on syscall copy, not upgrade.
+    time.sleep(4)
+    assert _stack.fast_copy_memory_active() is False, "upgraded to safe_memcpy after foreign+faulthandler during warmup"
+    p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_foreign_takeover",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_foreign_handler_takeover_metadata() -> None:
+    """Foreign SIGSEGV takeover sticks across stop/set_fast_copy/restart."""
+    import json
+    import os
+    import signal
+    import time
+    from typing import Any
+    from typing import Optional
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    _stack._set_fast_copy_warmup_seconds(2.0)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    # Takeover during warmup before upgrade.
+    assert wait_for_fast_copy_state(_stack, False), "sampler never dropped to the syscall copy"
+
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    # Past warmup + upload interval for metadata flush.
+    time.sleep(4)
+    p.stop()
+
+    output_filename: str = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
+    assert files, "Expected at least one internal_metadata.json file"
+
+    metadata: Optional[dict[str, Any]] = None
+    for f in reversed(files):
+        with open(f) as fp:
+            candidate: dict[str, Any] = json.load(fp)
+
+        if candidate.get("sampling_event_count", 0) > 0:
+            metadata = candidate
+            break
+
+    assert metadata is not None, f"Expected an upload window with at least one sampling cycle: {files}"
+
+    assert metadata["fast_copy_memory_desired"] is True, metadata
+    assert metadata["fast_copy_memory_foreign_takeover"] is True, metadata
+    assert metadata["fast_copy_memory_syscall_fallback"] is True, metadata
+    assert metadata["fast_copy_memory_enabled"] is False, metadata
+
+    # Sticky: survives stop -> set_fast_copy(True) -> start.
+    _stack.set_fast_copy(True)
+    p.start()
+    assert _stack.fast_copy_memory_active() is False, "foreign takeover must block fast-copy re-enable after restart"
+
+    time.sleep(2)
+    p.stop()
+
+    restart_files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
+    assert restart_files, "Expected at least one internal_metadata.json file after restart"
+
+    restart_metadata: Optional[dict[str, Any]] = None
+    for f in reversed(restart_files):
+        with open(f) as fp:
+            restart_candidate: dict[str, Any] = json.load(fp)
+
+        if restart_candidate.get("sampling_event_count", 0) > 0:
+            restart_metadata = restart_candidate
+            break
+
+    assert restart_metadata is not None, (
+        f"Expected an upload window with at least one sampling cycle after restart: {restart_files}"
+    )
+    assert restart_metadata["fast_copy_memory_foreign_takeover"] is True, restart_metadata
+    assert restart_metadata["fast_copy_memory_enabled"] is False, restart_metadata
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fast-copy recovery handlers are not used on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_successful_disable_uninstalls_handler",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_successful_disable_uninstalls_handler() -> None:
+    """Successful set_fast_copy(False) must drop a dormant recovery handler.
+
+    After disable, handler ops are off so uninstall_segv_handler is a no-op for
+    coordinated installs. Leaving the handler installed lets faulthandler chain
+    to it; set_fast_copy(True) would then reclaim over that chain and form a cycle.
+    """
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    p.stop()
+    assert _stack.segv_handler_installed(), "stop should leave the recovery handler installed"
+
+    _stack.set_fast_copy(False)
+    assert not _stack.is_safe_copy_failed(), "platform syscall fallback should make disable succeed"
+    assert not _stack.segv_handler_installed(), "successful disable must uninstall the dormant recovery handler"
+
+    faulthandler.enable()
+    _stack.set_fast_copy(True)
+    assert _stack.segv_handler_installed(), "re-enable must reclaim cleanly after faulthandler.enable()"
+
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after re-enable"
+    p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fast-copy recovery handlers are not used on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_foreign_while_stopped",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_set_true_does_not_overwrite_foreign_while_stopped() -> None:
+    """set_fast_copy(True) must not reclaim over a foreign owner after stop.
+
+    Stop leaves our handlers installed. A library can take SIGSEGV/SIGBUS before
+    the next start; overwriting that owner would build us→foreign→us and skip
+    sticky takeover. Fall back instead.
+    """
+    import signal
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    def _foreign_handler(signum: int, frame: object) -> None:
+        return None
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    p.stop()
+    assert _stack.segv_handler_installed(), "stop should leave the recovery handler installed"
+
+    signal.signal(signal.SIGSEGV, _foreign_handler)
+    signal.signal(signal.SIGBUS, _foreign_handler)
+    assert _stack.segv_handler_installed() is False, "expected foreign owner after stop"
+
+    _stack.set_fast_copy(True)
+    assert _stack.segv_handler_installed() is False, "set_fast_copy(True) must not overwrite a foreign owner"
+    assert _stack.fast_copy_memory_active() is False, "foreign owner must force syscall fallback"
+
+    p.start()
+    assert _stack.fast_copy_memory_active() is False, "sticky foreign takeover must block safe_memcpy after restart"
+    p.stop()

@@ -1039,7 +1039,48 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     // init still leave safe_memcpy_initialized false, so desired stays off.
     fast_copy_user_disabled = !want;
     fast_copy_desired = want && safe_memcpy_initialized;
-    set_fast_copy_enabled(want);
+    // Sticky foreign takeover: never reselect safe_memcpy across stop/set_fast_copy/restart
+    // while the flag is set, or the next sampling thread skips warmup with memcpy active
+    // under a foreign SIGSEGV/SIGBUS handler.
+    const bool enable_fast_copy = want && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
+    if (want && !enable_fast_copy) {
+        mark_fast_copy_syscall_fallback();
+    }
+    const bool switched = set_fast_copy_enabled(enable_fast_copy);
+    if (!enable_fast_copy || !switched) {
+        // Disable (success or failed) or a failed enable can leave the recovery
+        // handler installed after stop. Drop it: once desired/active are clear,
+        // uninstall_segv_handler is a no-op for coordinated installs, so a dormant
+        // handler lets faulthandler/crashtracker chain to us; set_fast_copy(True)
+        // would then reclaim over that chain and form a cycle.
+        if (segv_handler_installed()) {
+            uninstall_segv_handler();
+        }
+    } else if (safe_memcpy_initialized && !segv_handler_installed()) {
+        // A prior disable path uninstalled the recovery handler (released), or
+        // both signals are still default/ignored. Reinstall here: sampling_thread's
+        // once_flag was already consumed on the first start, so a later start
+        // cannot put the handler back.
+        //
+        // If a foreign owner took the signals while ours were still notionally
+        // installed (stop left them up; no uninstall), do not overwrite — that
+        // builds us→foreign→us. Sticky takeover + syscall fallback instead.
+        if (!segv_handler_released() && !segv_handlers_are_absent()) {
+            mark_fast_copy_foreign_takeover();
+            if (!set_fast_copy_enabled(false)) {
+                // No syscall fallback: failed_safe_copy is latched; start() will refuse.
+            }
+        } else if (init_segv_catcher() != 0) {
+            // set_fast_copy_enabled(true) already armed safe_memcpy; without both
+            // recovery handlers that would crash on a copy fault.
+            if (!set_fast_copy_enabled(false)) {
+                // failed_safe_copy latched when process_vm_readv is also unavailable.
+            }
+            if (segv_handler_installed()) {
+                uninstall_segv_handler();
+            }
+        }
+    }
     seed_fast_copy_profiler_stats();
 
     Py_RETURN_NONE;
@@ -1052,6 +1093,24 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     if (!fast_copy_handler_ops_enabled()) {
         Py_RETURN_NONE;
     }
+    // Foreign already on top (e.g. X during warmup): uninstall is a no-op. Reclaiming
+    // after faulthandler.enable would set g_old_* to faulthandler while X still points
+    // at us — a loop — and the warmup deadline would then upgrade to safe_memcpy.
+    // Sticky takeover instead so reinstall becomes a no-op.
+    if (!segv_handler_installed()) {
+        mark_fast_copy_foreign_takeover();
+        // Same as the sampling-thread takeover path: if syscall fallback is unavailable,
+        // stop rather than let resume_sampling continue with leftover safe_memcpy while
+        // sticky takeover has disabled the handler-ownership checks.
+        if (!set_fast_copy_enabled(false)) {
+            std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                         "stopping stack sampling to avoid crashing."
+                      << std::endl;
+            Sampler::get().stop();
+        }
+        seed_fast_copy_profiler_stats();
+        Py_RETURN_NONE;
+    }
     uninstall_segv_handler();
     Py_RETURN_NONE;
 }
@@ -1059,7 +1118,7 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reclaim after coordinated swap when we still want or hold memcpy recovery.
+    // Reclaim after coordinated swap; skipped on foreign takeover (see Sampler::sampling_thread).
     if (fast_copy_handler_ops_enabled()) {
         init_segv_catcher();
     }
