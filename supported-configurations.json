@@ -2926,7 +2926,7 @@
     ],
     "DD_PROFILING_GC_ENABLED": [
       {
-        "implementation": "C",
+        "implementation": "A",
         "type": "boolean",
         "default": "false"
       }
