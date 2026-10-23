@@ -544,6 +544,9 @@ def register_global(handler: MonitoringEventHandler, *, direct: bool = False) ->
     callbacks must handle their own failures and return None. The first
     registration selects the delivery mode until that event is unregistered.
     """
+    # Benchmark variant X1: force multiplexer-wrapper delivery so direct and
+    # wrapped registration can be compared on otherwise identical code.
+    direct = False
     handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
     if not handler_events:
         raise ValueError("Handler overrides no global MonitoringEventHandler methods")
