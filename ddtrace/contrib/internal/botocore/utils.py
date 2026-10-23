@@ -153,7 +153,7 @@ def extract_DD_json(message):
         elif "Data" in message:
             # Raw message delivery
             _, data = get_kinesis_data_object(message["Data"])
-            if "_datadog" in data:
+            if isinstance(data, dict) and "_datadog" in data:
                 context_json = data["_datadog"]
 
         if context_json is None:
