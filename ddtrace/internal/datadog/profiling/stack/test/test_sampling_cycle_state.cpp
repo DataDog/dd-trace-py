@@ -157,7 +157,7 @@ TEST(SamplingCycleState, InterpreterLimitPreservesSamplingAndCacheInvalidation)
         bool success = for_each_interp(&runtime, [&](InterpreterInfo& info) { captured.push_back(info); });
         EXPECT_TRUE(success);
         EXPECT_EQ(captured.size(), 256);
-        return echion.update_code_object_generations(captured, success);
+        return echion.validate_code_object_generations(captured, success);
     };
 
     ASSERT_TRUE(capture());
@@ -188,21 +188,21 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
     EchionSampler echion(2);
     constexpr Frame::Key key = 42;
 
-    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(2, 1) }, true));
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(2, 1) }, true));
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
 
-    EXPECT_TRUE(echion.update_code_object_generations({ interpreter(2, 1), interpreter(1, 1) }, true));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(2, 1), interpreter(1, 1) }, true));
     EXPECT_TRUE(echion.frame_cache().lookup(key));
 
-    EXPECT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(2, 2) }, true));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(2, 2) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
-    EXPECT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
-    EXPECT_FALSE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, false));
+    EXPECT_FALSE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, false));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 }
 
@@ -214,7 +214,7 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesStringIdentityCaches)
     _set_pid(getpid());
 
     EchionSampler echion(2);
-    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 1) }, true));
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
 
     // CPython 3.14 frees a code object's mortal interned co_name with the code object, so a replacement code object
     // can get a different name at the same address. Rewriting a fresh string in place reproduces that reuse.
@@ -231,14 +231,14 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesStringIdentityCaches)
     std::memcpy(PyUnicode_DATA(name), new_name.data(), new_name.size());
 
     // Unchanged generations keep the cached strings.
-    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 1) }, true));
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
     auto cached = echion.string_table().lookup(*old_key);
     ASSERT_TRUE(cached);
     EXPECT_EQ(cached->get(), old_name);
     EXPECT_TRUE(echion.asyncio_boundary_frame());
     EXPECT_TRUE(echion.uvloop_boundary_frame());
 
-    ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 2) }, true));
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 2) }, true));
     EXPECT_FALSE(echion.string_table().lookup(*old_key));
     EXPECT_FALSE(echion.asyncio_boundary_frame());
     EXPECT_FALSE(echion.uvloop_boundary_frame());

@@ -284,7 +284,7 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
 #if PY_VERSION_HEX >= 0x030e0000
     // This lock-free snapshot can race with code destruction during the sampling cycle. In that case, the current
     // cycle may use stale frame metadata; the next cycle observes the generation change and clears the cache.
-    if (!echion->update_code_object_generations(interpreter_candidates, all_interpreter_data_captured)) {
+    if (!echion->validate_code_object_generations(interpreter_candidates, all_interpreter_data_captured)) {
         return;
     }
 #else

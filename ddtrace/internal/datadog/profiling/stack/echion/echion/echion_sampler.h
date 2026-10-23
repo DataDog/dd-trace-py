@@ -197,8 +197,11 @@ class EchionSampler
     }
 
 #if PY_VERSION_HEX >= 0x030e0000
-    bool update_code_object_generations(const std::vector<InterpreterInfo>& interpreters,
-                                        bool all_interpreter_data_captured)
+    // CPython keeps a code object generation per interpreter, but the frame identity caches are shared by all
+    // interpreters, so a generation change in any one interpreter thrashes them for every interpreter. Returns false,
+    // after invalidating, when the snapshot is incomplete and the cycle must not be sampled.
+    bool validate_code_object_generations(const std::vector<InterpreterInfo>& interpreters,
+                                          bool all_interpreter_data_captured)
     {
         if (!all_interpreter_data_captured || interpreters.empty()) {
             invalidate_frame_identity_cache();
