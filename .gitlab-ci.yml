@@ -36,7 +36,9 @@ variables:
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
-  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+  # TODO(py-315): the Python 3.15 wheel pushes the injection image to ~114M.
+  # Lower this back once 3.15 ships and the image is optimized.
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
 
 default:
