@@ -45,11 +45,11 @@ def _register(scenario_cls: type["Scenario"]) -> None:
     if scenario._cprofile_loops and parsed_args.append:
         pstats_output = str(Path(parsed_args.append).parent / f"{scenario.scenario_name}.pstats")
 
-        with cProfile.Profile() as pr:
-            try:
-                scenario._pyperf(scenario._cprofile_loops)
-            finally:
-                pr.dump_stats(pstats_output)
+        pr = cProfile.Profile()
+        try:
+            scenario._pyperf(scenario._cprofile_loops, profiler=pr)
+        finally:
+            pr.dump_stats(pstats_output)
 
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
 
@@ -87,7 +87,7 @@ class Scenario:
         """Returns a context manager that yields a function to be run for performance testing."""
         pass
 
-    def _pyperf(self, loops: int) -> float:
+    def _pyperf(self, loops: int, profiler: typing.Optional[cProfile.Profile] = None) -> float:
         rungen = self.run()
         run = next(rungen)
         # Move the import-time and setup heap out of the collector's reach. Otherwise each full
@@ -96,10 +96,15 @@ class Scenario:
         gc.collect()
         gc.freeze()
         try:
+            # Profile only the timed region, so setup and the collection above don't dominate the pstats
+            if profiler is not None:
+                profiler.enable()
             t0 = time.perf_counter()
             run(loops)
             dt = time.perf_counter() - t0
         finally:
+            if profiler is not None:
+                profiler.disable()
             gc.unfreeze()
         try:
             # perform any teardown
