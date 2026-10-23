@@ -40,6 +40,7 @@ class LLMObsTelemetryMetrics:
     PROMPT_CRUD_ERROR = "prompt.crud.error"
     COST_TAGS_ANNOTATED = "cost_tags.annotated"
     COST_TAGS_SUBMITTED = "cost_tags.submitted"
+    AGENT_MANIFEST_SECTION_ERROR = "agent_manifest.section_error"
 
 
 def _find_tag_value_from_tags(tags, tag_key):
@@ -313,4 +314,14 @@ def record_prompt_crud_error(method: str, error_type: str, status: int):
         name=LLMObsTelemetryMetrics.PROMPT_CRUD_ERROR,
         value=1,
         tags=tuple(tags),
+    )
+
+
+def record_agent_manifest_section_error(integration: str, section: str):
+    """A manifest section raised, usually because a framework release renamed what it reads."""
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.AGENT_MANIFEST_SECTION_ERROR,
+        value=1,
+        tags=(("integration", integration), ("section", section)),
     )

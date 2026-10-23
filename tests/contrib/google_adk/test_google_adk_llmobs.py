@@ -18,7 +18,7 @@ from tests.llmobs._utils import assert_llmobs_span_data
 AGENT_MANIFEST_METADATA = {
     "_dd": {
         "agent_manifest": {
-            "description": "Test agent for ADK integration testing",
+            "handoff_description": "Test agent for ADK integration testing",
             "framework": "Google ADK",
             "instructions": "You are a helpful test agent. You can: "
             "(1) call tools using the provided "
@@ -29,17 +29,23 @@ AGENT_MANIFEST_METADATA = {
             "capability. Always be helpful and use "
             "your available capabilities.",
             "model": "gemini-2.5-pro",
-            "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
             "name": "test_agent",
-            "session_management": {
-                "session_id": "test-session",
-                "user_id": "test-user",
-                "app_name": "TestADKApp",
-            },
             "tools": [
-                {"description": "A tiny search tool stub.", "name": "search_docs"},
-                {"description": "Simple arithmetic tool.", "name": "multiply"},
+                {
+                    "description": "A tiny search tool stub.",
+                    "name": "search_docs",
+                    "parameters": {"query": {"type": "string", "required": True}},
+                },
+                {
+                    "description": "Simple arithmetic tool.",
+                    "name": "multiply",
+                    "parameters": {
+                        "a": {"type": "integer", "required": True},
+                        "b": {"type": "integer", "required": True},
+                    },
+                },
             ],
+            "agent_settings": {"code_executor": "UnsafeLocalCodeExecutor"},
         }
     }
 }

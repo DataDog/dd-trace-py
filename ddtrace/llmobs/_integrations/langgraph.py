@@ -10,6 +10,14 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
+from ddtrace.llmobs._integrations.agent_manifest import as_str
+from ddtrace.llmobs._integrations.agent_manifest import build_agent_manifest
+from ddtrace.llmobs._integrations.agent_manifest import callable_name
+from ddtrace.llmobs._integrations.agent_manifest import filter_model_settings
+from ddtrace.llmobs._integrations.agent_manifest import instruction_fields
+from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import normalize_tool
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io
@@ -18,6 +26,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs.types import AgentManifest
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
@@ -28,25 +37,13 @@ logger = get_logger(__name__)
 PREGEL_PUSH = "__pregel_push"  # represents a task queued up by a `Send` command
 PREGEL_TASKS = "__pregel_tasks"  # name of ephemeral channel that pregel `Send` commands write to
 
-ALLOWED_MODEL_SETTINGS_KEYS = [
-    "max_tokens",
-    "temperature",
-    "top_p",
-    "top_k",
-    "frequency_penalty",
-    "presence_penalty",
-    "stop",
-    "n",
-    "logprobs",
-    "echo",
-    "logit_bias",
-]
+FRAMEWORK_NAME = "LangGraph"
 
 
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
     _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[Span, dict[str, Any]] = WeakKeyDictionary()
-    _agent_manifests: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
+    _agent_manifests: WeakKeyDictionary[Any, AgentManifest] = WeakKeyDictionary()
     _graph_spans_to_graph_instances: WeakKeyDictionary[Span, Any] = WeakKeyDictionary()
 
     def trace(
@@ -126,26 +123,25 @@ class LangGraphIntegration(BaseLLMIntegration):
         if agent is None:
             return None
 
-        agent_manifest = self._agent_manifests.get(agent)
-        if agent_manifest is None:
-            tools = _get_tools_from_graph(agent)
-            agent_manifest = {"name": agent.name or "LangGraph", "tools": tools}
-            self._agent_manifests[agent] = agent_manifest
+        declared = self._agent_manifests.get(agent)
+        if declared is None:
+            declared = build_agent_manifest(
+                FRAMEWORK_NAME,
+                agent,
+                (("labels", _manifest_labels), ("tools", _manifest_graph_tools)),
+                self._integration_name,
+            )
+            self._agent_manifests[agent] = declared
 
-        if "framework" not in agent_manifest:
-            agent_manifest["framework"] = "LangGraph"
-        if "max_iterations" not in agent_manifest:
-            agent_manifest["max_iterations"] = _get_attr(config, "recursion_limit", 25)
-
-        if (
-            "dependencies" not in agent_manifest
-            and isinstance(args, tuple)
-            and len(args) > 0
-            and isinstance(args[0], dict)
-        ):
-            agent_manifest["dependencies"] = list(args[0].keys())
-
-        return agent_manifest
+        # Copied so a run's config never leaks into the manifest cached for the next run.
+        manifest: dict[str, Any] = dict(declared)
+        # A limit declared with graph.with_config() wins over the one passed to this run.
+        recursion_limit = _get_attr(_get_attr(agent, "config", None) or {}, "recursion_limit", None)
+        if not is_number(recursion_limit):
+            recursion_limit = _get_attr(config, "recursion_limit", None)
+        if is_number(recursion_limit):
+            manifest["agent_settings"] = {**manifest.get("agent_settings", {}), "recursion_limit": recursion_limit}
+        return manifest
 
     def _get_node_metadata_from_span(self, span: Span, instance_id: str) -> dict[str, Any]:
         """
@@ -170,35 +166,24 @@ class LangGraphIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
 
-        model = get_argument_value(
-            args, kwargs, 0, "model", True
-        )  # required parameter on the langgraph side, but optional should that ever change
-        model_name, model_provider, model_settings = _get_model_info(model)
-
-        agent_tools: list[Any] = (
-            get_argument_value(args, kwargs, 1, "tools", True) or []
-        )  # required parameter on the langgraph side, but optional should that ever change
-        tools = _get_tools_from_react_agent(agent_tools)
-
-        system_prompt: Optional[str] = _get_system_prompt_from_react_agent(kwargs.get("prompt"))
-        name: Optional[str] = kwargs.get("name")
-
-        agent_manifest: dict[str, Any] = {}
-
-        if model_name:
-            agent_manifest["model"] = model_name
-        if model_provider:
-            agent_manifest["model_provider"] = model_provider
-        if model_settings:
-            agent_manifest["model_settings"] = model_settings
-        if tools:
-            agent_manifest["tools"] = tools
-        if system_prompt:
-            agent_manifest["instructions"] = system_prompt
-        if name:
-            agent_manifest["name"] = name
-
-        self._agent_manifests[agent] = agent_manifest
+        # model and tools are required parameters on the langgraph side, but optional should that ever change.
+        declared = {
+            "name": kwargs.get("name"),
+            "model": get_argument_value(args, kwargs, 0, "model", True),
+            "tools": get_argument_value(args, kwargs, 1, "tools", True) or [],
+            "prompt": kwargs.get("prompt"),
+        }
+        self._agent_manifests[agent] = build_agent_manifest(
+            FRAMEWORK_NAME,
+            declared,
+            (
+                ("labels", lambda d: {"name": as_str(d["name"]) or "LangGraph"}),
+                ("model", lambda d: _manifest_model(d["model"])),
+                ("tools", lambda d: {"tools": _get_tools_from_react_agent(d["tools"]) or []}),
+                ("instructions", lambda d: _manifest_react_prompt(d["prompt"])),
+            ),
+            self._integration_name,
+        )
 
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
@@ -333,17 +318,24 @@ class LangGraphIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(graph_span, span_links=graph_span_links)
 
 
-def _get_model_info(model) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
-    """Get the model name, provider, and settings from a langchain llm"""
-    if isinstance(model, str):
-        # something like "openai:gpt-4"
-        model_provider_str, model_name_str = model.split(":", maxsplit=1)
-        return model_name_str, model_provider_str, {}
+def _manifest_labels(agent: Any) -> AgentManifest:
+    return {"name": as_str(_get_attr(agent, "name", None)) or "LangGraph"}
 
-    model_name = _get_attr(model, "model_name", None)
-    model_provider = _get_model_provider(model)
-    model_settings = _get_model_settings(model)
-    return model_name, model_provider, model_settings
+
+def _manifest_graph_tools(agent: Any) -> AgentManifest:
+    return {"tools": _get_tools_from_graph(agent)}
+
+
+def _manifest_model(model: Any) -> AgentManifest:
+    """The model name, provider and settings from a langchain chat model or a "provider:model" string."""
+    if isinstance(model, str):
+        provider, sep, name = model.partition(":")
+        return {"model": name, "model_provider": provider} if sep else {"model": model}
+    return {
+        "model": as_str(_get_attr(model, "model_name", None)),
+        "model_provider": as_str(_get_model_provider(model)),
+        "model_settings": _get_model_settings(model),
+    }
 
 
 def _get_model_provider(model) -> Optional[str]:
@@ -358,32 +350,22 @@ def _get_model_provider(model) -> Optional[str]:
 
 def _get_model_settings(model) -> dict[str, Any]:
     """Get the model settings from a langchain llm"""
-    model_dict_fn = _get_attr(model, "dict", None)
-    if model_dict_fn is None or not callable(model_dict_fn):
-        return {}
+    settings = {key: _get_attr(model, key, None) for key in ALLOWED_MODEL_SETTINGS_KEYS}
+    # ChatAnthropic declares stop_sequences; ChatOpenAI and most others declare stop.
+    if settings["stop_sequences"] is None:
+        settings["stop_sequences"] = _get_attr(model, "stop", None)
+    return filter_model_settings(settings)
 
-    model_dict: dict = model.dict()
-    return {key: value for key, value in model_dict.items() if key in ALLOWED_MODEL_SETTINGS_KEYS and value}
 
-
-def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
-    """
-    Get the system prompt from a react agent.
-
-    The system prompt can be:
-    - a string
-    - a dict with a "content" key
-    - a Callable that returns a string or dict
-
-    In the case of a Callable (which is dynamic as a function of state and config), we end up returning None.
-    """
-    if system_prompt is None:
-        return None
-
-    if isinstance(system_prompt, str):
-        return system_prompt
-
-    return _get_attr(system_prompt, "content", None)
+def _manifest_react_prompt(prompt: Any) -> AgentManifest:
+    """A react agent's prompt: a string, a SystemMessage, or a callable resolved per run."""
+    if prompt is None or isinstance(prompt, str):
+        return instruction_fields(prompt)
+    content = _get_attr(prompt, "content", None)
+    if isinstance(content, str):
+        return {"instructions": content}
+    # A Runnable or callable prompt decides the text from the run's state.
+    return {"extra_instructions": [{"type": "dynamic_prompt", "name": callable_name(prompt)}]}
 
 
 def _get_tools_from_react_agent(tools: Any) -> Optional[list[dict[str, Any]]]:
@@ -409,12 +391,30 @@ def _get_tool_repr_from_langchain_base_tool(tool) -> Optional[dict[str, Any]]:
     """Get the tool representation from a langchain base tool"""
     if tool is None or isinstance(tool, dict):
         return None
+    if _get_attr(tool, "name", None) is None and callable(tool):
+        # A plain function, which langgraph wraps into a tool itself.
+        return normalize_tool(callable_name(tool), getattr(tool, "__doc__", None))
+    return normalize_tool(_get_attr(tool, "name", None), _get_attr(tool, "description", None), _tool_json_schema(tool))
 
-    return {
-        "name": _get_attr(tool, "name", ""),
-        "description": _get_attr(tool, "description", ""),
-        "parameters": _get_attr(tool, "args", {}),
-    }
+
+def _tool_json_schema(tool) -> Optional[dict[str, Any]]:
+    """The schema the model sees, which unlike tool.args also says which parameters are required.
+
+    tool_call_schema comes first because args_schema also lists injected arguments, such as
+    InjectedState and InjectedToolCallId, that the model never fills in.
+    """
+    for attr in ("tool_call_schema", "args_schema"):
+        try:
+            schema = getattr(tool, attr, None)
+            if not isinstance(schema, dict):
+                model_json_schema = getattr(schema, "model_json_schema", None)
+                schema = model_json_schema() if callable(model_json_schema) else None
+        except Exception:
+            schema = None
+        if isinstance(schema, dict):
+            return schema
+    args = _get_attr(tool, "args", None)
+    return {"type": "object", "properties": args} if isinstance(args, dict) else None
 
 
 def _is_tool_node(maybe_tool_node):
