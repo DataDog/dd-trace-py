@@ -75,6 +75,62 @@ async def test_graphql_with_traced_resolver(test_schema, test_source_str, snapsh
         assert result.data == {"hello": "friend"}
 
 
+def test_middleware_arg_position_tracks_execute_signature():
+    # Regression test for https://github.com/DataDog/dd-trace-py/issues/18723.
+    # graphql-core>=3.2.10 inserted ``max_coercion_errors`` before ``middleware``
+    # in execute()'s signature, shifting it from index 9 to 10. The tracer used a
+    # hardcoded index and raised "TypeError: 'int' object is not iterable" for
+    # every operation. The position must now follow the live signature. This is
+    # asserted against synthetic signatures so it holds regardless of the
+    # graphql-core version installed in the test environment.
+    from ddtrace.contrib.internal.graphql.patch import _get_middleware_arg_position
+
+    def execute_pre_3_2_10(
+        schema,
+        document,
+        root_value,
+        context_value,
+        variable_values,
+        operation_name,
+        field_resolver,
+        type_resolver,
+        subscribe_field_resolver,
+        middleware,
+        execution_context_class,
+        is_awaitable,
+    ): ...
+
+    def execute_3_2_10(
+        schema,
+        document,
+        root_value,
+        context_value,
+        variable_values,
+        operation_name,
+        field_resolver,
+        type_resolver,
+        subscribe_field_resolver,
+        max_coercion_errors,
+        middleware,
+        execution_context_class,
+        is_awaitable,
+    ): ...
+
+    assert _get_middleware_arg_position(execute_pre_3_2_10) == 9
+    assert _get_middleware_arg_position(execute_3_2_10) == 10
+
+
+@pytest.mark.skipif(graphql_version < (3, 1), reason="graphql.graphql_sync is not supported in graphql<3.1")
+def test_graphql_sync_with_traced_resolver_regression(test_schema, test_source_str, enable_graphql_resolvers):
+    # End-to-end companion to test_middleware_arg_position_tracks_execute_signature:
+    # exercises the full graphql_sync -> execute middleware-injection path with
+    # resolver tracing enabled (issue #18723). On graphql-core>=3.2.10 this raised
+    # before the fix; on earlier versions it is a harmless smoke test.
+    result = graphql_sync(test_schema, test_source_str)
+    assert result.errors is None
+    assert result.data == {"hello": "friend"}
+
+
 def resolve_fail(root, info):
     undefined_var = None
     return undefined_var.property
