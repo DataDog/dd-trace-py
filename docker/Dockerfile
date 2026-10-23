@@ -14,8 +14,13 @@ ENV LANG=C.UTF-8
 # Use root user to install system dependencies
 USER root
 
-# Create our bits user
-RUN useradd -ms /bin/bash -u 1000 bits
+# Create our bits user.
+# Also create /var/crash: the CI nodes' kernel.core_pattern writes core dumps there, and
+# the kernel silently drops a core when that directory is missing or not writable by the
+# crashing process. 1777 (sticky, world-writable) lets a process under any uid write its
+# core without letting users delete each other's files.
+RUN useradd -ms /bin/bash -u 1000 bits \
+    && install -d -m 1777 /var/crash
 
 # Install system dependencies
 RUN apt-get update \

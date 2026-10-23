@@ -219,6 +219,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aiokafka",
         "google_cloud_pubsub",
         "mistralai",
+        "typesafe",
     }
 )
 
