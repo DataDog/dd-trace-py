@@ -22,8 +22,8 @@ new code should use `context_with_event` or `context_with_data` instead.
 ## The contrib/internal/ Split
 
 Integration code lives in `ddtrace/contrib/internal/{name}/` (not `ddtrace/contrib/{name}/`).
-The public API is `patch()`, `unpatch()`, and `get_version()` from `__init__.py`.
-Each `__init__.py` contains RST docstrings for documentation generation --
+Patch exports live in `patch.py`; users normally enable instrumentation via `ddtrace.patch()`.
+Each integration `__init__.py` contains RST docstrings for documentation generation --
 read `ddtrace/contrib/internal/anthropic/__init__.py` for an example.
 
 ## Three Standard Patterns
@@ -41,7 +41,7 @@ afterward. Deferred integrations must set `dispatch_end_event=False` and call
 **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume (~80+ event listeners that create spans). Used by botocore,
-flask, httpx, django. This pattern decouples patch code from span creation.
+flask and django. This pattern decouples patch code from span creation.
 
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call

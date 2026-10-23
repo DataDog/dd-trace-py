@@ -44,18 +44,11 @@ decoupling. Infrastructure: `ddtrace/_trace/events.py`, `ddtrace/_trace/subscrib
 won't have exception details. Always use `span.set_exc_info(*sys.exc_info())`
 in direct span-management except blocks.
 
-**Finishing LLM spans only from a generator finally** -- Client disconnect or
-an abandoned iterator can skip that finally, leaving the span in the
-aggregator. Reclaim it from the object that owns the stream, not from request
-teardown: `TracedStream.__del__` finalizes dropped `next()` iteration, and
-`__exit__`/`__aexit__` finalize unexhausted context managers, including when
-wrapped async cleanup raises `CancelledError`. Do not sweep unfinished LLM
-spans at ASGI request teardown -- an agent can intentionally outlive the
-request, and truncating its span detaches later children into new root traces.
-Still annotate on the happy path from generator finally.
-
-**Setting items on context after it exits** -- `ctx.set_item()` calls after the
-`with core.context_with_data(...)` block exits are silently dropped.
+**Writing final data after subscribers already ran** -- `ctx.set_item()` still
+writes to the context after exit, but it does not rerun ended-event subscribers.
+Populate data before dispatch; deferred events must use `dispatch_end_event=False`
+and call `ctx.dispatch_ended_event()` once final data is ready. See
+`ddtrace/internal/core/__init__.py` for event lifetime and context restoration.
 
 For LLM/AI integrations, see the `llmobs-integrations` skill for event-based
 span lifecycle anti-patterns (`ctx.dispatch_ended_event`, streaming, and

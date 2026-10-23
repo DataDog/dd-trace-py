@@ -1,169 +1,84 @@
 # AGENTS.md — dd-trace-py
 
-Single source of truth for all AI coding assistants. Tool-specific entry points
-(`.claude/CLAUDE.md`, `.cursor/rules/dd-trace-py.mdc`) import this file.
+Repository instructions for coding assistants. Tool-specific entry points refer here.
+Paths below are relative to the repository root.
 
-## Project Rules
+## Development constraints
 
-1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
-2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`scripts/lint <subcommand>`).
-3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
-4. **No public API breakage** — Never change public API contracts; real applications depend on them.
-5. **No secrets** — Never commit secrets; use environment variables.
-6. **Don't assume business logic** — Ask when unsure about implementation details.
-7. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
-8. **Test before committing** — Run relevant tests to validate changes before committing.
-9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-10. **Update docs** — Add/update documentation when changing internal or public APIs, configuration schemas, or contributor workflows.
-11. **No stray prints** — Check for and remove unexpected `print()` calls.
-12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
-13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
-14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
-15. **Automatic GitLab CI retries on `main` are allowed only for infrastructure failures** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies to infrastructure failures only. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
+- Use the `run-tests` skill and `scripts/run-tests`; never run pytest directly.
+  Discover environments with `scripts/run-tests --list <changed-files>` and use the returned hashes.
+- Use the `lint` skill and `scripts/lint` for formatting and checks; never invoke raw lint tools.
+  Format edited code, run relevant tests, and run `scripts/lint checks` before committing.
+- Preserve public API compatibility. Never commit secrets. Remove accidental debugging output.
+- Investigate source, tests, and supplied context before asking questions. Ask when unresolved
+  business intent or an architectural decision would materially change the implementation.
+- Do not remove TODO/NOTE comments without explicit human instruction; update them when related code changes.
+- Benchmark changes to runtime hot paths, including native code. Documentation, comments, and
+  test-only edits do not require runtime benchmarks. Report missing benchmark coverage.
+- Update documentation when changing APIs, configuration, or contributor workflows.
+  Update integration references when a shared pattern changes, rather than for every integration edit.
+- Do not hide circular imports with function-local imports or type-checking guards.
+  Fix ownership or dependency direction. Preserve deliberate lazy imports for startup cost or
+  gevent compatibility when they are unrelated to a cycle.
 
 ## Docstrings and Comments
 
-Guild-agreed convention. It splits on **whether Sphinx renders the docstring**, not on whether the
-module is private. Rendered means: the public interface of `ddtrace` (reachable through a
-non-underscored import path), plus anything an `automodule` directive under `docs/` points at — which
-includes the `ddtrace/contrib/internal/<integration>/__init__.py` integration docstrings listed in
-`docs/integrations.rst` (required by `docs/contributing-integrations.rst`). When in doubt, grep
-`docs/` for the module.
+Use reStructuredText for Sphinx-rendered docstrings: public interfaces and modules named by
+`automodule` directives in `docs/`, including integration `__init__.py` files.
+Use plain prose elsewhere; avoid rST emphasis and double backticks in private docstrings and comments.
+Explain non-obvious invariants, not the next line of code. Do not add `AIDEV-*` anchors;
+`scripts/check_no_new_aidev_anchors.py` enforces this.
 
-**Rendered docstrings** — write them in reStructuredText, because they reach customers:
+## Task-specific guidance
 
-```python
-def enable(self, flush_interval: float = 1.0) -> None:
-    """Start the writer thread, flushing every ``flush_interval`` seconds.
+Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
+Skill files live at `.claude/skills/<name>/SKILL.md`. Read the relevant sections and references
+for the task, rather than loading every guide. Source code defines current signatures and defaults.
 
-    :param flush_interval: Seconds between flushes.
-    :raises RuntimeError: If the writer is already running.
-    """
-```
+| Task | Skill or reference |
+|------|--------------------|
+| Test selection, execution, environment rebuilds | `run-tests`; `docs/contributing-testing.rst` |
+| Formatting, typing, quality checks | `lint`; `scripts/lint --help` |
+| PR release-note decision | `releasenote`; `docs/releasenotes.rst` |
+| New or renamed configuration | `add-new-configuration` |
+| Contrib integration changes | `apm-integrations`; `.cursor/rules/isolated-responsibility.mdc` |
+| LLMObs integration changes | `llmobs-integrations`; also `apm-integrations` when changing contrib plumbing |
+| Added/moved modules or new import cycles | `circular-import-analysis` |
+| Imports across foundation/product boundaries | `dependency-direction-analysis` |
+| CI failures or merge blockers | `review-ci` |
+| Runtime performance | `run-benchmarks` |
+| Build-cache performance | `debug-build-times` |
+| Native crash investigation | `analyze-crash` |
+| CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |
+| AppSec / IAST | `.cursor/rules/appsec.mdc`; `.cursor/rules/iast.mdc` for IAST |
+| AI Guard | `.cursor/rules/ai-guard.mdc` |
+| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc` |
+| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md` |
+| Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
+| Build or installation failures | `docs/troubleshooting.rst` |
 
-**Everything else** (`_`-prefixed helpers, private modules nothing under `docs/` points at, tests,
-inline comments) — plain text prose optimized for reading in an editor. Nothing renders it, so rST
-inline markup is noise:
+## Pull requests
 
-- No rST emphasis around parameter names — write the name as-is. For example, a parameter named
-  `path` should appear as `path`, not as `*path*` (rST's emphasis syntax, which renders as italics
-  in Sphinx but is just stray asterisks everywhere else).
-- No double backticks for inline literals (see the code style rules); plain text reads better.
-- Field lists (`:param:`, `:returns:`) are optional here; a one-line summary is usually enough.
+Follow the Pull Request Requirements in `docs/contributing.rst` and use
+`.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
+Include validation, risks, and relevant issues. Use `releasenote` before opening a PR;
+apply `changelog/no-changelog` when no customer-facing note is needed.
 
-Either way, aim for **good documentation**: say why the code exists or what invariant it upholds,
-not what the next line already says. Keep it short — a one-line summary covers most helpers.
-Do not add a comment if the comment simply states what the code does, and not why.
+This repository is public. PR text, commits, and release notes must describe the change itself.
+Keep internal discussions, other teams' tickets, backend/data-pipeline names, and open internal
+questions out of public text. Linking the PR's own Jira ticket is fine.
 
-## Key Architecture
+Before mirroring a fork PR into credentialed CI, review its exact head SHA and be willing to merge
+it pending final checks. Follow **Merging Pull Requests from Forks** in `docs/contributing.rst`
+for the shadow PR, SHA verification, and cleanup. Never mirror partially reviewed code just to run CI.
 
-- **Monkey-patching** is the core instrumentation mechanism. Don't break it; understand it before modifying integrations.
-- **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
-- **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
-- **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
+## CI scripts
 
-## PR Guidelines
+Automatic retries on `main` are infrastructure-only. Jobs needing retries on other branches must
+extend `.gitlab/retry-policies.yml`; do not add job-level `retry:` or duplicate jobs by branch.
+Manual retries are unaffected.
 
-Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
-
-- Use `.github/PULL_REQUEST_TEMPLATE.md` for PR descriptions.
-- **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
-- Link relevant issues or JIRA tickets; include a testing plan.
-- **This repository is public** — PR titles, descriptions, commit messages, and release notes must
-  describe only the change itself (problem, root cause, fix, testing, risks). Do not mention
-  internal discussions (Slack threads, meetings), coordination with other teams or tracers, their
-  tickets, internal backend or data-pipeline names, or open internal questions. Linking the PR's
-  own JIRA ticket is fine; put the rest of the internal context in that ticket.
-- When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
-- **Fork PR CI** — External fork PRs cannot run all required CI. A repo-owned branch can start
-  GitLab, but a draft shadow PR into `main` is required for System Tests. The shadow PR moves the
-  fork's code into a credentialed CI context, so the reviewer owns the trust decision. Before
-  mirroring, complete the normal review on the original PR and be willing to merge its exact head
-  SHA pending final CI. Scrutinize everything CI can execute, especially workflows, scripts, tests,
-  build/install configuration, dependency changes, network calls, artifact uploads, and code that
-  accesses credentials or changes permissions; involve code owners or security reviewers where
-  appropriate. Recheck the reviewed SHA immediately before pushing it to a repo-owned branch, and
-  repeat the review if it changed; the branch name need not match the contributor's branch. Give
-  the shadow PR a Conventional Commit title ending in `[DO NOT MERGE]`. Its description must say it
-  exists only to run CI, must not be merged, and include `Original PR: <URL>`. Add
-  `Closes: <shadow PR URL>` to the original PR's description. Once the checks pass, verify that the
-  original PR still has the tested SHA, then `/merge` the original. After the original PR closes,
-  close the shadow without merging if it is still open, then delete its branch. Never mirror
-  speculative or partially reviewed code merely to obtain CI results: an identical SHA proves
-  source-commit parity, not safety or identical execution context.
-- **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
-
-## CI Scripts
-
-Every `curl` that runs in CI (`.gitlab-ci.yml`, `.gitlab/`, GitHub Actions, the scripts they call, and the Dockerfiles they build) must:
-
-- **Fail on HTTP errors**: pass `-f`/`--fail`. Without it, a 4xx/5xx exits 0 and the error page is used as if it were the real response.
-- **Retry transient errors**: pass `--retry 5 --retry-delay 2 --retry-connrefused`, or wrap the call in an explicit retry loop.
-- **Download to a file, then extract or run it**: never pipe a retried `curl` into `tar`/`sh`; a retry after a partial transfer sends the partial data and the full file down the same pipe.
-- **Keep stderr out of captured output**: never use `VAR="$(curl ... 2>&1)"`; with `--retry`, curl writes a warning for each failed attempt to stderr, which corrupts the captured response.
-
-Example: `curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o out.tar.gz "$url"`
-
-Exceptions are fine when justified, e.g. a polling loop that checks the HTTP status itself (`scripts/download-s3-wheels.sh`) may skip `--retry`, and a best-effort lookup must fall back visibly (`.gitlab/scripts/resolve-base-branch.sh`).
-
-## Troubleshooting
-
-OpenFeature tests use the checked-in canonical fixture snapshot under
-`tests/openfeature/ffe-system-test-data/`; no submodule setup is required. Change shared
-cases in `DataDog/ffe-system-test-data` first, then refresh with
-`python scripts/update-ffe-fixtures.py --ref <upstream-commit>`. See the OpenFeature
-fixtures section in `docs/contributing-testing.rst` for the update workflow.
-
-See `docs/troubleshooting.rst`. Covers common issues including:
-
-- Installation failures and missing native extensions.
-- Traces not appearing in the Datadog app.
-- Connection errors sending to the agent.
-- Build failures and `ModuleNotFoundError` in test environments.
-
-## Skills
-
-Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
-
-| Skill                           | Trigger                                                                                                                                                                                                                                                                                |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run-tests`                     | Running any tests or validating code changes. **Never run pytest directly.**                                                                                                                                                                                                           |
-| `lint`                          | Formatting, style/type/security checks, or before committing. **Never skip before commits.**                                                                                                                                                                                           |
-| `releasenote`                   | Creating or updating release notes for the current branch.                                                                                                                                                                                                                             |
-| `find-cpython-usage`            | Investigating CPython API dependencies or adding a new Python version.                                                                                                                                                                                                                 |
-| `compare-cpython-versions`      | Comparing CPython source between two Python versions.                                                                                                                                                                                                                                  |
-| `circular-import-analysis`      | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules.                                                                                                                                       |
-| `dependency-direction-analysis` | Detecting `ddtrace.internal`/`ddtrace.contrib` depending on product code, or products depending on each other, and proposing fixes. Use when the `detect_layering_violations` CI job reports new violations, or proactively when adding/moving modules across those boundaries.        |
-| `review-ci`                     | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP.                                                                                                                                          |
-| `run-benchmarks`                | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact.                                                                                                                                         |
-| `debug-build-times`             | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow.                                                                                                                                       |
-| `apm-integrations`              | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration.                                     |
-| `llmobs-integrations`           | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
-
-## Domain Guides
-
-**Read the corresponding guide before modifying code in these domains:**
-
-| Domain                                                          | Guide                                                                   | Paths                                                                                                                                               |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Application Security (AppSec)                                   | `.cursor/rules/appsec.mdc`                                              | `ddtrace/appsec/`, `tests/appsec/`                                                                                                                  |
-| IAST                                                            | `.cursor/rules/iast.mdc`                                                | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/`                                                                                                      |
-| AI Guard                                                        | `.cursor/rules/ai-guard.mdc`                                            | `ddtrace/aiguard/`, `tests/aiguard/`                                                                                                                |
-| Isolated Responsibility (security vs. shared integrations)      | `.cursor/rules/isolated-responsibility.mdc`                             | `ddtrace/contrib/`, `ddtrace/appsec/`                                                                                                               |
-| Native Code (C/C++/Rust/Cython)                                 | `.cursor/rules/native-code.mdc`                                         | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd`                                                                            |
-| Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md`                                            | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
-| Benchmarking CI (microbenchmarks, SLO gates, flaky benchmarks)  | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` | `.gitlab/benchmarks/`, `benchmarks/suitespec.yml`                                                                                                   |
-| Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
-| Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
-| Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
-
-## AIDEV Anchor Comments
-
-The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
-Existing anchors were removed from the repository (#20143).
-
-- Do not add new `AIDEV-*` anchor comments. Use plain inline comments when
-  context is needed (see Docstrings and Comments above).
-- CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
-  lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
-  its tests are excluded because they document or exercise the deprecation.
+For CI downloads, use `curl --fail` and transient retries (`--retry 5 --retry-delay 2
+--retry-connrefused`, or an explicit loop). Download to a file before extracting/executing;
+never pipe retried downloads into `tar`/`sh` or merge stderr into captured responses.
+Status-aware polling and best-effort lookups may use justified alternatives with visible failure handling.

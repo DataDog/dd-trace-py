@@ -15,138 +15,21 @@ allowed-tools:
   - TodoWrite
 ---
 
-# Debug Build Times Skill
+# Diagnose native build caching
 
-For architecture, root causes, key files, and env vars see
-**[docs/build_system.rst](docs/build_system.rst)** — "Debugging Build Performance" section.
+Read [Debugging Build Performance](../../../docs/build_system.rst) for cache architecture,
+timing variables, and source locations. Use an isolated checkout for cold-build experiments;
+clearing compiled artifacts in the user's working tree can disrupt unrelated work.
 
-## Quick Start
+1. Select a relevant environment with `scripts/run-tests --list <changed-files>`.
+2. Use `_DD_DEBUG_EXT=1` and `_DD_DEBUG_EXT_FILE=<output-path>` to capture build phase timings
+   when rebuilding with `scripts/run-tests -r --venv <hash>`.
+3. Compare cold/warm runs with the same Python, platform, compiler settings, and source revision.
+   Distinguish environment reuse from an editable rebuild that actually exercises extension caching.
+4. Inspect `scripts/ext_cache.py` restore/save behavior and `setup.py` skip conditions. The Python
+   used for cache hashing must match the build interpreter because extension suffixes differ.
+5. Check changed hashes, missing cached outputs, newer inputs, and compile commands before deciding
+   that an extension rebuilt unnecessarily. Timing alone is not proof of a cache miss.
 
-On a warm run (extensions cached) `pip install -e .` should complete in **under 30s**.
-
-Create a throwaway `test_venv_cache.sh` in the repo root (don't commit it), run it,
-then inspect the metadata files:
-
-```bash
-bash test_venv_cache.sh 3.13   # or whichever Python version
-cat debug_ext_metadata_cold.txt
-cat debug_ext_metadata_warm.txt
-```
-
-### test_venv_cache.sh (recreate when needed)
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-PYTHON_VERSION="${1:-3.12}"
-CACHE_ROOT="/tmp/dd_ext_cache_test"
-# IMPORTANT: use a version-specific venv to match CI's ext_cache_venv${PYTHON_VERSION} pattern.
-# ext_cache.py uses sys.executable to call setup.py ext_hashes, which computes extension
-# targets with the running Python's suffix (e.g. cpython-313).  If the venv Python doesn't
-# match the build Python, cache save/restore silently operates on the wrong suffix and the
-# ext_cache becomes a no-op for that Python version.
-EXT_CACHE_VENV="/tmp/dd_ext_cache_venv${PYTHON_VERSION}"
-METADATA_COLD="debug_ext_metadata_cold.txt"
-METADATA_WARM="debug_ext_metadata_warm.txt"
-SMOKE_HASH="$(
-  scripts/run-tests --all-suites --list |
-    jq -r --arg python "$PYTHON_VERSION" \
-      '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == $python) | .hash'
-)"
-
-header() { echo; echo "══════════════════════════════════════════"; echo "  $*"; echo "══════════════════════════════════════════"; }
-step()   { echo "── $*"; }
-
-# One-time venv for running ext_cache.py (mirrors CI's EXT_CACHE_VENV)
-if [ ! -d "$EXT_CACHE_VENV" ]; then
-    step "Creating ext_cache venv (python${PYTHON_VERSION})"
-    "python${PYTHON_VERSION}" -m venv "$EXT_CACHE_VENV"
-    "$EXT_CACHE_VENV/bin/pip" install -q wheel cmake setuptools_rust Cython
-fi
-
-cache_restore() { "$EXT_CACHE_VENV/bin/python" scripts/ext_cache.py --root "$CACHE_ROOT" restore; }
-cache_save()    { "$EXT_CACHE_VENV/bin/python" scripts/ext_cache.py --root "$CACHE_ROOT" save; }
-
-run_build() {
-    local label="$1" metadata_out="$2"
-    header "$label build (python $PYTHON_VERSION)"
-    step "Restoring from cache"; cache_restore
-    step "Building smoke test environment"
-    export _DD_DEBUG_EXT=1 _DD_DEBUG_EXT_FILE="$metadata_out"
-    scripts/run-tests --venv "$SMOKE_HASH"
-    unset _DD_DEBUG_EXT _DD_DEBUG_EXT_FILE
-    step "Saving to cache"; cache_save
-    cat "$metadata_out" 2>/dev/null || echo "(no metadata written)"
-}
-
-header "Clearing test state"
-rm -rf ".cache/test-environments/${SMOKE_HASH}" ".cache/test-environments/${SMOKE_HASH}.txt"
-rm -rf "$CACHE_ROOT"
-rm -rf .eggs  # stale eggs cause ENOTEMPTY on Python ≤3.10's legacy setuptools
-# Remove compiled .so files for a true cold state
-find ddtrace -name "*.so" -o -name "*.dylib" -o -name "*.pyd" | grep -v "_vendor" | xargs rm -f 2>/dev/null || true
-
-run_build "COLD" "$METADATA_COLD"
-header "Clearing smoke test environment for warm run"
-rm -rf ".cache/test-environments/${SMOKE_HASH}" ".cache/test-environments/${SMOKE_HASH}.txt"
-run_build "WARM" "$METADATA_WARM"
-
-header "Summary"
-diff --unified=0 --label COLD --label WARM "$METADATA_COLD" "$METADATA_WARM" || true
-```
-
-**Expected results:** The warm editable build completes in under 30s. Any extension showing
-more than 0.05s on warm is rebuilding unnecessarily.
-
-## Diagnosing a New Warm Rebuild
-
-### Step 1: Enable phase timing
-
-Run `bash test_venv_cache.sh 3.13` with `_DD_DEBUG_EXT=1` (the script sets this). The
-metadata files show per-phase and per-extension times.
-
-### Step 2: Identify the slow extension
-
-In `debug_ext_metadata_warm.txt`, any extension with >0.05s is rebuilding.
-
-### Step 3: Check the skip condition
-
-```python
-print(f"DEBUG {ext.name}: ext_path={ext_path} exists={ext_path.exists()} needs_rebuild={needs_rebuild}")
-```
-
-```bash
-smoke_hash=$(
-  scripts/run-tests --all-suites --list |
-    jq -r '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == "3.13") | .hash'
-)
-rm -rf ".cache/test-environments/${smoke_hash}" ".cache/test-environments/${smoke_hash}.txt"
-_DD_DEBUG_EXT=1 scripts/run-tests --venv "$smoke_hash" 2>&1 | grep "DEBUG\|skipping\|building"
-```
-
-### Step 4: Find the newer source
-
-```python
-# In a Python shell after restoring from cache:
-from pathlib import Path
-from distutils.dep_util import newer_group
-import sysconfig
-suffix = sysconfig.get_config_var('EXT_SUFFIX')
-source_dir = Path('ddtrace/profiling/collector')  # adjust as needed
-ext_path = source_dir / f'_memalloc{suffix}'
-srcs = [s for s in source_dir.glob('**/*') if s.is_file() and s.suffix not in {'.py','.pyc','.pyi','.c','.so','.dylib','.dll','.pyd'}]
-ext_mtime = ext_path.stat().st_mtime
-newer = [(str(s), round(s.stat().st_mtime - ext_mtime, 3)) for s in srcs if s.stat().st_mtime > ext_mtime]
-print(newer)
-```
-
-### Step 5: Check ext_cache is actually restoring
-
-```bash
-/tmp/dd_ext_cache_venv3.13/bin/python scripts/ext_cache.py --root /tmp/dd_ext_cache_test restore 2>&1 | grep -i "warning\|error\|restoring"
-```
-
-Warnings about "No cached files found" mean the hash changed between save and restore.
-Run `python setup.py ext_hashes --inplace` twice and compare — if hashes differ, there's
-a hash stability bug.
+Report measured phase times and the evidence for invalidation. Avoid universal wall-clock or
+per-extension thresholds: hardware, dependency downloads, and build configuration affect timing.

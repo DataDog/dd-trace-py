@@ -16,9 +16,9 @@ Required: breaking API change, new feature, bug fix, deprecation, dependency upg
 if it's customer-impacting.
 Not required: CI chores, internal-only/not-yet-released API changes, test-only changes.
 
-If customer impact is unclear, **ask the user** what the customer impact is. Never guess —
-unless the PR/issue/ticket you were given already states it. If no note is needed, say so and
-suggest the `changelog/no-changelog` PR label instead.
+Determine customer impact from the diff, tests, and supplied PR/issue context.
+Ask only when missing product intent prevents that decision. If no note is needed,
+state why and use the `changelog/no-changelog` PR label.
 
 ## Audience
 
@@ -28,8 +28,8 @@ the PR description, not here.
 
 ## Before writing
 
-1. If the category (`features`/`fixes`/`upgrade`/`deprecations`/`issues`/`api`/`security`/`other`)
-   isn't given, ask.
+1. Select the category from the customer-visible change and `docs/releasenotes.rst`.
+   Ask only when the intended behavior or compatibility impact is unresolved.
 2. Check for an existing fragment on the same topic, scoped to your current branch's own
    unmerged changes: `git diff --name-only <base>...HEAD -- releasenotes/notes/`, where
    `<base>` is the branch you're merging into (usually `origin/main`; use the actual base if

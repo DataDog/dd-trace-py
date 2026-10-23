@@ -23,9 +23,8 @@ code, also consult `.cursor/rules/iast.mdc`.
 1. Grep the diff for trigger symbols. If any match, read the corresponding
    section in `docs/native-code-review.md` before approving.
 2. Check the stop conditions below — any violation is an immediate blocker.
-3. Record one-line evidence per applicable dimension in the PR.
-4. Add `HUMAN-CHECK:` when safety depends on wheel behavior, conditional
-   compilation, or pinned dependency internals.
+3. Report relevant evidence and unresolved validation gaps. For wheel layout or conditional
+   compilation, verify the built artifact; request help only when that evidence is unavailable.
 
 ## Trigger Symbols
 
@@ -65,15 +64,11 @@ Any of these is an immediate blocker:
 8. Assuming CPython/libdatadog/libddwaf behavior without reading the pinned
    version's source
 
-## Key Version/Platform Facts
+## Dependency versions
 
-- CPython 3.12–3.13.7: `take_gil()` crash via `pthread_exit()`. 3.13.8+: hang.
-- CPython 3.14+: `_Py_Dealloc` dereferences `tstate` (crash if NULL during
-  finalization). Default multiprocessing start method is now `forkserver`.
-- glibc: `pthread_exit()` throws `abi::__forced_unwind` — must re-throw.
-- musl/Alpine: `pthread_exit()` uses `longjmp` — C++ catch won't fire.
-- Pinned versions: `pyproject.toml` (Python), `src/native/Cargo.toml`
-  (libdatadog), `setup.py` (libddwaf).
+Read the applicable version/platform discussion in `docs/native-code-review.md` and verify it
+against the actual runtime and dependency source. Supported Python versions are in `pyproject.toml`;
+libdatadog and libddwaf build references are in `src/native/Cargo.toml` and `setup.py`.
 
 ## Review Dimensions — Quick Index
 
@@ -91,4 +86,4 @@ what to check for each:
 | Build/release | §7 | Is the fix actually compiled in, not dead code from missing `#include`? |
 | Version awareness | §8 | Was behavior verified against the pinned version's source? |
 | Fix validation | §9 | Does the test fail without the fix? Combined feature sets tested? |
-| Cython | §10 | Do `cdef` functions declare `except *`/`except -1`? Are `nogil` blocks Python-free? |
+| Cython | §10 | Do effective exception contracts match callers, including `noexcept` and `nogil` costs? |
