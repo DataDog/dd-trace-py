@@ -41,8 +41,9 @@ task = loop.create_task(wait_forever())
         thread = std::make_unique<ThreadInfo>(1, 1, "test-thread", mach_thread_self());
 #endif
         thread->asyncio_loop = reinterpret_cast<uintptr_t>(loop);
-        echion.set_asyncio_offsets(AsyncioOffsets{ offsetof(PyInterpreterState, asyncio_tasks_head),
-                                                   offsetof(_PyThreadStateImpl, asyncio_tasks_head) });
+        echion.set_asyncio_offsets(
+          AsyncioOffsets{ .interpreter_tasks_head = offsetof(PyInterpreterState, asyncio_tasks_head),
+                          .thread_tasks_head = offsetof(_PyThreadStateImpl, asyncio_tasks_head) });
     }
 
     void TearDown() override

@@ -370,11 +370,9 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     }
 
 #if PY_VERSION_HEX >= 0x030e0000
-    // Use the offsets of the CPython headers this module was compiled against, which matches how the task-list
-    // walkers located the list heads before the offsets moved into the sampler.
     Sampler::get().get_echion().set_asyncio_offsets(AsyncioOffsets{
-      offsetof(PyInterpreterState, asyncio_tasks_head),
-      offsetof(_PyThreadStateImpl, asyncio_tasks_head),
+      .interpreter_tasks_head = offsetof(PyInterpreterState, asyncio_tasks_head),
+      .thread_tasks_head = offsetof(_PyThreadStateImpl, asyncio_tasks_head),
     });
 #endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
