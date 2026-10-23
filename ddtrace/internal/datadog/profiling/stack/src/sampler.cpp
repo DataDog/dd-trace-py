@@ -64,6 +64,32 @@ Datadog::mark_fast_copy_foreign_takeover()
     update_fast_copy_stats(Sample::profile_borrow().stats());
 }
 
+// Sticky takeover plus leftover memcpy (set_fast_copy_enabled(false) failed, or a
+// child inherited that state): drop to the syscall copy, or refuse to sample.
+// Always call the fallback once sticky is set — do not skip on fast_copy_active.
+// That flag is non-atomic and can disagree with safe_copy after a concurrent fork
+// mid-set_fast_copy_enabled (or store reordering); set_fast_copy_enabled(false) is
+// idempotent when already on the syscall path.
+// Returns true if the caller may continue sampling; false if there is no safe
+// fallback left and the caller must stop the sampler.
+static bool
+drop_fast_copy_after_foreign_takeover()
+{
+    if (!fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
+        return true;
+    }
+    if (set_fast_copy_enabled(false)) {
+        return true;
+    }
+    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                 "stopping stack sampling to avoid crashing."
+              << std::endl;
+    // Callers stop the sampler and skip the end-of-cycle stats update; reseed so
+    // uploads do not keep fast_copy_memory_enabled from before the failed disable.
+    update_fast_copy_stats(Sample::profile_borrow().stats());
+    return false;
+}
+
 void
 Datadog::seed_fast_copy_profiler_stats()
 {
@@ -404,6 +430,18 @@ void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     seed_fast_copy_profiler_stats();
+
+    // Child/restart: handler_ops is false after sticky takeover, so the loop would
+    // skip fallback and sample with leftover memcpy under a foreign handler.
+    if (!drop_fast_copy_after_foreign_takeover()) {
+        sampler_active_.store(false);
+        {
+            std::lock_guard<std::mutex> lock(thread_exit_mutex);
+            thread_running.store(false);
+        }
+        thread_exit_cv.notify_all();
+        return;
+    }
 
     // (Re)install once only if we still own both handlers. Coordinated chains
     // (faulthandler/crashtracker) are fine; foreign owners (abseil/vLLM, PyTorch/CUDA)
@@ -872,6 +910,10 @@ Sampler::start()
     static std::once_flag once;
     std::call_once(once, [this]() { this->one_time_setup(); });
 
+    if (!drop_fast_copy_after_foreign_takeover()) {
+        sampler_active_.store(false);
+        return false;
+    }
 #if defined PL_LINUX
     if (failed_safe_copy) {
         sampler_active_.store(false);
