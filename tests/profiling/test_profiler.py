@@ -39,8 +39,38 @@ def _reset_profiler_active_instance() -> Generator[None, None, None]:
     profiler.Profiler._exit_signal_handler = None
 
 
-def test_status() -> None:
-    p = profiler.Profiler()
+@pytest.fixture
+def profiler_factory(request: pytest.FixtureRequest) -> Callable[..., profiler.Profiler]:
+    """Own profiler instances so early test failures cannot skip shutdown."""
+
+    def create(*args: Any, **kwargs: Any) -> profiler.Profiler:
+        p = profiler.Profiler(*args, **kwargs)
+        request.addfinalizer(lambda: p.stop(flush=False))
+        return p
+
+    return create
+
+
+def test_profiler_factory_registers_cleanup_for_each_instance() -> None:
+    request = mock.Mock(spec=pytest.FixtureRequest)
+    first = mock.Mock(spec=profiler.Profiler)
+    second = mock.Mock(spec=profiler.Profiler)
+    with mock.patch.object(profiler, "Profiler", side_effect=[first, second]) as constructor:
+        create = profiler_factory.__wrapped__(request)
+        assert create(service="first") is first
+        assert create(service="second") is second
+        assert constructor.call_args_list == [mock.call(service="first"), mock.call(service="second")]
+
+    assert request.addfinalizer.call_count == 2
+    for call in reversed(request.addfinalizer.call_args_list):
+        call.args[0]()
+
+    first.stop.assert_called_once_with(flush=False)
+    second.stop.assert_called_once_with(flush=False)
+
+
+def test_status(profiler_factory: Callable[..., profiler.Profiler]) -> None:
+    p = profiler_factory()
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
     p.start()
     assert repr(p.status) == "<ServiceStatus.RUNNING: 'running'>"
@@ -48,17 +78,17 @@ def test_status() -> None:
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
 
 
-def test_restart() -> None:
-    p = profiler.Profiler()
+def test_restart(profiler_factory: Callable[..., profiler.Profiler]) -> None:
+    p = profiler_factory()
     p.start()
     p.stop(flush=False)
     p.start()
-    p.stop(flush=False)
+    assert p.status == service.ServiceStatus.RUNNING
 
 
-def test_multiple_stop() -> None:
+def test_multiple_stop(profiler_factory: Callable[..., profiler.Profiler]) -> None:
     """Check that the profiler can be stopped twice."""
-    p = profiler.Profiler()
+    p = profiler_factory()
     p.start()
     p.stop(flush=False)
     p.stop(flush=False)
