@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    google-adk: Fixes an issue where applications using ``google-adk`` 2.12.0 fail to start with LLM
+    Observability enabled, or start without tool call and code execution spans otherwise. Tool calls
+    made through ``Runner.run_live`` are now also traced on ``google-adk`` 2.12.0.
