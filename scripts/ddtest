@@ -183,9 +183,10 @@ else
         RUN_AS_GID="${RUN_AS_USER##*:}"
         # usermod would re-chown the large toolchains on every run. Instead, start
         # as root, hand over only what must be writable (the home directory for
-        # dotfiles, and the small ~/.cargo for `cargo install`), add a passwd
-        # entry for user lookups, then drop privileges.
-        SETUP_SCRIPT="chown ${RUN_AS_UID}:${RUN_AS_GID} /home/bits && chown -R ${RUN_AS_UID}:${RUN_AS_GID} /home/bits/.cargo"
+        # dotfiles, ~/.cargo for `cargo install`, ~/.local for pip's user install
+        # fallback, and pyenv's shims for the rehash after pip install, all
+        # small), add a passwd entry for user lookups, then drop privileges.
+        SETUP_SCRIPT="chown ${RUN_AS_UID}:${RUN_AS_GID} /home/bits && chown -R ${RUN_AS_UID}:${RUN_AS_GID} /home/bits/.cargo /home/bits/.local /home/bits/.pyenv/shims"
         SETUP_SCRIPT+=" && { getent group ${RUN_AS_GID} >/dev/null || echo 'ddtest:x:${RUN_AS_GID}:' >> /etc/group; }"
         SETUP_SCRIPT+=" && { getent passwd ${RUN_AS_UID} >/dev/null || echo 'ddtest:x:${RUN_AS_UID}:${RUN_AS_GID}::/home/bits:/bin/bash' >> /etc/passwd; }"
         INNER_SCRIPT=$(printf '%q' "$CONTAINER_SCRIPT")
