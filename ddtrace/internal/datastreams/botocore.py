@@ -297,10 +297,12 @@ def record_data_streams_path_for_kinesis_stream(
     payload_size = calculate_kinesis_payload_size(record)
     if (p := processor()) is not None:
         ctx = DsmPathwayCodec.decode(context_json, p)
+        # The arrival time is only a fallback start for records that carry no upstream DSM context.
+        start_override = None if ctx.hash else time_estimate
         ctx.set_checkpoint(
             ["direction:in", "topic:" + stream, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
+            edge_start_sec_override=start_override,
+            pathway_start_sec_override=start_override,
             payload_size=payload_size,
         )
 
