@@ -129,9 +129,9 @@ class GrpclibExporter:
                         return failure
                     self._loop.run_until_complete(self._method(request, timeout=remaining, metadata=self._headers))
                 return success
-            except GRPCError as error:
+            except (GRPCError, OSError) as error:
                 remaining = deadline - monotonic()
-                if error.status not in _RETRYABLE_STATUSES or remaining <= delay:
+                if (isinstance(error, GRPCError) and error.status not in _RETRYABLE_STATUSES) or remaining <= delay:
                     log.error("Failed to export OpenTelemetry %s over gRPC: %s", self._signal, error)
                     return failure
                 log.warning("Transient gRPC error exporting OpenTelemetry %s; retrying in %ss", self._signal, delay)

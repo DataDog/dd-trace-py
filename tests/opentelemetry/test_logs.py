@@ -265,7 +265,7 @@ def test_http_protocol_selects_lightweight_exporter():
 def test_exporter_resolution_without_proto_package_returns_none(monkeypatch, protocol):
     from ddtrace.internal.opentelemetry import exporters
 
-    def missing_exporter_version():
+    def missing_exporter_version(protocol):
         raise ImportError("OpenTelemetry exporter is not installed")
 
     monkeypatch.setattr(exporters, "_exporter_version", missing_exporter_version)

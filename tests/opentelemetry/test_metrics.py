@@ -244,6 +244,42 @@ def test_http_exporter_preserves_attribute_types_headers_and_compression(monkeyp
 
 
 @skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
+def test_http_exporter_rejects_redirects(monkeypatch):
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry.exporters.http_metric_exporter import OTLPMetricExporter
+
+    provider, metrics_data = _metrics_data()
+    exporter = OTLPMetricExporter(endpoint="http://127.0.0.1:4318")
+    monkeypatch.setattr(exporter, "_send", lambda payload, timeout: (302, None))
+    try:
+        assert exporter.export(metrics_data) is MetricExportResult.FAILURE
+    finally:
+        exporter.shutdown()
+        provider.shutdown()
+
+
+@skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
+def test_http_exporter_uses_proxy_without_following_redirects(monkeypatch):
+    from urllib.request import ProxyHandler
+
+    from ddtrace.internal.opentelemetry.exporters import http_exporter
+    from ddtrace.internal.opentelemetry.exporters.http_metric_exporter import OTLPMetricExporter
+
+    monkeypatch.setattr(http_exporter, "getproxies", lambda: {"http": "http://proxy.example.com:8080"})
+    monkeypatch.setattr(http_exporter, "proxy_bypass", lambda hostname: False)
+    exporter = OTLPMetricExporter(endpoint="http://collector.example.com:4318/v1/metrics")
+    try:
+        assert exporter._client is None
+        assert any(isinstance(handler, ProxyHandler) for handler in exporter._opener.handlers)
+        assert any(isinstance(handler, http_exporter._NoRedirectHandler) for handler in exporter._opener.handlers)
+    finally:
+        exporter.shutdown()
+
+
+@skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
 def test_grpclib_exporter_uses_otlp_temporality_preference(monkeypatch):
     from opentelemetry.sdk.metrics._internal.instrument import Counter
@@ -279,6 +315,34 @@ def test_grpclib_exporter_ignores_interpreter_shutdown_error(monkeypatch, caplog
         provider.shutdown()
 
     assert not [record for record in caplog.records if record.levelno >= 30]
+
+
+@skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
+def test_grpclib_exporter_retries_transport_errors(monkeypatch):
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry.exporters import grpclib_exporter
+    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
+
+    calls = []
+
+    async def export(request, *, timeout, metadata):
+        calls.append(request)
+        if len(calls) == 1:
+            raise ConnectionRefusedError
+
+    provider, metrics_data = _metrics_data()
+    exporter = OTLPMetricExporter(endpoint="http://127.0.0.1:4317", timeout=3)
+    monkeypatch.setattr(exporter, "_method", export)
+    monkeypatch.setattr(grpclib_exporter, "sleep", lambda delay: None)
+    try:
+        assert exporter.export(metrics_data) is MetricExportResult.SUCCESS
+    finally:
+        exporter.shutdown()
+        provider.shutdown()
+
+    assert len(calls) == 2
 
 
 @skipif(exporter_not_installed=True)
@@ -323,12 +387,36 @@ def test_protocol_selects_exporter(protocol, module):
 def test_exporter_resolution_without_proto_package_returns_none(monkeypatch, protocol):
     from ddtrace.internal.opentelemetry import exporters
 
-    def missing_exporter_version():
+    def missing_exporter_version(protocol):
         raise ImportError("OpenTelemetry exporter is not installed")
 
     monkeypatch.setattr(exporters, "_exporter_version", missing_exporter_version)
 
     assert exporters.get_metrics_exporter(protocol) is None
+
+
+@pytest.mark.parametrize(
+    ("protocol", "distribution"),
+    [
+        ("grpc", "opentelemetry-exporter-otlp-proto-grpc"),
+        ("http/protobuf", "opentelemetry-exporter-otlp-proto-http"),
+    ],
+)
+def test_exporter_version_falls_back_to_protocol_package(monkeypatch, protocol, distribution):
+    from ddtrace.internal.opentelemetry import exporters
+
+    requested = []
+
+    def package_version(name):
+        requested.append(name)
+        if name == "opentelemetry-exporter-otlp-proto-common":
+            raise PackageNotFoundError
+        return "1.17.0"
+
+    monkeypatch.setattr(exporters, "version", package_version)
+
+    assert exporters._exporter_version(protocol) == "1.17.0"
+    assert requested == ["opentelemetry-exporter-otlp-proto-common", distribution]
 
 
 @skipif(exporter_not_installed=True)

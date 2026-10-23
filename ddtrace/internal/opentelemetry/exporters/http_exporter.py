@@ -15,10 +15,14 @@ from time import time
 from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler
 from urllib.request import HTTPSHandler
 from urllib.request import OpenerDirector
+from urllib.request import ProxyHandler
 from urllib.request import Request
 from urllib.request import build_opener
+from urllib.request import getproxies
+from urllib.request import proxy_bypass
 import zlib
 
 from opentelemetry.util.re import parse_env_headers
@@ -34,6 +38,11 @@ _MAX_RETRIES = 6
 _MAX_REQUEST_SIZE = 64 * 1024 * 1024
 _RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
 _RANDOM = SystemRandom()
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
+        return None
 
 
 class HttpExporter:
@@ -71,12 +80,14 @@ class HttpExporter:
         certificate = certificate_file or _environment(f"{prefix}_CERTIFICATE", "OTEL_EXPORTER_OTLP_CERTIFICATE", "")
         client_certificate = client_certificate_file or env.get(f"{prefix}_CLIENT_CERTIFICATE") or ""
         client_key = client_key_file or env.get(f"{prefix}_CLIENT_KEY") or ""
-        if certificate or client_certificate or client_key:
+        proxy_handler = _proxy_handler(self._endpoint)
+        if certificate or client_certificate or client_key or proxy_handler is not None:
             self._client = None
             context = ssl.create_default_context(cafile=certificate or None)
             if client_certificate:
                 context.load_cert_chain(client_certificate, client_key or None)
-            self._opener = build_opener(HTTPSHandler(context=context))
+            handlers = [proxy_handler or ProxyHandler({}), HTTPSHandler(context=context), _NoRedirectHandler()]
+            self._opener = build_opener(*handlers)
             self._path = ""
         else:
             parsed = urlsplit(self._endpoint)
@@ -120,7 +131,7 @@ class HttpExporter:
                 retry_after = None
                 failure_reason: Any = error
             else:
-                if 200 <= response_status < 400:
+                if 200 <= response_status < 300:
                     return success
                 failure_reason = f"HTTP {response_status}"
                 if response_status not in _RETRYABLE_STATUS_CODES:
@@ -169,6 +180,17 @@ def _resolve_endpoint(prefix: str, path: str) -> str:
     if signal_endpoint:
         return signal_endpoint
     return (env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or _DEFAULT_ENDPOINT).rstrip("/") + path
+
+
+def _proxy_handler(endpoint: str) -> ProxyHandler | None:
+    parsed = urlsplit(endpoint)
+    proxies = getproxies()
+    if not parsed.hostname or proxy_bypass(parsed.hostname):
+        return None
+    proxy = proxies.get(parsed.scheme) or proxies.get("all")
+    if proxy is None:
+        return None
+    return ProxyHandler({parsed.scheme: proxy})
 
 
 def _resolve_headers(
