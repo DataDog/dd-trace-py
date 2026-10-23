@@ -3,33 +3,15 @@
 from __future__ import annotations
 
 import gc
-import os
-from pathlib import Path
-from typing import TYPE_CHECKING
 from typing import Callable
 from unittest import mock
 
 import pytest
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
+import ddtrace.profiling.collector.gc as gc_collector
 from ddtrace.profiling.collector.gc import GCCollector
-from tests.profiling.collector import pprof_utils
-
-
-if TYPE_CHECKING:
-    from tests.profiling.collector import pprof_pb2
-
-
-def _setup_profiler(tmp_path: Path, test_name: str) -> str:
-    pprof_prefix: str = str(tmp_path / test_name)
-    output_filename: str = pprof_prefix + "." + str(os.getpid())
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="1.0", output_filename=pprof_prefix)
-    ddup.config_sample_type(ddup.SAMPLE_TYPE_GC)
-    ddup.start()
-    return output_filename
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +73,7 @@ def test_reset_after_fork_clears_in_flight_state() -> None:
 
 
 def test_fork_hook_registered_and_unregistered() -> None:
-    with mock.patch("ddtrace.profiling.collector.gc.forksafe") as mock_forksafe:
+    with mock.patch.object(gc_collector, "forksafe") as mock_forksafe:
         col: GCCollector = GCCollector()
         col.start()
         mock_forksafe.register.assert_called_once_with(col._reset_after_fork)
@@ -119,7 +101,7 @@ def test_explicit_count_resets_on_snapshot() -> None:
         gc.collect()
         gc.collect()
         assert col._explicit_count == 2
-        with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+        with mock.patch.object(gc_collector, "ddup") as mock_ddup:
             mock_handle = mock.MagicMock()
             mock_ddup.SampleHandle.return_value = mock_handle
             col.snapshot()
@@ -150,7 +132,7 @@ def test_on_pause_records_pause_gctime() -> None:
         handles.append(h)
         return h
 
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+    with mock.patch.object(gc_collector, "ddup") as mock_ddup:
         mock_ddup.SampleHandle.side_effect = make_handle
         col._on_pause(0, 1000)
         mock_ddup.SampleHandle.assert_not_called()
@@ -190,7 +172,7 @@ def test_snapshot_gctime_equals_total_pause_ns() -> None:
         handles.append(h)
         return h
 
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+    with mock.patch.object(gc_collector, "ddup") as mock_ddup:
         mock_ddup.SampleHandle.side_effect = make_handle
         col.snapshot()
 
@@ -209,7 +191,7 @@ def test_snapshot_emits_config_sample() -> None:
     col: GCCollector = _make_isolated_collector()
     col._explicit_count = 2
 
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+    with mock.patch.object(gc_collector, "ddup") as mock_ddup:
         mock_handle: mock.MagicMock = mock.MagicMock()
         mock_ddup.SampleHandle.return_value = mock_handle
         col.snapshot()
@@ -221,14 +203,39 @@ def test_snapshot_emits_config_sample() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration test — emits real ddup samples and reads back pprof
+# Integration test — emits real ddup samples and reads back pprof.
+# Fresh process: ddup's sample-type mask is process-wide and is frozen on
+# the first start(), so an in-process run after other profiling tests never
+# sees gc-time.
 # ---------------------------------------------------------------------------
 
 
-def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
-    output_filename = _setup_profiler(tmp_path, "test_gc_pause_samples_appear_in_profile")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_pause_samples_appear_in_profile"),
+    err=None,
+)
+def test_gc_pause_samples_appear_in_profile() -> None:
+    import gc
+    import os
 
-    col = GCCollector()
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.gc import GCCollector
+    from tests.profiling.collector import pprof_pb2
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix: str = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename: str = pprof_prefix + "." + str(os.getpid())
+    assert ddup.is_available
+    ddup.config(
+        env="test",
+        service="test_gc_pause_samples_appear_in_profile",
+        version="1.0",
+        output_filename=pprof_prefix,
+    )
+    ddup.config_sample_type(ddup.SAMPLE_TYPE_GC)
+    ddup.start()
+
+    col: GCCollector = GCCollector()
     col.start()
     try:
         # Force a few collections to guarantee at least one gc.callbacks event
@@ -241,11 +248,13 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    sample_types: list[str] = [profile.string_table[sample_type.type] for sample_type in profile.sample_type]
+    assert "gc-time" in sample_types, sample_types
     gc_time_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "gc-time")
 
     # At least one sample must have a gc.collect frame
-    gc_samples = [
+    gc_samples: list[pprof_pb2.Sample] = [
         s
         for s in gc_time_samples
         if any(
