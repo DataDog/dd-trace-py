@@ -12,6 +12,7 @@ class _FfeSnapshot(NamedTuple):
 
     config: ffe.Configuration
     observe_full_evaluation_data: bool
+    identity: Optional[dict[str, Any]] = None
 
 
 # A single reference keeps configuration and consent consistent when Remote

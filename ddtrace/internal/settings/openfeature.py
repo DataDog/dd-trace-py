@@ -5,7 +5,7 @@ OpenFeature configuration settings.
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource
 

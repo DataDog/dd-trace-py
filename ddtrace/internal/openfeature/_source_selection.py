@@ -11,8 +11,9 @@ agentless factory, adapted to dd-trace-py config conventions.
 from typing import Any
 from typing import Callable
 from typing import Optional
+from urllib.parse import urlsplit
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 from ddtrace.internal.settings.openfeature import AGENTLESS
@@ -34,7 +35,11 @@ def create_agentless_source(
     endpoint is operator-owned trust: it starts without an API key and omits the
     header, letting the endpoint report any authentication failure itself.
     """
-    if resolve_configuration_source(ffe_config) != AGENTLESS:
+    source = resolve_configuration_source(ffe_config)
+    if source == DISABLED:
+        return None
+    if source != AGENTLESS:
+        log.debug("Feature Flags: configuration source is %s, not agentless; skipping agentless setup", source)
         return None
 
     from ddtrace import config as dd_config
@@ -53,10 +58,21 @@ def create_agentless_source(
         log.error("Unable to configure Feature Flagging configuration source: %s", e)
         return None
 
+    log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
     return AgentlessConfigurationSource(
         endpoint=endpoint,
         apply_configuration=apply_configuration,
         api_key=None if has_custom_endpoint else api_key,
         poll_interval=ffe_config.configuration_source_agentless_poll_interval_seconds,
         request_timeout=ffe_config.configuration_source_agentless_request_timeout_seconds,
+        env=dd_config.env,
     )
+
+
+def _redacted_origin(url: str) -> str:
+    """Keep only scheme and host; a custom base URL may embed credentials or a signed token."""
+    parts = urlsplit(url)
+    # Strip userinfo by hand: .hostname/.port raise on a malformed port, and a
+    # diagnostic log must never break source setup.
+    host = parts.netloc.rpartition("@")[2]
+    return f"{parts.scheme}://{host}"

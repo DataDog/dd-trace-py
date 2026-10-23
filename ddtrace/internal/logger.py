@@ -113,6 +113,31 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
+_ISOLATED_LOGGERS: set[str] = set()
+
+
+def get_safe_logger(name: str) -> logging.Logger:
+    """Drop diagnostic failures, including application record factories, filters and handlers.
+
+    Opt in only where diagnostics must never interrupt a product lifecycle.
+    """
+    logger = get_logger(name)
+    if name not in _ISOLATED_LOGGERS:
+        original_log = logger._log
+
+        def isolated_log(*args, **kwargs):
+            try:
+                # Preserve the original call site for the logging rate limiter.
+                kwargs["stacklevel"] = kwargs.get("stacklevel", 1) + 1
+                original_log(*args, **kwargs)
+            except Exception:  # nosec: B110
+                pass
+
+        setattr(logger, "_log", isolated_log)  # noqa: B010
+        _ISOLATED_LOGGERS.add(name)
+    return logger
+
+
 _RATE_LIMITS = {}
 
 

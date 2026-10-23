@@ -13,7 +13,7 @@ from openfeature.hook import Hook
 from openfeature.hook import HookContext
 from openfeature.hook import HookHints
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 
 
 log = get_logger(__name__)
@@ -58,7 +58,9 @@ class FlagEvalMetrics:
             from ddtrace import config as ddconfig
 
             if not ddconfig._otel_metrics_enabled:
-                log.debug("OTel metrics not enabled (DD_METRICS_OTEL_ENABLED=false), flag evaluation metrics disabled")
+                log.debug(
+                    "Feature Flags: evaluation metrics disabled; set %s=true to enable", "DD_METRICS_OTEL_ENABLED"
+                )
                 return
         except ImportError:
             # ddtrace config not available (e.g., in isolated test environments)

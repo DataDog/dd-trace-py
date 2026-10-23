@@ -6,10 +6,11 @@ feature flag configuration rules.
 """
 
 import json
+import logging
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -44,9 +45,14 @@ def process_ffe_configuration(config: Any) -> bool:
         config_json = json.dumps(config)
         config_bytes = config_json.encode("utf-8")
         native_config = ffe.Configuration(config_bytes)
+        identity = None
+        if log.isEnabledFor(logging.DEBUG):
+            _log_flag_summary(config, native_config)
+            if isinstance(config, dict):
+                identity = {"created_at": config.get("createdAt"), "environment": config.get("environment")}
         # Notifies registered providers as part of setting the snapshot; see
         # ddtrace.internal.openfeature._config for why the registry lives there.
-        _set_ffe_config(_FfeSnapshot(native_config, observe_full_evaluation_data))
+        _set_ffe_config(_FfeSnapshot(native_config, observe_full_evaluation_data, identity))
         return True
     except ValueError as e:
         log.debug(
@@ -57,6 +63,45 @@ def process_ffe_configuration(config: Any) -> bool:
             exc_info=True,
         )
         return False
+
+
+def _log_flag_summary(config: Any, native_config: ffe.Configuration) -> None:
+    """Log how many flags of a parsed configuration are usable and which were rejected.
+
+    The native parser keeps a configuration whose individual flags fail to parse and
+    stores the failure in their place, so the configuration-level result alone hides
+    them. The native API has no list of rejected flags, so each flag is looked up once
+    to recover its status.
+    """
+    # This only reports on the configuration, so nothing in it may stop the
+    # configuration from being applied.
+    try:
+        raw_flags = config.get("flags") if isinstance(config, dict) else None
+        flags = raw_flags if isinstance(raw_flags, dict) else {}
+        rejected: list[tuple[str, str]] = []
+        for key in flags:
+            # A rejected flag reports its parse error before the expected type is
+            # considered, so the type passed here does not change the outcome.
+            details = native_config.resolve_value(key, VariationType.Boolean, {"targeting_key": None, "attributes": {}})
+            if details.error_code == ffe.ErrorCode.ParseError:
+                rejected.append((key, details.error_message or "configuration error"))
+                log.debug(
+                    "Feature Flags: rejected flag %s: %s "
+                    "(native evaluator does not expose field-level rejection details)",
+                    key,
+                    details.error_message,
+                )
+        log.debug(
+            "Feature Flags: configuration parsed: %d flag(s), %d usable, %d rejected%s",
+            len(flags),
+            len(flags) - len(rejected),
+            len(rejected),
+            " (invalid flag configuration: %s)" % ", ".join(f"{key}: {reason}" for key, reason in sorted(rejected))
+            if rejected
+            else "",
+        )
+    except Exception:
+        log.debug("Feature Flags: could not check parsed flags for rejections", exc_info=True)
 
 
 def resolve_flag(
