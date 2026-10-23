@@ -98,11 +98,8 @@ def test_filters():
     tracer.flush()
 
 
-# Have to use sync mode snapshot so that the traces are associated to this
-# test case since we use a custom writer (that doesn't have the trace headers
-# injected).
 @pytest.mark.subprocess()
-@snapshot(async_mode=False)
+@snapshot()
 def test_synchronous_writer():
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer
@@ -123,7 +120,7 @@ def test_synchronous_writer():
     PYTHON_VERSION_INFO >= (3, 14),
     reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
 )
-@snapshot(async_mode=False)
+@snapshot()
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
     """
@@ -153,7 +150,7 @@ def test_tracer_trace_across_popen():
     PYTHON_VERSION_INFO >= (3, 14),
     reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
 )
-@snapshot(async_mode=False)
+@snapshot()
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
     """
@@ -484,3 +481,29 @@ def test_writer_restarts_in_child_and_flushes_traces_after_fork():
 
     os.waitpid(pid, 0)
     tracer.flush()
+
+
+def test_snapshot_attempt_isolates_late_previous_producer(snapshot_context, run_python_code_in_subprocess):
+    code = """
+from ddtrace import tracer
+with tracer.trace("operation", service="my-svc") as span:
+    span.set_tag("k", "v")
+    span.set_tag("num", 1234)
+    span._set_attribute("float_metric", 12.34)
+    span._set_attribute("int_metric", 4321)
+tracer.shutdown()
+"""
+    name = "tests.integration.test_integration_snapshots.test_single_trace_single_span"
+    with snapshot_context(token=name) as first:
+        previous_env = os.environ.copy()
+        _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
+        assert status == 0, err
+
+    with snapshot_context(token=name) as second:
+        assert first.token != second.token
+        _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
+        assert status == 0, err
+        _, err, status, _ = run_python_code_in_subprocess(code, env=os.environ.copy())
+        assert status == 0, err
+        assert len([r for r in first.requests() if r["url"].endswith("/traces")]) == 2
+        assert len([r for r in second.requests() if r["url"].endswith("/traces")]) == 1

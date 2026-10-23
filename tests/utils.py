@@ -4,21 +4,22 @@ import base64
 import contextlib
 from contextlib import contextmanager
 import http.client as httplib
-from http.client import RemoteDisconnected
 import importlib.metadata as importlib_metadata
 import inspect
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
 from typing import Any
+from typing import Iterator
 from typing import Optional
 from typing import TypedDict
 from typing import cast
 from urllib import parse
-import urllib.parse
+from uuid import uuid4
 
 import pytest
 import wrapt
@@ -48,6 +49,7 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
@@ -1179,36 +1181,47 @@ class TestAgentRequest(TypedDict):
 
 
 class TestAgentClient:
-    def __init__(self, base_url: str, token: Optional[str] = None):
+    def __init__(self, base_url: str, token: Optional[str] = None) -> None:
         self._base_url = base_url
         self._token = token
 
-    def _url(self, path: str) -> str:
-        if self._token:
-            path = f"{path}?test_session_token={self._token}"
-        return urllib.parse.urljoin(self._base_url, path)
+    def _url(self, path: str, **params: Any) -> str:
+        parsed = parse.urlsplit(path)
+        query = dict(parse.parse_qsl(parsed.query))
+        query.update(params)
+        if self._token is not None:
+            query["test_session_token"] = self._token
+        return parse.urlunsplit(("", "", parsed.path, parse.urlencode(query), ""))
 
-    def create_connection(self):
+    def create_connection(self, timeout: float = 5.0) -> httplib.HTTPConnection:
         parsed = parse.urlparse(self._base_url)
         assert parsed.hostname is not None
-        return httplib.HTTPConnection(parsed.hostname, parsed.port)
+        connection = httplib.HTTPSConnection if parsed.scheme == "https" else httplib.HTTPConnection
+        return connection(parsed.hostname, parsed.port, timeout=timeout)
 
-    def _request(self, method: str, url: str) -> tuple[int, bytes]:
-        conn = self.create_connection()
-        MAX_RETRY = 9
-        exp_time = 1.618034
-        for try_nb in range(MAX_RETRY):
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        timeout: float = 5.0,
+        retry: bool = True,
+    ) -> tuple[int, bytes]:
+        deadline = time.monotonic() + timeout
+        for attempt in range(3 if retry else 1):
+            conn = self.create_connection(timeout=max(0.001, deadline - time.monotonic()))
             try:
                 conn.request(method, url)
-                r = conn.getresponse()
-                return r.status, r.read()
-            except BaseException:
-                if try_nb == MAX_RETRY - 1:
-                    pytest.xfail("Failed to connect to test agent")
-                time.sleep(pow(exp_time, try_nb))
+                response = conn.getresponse()
+                return response.status, response.read()
+            except (OSError, httplib.HTTPException) as exc:
+                remaining = deadline - time.monotonic()
+                if not retry or attempt == 2 or remaining <= 0:
+                    raise RuntimeError(f"Test agent request failed: {method} {url} at {self._base_url}") from exc
+                time.sleep(min(0.1 * 2**attempt, remaining))
             finally:
                 conn.close()
-        return 0, b""
+        raise AssertionError("Unreachable")
 
     def requests(self) -> list[TestAgentRequest]:
         status, resp = self._request("GET", self._url("/test/session/requests"))
@@ -1246,7 +1259,7 @@ class TestAgentClient:
         return reqs
 
     def clear(self) -> None:
-        status, body = self._request("GET", self._url("/test/session/clear"))
+        status, body = self._request("GET", self._url("/test/session/clear"), retry=False)
         assert status == 200, (
             "Failed to clear test session traces:\n"
             f"url: {self._url('/test/session/clear')}\n"
@@ -1256,33 +1269,72 @@ class TestAgentClient:
 
 
 class SnapshotTest:
-    token: str
-    _client: TestAgentClient
-
-    def __init__(self, token: str):
-        base_url = ddtrace.tracer.agent_trace_url
+    def __init__(self, token: str, *, name: Optional[str] = None, base_url: Optional[str] = None) -> None:
+        self.token = token
+        self.name = name or token
+        self.verify_on_exit = True
+        base_url = base_url or ddtrace.tracer.agent_trace_url
         assert base_url is not None, "agent_trace_url must be set for SnapshotTest"
         self._client = TestAgentClient(base_url=base_url, token=token)
 
     def requests(self) -> list[TestAgentRequest]:
         return self._client.requests()
 
-    def clear(self):
-        """Clear any traces sent that were sent for this snapshot."""
+    def clear(self) -> None:
+        """Clear captured requests; legacy agents also clear intervening untagged traffic."""
         self._client.clear()
+
+    def wait_for_traces(self, count: int, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        traces: list[list[dict[str, Any]]] = []
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                pytest.fail(
+                    f"Snapshot {self.name} ({self.token}): expected {count} traces, got {len(traces)}: {traces}"
+                )
+            status, body = self._client._request("GET", self._client._url("/test/session/traces"), timeout=remaining)
+            if status != 200:
+                pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+            traces = json.loads(body)
+            if len(traces) >= count:
+                return
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+
+    def verify(self, ignores: list[str], timeout: float) -> None:
+        snapshot_dir = FILE_PATH / "snapshots"
+        if os.getenv("DD_SNAPSHOT_UPDATE") != "1" and not any(
+            (snapshot_dir / f"{self.name}{suffix}.json").is_file() for suffix in ("", "_tracestats", "_otlp_traces")
+        ):
+            pytest.fail(f"Missing snapshot baseline for {self.name}. Use DD_SNAPSHOT_UPDATE=1 to create it.")
+        agent_dir = os.getenv("DD_TEST_AGENT_SNAPSHOT_DIR")
+        if agent_dir is None:
+            project_dir = os.getenv("CI_PROJECT_DIR")
+            agent_dir = f"{project_dir}/tests/snapshots" if project_dir else "/snapshots"
+        url = self._client._url("/test/session/snapshot", ignores=",".join(ignores), file=f"{agent_dir}/{self.name}")
+        status, body = self._client._request("GET", url, timeout=timeout, retry=False)
+        if status != 200:
+            pytest.fail(
+                f"Snapshot {self.name} ({self.token}):\n{body.decode('utf-8', errors='replace')}", pytrace=False
+            )
 
 
 @contextmanager
 def snapshot_context(
-    token,
-    agent_sample_rate_by_service=None,
-    ignores=None,
-    async_mode=True,
-    variants=None,
-    wait_for_num_traces=None,
-):
-    # Use variant that applies to update test token. One must apply. If none
-    # apply, the test should have been marked as skipped.
+    token: str,
+    agent_sample_rate_by_service: Optional[dict[str, float]] = None,
+    ignores: Optional[list[str]] = None,
+    async_mode: bool = True,
+    variants: Optional[dict[str, bool]] = None,
+    wait_for_num_traces: Optional[int] = None,
+    timeout: float = 5.0,
+    subprocess_mode: bool = False,
+) -> Iterator[SnapshotTest]:
+    """Capture one attempt; the caller must finish background producers before leaving."""
+    if os.getenv("DD_SNAPSHOT_ENABLED", "1") != "1":
+        pytest.skip("Snapshot verification is disabled by DD_SNAPSHOT_ENABLED")
+    if timeout <= 0 or (wait_for_num_traces is not None and wait_for_num_traces < 0):
+        raise ValueError("Snapshot timeout must be positive and trace count must be nonnegative")
     if variants:
         applicable_variant_ids = [k for (k, v) in variants.items() if v]
         assert len(applicable_variant_ids) == 1
@@ -1292,117 +1344,84 @@ def snapshot_context(
     ignores = list(ignores or [])
     if not token.startswith("tests.internal.test_process_tags."):
         ignores.append("meta._dd.tags.process")
-    # LLMObs APM shadow tags (`_dd.llmobs.*`) are derived from the response and
-    # vary by cassette/SDK version. Their wiring is covered by dedicated unit
-    # tests in tests/llmobs and tests/contrib/<integration>/test_*_llmobs.py,
-    # so we ignore them globally in snapshot comparisons.
     ignores.extend(_LLMOBS_SHADOW_IGNORES)
     tracer = ddtrace.tracer
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, (AgentWriterInterface, HTTPWriter)), "Snapshot tests require an HTTP trace writer"
+    session = SnapshotTest(uuid4().hex, name=token, base_url=writer.intake_url)
+    client = session._client
+    old_headers = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    header = "X-Datadog-Test-Session-Token"
+    old_token = (
+        getattr(writer, "_test_session_token", None)
+        if isinstance(writer, AgentWriterInterface)
+        else writer._headers.get(header)
+    )
 
-    parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
-    conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+    def flush(*, before_start: bool = False) -> None:
+        if before_start or not subprocess_mode:
+            writer_now = tracer._span_aggregator.writer
+            if not isinstance(writer_now, (AgentWriterInterface, HTTPWriter)):
+                pytest.fail("Snapshot tests require an HTTP trace writer")
+            cast("AgentWriterInterface | HTTPWriter", writer_now).flush_queue(raise_exc=True)
+
+    flush(before_start=True)
+    url = client._url(
+        "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
+    )
+    status, body = client._request("GET", url, timeout=timeout, retry=False)
+    if status != 200:
+        pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+    completed = False
     try:
-        # clear queue in case traces have been generated before test case is
-        # itself run
-        try:
-            tracer._span_aggregator.writer.flush_queue()
-        except Exception as e:
-            pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
-
         if async_mode:
-            # Patch the tracer writer to include the test token header for all requests.
-            if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                tracer._span_aggregator.writer.set_test_session_token(token)
-            else:
-                tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
-
-            # Also add a header to the environment for subprocesses test cases that might use snapshotting.
-            existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
-            existing_headers.update({"X-Datadog-Test-Session-Token": token})
-            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
-                ["%s:%s" % (k, v) for k, v in existing_headers.items()]
-            )
-        try:
-            query = urllib.parse.urlencode(
-                {
-                    "test_session_token": token,
-                    "agent_sample_rate_by_service": json.dumps(agent_sample_rate_by_service or {}),
-                }
-            )
-            conn.request("GET", "/test/session/start?" + query)
-        except Exception as e:
-            pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
-        else:
-            r = None
-            attempt_start = time.time()
-            while r is None and time.time() - attempt_start < 60:
-                try:
-                    r = conn.getresponse()
-                except RemoteDisconnected:
-                    time.sleep(1)
-            if r is None:
-                pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
-            elif r.status != 200:
-                # The test agent returns nice error messages we can forward to the user.
-                pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
-        try:
-            yield SnapshotTest(
-                token=token,
-            )
-        finally:
-            # Force a flush so all traces are submitted.
-            tracer._span_aggregator.writer.flush_queue()
-            if async_mode:
-                if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                    tracer._span_aggregator.writer.set_test_session_token(None)
+            headers = parse_tags_str(old_headers or "")
+            headers[header] = session.token
+            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(f"{k}:{v}" for k, v in headers.items())
+            if not subprocess_mode:
+                if isinstance(writer, AgentWriterInterface):
+                    writer.set_test_session_token(session.token)
                 else:
-                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
-
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-
-        # Wait for the traces to be available
-        if wait_for_num_traces is not None:
-            traces = []
-            for _ in range(50):
+                    writer._headers[header] = session.token
+        try:
+            yield session
+            completed = session.verify_on_exit
+        finally:
+            if completed:
+                flush()
+            else:
                 try:
-                    conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
-                    r = conn.getresponse()
-                    if r.status == 200:
-                        traces = json.loads(r.read())
-                        if len(traces) >= wait_for_num_traces:
-                            break
-                except Exception:
-                    pass
-                time.sleep(0.1)
-            else:
-                pytest.fail(
-                    "Expected %r trace(s), got %r:\n%s" % (wait_for_num_traces, len(traces), traces), pytrace=False
-                )
-
-        # Query for the results of the test.
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
-        r = conn.getresponse()
-        result = r.read().decode("utf-8", errors="ignore")
-        if r.status != 200:
-            lowered = result.lower()
-            if "received unmatched traces" not in lowered:
-                pytest.fail(result, pytrace=False)
-            # we don't know why the test agent occasionally receives a different number of traces than it expects
-            # during snapshot tests, but that does sometimes in an unpredictable manner
-            # it seems to have to do with using the same test agent across many tests - maybe the test agent
-            # occasionally mixes up traces between sessions. regardless of why they happen, we have been treating
-            # these test failures as unactionable in the vast majority of cases and thus ignore them here to reduce
-            # the toil involved in getting CI to green. revisit this approach once we understand why
-            # "received unmatched traces" can sometimes happen
-            else:
-                pytest.xfail(result)
+                    flush()
+                except Exception as exc:
+                    logging.getLogger(__name__).warning("Snapshot %s cleanup flush failed: %s", token, exc)
+        if completed:
+            if wait_for_num_traces is not None:
+                session.wait_for_traces(wait_for_num_traces, timeout)
+            session.verify(ignores, timeout)
     finally:
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
-        conn.getresponse()
-        conn.close()
+        failed = sys.exc_info()[0] is not None or not session.verify_on_exit
+        if async_mode:
+            if old_headers is None:
+                os.environ.pop("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", None)
+            else:
+                os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = old_headers
+            if not subprocess_mode:
+                writer_now = tracer._span_aggregator.writer
+                try:
+                    if isinstance(writer_now, AgentWriterInterface):
+                        if getattr(writer_now, "_test_session_token", None) == session.token:
+                            writer_now.set_test_session_token(old_token)
+                    elif isinstance(writer_now, HTTPWriter) and writer_now._headers.get(header) == session.token:
+                        if old_token is None:
+                            writer_now._headers.pop(header, None)
+                        else:
+                            writer_now._headers[header] = old_token
+                except Exception:
+                    if not failed:
+                        raise
+                    logging.getLogger(__name__).warning(
+                        "Snapshot %s could not restore the writer token", token, exc_info=True
+                    )
 
 
 def snapshot(
@@ -1449,7 +1468,18 @@ def snapshot(
                 kwargs["tracer"] = ddtrace.tracer
             return wrapped(*args, **kwargs)
 
-    return wrapper
+    def decorate(func):
+        decorated = wrapper(func)
+        decorated._snapshot_options = {
+            "token": token_override,
+            "ignores": ignores,
+            "variants": variants,
+            "async_mode": async_mode,
+            "wait_for_num_traces": wait_for_num_traces,
+        }
+        return decorated
+
+    return decorate
 
 
 class AnyStr:

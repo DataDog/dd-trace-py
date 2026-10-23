@@ -5,7 +5,6 @@ from collections.abc import Generator
 import contextlib
 import copy
 import functools
-import http.client as httplib
 import importlib
 from itertools import product
 import json
@@ -28,7 +27,6 @@ from typing import Optional
 from typing import Union
 from unittest import TestCase
 from unittest import mock
-from urllib import parse
 import warnings
 
 import pytest
@@ -55,6 +53,7 @@ from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
 from tests import utils
@@ -318,7 +317,7 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
-    if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
+    if marks:
         snap = marks[0]
         # Copy the kwargs to not mutate the shared pytest Mark object. It allows for token
         # to be persisted across test retries.
@@ -327,12 +326,13 @@ def snapshot(request):
         if not token:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
-        mgr = _snapshot_context(token, *snap.args, **snap_kwargs)
-        snapshot = mgr.__enter__()
-        yield snapshot
-        # Skip doing any checks if the test was skipped
-        if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
-            mgr.__exit__(None, None, None)
+        snap_kwargs["subprocess_mode"] = request.node.get_closest_marker("subprocess") is not None
+        with _snapshot_context(token, *snap.args, **snap_kwargs) as snapshot:
+            try:
+                yield snapshot
+            finally:
+                report = getattr(request.node, "rep_call", None)
+                snapshot.verify_on_exit = report is not None and report.passed
     else:
         yield
 
@@ -532,6 +532,14 @@ def pytest_collection_modifyitems(session, config, items):
     """
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
+        snapshot_options = getattr(getattr(item, "obj", None), "_snapshot_options", None)
+        if (
+            snapshot_options is not None
+            and item.get_closest_marker("subprocess") is not None
+            and item.get_closest_marker("snapshot") is None
+        ):
+            # Subprocess extraction bypasses decorators; capture must be owned by the parent fixture.
+            item.add_marker(pytest.mark.snapshot(**snapshot_options))
         if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
             item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 
@@ -737,36 +745,14 @@ def telemetry_writer():
         ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
 
-class TelemetryTestSession:
+class TelemetryTestSession(utils.TestAgentClient):
     def __init__(self, token, telemetry_writer) -> None:
         self.token = token
         self.telemetry_writer = telemetry_writer
-
-    def create_connection(self):
-        from ddtrace.internal.settings._agent import config as _agent_config
-
-        parsed = parse.urlparse(_agent_config.trace_agent_url)
-        return httplib.HTTPConnection(parsed.hostname, parsed.port)
-
-    def _request(self, method: str, url: str) -> tuple[int, bytes]:
-        conn = self.create_connection()
-        MAX_RETRY = 9
-        exp_time = 1.618034
-        for try_nb in range(MAX_RETRY):
-            try:
-                conn.request(method, url)
-                r = conn.getresponse()
-                return r.status, r.read()
-            except BaseException:
-                if try_nb == MAX_RETRY - 1:
-                    pytest.xfail("Failed to connect to test agent")
-                time.sleep(pow(exp_time, try_nb))
-            finally:
-                conn.close()
-        raise RuntimeError("Unreachable: loop exits via return or pytest.xfail")
+        super().__init__(agent_config.trace_agent_url, token)
 
     def clear(self):
-        status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
+        status, _ = self._request("GET", self._url("/test/session/clear"), retry=False)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
         return True
@@ -776,7 +762,7 @@ class TelemetryTestSession:
 
         Results are in reverse order by ``seq_id``
         """
-        status, body = self._request("GET", "/test/session/requests?test_session_token=%s" % self.token)
+        status, body = self._request("GET", self._url("/test/session/requests"))
 
         if status != 200:
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
@@ -874,20 +860,9 @@ def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Gener
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     requests = TelemetryTestSession(token, telemetry_writer)
 
-    conn = requests.create_connection()
-    MAX_RETRY = 9
-    exp_time = 1.618034
-    for try_nb in range(MAX_RETRY):
-        try:
-            conn.request("GET", "/test/session/start?test_session_token=%s" % token)
-            conn.getresponse()
-            break
-        except BaseException:
-            if try_nb == MAX_RETRY - 1:
-                pytest.xfail("Failed to connect to test agent")
-            time.sleep(pow(exp_time, try_nb))
-        finally:
-            conn.close()
+    status, body = requests._request("GET", requests._url("/test/session/start"), retry=False)
+    if status != 200:
+        pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
 
     # Apply the token AFTER the session is registered: the native worker is rebuilt
     # and (re-)emits app-started, which must land in this session to be asserted on.
