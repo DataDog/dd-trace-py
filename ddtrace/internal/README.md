@@ -6,6 +6,18 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Span attribute limits
+
+`ddtrace.internal._limits` defines the span attribute size limits used by span
+producers and encoders. Products that attach payloads to spans use these shared
+limits to keep their output within the encoding limits.
+
+## HTTP endpoint normalization
+
+`ddtrace.internal.utils.endpoint.SimplifiedEndpointComputer` normalizes URL paths
+for both tracing resource names and API Security endpoint grouping. It operates on
+URLs independently of span processing.
+
 ## Coverage collection contexts
 
 `ModuleCodeCollector.CollectInContext` owns the line and file coverage for one

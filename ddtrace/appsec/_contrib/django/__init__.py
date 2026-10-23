@@ -2,7 +2,6 @@ from collections.abc import Callable
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _metrics
 from ddtrace.appsec._asm_request_context import _call_waf
@@ -32,7 +31,6 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -41,7 +39,7 @@ TELEMETRY_FRAMEWORK_NAME = "django"
 
 
 def _on_django_login(
-    _pin: Pin,
+    _pin: object,
     request: Any,
     user_obj: Any,
     mode: str,
@@ -65,7 +63,9 @@ def _on_django_login(
                 user_login,
                 django_config.include_user_login,
             )
-            with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            with core.context_with_data(
+                "django.contrib.auth.login", span_name="django.contrib.auth.login", span_type=SpanTypes.AUTH
+            ):
                 session_key = getattr(getattr(request, "session", None), "session_key", None)
                 track_user_login_success_event(
                     None,
@@ -92,7 +92,7 @@ def _on_django_auth(
     result_user: Any,
     mode: str,
     kwargs: dict[str, Any],
-    _pin: Pin,
+    _pin: object,
     info_retriever: _DjangoUserInfoRetriever,
     django_config: IntegrationConfig,
 ) -> tuple[bool, Any]:
@@ -108,7 +108,9 @@ def _on_django_auth(
             break
 
     if not result_user:
-        with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+        with core.context_with_data(
+            "django.contrib.auth.login", span_name="django.contrib.auth.login", span_type=SpanTypes.AUTH
+        ):
             exists = info_retriever.user_exists()
             user_id_found, user_extra = info_retriever.get_user_info(
                 login=django_config.include_user_login,
@@ -222,7 +224,7 @@ def _on_django_process(
 
 def _on_django_signup_user(
     django_config: IntegrationConfig,
-    _pin: Pin,
+    _pin: object,
     _func: object,
     _instance: object,
     _args: tuple[object, ...],

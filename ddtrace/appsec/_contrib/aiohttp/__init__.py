@@ -1,4 +1,3 @@
-from collections.abc import Coroutine
 from collections.abc import Mapping
 import json
 import re
@@ -116,11 +115,9 @@ def _block_request() -> None:
     _check_blocked()
 
 
-def _on_request_start(
-    ctx: core.ExecutionContext[Any], request: Any, max_body_size: int
-) -> Optional[Coroutine[Any, Any, Optional[bytes]]]:
+def _on_request_start(ctx: core.ExecutionContext[Any], request: Any, max_body_size: int) -> None:
     if not asm_config._asm_enabled or get_active_asm_context() is None:
-        return None
+        return
     logger.debug("aiohttp::srb_on_request")
     set_block_request_callable(_block_request)
     span = span_from_context(ctx)
@@ -141,16 +138,16 @@ def _on_request_start(
     call_waf_callback()
     _check_blocked()
     if not request.body_exists:
-        return None
+        return
     media_type = classify_media_type(request.headers.get("Content-Type"))
     if media_type not in _PARSED_MEDIA_TYPES:
-        return None
+        return
     content_length = request.content_length
     if content_length is None or content_length > max_body_size:
-        return None
+        return
     if request.headers.get("Content-Encoding", "identity").lower() != "identity":
-        return None
-    return _analyze_body(request, media_type)
+        return
+    ctx.set_item("aiohttp_request_body", _analyze_body(request, media_type))
 
 
 async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
@@ -208,7 +205,7 @@ def _on_response(request: Any, response: Any) -> None:
     _check_blocked()
 
 
-def _on_block(request: Any, block: Block_config) -> tuple[int, dict[str, str], bytes]:
+def _on_block(ctx: core.ExecutionContext[Any], block: Block_config) -> None:
     if block.type == "none":
         headers = {"Content-Type": "text/plain; charset=utf-8", "Location": block.location}
         content = b""
@@ -216,11 +213,11 @@ def _on_block(request: Any, block: Block_config) -> tuple[int, dict[str, str], b
         headers = {"Content-Type": block.content_type}
         content = _get_blocked_template(block.content_type, block.block_id).encode("utf-8")
     _set_response_addresses(block.status_code, headers, content)
-    return block.status_code, headers, content
+    ctx.set_item("aiohttp_block_response", (block.status_code, headers, content))
 
 
 def listen() -> None:
-    core.on("aiohttp.request.start", _on_request_start, "aiohttp_request_body")
+    core.on("aiohttp.request.start", _on_request_start)
     core.on("aiohttp.request.response", _on_response)
-    core.on("aiohttp.request.block", _on_block, "aiohttp_block_response")
+    core.on("aiohttp.request.block", _on_block)
     core.on("aiohttp.request.end", _on_context_ended)

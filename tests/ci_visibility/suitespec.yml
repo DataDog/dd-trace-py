@@ -38,7 +38,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
       variants:
         - name: ci_visibility
           dependencies: [msgpack, pytest-randomly, pytest-xdist, gevent]
@@ -62,7 +62,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
       variants:
         - name: ci_visibility:snapshot
           dependencies: [msgpack, pytest-randomly, gevent]
@@ -146,7 +146,7 @@ suites:
           integration: pytest
           dependencies: [flaky, pytest-randomly]
   testing:
-    venvs_per_job: 4
+    venvs_per_job: 6
     retry: 2
     paths:
       - '@bootstrap'
@@ -218,9 +218,8 @@ suites:
       variants:
         - name: selenium-pytest
           dependencies: ['selenium~=4.0', webdriver-manager]
-          python: ['3.10', '3.12']
+          python: ['3.10', '3.12', '3.14']
   unittest:
-    venvs_per_job: 5
     paths:
       - '@contrib'
       - '@unittest'

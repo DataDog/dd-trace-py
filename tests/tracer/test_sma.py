@@ -72,3 +72,27 @@ def test_moving_average():
     assert 0.5 == sma.get()
     sma.set(10, 20)
     assert 0.5 == sma.get()
+
+
+class _EmptiedBetweenReads(SimpleMovingAverage):
+    """Report a nonzero sum_total on the first read only, as when a concurrent set() empties the window."""
+
+    __slots__ = ("reads",)
+
+    @property
+    def sum_total(self):
+        self.reads += 1
+        return 4 if self.reads == 1 else 0
+
+    @sum_total.setter
+    def sum_total(self, value):
+        pass
+
+
+def test_get_does_not_divide_by_a_sum_that_a_concurrent_set_emptied():
+    # Writers call get() from span.finish() without the lock that guards set(), so a ZeroDivisionError
+    # here raises into application code.
+    sma = _EmptiedBetweenReads(4)
+    sma.reads = 0
+    sma.sum_count = 1
+    assert sma.get() == 0.25
