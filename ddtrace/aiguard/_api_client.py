@@ -18,6 +18,8 @@ from ddtrace.aiguard._types import Function  # noqa:F401
 from ddtrace.aiguard._types import ImageURL  # noqa:F401
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
+from ddtrace.aiguard.middleware import _MIDDLEWARES
+from ddtrace.aiguard.middleware import AIGuardContext
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
@@ -47,6 +49,16 @@ DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 _RESERVED_TAG_PREFIX = AI_GUARD.TAG + "."
+_SKIPPED_REASON = "skipped by middleware"
+
+
+def _call_hook(hook: Any, context: AIGuardContext) -> Any:
+    """Call a customer middleware hook; a failing hook must never break the evaluation."""
+    try:
+        return hook(context)
+    except Exception:
+        logger.debug("AI Guard middleware hook %r raised, ignoring it", hook, exc_info=True)
+        return None
 
 
 class Evaluation(TypedDict):
@@ -344,6 +356,22 @@ class AIGuardClient:
         error_status: Optional[int] = None
         call_path_tags = self._call_path_tags(source, integration)
 
+        context = None
+        if _MIDDLEWARES:
+            context = AIGuardContext(messages, options, source, integration, tags)
+            for middleware in _MIDDLEWARES:
+                # Only an explicit False skips: a None, a truthy value or a failing hook evaluates.
+                if _call_hook(middleware.should_evaluate, context) is False:
+                    self._add_request_to_telemetry((("skipped", "true"),) + call_path_tags)
+                    return Evaluation(
+                        action="ALLOW",
+                        reason=_SKIPPED_REASON,
+                        tags=[],
+                        sds=[],
+                        tag_probs=None,  # type: ignore[typeddict-item]
+                        messages=messages,
+                    )
+
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             if tags:
                 for key, value in tags.items():
@@ -351,6 +379,10 @@ class AIGuardClient:
                     # one of them would survive and misreport the verdict.
                     if not key.startswith(_RESERVED_TAG_PREFIX):
                         span.set_tag(key, value)
+            if context is not None:
+                context.span = span
+                for middleware in _MIDDLEWARES:
+                    _call_hook(middleware.pre_evaluate, context)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
@@ -485,6 +517,16 @@ class AIGuardClient:
                         tag_value = root_span.get_tag(tag_name)
                         if tag_value is not None:
                             span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
+                evaluation = Evaluation(
+                    action=action,
+                    reason=reason,
+                    tags=attack_categories,
+                    sds=sds_findings,
+                    tag_probs=tag_probs,
+                    messages=redacted_messages,
+                )
+                if context is not None:
+                    context.result = evaluation
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(
@@ -495,19 +537,16 @@ class AIGuardClient:
                         tag_probs=tag_probs,
                     )
 
-                return Evaluation(
-                    action=action,
-                    reason=reason,
-                    tags=attack_categories,
-                    sds=sds_findings,
-                    tag_probs=tag_probs,
-                    messages=redacted_messages,
-                )
+                return evaluation
 
-            except AIGuardAbortError:
+            except AIGuardAbortError as e:
+                if context is not None:
+                    context.error = e
                 raise
 
-            except Exception:
+            except Exception as e:
+                if context is not None:
+                    context.error = e
                 self._add_request_to_telemetry((("error", "true"),) + call_path_tags)
                 error_tags = call_path_tags
                 # Only bad_status has a status to report, and an absent tag stays distinguishable
@@ -522,6 +561,12 @@ class AIGuardClient:
                     "AI Guard evaluation failed (%s) for %d messages", error_type, len(messages), exc_info=True
                 )
                 raise
+
+            finally:
+                # Inside the span so post hooks can still tag it, whatever the outcome.
+                if context is not None:
+                    for middleware in _MIDDLEWARES:
+                        _call_hook(middleware.post_evaluate, context)
 
     def _scrub(self, text: str) -> str:
         """Remove the configured endpoint from text this client is about to report."""
