@@ -47,7 +47,15 @@ def _register(scenario_cls: type["Scenario"]) -> None:
 
         pr = cProfile.Profile()
         try:
-            scenario._pyperf(scenario._cprofile_loops, profiler=pr)
+            if type(scenario)._pyperf is Scenario._pyperf:
+                scenario._timed_run(scenario._cprofile_loops, profiler=pr)
+            else:
+                # A scenario that overrides _pyperf has no separate timed region to profile
+                pr.enable()
+                try:
+                    scenario._pyperf(scenario._cprofile_loops)
+                finally:
+                    pr.disable()
         finally:
             pr.dump_stats(pstats_output)
 
@@ -87,7 +95,10 @@ class Scenario:
         """Returns a context manager that yields a function to be run for performance testing."""
         pass
 
-    def _pyperf(self, loops: int, profiler: typing.Optional[cProfile.Profile] = None) -> float:
+    def _pyperf(self, loops: int) -> float:
+        return self._timed_run(loops)
+
+    def _timed_run(self, loops: int, profiler: typing.Optional[cProfile.Profile] = None) -> float:
         rungen = self.run()
         run = next(rungen)
         # Move the import-time and setup heap out of the collector's reach. Otherwise each full
