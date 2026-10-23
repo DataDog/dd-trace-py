@@ -1,26 +1,8 @@
 # LLMObs Integration Guide
 
-Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integrations/references/implementation-guide.md) for the full step-by-step. This guide expands on the LLM-specific steps.
+Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integrations/references/implementation-guide.md) for patch registration, configuration, and tests. This guide covers LLM-specific behavior.
 
-## Design: Two-Layer Architecture
-
-LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
-- Patch code creates a subclass instance and stores it on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
-- Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and calls `integration.llmobs_set_tags()` when the event ends
-- The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, usage, metadata, and tool extraction
-- Some existing or specialized integrations still call `integration.trace()` directly for direct child spans; follow the closest current reference before using that pattern
-
-This separation keeps APM patching decoupled from LLMObs data extraction.
-
-## Overview
-
-An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
-- **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
-- **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and usage extraction (this guide)
-- **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
-- **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
-
-## Step 3 Expanded: Create the Integration Class
+## Integration class
 
 Before writing anything, read the existing implementation that most closely matches your library's pattern:
 
@@ -30,70 +12,27 @@ Before writing anything, read the existing implementation that most closely matc
 | Agent runs + tool child spans | `claude_agent_sdk.py` | Library manages an agentic loop with tool calls |
 | Embeddings | `openai.py` | Library generates vector embeddings |
 
-Create `ddtrace/llmobs/_integrations/{name}.py`:
+Create `ddtrace/llmobs/_integrations/{name}.py` with a `BaseLLMIntegration` subclass and
+the provider's `_integration_name`. Supply the two provider-specific behaviors:
+
+- `_set_base_span_tags(span, **kwargs)` sets the integration's base APM attributes.
+- `_llmobs_set_tags(span, args, kwargs, response=None, operation="")` extracts LLMObs data
+  and annotates it through `_annotate_llmobs_span_data()`.
+
+Use the actual base/reference signatures and implement or inherit the behavior needed by the
+integration. For the standard patched-SDK pattern, `patch()` constructs the integration with
+`integration_config=config.<name>` and stores it on `module._datadog_integration`; wrappers
+reuse that instance. See `ddtrace/contrib/internal/anthropic/patch.py` for initialization and cleanup.
 
 Do not import the concrete `Span` class (`ddtrace.trace.Span` / `ddtrace._trace.span.Span`) into `ddtrace/llmobs/_integrations/` modules — that recreates a `product:llmobs -> product:tracing` dependency. Type the `span` parameter as `SpanData` from `ddtrace.internal.native._native` instead; it carries the attributes and struct/attribute-tag methods (`_set_attribute`, `_get_struct_tag`, `_set_struct_tag`, etc.) without pulling in `Span`.
 
 `_annotate_llmobs_span_data` (and a few other helpers such as `get_tool_version_from_llm_span`) need `_set_ctx_item`, which `SpanData` doesn't have, so they're typed to accept `_LLMObsSpan` from `ddtrace.llmobs._span` — the single structural `Protocol` all LLMObs code uses for spans. Extend it there when a new call site needs another `Span` member instead of declaring a new per-module protocol. `SpanData` does not satisfy that protocol, so a caller passing a bare `SpanData` there is a type error rather than a silently swallowed exception. The object every integration actually passes at runtime is a full `Span`, which does satisfy the protocol, so annotate your integration's `_llmobs_set_tags` override (and its helpers) with `span: _LLMObsSpan`. That is a valid override of the base class's `span: Span` parameter. Don't type the span as `SpanData` and then `cast(Any, span)` at the call site: that disables the very check the protocol exists for.
 
-```python
-from typing import Any, Optional
+Read the current method signatures in `BaseLLMIntegration` and the closest integration.
+Implement only the extraction helpers needed by the provider. Register exported classes in
+`_INTEGRATION_MODULES` in `ddtrace/llmobs/_integrations/__init__.py` to preserve lazy loading.
 
-from ddtrace.internal.native._native import SpanData
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY, OUTPUT_TOKENS_METRIC_KEY, TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._span import _LLMObsSpan
-from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolDefinition, ToolResult
-
-
-class MyLibIntegration(BaseLLMIntegration):
-    _integration_name: str = "mylib"
-
-    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
-        """Set APM tags on span."""
-        span._set_attribute("mylib.request.model", kwargs.get("model", ""))
-
-    def _llmobs_set_tags(
-        self,
-        span: _LLMObsSpan,
-        args: list[Any],
-        kwargs: dict[str, Any],
-        response: Optional[Any] = None,
-        operation: str = "",
-    ) -> None:
-        """Extract and annotate all LLMObs fields."""
-        tools = self._extract_tools(kwargs)
-        metadata = self._extract_metadata(kwargs)
-        # Gate on the response, not span.error: an errored span can still carry a valid
-        # response. Merge so response-derived keys never clobber the request params.
-        if response is not None:
-            metadata.update(self._extract_response_metadata(response))
-        _annotate_llmobs_span_data(
-            span,
-            kind="llm",
-            model_name=kwargs.get("model", ""),
-            model_provider="mylib",
-            input_messages=self._extract_input_messages(kwargs),
-            output_messages=self._extract_output_messages(response),
-            metadata=metadata,
-            metrics=self._extract_usage(response),
-            tool_definitions=tools or None,
-        )
-```
-
-Common helpers (implement only what applies):
-
-- `_extract_input_messages(self, kwargs: dict[str, Any]) -> list[Message]` — convert `messages` array to `Message` list; handle system message, multi-part content blocks, tool results
-- `_extract_output_messages(self, response: Any) -> list[Message]` — convert response content blocks to `Message` list; handle text, tool_use, thinking blocks
-- `_extract_usage(self, response: Any) -> dict[str, int]` — map library usage fields to metric keys: token counts to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`, and provider-billed server-side tool calls as described in Server-Side Tool Usage below
-- `_extract_tools(self, kwargs: dict[str, Any]) -> list[ToolDefinition]` — convert `tools` list to `ToolDefinition` list
-- `_extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]` — pick scalar request params: `temperature`, `top_p`, `max_tokens`, etc.
-- `_extract_response_metadata(self, response: Any) -> dict[str, Any]` — pick scalar params the provider reports on the *response* and that `metrics`/`output_messages` do not already cover. The stop reason is the established case: record it as `finish_reason`, omit the key when the provider reports none, and comma-join per-choice reasons in choice order when a request returns multiple choices so the value stays a single string. See the Response Metadata section of `SKILL.md` for the per-provider sources and `_openai_finish_reason_metadata()` in `_integrations/utils.py` for the comma-join helper.
-
-Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__` entry).
-
-## Step 1 Expanded: Patch Layer (`LlmRequestEvent`)
+## Patch lifecycle (`LlmRequestEvent`)
 
 Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the current event-based pattern. The patch layer constructs the event, stores the response on `event.response`, and calls `ctx.dispatch_ended_event()`; `ddtrace/_trace/subscribers/llm.py` handles span creation, base tags, LLMObs extraction, errors, and span finish under the hood.
 
@@ -156,7 +95,7 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 | Library | Input | Output | Cache Fields |
 |---------|-------|--------|-------------|
 | Anthropic | `input_tokens` | `output_tokens` | `cache_creation_input_tokens`, `cache_read_input_tokens` |
-| OpenAI | `prompt_tokens` | `completion_tokens` | N/A |
+| OpenAI chat | `prompt_tokens` | `completion_tokens` | `prompt_tokens_details.cached_tokens` (already included in input total) |
 | Google GenAI | `prompt_token_count` | `candidates_token_count` | `cached_content_token_count` |
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
@@ -200,46 +139,9 @@ Return the agent's LLMObs display name when it can be determined at `trace()` ca
 
 If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph), `_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. In that case, stamp the name directly in the integration's `trace()` override after calling `super()`:
 
-```python
-def trace(self, operation_id, submit_to_llmobs=False, **kwargs):
-    span = super().trace(operation_id, submit_to_llmobs=submit_to_llmobs, **kwargs)
-    # instance captured before **kwargs; stamp name after super() has written the kind
-    if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
-        agent_name = getattr(instance, "name", None) if instance else None
-        if agent_name:
-            _annotate_llmobs_span_data(span, name=agent_name)
-    return span
-```
-
-### Example: Google ADK
-
-Patch layer passes the agent object via a private kwarg:
-```python
-span = integration.trace(
-    "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-    kind="agent",
-    submit_to_llmobs=True,
-    _dd_agent=agent,   # <-- agent instance available at trace() call time
-)
-```
-
-Integration overrides the hook:
-```python
-def _llmobs_agent_name_at_start(self, span: SpanData, **kwargs: Any) -> Optional[str]:
-    agent = kwargs.get("_dd_agent")
-    return getattr(agent, "name", None) if agent else None
-```
-
-## LLM-Specific Registration Checklist
-
-In addition to the full checklist in the apm-integrations [Implementation Guide](../../apm-integrations/references/implementation-guide.md):
-
-- [ ] `ddtrace/llmobs/_integrations/{name}.py` — `BaseLLMIntegration` subclass
-- [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
-- [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans (see anthropic for pattern)
-- [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
-- [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
-- [ ] `docs/index.rst` — add integration to the docs index
+See `ddtrace/llmobs/_integrations/langgraph.py` for an override that captures an instance,
+and `ddtrace/llmobs/_integrations/google_adk.py` for the agent-name hook. Read their actual
+signatures rather than copying a partial override with an undefined instance.
 
 ## Duplex audio streams
 

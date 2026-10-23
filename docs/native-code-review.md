@@ -13,9 +13,9 @@ description (e.g., "GIL lifecycle: no new PyEval_RestoreThread calls" or
 triage checklist with trigger symbols and stop conditions, see
 `.cursor/rules/native-code.mdc`.
 
-**Maintenance:** Last updated 2026-03-09. If this document is more than 3
-months old, ask a human reviewer to refresh it with recent `fix(core)`,
-`fix(profiling)`, and `fix(internal)` PRs.
+**Maintenance:** Historical incidents are investigation leads. Verify applicable claims against
+current code and the exact dependency versions being reviewed; update a rule when that evidence
+changes rather than requiring a human refresh based only on the document's age.
 
 ---
 
@@ -424,10 +424,13 @@ features that crash when combined with other features under fork.
 
 ### What goes wrong
 
-**Silent exception swallowing:** A `cdef` function that can raise a Python
-exception but lacks an `except` clause silently discards the exception. The
-caller sees a zero/NULL return with no error set, and continues with corrupt
-state.
+**Exception contracts:** In Cython 3, non-`extern` `cdef` functions propagate Python exceptions
+by default. `noexcept`, external declarations, or the `legacy_implicit_noexcept` directive can
+change that contract. Verify the compiler version, directives, and declaration at the call boundary.
+
+See [Cython's migration guide](https://docs.cython.org/en/latest/src/userguide/migrating_to_cy30.html#exception-values-and-noexcept).
+An implicit `except *` on a `nogil` function can reacquire the GIL after every call to check
+for errors; use `noexcept` only when the function cannot raise.
 
 **String lifetime with `string_view`:** `PyUnicode_AsUTF8AndSize` returns a
 pointer into the Python object's internal buffer. If that object is garbage
@@ -442,11 +445,9 @@ CPython internal struct pointer (e.g., `PyFrameObject*`) without an
 
 ### Review checklist
 
-- Does every `cdef` function that can raise an exception declare `except *`,
-  `except -1`, or `except? -1`? Without this, exceptions are silently
-  swallowed. Prefer `except? -1` for int-returning functions (checks return
-  value, then checks for exception) over `except -1` (assumes -1 always means
-  error).
+- Does the function's effective exception contract match its callers and implementation?
+  In Cython 3, do not flag a missing explicit clause alone as exception swallowing. Choose
+  `except -1` only when -1 is reserved for errors; `except? -1` also permits a successful -1.
 - Do `nogil` blocks avoid all Python C API calls and `PyObject*` access? Only
   pure C/C++ operations are safe inside `nogil`.
 - When `PyUnicode_AsUTF8AndSize` is used to create `string_view` or raw

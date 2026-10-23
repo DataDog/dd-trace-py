@@ -13,322 +13,91 @@ allowed-tools:
   - Glob
 ---
 
-# Benchmark Skill
+# Benchmark runtime changes
 
-This skill measures the performance impact of code changes by running the appropriate benchmark scenarios. It uses `scripts/run-benchmarks` to discover relevant scenarios from changed files and wraps `scripts/perf-run-scenario` for execution. Use `scripts/perf-analyze` to analyze saved artifacts after a run.
-
-## When NOT to Use This Skill
-
-Skip benchmarks when:
-- The change is documentation-only, comment-only, or test-only
-- The change is limited to CI config, linting rules, or dev tooling
-- `scripts/run-benchmarks --list` returns no matching suites
-- You already ran benchmarks for this change and the code hasn't changed since
-
-## When to Use This Skill
-
-Use this skill when:
-- Modifying performance-sensitive code (span creation, tracing hot paths, encoding, propagation)
-- Changing C/Cython/Rust code (native extensions, `src/native/`, `.pyx`, `.rs` files)
-- A reviewer asks "what's the performance impact?"
-- Optimizing or refactoring code that runs in production hot paths
-- Changes touch `ddtrace/_trace/`, `ddtrace/internal/encoding*`, `ddtrace/internal/writer/`, or framework integrations
-
-## Key Principles
-
-1. **Always use `scripts/run-benchmarks`** — never invoke `scripts/perf-run-scenario` directly
-2. **Always save artifacts** — pass `--artifacts ./benchmark-artifacts/` so results persist for analysis
-3. **Use `--list` first** — discover matching suites before running anything
-4. **Use `--dry-run`** — verify the command before committing to a long Docker build
-5. **Start with 1-2 scenarios** — benchmarks take minutes; target the most relevant ones
-6. **Use `--configs` to filter** — run 1-2 configs during iteration; run all configs for final results
-7. **Benchmarks require Docker** — confirm Docker is running before executing
-8. **Artifacts auto-resolve to latest run** — `scripts/perf-analyze artifacts/` always analyzes the most recent run. If you run multiple scenarios sequentially, each gets its own run ID; pass `artifacts/<run-id>/` to target a specific one
-
-## How This Skill Works
-
-### Step 1: Identify Changed Files
+Use `scripts/run-benchmarks` for changes to native runtime code and other performance-sensitive
+paths, including startup/bootstrap.
+Documentation, comments, and test-only edits do not need runtime benchmarks. If discovery has no
+matching scenario for a runtime change, investigate coverage rather than concluding it is unnecessary.
 
 ```bash
-git status
-```
-
-### Step 2: Discover Matching Benchmark Suites
-
-```bash
-scripts/run-benchmarks --list ddtrace/_trace/span.py ddtrace/internal/encoding.py
-```
-
-This outputs JSON showing which scenarios match, their config variants, and CPUs per run.
-
-For all suites:
-```bash
+scripts/run-benchmarks --list <changed-files>
 scripts/run-benchmarks --list --all-suites
+scripts/run-benchmarks --dry-run --scenario <scenario> --artifacts ./benchmark-artifacts/
+scripts/run-benchmarks --scenario <scenario> --artifacts ./benchmark-artifacts/
 ```
 
-### Step 3: Select Scenarios to Run
+The runner wraps `scripts/perf-run-scenario`; use the wrapper, not that script directly.
+Docker is required. Discover current scenarios/configs from the runner and `benchmarks/suitespec.yml`.
+Choose scenarios that exercise the changed behavior, starting with focused configs during iteration.
+Run all configs of the selected scenarios for final results; report any coverage that could not run.
 
-#### Core Tracing Changes
-When modifying `ddtrace/_trace/*`, `ddtrace/trace/*`, `ddtrace/internal/sampling.py`:
-- **Primary**: `span` — measures span creation/finishing overhead
-- **Secondary**: `tracer` — measures tracer-level operations
-
-#### Encoding / Writer Changes
-`ddtrace/internal/encoding*`, `ddtrace/internal/writer/*`:
-- **Primary**: `encoder` — directly measures encoding throughput
-
-#### HTTP Propagation Changes
-`ddtrace/propagation/*`:
-- **Primary**: `http_propagation_extract`, `http_propagation_inject`
-
-#### Flask Integration Changes
-`ddtrace/contrib/internal/flask/*`:
-- **Primary**: `flask_simple`
-
-#### Django Integration Changes
-`ddtrace/contrib/internal/django/*`:
-- **Primary**: `django_simple`
-
-#### IAST / AppSec Changes
-`ddtrace/appsec/iast/*`, `ddtrace/appsec/*`:
-- **Primary**: The specific `appsec_iast_*` scenario matching your change
-
-#### OTel Changes
-`ddtrace/opentelemetry/*`:
-- **Primary**: `otel_span`, `otel_sdk_span`
-
-#### Native Code (C/Rust/Cython)
-`src/native/*.rs`, `ddtrace/internal/native/*`:
-- **Primary**: `rand` (for `rand.rs`), `span`/`tracer` for general span changes
-
-#### Startup / Bootstrap Changes
-`ddtrace/bootstrap/*`, `ddtrace/auto.py`:
-- **Primary**: `startup`
-
-### Step 4: Execute Selected Scenarios
-
-**Always save artifacts** so you can re-analyze without re-running:
+`--all-suites --list` includes registered suites only. Other scenarios, such as `encoder`, can
+still run directly. Find their `scenario.py` and inspect the adjacent `config.yaml` first:
 
 ```bash
-# Dry-run first
-scripts/run-benchmarks --dry-run --scenario span --artifacts ./benchmark-artifacts/
-
-# Run the benchmark (latest PyPI vs local)
-scripts/run-benchmarks --scenario span --artifacts ./benchmark-artifacts/
+rg --files benchmarks -g scenario.py
+scripts/run-benchmarks --dry-run --scenario encoder --configs one-trace --artifacts ./benchmark-artifacts/
 ```
 
-**Iterate faster with specific configs:**
-```bash
-# Only 2 of 13 configs
-scripts/run-benchmarks --scenario span --configs start,start-finish --artifacts ./benchmark-artifacts/
-```
+Remove `--dry-run` to execute after checking the selection. Keep listing separate from execution:
+`--scenario <name> --list` does not list that scenario's configs; read its `config.yaml` instead.
 
-**Collect profiling data** (when you need to understand *why* results differ):
-```bash
-scripts/run-benchmarks --scenario span --configs start-finish --profile --artifacts ./benchmark-artifacts/
-```
-Note: `--profile` uses viztracer and generates ~700MB files per config variant. Use with `--configs` to limit scope.
+## Baselines and artifacts
 
-**`--configs` with multiple scenarios**: `--configs` applies the same filter to every scenario. Only pass configs that are valid for all scenarios you're running; mismatches are silently skipped. When running scenarios with different config names, run them in separate invocations.
+- The default baseline is a published ddtrace package. Select an explicit baseline with `--baseline`
+  when needed; state exactly what was compared. Do not attribute all differences from an older
+  release to this patch. See `scripts/run-benchmarks --help` for accepted options.
+- Keep build optimizations comparable. Do not enable `DD_FAST_BUILD` for performance comparisons
+  against optimized release wheels.
+- `--configs` filters every selected scenario; use separate invocations when config names differ.
+  Unknown names are filtered out, potentially leaving no configs to run. Check the actual result
+  files for every requested config and both baseline/candidate; a successful exit is not coverage.
+- Save artifacts and record the run ID. Multiple `--scenario` flags share a run; `--run-id` can
+  add scenarios to an existing artifact directory. Avoid confusing earlier runs with the latest one.
+  Passing only the artifacts root to `perf-analyze` selects the most recently modified child
+  directory. Prefer the recorded run ID, and use a new ID when code or comparison inputs change.
 
-**Run multiple scenarios under the same run ID:**
-```bash
-scripts/run-benchmarks --scenario span --scenario tracer --artifacts ./benchmark-artifacts/
-```
-
-**Add a scenario to a previous run (reuse its artifact directory):**
-```bash
-scripts/run-benchmarks --scenario tracer --run-id <previous-run-id> --artifacts ./benchmark-artifacts/
-```
-
-**Specify an explicit baseline version:**
-```bash
-scripts/run-benchmarks --scenario span --baseline ddtrace==2.8.4 --artifacts ./benchmark-artifacts/
-```
-
-### Step 5: Analyze Results
-
-**Quick summary (latest run):**
-```bash
-scripts/perf-analyze benchmark-artifacts/
-```
-
-**Analyze a specific run ID:**
 ```bash
 scripts/perf-analyze benchmark-artifacts/<run-id>/
+scripts/perf-analyze benchmark-artifacts/<run-id>/ --json
 ```
 
-**JSON output for programmatic use:**
-```bash
-scripts/perf-analyze benchmark-artifacts/ --json
-```
-
-**Viztracer: top functions by time spent (ddtrace hot paths only):**
-```bash
-scripts/perf-analyze benchmark-artifacts/ --profile-top 20 --filter ddtrace --min-calls 1000
-```
-
-**Viztracer: diff between baseline and candidate** (shows regressions and improvements):
-```bash
-scripts/perf-analyze benchmark-artifacts/ --profile-compare --filter ddtrace --min-calls 1000
-```
-
-**Sort by cumtime instead of tottime** (cumtime = inclusive of subcalls):
-```bash
-scripts/perf-analyze benchmark-artifacts/ --profile-compare --sort cumtime
-```
-
-**Save .prof files for interactive pstats analysis:**
-```bash
-scripts/perf-analyze benchmark-artifacts/ --profile-compare --save-pstats
-python -m pstats benchmark-artifacts/<run-id>/span/baseline/viztracer/start-finish.prof
-```
-
-**Markdown table for PR comments:**
-```bash
-scripts/perf-analyze benchmark-artifacts/ --markdown
-```
-
-**Understanding `--profile-compare` output columns:**
-- **B/C calls**: Invocation count in baseline/candidate. Large differences mean a code path changed, not just got slower.
-- **B/C tottime/call**: Exclusive time per call (not counting subcalls). The primary metric — this is where the regression lives.
-- **Delta**: Absolute change in per-call time. Positive = regression, negative = improvement.
-- **%**: Relative change. Ignore large % with small absolute delta (low-call-count noise).
-
-Focus on functions with **both large absolute delta AND high call count** — those dominate wall time.
-
-### Step 6: Interpret Results
-
-The summary table shows:
-
-```
-Scenario: span
-======================================================================
-
-  start-finish:
-    baseline:  2.72 ms +/- 28.28 us
-    candidate: 3.03 ms +/- 54.18 us
-    change:    +11.21% (1.11x slower) [11.2% slower]
-```
-
-**Interpreting changes:**
-- **< 2% difference**: Not significant — within measurement noise
-- **2–5% change**: Small — mention it; generally acceptable for non-hot-path changes
-- **5–10% improvement**: Noteworthy — highlight in PR description
-- **> 10% improvement**: Significant win — definitely highlight
-- **Any regression > 2%**: Investigate before merging
-- **> 5% regression**: Blocking — must be addressed or justified
-
-**Statistical note**: The ±stddev tells you about measurement stability. If the candidate's stddev overlaps with the baseline's mean, the result may not be reproducible. Wide stddev on the candidate but not the baseline can indicate the change introduced a new overhead with high variance (e.g., dict lookups that vary by key hash, GC pressure, lock contention).
-
-**Profiling analysis**: The `--profile-compare` output shows which functions changed in total time between baseline and candidate. Look for ddtrace internal functions in the regression list — those point directly to what got slower.
-
-## Examples
-
-### Example 1: Optimizing Span Creation
+Use `--profile` only when needed to explain results; its artifacts can be large. Analyze with
+`--profile-compare` / `--profile-top`, narrowing configs and function filters as appropriate.
 
 ```bash
-scripts/run-benchmarks --list ddtrace/_trace/span.py
-# Shows: span, tracer, core_api, ...
-
-scripts/run-benchmarks --dry-run --scenario span --artifacts ./benchmark-artifacts/
-
-# Quick iteration (2 configs)
-scripts/run-benchmarks --scenario span --configs start,start-finish --artifacts ./benchmark-artifacts/
-# Run ID printed to stderr — note it for reuse
-scripts/perf-analyze benchmark-artifacts/
-
-# Once satisfied, full run for PR (add tracer to the same run)
-scripts/run-benchmarks --scenario span --scenario tracer --artifacts ./benchmark-artifacts/
-scripts/perf-analyze benchmark-artifacts/ --json
+scripts/perf-analyze benchmark-artifacts/<run-id>/ --profile-compare --filter ddtrace --min-calls 1000
+scripts/perf-analyze benchmark-artifacts/<run-id>/ --profile-compare --sort cumtime --save-pstats
+python -m pstats benchmark-artifacts/<run-id>/<scenario>/baseline/viztracer/<config>.prof
 ```
 
-### Example 2: Investigating a Regression with Profiling
+`--save-pstats` writes `.prof` files beside the input profiles; exports reflect any filters you
+apply. `--filter` matches function names/paths and `--min-calls` filters each side independently,
+so either can hide relevant calls. Omit them when investigating rare calls or exporting full profiles.
+Filtering also removes child events before exclusive-time calculation; confirm attribution with
+unfiltered profiles when those children matter.
+See `scripts/perf-analyze --help` for `--profile-top`, `--sort`, and `--markdown` output options.
 
-When the summary shows a regression and you need to understand why:
+Read the comparison columns according to the selected metric:
 
-```bash
-# First get the numbers
-scripts/run-benchmarks --scenario span --configs start-finish --artifacts ./benchmark-artifacts/
-scripts/perf-analyze benchmark-artifacts/
-# -> shows +11% regression
+| Column | Meaning |
+|--------|---------|
+| `B calls` / `C calls` | Raw baseline/candidate call counts; pyperf can choose different iteration counts, so differences alone do not prove changed behavior. |
+| `tottime/call` | Exclusive time per call, excluding child calls; the default comparison metric. |
+| `cumtime/call` | Time per call including children, selected by `--sort cumtime`. |
+| `Delta` / `%` | Candidate minus baseline for the displayed metric; positive timing deltas mean slower calls. Check absolute cost as well as percent. |
+| `new` | The baseline metric is zero or missing, possibly because of filtering; verify before attributing it to new code. |
 
-# Collect profiling to see where time went
-scripts/run-benchmarks --scenario span --configs start-finish --profile --artifacts ./benchmark-artifacts/
-scripts/perf-analyze benchmark-artifacts/ --profile-compare
-# -> shows which functions regressed
-```
+Prioritize expensive calls in frequently executed paths, while keeping workload/iteration counts
+comparable. Venv paths and shifted source line numbers are normalized for cross-version comparisons.
 
-### Example 3: Flask Integration Change
+## Interpret results
 
-```bash
-scripts/run-benchmarks --list ddtrace/contrib/internal/flask/patch.py
-# Shows: flask_simple, flask_sqli, fork_time, startup
+Report baseline/candidate values, variation, absolute and relative differences, and limitations.
+A fixed percentage does not determine statistical significance. Repeat noisy measurements under
+comparable conditions; a small stable regression in a hot path can matter.
 
-scripts/run-benchmarks --scenario flask_simple --configs tracer,baseline --artifacts ./benchmark-artifacts/
-scripts/perf-analyze benchmark-artifacts/
-```
-
-## Troubleshooting
-
-### Docker not running
-Start Docker Desktop and retry.
-
-### Build takes a long time
-The first run builds a Docker image including the full ddtrace wheel (Rust/Cython compilation). This is expected and necessary for accurate comparison against PyPI wheels (both are compiled with full optimizations). Subsequent runs reuse Docker layer cache if the source hasn't changed significantly.
-
-Note: `DD_FAST_BUILD` is intentionally **not set** when running benchmarks, because fast builds use `-O0` / disabled LTO which would make local builds slower than release wheels, skewing results.
-
-### Results are noisy
-Microbenchmarks on a developer laptop can be noisy due to background processes, thermal throttling, etc. For more reliable results:
-- Close other applications
-- Run multiple times and compare
-- CI benchmarks run with CPU affinity on dedicated hardware for more stable results
-
-### Scenario not in suitespec
-Some scenarios exist in `benchmarks/` but aren't in `suitespec.yml` (e.g., `encoder`, `threading`). Run them directly with `--scenario`:
-```bash
-scripts/run-benchmarks --scenario encoder --artifacts ./benchmark-artifacts/
-```
-
-### Viztracer files are huge
-Viztracer generates ~700MB files per config per version. Use `--configs` to limit to the specific config that shows the regression:
-```bash
-scripts/run-benchmarks --scenario span --configs start-finish --profile --artifacts ./benchmark-artifacts/
-```
-
-### Profile comparison shows venv paths as different functions
-This is automatically handled — `scripts/perf-analyze` normalizes `.venv_ddtrace_v1` and `.venv_ddtrace_v2` to a canonical path before comparison.
-
-## Technical Details
-
-### How suite discovery works
-`tests/suitespec.py` collects suitespecs from both `tests/` and `benchmarks/` directories. Benchmark suites are namespaced as `benchmarks::span`, etc. `scripts/run-benchmarks` filters to `benchmarks::*` suites and strips the prefix to get the scenario name.
-
-### Artifacts structure
-```
-benchmark-artifacts/
-  <run-id>/                    # UUID generated per docker run
-    <scenario>/
-      baseline/
-        results.<config>.json  # pyperf result JSON
-        viztracer/             # only if --profile
-          <config>.json        # Chrome Trace format (~700MB)
-      candidate/
-        results.<config>.json
-        viztracer/
-          <config>.json
-```
-
-`scripts/perf-analyze artifacts/` always picks the most recently modified run-id. Pass `artifacts/<run-id>/` to target a specific run.
-
-### Why no DD_FAST_BUILD
-`DD_FAST_BUILD=1` compiles with `-O0`, disables Rust LTO, reduces opt-level from 3 to 2, and skips Abseil — making builds faster but ~20–50% slower at runtime. Since benchmarks compare local builds against PyPI release wheels (compiled with full optimizations), using `DD_FAST_BUILD` would make the candidate artificially slower and skew results.
-
-### Available scenarios
-
-Use `scripts/run-benchmarks --list --all-suites` for the canonical up-to-date list. As a quick reference snapshot (may go stale):
-
-Tracked in suitespec: `span`, `tracer`, `core_api`, `set_http_meta`, `telemetry_add_metric`, `otel_span`, `otel_sdk_span`, `recursive_computation`, `sampling_rule_matches`, `http_propagation_extract`, `http_propagation_inject`, `rate_limiter`, `appsec_iast_aspects`, `appsec_iast_aspects_ospath`, `appsec_iast_aspects_re_module`, `appsec_iast_aspects_split`, `appsec_iast_propagation`, `packages_package_for_root_module_mapping`, `packages_update_imported_dependencies`, `fork_time`, `django_simple`, `flask_simple`, `flask_sqli`, `errortracking_django_simple`, `errortracking_flask_sqli`, `startup`, `code_provenance`, `rand`
-
-Untracked (use `--scenario` directly): `encoder`, `threading`, `coverage_fibonacci`, `events_api`, `iast_ast_patching`, `appsec_iast_django_startup`
+For CI gates, consult the scenario's actual SLO and ownership in `.gitlab/benchmarks/slos/`
+and [.gitlab/benchmarks/microbenchmarks.md](../../../.gitlab/benchmarks/microbenchmarks.md).
+Do not substitute a universal 2%/5% threshold or alter an SLO just to make a regression pass.
