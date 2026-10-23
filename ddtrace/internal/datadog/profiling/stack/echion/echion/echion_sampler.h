@@ -5,6 +5,7 @@
 #include <Python.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -51,9 +52,9 @@ class EchionSampler
     std::unordered_map<uintptr_t, GreenletInfo::ID> greenlet_thread_map_;
     std::mutex greenlet_info_map_lock_;
 
-    // Asyncio state
-    PyObject* asyncio_scheduled_tasks_ = nullptr;
-    PyObject* asyncio_eager_tasks_ = nullptr;
+    // Asyncio state. init_asyncio runs on Python threads, usually after the sampling thread has started.
+    std::atomic<PyObject*> asyncio_scheduled_tasks_{ nullptr };
+    std::atomic<PyObject*> asyncio_eager_tasks_{ nullptr };
 
     // Task unwinding state
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
@@ -134,13 +135,13 @@ class EchionSampler
     std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map() { return greenlet_thread_map_; }
     std::mutex& greenlet_info_map_lock() { return greenlet_info_map_lock_; }
 
-    PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_; }
-    PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_; }
+    PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_.load(std::memory_order_relaxed); }
+    PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_.load(std::memory_order_relaxed); }
 
     void init_asyncio(PyObject* scheduled_tasks, PyObject* eager_tasks)
     {
-        asyncio_scheduled_tasks_ = scheduled_tasks;
-        asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
+        asyncio_scheduled_tasks_.store(scheduled_tasks, std::memory_order_relaxed);
+        asyncio_eager_tasks_.store((eager_tasks != Py_None) ? eager_tasks : nullptr, std::memory_order_relaxed);
     }
 
     std::optional<BoundaryFrame>& asyncio_boundary_frame() { return asyncio_boundary_frame_; }
