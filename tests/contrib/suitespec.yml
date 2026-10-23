@@ -1082,7 +1082,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/django_hosts
       variants:
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.14']
+          python: ['3.9', '3.10']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, 'django_hosts~=4.0', 'django~=3.2']
         - name: django:django_hosts
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
@@ -2407,10 +2407,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/rediscluster
       variants:
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11', '3.14']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [pytest-randomly, 'redis-py-cluster>=2.0,<2.1']
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11', '3.14']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
     paths:

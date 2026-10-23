@@ -262,7 +262,7 @@ suites:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
       variants:
         - name: llmobs
-          python: ['3.9', '3.14']
+          python: ['3.9']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1']
         - name: llmobs
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
@@ -330,10 +330,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/openai
       variants:
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.14']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.0.0', 'pillow==9.5.0', 'httpx==0.27.2']
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.14']
+          python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.30.1', 'pillow==9.5.0', 'httpx==0.27.2']
         - name: openai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']

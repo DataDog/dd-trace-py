@@ -37,7 +37,7 @@ suites:
       command: pytest {cmdargs} tests/aiguard/langchain/
       variants:
         - name: ai_guard_langchain
-          python: ['3.9', '3.10', '3.11', '3.14']
+          python: ['3.9', '3.10', '3.11']
           dependencies: ['pytest-asyncio==0.23.7', 'langchain==0.1.20', 'langchain-core==0.1.53', 'langchain-openai==0.1.6', 'openai==1.102.0']
         - name: ai_guard_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.14']
