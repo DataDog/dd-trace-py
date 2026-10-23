@@ -685,8 +685,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
-        kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
-        kwargs["stats_opt_out"] = standalone_config.apm_opt_out
+        kwargs.setdefault("compute_stats_enabled", dd_config._trace_compute_stats)
+        kwargs.setdefault("stats_opt_out", standalone_config.apm_opt_out)
         self._inner_writer = NativeWriter(*args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
@@ -707,8 +707,16 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> DummyWriter:
-        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
+        return DummyWriter(
+            trace_flush_enabled=self.trace_flush_enabled,
+            compute_stats_enabled=(
+                self._inner_writer._compute_stats_enabled if compute_stats_enabled is None else compute_stats_enabled
+            ),
+            stats_opt_out=self._inner_writer._stats_opt_out if stats_opt_out is None else stats_opt_out,
+        )
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)

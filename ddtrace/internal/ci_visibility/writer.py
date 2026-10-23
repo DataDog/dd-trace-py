@@ -229,8 +229,14 @@ class CIVisibilityWriter(HTTPWriter):
             super().stop(timeout=timeout)
 
     def recreate(
-        self, appsec_enabled: Optional[bool] = None, llmobs_enabled: Optional[bool] = None
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "CIVisibilityWriter":
+        # The stats arguments are accepted for interface compatibility and ignored: this writer
+        # uploads CI Visibility events, not traces, and never computes stats.
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,

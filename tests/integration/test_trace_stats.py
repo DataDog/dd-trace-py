@@ -42,9 +42,10 @@ def _trace_stats_context(generate_stats):
 
 @pytest.fixture
 def stats_tracer(tracer):
-    # Recreate tracer with stats enabled
+    # Recreate tracer with stats enabled. The value is passed explicitly: the writer keeps
+    # its cached stats setting across _recreate() instead of re-reading the global config.
     with override_global_config(dict(_trace_compute_stats=True)):
-        tracer._recreate()
+        tracer._recreate(compute_stats_enabled=True)
         yield tracer
         tracer.shutdown()
 
