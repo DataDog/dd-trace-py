@@ -24,7 +24,6 @@ SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 # mcp>=2 server requests are traced from a server middleware rather than RequestResponder
 SERVER_MIDDLEWARE_OPERATION_NAME = "server_middleware"
 DEFAULT_TOOL_ERROR_MESSAGE = "tool resulted in an error"
-CLIENT_INFO_META_KEY = "io.modelcontextprotocol/clientInfo"
 MCP_SESSION_ID_HEADER = "mcp-session-id"
 DD_TRACE_CONTEXT_META_KEY = "_dd_trace_context"
 # Client identity is self-reported and repeated on every tool call span in a session
@@ -66,21 +65,12 @@ def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
 
 
 def get_client_info(request_params: Any, session: Any) -> Any:
-    """Return the client's self-reported Implementation info.
-
-    Checked in order: the params of an initialize request, the client params the server session
-    stored from the handshake (or, in mcp>=2, from the request envelope), and the 2026-07-28
-    per-request _meta envelope. mcp<2 uses camelCase field names, mcp>=2 uses snake_case.
-    """
+    """mcp<2 uses camelCase field names, mcp>=2 uses snake_case."""
     client_info = _get_attr(request_params, "clientInfo", None) or _get_attr(request_params, "client_info", None)
     if client_info:
         return client_info
     client_params = _get_attr(session, "client_params", None)
-    client_info = _get_attr(client_params, "clientInfo", None) or _get_attr(client_params, "client_info", None)
-    if client_info:
-        return client_info
-    meta = _get_attr(request_params, "meta", None) or _get_attr(request_params, "_meta", None)
-    return _get_attr(meta, CLIENT_INFO_META_KEY, None)
+    return _get_attr(client_params, "clientInfo", None) or _get_attr(client_params, "client_info", None)
 
 
 def get_client_info_tags(client_info: Any) -> dict[str, str]:
