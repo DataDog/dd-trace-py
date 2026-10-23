@@ -4,6 +4,31 @@ from ddtrace.contrib.internal.mcp.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
+def _patched_functions():
+    from mcp.client.session import ClientSession
+
+    functions = [
+        ClientSession.call_tool,
+        ClientSession.__aenter__,
+        ClientSession.__aexit__,
+        ClientSession.list_tools,
+        ClientSession.initialize,
+    ]
+    try:
+        from mcp.shared.session import BaseSession
+        from mcp.shared.session import RequestResponder
+    except ImportError:
+        from mcp.server.runner import ServerRunner
+
+        return functions + [ClientSession.send_request, ClientSession.adopt, ServerRunner.__init__]
+    return functions + [
+        BaseSession.send_request,
+        RequestResponder.__enter__,
+        RequestResponder.__exit__,
+        RequestResponder.respond,
+    ]
+
+
 class TestMCPPatch(PatchTestCase.Base):
     __integration_name__ = "mcp"
     __module_name__ = "mcp"
@@ -12,49 +37,16 @@ class TestMCPPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, module):
-        from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
-
-        self.assert_wrapped(BaseSession.send_request)
-        self.assert_wrapped(ClientSession.call_tool)
-        self.assert_wrapped(ClientSession.__aenter__)
-        self.assert_wrapped(ClientSession.__aexit__)
-        self.assert_wrapped(ClientSession.list_tools)
-        self.assert_wrapped(ClientSession.initialize)
-        self.assert_wrapped(RequestResponder.__enter__)
-        self.assert_wrapped(RequestResponder.__exit__)
-        self.assert_wrapped(RequestResponder.respond)
+        for function in _patched_functions():
+            self.assert_wrapped(function)
 
     def assert_not_module_patched(self, module):
-        from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
-
-        self.assert_not_wrapped(BaseSession.send_request)
-        self.assert_not_wrapped(ClientSession.call_tool)
-        self.assert_not_wrapped(ClientSession.__aenter__)
-        self.assert_not_wrapped(ClientSession.__aexit__)
-        self.assert_not_wrapped(ClientSession.list_tools)
-        self.assert_not_wrapped(ClientSession.initialize)
-        self.assert_not_wrapped(RequestResponder.__enter__)
-        self.assert_not_wrapped(RequestResponder.__exit__)
-        self.assert_not_wrapped(RequestResponder.respond)
+        for function in _patched_functions():
+            self.assert_not_wrapped(function)
 
     def assert_not_module_double_patched(self, module):
-        from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
-
-        self.assert_not_double_wrapped(BaseSession.send_request)
-        self.assert_not_double_wrapped(ClientSession.call_tool)
-        self.assert_not_double_wrapped(ClientSession.__aenter__)
-        self.assert_not_double_wrapped(ClientSession.__aexit__)
-        self.assert_not_double_wrapped(ClientSession.list_tools)
-        self.assert_not_double_wrapped(ClientSession.initialize)
-        self.assert_not_double_wrapped(RequestResponder.__enter__)
-        self.assert_not_double_wrapped(RequestResponder.__exit__)
-        self.assert_not_double_wrapped(RequestResponder.respond)
+        for function in _patched_functions():
+            self.assert_not_double_wrapped(function)
 
 
 def test_mcp_auto_patch_during_experiment_import(run_python_code_in_subprocess):
