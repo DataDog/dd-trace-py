@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from tests.integration.utils import AGENT_VERSION
@@ -13,6 +15,11 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
         "DD_SERVICE": "otlp-trace-snapshot",
         "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": (
+            os.environ["DD_TEST_AGENT_OTLP_HTTP_URL"] + "/v1/traces"
+            if "DD_TEST_AGENT_OTLP_HTTP_URL" in os.environ
+            else None
+        ),
     },
 )
 def test_otlp_trace_snapshot():

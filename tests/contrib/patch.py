@@ -1,5 +1,4 @@
 import functools
-import http.client as httplib
 import importlib
 import json
 import os
@@ -10,6 +9,8 @@ import unittest
 
 from ddtrace import __version__
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 from tests.subprocesstest import SubprocessTestCase
@@ -120,11 +121,14 @@ def emit_integration_and_version_to_test_agent(integration_name, version, module
         "dependency_name": module_name.split(".")[0] if module_name else integration_name,
     }
     payload = json.dumps(data)
-    conn = httplib.HTTPConnection(host="localhost", port=9126, timeout=10)
-    headers = {"Content-type": "application/json"}
-    conn.request("PUT", "/test/session/integrations", body=payload, headers=headers)
-    response = conn.getresponse()
-    assert response.status == 200
+    conn = get_connection(agent_config.trace_agent_url, timeout=10)
+    try:
+        conn.request("PUT", "/test/session/integrations", body=payload, headers={"Content-type": "application/json"})
+        response = conn.getresponse()
+        body = response.read()
+        assert response.status == 200, body
+    finally:
+        conn.close()
 
 
 class PatchTestCase:
@@ -796,7 +800,7 @@ class PatchTestCase:
                     emit_integration_and_version_to_test_agent(self.__integration_name__, v, module_name=name)
             else:
                 version = self.__get_version__()
-                assert type(version) == str
+                assert type(version) is str
                 assert version != ""
                 emit_integration_and_version_to_test_agent(
                     self.__integration_name__, version, module_name=self.__module_name__

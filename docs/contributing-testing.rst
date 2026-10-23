@@ -359,3 +359,62 @@ environment variables. For example, to enable debug logs just for
 ``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
 will set the ``DEBUG`` log level for any logger whose name is prefixed with
 ``ddtrace.debugging``.
+
+Snapshot tests
+--------------
+
+Use ``@pytest.mark.snapshot`` for a whole test, or the ``snapshot_context``
+fixture for a specific phase. Both use the same capture and verification
+implementation. Prefer these interfaces over the legacy ``tests.utils.snapshot``
+decorator when adding tests. For existing unittest classes, a method-scoped
+``snapshot_context`` or legacy decorator excludes ``setUp`` and ``tearDown``;
+the snapshot marker includes both. Choose the boundary deliberately.
+
+A snapshot name identifies a checked-in baseline. Each execution gets a separate
+session token, including retries and repeated contexts with the same name. Use
+``snapshot.token`` when an external producer needs the capture token; do not use
+the baseline name as a request header. The agent session starts before the token
+is installed. Snapshot comparison runs once, after a successful test, and cleanup
+restores the previous environment and writer token even when the test fails.
+
+For configuration, startup, shutdown, and global singleton behavior, combine
+``@pytest.mark.subprocess`` with ``@pytest.mark.snapshot``. Set configuration in
+the subprocess marker's ``env`` mapping so it takes effect before importing
+ddtrace. The child inherits the capture token without rebuilding the parent's
+exporter. Exercise observable behavior instead of mocking internal methods.
+
+Finish spans, await async tasks, join threads and greenlets, and wait for child
+processes before leaving a snapshot context. The harness flushes the current
+in-process writer and surfaces delivery errors. It cannot finish producers owned
+by the test. ``wait_for_num_traces`` waits for a minimum number of distinct trace
+IDs, not complete traces: partial flushing can deliver more spans for an existing
+trace later. It is a readiness check, not a substitute for joining producers.
+Its ``timeout`` defaults to five seconds. Transport requests also have explicit
+timeouts and bounded retries; session start and comparison are not retried.
+
+Extra traces and comparison mismatches fail the test. Infrastructure errors are
+not expected failures. Use an explicit, narrowly scoped ``xfail(strict=True)``
+with an issue and reason only for a known product defect. Setting
+``DD_SNAPSHOT_ENABLED=0`` skips snapshot tests instead of reporting an unverified
+pass. Failed and skipped tests do not generate or verify baselines.
+
+Baselines must exist for normal verification, including tests expecting no
+output. An empty JSON array records an explicit empty expectation. To create a
+missing baseline with the local test agent, run the test with
+``DD_SNAPSHOT_UPDATE=1`` and review the resulting JSON. The local runner starts
+its agent in strict comparison mode unless this flag is set. The flag does not
+bypass comparison against an existing baseline or change CI-provisioned agents.
+When using a custom agent snapshot mount, set ``DD_TEST_AGENT_SNAPSHOT_DIR`` to the path inside
+the agent. The defaults match Docker Compose and GitLab CI.
+
+Ignore only attributes that are irrelevant to the behavior under test. Keep
+configuration and feature variants explicit. Do not add sleeps, blanket ignores,
+or automatic retries to hide extra or missing spans.
+
+The pinned test agent still associates untagged traffic by session-start order.
+``async_mode=False`` uses this legacy behavior and requires exclusive agent
+ownership for the lifetime of its producers. Avoid it in new tests. Unique tokens
+do not isolate unfinished background work sharing the same global writer, and
+concurrent in-process snapshot contexts are unsupported. Agent-side strict
+routing, token-scoped clearing, and structural comparison improvements require
+changes to the test agent; do not assume this harness provides those guarantees.

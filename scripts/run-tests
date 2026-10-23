@@ -235,10 +235,8 @@ class TestRunner:
             return True
         except subprocess.CalledProcessError:
             if "testagent" in services and not self.podman_compat:
-                # NOTE: When falling back to a random port, snapshot tests that
-                # hardcode localhost:9126 in their URLs (e.g., in test code or
-                # snapshot files) may fail, as do OTLP snapshot tests, which
-                # export to port 4318. This happens when 9126 or 4318 is taken.
+                # NOTE: Tests that hardcode agent URLs must use the discovered endpoints
+                # when another worktree has already claimed the default ports.
                 print("⚠️  Port conflict detected, retrying testagent with random ports...")
                 os.environ["TESTAGENT_HOST_PORT"] = "0"
                 os.environ["TESTAGENT_OTLP_HOST_PORT"] = "0"
@@ -253,16 +251,17 @@ class TestRunner:
                 print("❌ Failed to start services")
                 return False
 
-    def get_testagent_url(self) -> str:
+    def get_testagent_url(self, port: int = 8126) -> str:
         """Discover the testagent URL by querying its dynamically assigned host port."""
+        default_port = TESTAGENT_PORT_DEFAULT if port == 8126 else port
         if self.podman_compat:
-            url = f"http://localhost:{TESTAGENT_PORT_DEFAULT}"
+            url = f"http://localhost:{default_port}"
             print(f"🔍 Using host-networked Podman testagent at {url}")
             return url
 
         try:
             result = subprocess.run(
-                self._compose_command("port", "testagent", "8126"),
+                self._compose_command("port", "testagent", str(port)),
                 capture_output=True,
                 text=True,
                 cwd=self.root,
@@ -277,7 +276,7 @@ class TestRunner:
             print(f"⚠️  Failed to discover testagent port: {e}")
 
         # Fall back to the conventional fixed port
-        url = f"http://localhost:{TESTAGENT_PORT_DEFAULT}"
+        url = f"http://localhost:{default_port}"
         print(f"⚠️  Falling back to {url}")
         return url
 
@@ -684,6 +683,8 @@ class TestRunner:
 
             # Start services for this suite
             if suite_services and not self.in_ci:
+                if needs_testagent:
+                    os.environ["TESTAGENT_SNAPSHOT_CI"] = "0" if os.getenv("DD_SNAPSHOT_UPDATE") == "1" else "1"
                 if not self.start_services(suite_services):
                     print(f"❌ Failed to start services for suite '{suite_name}'")
                     return False
@@ -721,8 +722,13 @@ class TestRunner:
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
 
             forwarded_env = {key: env[key] for key in suite_env}
+            for key in ("DD_SNAPSHOT_UPDATE", "DD_SNAPSHOT_ENABLED", "DD_TEST_AGENT_SNAPSHOT_DIR"):
+                if key in os.environ:
+                    forwarded_env[key] = os.environ[key]
             if needs_testagent:
                 forwarded_env["DD_TRACE_AGENT_URL"] = env["DD_TRACE_AGENT_URL"]
+                if not self.in_ci:
+                    forwarded_env["DD_TEST_AGENT_OTLP_HTTP_URL"] = self.get_testagent_url(port=4318)
             suite_success = self._run_environments(
                 environments,
                 forwarded_env,
