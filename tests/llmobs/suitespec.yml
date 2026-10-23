@@ -232,14 +232,15 @@ suites:
       variants:
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.65.4', 'openai==1.68.2']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.83.7']
         - name: litellm
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          python: ['3.9']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm>=1.83.7']
+        # Newer litellm imports mcp on the tool-call path; mcp requires Python 3.10+.
         # PR #20079: Python 3.14 is covered by the latest compatible dependency row only.
         - name: litellm
-          python: ['3.14']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, mcp, 'litellm>=1.83.7']
   llmobs:
     paths:
       - '@bootstrap'
@@ -408,10 +409,10 @@ suites:
       variants:
         - name: crewai
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-asyncio, openai, 'crewai~=0.102.0', 'vcrpy==7.0.0']
+          dependencies: [pytest-asyncio, openai, 'crewai[litellm]~=1.0.0', 'litellm>=1.83.7', vcrpy]
         - name: crewai
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
+          dependencies: [pytest-asyncio, openai, 'crewai[litellm]', 'litellm>=1.83.7', vcrpy]
   openai_agents:
     venvs_per_job: 5
     paths:

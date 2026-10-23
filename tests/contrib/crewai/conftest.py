@@ -39,6 +39,10 @@ def request_vcr():
     )
 
 
+# crewai >= 1.0 builds the default LLM client when an Agent is constructed and fails without a key.
+os.environ.setdefault("OPENAI_API_KEY", "<not-a-real-key>")
+
+
 @tool("Average Calculator")
 def calculate_average_tool(entries: list) -> float:
     """This tool returns the average of a list of numbers."""
