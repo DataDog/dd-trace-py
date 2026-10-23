@@ -1,5 +1,6 @@
 from functools import cache
 import logging
+import os
 import sys
 from typing import Any
 from typing import Callable
@@ -40,6 +41,7 @@ class NativeRuntime(SharedRuntime):
         # wait on a condvar nothing can ever notify and hang os.fork() forever. Anything that wants
         # to flush should check this first and fall back to a fire-and-forget flush instead.
         self._paused = False
+        self._pid = os.getpid()
         self.register_at_fork()
         forksafe.register_before_fork(self.before_fork)
         forksafe.register_after_parent(self.after_fork_parent)
@@ -56,11 +58,20 @@ class NativeRuntime(SharedRuntime):
         # Set before the super call: that call is what pauses (and, on the last worker, drops) the
         # runtime, so _paused must already be true by the time any of it can observe.
         self._paused = True
-        super().before_fork()
+        if self._owns_runtime():
+            super().before_fork()
 
     def after_fork_parent(self) -> None:
-        super().after_fork_parent()
+        if self._owns_runtime():
+            super().after_fork_parent()
         self._paused = False
+
+    def _owns_runtime(self) -> bool:
+        # A forked child keeps the inherited runtime parked until its first use. Celery runs these
+        # hooks around close_open_fds in the child, and resuming there unparks the inherited Tokio
+        # I/O driver after its descriptors are closed, which panics. A real fork still pauses through
+        # the native pthread_atfork hooks.
+        return os.getpid() == self._pid
 
     def _resume_after_fork_child(self) -> None:
         # Deliberately does not call the native after_fork_child(). Rebuilding the runtime from the
