@@ -197,17 +197,23 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
     EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(2, 2) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 
+    // Removing an interpreter invalidates, even when another one is added in its place.
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
     EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 
-    // Same size with every entry present in the previous snapshot is not enough; the snapshots must match exactly.
+    // A duplicated entry cannot stand in for a removed interpreter.
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
     EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(1, 1) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 
+    // A newly added interpreter has nothing cached yet, so adding one keeps the cache.
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
-    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(4, 1), interpreter(1, 1) }, true));
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
 
     echion.frame_cache().store(key, std::make_unique<Frame>(10));

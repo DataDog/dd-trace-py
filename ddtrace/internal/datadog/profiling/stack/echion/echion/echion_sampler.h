@@ -101,7 +101,7 @@ class EchionSampler
         auto operator<=>(const InterpreterCodeGeneration&) const = default;
     };
 
-    // Sorted snapshot from the previous sampling cycle. Sorting makes the comparison independent of traversal order.
+    // Snapshot from the previous sampling cycle, sorted by interpreter ID so it can be matched in one pass.
     std::vector<InterpreterCodeGeneration> code_object_generations_;
     // Reused buffer for building the current cycle's snapshot.
     std::vector<InterpreterCodeGeneration> next_code_object_generations_;
@@ -200,8 +200,8 @@ class EchionSampler
 
 #if PY_VERSION_HEX >= 0x030e0000
     // CPython keeps a code object generation per interpreter, but the frame identity caches are shared by all
-    // interpreters, so a generation change in any one interpreter thrashes them for every interpreter. Returns false,
-    // after invalidating, when the snapshot is incomplete and the cycle must not be sampled.
+    // interpreters, so a generation change or removal of any one interpreter thrashes them for every interpreter.
+    // Returns false, after invalidating, when the snapshot is incomplete and the cycle must not be sampled.
     bool validate_code_object_generations(const std::vector<InterpreterInfo>& interpreters,
                                           bool all_interpreter_data_captured)
     {
@@ -217,10 +217,21 @@ class EchionSampler
         }
         std::sort(next_code_object_generations_.begin(), next_code_object_generations_.end());
 
-        if (next_code_object_generations_ != code_object_generations_) {
-            invalidate_frame_identity_cache();
-            code_object_generations_.swap(next_code_object_generations_);
+        // Invalidate only if a previously seen interpreter is gone or its generation changed. A newly added interpreter
+        // has nothing cached yet, so it is only recorded.
+        auto next = next_code_object_generations_.cbegin();
+        const auto next_end = next_code_object_generations_.cend();
+        for (const auto& previous : code_object_generations_) {
+            next = std::lower_bound(next, next_end, previous.interpreter_id, [](const auto& entry, int64_t id) {
+                return entry.interpreter_id < id;
+            });
+            if (next == next_end || next->interpreter_id != previous.interpreter_id ||
+                next->generation != previous.generation) {
+                invalidate_frame_identity_cache();
+                break;
+            }
         }
+        code_object_generations_.swap(next_code_object_generations_);
         return true;
     }
 #endif
