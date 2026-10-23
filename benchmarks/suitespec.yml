@@ -434,6 +434,15 @@ suites:
       - ddtrace/internal/datadog/profiling/code_provenance.py
     cpus_per_run: 1
     type: 'microbenchmark'
+  crashtracker_spans:
+    paths:
+      - '@core'
+      - ddtrace/internal/core/crashtracking.py
+      - src/native/crashtracker.rs
+      - benchmarks/crashtracker_spans/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   rand:
     paths:
       - 'src/native/rand.rs'
