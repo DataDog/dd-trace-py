@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: Fixes an issue where Data Streams Monitoring did not track SQS messages consumed
+    with a JSON body that is not an object, such as an array, string, or number.
