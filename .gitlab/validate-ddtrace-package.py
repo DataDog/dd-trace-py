@@ -17,6 +17,8 @@ Environment:
     PACKAGE_VERSION: Version from pyproject.toml (set by "package version" job)
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 from pathlib import Path
