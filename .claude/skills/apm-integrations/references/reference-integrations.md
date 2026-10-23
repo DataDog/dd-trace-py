@@ -44,8 +44,10 @@ boundary. Do not wrap router.match, _cast, or _make_callback to extend it.
 
 Bottle also dispatches WebFrameworkCallbackStartedEvent and
 WebFrameworkCallbackCompletedEvent around the callback, inside the optional tracing
-context. Their callback_id correlates an invocation; metadata is copied and no
-body is consumed. Consumers own product setup and cleanup. Completion precedes
+context. Both inherit HttpBaseEvent through WebFrameworkCallbackEvent, without
+TracingEvent. Their callback_id correlates an invocation; each envelope copies its
+header mappings and response_header_items preserves duplicate response headers.
+No body is consumed. Consumers own product setup and cleanup. Completion precedes
 streaming and later response hooks. Neither event is a blocking channel.
 
 The plugin bypasses instrumentation only when tracing is disabled and neither

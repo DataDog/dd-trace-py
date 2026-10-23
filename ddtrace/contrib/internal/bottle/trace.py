@@ -84,7 +84,7 @@ class TracePlugin:
                     request_method=method,
                     request_url=url,
                     request_route=full_route,
-                    request_headers=tuple(request.headers.items()),
+                    request_headers=dict(request.headers.items()),
                     query=request.query_string,
                 )
                 if observe
@@ -141,7 +141,7 @@ class TracePlugin:
                             WebFrameworkCallbackCompletedEvent(
                                 **fields,
                                 response_status_code=response_code,
-                                response_headers=tuple(headers),
+                                response_header_items=tuple(headers),
                                 error_type=error_type,
                                 error_message=error_message,
                             )

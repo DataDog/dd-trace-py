@@ -93,14 +93,24 @@ Web framework callback notifications
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Bottle emits ``WebFrameworkCallbackStartedEvent`` and
-``WebFrameworkCallbackCompletedEvent`` from ``ddtrace.contrib._events.web_framework``
+``WebFrameworkCallbackCompletedEvent`` from ``ddtrace.contrib._events.web_framework_callback``
 around its plugin callback. Subscribe using ``core.on(EventClass.event_name, listener)``.
 Register before the callback starts to receive a paired lifecycle. Notifications
 remain active with tracing disabled when either event has a registered listener.
 
 These synchronous notifications carry direct metadata fields and an opaque
 ``callback_id`` shared by the two events. Nested invocations have distinct IDs.
-Headers are copied into tuples; request bodies, response iterators, exception
+The events inherit the common HTTP fields from ``HttpBaseEvent``. Request and
+response header mappings are copied separately for each event. The additional
+``response_header_items`` tuple preserves repeated headers such as ``Set-Cookie``;
+the response mapping contains the last value for each exact header name. Compare
+header names case-insensitively. When constructing an event, nonempty header items
+are authoritative for its response mapping. The inherited response status is
+``None`` when unavailable, including at callback entry.
+
+The callback override of ``set_response`` copies the supplied response mapping;
+producers with duplicate response headers should supply ``response_header_items``
+at construction, as Bottle does. Request bodies, response iterators, exception
 objects, and tracebacks are not included. Treat event envelopes as read-only.
 Listener return values are ignored; these events provide no blocking mechanism.
 Ordinary listener exceptions follow core's isolation policy.

@@ -5,6 +5,7 @@ import pytest
 import webtest
 
 import ddtrace
+from ddtrace.contrib._events.http import HttpBaseEvent
 from ddtrace.contrib._events.web_framework_callback import WebFrameworkCallbackCompletedEvent
 from ddtrace.contrib._events.web_framework_callback import WebFrameworkCallbackStartedEvent
 from ddtrace.contrib.internal.bottle import trace
@@ -46,6 +47,10 @@ def test_callback_notifications_without_changing_span_lifetime(app, events, trac
     started, completed = events
     assert type(started) is WebFrameworkCallbackStartedEvent
     assert type(completed) is WebFrameworkCallbackCompletedEvent
+    assert isinstance(started, HttpBaseEvent)
+    assert isinstance(completed, HttpBaseEvent)
+    assert started.response_status_code is None
+    assert started.response_headers == {}
     assert started.callback_id is completed.callback_id
     assert started.request_route == "/hello/<name>"
     assert started.query == "key=value"
@@ -87,7 +92,7 @@ def test_completion_reports_callback_outcome(app, events, outcome, status):
         assert completed.error_message == "callback failed"
     else:
         assert completed.error_type is None
-        assert [v for k, v in completed.response_headers if k.lower() == "set-cookie"] == ["a=1", "b=2"]
+        assert [v for k, v in completed.response_header_items if k.lower() == "set-cookie"] == ["a=1", "b=2"]
 
 
 def test_completion_precedes_stream_and_after_request_hooks(app, events, tracer):
@@ -206,9 +211,11 @@ def test_completion_runs_for_base_exception(app, events):
 def test_retained_metadata_and_envelopes_are_independent(app, events):
     def alter_envelope(event):
         event.request_route = "/changed"
+        event.request_headers["X-Example"] = "listener mutation"
 
     @app.route("/hello")
     def hello():
+        assert bottle.request.headers["X-Example"] == "original"
         bottle.request.environ["HTTP_X_EXAMPLE"] = "changed"
         return "hello"
 
@@ -292,3 +299,29 @@ def test_callback_events_do_not_depend_on_tracing():
     assert not [name for name in seen if name.startswith("ddtrace._trace")]
     assert not [name for name in seen if name.startswith("ddtrace.contrib._events.web_framework.")]
     assert "ddtrace.contrib._events.web_framework" not in seen
+
+
+def test_callback_event_copies_base_http_fields_and_set_response():
+    request_headers = {"X-Request": "original"}
+    response_headers = {"X-Response": "original"}
+    event = WebFrameworkCallbackStartedEvent(
+        callback_id=object(),
+        framework="bottle",
+        request_method="GET",
+        request_url="http://localhost/hello",
+        request_route="/hello",
+        request_headers=request_headers,
+        response_headers=response_headers,
+        query="",
+    )
+    request_headers["X-Request"] = "changed"
+    response_headers["X-Response"] = "changed"
+    assert event.request_headers == {"X-Request": "original"}
+    assert event.response_headers == {"X-Response": "original"}
+
+    response = bottle.HTTPResponse("body", status=201, headers={"X-Result": "created"})
+    event.set_response(response)
+    response.headers["X-Result"] = "changed"
+    assert event.response_status_code == 201
+    assert event.response_headers["X-Result"] == "created"
+    assert dict(event.response_header_items)["X-Result"] == "created"
