@@ -15,6 +15,7 @@ from time import time
 from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 from urllib.request import HTTPRedirectHandler
 from urllib.request import HTTPSHandler
 from urllib.request import OpenerDirector
@@ -64,7 +65,11 @@ class HttpExporter:
         prefix = f"OTEL_EXPORTER_OTLP_{signal.upper()}"
         self._signal = signal
         self._endpoint = endpoint or _resolve_endpoint(prefix, path)
-        self._headers = list(_resolve_headers(headers, f"{prefix}_HEADERS"))
+        self._headers = [
+            (name, value)
+            for name, value in _resolve_headers(headers, f"{prefix}_HEADERS")
+            if name.lower() not in ("content-type", "content-encoding")
+        ]
         self._timeout = timeout if timeout is not None else _environment_float(f"{prefix}_TIMEOUT", 10.0)
         self._compression = _resolve_compression(compression, f"{prefix}_COMPRESSION")
         self._max_request_size = _MAX_REQUEST_SIZE if max_request_size is None else max_request_size
@@ -72,9 +77,8 @@ class HttpExporter:
         self._client: HTTPClient | None
         self._opener: OpenerDirector | None
 
-        if not _has_header(self._headers, "content-type"):
-            self._headers.insert(0, ("Content-Type", "application/x-protobuf"))
-        if self._compression != "none" and not _has_header(self._headers, "content-encoding"):
+        self._headers.insert(0, ("Content-Type", "application/x-protobuf"))
+        if self._compression != "none":
             self._headers.append(("Content-Encoding", self._compression))
 
         certificate = certificate_file or _environment(f"{prefix}_CERTIFICATE", "OTEL_EXPORTER_OTLP_CERTIFICATE", "")
@@ -179,7 +183,9 @@ def _resolve_endpoint(prefix: str, path: str) -> str:
     signal_endpoint = env.get(f"{prefix}_ENDPOINT")
     if signal_endpoint:
         return signal_endpoint
-    return (env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or _DEFAULT_ENDPOINT).rstrip("/") + path
+    parsed = urlsplit(env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or _DEFAULT_ENDPOINT)
+    signal_path = parsed.path.rstrip("/") + path
+    return urlunsplit((parsed.scheme, parsed.netloc, signal_path, parsed.query, parsed.fragment))
 
 
 def _proxy_handler(endpoint: str) -> ProxyHandler | None:
@@ -231,10 +237,6 @@ def _environment(signal_name: str, global_name: str, default: str) -> str:
 def _environment_float(signal_name: str, default: float) -> float:
     configured = env.get(signal_name) or env.get("OTEL_EXPORTER_OTLP_TIMEOUT")
     return float(configured) if configured is not None else default
-
-
-def _has_header(headers: Sequence[tuple[str, str]], name: str) -> bool:
-    return any(key.lower() == name for key, _ in headers)
 
 
 def _parse_retry_after(value: str | None) -> float | None:

@@ -95,6 +95,7 @@ class GrpclibExporter:
 
     def _initialize_transport(self) -> None:
         parsed = _parse_endpoint(self._endpoint)
+        self._transport_closed = False
         self._loop = asyncio.new_event_loop()
         setattr(self._loop, "getaddrinfo", _getaddrinfo)
         with warnings.catch_warnings():
@@ -124,46 +125,65 @@ class GrpclibExporter:
         timeout = self._timeout if timeout_millis is None else min(self._timeout, timeout_millis / 1000)
         deadline = monotonic() + timeout
         delay = 1.0
-        while True:
-            try:
-                with self._lock:
-                    if self._pid != os.getpid():
-                        self._after_fork()
+        try:
+            while True:
+                try:
+                    with self._lock:
+                        if self._pid != os.getpid():
+                            self._after_fork()
+                        remaining = deadline - monotonic()
+                        if remaining <= 0:
+                            return failure
+                        _run_until_complete(
+                            self._loop,
+                            self._method(request, timeout=remaining, metadata=self._headers),
+                        )
+                    return success
+                except (GRPCError, OSError) as error:
                     remaining = deadline - monotonic()
-                    if remaining <= 0:
+                    if (isinstance(error, GRPCError) and error.status not in _RETRYABLE_STATUSES) or remaining <= delay:
+                        log.error("Failed to export OpenTelemetry %s over gRPC: %s", self._signal, error)
                         return failure
-                    _run_until_complete(
-                        self._loop,
-                        self._method(request, timeout=remaining, metadata=self._headers),
-                    )
-                return success
-            except (GRPCError, OSError) as error:
-                remaining = deadline - monotonic()
-                if (isinstance(error, GRPCError) and error.status not in _RETRYABLE_STATUSES) or remaining <= delay:
-                    log.error("Failed to export OpenTelemetry %s over gRPC: %s", self._signal, error)
+                    log.warning("Transient gRPC error exporting OpenTelemetry %s; retrying in %ss", self._signal, delay)
+                    sleep(delay)
+                    delay = min(delay * 2, _MAX_RETRY_DELAY)
+                except RuntimeError as error:
+                    if "after interpreter shutdown" in str(error):
+                        log.debug("Skipped final OpenTelemetry %s export during interpreter shutdown", self._signal)
+                        return failure
+                    log.exception("Failed to export OpenTelemetry %s over gRPC", self._signal)
                     return failure
-                log.warning("Transient gRPC error exporting OpenTelemetry %s; retrying in %ss", self._signal, delay)
-                sleep(delay)
-                delay = min(delay * 2, _MAX_RETRY_DELAY)
-            except RuntimeError as error:
-                if "after interpreter shutdown" in str(error):
-                    log.debug("Skipped final OpenTelemetry %s export during interpreter shutdown", self._signal)
+                except Exception:
+                    log.exception("Failed to export OpenTelemetry %s over gRPC", self._signal)
                     return failure
-                log.exception("Failed to export OpenTelemetry %s over gRPC", self._signal)
-                return failure
-            except Exception:
-                log.exception("Failed to export OpenTelemetry %s over gRPC", self._signal)
-                return failure
+        finally:
+            self._close_transport_after_shutdown()
 
     def shutdown(self, timeout_millis: float = 30_000, **kwargs: Any) -> None:
         if self._shutdown:
             return
         self._shutdown = True
         forksafe.unregister(self._after_fork)
-        with self._lock:
-            self._channel.close()
-            if not self._loop.is_closed():
-                self._loop.close()
+        timeout = max(0.0, timeout_millis / 1000)
+        if not self._lock.acquire(timeout=timeout):
+            return
+        try:
+            self._close_transport()
+        finally:
+            self._lock.release()
+
+    def _close_transport_after_shutdown(self) -> None:
+        if self._shutdown:
+            with self._lock:
+                self._close_transport()
+
+    def _close_transport(self) -> None:
+        if self._transport_closed:
+            return
+        self._transport_closed = True
+        self._channel.close()
+        if not self._loop.is_closed():
+            self._loop.close()
 
     def force_flush(self, timeout_millis: float = 10_000) -> bool:
         return True

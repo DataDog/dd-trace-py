@@ -304,7 +304,7 @@ def test_http_exporter_preserves_attribute_types_headers_and_compression(monkeyp
     provider, metrics_data = _metrics_data()
     exporter = OTLPMetricExporter(
         endpoint="http://127.0.0.1:4318/custom/metrics",
-        headers="authorization=Bearer%20token,x-test=value",
+        headers=("authorization=Bearer%20token,x-test=value,content-type=application/json,content-encoding=br"),
         timeout=3,
         compression="gzip",
     )
@@ -325,8 +325,26 @@ def test_http_exporter_preserves_attribute_types_headers_and_compression(monkeyp
     assert calls[0][1] == pytest.approx(3, abs=0.1)
     assert ("authorization", "Bearer token") in exporter._headers
     assert ("x-test", "value") in exporter._headers
+    assert ("Content-Type", "application/x-protobuf") in exporter._headers
     assert ("Content-Encoding", "gzip") in exporter._headers
+    assert not any(
+        name.lower() == "content-type" and value != "application/x-protobuf" for name, value in exporter._headers
+    )
+    assert not any(name.lower() == "content-encoding" and value != "gzip" for name, value in exporter._headers)
     assert exporter._path == "/custom/metrics"
+
+
+@skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
+def test_http_exporter_appends_signal_path_before_query(monkeypatch):
+    from ddtrace.internal.opentelemetry.exporters.http_exporter import _resolve_endpoint
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://collector.example/otlp?tenant=test")
+
+    assert (
+        _resolve_endpoint("OTEL_EXPORTER_OTLP_METRICS", "/v1/metrics")
+        == "https://collector.example/otlp/v1/metrics?tenant=test"
+    )
 
 
 @skipif(exporter_not_installed=True)
@@ -459,6 +477,45 @@ def test_grpclib_exporter_retries_transport_errors(monkeypatch):
 
 
 @skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
+def test_grpclib_exporter_shutdown_honors_timeout(monkeypatch):
+    from threading import Event
+    from threading import Thread
+    from time import monotonic
+
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import OTLPMetricExporter
+
+    started = Event()
+    release = Event()
+
+    async def export(request, *, timeout, metadata):
+        started.set()
+        release.wait()
+
+    provider, metrics_data = _metrics_data()
+    exporter = OTLPMetricExporter(endpoint="http://127.0.0.1:4317")
+    monkeypatch.setattr(exporter, "_method", export)
+    results = []
+    thread = Thread(target=lambda: results.append(exporter.export(metrics_data)))
+    thread.start()
+    assert started.wait(1)
+
+    before = monotonic()
+    exporter.shutdown(timeout_millis=10)
+    elapsed = monotonic() - before
+    assert elapsed < 0.5
+    assert not exporter._loop.is_closed()
+
+    release.set()
+    thread.join(1)
+    provider.shutdown()
+    assert results == [MetricExportResult.SUCCESS]
+    assert exporter._loop.is_closed()
+
+
+@skipif(exporter_not_installed=True)
 def test_resource_attributes_preserve_types(monkeypatch):
     from ddtrace.internal.opentelemetry import metrics
 
@@ -546,6 +603,31 @@ def test_grpc_compression_uses_upstream_exporter(monkeypatch):
         return SimpleNamespace(OTLPMetricExporter=UpstreamExporter)
 
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_COMPRESSION", "gzip")
+    monkeypatch.setattr(exporters, "_exporter_version", lambda protocol: "1.41.0")
+    monkeypatch.setattr(exporters, "import_module", import_exporter)
+
+    exporter_class = exporters.get_metrics_exporter("grpc")
+
+    assert UpstreamExporter in exporter_class.__mro__
+    assert imported == ["opentelemetry.exporter.otlp.proto.grpc.metric_exporter"]
+
+
+@skipif(exporter_not_installed=True)
+def test_grpc_proxy_uses_upstream_exporter(monkeypatch):
+    from ddtrace.internal.opentelemetry import exporters
+
+    class UpstreamExporter:
+        pass
+
+    imported = []
+
+    def import_exporter(module_name):
+        imported.append(module_name)
+        return SimpleNamespace(OTLPMetricExporter=UpstreamExporter)
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "https://collector.example:4317")
+    monkeypatch.setattr(exporters, "getproxies", lambda: {"https": "http://proxy.example:8080"})
+    monkeypatch.setattr(exporters, "proxy_bypass", lambda host: False)
     monkeypatch.setattr(exporters, "_exporter_version", lambda protocol: "1.41.0")
     monkeypatch.setattr(exporters, "import_module", import_exporter)
 

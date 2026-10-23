@@ -4,6 +4,9 @@ from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version
 from typing import Any
+from urllib.parse import urlparse
+from urllib.request import getproxies
+from urllib.request import proxy_bypass
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.exporters.exporter_telemetry import logs_exporter_with_telemetry
@@ -37,7 +40,11 @@ def get_metrics_exporter(protocol: str) -> type[Any] | None:
             return None
 
         if protocol == "grpc":
-            if _supports_lightweight_exporter(exporter_version) and not _grpc_compression_configured("metrics"):
+            if (
+                _supports_lightweight_exporter(exporter_version)
+                and not _grpc_compression_configured("metrics")
+                and not _grpc_proxy_configured("metrics")
+            ):
                 try:
                     from ddtrace.internal.opentelemetry.exporters.grpclib_metric_exporter import (
                         OTLPMetricExporter as GRPCMetricExporter,
@@ -90,7 +97,11 @@ def get_logs_exporter(protocol: str) -> type[Any] | None:
             return None
 
         if protocol == "grpc":
-            if _supports_lightweight_exporter(exporter_version) and not _grpc_compression_configured("logs"):
+            if (
+                _supports_lightweight_exporter(exporter_version)
+                and not _grpc_compression_configured("logs")
+                and not _grpc_proxy_configured("logs")
+            ):
                 try:
                     from ddtrace.internal.opentelemetry.exporters.grpclib_log_exporter import (
                         OTLPLogExporter as GRPCLogExporter,
@@ -148,6 +159,19 @@ def _grpc_compression_configured(signal: str) -> bool:
     if configured is None:
         configured = env.get("OTEL_EXPORTER_OTLP_COMPRESSION")
     return configured is not None and configured.strip().lower() not in ("", "none")
+
+
+def _grpc_proxy_configured(signal: str) -> bool:
+    prefix = f"OTEL_EXPORTER_OTLP_{signal.upper()}"
+    endpoint = env.get(f"{prefix}_ENDPOINT") or env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or "http://localhost:4317"
+    parsed = urlparse(endpoint if "://" in endpoint else f"//{endpoint}")
+    if not parsed.hostname:
+        return False
+    bypass_host = parsed.netloc.rsplit("@", 1)[-1]
+    if proxy_bypass(bypass_host):
+        return False
+    proxies = getproxies()
+    return bool(proxies.get("grpc") or proxies.get(parsed.scheme or "https") or proxies.get("all"))
 
 
 def _parse_version(exporter_version: str) -> tuple[int, int, int]:
