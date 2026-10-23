@@ -43,6 +43,9 @@ class ProfilerStats
     // Desired: reclaim intent surviving warmup (active is cleared)
     std::optional<bool> fast_copy_memory_desired;
 
+    // Sticky: a foreign handler owns SIGSEGV/SIGBUS and we ceded it; static per process
+    std::optional<bool> fast_copy_memory_foreign_takeover;
+
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
     size_t copy_memory_error_count = 0;
 
@@ -92,6 +95,9 @@ class ProfilerStats
 
     void set_fast_copy_memory_desired(bool desired);
     std::optional<bool> get_fast_copy_memory_desired() const;
+
+    void set_fast_copy_memory_foreign_takeover(bool takeover);
+    std::optional<bool> get_fast_copy_memory_foreign_takeover() const;
 
     // fast_copy_memory_* are process-static; carry them across ProfilerStats swaps.
     void copy_fast_copy_metadata_from(const ProfilerStats& other);
