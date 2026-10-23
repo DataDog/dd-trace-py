@@ -6,16 +6,21 @@ from typing import Any
 from typing import Optional
 from typing import cast
 
+from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
+from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.log import LogSignal
+from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
 @dataclass
@@ -43,7 +48,20 @@ class MetricSample(LogSignal):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        value = float(probe.value(scope)) if probe.value is not None else 1
+        if probe.value is None:
+            value = 1.0
+        else:
+            try:
+                raw = probe.value(scope)
+            except DDExpressionEvaluationError as e:
+                self._value_error(e.dsl, e.error)
+                return
+            try:
+                value = float(raw)
+            except (TypeError, ValueError, OverflowError):
+                # Name only the type: the value itself may be sensitive and has not been redacted.
+                self._value_error(probe.value.dsl, f"Value is not a number: {type(raw).__name__}")
+                return
 
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.
@@ -55,6 +73,14 @@ class MetricSample(LogSignal):
             self.meter.histogram(probe.name, value, tags)
         elif probe.kind == MetricProbeKind.DISTRIBUTION:
             self.meter.distribution(probe.name, value, tags)
+
+    def _value_error(self, expr: str, message: str) -> None:
+        # Report like a condition error: escaping the signal drops the failure silently.
+        self.errors.append(EvaluationError(expr=expr, message=message))
+        if cast(ProbeConditionMixin, self.probe).condition_error_limiter.limit() is RateLimitExceeded:
+            self.state = SignalState.SKIP_COND_ERROR
+        else:
+            self.state = SignalState.COND_ERROR
 
     @property
     def message(self) -> Optional[str]:
