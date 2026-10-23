@@ -1,6 +1,8 @@
+from collections.abc import Iterator
 import os
 
 import opentelemetry
+from opentelemetry.trace import Tracer
 import pytest
 
 from ddtrace.opentelemetry import TracerProvider
@@ -12,7 +14,7 @@ opentelemetry.trace.set_tracer_provider(TRACER_PROVIDER)
 
 
 @pytest.fixture
-def set_otel_python_context():
+def set_otel_python_context() -> None:
     # OTEL_PYTHON_CONTEXT overrides the default contextvar used to parent otel spans. Setting this envar to
     # ``ddcontextvars_context`` allows us correlate otel and ddtrace spans by load the following
     # ddtrace entry point: `ddcontextvars_context = ddtrace.internal.opentelemetry.context:DDRuntimeContext`
@@ -20,6 +22,6 @@ def set_otel_python_context():
 
 
 @pytest.fixture
-def oteltracer(set_otel_python_context):
+def oteltracer(set_otel_python_context: None) -> Iterator[Tracer]:
     assert opentelemetry.trace.get_tracer_provider() is TRACER_PROVIDER
     yield opentelemetry.trace.get_tracer(__name__)
