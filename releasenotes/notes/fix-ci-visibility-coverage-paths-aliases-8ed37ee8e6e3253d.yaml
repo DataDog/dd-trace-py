@@ -1,0 +1,7 @@
+fixes:
+  - |
+    CI Visibility: Fixes missing code coverage for the library under test when it is imported
+    from an installed copy (e.g. a wheel in a virtual environment's site-packages) instead of
+    the repository checkout. Covered files are now remapped to their repository paths using
+    the ``[paths]`` section of the coverage configuration, so they are attributed to the
+    repository and appear in the code coverage report.
