@@ -17,7 +17,6 @@ from http.server import HTTPServer
 import json
 import os
 import threading
-import time
 
 import pytest
 
@@ -422,10 +421,9 @@ def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
     assert order == ["native", "before_fork", "start"], order
 
 
-def test_poller_skips_requests_without_enabled_products(monkeypatch):
+def test_poller_skips_requests_without_enabled_products():
     from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
-    monkeypatch.setattr(RemoteConfigPoller, "_PRODUCT_COLLECTION_WINDOW", 0.01)
     requests = []
     poller = RemoteConfigPoller()
     poller._state = lambda: requests.append(1)
@@ -434,49 +432,46 @@ def test_poller_skips_requests_without_enabled_products(monkeypatch):
     assert requests == []
 
     poller.enable_product(RemoteConfigProduct.AsmFeatures)
+    poller._products_enabled_at -= poller._PRODUCT_COLLECTION_WINDOW
     poller.periodic()
     assert requests == [1]
 
 
-def test_product_enablements_are_collected_into_one_request(monkeypatch):
+def test_product_enablements_are_collected_into_one_request():
     from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
-    window = 0.2
-    monkeypatch.setattr(RemoteConfigPoller, "_PRODUCT_COLLECTION_WINDOW", window)
     poller = RemoteConfigPoller()
+    window = poller._PRODUCT_COLLECTION_WINDOW
     requests = []
     poller._state = lambda: requests.append(set(poller._client._enabled_products))
 
-    burst = [RemoteConfigProduct.AgentConfig, RemoteConfigProduct.AsmFeatures, RemoteConfigProduct.ApmTracing]
-    poller.enable_product(burst[0])
+    burst = {RemoteConfigProduct.AgentConfig, RemoteConfigProduct.AsmFeatures, RemoteConfigProduct.ApmTracing}
+    for product in burst:
+        poller.enable_product(product)
 
-    # Each product is enabled within the window of the previous one, while the
-    # poller is collecting them.
-    def enable_the_rest():
-        for product in burst[1:]:
-            time.sleep(window / 2)
-            poller.enable_product(product)
-
-    enabler = threading.Thread(target=enable_the_rest)
-    enabler.start()
+    # While products are being enabled, the poller comes back when the window
+    # closes rather than requesting them.
     poller.periodic()
-    enabler.join()
+    assert requests == []
+    assert 0 < poller.interval <= window
 
-    assert requests == [set(burst)]
+    poller._products_enabled_at -= window
+    poller.periodic()
+    assert requests == [burst]
+    assert poller.interval == poller._poll_interval
 
-    # A wake-up with no new product, like the one caused by the products enabled
-    # while collecting, does not repeat the request, and products that are
-    # already enabled do not make the poller wait.
+    # A wake-up with no new product, like the ones caused by the products
+    # enabled while collecting, does not repeat the request, and neither does
+    # enabling a product that is already enabled.
+    poller.periodic()
     poller.enable_product(RemoteConfigProduct.AsmFeatures)
-    start = time.monotonic()
     poller.periodic()
-    assert time.monotonic() - start < window
-    assert requests == [set(burst)]
+    assert requests == [burst]
 
     # The regular poll does.
-    poller._last_request -= poller.interval
+    poller._last_request -= poller._poll_interval
     poller.periodic()
-    assert requests == [set(burst)] * 2
+    assert requests == [burst] * 2
 
 
 def test_remoteconfig_product_start_failure_disables_the_poller(monkeypatch):

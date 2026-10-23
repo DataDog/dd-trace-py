@@ -14,7 +14,6 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.threads import Event
 from ddtrace.internal.utils.time import StopWatch
 
 
@@ -44,11 +43,10 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
     def __init__(self) -> None:
         super().__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False)
         self._client = RemoteConfigClient()
-        self._products_enabled = Event()
-        # The poller starts on the first callback registration, before the
-        # products are enabled: make its first request collect them.
-        self._products_enabled.set()
-        self._last_request = 0.0
+        # The interval between requests, which the poller shortens while it
+        # collects the products enabled in a burst.
+        self._poll_interval = self.interval
+        self._products_enabled_at = self._last_request = 0.0
         # Agentless fetches go straight to the Remote Config backend, so there is
         # no agent to negotiate the v0.7/config endpoint with.
         self._state = self._online if self._client.agentless else self._agent_check
@@ -90,9 +88,9 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
         # The interval is the backend's to decide in agentless mode: it recommends
         # a cadence on every successful fetch and a backoff after a failed one.
         interval = self._client.refresh_interval()
-        if interval is not None and interval != self.interval:
+        if interval is not None and interval != self._poll_interval:
             log.debug("Remote Config poll interval set to %.3fs by the backend", interval)
-            self.interval = interval
+            self.interval = self._poll_interval = interval
 
         if not succeeded:
             self._consecutive_failures += 1
@@ -113,33 +111,31 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
         )
 
     def periodic(self) -> None:
+        now = monotonic()
+
+        # Wait until no new product has been enabled for a while, so that a
+        # single request advertises all the products enabled in a burst. The
+        # thread does the waiting, so that stopping it does not have to wait.
+        if (collecting := now - self._products_enabled_at) < self._PRODUCT_COLLECTION_WINDOW:
+            self.interval = self._PRODUCT_COLLECTION_WINDOW - collecting
+            return None
+        self.interval = self._poll_interval
+
         # Run product housekeeping every cycle, before the fetch, so stale-state
         # timeouts still fire when the agent is down or a fetch fails.
         self._client.run_periodic()
-        collected = self._collect_products()
+
         # A request without products cannot receive any configuration.
         if not self._client._enabled_products:
             return None
-        # Products enabled while collecting wake the poller up again once this
-        # call returns, but the request below already advertises them.
-        now = monotonic()
-        if not collected and now - self._last_request < self.interval:
+
+        # Products enabled while collecting wake the poller up again, but an
+        # earlier request may already have advertised them.
+        if self._products_enabled_at <= self._last_request and now - self._last_request < self._poll_interval:
             return None
+
         self._last_request = now
         return self._state()
-
-    def _collect_products(self) -> bool:
-        """Wait until no new product has been enabled for a while.
-
-        This way a single request advertises all the products enabled in a
-        burst. Returns whether any product was enabled.
-        """
-        collected = False
-        while self._products_enabled.is_set():
-            collected = True
-            self._products_enabled.clear()
-            self._products_enabled.wait(self._PRODUCT_COLLECTION_WINDOW)
-        return collected
 
     def enable(self) -> bool:
         # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
@@ -328,7 +324,7 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
         if product in self._client._enabled_products:
             return
         self._client.enable_product(product)
-        self._products_enabled.set()
+        self._products_enabled_at = monotonic()
         # Forked children do not poll (reset_at_fork clears _enable).
         if self._enable:
             self.awake()
