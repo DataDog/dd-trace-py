@@ -292,6 +292,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "mistralai": "mistralai",
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
+    "typesafe": "typesafe",
 }
 
 # Deprecated constants kept for backwards compatibility with downstream consumers of ddtrace internals.
