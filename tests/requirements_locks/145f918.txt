@@ -6,8 +6,8 @@ click==8.5.0
 coverage[toml]==7.16.2
 cryptography==50.0.2
 h11==0.16.0
-httpcore2==2.15.1
-httpx2==2.15.1
+httpcore2==2.16.0
+httpx2==2.16.0
 hypothesis==6.45.0
 idna==3.20
 iniconfig==2.3.1
@@ -35,6 +35,7 @@ rpds-py==2026.9.1
 sortedcontainers==2.4.0
 sse-starlette==3.5.0
 starlette==1.9.0
+tomli==2.5.0
 truststore==0.10.5
 typing-extensions==4.16.0
 typing-inspection==0.4.4
