@@ -1,49 +1,7 @@
+import pytest
 import ray.dashboard.modules.job.job_manager  # noqa: F401
 
-from ddtrace.contrib.internal.ray.patch import get_version
-from ddtrace.contrib.internal.ray.patch import patch
-from ddtrace.contrib.internal.ray.patch import unpatch
-from tests.contrib.patch import PatchTestCase
-
-
-class TestRayPatch(PatchTestCase.Base):
-    """Test Ray patching with default configuration (trace_core_api=False)"""
-
-    __integration_name__ = "ray"
-    __module_name__ = "ray"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, ray):
-        self.assert_wrapped(ray.remote_function.RemoteFunction._remote)
-        self.assert_wrapped(ray.dashboard.modules.job.job_manager.JobManager.submit_job)
-        self.assert_wrapped(ray.dashboard.modules.job.job_manager.JobManager._monitor_job_internal)
-        self.assert_wrapped(ray.actor._modify_class)
-        self.assert_wrapped(ray.actor.ActorHandle._actor_method_call)
-        self.assert_wrapped(ray.get)
-        self.assert_wrapped(ray.wait)
-        self.assert_wrapped(ray.put)
-
-    def assert_not_module_patched(self, ray):
-        self.assert_not_wrapped(ray.remote_function.RemoteFunction._remote)
-        self.assert_not_wrapped(ray.dashboard.modules.job.job_manager.JobManager.submit_job)
-        self.assert_not_wrapped(ray.dashboard.modules.job.job_manager.JobManager._monitor_job_internal)
-        self.assert_not_wrapped(ray.actor._modify_class)
-        self.assert_not_wrapped(ray.actor.ActorHandle._actor_method_call)
-        self.assert_not_wrapped(ray.get)
-        self.assert_not_wrapped(ray.wait)
-        self.assert_not_wrapped(ray.put)
-
-    def assert_not_module_double_patched(self, ray):
-        self.assert_not_double_wrapped(ray.remote_function.RemoteFunction._remote)
-        self.assert_not_double_wrapped(ray.dashboard.modules.job.job_manager.JobManager.submit_job)
-        self.assert_not_double_wrapped(ray.dashboard.modules.job.job_manager.JobManager._monitor_job_internal)
-        self.assert_not_double_wrapped(ray.actor._modify_class)
-        self.assert_not_double_wrapped(ray.actor.ActorHandle._actor_method_call)
-        self.assert_not_double_wrapped(ray.get)
-        self.assert_not_double_wrapped(ray.wait)
-        self.assert_not_double_wrapped(ray.put)
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
 def test_ml_job_env_parses_key_value_pairs():
@@ -93,3 +51,18 @@ def test_ml_job_env_setdefault_does_not_override_explicit(monkeypatch):
         env_vars.setdefault(k, v)
 
     assert env_vars["DD_TRACE_ENABLED"] == "true"
+
+
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestRayPatch(python_process, scenario):
+    module = "tests.contrib.ray"
+    module += "._test_ray_patch_scenarios"
+    case = "TestRayPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

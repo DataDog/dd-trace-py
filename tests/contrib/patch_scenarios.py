@@ -1,0 +1,26 @@
+"""Names of independent patch scenarios; safe to import during collection."""
+
+PATCH_SCENARIOS = (
+    "test_verify_test_coverage",
+    "test_import_patch",
+    "test_patch_import",
+    "test_import_patch_patch",
+    "test_patch_import_patch",
+    "test_patch_patch_import",
+    "test_import_patch_unpatch_patch",
+    "test_patch_import_unpatch_patch",
+    "test_patch_unpatch_import_patch",
+    "test_patch_unpatch_patch_import",
+    "test_unpatch_patch_import",
+    "test_patch_unpatch_import",
+    "test_import_unpatch_patch",
+    "test_import_patch_unpatch",
+    "test_patch_import_unpatch",
+    "test_import_patch_unpatch_unpatch",
+    "test_patch_unpatch_import_unpatch",
+    "test_patch_unpatch_unpatch_import",
+    "test_ddtrace_run_patch_on_import",
+    "test_and_emit_get_version",
+    "test_supported_versions_function_exists",
+    "test_supported_versions_function_allows_valid_imports",
+)

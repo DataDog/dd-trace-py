@@ -1,36 +1,18 @@
-from ddtrace.contrib.internal.crewai.patch import get_version
-from ddtrace.contrib.internal.crewai.patch import patch
-from ddtrace.contrib.internal.crewai.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestCrewAIPatch(PatchTestCase.Base):
-    __integration_name__ = "crewai"
-    __module_name__ = "crewai"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, crewai):
-        self.assert_wrapped(crewai.Crew.kickoff)
-        self.assert_wrapped(crewai.Crew._get_context)
-        self.assert_wrapped(crewai.Task._execute_core)
-        self.assert_wrapped(crewai.Task.execute_async)
-        self.assert_wrapped(crewai.Agent.execute_task)
-        self.assert_wrapped(crewai.tools.structured_tool.CrewStructuredTool.invoke)
-
-    def assert_not_module_patched(self, crewai):
-        self.assert_not_wrapped(crewai.Crew.kickoff)
-        self.assert_not_wrapped(crewai.Crew._get_context)
-        self.assert_not_wrapped(crewai.Task._execute_core)
-        self.assert_not_wrapped(crewai.Task.execute_async)
-        self.assert_not_wrapped(crewai.Agent.execute_task)
-        self.assert_not_wrapped(crewai.tools.structured_tool.CrewStructuredTool.invoke)
-
-    def assert_not_module_double_patched(self, crewai):
-        self.assert_not_double_wrapped(crewai.Crew.kickoff)
-        self.assert_not_double_wrapped(crewai.Crew._get_context)
-        self.assert_not_double_wrapped(crewai.Task._execute_core)
-        self.assert_not_double_wrapped(crewai.Task.execute_async)
-        self.assert_not_double_wrapped(crewai.Agent.execute_task)
-        self.assert_not_double_wrapped(crewai.tools.structured_tool.CrewStructuredTool.invoke)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestCrewAIPatch(python_process, scenario):
+    module = "tests.contrib.crewai"
+    module += "._test_crewai_patch_scenarios"
+    case = "TestCrewAIPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

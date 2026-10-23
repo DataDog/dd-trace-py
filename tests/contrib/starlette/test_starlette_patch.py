@@ -1,29 +1,18 @@
-from ddtrace.contrib.internal.starlette.patch import get_version
-from ddtrace.contrib.internal.starlette.patch import patch
-from ddtrace.contrib.internal.starlette.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestStarlettePatch(PatchTestCase.Base):
-    __integration_name__ = "starlette"
-    __module_name__ = "starlette"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, starlette):
-        self.assert_wrapped(starlette.applications.Starlette.__init__)
-        self.assert_wrapped(starlette.routing.Mount.handle)
-        self.assert_wrapped(starlette.routing.Route.handle)
-
-    def assert_not_module_patched(self, starlette):
-        import starlette.applications
-
-        self.assert_not_wrapped(starlette.applications.Starlette.__init__)
-        self.assert_not_wrapped(starlette.routing.Mount.handle)
-        self.assert_not_wrapped(starlette.routing.Route.handle)
-
-    def assert_not_module_double_patched(self, starlette):
-        self.assert_not_double_wrapped(starlette.applications.Starlette.__init__)
-        self.assert_not_double_wrapped(starlette.routing.Mount.handle)
-        self.assert_not_double_wrapped(starlette.routing.Route.handle)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestStarlettePatch(python_process, scenario):
+    module = "tests.contrib.starlette"
+    module += "._test_starlette_patch_scenarios"
+    case = "TestStarlettePatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

@@ -1,30 +1,18 @@
-from ddtrace.contrib.internal.fastapi.patch import get_version
-from ddtrace.contrib.internal.fastapi.patch import patch
-from ddtrace.contrib.internal.fastapi.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestFastapiPatch(PatchTestCase.Base):
-    __integration_name__ = "fastapi"
-    __module_name__ = "fastapi"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, fastapi):
-        self.assert_wrapped(fastapi.applications.FastAPI.build_middleware_stack)
-        self.assert_wrapped(fastapi.routing.serialize_response)
-        self.assert_wrapped(fastapi.routing.APIRoute.handle)
-        self.assert_wrapped(fastapi.routing.Mount.handle)
-
-    def assert_not_module_patched(self, fastapi):
-        self.assert_not_wrapped(fastapi.applications.FastAPI.build_middleware_stack)
-        self.assert_not_wrapped(fastapi.routing.serialize_response)
-        self.assert_not_wrapped(fastapi.routing.APIRoute.handle)
-        self.assert_not_wrapped(fastapi.routing.Mount.handle)
-
-    def assert_not_module_double_patched(self, fastapi):
-        self.assert_not_double_wrapped(fastapi.applications.FastAPI.build_middleware_stack)
-        self.assert_not_double_wrapped(fastapi.routing.serialize_response)
-        self.assert_not_double_wrapped(fastapi.routing.APIRoute.handle)
-        self.assert_not_double_wrapped(fastapi.routing.Mount.handle)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestFastapiPatch(python_process, scenario):
+    module = "tests.contrib.fastapi"
+    module += "._test_fastapi_patch_scenarios"
+    case = "TestFastapiPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

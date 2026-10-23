@@ -1,46 +1,18 @@
-from ddtrace.contrib.internal.pydantic_ai.patch import get_version
-from ddtrace.contrib.internal.pydantic_ai.patch import patch
-from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
-from ddtrace.internal.utils.version import parse_version
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-PYDANTIC_AI_VERSION = parse_version(get_version())
-
-
-class TestPydanticAIPatch(PatchTestCase.Base):
-    __integration_name__ = "pydantic_ai"
-    __module_name__ = "pydantic_ai"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, pydantic_ai):
-        self.assert_wrapped(pydantic_ai.agent.Agent.iter)
-        self.assert_wrapped(pydantic_ai.agent.Agent.run_stream)
-        if PYDANTIC_AI_VERSION >= (1, 63, 0):
-            self.assert_wrapped(pydantic_ai.agent.ToolManager.execute_tool_call)
-        elif PYDANTIC_AI_VERSION >= (0, 4, 4):
-            self.assert_wrapped(pydantic_ai.agent.ToolManager.handle_call)
-        else:
-            self.assert_wrapped(pydantic_ai.tools.Tool.run)
-
-    def assert_not_module_patched(self, pydantic_ai):
-        self.assert_not_wrapped(pydantic_ai.agent.Agent.iter)
-        self.assert_not_wrapped(pydantic_ai.agent.Agent.run_stream)
-        if PYDANTIC_AI_VERSION >= (1, 63, 0):
-            self.assert_not_wrapped(pydantic_ai.agent.ToolManager.execute_tool_call)
-        elif PYDANTIC_AI_VERSION >= (0, 4, 4):
-            self.assert_not_wrapped(pydantic_ai.agent.ToolManager.handle_call)
-        else:
-            self.assert_not_wrapped(pydantic_ai.tools.Tool.run)
-
-    def assert_not_module_double_patched(self, pydantic_ai):
-        self.assert_not_double_wrapped(pydantic_ai.agent.Agent.iter)
-        self.assert_not_double_wrapped(pydantic_ai.agent.Agent.run_stream)
-        if PYDANTIC_AI_VERSION >= (1, 63, 0):
-            self.assert_not_double_wrapped(pydantic_ai.agent.ToolManager.execute_tool_call)
-        elif PYDANTIC_AI_VERSION >= (0, 4, 4):
-            self.assert_not_double_wrapped(pydantic_ai.agent.ToolManager.handle_call)
-        else:
-            self.assert_not_double_wrapped(pydantic_ai.tools.Tool.run)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestPydanticAIPatch(python_process, scenario):
+    module = "tests.contrib.pydantic_ai"
+    module += "._test_pydantic_ai_patch_scenarios"
+    case = "TestPydanticAIPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

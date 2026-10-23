@@ -17,6 +17,7 @@ components:
     - tests/smoke_test.py
     - tests/subprocesstest.py
     - tests/process.py
+    - tests/contrib/patch_scenarios.py
     - tests/wait-for-services.py
     - tests/webclient.py
     - tests/test_module/*

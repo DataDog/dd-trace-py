@@ -1,24 +1,18 @@
-from ddtrace.contrib.internal.typesafe.patch import get_version
-from ddtrace.contrib.internal.typesafe.patch import patch
-from ddtrace.contrib.internal.typesafe.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestTypeSafePatch(PatchTestCase.Base):
-    __integration_name__ = "typesafe"
-    __module_name__ = "typesafe_sdk"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, typesafe_sdk):
-        self.assert_wrapped(typesafe_sdk.TypeSafeClient.system_one)
-        self.assert_wrapped(typesafe_sdk.AsyncTypeSafeClient.system_one)
-
-    def assert_not_module_patched(self, typesafe_sdk):
-        self.assert_not_wrapped(typesafe_sdk.TypeSafeClient.system_one)
-        self.assert_not_wrapped(typesafe_sdk.AsyncTypeSafeClient.system_one)
-
-    def assert_not_module_double_patched(self, typesafe_sdk):
-        self.assert_not_double_wrapped(typesafe_sdk.TypeSafeClient.system_one)
-        self.assert_not_double_wrapped(typesafe_sdk.AsyncTypeSafeClient.system_one)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestTypeSafePatch(python_process, scenario):
+    module = "tests.contrib.typesafe"
+    module += "._test_typesafe_patch_scenarios"
+    case = "TestTypeSafePatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()
