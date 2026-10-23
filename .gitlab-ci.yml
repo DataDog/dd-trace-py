@@ -21,7 +21,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "f96fc0c87def8db5eea943254d74ba81370f6cbe"
+  SYSTEM_TESTS_REF: "930d080d1ec2685dc3844dd9715ac0dbbf409b2d"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -38,10 +38,6 @@ variables:
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
-
-  # Globally configure all Python installs to go through Depot, an in-network PyPI mirror.
-  PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
-  UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 
 default:
   interruptible: true

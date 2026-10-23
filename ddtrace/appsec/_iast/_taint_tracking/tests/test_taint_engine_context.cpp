@@ -248,10 +248,11 @@ TEST_F(ApplicationContextTest, ReuseFreedSlotOnCreate)
     taint_engine_context->finish_request_context(*idx1);
     ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(*idx1), nullptr);
 
-    // Next create should reuse the first free slot (lowest index first)
+    // Storage is reusable; the expired request identifier is not.
     auto idx3 = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx3.has_value());
-    ASSERT_EQ(*idx3, *idx1);
+    ASSERT_NE(*idx3, *idx1);
+    EXPECT_EQ(safe_get_tainted_object_map_by_ctx_id(*idx1), nullptr);
     auto m3 = safe_get_tainted_object_map_by_ctx_id(*idx3);
     ASSERT_NE(m3, nullptr);
 }
@@ -261,7 +262,7 @@ TEST_F(ApplicationContextTest, ClearAllContexts)
     // Create up to min(3, capacity) contexts
     const auto cap = taint_engine_context->debug_context_array_size();
     const auto n = cap < 3 ? cap : static_cast<size_t>(3);
-    std::vector<size_t> indices;
+    std::vector<std::uint64_t> indices;
     for (size_t i = 0; i < n; ++i) {
         auto idx = taint_engine_context->start_request_context();
         ASSERT_TRUE(idx.has_value());
@@ -269,9 +270,8 @@ TEST_F(ApplicationContextTest, ClearAllContexts)
     }
 
     taint_engine_context->clear_all_request_context_slots();
-    for (size_t i = 0; i < cap; ++i) {
-        // All slots should be cleared
-        auto m = safe_get_tainted_object_map_by_ctx_id(i);
+    for (const auto id : indices) {
+        auto m = safe_get_tainted_object_map_by_ctx_id(id);
         ASSERT_EQ(m, nullptr);
     }
 }
@@ -298,11 +298,98 @@ TEST_F(ApplicationContextTest, ClearTaintMapFreesContainedTaintedObjects)
     // Sanity: ensure the weak_ptr is not expired yet
     ASSERT_FALSE(w_to.expired());
 
-    // Act: clear the taint map slot
+    // No operation retains the map when it is retired.
+    tx_map.reset();
     taint_engine_context->finish_request_context(ctx_id);
 
     // Assert: the TaintedObject has been destroyed (no remaining strong refs)
     ASSERT_TRUE(w_to.expired());
+}
+
+TEST_F(ApplicationContextTest, RetiredMapLivesUntilItsLastOperationReturns)
+{
+    const auto first = taint_engine_context->start_request_context();
+    ASSERT_TRUE(first.has_value());
+    auto in_flight = safe_get_tainted_object_map_by_ctx_id(*first);
+    std::weak_ptr<TaintedObjectMapType> lifetime = in_flight;
+    py::str value("retired request");
+    set_tainted_object(value.ptr(), make_tainted_with_one_range(15), in_flight);
+
+    taint_engine_context->finish_request_context(*first);
+    EXPECT_EQ(safe_get_tainted_object_map_by_ctx_id(*first), nullptr);
+    EXPECT_EQ(safe_get_tainted_object_map(value.ptr()), nullptr);
+    EXPECT_NE(get_tainted_object(value.ptr(), in_flight), nullptr);
+
+    const auto replacement = taint_engine_context->start_request_context();
+    ASSERT_TRUE(replacement.has_value());
+    auto current = safe_get_tainted_object_map_by_ctx_id(*replacement);
+    EXPECT_EQ(safe_get_tainted_object_map_by_ctx_id(*first), nullptr);
+    taint_engine_context->finish_request_context(*first);
+    EXPECT_EQ(safe_get_tainted_object_map_by_ctx_id(*replacement), current);
+    EXPECT_NE(in_flight, current);
+
+    // A native call that already acquired the map may finish writing to it.
+    set_tainted_object(value.ptr(), make_tainted_with_one_range(15), in_flight);
+    EXPECT_TRUE(current->empty());
+    EXPECT_EQ(safe_get_tainted_object_map(value.ptr()), nullptr);
+    in_flight.reset();
+    EXPECT_TRUE(lifetime.expired());
+}
+
+TEST_F(ApplicationContextTest, ResetDoesNotReuseAnExpiredIdentifier)
+{
+    auto old = taint_engine_context->start_request_context();
+    ASSERT_TRUE(old.has_value());
+    taint_engine_context->clear_all_request_context_slots();
+    auto after_clear = taint_engine_context->start_request_context();
+    ASSERT_TRUE(after_clear.has_value());
+    EXPECT_NE(*old, *after_clear);
+    EXPECT_EQ(safe_get_tainted_object_map_by_ctx_id(*old), nullptr);
+
+    // Reinitialization also occurs after fork; inherited identifiers must stay invalid.
+    taint_engine_context = std::make_unique<TaintEngineContext>();
+    const auto after_reset = taint_engine_context->start_request_context();
+    ASSERT_TRUE(after_reset.has_value());
+    EXPECT_NE(*old, *after_reset);
+    EXPECT_NE(*after_clear, *after_reset);
+    EXPECT_EQ(safe_get_tainted_object_map_by_ctx_id(*old), nullptr);
+    EXPECT_EQ(safe_get_tainted_object_map_by_ctx_id(*after_clear), nullptr);
+}
+
+TEST_F(ApplicationContextTest, ObjectScanRetainsItsMapAcrossReentrantRetirement)
+{
+    const auto first = taint_engine_context->start_request_context();
+    ASSERT_TRUE(first.has_value());
+    std::optional<std::uint64_t> replacement;
+    py::dict scope;
+    scope["armed"] = py::bool_(false);
+    scope["retire"] = py::cpp_function([&]() {
+        taint_engine_context->finish_request_context(*first);
+        replacement = taint_engine_context->start_request_context();
+    });
+    py::exec(R"(
+class RetiringString(str):
+    def __hash__(self):
+        global armed
+        if armed:
+            armed = False
+            retire()
+        return str.__hash__(self)
+value = RetiringString('retired request')
+)",
+             scope);
+    const auto value = scope["value"].cast<py::object>();
+    auto map = safe_get_tainted_object_map_by_ctx_id(*first);
+    set_tainted_object(value.ptr(), make_tainted_with_one_range(15), map);
+    map.reset();
+
+    scope["armed"] = py::bool_(true);
+    const auto retained = safe_get_tainted_object_map(value.ptr());
+    ASSERT_TRUE(replacement.has_value());
+    ASSERT_NE(retained, nullptr);
+    EXPECT_NE(get_tainted_object(value.ptr(), retained), nullptr);
+    EXPECT_TRUE(safe_get_tainted_object_map_by_ctx_id(*replacement)->empty());
+    EXPECT_EQ(safe_get_tainted_object_map(value.ptr()), nullptr);
 }
 
 TEST_F(ApplicationContextTest, ClearContextsArrayFreesTaintRangeMap)
@@ -321,19 +408,19 @@ TEST_F(ApplicationContextTest, ClearContextsArrayFreesTaintRangeMap)
     tx_map.reset();
     ASSERT_FALSE(w_map.expired());
 
-    // Act: clear all contexts (sets slot to nullptr and releases the shared_ptr)
+    // Act: clear all contexts (detaches maps and releases the shared_ptr)
     taint_engine_context->clear_all_request_context_slots();
 
     // Assert: the map is destroyed (no remaining strong refs)
     ASSERT_TRUE(w_map.expired());
 }
 
-TEST_F(ApplicationContextTest, FinishRequestContextWithInvalidIndexIsNoop)
+TEST_F(ApplicationContextTest, FinishRequestContextWithUnknownIdentifierIsNoop)
 {
     const auto cap = taint_engine_context->debug_context_array_size();
-    // Act: finish an out-of-range index; should not crash
+    // No request owns this identifier in the empty registry.
     taint_engine_context->finish_request_context(cap + 10);
-    // Assert: out-of-range map lookup returns nullptr
+    // An unknown request identifier must not resolve to a map.
     auto m = safe_get_tainted_object_map_by_ctx_id(cap + 10);
     ASSERT_EQ(m, nullptr);
 }
@@ -354,7 +441,7 @@ TEST_F(ApplicationContextTest, FinishRequestContextTwiceIsNoop)
     ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
 }
 
-TEST_F(ApplicationContextTest, GetTaintedObjectMapByInvalidIndexReturnsNull)
+TEST_F(ApplicationContextTest, GetTaintedObjectMapWithoutActiveRequestsReturnsNull)
 {
     const auto cap = taint_engine_context->debug_context_array_size();
     auto m1 = safe_get_tainted_object_map_by_ctx_id(cap);
@@ -366,7 +453,7 @@ TEST_F(ApplicationContextTest, GetTaintedObjectMapByInvalidIndexReturnsNull)
 TEST_F(ApplicationContextTest, StartUntilCapacityThenNextReturnsNullopt)
 {
     const auto cap = taint_engine_context->debug_context_array_size();
-    std::vector<size_t> ids;
+    std::vector<std::uint64_t> ids;
     ids.reserve(cap);
     for (size_t i = 0; i < cap; ++i) {
         auto idx = taint_engine_context->start_request_context();

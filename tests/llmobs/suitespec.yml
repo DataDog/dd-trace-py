@@ -1,5 +1,10 @@
 ---
 components:
+  aws_sdk_bedrock_runtime:
+    - ddtrace/contrib/internal/aws_sdk_bedrock_runtime/*
+    - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime.py
+    - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime_utils.py
+    - ddtrace/contrib/_events/aws_sdk_bedrock_runtime.py
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
   claude_agent_sdk:
@@ -36,6 +41,21 @@ components:
   vllm:
     - ddtrace/contrib/internal/vllm/*
 suites:
+  aws_sdk_bedrock_runtime:
+    paths:
+      - "@bootstrap"
+      - "@core"
+      - "@tracing"
+      - "@contrib"
+      - "@aws_sdk_bedrock_runtime"
+      - "@llmobs"
+      - tests/contrib/aws_sdk_bedrock_runtime/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
+      variants:
+        - name: aws_sdk_bedrock_runtime
+          python: ["3.12", "3.13"]
+          dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
     venvs_per_job: 6
     paths:
@@ -84,7 +104,15 @@ suites:
           dependencies: ['claude-agent-sdk==0.1.49', pytest-asyncio]
         - name: claude_agent_sdk
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: [claude-agent-sdk, pytest-asyncio]
+          # Pinned: claude-agent-sdk deletes old releases from PyPI (to free project
+          # storage), which breaks unpinned locks once the resolved version is gone.
+          # 0.1.22 is the closest surviving release to the previously resolved 0.1.21.
+          dependencies: ['claude-agent-sdk==0.1.22', pytest-asyncio]
+        - name: claude_agent_sdk
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
+          # current SDK line stays covered without latest-tracking (see above).
+          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
   google_adk:
     venvs_per_job: 7
     paths:
