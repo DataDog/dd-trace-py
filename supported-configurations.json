@@ -5528,20 +5528,6 @@
         "default": null
       }
     ],
-    "OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
-    "OTEL_EXPORTER_OTLP_CLIENT_KEY": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
     "OTEL_EXPORTER_OTLP_COMPRESSION": [
       {
         "implementation": "A",
@@ -5567,8 +5553,8 @@
     "OTEL_EXPORTER_OTLP_INSECURE": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_CLIENT_CERTIFICATE": [

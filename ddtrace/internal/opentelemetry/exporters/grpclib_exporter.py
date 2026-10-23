@@ -217,12 +217,8 @@ def _build_ssl_context(
     certificate = certificate_file or env.get(f"{prefix}_CERTIFICATE") or env.get("OTEL_EXPORTER_OTLP_CERTIFICATE")
     context = ssl.create_default_context(cafile=certificate)
     context.set_alpn_protocols(["h2"])
-    client_certificate = (
-        client_certificate_file
-        or env.get(f"{prefix}_CLIENT_CERTIFICATE")
-        or env.get("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE")
-    )
-    client_key = client_key_file or env.get(f"{prefix}_CLIENT_KEY") or env.get("OTEL_EXPORTER_OTLP_CLIENT_KEY")
+    client_certificate = client_certificate_file or env.get(f"{prefix}_CLIENT_CERTIFICATE")
+    client_key = client_key_file or env.get(f"{prefix}_CLIENT_KEY")
     if client_certificate:
         context.load_cert_chain(client_certificate, client_key)
     return context

@@ -226,7 +226,7 @@ async def test_grpclib_exporter_runs_from_active_event_loop(monkeypatch):
 
 @skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
-def test_grpclib_exporter_tls_defaults_and_global_configuration(monkeypatch):
+def test_grpclib_exporter_tls_defaults_and_configuration(monkeypatch):
     from ddtrace.internal.opentelemetry.exporters import grpclib_exporter
 
     class Context:
@@ -242,8 +242,8 @@ def test_grpclib_exporter_tls_defaults_and_global_configuration(monkeypatch):
 
     context = Context()
     monkeypatch.setattr(grpclib_exporter.ssl, "create_default_context", lambda cafile: context)
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE", "client.crt")
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_KEY", "client.key")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_CLIENT_CERTIFICATE", "client.crt")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_CLIENT_KEY", "client.key")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_INSECURE", "false")
 
     assert (
@@ -354,7 +354,7 @@ def test_http_exporter_uses_proxy_without_following_redirects(monkeypatch):
 
 @skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
-def test_http_exporter_uses_global_mtls_configuration(monkeypatch):
+def test_http_exporter_uses_signal_mtls_configuration(monkeypatch):
     from ddtrace.internal.opentelemetry.exporters import http_exporter
     from ddtrace.internal.opentelemetry.exporters.http_metric_exporter import OTLPMetricExporter
 
@@ -367,8 +367,8 @@ def test_http_exporter_uses_global_mtls_configuration(monkeypatch):
     context = Context()
     monkeypatch.setattr(http_exporter.ssl, "create_default_context", lambda cafile: context)
     monkeypatch.setattr(http_exporter, "getproxies", lambda: {})
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE", "client.crt")
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_CLIENT_KEY", "client.key")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_CLIENT_CERTIFICATE", "client.crt")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_CLIENT_KEY", "client.key")
     exporter = OTLPMetricExporter(endpoint="https://collector.example:4318/v1/metrics")
     try:
         assert exporter._client is None
