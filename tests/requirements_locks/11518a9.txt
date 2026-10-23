@@ -8,7 +8,7 @@ annotated-types==0.7.0
 anyio==4.11.0
 attrs==25.4.0
 cachetools==6.2.0
-certifi==2025.10.5
+certifi==2026.10.19
 charset-normalizer==3.4.3
 coverage[toml]==7.10.7
 google-auth==2.41.1

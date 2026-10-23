@@ -6,7 +6,6 @@ from urllib import parse
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace import _limits
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -19,6 +18,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import elasticsearch as metadata
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal import _limits
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name

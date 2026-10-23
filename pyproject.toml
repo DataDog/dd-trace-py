@@ -1,9 +1,6 @@
 [build-system]
 requires = [
-    # Cython 3.3 cp315 manylinux wheels SIGSEGV on the current 3.15 interpreter; <3.3 pins 3.2.x.
-    # TODO(py-315): drop this pin once IMAGE_TAG is on the 2026.08.04-1 images.
-    "cython<3.3; python_version >= '3.15'",
-    "cython; python_version < '3.15'",
+    "cython",
     "cmake>=3.24.2,<3.28",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
@@ -12,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.16.0rc1"
+version = "4.17.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }

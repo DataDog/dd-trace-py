@@ -5,10 +5,11 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal import periodic
+from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
-from ddtrace.trace import Tracer
 
 
 LOG = get_logger(__name__)
@@ -20,14 +21,14 @@ class Scheduler(periodic.PeriodicService):
     def __init__(
         self,
         before_flush: Optional[Callable[[], None]] = None,
-        tracer: Optional[Tracer] = ddtrace.tracer,
+        tracer: Optional[ProfilerTracer] = ddtrace.tracer,
         interval: float = config.upload_interval,
     ) -> None:
         super().__init__(interval=interval)
         self.before_flush: Optional[Callable[[], None]] = before_flush
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
-        self._tracer: Optional[Tracer] = tracer
+        self._tracer: Optional[ProfilerTracer] = tracer
         self._enable_code_provenance: bool = config.code_provenance
 
     def _start_service(self) -> None:
@@ -37,6 +38,11 @@ class Scheduler(periodic.PeriodicService):
         super()._start_service()
         self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
+
+    def _rollback_start(self) -> None:
+        with self._service_lock:
+            self._stop_service()
+            self.status = service.ServiceStatus.STOPPED
 
     def flush(self) -> None:
         """Flush events from recorder to exporters."""
