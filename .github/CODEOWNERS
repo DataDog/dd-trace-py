@@ -347,6 +347,7 @@ ddtrace/internal/metrics.py                        @DataDog/apm-sdk-capabilities
 ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-capabilities
 ddtrace/runtime/                                   @DataDog/apm-sdk-capabilities
 ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities
+ddtrace/internal/container.py                      @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_otel_remapper.py        @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/env.py                   @DataDog/apm-sdk-capabilities
 scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities
