@@ -400,7 +400,7 @@ def test_uuid4_conforms_to_rfc_9562():
     assert ones | fixed == zeros | fixed == 2**128 - 1
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_uuid4_differs_across_fork():
     import os
 

@@ -686,3 +686,17 @@ def test_expression_compilation_error(rc_poller, mock_config_exc):
         assert status_logger.error.call_args[1]["probe"].probe_id == "error"
     finally:
         di_config.diagnostics_interval = old_interval
+
+
+def test_probe_status_periodic_emission_waits_for_the_interval():
+    # Probe events emit their own statuses, so the periodic emission must not
+    # repeat them as soon as the callback is first called.
+    registry = mock.Mock()
+    callback = DebuggerRCCallback(mock.Mock(), mock.Mock(), registry, diagnostics_interval=60.0)
+
+    callback.periodic()
+    registry.log_probes_status.assert_not_called()
+
+    callback._last_status_emission -= 60.0
+    callback.periodic()
+    registry.log_probes_status.assert_called_once()
