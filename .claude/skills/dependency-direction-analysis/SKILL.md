@@ -116,6 +116,9 @@ exempt from the rules — this is how we record a considered decision without
 touching detection logic. For example, `ddtrace/contrib/*` modules are tracer
 integrations by design, so `contrib -> product:tracing` is listed as an
 exception rather than flagged on every run.
+Either side of an exception can name a module prefix (`from_module` / `to_module`)
+instead of a zone, to exempt only part of a zone. Prefer the narrowest form, e.g.
+`{"from_module": "ddtrace.llmobs._integrations", "to_zone": "product:tracing"}`.
 
 **Only add an exception when the dependency is intentional and durable** — not
 as a shortcut to make CI pass. If you're unsure whether an edge should be an

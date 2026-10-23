@@ -53,14 +53,18 @@ _PRODUCT_PRODUCT_WEIGHT = 1
 _CYCLE_BONUS = 5
 
 
+def _exception(e: dict[str, str]) -> _Exception:
+    sides = ({"from_zone", "from_module"} & e.keys(), {"to_zone", "to_module"} & e.keys())
+    if any(len(side) != 1 for side in sides) or e.keys() - {"from_zone", "from_module", "to_zone", "to_module", "//"}:
+        raise ValueError(f"Invalid exception in layers.json: {e}")
+    return (e.get("from_zone"), e.get("from_module"), e.get("to_zone"), e.get("to_module"))
+
+
 def _load_zones(config_path: Path) -> tuple[dict[str, str], set[str], list[_Exception], set[str]]:
     config = json.loads(config_path.read_text())
     zones: dict[str, str] = config["zones"]
     forbid_from: set[str] = set(config["rules"]["forbid_from_zones_into_products"])
-    exceptions: list[_Exception] = [
-        (e.get("from_zone"), e.get("from_module"), e.get("to_zone"), e.get("to_module"))
-        for e in config["rules"]["exceptions"]
-    ]
+    exceptions: list[_Exception] = [_exception(e) for e in config["rules"]["exceptions"]]
     foundation_top_level: set[str] = set(config["foundation"]["top_level"])
     return zones, forbid_from, exceptions, foundation_top_level
 
