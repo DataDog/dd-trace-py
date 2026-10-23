@@ -188,7 +188,7 @@ LIBDDWAF_CHECKSUMS = {
 }
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v46.0.0 requires rust 1.87.0.
+# libdatadog v46.1.0 requires rust 1.87.0.
 RUST_MINIMUM_VERSION = "1.87.0"
 
 

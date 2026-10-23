@@ -240,3 +240,13 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
+
+## Duplex audio streams
+
+Use a connection-local adapter to observe successful sends and consumed output
+without reading ahead. Preserve input half-close and finish once on output EOF,
+close, cancellation, or error. Snapshot caller context and activate it only while
+emitting turns. Keep audio retention limits separate from timing validity.
+
+See [Nova Sonic](nova-sonic.md) for its turn boundaries, context propagation,
+audio budgets, interruption handling, tool metadata, and cumulative usage rules.
