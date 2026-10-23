@@ -345,6 +345,15 @@ def test_client_info_tags_are_truncated():
     assert tags["mcp_client_version"] == "1.2.3"
 
 
+def test_client_info_tags_empty_without_client_info():
+    """mcp 1.x stateless HTTP sessions have no client_params, and tool calls do not carry clientInfo."""
+    from ddtrace.llmobs._integrations.mcp import get_client_info
+    from ddtrace.llmobs._integrations.mcp import get_client_info_tags
+
+    session = mock.Mock(client_params=None)
+    assert get_client_info_tags(get_client_info({"name": "calculator", "arguments": {}}, session)) == {}
+
+
 def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
     """Test that distributed tracing is disabled when DD_MCP_DISTRIBUTED_TRACING=false."""
     env = os.environ.copy()
