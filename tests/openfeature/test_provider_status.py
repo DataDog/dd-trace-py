@@ -8,12 +8,15 @@ Tests that the provider properly implements ProviderStatus:
 - Bounded initialization wait, ERROR on timeout, and READY after late delivery
 """
 
+from queue import Queue
 import threading
 import time
 
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ErrorCode
 from openfeature.exception import ProviderNotReadyError
+from openfeature.flag_evaluation import Reason
 from openfeature.provider import ProviderStatus
 import pytest
 
@@ -47,6 +50,86 @@ def _set_provider(provider: DataDogProvider) -> None:
 
 class TestProviderStatus:
     """Test provider status lifecycle."""
+
+    @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
+    def test_configuration_withdrawal_and_recovery(self, mocker):
+        """Listeners see unavailable defaults on withdrawal and new values on recovery."""
+        observations = Queue()
+        context = EvaluationContext(targeting_key="test-user")
+
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            process_ffe_configuration(create_config(create_boolean_flag("test-flag", default_value=True)))
+            provider = DataDogProvider()
+            _set_provider(provider)
+            client = api.get_client()
+            error_events = mocker.spy(provider, "emit_provider_error")
+            ready_events = mocker.spy(provider, "emit_provider_ready")
+
+            def record(event):
+                def handler(details):
+                    result = client.get_boolean_details("test-flag", True, context)
+                    observations.put((event, client.get_provider_status(), provider._config_received.is_set(), result))
+
+                return handler
+
+            on_error = record(ProviderEvent.PROVIDER_ERROR)
+            on_ready = record(ProviderEvent.PROVIDER_READY)
+            client.add_handler(ProviderEvent.PROVIDER_ERROR, on_error)
+            client.add_handler(ProviderEvent.PROVIDER_READY, on_ready)
+            try:
+                # Registration reports READY asynchronously in recent SDK versions.
+                assert observations.get(timeout=1.0)[0] == ProviderEvent.PROVIDER_READY
+                assert client.get_boolean_value("test-flag", False, context) is True
+
+                _set_ffe_config(None)
+
+                assert provider._status == ProviderStatus.ERROR
+                assert client.get_provider_status() == ProviderStatus.ERROR
+                assert not provider._config_received.is_set()
+                event, status, available, result = observations.get(timeout=1.0)
+                assert event == ProviderEvent.PROVIDER_ERROR
+                assert status == ProviderStatus.ERROR
+                assert available is False
+                assert result.value is True
+                assert result.reason == Reason.ERROR
+                assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+
+                _set_ffe_config(None)
+                assert error_events.call_count == 1
+
+                process_ffe_configuration(create_config(create_boolean_flag("test-flag", default_value=False)))
+
+                assert provider._status == ProviderStatus.READY
+                assert client.get_provider_status() == ProviderStatus.READY
+                assert provider._config_received.is_set()
+                event, status, available, result = observations.get(timeout=1.0)
+                assert event == ProviderEvent.PROVIDER_READY
+                assert status == ProviderStatus.READY
+                assert available is True
+                assert result.value is False
+                assert result.error_code is None
+
+                process_ffe_configuration(create_config(create_boolean_flag("test-flag", default_value=True)))
+                assert ready_events.call_count == 1
+            finally:
+                client.remove_handler(ProviderEvent.PROVIDER_ERROR, on_error)
+                client.remove_handler(ProviderEvent.PROVIDER_READY, on_ready)
+                api.clear_providers()
+
+    @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
+    def test_configuration_withdrawal_before_first_configuration(self):
+        """An empty source does not report a new failure before initialization."""
+        events = []
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider()
+            provider.attach(lambda provider, event, details: events.append(event))
+            try:
+                _set_ffe_config(None)
+                assert provider._status == ProviderStatus.NOT_READY
+                assert not provider._config_received.is_set()
+                assert events == []
+            finally:
+                provider.shutdown()
 
     def test_provider_starts_not_ready(self):
         """Test that provider starts with NOT_READY status."""
@@ -266,6 +349,25 @@ class TestProviderStatus:
 
 class TestProviderInitializationAsync:
     """Test the bounded initialization wait and the READY recovery that can follow it."""
+
+    def test_configuration_withdrawal_while_initialization_resumes(self, mocker):
+        """Removal after the wait wakes must not restore READY without configuration."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider()
+
+            def receive_then_remove(timeout):
+                process_ffe_configuration(create_config(create_boolean_flag("test-flag")))
+                _set_ffe_config(None)
+                return True
+
+            mocker.patch.object(provider._config_received, "wait", side_effect=receive_then_remove)
+            try:
+                with pytest.raises(ProviderNotReadyError):
+                    provider.initialize(EvaluationContext())
+                assert provider._status == ProviderStatus.ERROR
+                assert not provider._config_received.is_set()
+            finally:
+                provider.shutdown()
 
     def test_initialize_raises_when_the_timeout_expires(self):
         """A timeout raises the canonical OpenFeature provider-not-ready error."""
