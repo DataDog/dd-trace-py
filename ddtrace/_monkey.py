@@ -60,7 +60,6 @@ PATCH_MODULES = {
     "mariadb": True,
     "mcp": True,
     "mistralai": True,
-    "typesafe": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,
@@ -73,6 +72,7 @@ PATCH_MODULES = {
     "snowflake": False,
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,
+    "typesafe": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
     "aiohttp_jinja2": True,
     "aiopg": True,
@@ -182,8 +182,8 @@ _MODULES_FOR_CONTRIB = {
     ),
     "mistralai": ("mistralai.client",),
     "openai_agents": ("agents",),
-    "typesafe": ("typesafe_sdk",),
     "pytorch": ("torch",),
+    "typesafe": ("typesafe_sdk",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}

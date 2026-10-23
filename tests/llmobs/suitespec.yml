@@ -312,7 +312,7 @@ suites:
           python: ['3.10']
           dependencies: [pytest-asyncio, 'typesafe-sdk~=0.6.0']
         - name: typesafe
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [pytest-asyncio, typesafe-sdk]
   openai:
     venvs_per_job: 5
