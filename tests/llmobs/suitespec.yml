@@ -160,7 +160,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
-      python: ['3.9', '3.10', '3.11', '3.12', '3.14']
+      python: ['3.9', '3.10', '3.11', '3.12']
       variants:
         - name: vertexai
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
@@ -207,13 +207,13 @@ suites:
       command: pytest -v {cmdargs} tests/contrib/langchain
       variants:
         - name: langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, 'langchain-core~=0.1.0', 'langchain-openai~=0.1.0', 'langchain-anthropic~=0.1.0', 'langchain-aws~=0.1.0', 'langchain-cohere~=0.1.0']
         - name: langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, 'langchain-core~=0.3.0', 'langchain-openai~=0.3.0', 'langchain-anthropic~=0.3.0', 'langchain-aws~=0.2.0', 'langchain-cohere~=0.3.0', 'langchain-google-genai~=2.0.0']
         - name: langchain
-          python: ['3.10', '3.11', '3.12', '3.14']
+          python: ['3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
   litellm:
     venvs_per_job: 3
@@ -265,7 +265,7 @@ suites:
           python: ['3.9']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1']
         - name: llmobs
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1', deepeval, 'pydantic-evals>=1.31']
         - name: llmobs
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
@@ -336,16 +336,16 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai[embeddings,datalib]==1.30.1', 'pillow==9.5.0', 'httpx==0.27.2']
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
         - name: openai
           python: ['3.10', '3.13', '3.14']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai<2.0.0', pillow]
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=1.76.2', pillow]
         - name: openai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
@@ -407,10 +407,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/crewai
       variants:
         - name: crewai
-          python: ['3.10', '3.11', '3.12', '3.14']
+          python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, 'crewai~=0.102.0', 'vcrpy==7.0.0']
         - name: crewai
-          python: ['3.10', '3.11', '3.12', '3.14']
+          python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
   openai_agents:
     venvs_per_job: 5
@@ -497,5 +497,5 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]

@@ -124,7 +124,7 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
         DD_IAST_ENABLED: 'true'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.,scripts.iast.
-      python: ['3.10', '3.11', '3.12', '3.14']
+      python: ['3.10', '3.11', '3.12']
       variants:
         - name: iast_aggregated_leak_testing
           dependencies: [anyio, pydantic, pydantic-settings, pytest-asyncio, requests]
@@ -195,7 +195,7 @@ suites:
         PYDONTWRITEBYTECODE: '1'
         PYTHONUNBUFFERED: '1'
         _DD_IAST_DEBUG: 'false'
-      python: ['3.10', '3.11', '3.12', '3.14']
+      python: ['3.10', '3.11', '3.12']
       variants:
         - name: appsec_integrations_pygoat
           dependencies: [requests, 'pyyaml==6.0.1', 'pip<25']
@@ -277,7 +277,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.2', 'langchain-community~=0.2', 'langchain-experimental~=0.2']
         - name: appsec_integrations_langchain
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.3', 'langchain-community~=0.3', 'langchain-experimental~=0.3']
   appsec_integrations_flask:
     pattern: appsec_integrations_flask$

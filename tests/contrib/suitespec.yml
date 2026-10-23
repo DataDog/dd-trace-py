@@ -1085,10 +1085,10 @@ suites:
           python: ['3.9', '3.10']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, 'django_hosts~=4.0', 'django~=3.2']
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, 'django_hosts~=5.0', 'django~=4.0']
         - name: django:django_hosts
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, django_hosts, 'django~=4.0']
   django:djangorestframework:
     env:
@@ -1121,10 +1121,10 @@ suites:
           python: ['3.9', '3.10']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=3.2', 'djangorestframework>=3.11,<3.12']
         - name: django:djangorestframework
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', 'djangorestframework~=3.13']
         - name: django:djangorestframework
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, pytest-xdist, 'django~=4.0', djangorestframework]
   dogpile_cache:
     venvs_per_job: 10

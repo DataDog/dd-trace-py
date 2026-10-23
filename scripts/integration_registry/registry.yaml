@@ -319,7 +319,7 @@ integrations:
   tested_versions_by_dependency:
     crewai:
       min: 0.102.0
-      max: 1.15.28
+      max: 0.157.0
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -581,7 +581,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 1.6.12
+      max: 1.5.3
 
 - integration_name: langgraph
   is_external_package: true
@@ -749,7 +749,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 3.35.1
+      max: 3.29.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -1082,9 +1082,9 @@ integrations:
   tested_versions_by_dependency:
     google-cloud-aiplatform:
       min: 1.71.1
-      max: 2.6.0
+      max: 1.71.1
     vertexai:
-      min: 1.43.0
+      min: 1.71.1
       max: 1.71.1
 
 - integration_name: vertica
@@ -1105,7 +1105,7 @@ integrations:
   tested_versions_by_dependency:
     vllm:
       min: 0.10.2
-      max: 0.32.0
+      max: 0.27.1
 
 - integration_name: webbrowser
   is_external_package: false
