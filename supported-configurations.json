@@ -5214,6 +5214,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_TYPESAFE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_UNITTEST_ENABLED": [
       {
         "implementation": "A",
@@ -5331,6 +5338,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TYPESAFE_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_TYPESAFE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_UNITTEST_OPERATION_NAME": [

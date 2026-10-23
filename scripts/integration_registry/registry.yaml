@@ -1045,6 +1045,16 @@ integrations:
       min: 0.21.0
       max: 0.34.0
 
+- integration_name: typesafe
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - typesafe-sdk
+  tested_versions_by_dependency:
+    typesafe-sdk:
+      min: 0.6.0
+      max: 0.7.5
+
 - integration_name: unittest
   is_external_package: false
   is_tested: true
