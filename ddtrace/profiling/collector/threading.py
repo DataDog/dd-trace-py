@@ -116,7 +116,7 @@ def _register_thread(thread: threading.Thread) -> None:
         try:
             stack.register_thread(thread.ident, thread.native_id, thread.name)
         except Exception:
-            log.debug("Failed to register thread %r with the stack profiler", thread.ident, exc_info=True)
+            log.debug("[profiling] Failed to register thread %r with the stack profiler", thread.ident, exc_info=True)
 
 
 def _unregister_thread(thread: threading.Thread) -> None:
