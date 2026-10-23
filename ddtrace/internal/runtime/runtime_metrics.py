@@ -11,7 +11,12 @@ from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
 from ddtrace.vendor.dogstatsd.base import ENTITY_ID_TAG_NAME
 
+from .. import forksafe
 from .. import periodic
+from .._runtime_id import get_runtime_id
+from .._runtime_id import on_runtime_identity_refresh
+from .._runtime_id import remove_runtime_identity_refresh
+from .._runtime_id import runtime_identity_lock
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
 from ..serverless import in_aws_lambda_microvm
@@ -41,6 +46,10 @@ class RuntimeCollectorsIterable:
     def stop(self) -> None:
         for collector in self._collectors:
             collector.stop()
+
+    def reset(self) -> None:
+        for collector in self._collectors:
+            collector.reset()
 
     def __repr__(self):
         return f"{self.__class__.__name__}(enabled={self._enabled})"
@@ -89,11 +98,23 @@ class RuntimeWorker(periodic.PeriodicService):
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
+        # The identity the collector baselines belong to. Read before RuntimeMetrics() seeds them,
+        # so a refresh that lands before the callback below is registered shows up as a mismatch
+        # in flush() instead of being missed.
+        self._collectors_runtime_id: str = get_runtime_id()
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
-        # A MicroVM /run transition rotates the runtime ID mid-process without a fork, so MicroVMs
-        # tagging runtime-id re-read their platform tags on every flush. Everyone else keeps a single
-        # identity for their lifetime and keeps the cached tags.
+        # A MicroVM /run transition rotates the runtime ID mid-process without a fork, so the
+        # collectors' in-flight interval (CPU time, ctx switches, wall clock, GC pause window)
+        # would otherwise mix pre- and post-refresh activity into one sample. Only register this
+        # for MicroVMs tagging runtime-id: everyone else keeps a single identity for their
+        # lifetime and pays nothing extra.
         self._identity_refresh_enabled = in_aws_lambda_microvm() and config._runtime_metrics_runtime_id_enabled
+        # Serializes the refresh callback's reset with flush(). The shared runtime-identity lock also
+        # prevents the process-wide ID from rotating while flush() sends its tags.
+        self._identity_refresh_lock = forksafe.Lock() if self._identity_refresh_enabled else None
+        if self._identity_refresh_enabled:
+            on_runtime_identity_refresh(self._on_identity_refresh)
+            forksafe.register(self._on_fork)
         if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in config._experimental_features_enabled:
             # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)
             self.send_metric = self._dogstatsd_client.gauge
@@ -149,12 +170,67 @@ class RuntimeWorker(periodic.PeriodicService):
     def stop(self, *args, **kwargs) -> None:
         super().stop(*args, **kwargs)
         self._runtime_metrics.stop()
+        if self._identity_refresh_enabled:
+            remove_runtime_identity_refresh(self._on_identity_refresh)
+            forksafe.unregister(self._on_fork)
+
+    def _on_fork(self) -> None:
+        # A fork rotates the runtime ID without an identity refresh. The collectors reseed in their
+        # own fork hooks, but forksafe logs and skips a failing hook, so reset again here rather than
+        # assume they succeeded: if this raises too, the mismatch stays and the child's first flush
+        # retries. Runs after _runtime_id's fork hook (registered at import), so this reads the
+        # child's ID.
+        self._reset_collectors(get_runtime_id())
+
+    def _on_identity_refresh(self, runtime_id: str) -> None:
+        # MicroVM only (see __init__): discard the pre-refresh interval so the next flush's
+        # CPU time, context switches, wall clock, and GC pause window cover only activity that
+        # happened under the new runtime identity.
+        if self._identity_refresh_lock is None:
+            return
+
+        with self._identity_refresh_lock:
+            if runtime_id == self._collectors_runtime_id:
+                # flush() saw the new ID first and already reset for it: resetting again would
+                # discard post-refresh activity.
+                return
+            self._reset_collectors(runtime_id)
+
+    def _reset_collectors(self, runtime_id: str) -> None:
+        self._runtime_metrics.reset()
+        # Only after reset() returns: a partial reset keeps the mismatch so flush() retries it.
+        self._collectors_runtime_id = runtime_id
 
     def flush(self) -> None:
-        if self._identity_refresh_enabled:
-            # PlatformTagsV2 reads the current runtime ID, which a MicroVM /run refresh rotates.
-            self._platform_tags = self._collect_platform_tags()
-        self._flush_unlocked(self._runtime_metrics)
+        if self._identity_refresh_lock is None:
+            self._flush_unlocked(self._runtime_metrics)
+            return
+
+        # Keep reporting and the explicit identity transition mutually exclusive. The ordering is
+        # lifecycle lock then worker lock everywhere: refresh_identity() invokes this worker's
+        # callback while holding the lifecycle lock.
+        with runtime_identity_lock():
+            with self._identity_refresh_lock:
+                runtime_id = get_runtime_id()
+                if runtime_id != self._collectors_runtime_id:
+                    # The refresh callback was missed (worker created mid-refresh) or failed; either
+                    # way the baselines predate this identity.
+                    try:
+                        self._reset_collectors(runtime_id)
+                    except Exception:
+                        # Raising would stop the periodic thread; the mismatch stays, so the next
+                        # flush retries.
+                        log.debug("Failed to reset runtime metric collectors", exc_info=True)
+                    # Skip this flush either way: a just-reset interval is too short to report, and a
+                    # failed reset would send pre-refresh baselines under the new runtime-id.
+                    return
+                self._platform_tags = self._collect_platform_tags()
+                if get_runtime_id() != runtime_id:
+                    # Defensive: refresh_identity() can't rotate the ID here (it holds the lifecycle
+                    # lock), but a rotation outside it could. Don't pair new-ID tags with old
+                    # baselines; the next flush resets.
+                    return
+                self._flush_unlocked(self._runtime_metrics)
 
     def _flush_unlocked(self, runtime_metrics) -> None:
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
