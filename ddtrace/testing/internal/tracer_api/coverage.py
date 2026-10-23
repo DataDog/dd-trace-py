@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
+from ddtrace.contrib.internal.coverage.utils import _build_path_aliases
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
@@ -43,8 +44,46 @@ def uninstall_coverage() -> None:
     ModuleCodeCollector.uninstall()
 
 
+@functools.lru_cache(maxsize=1)
+def _coverage_path_aliases() -> t.Optional[t.Any]:
+    """The [paths] aliases of the active coverage configuration, or None if
+    coverage.py is unavailable or no aliases are configured.
+    """
+    try:
+        return _build_path_aliases()
+    except Exception:
+        log.debug("Could not build coverage [paths] aliases", exc_info=True)
+        return None
+
+
+def _remap_with_aliases(absolute_path: str) -> t.Optional[str]:
+    """Remap an executed file to its repository location via coverage [paths] aliases.
+
+    Test jobs may import the library under test from an installed copy (e.g. a
+    wheel-installed ddtrace in a uv test environment) rather than the checkout,
+    so executed files live under site-packages. The [paths] section of the
+    coverage configuration maps those installed copies back to repository paths;
+    without it the backend cannot attribute the coverage to the repository.
+    """
+    aliases = _coverage_path_aliases()
+    if aliases is None:
+        return None
+    for _pattern, regex, result in aliases.aliases:
+        if match := regex.match(absolute_path):
+            mapped = absolute_path.replace(match[0], result, 1).removeprefix("./")
+            if mapped == absolute_path:
+                continue  # alias maps the path to itself; keep the default behaviour
+            return mapped
+    return None
+
+
 @functools.lru_cache(maxsize=65536)
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
+    # Aliases take precedence so installed copies of repository files are reported
+    # at their repository paths, matching what coverage combine does for reports.
+    mapped = _remap_with_aliases(absolute_path)
+    if mapped is not None:
+        return f"/{mapped}"
     relative = relative_path(Path(absolute_path), Path(relative_to))
     if relative is None:
         return None  # covered file does not belong to current repo
