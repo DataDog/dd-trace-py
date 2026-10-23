@@ -33,11 +33,11 @@ class Scheduler(periodic.PeriodicService):
 
     def _start_service(self) -> None:
         """Start the scheduler."""
-        LOG.debug("Starting scheduler")
+        LOG.debug("[profiling] Starting scheduler")
         ddup.reset(self._tracer)
         super()._start_service()
         self._last_export = time.time_ns()
-        LOG.debug("Scheduler started")
+        LOG.debug("[profiling] Scheduler started")
 
     def _rollback_start(self) -> None:
         with self._service_lock:
@@ -45,18 +45,18 @@ class Scheduler(periodic.PeriodicService):
             self.status = service.ServiceStatus.STOPPED
 
     def flush(self) -> None:
-        """Flush events from recorder to exporters."""
-        LOG.debug("Flushing events")
+        """Flush profiles to exporters."""
+        LOG.debug("[profiling] Flushing profiles")
         if self.before_flush is not None:
             try:
                 self.before_flush()
             except Exception:
-                LOG.error("Scheduler before_flush hook failed", exc_info=True)
+                LOG.error("[profiling] Scheduler before_flush hook failed", exc_info=True)
 
         try:
             ddup.upload(self._tracer, self._enable_code_provenance)
         except Exception:
-            LOG.error("Failed to upload profile", exc_info=True)
+            LOG.error("[profiling] Failed to upload profile", exc_info=True)
         finally:
             self._last_export = time.time_ns()
 
