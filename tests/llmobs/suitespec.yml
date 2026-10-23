@@ -304,6 +304,7 @@ suites:
       - '@llmobs'
       - tests/contrib/typesafe/*
       - tests/cassettes/typesafe/*
+      - tests/snapshots/tests.contrib.typesafe.*
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/typesafe
