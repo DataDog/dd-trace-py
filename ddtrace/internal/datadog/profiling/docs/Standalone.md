@@ -82,6 +82,10 @@ Add the `_test` suffix to a target name. The `stack_test` target also builds and
 ./build_standalone.sh -- RelWithDebInfo stack_test
 ```
 
+The span-link allocation-failure test is Linux-only because it uses the ELF linker's `--wrap` option.
+It compiles the production `span_links.cpp` into a separate executable and wraps calls to scalar `operator new`,
+leaving the runtime's allocation and deallocation functions intact so ASan and Valgrind can check them normally.
+
 
 #### Sanitizers
 

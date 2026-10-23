@@ -2,6 +2,8 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
+from ddtrace.internal.native._native import BaseContextProvider
+
 
 StringType = Union[None, str, bytes]
 
@@ -14,7 +16,7 @@ class ProfilerTracer(Protocol):
     """The subset of ddtrace.trace.Tracer the profiler uses, so profiling does not import the tracing product."""
 
     @property
-    def context_provider(self) -> object: ...
+    def context_provider(self) -> BaseContextProvider: ...
 
     @property
     def agent_trace_url(self) -> Optional[str]: ...
