@@ -117,7 +117,10 @@ class NoOpTelemetryWriter:
     def _report_dependencies(self) -> Optional[list[dict[str, Any]]]:
         return None
 
-    def _subscribe_worker_changes(self, callback: Any) -> None:
+    def _subscribe_worker_changes(self, callback: Any, expected_worker: Any) -> None:
+        pass
+
+    def _unsubscribe_worker_changes(self, callback: Any) -> None:
         pass
 
     def periodic(self, force_flush: bool = False) -> None:
