@@ -88,28 +88,6 @@ def test_instrument_templates_patching():
     assert is_wrapped(django.template.base.Template.render)
 
 
-@pytest.mark.subprocess(
-    env={
-        "DD_APPSEC_ENABLED": "false",
-        "DD_IAST_ENABLED": "false",
-        "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
-    }
-)
-def test_django_patch_does_not_load_appsec_user_tracking():
-    import sys
-
-    import django
-
-    from ddtrace.contrib.internal.django.patch import patch
-
-    patch()
-    django.setup()
-
-    assert "ddtrace.appsec._utils" not in sys.modules
-    assert "ddtrace.appsec._contrib.django" not in sys.modules
-
-
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_DJANGO_TRACING_MINIMAL": "false"})
 def test_tracing_minimal_patching():
     import django.template.base

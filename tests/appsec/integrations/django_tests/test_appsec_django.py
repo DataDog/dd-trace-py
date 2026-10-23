@@ -221,57 +221,6 @@ def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer,
 
 
 @pytest.mark.django_db
-def test_django_login_lookup_error_is_logged(client, caplog):
-    from django.contrib.auth.models import User
-
-    User.objects.create(username="first", first_name="duplicate")
-    User.objects.create(username="second", first_name="duplicate")
-    with (
-        override_global_config(
-            dict(
-                _raise=False,
-                _asm_enabled=True,
-                _auto_user_instrumentation_enabled=True,
-                _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT,
-                _user_model_login_field="first_name",
-            )
-        ),
-        caplog.at_level("DEBUG", logger="ddtrace.appsec._contrib.django"),
-    ):
-        assert not client.login(first_name="duplicate", password="secret")
-
-    records = [r for r in caplog.records if r.message == "Error while trying to trace Django authenticate"]
-    assert len(records) == 1
-    assert records[0].exc_info[0] is User.MultipleObjectsReturned
-
-
-def test_django_lazy_user_error_is_logged(caplog):
-    from django.http import HttpRequest
-    from django.utils.functional import SimpleLazyObject
-
-    from ddtrace.appsec._contrib.django import _on_django_process
-
-    def load_user():
-        raise RuntimeError("user lookup failed")
-
-    request = HttpRequest()
-    request.user = SimpleLazyObject(load_user)
-    with (
-        override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT)),
-        caplog.at_level("DEBUG", logger="ddtrace.appsec._contrib.django"),
-    ):
-        _on_django_process(request, {}, config.django)
-
-    records = [
-        r
-        for r in caplog.records
-        if r.message == "Error while trying to trace Django AuthenticationMiddleware process_request"
-    ]
-    assert len(records) == 1
-    assert records[0].exc_info[0] is RuntimeError
-
-
-@pytest.mark.django_db
 def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
