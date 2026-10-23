@@ -73,6 +73,7 @@ PATCH_MODULES = {
     "snowflake": False,
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,
+    "temporal": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
     "aiohttp_jinja2": True,
     "aiopg": True,
@@ -182,6 +183,7 @@ _MODULES_FOR_CONTRIB = {
     ),
     "mistralai": ("mistralai.client",),
     "openai_agents": ("agents",),
+    "temporal": ("temporalio",),
     "pytorch": ("torch",),
 }
 

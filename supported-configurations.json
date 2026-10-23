@@ -3735,6 +3735,14 @@
         "default": null
       }
     ],
+    "DD_TEMPORAL_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": ["DD_TEMPORAL_SERVICE_NAME"]
+      }
+    ],
     "DD_TESTING_RAISE": [
       {
         "implementation": "A",
@@ -5187,6 +5195,13 @@
       }
     ],
     "DD_TRACE_SUBPROCESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_TEMPORAL_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
