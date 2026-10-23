@@ -20,6 +20,9 @@ from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
+from ddtrace.aiguard.middleware import AIGuardRequest
+from ddtrace.aiguard.middleware import EvaluationDirection
+from ddtrace.aiguard.middleware import EvaluationTarget
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -64,6 +67,9 @@ _RESERVED_EXTRA_TAGS = frozenset(
         AI_GUARD.ACTION_TAG,
         AI_GUARD.REASON_TAG,
         AI_GUARD.TARGET_TAG,
+        AI_GUARD.DIRECTION_TAG,
+        AI_GUARD.SOURCE_TAG,
+        AI_GUARD.INTEGRATION_TAG,
         AI_GUARD.TOOL_NAME_TAG,
         AI_GUARD.BLOCKED_TAG,
         AI_GUARD.REDACTED_TAG,
@@ -89,6 +95,11 @@ def _call_hook(hook: Any, context: AIGuardContext) -> Any:
     except Exception:
         logger.debug("AI Guard middleware hook %r raised, ignoring it", hook, exc_info=True)
         return None
+
+
+def _get_direction(message: Message) -> EvaluationDirection:
+    """An assistant message is what the LLM produced; anything else is fed into it."""
+    return EvaluationDirection.OUTPUT if message.get("role") == "assistant" else EvaluationDirection.INPUT
 
 
 class Evaluation(TypedDict):
@@ -415,10 +426,14 @@ class AIGuardClient:
         error_type: str = AI_GUARD.ERROR_INTERNAL
         error_status: Optional[int] = None
         call_path_tags = self._call_path_tags(source, integration)
+        (_, clamped_source), (_, clamped_integration) = call_path_tags
 
         context = None
         if _MIDDLEWARES:
-            context = AIGuardContext(messages, options, source, integration, tags)
+            last = messages[-1]
+            target = EvaluationTarget.TOOL if self._get_tool_name(last, messages) else EvaluationTarget.PROMPT
+            request = AIGuardRequest(clamped_source, clamped_integration, _get_direction(last), target, messages)
+            context = AIGuardContext(request, span_bus.get_root_span())
             for middleware in _MIDDLEWARES:
                 # Only an explicit False skips: a None, a truthy value or a failing hook evaluates.
                 if _call_hook(middleware.should_evaluate, context) is False:
@@ -439,10 +454,6 @@ class AIGuardClient:
                     # one of them would survive and misreport the verdict.
                     if not key.startswith(_RESERVED_TAG_PREFIX):
                         span.set_tag(key, value)
-            if context is not None:
-                context.span = span
-                for middleware in _MIDDLEWARES:
-                    _call_hook(middleware.pre_evaluate, context)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
@@ -452,6 +463,14 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
+                span.set_tag(AI_GUARD.DIRECTION_TAG, _get_direction(last).value)
+                span.set_tag(AI_GUARD.SOURCE_TAG, clamped_source)
+                span.set_tag(AI_GUARD.INTEGRATION_TAG, clamped_integration)
+                # After the core tags, so middlewares see a fully tagged span.
+                if context is not None:
+                    context.ai_guard_span = span
+                    for middleware in _MIDDLEWARES:
+                        _call_hook(middleware.pre_evaluate, context)
 
                 transport_error = None
                 try:
@@ -554,6 +573,7 @@ class AIGuardClient:
                 # No tag at all when redaction is off, so absent is distinguishable from "nothing redacted".
                 if redaction_enabled:
                     telemetry_tags.append(("redacted", "true" if redacted else "false"))
+                telemetry_tags.append(("skipped", "false"))
                 telemetry_tags.extend(call_path_tags)
                 self._add_request_to_telemetry(tuple(telemetry_tags))
                 root_span = span_bus.get_root_span()
@@ -609,7 +629,7 @@ class AIGuardClient:
             except Exception as e:
                 if context is not None:
                     context.error = e
-                self._add_request_to_telemetry((("error", "true"),) + call_path_tags)
+                self._add_request_to_telemetry((("error", "true"), ("skipped", "false")) + call_path_tags)
                 error_tags = call_path_tags
                 # Only bad_status has a status to report, and an absent tag stays distinguishable
                 # from a status we deliberately clamped away.

@@ -261,7 +261,15 @@ def test_extra_tags_absent_leaves_span_unchanged(mock_execute_request, ai_guard_
 
     span = find_ai_guard_span(test_spans)
     ai_guard_tags = {k for k in span.get_tags() if k.startswith("ai_guard.")}
-    assert ai_guard_tags == {AI_GUARD.ACTION_TAG, AI_GUARD.TARGET_TAG, AI_GUARD.REDACTED_TAG, AI_GUARD.EVENT_TAG}
+    assert ai_guard_tags == {
+        AI_GUARD.ACTION_TAG,
+        AI_GUARD.TARGET_TAG,
+        AI_GUARD.DIRECTION_TAG,
+        AI_GUARD.SOURCE_TAG,
+        AI_GUARD.INTEGRATION_TAG,
+        AI_GUARD.REDACTED_TAG,
+        AI_GUARD.EVENT_TAG,
+    }
     assert set(_get_meta_struct(test_spans)) == {"messages"}
 
 

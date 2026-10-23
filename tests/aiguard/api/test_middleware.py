@@ -10,6 +10,8 @@ from ddtrace.aiguard import middleware
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard.middleware import AIGuardMiddleware
+from ddtrace.aiguard.middleware import EvaluationDirection
+from ddtrace.aiguard.middleware import EvaluationTarget
 from ddtrace.aiguard.middleware import register_middleware
 from ddtrace.internal.native import ConnectionFailedError
 from tests.aiguard.utils import find_ai_guard_span
@@ -17,6 +19,13 @@ from tests.aiguard.utils import mock_evaluate_response
 
 
 MESSAGES = [Message(role="user", content="hello")]
+TOOL_CALL = [
+    Message(role="user", content="weather?"),
+    Message(
+        role="assistant",
+        tool_calls=[{"id": "call_1", "function": {"name": "get_weather", "arguments": "{}"}}],
+    ),
+]
 
 
 @pytest.fixture(autouse=True)
@@ -63,6 +72,20 @@ class Recorder(AIGuardMiddleware):
         self.contexts.append(context)
 
 
+def test_registration_unregister_is_idempotent(ai_guard_client, execute_request):
+    recorder = Recorder()
+    registration = register_middleware(recorder)
+    other = register_middleware(recorder)
+
+    registration.unregister()
+    registration.unregister()
+
+    assert middleware._MIDDLEWARES == [recorder]
+    other.unregister()
+    ai_guard_client.evaluate(MESSAGES)
+    assert recorder.calls == []
+
+
 def test_should_evaluate_false_skips(ai_guard_client, test_spans, execute_request, telemetry_mock):
     recorder = Recorder(decision=False)
     register_middleware(recorder)
@@ -100,16 +123,69 @@ def test_skip_short_circuits_later_middlewares(ai_guard_client, execute_request)
     assert calls == [("first", "should_evaluate")]
 
 
-def test_pre_evaluate_sees_span(ai_guard_client, test_spans, execute_request):
+def test_should_evaluate_context(ai_guard_client, tracer, execute_request):
+    seen = {}
+
+    class Inspector(AIGuardMiddleware):
+        def should_evaluate(self, context):
+            seen["ai_guard_span"] = context.ai_guard_span
+            seen["local_root_span"] = context.local_root_span
+            seen["request"] = context.request
+
+    register_middleware(Inspector())
+
+    with tracer.trace("web.request") as root:
+        ai_guard_client.evaluate(MESSAGES)
+
+    assert seen["ai_guard_span"] is None
+    assert seen["local_root_span"].span_id == root.span_id
+    request = seen["request"]
+    assert request.messages is MESSAGES
+    assert (request.source, request.integration) == (AI_GUARD.SOURCE_SDK, AI_GUARD.INTEGRATION_NONE)
+    assert request.direction is EvaluationDirection.INPUT
+    assert request.target is EvaluationTarget.PROMPT
+
+
+def test_request_direction_and_target_for_tool_call(ai_guard_client, execute_request):
+    recorder = Recorder()
+    register_middleware(recorder)
+
+    ai_guard_client.evaluate(TOOL_CALL)
+
+    request = recorder.contexts[0].request
+    assert request.direction is EvaluationDirection.OUTPUT
+    assert request.target is EvaluationTarget.TOOL
+
+
+def test_pre_evaluate_sees_core_tagged_span(ai_guard_client, test_spans, execute_request):
+    core_tags = {}
+
     class Tagger(AIGuardMiddleware):
         def pre_evaluate(self, context):
-            context.span.set_tag("my_app.pre", "1")
+            span = context.ai_guard_span
+            for tag in (AI_GUARD.TARGET_TAG, AI_GUARD.DIRECTION_TAG, AI_GUARD.SOURCE_TAG, AI_GUARD.INTEGRATION_TAG):
+                core_tags[tag] = span.get_tag(tag)
+            span.set_tag("my_app.pre", "1")
 
     register_middleware(Tagger())
 
+    evaluate_auto(ai_guard_client, TOOL_CALL, AI_GUARD.INTEGRATION_OPENAI)
+
+    assert core_tags == {
+        AI_GUARD.TARGET_TAG: "tool",
+        AI_GUARD.DIRECTION_TAG: "output",
+        AI_GUARD.SOURCE_TAG: AI_GUARD.SOURCE_AUTO,
+        AI_GUARD.INTEGRATION_TAG: AI_GUARD.INTEGRATION_OPENAI,
+    }
+    assert find_ai_guard_span(test_spans).get_tag("my_app.pre") == "1"
+
+
+def test_evaluated_requests_report_skipped_false(ai_guard_client, execute_request, telemetry_mock):
+    register_middleware(Recorder())
+
     ai_guard_client.evaluate(MESSAGES)
 
-    assert find_ai_guard_span(test_spans).get_tag("my_app.pre") == "1"
+    assert [("skipped", "false") in tags for tags in _request_metric_tags(telemetry_mock)] == [True]
 
 
 @pytest.mark.parametrize("action", ["ALLOW", "DENY", "ABORT"])
@@ -183,7 +259,7 @@ def test_auto_instrumentation_runs_middlewares(ai_guard_client, execute_request)
 
     evaluate_auto(ai_guard_client, MESSAGES, AI_GUARD.INTEGRATION_OPENAI)
 
-    context = recorder.contexts[0]
-    assert context.source == AI_GUARD.SOURCE_AUTO
-    assert context.integration == AI_GUARD.INTEGRATION_OPENAI
+    request = recorder.contexts[0].request
+    assert request.source == AI_GUARD.SOURCE_AUTO
+    assert request.integration == AI_GUARD.INTEGRATION_OPENAI
     assert [call[1] for call in recorder.calls] == ["should_evaluate", "pre_evaluate", "post_evaluate"]
