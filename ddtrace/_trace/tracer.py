@@ -374,6 +374,10 @@ class Tracer:
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             log.debug("Standalone mode is enabled, traces will be rate limited at 1 trace per minute")
+            # The writer and the sampling processor keep their own stats setting across _recreate(),
+            # so propagate the opt-out to them, not only to the global config.
+            if compute_stats_enabled is None:
+                compute_stats_enabled = False
         elif standalone_config.apm_tracing_enabled:
             config._tracing_enabled = self.enabled = True
 

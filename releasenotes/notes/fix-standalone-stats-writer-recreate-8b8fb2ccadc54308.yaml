@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fix stats computation not being disabled on the active trace writer when entering standalone
+    mode (APM tracing disabled with AppSec, IAST, SCA or AI Guard enabled) at runtime via
+    ``Tracer.configure(apm_tracing_disabled=True)``.

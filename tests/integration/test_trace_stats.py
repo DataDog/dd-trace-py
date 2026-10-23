@@ -9,7 +9,6 @@ import pytest
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from tests.integration.utils import AGENT_VERSION
-from tests.utils import override_global_config
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -42,11 +41,9 @@ def _trace_stats_context(generate_stats):
 
 @pytest.fixture
 def stats_tracer(tracer):
-    # Recreate tracer with stats enabled
-    with override_global_config(dict(_trace_compute_stats=True)):
-        tracer._recreate()
-        yield tracer
-        tracer.shutdown()
+    tracer._recreate(compute_stats_enabled=True)
+    yield tracer
+    tracer.shutdown()
 
 
 class consistent_end_trace:

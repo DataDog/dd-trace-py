@@ -65,6 +65,8 @@ def test_aggregator_reset_with_args():
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is False
+    assert aggr.writer._compute_stats_enabled is False
+    assert aggr.writer._stats_opt_out is False
     # Reset the aggregator with new args and new user processors and expect the new values to be set
     aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
     assert aggr.user_processors == []
@@ -72,6 +74,10 @@ def test_aggregator_reset_with_args():
     assert aggr.sampling_processor.apm_opt_out is True
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.writer._api_version == "v0.4"
+    # The recreated writer must pick up the compute_stats/apm_opt_out values, not carry
+    # over the ones it was constructed with
+    assert aggr.writer._compute_stats_enabled is True
+    assert aggr.writer._stats_opt_out is True
     assert span.trace_id in aggr._traces
 
 
@@ -247,3 +253,30 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
     # reset tracer values
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
         tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_STATS_COMPUTATION_ENABLED": "true"})
+def test_asm_standalone_disables_active_stats_writer():
+    """Entering standalone mode must disable stats on the live writer, not only the global config.
+
+    The writer caches its own stats setting and keeps it across Tracer.configure(), so the
+    opt-out has to be propagated through _recreate() to the recreated writer and the sampling
+    processor. Otherwise stats keep being computed and exported in standalone mode.
+    """
+    from ddtrace import tracer
+    from ddtrace.internal.settings._config import config
+
+    # The writer was built at startup with DD_TRACE_STATS_COMPUTATION_ENABLED=true.
+    assert tracer._span_aggregator.writer._compute_stats_enabled is True
+    assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is True
+
+    # Enable a product and turn APM tracing off: standalone (APM opt-out) mode.
+    tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
+
+    writer = tracer._span_aggregator.writer
+    assert writer._compute_stats_enabled is False
+    # A writer constructed fresh in standalone mode marks stats as client-computed
+    # (set_client_computed_stats) so the agent does not compute them either.
+    assert writer._stats_opt_out is True
+    assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
+    assert config._trace_compute_stats is False
