@@ -1740,7 +1740,14 @@ def test_agent_exporter_sets_the_agent_url_not_the_intake():
     assert not [c for c in calls if "agentless" in c[0]]
 
 
-@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "a-test-api-key",
+        # The mock agent doesn't support stats payload
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
 def test_agentless_end_to_end_payload_reaches_the_intake():
     """Full flow: a span written in agentless mode arrives at the intake as JSON.
 
@@ -1919,9 +1926,7 @@ def test_agent_mode_exports_trace_metrics_to_the_agent():
     assert writer._otlp_metrics_endpoint == "http://localhost:4318/v1/metrics"
 
 
-@pytest.mark.subprocess(
-    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"}
-)
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
 def test_agentless_stats_go_to_the_stats_intake():
     """There is no Agent to forward /v0.6/stats to, so computed stats go straight to the intake."""
     from ddtrace.trace import tracer
@@ -1935,7 +1940,6 @@ def test_agentless_stats_go_to_the_stats_intake():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
         "DD_SITE": "datadoghq.eu",
     }
 )
@@ -1981,7 +1985,6 @@ def test_agentless_leaves_stats_to_the_backend_when_disabled():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
     },
     err=None,  # warns that OTLP trace metrics are skipped

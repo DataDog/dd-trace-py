@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    tracing: Enable stats computation by default to compute RED metrics locally, which were previously computed
+    by the agent. Set ``DD_TRACE_STATS_COMPUTATION_ENABLED=false`` to disable it.
