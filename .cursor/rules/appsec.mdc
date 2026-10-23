@@ -1,5 +1,5 @@
 ---
-description: Datadog Application Security (AppSec) - Complete Guide
+description: AppSec implementation references and validation guidance
 globs:
   - "**/appsec/**"
   - "**/tests/appsec/**"

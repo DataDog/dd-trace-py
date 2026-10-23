@@ -25,7 +25,9 @@ uv run --script scripts/import-analysis/cycles.py analyze <output.json>
 
 Each result contains the modules in a tangled component (`nodes`) and a concrete cycle (`cycle`).
 Compare with the base revision when determining whether a cycle is new; do not treat all existing
-cycles as introduced by the current task. See the detector and its CI invocation for comparison semantics.
+cycles as introduced by the current task. Match CI by using the candidate's `cycles.py` for both
+analyses, passing each checkout's `ddtrace/` directory through `--root` (the base is the merge base).
+Use its `compare <base.json> <candidate.json>` command to compare the outputs.
 
 Trace the exact imported names in both directions. Prefer moving code to its owner, extracting
 shared types, or using a registration/event interface. Choose the smallest change that restores

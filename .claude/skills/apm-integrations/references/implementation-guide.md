@@ -13,10 +13,10 @@ steps affected by the change.
   public re-export of patch functions. Users enable integrations through `ddtrace.patch()`.
 - Register config at module scope with `config._add()`. Add the integration to `INTEGRATION_CONFIGS`
   in `ddtrace/internal/settings/_config.py`, or its settings will be ignored.
-- Add `PATCH_MODULES` in `ddtrace/_monkey.py`. Add `MODULES_FOR_CONTRIB` when dependency import names
+- Add `PATCH_MODULES` in `ddtrace/_monkey.py`. Add `_MODULES_FOR_CONTRIB` when dependency import names
   differ from the contrib name.
-- Add dependency metadata to `scripts/integration_registry/registry.yaml` and the adjacent
-  `<name>.manifest.yaml`. Follow the manifest section of
+- Add dependency metadata to `scripts/integration_registry/registry.yaml` and
+  `ddtrace/contrib/internal/<name>/<name>.manifest.yaml`. Follow the manifest section of
   [contributing-integrations](../../../../docs/contributing-integrations.rst), including matching package names.
 
 ## LLMObs additions

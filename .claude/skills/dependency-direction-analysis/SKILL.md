@@ -18,15 +18,18 @@ allowed-tools:
 # Dependency direction
 
 `scripts/import-analysis/layers.json` is the authority for zones, foundation modules, and
-intentional exceptions. Foundation/contrib imports into products and imports between products
-are restricted; the configured contrib-to-tracing exception is intentional.
+intentional exceptions. `internal-core`/`contrib` imports into products and imports between
+products are restricted; the configured contrib-to-tracing exception is intentional.
+Explicitly listed foundation modules are exempt from these dependency-direction rules.
 
 ```bash
-uv run --script scripts/import-analysis/layers.py analyze <output.json>
+uv run --script scripts/import-analysis/layers.py analyze --root <candidate-checkout>/ddtrace <candidate.json>
+uv run --script scripts/import-analysis/layers.py analyze --root <merge-base-checkout>/ddtrace <base.json>
 uv run --script scripts/import-analysis/layers.py compare <base.json> <candidate.json>
 ```
 
-Generate each snapshot at its respective revision and keep outputs in a temporary location.
+Run both analyses with the candidate's detector and adjacent `layers.json`, matching CI;
+only the source tree passed through `--root` changes. Keep outputs in a temporary location.
 The result lists `violations` and `uncovered` top-level modules. Read the detector's current
 comparison rules when diagnosing CI; severity scores prioritize investigation, not correctness.
 
@@ -40,8 +43,9 @@ comparison rules when diagnosing CI; severity scores prioritize investigation, n
   the corresponding zone mapping rather than falling into generic internal-core.
 - Do not move code into an unclassified module merely to evade the check. Do not hide violations
   using deferred imports. Use `circular-import-analysis` for cycles.
-- Add a zone exception only for a deliberate, durable dependency. Explain the architectural
-  reason; ask when the intended ownership cannot be established from the task and repository.
+- Propose a zone exception only for a deliberate, durable dependency, with the architectural
+  reason explicit in the PR for human review. Do not decide unilaterally that an exception is
+  acceptable merely to make the check pass.
 
 Rerun both analysis and base comparison to confirm that the intended violation is resolved and
 no new violations or uncovered modules were introduced.

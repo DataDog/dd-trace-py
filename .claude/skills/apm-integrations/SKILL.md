@@ -31,5 +31,6 @@ Keep optional security-product logic out of contrib; follow `.cursor/rules/isola
 - [Contributor guide](../../../docs/contributing-integrations.rst): compatibility and manifest policy.
 
 Use `run-tests`, `lint`, and `releasenote` for validation and PR preparation. Match current signatures
-and typing conventions in source. For native build failures, consult
+in source and fully annotate new integration functions and methods; do not copy missing annotations
+from legacy code. For native build failures, consult
 [troubleshooting](../../../docs/troubleshooting.rst) before deleting caches or rebuilding.

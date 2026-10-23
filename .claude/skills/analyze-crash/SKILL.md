@@ -73,5 +73,6 @@ Include only relevant frames, source links, supporting history, and the next evi
 Separate observations from hypotheses in the proposed crash flow. Attribution may remain unknown.
 
 For a triage request, focus on diagnosis. If the user also requests a fix, use the investigation
-to guide it rather than treating this skill as a prohibition on implementation. Save a report only
-when requested, outside the skill's source directory; crash metadata may contain sensitive data.
+to guide it rather than treating this skill as a prohibition on implementation. Unless the user
+requests an inline-only answer, save a Markdown report in the task's output location and link it.
+Keep reports outside the skill's source directory and out of commits; crash metadata may be sensitive.

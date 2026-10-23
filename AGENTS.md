@@ -13,10 +13,12 @@ Paths below are relative to the repository root.
 - Investigate source, tests, and supplied context before asking questions. Ask when unresolved
   business intent or an architectural decision would materially change the implementation.
 - Do not remove TODO/NOTE comments without explicit human instruction; update them when related code changes.
-- Benchmark changes to runtime hot paths, including native code. Documentation, comments, and
-  test-only edits do not require runtime benchmarks. Report missing benchmark coverage.
+- Benchmark changes to native runtime code and other performance-sensitive paths, including
+  startup. Documentation, comments, and test-only edits do not require runtime benchmarks.
+  Report missing benchmark coverage.
 - Update documentation when changing APIs, configuration, or contributor workflows.
-  Update integration references when a shared pattern changes, rather than for every integration edit.
+  When modifying integrations, review the relevant integration skills and update references that
+  describe changed patterns.
 - Do not hide circular imports with function-local imports or type-checking guards.
   Fix ownership or dependency direction. Preserve deliberate lazy imports for startup cost or
   gevent compatibility when they are unrelated to a cycle.
@@ -60,7 +62,7 @@ for the task, rather than loading every guide. Source code defines current signa
 | Contrib integration changes | `apm-integrations`; `.cursor/rules/isolated-responsibility.mdc` |
 | LLMObs integration changes | `llmobs-integrations`; also `apm-integrations` when changing contrib plumbing |
 | Added/moved modules or new import cycles | `circular-import-analysis` |
-| Imports across foundation/product boundaries | `dependency-direction-analysis` |
+| Architectural dependency direction | `dependency-direction-analysis` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Build-cache performance | `debug-build-times` |
@@ -96,7 +98,7 @@ Automatic retries on `main` are infrastructure-only. Jobs needing retries on oth
 extend `.gitlab/retry-policies.yml`; do not add job-level `retry:` or duplicate jobs by branch.
 Manual retries are unaffected.
 
-For CI downloads, use `curl --fail` and transient retries (`--retry 5 --retry-delay 2
+For `curl` calls in CI, use `--fail` and transient retries (`--retry 5 --retry-delay 2
 --retry-connrefused`, or an explicit loop). Download to a file before extracting/executing;
 never pipe retried downloads into `tar`/`sh` or merge stderr into captured responses.
 Status-aware polling and best-effort lookups may use justified alternatives with visible failure handling.

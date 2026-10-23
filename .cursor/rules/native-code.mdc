@@ -23,8 +23,10 @@ code, also consult `.cursor/rules/iast.mdc`.
 1. Grep the diff for trigger symbols. If any match, read the corresponding
    section in `docs/native-code-review.md` before approving.
 2. Check the stop conditions below — any violation is an immediate blocker.
-3. Report relevant evidence and unresolved validation gaps. For wheel layout or conditional
-   compilation, verify the built artifact; request help only when that evidence is unavailable.
+3. Report relevant evidence and unresolved validation gaps. For build layout, linking, or
+   conditional-compilation changes, verify an actual release wheel and flag it for human
+   verification as described in section 7 of `docs/native-code-review.md`.
+   Also flag safety conclusions that depend on pinned dependency internals for human verification.
 
 ## Trigger Symbols
 

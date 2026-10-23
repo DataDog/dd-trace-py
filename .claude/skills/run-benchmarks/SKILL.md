@@ -15,7 +15,8 @@ allowed-tools:
 
 # Benchmark runtime changes
 
-Use `scripts/run-benchmarks` for changes to runtime hot paths, including native code.
+Use `scripts/run-benchmarks` for changes to native runtime code and other performance-sensitive
+paths, including startup/bootstrap.
 Documentation, comments, and test-only edits do not need runtime benchmarks. If discovery has no
 matching scenario for a runtime change, investigate coverage rather than concluding it is unnecessary.
 
@@ -29,6 +30,7 @@ scripts/run-benchmarks --scenario <scenario> --artifacts ./benchmark-artifacts/
 The runner wraps `scripts/perf-run-scenario`; use the wrapper, not that script directly.
 Docker is required. Discover current scenarios/configs from the runner and `benchmarks/suitespec.yml`.
 Choose scenarios that exercise the changed behavior, starting with focused configs during iteration.
+Run all configs of the selected scenarios for final results; report any coverage that could not run.
 
 ## Baselines and artifacts
 
