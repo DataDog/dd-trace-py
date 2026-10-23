@@ -123,8 +123,8 @@ class DataDogProvider(AbstractProvider):
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
 
-        # Event set when the first config arrives; used by on_configuration_received()
-        # to guard the first-config path and by _emit_ready_event() timing.
+        # Tracks whether configuration is available. Withdrawal clears it so
+        # replacement configuration can report recovery.
         self._config_received = threading.Event()
         self._initialization_timed_out = False
 
@@ -296,8 +296,9 @@ class DataDogProvider(AbstractProvider):
 
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
-        if self._config_received.wait(timeout=self._initialization_timeout):
-            self._status = ProviderStatus.READY
+        if self._config_received.wait(timeout=self._initialization_timeout) and _get_ffe_snapshot() is not None:
+            # The callback already set READY. Do not overwrite a removal that
+            # can arrive while this initialization thread resumes.
             return  # SDK will dispatch PROVIDER_READY
 
         # the wait above must stay bounded. A blocked initialize() blocks
@@ -690,18 +691,35 @@ class DataDogProvider(AbstractProvider):
         Called when a Remote Configuration payload is received and processed.
 
         Updates status first, then signals the event for observers.
-        Emits PROVIDER_READY for late arrivals after initialization fails.
+        Emits PROVIDER_READY after initialization failure or configuration loss.
         """
         if not self._config_received.is_set():
+            recovering = self._initialization_timed_out or self._status == ProviderStatus.ERROR
             self._status = ProviderStatus.READY
-            logger.debug("First FFE configuration received, provider is now READY")
+            self._config_received.set()
+            logger.debug("FFE configuration received, provider is now READY")
             # The SDK emits READY after successful initialization. The provider only
-            # owns the recovery event after initialization reported an error.
-            if self._initialization_timed_out:
+            # owns recovery events after initialization failure or configuration loss.
+            if recovering:
                 self._emit_ready_event()
 
-        # Signal the event last after status is updated.
-        self._config_received.set()
+    def on_configuration_removed(self) -> None:
+        """Report configuration loss before observers evaluate another flag."""
+        was_ready = self._status == ProviderStatus.READY
+        self._config_received.clear()
+        if not was_ready:
+            return
+
+        # The snapshot is already cleared. Update availability before
+        # dispatch so event handlers see default values and the matching status.
+        self._status = ProviderStatus.ERROR
+        if hasattr(self, "emit_provider_error") and ProviderEventDetails is not None:
+            self.emit_provider_error(
+                ProviderEventDetails(
+                    error_code=ErrorCode.PROVIDER_NOT_READY,
+                    message="Feature Flagging configuration was removed",
+                )
+            )
 
     def _emit_ready_event(self) -> None:
         """

@@ -1,0 +1,5 @@
+fixes:
+  - |
+    openfeature: Fixes incorrect READY status after feature flag configuration is
+    removed. The provider reports ERROR during configuration loss and READY when
+    replacement configuration becomes available.
