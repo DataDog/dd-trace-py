@@ -155,10 +155,11 @@ Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
 
 On Linux, Docker bind mounts keep the host's file ownership, so the container user must be able to write to
-your checkout. The test image runs as ``bits`` (uid 1000). When your host uid is not 1000, ``scripts/ddtest``
-(and therefore ``scripts/run-tests``) automatically runs the container command with your host uid and gid instead.
+your checkout. The test image runs as ``bits`` (user ID 1000). When your host user ID is not 1000,
+``scripts/ddtest`` (and therefore ``scripts/run-tests``) automatically runs the container command with your host
+user ID and group ID instead.
 
-To choose the ids explicitly, set ``DD_TEST_USER``:
+To choose the IDs explicitly, set ``DD_TEST_USER``:
 
 .. code-block:: bash
 
@@ -173,7 +174,7 @@ Set ``DD_TEST_USER`` to an empty value to keep the image's default ``bits`` user
 If you previously added a ``docker-compose.override.yml`` that sets ``user: "${UID}:${GID}"`` for the
 ``testrunner`` service, you can delete it. ``scripts/ddtest`` now handles this itself, and that override does
 not work with the current image, because the image's home directory, which holds the Python and Rust
-toolchains, is not accessible to other users.
+installations, is not accessible to other users.
 
 Build issues when running tests
 -------------------------------
