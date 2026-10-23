@@ -1,0 +1,283 @@
+# CPython 3.14 → 3.15 Change Analysis (for echion)
+
+**Checked against:** the `v3.14.0` and `v3.15.0` tags of `python/cpython` on 2026-10-19,
+over the paths below. Every struct, enum, macro, and signature quoted here was read
+from those two tags. "Echion impact" notes describe this repo's sources.
+**Compared paths** (reproduce the header/ABI slice with these exact args):
+
+```bash
+git diff v3.14.0 v3.15.0 -- \
+  Include/cpython/genobject.h \
+  Include/internal/pycore_frame.h \
+  Include/internal/pycore_interpframe.h \
+  Include/internal/pycore_interpframe_structs.h \
+  Include/internal/pycore_llist.h \
+  Include/internal/pycore_runtime.h \
+  Include/internal/pycore_stackref.h \
+  Include/internal/pycore_tstate.h \
+  Modules/_asynciomodule.c
+```
+
+The a8 await-stack layout change (§4) also depends on `Python/bytecodes.c` /
+`Objects/genobject.c`, which are outside that header-only set.
+The raw diff is not committed; regenerate it with the command above.
+
+Files with **no changes** relevant to echion between `v3.14.0` and `v3.15.0`:
+
+- `Include/cpython/genobject.h` — byte-identical
+- `Include/internal/pycore_llist.h` — byte-identical
+- `Include/internal/pycore_runtime.h` — only adds atomic
+  `_PyRuntimeState_{Get,Set}{Core,}Initialized` accessors; no struct change in this header
+
+---
+
+## Breaking Changes (must fix to compile/run correctly)
+
+### 1. `PyFrameState` enum completely renumbered — `pycore_frame.h`
+
+**Priority: HIGH**
+
+| State | 3.14 value | 3.15 value |
+|---|---|---|
+| `FRAME_CREATED` | -3 | 0 |
+| `FRAME_SUSPENDED` | -2 | 1 |
+| `FRAME_SUSPENDED_YIELD_FROM` | -1 | 2 |
+| `FRAME_SUSPENDED_YIELD_FROM_LOCKED` | *(new)* | 3 |
+| `FRAME_EXECUTING` | 0 | 4 |
+| `FRAME_COMPLETED` | 1 | *(removed)* |
+| `FRAME_CLEARED` | 4 | 5 |
+
+Changed macros:
+
+```c
+// 3.14
+#define FRAME_STATE_SUSPENDED(S) ((S) == FRAME_SUSPENDED || (S) == FRAME_SUSPENDED_YIELD_FROM)
+#define FRAME_STATE_FINISHED(S)  ((S) >= FRAME_COMPLETED)
+
+// 3.15
+#define FRAME_STATE_SUSPENDED(S) ((S) >= FRAME_SUSPENDED && (S) <= FRAME_SUSPENDED_YIELD_FROM_LOCKED)
+#define FRAME_STATE_FINISHED(S)  ((S) == FRAME_CLEARED)
+```
+
+**Echion impact:**
+- Echion reads `PyGenObject.gi_frame_state` (not `_PyInterpreterFrame.f_frame_state`,
+  which does not exist) in `ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc` and
+  `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h`. Comparing against old constants silently
+  misclassifies frames (e.g., `FRAME_EXECUTING = 0` in 3.14 now means
+  `FRAME_CREATED` in 3.15).
+- `FRAME_COMPLETED` is gone — code checking `>= FRAME_COMPLETED` will break.
+- New `FRAME_SUSPENDED_YIELD_FROM_LOCKED` needs a decision at every state check.
+- **Do not use `FRAME_STATE_SUSPENDED` for await-chain reads.** It also accepts plain
+  `FRAME_SUSPENDED`, which has no awaited object on the stack. `PyGen_yf` in
+  `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` accepts only
+  `FRAME_SUSPENDED_YIELD_FROM`, plus `FRAME_SUSPENDED_YIELD_FROM_LOCKED` under
+  `Py_GIL_DISABLED`. The `LockedStateIgnored` test in
+`ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp` checks
+  that GIL builds reject the locked state without reading memory.
+- `FRAME_STATE_FINISHED` is fine where "finished" is the question being asked.
+
+**Files to update:** `ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc`,
+`ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` (and any other
+`gi_frame_state` readers).
+`frame.h` / `state.h` do not check frame state.
+
+**Guard:** `#if PY_VERSION_HEX >= 0x030f0000`
+
+---
+
+### 2. `FRAME_OWNED_BY_CSTACK` removed — `pycore_interpframe_structs.h`
+
+**Priority: LOW**
+
+```c
+// 3.14
+enum _frameowner {
+    FRAME_OWNED_BY_THREAD = 0,
+    FRAME_OWNED_BY_GENERATOR = 1,
+    FRAME_OWNED_BY_FRAME_OBJECT = 2,
+    FRAME_OWNED_BY_INTERPRETER = 3,
+    FRAME_OWNED_BY_CSTACK = 4,   // <-- removed in 3.15
+};
+```
+
+**Echion impact:** If any code checks `frame->owner == FRAME_OWNED_BY_CSTACK`,
+wrap in `#if PY_VERSION_HEX < 0x030f0000`.
+
+---
+
+### 3. `_PyStackRef` tag scheme unified — `pycore_stackref.h`
+
+**Priority: MEDIUM** (mostly affects free-threaded builds)
+
+Key changes:
+
+- Tag constants are defined once near the top of the header in 3.15:
+  ```c
+  #define Py_INT_TAG    3
+  #define Py_TAG_INVALID 2   // new: marks ERROR sentinel
+  #define Py_TAG_REFCNT 1
+  #define Py_TAG_BITS   3
+  #define Py_TAGGED_SHIFT 2  // new
+  ```
+- `Py_TAG_DEFERRED` is **gone**. In 3.14 it was already just an alias for
+  `Py_TAG_REFCNT` under `Py_GIL_DISABLED`.
+- `PyStackRef_FromPyObjectImmortal()` is gone and `PyStackRef_FromPyObjectBorrow()`
+  is new. Treat it as a replacement, not a pure rename, and check semantics before
+  swapping call sites.
+- New `PyStackRef_ERROR` sentinel (`bits == Py_TAG_INVALID` in the default build).
+- New predicates: `PyStackRef_IsError()`, `PyStackRef_IsMalformed()`,
+  `PyStackRef_IsValid()`.
+- New `PyStackRef_Wrap()` / `PyStackRef_Unwrap()` for raw pointer wrapping.
+- `INITIAL_STACKREF_INDEX` changed from `8` to `(5 << Py_TAGGED_SHIFT)` = `20`.
+- Tagged-int shift **value is unchanged** (`<< 2`); only the name is new —
+  `Py_TAGGED_SHIFT` (= `2`) is now the canonical spelling for that shift.
+
+**Echion impact:**
+Echion does not call `PyStackRef_AsPyObjectBorrow`. It strips tag bits itself, in
+two ways, and both depend on which low bits CPython uses for tags:
+
+- Frame walking: `get_code_from_frame()` in
+  `ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h` clears the
+  low 3 bits of `f_executable.bits` (`& ~7`). That covers `Py_TAG_BITS` (3) on 3.15.
+- asyncio `PyGen_yf()` in
+  `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` uses
+  CPython's `BITS_TO_PTR_MASKED`, which clears only `Py_TAG_REFCNT` (bit 0), for both
+  `f_executable` and the awaited stack slot. The macro is the same in `v3.14.0` and
+  `v3.15.0`. It does not clear the new `Py_TAG_INVALID` (bit 1), so an error
+  reference decodes to a small non-null value rather than `nullptr`. For
+  `f_executable` the `copy_type()` right after it rejects that; the awaited pointer
+  is returned as-is, so its callers must rely on their own guarded reads.
+
+When a new minor changes the tag layout, audit both masks. Echion does not use
+`PyStackRef_FromPyObjectImmortal`, `PyStackRef_FromPyObjectBorrow`, or
+`Py_TAG_DEFERRED`, so those renames need no change here.
+
+---
+
+### 4. Awaited-object stack slot moved (3.15.0a8+) — `pycore_interpframe.h` / genobject
+
+**Priority: HIGH** (asyncio / `PyGen_yf` await-chain walks)
+
+Landed in **3.15.0a8** (`v3.15.0a7` still has the one-argument `_PyFrame_StackPeek`).
+`_SEND_GEN_FRAME` gained a `null` operand (`Python/bytecodes.c`), so a frame suspended in `YIELD_FROM` holds
+`PyStackRef_NULL` at `stackpointer[-1]` and the awaited object at `stackpointer[-2]`.
+`_PyFrame_StackPeek` grew a `depth` argument; CPython reads the awaited object as
+`_PyFrame_StackPeek(&gen->gi_iframe, 2)` in `gen_getyieldfrom` (`Objects/genobject.c`).
+
+```c
+// 3.15.0a7 and earlier
+static inline _PyStackRef _PyFrame_StackPeek(_PyInterpreterFrame *f);
+
+// 3.15.0a8+
+static inline _PyStackRef _PyFrame_StackPeek(_PyInterpreterFrame *f, int depth);
+```
+
+**Echion impact:**
+- Remote `PyGen_yf` must read `stackpointer[-2]` (and require `stacktop >= 2`), not
+  `[-1]`. Reading `[-1]` masks to `nullptr` and truncates the await chain.
+- Implemented in `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h`
+  (`PY_VERSION_HEX >= 0x030f0000`); covered by
+  `ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp`.
+
+**Guard:** `#if PY_VERSION_HEX >= 0x030f0000`
+
+---
+
+## Additive / Beneficial Changes (no breakage, consider adopting)
+
+### 5. `_PyFrame_SafeGetCode()` and `_PyFrame_SafeGetLasti()` — `pycore_interpframe.h`
+
+Not new in 3.15, but not in `v3.14.0` either: both helpers first appear in `v3.14.1`
+(`Include/internal/pycore_interpframe.h`). They come from the fix for
+[gh-140815](https://github.com/python/cpython/issues/140815)
+([GH-140921](https://github.com/python/cpython/pull/140921) on `main`, backported to
+3.14). CPython documents them as heuristic helpers for `dump_frame()` in
+`Python/traceback.c` (faulthandler): return NULL / `-1` if the frame looks invalid or
+freed; **not 100% reliable**.
+
+```c
+// Similar to _PyFrame_GetCode(), but return NULL if the frame is invalid or
+// freed. Used by dump_frame() in Python/traceback.c. The function uses
+// heuristics to detect freed memory, it's not 100% reliable.
+static inline PyCodeObject* _Py_NO_SANITIZE_THREAD
+_PyFrame_SafeGetCode(_PyInterpreterFrame *f);
+
+// Similar to PyUnstable_InterpreterFrame_GetLasti(), but return -1 if the
+// frame is invalid or freed.
+static inline int _Py_NO_SANITIZE_THREAD
+_PyFrame_SafeGetLasti(struct _PyInterpreterFrame *f);
+```
+
+**Recommendation:** Do not use these in Echion's sampling path. They dereference the
+frame's object pointers in-process (for example `PyCode_Check`), but Echion reads frames
+from addresses whose lifetime it does not control and must go through guarded copies.
+`ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h` notes that
+`PyCode_Check()` is only safe when the code object is known to be alive, and
+`ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc` avoids
+`_PyInterpreterFrame_LASTI` for the same reason. Keep the guarded reads. If anything
+does use them, the guard is `PY_VERSION_HEX >= 0x030e0100` (3.14.1), not `0x030e0000`.
+
+---
+
+### 6. `base_frame` sentinel in `_PyThreadStateImpl` — `pycore_tstate.h`
+
+New field, **specifically called out as for profiling/sampling**:
+
+```c
+typedef struct _PyThreadStateImpl {
+    PyThreadState base;
+
+    // Embedded base frame - sentinel at the bottom of the frame stack.
+    // Used by profiling/sampling to detect incomplete stack traces.
+    _PyInterpreterFrame base_frame;   // <-- NEW in 3.15
+
+    // ...
+    Py_ssize_t refcount;
+```
+
+**Option, not adopted:** `&tstate_impl->base_frame` could serve as the end-of-chain
+sentinel on 3.15. Echion does not use it today (no `base_frame` reference in
+`ddtrace/internal/datadog/profiling/stack/`). Guard would be `#if PY_VERSION_HEX >= 0x030f0000`.
+Its position also moves later fields; see §8.
+
+---
+
+### 7. `_Py_AsyncioDebug` symbol rename — `_asynciomodule.c`
+
+```c
+// 3.14
+GENERATE_DEBUG_SECTION(AsyncioDebug, Py_AsyncioModuleDebugOffsets _AsyncioDebug)
+
+// 3.15
+GENERATE_DEBUG_SECTION(AsyncioDebug, Py_AsyncioModuleDebugOffsets _Py_AsyncioDebug)
+```
+
+**Echion impact:** Only relevant if echion reads this debug symbol by name from the
+process (e.g., via `/proc/pid/maps` or DWARF). Update the symbol name lookup to
+`_Py_AsyncioDebug` under a `#if PY_VERSION_HEX >= 0x030f0000` guard.
+
+The `TaskObj` struct and the `FutureObj_HEAD` macro it starts with (which holds
+`awaited_by`, `awaited_by_is_set`, `is_task`) are **identical** in `v3.14.0` and
+`v3.15.0`, so the `cpython/tasks.h` mirror in echion does not need layout changes.
+
+---
+
+### 8. Other `_PyThreadStateImpl` additions — `pycore_tstate.h`
+
+New fields (none of them in `v3.14.0`):
+
+- `base_frame` (§6) and `c_stack_init_base` / `c_stack_init_top` — these sit
+  **before** `asyncio_running_loop` and `asyncio_tasks_head`, so those offsets move
+- `generator_return_kind` enum — yield vs return from `PyEval_EvalFrame()`
+  (see `gen_send_ex2()`)
+- `pystats_struct` (under `Py_GIL_DISABLED` + `Py_STATS`)
+- `jit_tracer_state` (under `_Py_TIER2`)
+- `__padding[64]` (under `Py_GIL_DISABLED`)
+
+Echion takes `offsetof(_PyThreadStateImpl, asyncio_tasks_head)` from the headers it
+is built against (`ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc`),
+so a 3.15 build picks up the new offset. Anything that hardcodes raw offsets must be
+regenerated.
+
+ABI fixes that landed from this analysis are in #19269 / #19272. Packaging /
+official-support follow-ups are not this file.
