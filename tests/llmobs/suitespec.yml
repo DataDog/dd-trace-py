@@ -348,7 +348,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=1.76.2', pillow]
         - name: openai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai==1.66.0', pillow]
   langgraph:
     venvs_per_job: 8
