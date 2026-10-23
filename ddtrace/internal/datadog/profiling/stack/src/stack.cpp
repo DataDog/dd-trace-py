@@ -1182,6 +1182,31 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_process_vm_readv_available(PyObject* Py_UNUSED(self), PyObject* args)
+{
+#if defined PL_LINUX
+    int available = 1;
+
+    if (!PyArg_ParseTuple(args, "p", &available)) {
+        return nullptr;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_set_process_vm_readv_available must be called before the sampler is started");
+        return nullptr;
+    }
+
+    process_vm_readv_available = static_cast<bool>(available);
+    Py_RETURN_NONE;
+#else
+    (void)args;
+    PyErr_SetString(PyExc_NotImplementedError, "_set_process_vm_readv_available is Linux-only");
+    return nullptr;
+#endif
+}
+
+static PyObject*
 stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     std::optional<SamplingThreadError> error;
@@ -1290,6 +1315,10 @@ static PyMethodDef stack_methods[] = {
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,
       "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+    { "_set_process_vm_readv_available",
+      stack_set_process_vm_readv_available,
+      METH_VARARGS,
+      "Test-only: override process_vm_readv_available before sampler start (Linux)" },
     { "take_sampling_thread_error",
       stack_take_sampling_thread_error,
       METH_NOARGS,

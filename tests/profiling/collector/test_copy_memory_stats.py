@@ -286,6 +286,49 @@ def test_fast_copy_faulthandler_enable_after_foreign_during_warmup() -> None:
     p.stop()
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_faulthandler_no_syscall",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_faulthandler_enable_stops_when_no_syscall_fallback() -> None:
+    """Foreign takeover + faulthandler.enable with no process_vm_readv must stop sampling.
+
+    Uninstall marks sticky takeover; if dropping to the syscall copy fails, resume must
+    not continue with leftover safe_memcpy under a foreign handler (handler checks are
+    skipped once sticky is set).
+    """
+    import faulthandler
+    import signal
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    # No process_vm_readv: skip warmup, stay on safe_memcpy, leave no syscall fallback.
+    _stack._set_process_vm_readv_available(False)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    faulthandler.enable()
+
+    assert _stack.is_safe_copy_failed(), "expected failed_safe_copy when uninstall cannot fall back"
+    # pause_sampling returns False when the sampler is not running (stopped in uninstall).
+    assert _stack.pause_sampling() is False, "sampler should have stopped instead of resuming into memcpy"
+    p.stop()
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
 @pytest.mark.subprocess(
     env=dict(
@@ -370,6 +413,132 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     )
     assert restart_metadata["fast_copy_memory_foreign_takeover"] is True, restart_metadata
     assert restart_metadata["fast_copy_memory_enabled"] is False, restart_metadata
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_fork_takeover_no_syscall",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_fork_after_takeover_without_syscall() -> None:
+    """Child must not sample leftover safe_memcpy after a no-syscall foreign takeover."""
+    import json
+    import os
+    import signal
+    import time
+    from typing import Any
+    from typing import Optional
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    # No process_vm_readv before start: skips warmup, stays on safe_memcpy, and
+    # leaves no syscall fallback when a foreign handler takes SIGSEGV later.
+    _stack._set_process_vm_readv_available(False)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    # Parent sampling thread should stop (no syscall fallback). Give it a cycle.
+    deadline: float = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if _stack.is_safe_copy_failed():
+            break
+        time.sleep(0.05)
+    assert _stack.is_safe_copy_failed(), "expected failed_safe_copy after takeover with no process_vm_readv"
+
+    pid: int = os.fork()
+    if pid == 0:
+        # Parent already stopped (failed_safe_copy), so restart_after_fork is a no-op and
+        # origin-task linking stays off. Assert memcpy independently: an `and restarted`
+        # check would miss leftover fast_copy_active after a failed disable.
+        try:
+            memcpy_on: bool = _stack.fast_copy_memory_active()
+            time.sleep(0.5)
+        except BaseException:
+            os._exit(2)
+        os._exit(1 if memcpy_on else 0)
+
+    status: int
+    _, status = os.waitpid(pid, 0)
+    p.stop()
+
+    assert os.WIFEXITED(status), f"child did not exit normally: {status}"
+    assert os.WEXITSTATUS(status) == 0, "child sampled leftover safe_memcpy after no-syscall takeover"
+
+    # Failed disable breaks before the end-of-cycle stats update; metadata must still
+    # reflect that fast copy is off (not the pre-disable snapshot from mark takeover).
+    output_filename: str = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
+    assert files, "Expected at least one internal_metadata.json file"
+
+    metadata: Optional[dict[str, Any]] = None
+    for f in reversed(files):
+        with open(f) as fp:
+            candidate: dict[str, Any] = json.load(fp)
+        if candidate.get("fast_copy_memory_foreign_takeover") is True:
+            metadata = candidate
+            break
+
+    assert metadata is not None, f"Expected a foreign-takeover metadata window: {files}"
+    assert metadata["fast_copy_memory_enabled"] is False, metadata
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_reenable_clears_failed_safe_copy",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_reenable_clears_failed_safe_copy() -> None:
+    """set_fast_copy(True) must clear failed_safe_copy so start() can recover.
+
+    With no process_vm_readv, set_fast_copy(False) latches failed_safe_copy and
+    drops any leftover recovery handler (stop leaves it installed). A later
+    set_fast_copy(True) that restores safe_memcpy must clear that latch; otherwise
+    Sampler::start() keeps returning False even though a valid copy method is active.
+    """
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    _stack._set_process_vm_readv_available(False)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    p.stop()
+    assert _stack.segv_handler_installed(), "stop should leave the recovery handler installed"
+
+    _stack.set_fast_copy(False)
+    assert _stack.is_safe_copy_failed(), "expected failed_safe_copy after disable with no process_vm_readv"
+    assert not _stack.segv_handler_installed(), "failed disable must uninstall leftover recovery handler"
+
+    _stack.set_fast_copy(True)
+    assert not _stack.is_safe_copy_failed(), "re-enable must clear failed_safe_copy when safe_memcpy is usable"
+    assert _stack.segv_handler_installed(), (
+        "re-enable must reinstall the recovery handler after failed-disable uninstall"
+    )
+
+    p.start()
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler failed to restart after re-enable"
+    p.stop()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fast-copy recovery handlers are not used on Windows")
