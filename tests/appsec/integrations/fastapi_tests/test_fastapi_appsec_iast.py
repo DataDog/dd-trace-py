@@ -1276,6 +1276,9 @@ def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted,
             response = client.get("/child/" if mounted else "/", params={"query": "SELECT 1"}, headers=headers)
         assert response.status_code == 200
         reports = [(span, load_iast_report(span)) for trace in test_spans.pop_traces() for span in trace]
+        if inferred_proxy:
+            proxy_spans = [span for span, _ in reports if span.get_tag("component") == "aws-apigateway"]
+            assert proxy_spans and all(span.get_metric(IAST.ENABLED) is None for span in proxy_spans)
         findings = [(span, report) for span, report in reports if report]
         assert len(findings) == 1
         span, report = findings[0]
