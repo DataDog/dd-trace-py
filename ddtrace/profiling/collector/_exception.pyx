@@ -144,7 +144,7 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
         # its f_back chain is the full Python stack up to the entry point.
         _collect_exception(state, type(exception), exception, tb.tb_frame)
     except Exception:
-        LOG.debug("[profiling] Failed to collect exception")
+        LOG.debug("[profiling] Failed to collect exception", exc_info=True)
     finally:
         _collecting = False
 

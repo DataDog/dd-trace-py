@@ -351,7 +351,7 @@ class _ProfilerInstance(service.Service):
                             col.start()
                             LOG.debug("[profiling] Started pytorch collector %r", col)
                         except collector.CollectorUnavailable:
-                            LOG.debug("[profiling] Collector %r pytorch is unavailable, disabling", col)
+                            LOG.debug("[profiling] Collector %r is unavailable, disabling", col)
                             self._rollback_collector_start(col)
                             return
                         except Exception:

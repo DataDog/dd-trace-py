@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
-    logging.getLogger(__name__).debug("failed to import memalloc", exc_info=True)
+    logging.getLogger(__name__).debug("[profiling] failed to import memalloc", exc_info=True)
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal import service
@@ -47,6 +47,12 @@ class MemoryCollector:
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
         mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
+
+    def __repr__(self) -> str:
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+        return f"{class_name}({attrs_str})"
 
     @property
     def status(self) -> service.ServiceStatus:
