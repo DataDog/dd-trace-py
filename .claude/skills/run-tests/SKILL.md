@@ -37,6 +37,10 @@ Start with a focused environment during iteration. Expand based on affected beha
   smoke test does not validate every infrastructure change.
 
 Suite discovery is a starting point, not proof of coverage. Explain any important gaps.
+If no suite matches, verify repository-relative paths and inspect the relevant `suitespec.yml`
+patterns (including nested files under `tests/`). The runner falls back to listing all suites;
+that fallback is not evidence that those suites cover the changed file. Use `--all-suites --list`
+to find an appropriate environment and address missing mappings when adding tests.
 
 ## Execute
 
@@ -48,6 +52,9 @@ scripts/run-tests --venv <hash1> --venv <hash2>
 
 One `--` separates runner arguments from test-command arguments. The runner manages required
 services and reuses matching environments. Check Docker/service prerequisites in the testing guide.
+`--venv` resolves hashes across all available suites and bypasses changed-file discovery, so
+unrelated local edits do not restrict a direct-hash rerun. An unknown hash fails; rediscover it
+rather than guessing an environment name.
 
 ```bash
 scripts/run-tests -r --venv <hash>
@@ -67,3 +74,39 @@ logs, and supplied context cannot resolve. Report environments and tests run, ou
 For resource-constrained reproductions, `DD_TEST_CPUS` and `DD_TEST_MEMORY` configure the Compose
 testrunner in `docker-compose.base.yml`. Verify that the run uses that container and inspect its
 limits; setting these variables alone does not constrain an arbitrary local process.
+
+```bash
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> -- -vv -k <test-name>
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g docker compose -f docker-compose.yml config --format json \
+  | jq '.services.testrunner | {cpus, mem_limit}'
+```
+
+These values are examples, not a standard CI machine profile. For Podman compatibility, inspect
+the same configuration the runner uses: replace `-f docker-compose.yml` with
+`-f docker-compose.base.yml -f docker-compose.podman.yml`. While the test runs, identify its
+testrunner container for the current checkout and verify applied limits and usage:
+
+```bash
+docker ps --filter label=com.docker.compose.service=testrunner
+docker inspect --format 'NanoCpus={{.HostConfig.NanoCpus}} Memory={{.HostConfig.Memory}}' <container-id>
+docker stats --no-stream <container-id>
+```
+
+For intermittent failures, repeat a focused run and record the seed. Use `--randomly-seed` only
+when the selected environment includes `pytest-randomly`; otherwise omit that option for a
+plain repeated run. This example stops on the first failure and preserves its exit status:
+
+```bash
+(
+  for test_attempt in 1 2 3 4 5; do
+    test_seed=$RANDOM
+    printf 'Attempt %s, seed %s\n' "$test_attempt" "$test_seed"
+    DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> \
+      -- -vv -k <test-name> --randomly-seed="$test_seed" || exit "$?"
+  done
+)
+```
+
+Replay a failure with the recorded integer seed and the same environment, test selection, and
+resource limits. Include those details in the report; repeated passes do not establish that a
+timing or ordering bug is fixed.

@@ -21,6 +21,17 @@ Use `.cursor/rules/iast.mdc` for taint tracking and `.cursor/rules/ai-guard.mdc`
   and signatures rather than examples from the older `trace_utils` SDK.
 - Behavioral references and fixtures: `tests/appsec/`.
 
+## Feature boundaries
+
+- WAF/AAP collects request data through `_asm_request_context.py` and `_processor.py`, then
+  evaluates rules through `_ddwaf/`; detection, rule actions, and request blocking are distinct.
+- RASP checks sensitive operations during a request. `_rasp.py` gates capabilities on AppSec,
+  exploit prevention, an active request context, and the processor's individual capability flags.
+- API schema collection lives in `_api_security/api_manager.py`; inspect its sampling and
+  schema callback separately from attack detection when changing API inventory behavior.
+- User-event tracking lives in `track_user_sdk.py`; IAST propagation and sink reporting live
+  in `_iast/`. These paths have different lifecycle and sampling rules.
+
 Check units at the configuration and native-call boundaries. In particular,
 `DD_APPSEC_WAF_TIMEOUT` is configured in milliseconds, not microseconds.
 Do not infer blocking behavior merely from detection being enabled; inspect the selected rules,

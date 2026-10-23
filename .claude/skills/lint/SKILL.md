@@ -35,6 +35,8 @@ their own selection logic; inspect the diff afterward rather than assuming every
 
 | Change | Subcommand |
 |--------|------------|
+| Updated trace snapshots | `fmt-snapshots` |
+| Python handling user input, credentials, or sensitive operations | `security` |
 | New test files / suitespec | `suitespec-check`, `suitespec-duplicates` |
 | Microbenchmark scenarios or thresholds | `slo-ownership` |
 | Profiling native coverage | `profiling-native-check` |
@@ -43,6 +45,20 @@ their own selection logic; inspect the diff afterward rather than assuming every
 | Type annotations | `typing`, `type-comments-check` |
 | ast-grep rules | `sg`, `sg-test` |
 | Git hooks | `hook-tests` |
+
+After changing annotations, run `typing` and check for new PEP 484 type comments. Use inline
+annotations for new types; existing type comments may stay, and `# type: ignore` is allowed.
+See `scripts/check_type_comments.py` for the exact diff-based policy and exceptions.
+
+```bash
+scripts/lint type-comments-check --base-ref origin/main
+scripts/lint fmt-snapshots <edited-snapshot-file-or-directory>
+scripts/lint security -r <affected-python-directory>
+```
+
+Use the PR's actual base ref for the type-comment check; this check is not currently part of
+`scripts/lint checks`. Snapshot formatting rewrites the selected files; add `--check` for
+validation only. The full `checks` command already includes the security scan.
 
 Arguments are passed to each underlying command; consult its interface rather than assuming
 all subcommands accept paths. `checks` stops at the first failure. Report that failure and any

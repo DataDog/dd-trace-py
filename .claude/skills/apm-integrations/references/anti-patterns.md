@@ -64,3 +64,16 @@ Standard: `tests/contrib/suitespec.yml`.
 
 **VCR cassettes containing real API keys** -- Ensure `filter_headers` includes
 the library's auth header name.
+
+## Debugging checks
+
+- Enable `DD_TRACE_DEBUG=true` for patching and tracing logs during a focused reproduction.
+  For narrower logging, see the logger-level guidance in `docs/contributing-testing.rst`.
+- Missing instrumentation: check `PATCH_MODULES`, the import names in `_MODULES_FOR_CONTRIB`,
+  whether `patch()` ran, and the guard or patcher state. A true `_datadog_patch` flag alone does
+  not prove the intended method was wrapped; inspect the actual wrapper and any deferred hooks.
+- Wrong service name: check module-level `config._add()`, the `INTEGRATION_CONFIGS` entry, and
+  the integration's service-selection code and configuration overrides. Registration alone does
+  not determine the effective service; use `tests/contrib/httpx/test_httpx.py` for coverage examples.
+- LLM-specific missing spans, extraction, or stream failures: use the `llmobs-integrations`
+  failure-modes reference rather than applying an APM span fix to a subscriber-owned lifecycle.

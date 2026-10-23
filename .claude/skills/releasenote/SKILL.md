@@ -28,7 +28,8 @@ the PR description, not here.
 
 ## Before writing
 
-1. Select the category from the customer-visible change and `docs/releasenotes.rst`.
+1. Select the category from the customer-visible change and `docs/releasenotes.rst`. Read the
+   category keys in `releasenotes/config.yaml` under `sections` and examples under `template`.
    Ask only when the intended behavior or compatibility impact is unresolved.
 2. Check for an existing fragment on the same topic, scoped to your current branch's own
    unmerged changes: `git diff --name-only <base>...HEAD -- releasenotes/notes/`, where

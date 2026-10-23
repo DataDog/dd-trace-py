@@ -12,7 +12,17 @@ Before writing anything, read the existing implementation that most closely matc
 | Agent runs + tool child spans | `claude_agent_sdk.py` | Library manages an agentic loop with tool calls |
 | Embeddings | `openai.py` | Library generates vector embeddings |
 
-Create `ddtrace/llmobs/_integrations/{name}.py`:
+Create `ddtrace/llmobs/_integrations/{name}.py` with a `BaseLLMIntegration` subclass and
+the provider's `_integration_name`. Supply the two provider-specific behaviors:
+
+- `_set_base_span_tags(span, **kwargs)` sets the integration's base APM attributes.
+- `_llmobs_set_tags(span, args, kwargs, response=None, operation="")` extracts LLMObs data
+  and annotates it through `_annotate_llmobs_span_data()`.
+
+Use the actual base/reference signatures and implement or inherit the behavior needed by the
+integration. For the standard patched-SDK pattern, `patch()` constructs the integration with
+`integration_config=config.<name>` and stores it on `module._datadog_integration`; wrappers
+reuse that instance. See `ddtrace/contrib/internal/anthropic/patch.py` for initialization and cleanup.
 
 Do not import the concrete `Span` class (`ddtrace.trace.Span` / `ddtrace._trace.span.Span`) into `ddtrace/llmobs/_integrations/` modules — that recreates a `product:llmobs -> product:tracing` dependency. Type the `span` parameter as `SpanData` from `ddtrace.internal.native._native` instead; it carries the attributes and struct/attribute-tag methods (`_set_attribute`, `_get_struct_tag`, `_set_struct_tag`, etc.) without pulling in `Span`.
 

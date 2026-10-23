@@ -46,6 +46,19 @@ The public SDK is `ddtrace/aiguard/__init__.py`; provider listeners are under
 `ddtrace/aiguard/integrations/`. Read current settings in `ddtrace/internal/settings/aiguard.py`
 and public descriptions in `docs/configuration.rst` rather than copying defaults here.
 
+Keep the public SDK's `__getattr__` exports lazy: settings import AI Guard constants during
+product discovery, and eager client imports would load the client/configuration/telemetry chain
+even when AI Guard is disabled. See the invariant comment in `ddtrace/aiguard/__init__.py`.
+
+Strands plugin classes are imported from `ddtrace.aiguard.integrations.strands`, not the
+top-level SDK. Legacy imports under `ddtrace.appsec.ai_guard` and
+`ddtrace.appsec.ai_guard.integrations.strands` use compatibility shims.
+Preserve their lazy forwarding and deprecation behavior when changing public exports.
+
+`new_ai_guard_client()` reads both `DD_API_KEY` and `DD_APP_KEY` from configuration and rejects
+missing credentials. Direct `AIGuardClient` construction takes both credentials explicitly;
+see `_api_client.py` for the signatures.
+
 ## How AI Guard Works: High-Level Architecture
 
 ### 1. Lazy, opt-in initialization

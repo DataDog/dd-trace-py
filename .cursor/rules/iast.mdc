@@ -23,11 +23,31 @@ IAST is also called Code Security or Runtime Code Analysis.
 - Taint ranges and propagation: `ddtrace/appsec/_iast/_taint_tracking/`, including `aspects.py`.
 - Sink registration: `ddtrace/appsec/_iast/_patch_modules.py`; detectors in `taint_sinks/`.
 - Sampling and quotas: `ddtrace/appsec/_iast/_overhead_control_engine.py`.
+- Secure marks: `ddtrace/appsec/_iast/secure_marks/`; sink filtering in `taint_sinks/_base.py`.
+- Findings and evidence: `ddtrace/appsec/_iast/reporter.py` and `_evidence_redaction/`.
 - Settings: `ddtrace/internal/settings/asm.py`; public descriptions in `docs/configuration.rst`.
 
 Read the affected implementation and matching `tests/appsec/` cases for current semantics,
 including range offsets for each string/bytes operation and secure-mark handling.
 Do not copy cross-language offset or instrumentation assumptions into Python code.
+
+## Taint and secure marks
+
+A taint range carries its start, length, source, and vulnerability-specific secure marks.
+Propagation must preserve the appropriate ranges and marks through the actual string/bytes
+operation; see `_taint_tracking/aspects.py` and `_taint_tracking/taint_tracking/taint_range.h`.
+
+Validator wrappers mark selected arguments after the wrapped call returns; sanitizer wrappers
+mark the returned value. Read `secure_marks/validators.py` and `sanitizers.py` before changing
+these contracts; the validator wrapper does not interpret the return value as a success boolean.
+
+`VulnerabilityBase.is_tainted_pyobject()` suppresses a value whose ranges all carry that sink's
+secure mark. A mark for one vulnerability does not make the value safe for every sink.
+Check `tests/appsec/iast/secure_marks/` and the native `test_secure_marks.cpp` cases when editing this path.
+
+For missing findings, check request sampling, per-request quotas, deduplication, and excluded
+origins as well as propagation. These gates live in the overhead controller, sink base, and
+`asm.py`; an absent report alone does not demonstrate that a value was untainted.
 
 ## Import timing and native changes
 

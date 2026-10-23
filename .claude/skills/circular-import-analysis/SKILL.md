@@ -33,6 +33,27 @@ Trace the exact imported names in both directions. Prefer moving code to its own
 shared types, or using a registration/event interface. Choose the smallest change that restores
 clear ownership; do not add abstractions simply to satisfy a generic pattern.
 
+Choose the repair that matches the names crossing the boundary:
+
+- **Shared types/constants:** Extract only the common contract into a module that imports neither
+  implementation; both callers import it. `ddtrace/_trace/types.py` is a small local example,
+  not a universal destination for shared types.
+- **Dependency inversion:** Put a `Protocol` or callback contract at the lower-level boundary;
+  let the higher-level owner supply the implementation. `Product` and `ProductManager` in
+  `ddtrace/internal/products.py` illustrate a manager calling a lifecycle contract.
+- **Startup registration:** If the lower-level module imports its owner only to register itself,
+  expose an initializer and call it from the existing startup owner once dependencies are ready.
+  Preserve enablement, ordering, and repeated-initialization behavior.
+- **Split a mixed module:** Separate low-level types/primitives from high-level orchestration.
+  Have both the orchestrator and outside consumers import the primitive module, which must not
+  import back through the orchestrator or a re-export that recreates the cycle.
+- **Move to the owner:** If a helper already belongs to one side, move it there and update callers
+  instead of introducing another abstraction. Preserve public import paths and behavior.
+
+For an enabled startup path, follow `ddtrace/internal/aiguard/product.py` through
+`ddtrace/aiguard/_initialization.py`. This is not a blanket ban on automatic registration:
+`ddtrace/internal/core/subscriber.py` deliberately registers some subscribers at class definition.
+
 Do not hide a dependency cycle with function-local imports or `TYPE_CHECKING` guards.
 This does not ban deliberate lazy imports for startup or gevent compatibility unrelated to a cycle.
 Rerun the analysis after the fix. For foundation/product imports, also use

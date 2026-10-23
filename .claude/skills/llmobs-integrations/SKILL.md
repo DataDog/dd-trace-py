@@ -21,6 +21,7 @@ integrations may use direct spans. Follow the current integration's lifecycle de
 - Streaming: `ddtrace/internal/utils/streaming.py`.
 - Shared extraction: `ddtrace/llmobs/_integrations/utils.py`.
 - Span annotation and structural types: `ddtrace/llmobs/_utils.py`, `_span.py`, and `types.py`.
+- Metric and field keys: `ddtrace/llmobs/_constants.py`.
 
 ## Invariants
 
@@ -35,6 +36,30 @@ integrations may use direct spans. Follow the current integration's lifecycle de
 Read only the reference relevant to the change:
 [implementation](references/implementation-guide.md), [failure modes](references/failure-modes.md),
 [testing](references/testing-guide.md), or [Nova Sonic duplex streams](references/nova-sonic.md).
+
+## Extraction checklist
+
+Prefer `_annotate_llmobs_span_data()` over writing LLMObs payload fields through raw
+`span._set_ctx_items()`. The helper updates the meta-struct and handles propagation-related
+context fields. Integration-private state may still use context items; preserve the distinction.
+
+Check the fields appropriate to the span kind and provider; do not invent unavailable data:
+
+| Field | Expected content |
+|-------|------------------|
+| `kind` | Actual operation kind, such as `llm`, `agent`, `workflow`, or `tool` |
+| `name` | Operation/agent display name when available; preserve start-time agent attribution |
+| `model_name`, `model_provider` | Model identity for model operations, following the provider's extraction rules |
+| `input_messages`, `output_messages` | Message lists with roles, text, tool calls/results, and supported media |
+| `input_value`, `output_value` | Non-message payloads when the span kind uses them; follow the existing integration |
+| `input_documents`, `output_documents` | Document payloads for operations such as embeddings or retrieval |
+| `metadata` | Sanitized request parameters and response scalars such as `finish_reason` |
+| `metrics` | Normalized usage, cache tokens and billable server-tool counts when reported |
+| `tool_definitions` | Tools offered to the model, distinct from tool calls/results in messages |
+
+Read `ddtrace/llmobs/types.py` for `Message`, `ToolCall`, `ToolResult`, `ToolDefinition`,
+`AudioPart`, and `ImagePart`. Use the shared media guards and extraction rules in the
+implementation guide rather than constructing unbounded inline payloads.
 
 ### Response Metadata
 

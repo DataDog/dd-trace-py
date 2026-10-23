@@ -49,6 +49,14 @@ Explain non-obvious invariants, not the next line of code. Do not add `AIDEV-*` 
 
 ## Task-specific guidance
 
+Repository landmarks: tracing implementation is in `ddtrace/_trace/`, public tracing exports
+in `ddtrace/trace/`, and startup in `ddtrace/bootstrap/`. Contrib patch modules live in
+`ddtrace/contrib/internal/`; LLMObs extraction classes live in `ddtrace/llmobs/_integrations/`.
+
+Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
+`ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, Rust in
+`src/native/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
+
 Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
 Skill files live at `.claude/skills/<name>/SKILL.md`. Read the relevant sections and references
 for the task, rather than loading every guide. Source code defines current signatures and defaults.
