@@ -55,8 +55,6 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_desired(fast_copy_desired);
 }
 
-
-
 void
 Datadog::seed_fast_copy_profiler_stats()
 {
@@ -397,7 +395,6 @@ void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     seed_fast_copy_profiler_stats();
-
 
     // (Re)install once only if we still own both handlers. Coordinated chains
     // (faulthandler/crashtracker) are fine; foreign owners (abseil/vLLM, PyTorch/CUDA)

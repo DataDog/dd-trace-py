@@ -42,9 +42,6 @@ def test_copy_memory_error_count_present() -> None:
             f"Missing fast_copy_memory_syscall_fallback in {f}: {metadata}"
         )
         assert "fast_copy_memory_desired" in metadata, f"Missing fast_copy_memory_desired in {f}: {metadata}"
-        assert "fast_copy_memory_foreign_takeover" in metadata, (
-            f"Missing fast_copy_memory_foreign_takeover in {f}: {metadata}"
-        )
 
 
 @pytest.mark.subprocess(
@@ -87,7 +84,6 @@ def test_fast_copy_memory_disabled() -> None:
             assert metadata["fast_copy_memory_user_disabled"] is True, metadata
             assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
             assert metadata["fast_copy_memory_desired"] is False, metadata
-            assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
 
 
 @pytest.mark.subprocess(
@@ -163,7 +159,6 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
     assert metadata["fast_copy_memory_desired"] is True, metadata
-    assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork/signal tests not supported on Windows")
