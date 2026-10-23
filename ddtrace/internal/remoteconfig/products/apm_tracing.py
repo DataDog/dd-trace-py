@@ -40,6 +40,12 @@ def config_key(payload: Payload) -> int:
 class APMTracingCallback(RCCallback):
     """Remote config callback for APM tracing configuration."""
 
+    def __init__(self) -> None:
+        # Payloads only carry the records that changed since the last poll, so
+        # the active records must be retained across calls to compute the
+        # merged configuration that the product handlers expect.
+        self._config_map: dict[str, Payload] = {}
+
     @staticmethod
     def _get_chained_lib_config(config_map: t.Mapping[str, Payload]) -> t.ChainMap:
         """Get merged library configuration from all configs, ordered by precedence."""
@@ -57,7 +63,7 @@ class APMTracingCallback(RCCallback):
         return ChainMap(*lib_configs)
 
     def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap:
-        config_map: dict[str, Payload] = {}
+        config_map = self._config_map
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
@@ -65,10 +71,14 @@ class APMTracingCallback(RCCallback):
 
             log.debug("Received APM tracing config payload: %s", payload)
 
+            # Drop any previous version of the record so that an update is
+            # re-inserted as the newest entry, and a record that is deleted or
+            # retargeted away from this service no longer contributes.
+            previous = config_map.pop(payload.metadata.id, None)
+
             if payload.content is None:
-                if payload.metadata.id in config_map:
+                if previous is not None:
                     log.debug("Deleting config %s", payload.metadata.id)
-                    config_map.pop(payload.metadata.id)
                 continue
 
             service_target = t.cast(t.Optional[dict], payload.content.get("service_target"))
