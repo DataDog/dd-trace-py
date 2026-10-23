@@ -469,7 +469,9 @@ def test_otel_metrics_export_does_not_generate_client_spans():
         capture_otlp_traces("http/protobuf", port=14318) as trace_requests,
     ):
         get_meter("test.metrics").create_counter("test.metric").add(1)
-        assert get_meter_provider().force_flush()
+        meter_provider = get_meter_provider()
+        assert meter_provider.force_flush()
+        meter_provider.shutdown()
         tracer.flush()
 
     assert "test.metric" in metric_names(metric_requests)
