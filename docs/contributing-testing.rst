@@ -154,33 +154,26 @@ To fix this:
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
 
-On Linux systems, when running tests with ``scripts/ddtest`` or ``scripts/run-tests``, you may encounter permission errors or file ownership issues. This happens because the container user's ID and group ID must match your local user's IDs.
+On Linux, Docker bind mounts keep the host's file ownership, so the container user must be able to write to
+your checkout. The test image runs as ``bits`` (uid 1000). When your host uid is not 1000, ``scripts/ddtest``
+(and therefore ``scripts/run-tests``) automatically runs the container command with your host uid and gid instead.
 
-To fix this, create a ``docker-compose.override.yml`` file in the repository root with the following contents:
-
-.. code-block:: yaml
-
-    services:
-      testrunner:
-        user: "${UID}:${GID}"
-
-Then, ensure your shell has the ``UID`` and ``GID`` environment variables set:
+To choose the ids explicitly, set ``DD_TEST_USER``:
 
 .. code-block:: bash
 
-    export UID="$(id -u)"
-    export GID="$(id -g)"
+    $ DD_TEST_USER=1234:1234 scripts/ddtest
 
-You can add these exports to your shell profile (e.g., ``.bashrc``, ``.zshrc``) to make them persistent across sessions.
-
-After setting this up, run your tests normally:
+Set ``DD_TEST_USER`` to an empty value to keep the image's default ``bits`` user:
 
 .. code-block:: bash
 
-    $ scripts/ddtest
-    $ scripts/run-tests
+    $ DD_TEST_USER= scripts/ddtest
 
-The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
+If you previously added a ``docker-compose.override.yml`` that sets ``user: "${UID}:${GID}"`` for the
+``testrunner`` service, you can delete it. ``scripts/ddtest`` now handles this itself, and that override does
+not work with the current image, because the image's home directory, which holds the Python and Rust
+toolchains, is not accessible to other users.
 
 Build issues when running tests
 -------------------------------

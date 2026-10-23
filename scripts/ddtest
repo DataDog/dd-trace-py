@@ -182,19 +182,21 @@ else
     if [ -n "$RUN_AS_USER" ]; then
         RUN_AS_UID="${RUN_AS_USER%%:*}"
         RUN_AS_GID="${RUN_AS_USER##*:}"
-        # Remapping `bits` with usermod would re-chown the whole toolchain on every
-        # run, so start as root and drop to the requested ids instead. The
-        # toolchains stay owned by uid 1000 and are only read; Cargo's writable
-        # state moves to the mounted cache. Before dropping privileges, hand the
-        # home directory itself (not its contents) to the new uid so dotfiles such
-        # as ~/.gitconfig can be written, and give the uid a passwd entry so user
-        # lookups (whoami, getpass.getuser, ssh) work. The container is removed
-        # after the run, so none of this persists.
-        SETUP_SCRIPT="chown ${RUN_AS_UID}:${RUN_AS_GID} /home/bits"
+        # Remapping `bits` with usermod would re-chown the whole home directory,
+        # including the large Python and Rust toolchains, on every run. Instead,
+        # start as root and drop to the requested ids; the toolchains stay owned
+        # by uid 1000 and are only read. Before dropping privileges, hand over
+        # the few paths that must be writable: the home directory itself (not its
+        # contents) for dotfiles such as ~/.gitconfig, and ~/.cargo, which is
+        # small and is where `cargo install` puts tools the build runs from
+        # ~/.cargo/bin. Also give the uid a passwd entry so user lookups
+        # (whoami, getpass.getuser, ssh) work. The container is removed after the
+        # run, so none of this persists.
+        SETUP_SCRIPT="chown ${RUN_AS_UID}:${RUN_AS_GID} /home/bits && chown -R ${RUN_AS_UID}:${RUN_AS_GID} /home/bits/.cargo"
         SETUP_SCRIPT+=" && { getent group ${RUN_AS_GID} >/dev/null || echo 'ddtest:x:${RUN_AS_GID}:' >> /etc/group; }"
         SETUP_SCRIPT+=" && { getent passwd ${RUN_AS_UID} >/dev/null || echo 'ddtest:x:${RUN_AS_UID}:${RUN_AS_GID}::/home/bits:/bin/bash' >> /etc/passwd; }"
         INNER_SCRIPT=$(printf '%q' "$CONTAINER_SCRIPT")
-        CONTAINER_SCRIPT="$SETUP_SCRIPT && exec setpriv --reuid ${RUN_AS_UID} --regid ${RUN_AS_GID} --clear-groups env HOME=/home/bits CARGO_HOME=/home/bits/.cache/cargo bash -c $INNER_SCRIPT"
+        CONTAINER_SCRIPT="$SETUP_SCRIPT && exec setpriv --reuid ${RUN_AS_UID} --regid ${RUN_AS_GID} --clear-groups env HOME=/home/bits bash -c $INNER_SCRIPT"
         DOCKER_USER_ARGS=(--user root)
     fi
 
