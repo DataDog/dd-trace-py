@@ -5,11 +5,25 @@ from typing import Optional
 
 from envier import Env
 
-from ddtrace.internal.native import get_configuration_from_disk
 from ddtrace.internal.settings.env import dd_environ
 
 
-FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()
+def _load_stable_config() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:
+    """Load fleet/local stable configuration from disk, if any is present.
+
+    This side stays agnostic about how the configuration is read: the reader
+    (``ddtrace.internal.native.get_configuration_from_disk``) owns the fast path
+    that skips the disk read when no stable-configuration file exists on disk.
+    """
+    from ddtrace.internal.native import get_configuration_from_disk
+
+    return get_configuration_from_disk()
+
+
+FLEET_CONFIG: dict[str, str]
+LOCAL_CONFIG: dict[str, str]
+FLEET_CONFIG_IDS: dict[str, Optional[str]]
+FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = _load_stable_config()
 ENV_CONFIG = dd_environ
 
 
