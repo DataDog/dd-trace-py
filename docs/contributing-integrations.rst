@@ -89,6 +89,45 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+Web framework request hooks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Synchronous callback integrations can use
+``ddtrace.contrib.internal.trace_utils.run_web_framework_request`` to delegate
+request execution to the shared tracing lifecycle. Bottle uses this helper from
+its supported plugin callback::
+
+    return run_web_framework_request(
+        callback, args, kwargs, prepare=prepare_request, complete=complete_request
+    )
+
+The integration owns framework hooks and metadata extraction. The shared helper
+owns tracing enablement and context entry/exit. ``TracingSubscriber`` and
+``WebFrameworkRequestSubscriber`` own propagation, span creation, HTTP tagging,
+error recording, and span completion through ``core.context_with_event``.
+
+``prepare()`` returns a new ``WebFrameworkRequestEvent`` for each invocation,
+before span creation. It supplies request fields and integration-specific tracing
+inputs such as the operation, service, and route. ``complete(event, result, error)``
+runs inside the context after the callback returns or raises, before HTTP tags are
+applied. The error is the original exception, or ``None`` on success; the result is
+``None`` when the callback raised. Hooks update event fields without accessing spans.
+They must not consume response bodies or retain exceptions and tracebacks.
+
+When tracing is disabled under the shared enablement policy, the helper invokes the
+callback without running either hook. An ordinary preparation error skips tracing
+and invokes the callback once. An ordinary completion error leaves the callback's
+result or exception intact, and the existing subscriber still completes tracing.
+Process-control exceptions from hooks are not suppressed. These hooks provide
+metadata, not an enforcement or blocking channel.
+
+For Bottle, completion remains at the matched route callback boundary, before
+response iteration and later response hooks. Returned iterables are passed through
+unchanged. Bottle continues to manage plugin ordering, skip settings, installation,
+and callback-cache resets. This helper is synchronous; asynchronous handlers and
+request lifetimes spanning multiple framework callbacks need a separate adapter.
+
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 

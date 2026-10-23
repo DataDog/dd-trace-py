@@ -29,6 +29,27 @@ This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
+## Bottle plugin boundary
+
+Bottle's TracePlugin.apply wraps only the route callback using
+trace_utils.run_web_framework_request. The integration supplies a prepare hook that
+creates WebFrameworkRequestEvent and a complete hook that interprets Bottle's
+result or exception and updates response fields. The shared helper owns tracing
+enablement and context entry/exit; the existing tracing subscribers own propagation,
+span creation, HTTP tagging, error recording, and span completion.
+
+Prepare runs before span creation. Complete runs inside the context before HTTP
+metadata is applied: do not move metadata extraction to a subclass's on_ended
+handler, because base handlers run first. Ordinary hook exceptions must not replace
+the application's result or exception. Disabled tracing skips both extraction hooks.
+
+Read request metadata from Bottle's request at callback entry. The span ends when
+the callback returns or raises, including when it returns an unconsumed iterable.
+Later response hooks, streaming failures, and transport delivery are outside this
+boundary. Do not wrap router.match, _cast, or _make_callback to extend it. Bottle
+manages plugin ordering, skip settings, installation, removal, and callback-cache
+resets. The shared helper only supports synchronous callback lifetimes.
+
 ## Specialized duplex SDKs
 
 For independently consumed input/output streams, see
