@@ -1,0 +1,3 @@
+features:
+  - |
+    LLM Observability: Span events now include the propagated trace origin (e.g. ``rum``, ``synthetics``) when one is present, so LLM Observability spans can be attributed to the product that started the trace.
