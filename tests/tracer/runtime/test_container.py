@@ -3,15 +3,15 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.runtime.container import CGroupInfo
-from ddtrace.internal.runtime.container import get_container_info
+from ddtrace.internal.container import CGroupInfo
+from ddtrace.internal.container import get_container_info
 
 from .utils import cgroup_line_valid_test_cases
 
 
 def get_mock_open(read_data=None):
     mock_open = mock.mock_open(read_data=read_data)
-    return mock.patch("ddtrace.internal.runtime.container.open", mock_open)
+    return mock.patch("ddtrace.internal.container.open", mock_open)
 
 
 def test_cgroup_info_init():
@@ -336,8 +336,8 @@ def test_get_container_info_with_pid(pid, file_name):
         mock_open.assert_called_once_with(file_name, mode="r")
 
 
-@mock.patch("ddtrace.internal.runtime.container.CGroupInfo.from_line")
-@mock.patch("ddtrace.internal.runtime.container.log")
+@mock.patch("ddtrace.internal.container.CGroupInfo.from_line")
+@mock.patch("ddtrace.internal.container.log")
 def test_get_container_info_exception(mock_log, mock_from_line):
     exception = Exception()
     mock_from_line.side_effect = exception

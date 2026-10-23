@@ -34,6 +34,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
+from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import LOG_ATTR_ENV
@@ -52,7 +53,6 @@ from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.service import ServiceStatusError
