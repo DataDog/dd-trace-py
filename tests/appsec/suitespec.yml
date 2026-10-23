@@ -7,16 +7,19 @@ components:
     - '!ddtrace/appsec/_iast/*'
     - '!ddtrace/appsec/sca/*'
     - ddtrace/internal/settings/asm.py
+    - ddtrace/internal/security/*
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/_iast/*
     - ddtrace/appsec/_iast_context.py
+    - ddtrace/internal/security/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
   sca:
     - ddtrace/appsec/sca/*
+    - ddtrace/internal/security/*
 suites:
   appsec:
     paths:

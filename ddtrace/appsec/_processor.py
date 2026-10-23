@@ -19,7 +19,6 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf import DDWafContext
-from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -36,6 +35,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
