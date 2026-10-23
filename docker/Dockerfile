@@ -5,7 +5,13 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG UV_VERSION=0.11.14
+ARG UV_VERSION=0.13.5
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --only-upgrade ca-certificates \
+    && update-ca-certificates -f \
+    && rm -rf /var/lib/apt/lists/*
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -62,12 +68,11 @@ RUN apt-get update \
       libsqliteodbc \
       libssh-dev \
       python3.13-dev \
-      nodejs \
-      npm \
       patch \
       sccache \
       unixodbc-dev \
       wget \
+      xz-utils \
       zlib1g-dev \
       awscli \
     # Install azure-functions-core-tools-4, only supported on amd64 architecture for Linux
@@ -98,8 +103,26 @@ RUN apt-get update \
       && apt-get update \
       && apt-get install -y --no-install-recommends google-chrome-stable ; \
     fi \
+    # Use the updated OS bundle instead of awscli's older bundled roots.
+    && ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/python3/dist-packages/awscli/botocore/cacert.pem \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
+
+# Debian's Node package embeds roots that predate the October 2026 removal.
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) node_arch=x64 ;; \
+      arm64) node_arch=arm64 ;; \
+      *) echo "Unsupported Node architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    archive="node-v22.23.4-linux-${node_arch}.tar.xz"; \
+    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
+      -o "/tmp/${archive}" "https://nodejs.org/dist/v22.23.4/${archive}"; \
+    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
+      -o /tmp/SHASUMS256.txt https://nodejs.org/dist/v22.23.4/SHASUMS256.txt; \
+    (cd /tmp && grep " ${archive}\$" SHASUMS256.txt | sha256sum -c -); \
+    tar -xJf "/tmp/${archive}" --strip-components=1 -C /usr/local; \
+    rm -f "/tmp/${archive}" /tmp/SHASUMS256.txt
 
 # Install ddtest before switching to the unprivileged user because /usr/local/bin is root-owned.
 ARG DDTEST_VERSION=1.7.0
@@ -135,6 +158,21 @@ RUN git clone --depth 1 --branch "v2.8.9" https://github.com/pyenv/pyenv "${PYEN
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
+# Upgrade every pyenv interpreter's certificate bundle, including pip's vendored copy.
+# Python 3.8 and 3.9 cannot install pip 26, so copy the fixed certifi bundle there too.
+RUN set -eu; \
+    for python in "${PYENV_ROOT}"/versions/*/bin/python; do \
+      "$python" -m pip install --no-cache-dir -U "certifi>=2026.10.19"; \
+      if "$python" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then \
+        "$python" -m pip install --no-cache-dir -U "pip>=26.2.2"; \
+      fi; \
+      cp "$("$python" -c 'import certifi; print(certifi.where())')" \
+        "$("$python" -c 'import pathlib, pip; print(pathlib.Path(pip.__file__).parent / "_vendor/certifi/cacert.pem")')"; \
+    done
+
 RUN pip install --no-cache-dir -U "uv==${UV_VERSION}"
+
+# Python builds and installers can leave extracted CA bundles in temporary files.
+RUN find /tmp -maxdepth 1 -type f -name 'tmp*' -delete
 
 CMD ["/bin/bash"]
