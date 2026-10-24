@@ -20,6 +20,10 @@ from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.http_tags import set_instrumentation_resource
+from ddtrace._trace.http_tags import set_url_tags_server
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
@@ -47,7 +51,6 @@ from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
-from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
@@ -88,6 +91,7 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
+_DJANGO_OTEL_ROUTE_APPLIED = "_dd.django_otel_route_applied"
 _WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
@@ -431,7 +435,7 @@ def _on_traced_request_context_started_flask(ctx):
     # span before start_response so timed-out workers keep the route resource.
     req_span = ctx.find_item("req_span")
     if req_span is not None and req_span is not current_span:
-        _set_flask_request_route_tags(flask_request, req_span)
+        _set_flask_request_route_tags(flask_request, req_span, flask_config)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
@@ -559,7 +563,7 @@ def _set_flask_request_tags(request, span, flask_config):
         if span.name.split(".")[-1] == "request":
             span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
-        _set_flask_request_route_tags(request, span)
+        _set_flask_request_route_tags(request, span, flask_config)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -571,15 +575,21 @@ def _set_flask_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _set_flask_request_route_tags(request, span):
+def _set_flask_request_route_tags(request, span, flask_config):
     try:
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = " ".join((request.method, request.endpoint))
+            set_instrumentation_resource(span, " ".join((request.method, request.endpoint)))
             span._set_attribute(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
+            # Only the request span is a server span; the flask.application span keeps the Datadog resource.
+            if config._otel_trace_semantics_enabled and span.name.split(".")[-1] == "request":
+                set_method_tag(span, request.method)
+                set_otel_resource_for_method(span, request.method, request.url_rule.rule)
+                span._set_attribute(http.ROUTE, request.url_rule.rule)
+            else:
+                set_instrumentation_resource(span, " ".join((request.method, request.url_rule.rule)))
             span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
             # Side-channel tag for backend resource remapping; resource itself stays app-local.
             if request.script_root:
@@ -603,7 +613,7 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
     #      we still want `GET /product/<int:product_id>` grouped together,
     #      even if it is a 404
     if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
-        span.resource = " ".join((request.method, code))
+        set_instrumentation_resource(span, " ".join((request.method, code)))
 
     response_cookies = _cookies_from_response_headers(headers)
     _on_web_framework_finish_request(
@@ -650,7 +660,9 @@ def _on_request_span_modifier(
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `
     # RequestContext` and possibly a url rule
-    span.resource = " ".join((request.method, request.path))
+    # OTel span names never use the raw path; the span is named from the method and route later.
+    if not config._otel_trace_semantics_enabled:
+        set_instrumentation_resource(span, " ".join((request.method, request.path)))
 
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
@@ -742,16 +754,40 @@ def _on_django_cache(
         _finish_span(ctx, exc_info)
 
 
-def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
+def _on_django_func_wrapped(args, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
             span_from_context(ctx)._ignore_exception(exc)
+
+    if not config._otel_trace_semantics_enabled or not args:
+        return
+
+    request = args[0]
+    resolver_match = getattr(request, "resolver_match", None)
+    route = getattr(resolver_match, "route", None)
+    if not route:
+        return
+
+    request_spans = getattr(request, "scope", {}).get("datadog", {}).get("request_spans", ())
+    request_span = request_spans[0] if request_spans else span_from_context(ctx)._parent
+    while request_span is not None:
+        if (
+            request_span.span_type == SpanTypes.WEB
+            and request_span.get_tag(COMPONENT) == config.django.integration_name
+        ):
+            if request_span._get_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED) == route:
+                return
+            set_otel_resource_for_method(request_span, request.method, route)
+            request_span._set_attribute(http.ROUTE, route)
+            request_span._set_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED, route)
+            return
+        request_span = request_span._parent
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         span_from_context(ctx)._set_attribute(tk, tv)
-    _set_url_tag(django_config, span_from_context(ctx), url, query)
+    set_url_tags_server(django_config, span_from_context(ctx), url, query)
 
 
 def _on_django_after_request_headers_post(
@@ -1052,7 +1088,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
     span = span_from_context(ctx)
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
-    span.resource = f"{req.method} {path}"
+    set_instrumentation_resource(span, f"{req.method} {path}")
     trace_utils.set_http_meta(
         span,
         azure_functions_config,
@@ -1368,6 +1404,11 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
+    if config._otel_trace_semantics_enabled:
+        record_initial_instrumentation_resource(span, ctx.get_item("resource"))
+        # Replace the raw-path resource before span modifiers or sampling can observe it.
+        if scope.get("type") == "http" and scope.get("method"):
+            set_otel_resource_for_method(span, scope["method"])
 
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}
@@ -1781,6 +1822,9 @@ def _on_proxy_request_end(
             span._set_attribute("ray.serve.request.type", request_type)
 
         if request_type == "http":
+            if config._otel_trace_semantics_enabled:
+                # Ray omits span.kind for inbound HTTP; OTLP export needs it to report a server span.
+                span._set_attribute(SPAN_KIND, SpanKind.SERVER)
             trace_utils.set_http_meta(
                 span,
                 config.ray,
