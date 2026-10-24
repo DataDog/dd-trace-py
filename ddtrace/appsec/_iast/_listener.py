@@ -22,6 +22,9 @@ from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._langchain import _on_langchain_patch
 from ddtrace.appsec._iast._langchain import _on_langchain_unpatch
 from ddtrace.appsec._iast._langchain import langchain_listen
+from ddtrace.appsec._iast._request_lifecycle import IastRequestCompletingSubscriber
+from ddtrace.appsec._iast._request_lifecycle import IastRequestReadySubscriber
+from ddtrace.appsec._iast._request_lifecycle import find_request_owner
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_sql_patch
 from ddtrace.internal import core
@@ -36,14 +39,18 @@ def iast_instrumentation_listen() -> None:
     core.on("langchain.unpatch", _on_langchain_unpatch)
 
 
+def _iast_context_end(
+    ctx: core.ExecutionContext,
+    _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    if not find_request_owner(ctx):
+        _iast_end_request(ctx)
+
+
 def iast_listen() -> None:
     iast_instrumentation_listen()
-
-    def _iast_context_end(
-        ctx: core.ExecutionContext,
-        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    ) -> None:
-        _iast_end_request(ctx)
+    IastRequestReadySubscriber.register()
+    IastRequestCompletingSubscriber.register()
 
     core.on("grpc.client.response.message", _on_grpc_response)
     core.on("grpc.server.response.message", _on_grpc_server_response)
@@ -74,7 +81,6 @@ def iast_listen() -> None:
     core.on("starlette.route.handle", _iast_instrument_starlette_scope)
 
     core.on("context.ended.wsgi.__call__", _iast_context_end)
-    core.on("context.ended.asgi.__call__", _iast_context_end)
 
     # Sink points
     core.on("db_query_check", _on_report_sqli)

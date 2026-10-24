@@ -45,6 +45,7 @@ suites:
       - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
+      - ddtrace/contrib/_events/web_request.py
       - tests/appsec/iast/*
     retry: 2
     snapshot: true
@@ -408,6 +409,9 @@ suites:
       - '@tracing'
       - '@appsec'
       - '@appsec_iast'
+      - '@asgi'
+      - '@fastapi'
+      - ddtrace/contrib/_events/web_request.py
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
       - tests/appsec/integrations/conftest.py

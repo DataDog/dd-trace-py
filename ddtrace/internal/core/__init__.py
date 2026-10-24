@@ -123,7 +123,9 @@ after the ``with`` block exits. For example::
         return future
 """
 
+from collections.abc import Iterator
 from collections.abc import Mapping
+from contextlib import contextmanager
 import contextvars
 import logging
 import types
@@ -360,6 +362,22 @@ _CURRENT_CONTEXT: contextvars.ContextVar[ExecutionContext[Event]] = contextvars.
     "ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID)
 )
 _CONTEXT_CLASS = ExecutionContext
+
+
+@contextmanager
+def activate_context(ctx: ExecutionContext[Event]) -> Iterator[None]:
+    """Run a callback with its saved context current, then restore the caller.
+
+    This neither re-enters nor ends the context, so no lifecycle events are dispatched.
+    """
+    if _CURRENT_CONTEXT.get() is ctx:
+        yield
+        return
+    token = _CURRENT_CONTEXT.set(ctx)
+    try:
+        yield
+    finally:
+        _CURRENT_CONTEXT.reset(token)
 
 
 def _reset_context() -> None:
