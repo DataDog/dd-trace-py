@@ -443,9 +443,9 @@ def test_otel_resource_attributes_version_tag():
     ],
 )
 def test_parse_otlp_headers(raw, expected):
-    from ddtrace.internal.writer.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _parse_otlp_headers
 
-    assert NativeWriter._parse_otlp_headers(raw) == expected
+    assert _parse_otlp_headers(raw) == expected
 
 
 @pytest.mark.subprocess()
@@ -748,13 +748,13 @@ def test_a_collector_of_your_own_gets_your_headers_and_no_api_key():
 def test_native_trace_metrics_exporter_sends_custom_headers_and_the_api_key():
     """End of the chain: what the exporter is handed, not just what the config derives."""
     from ddtrace.internal.settings._opentelemetry import otel_config
-    from ddtrace.internal.writer.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _parse_otlp_headers
     from ddtrace.trace import tracer
 
     writer = tracer._span_aggregator.writer
     assert writer._otlp_metrics_endpoint == "https://otlp.datadoghq.com/v1/metrics"
 
-    # This is the value, and the parse of it, that _create_exporter hands to libdatadog.
-    headers = dict(NativeWriter._parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
+    # This is the value, and the parse of it, that _build_exporter_builder hands to libdatadog.
+    headers = dict(_parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
     assert headers["x-team"] == "apm"
     assert headers["dd-api-key"] == "foobarkey"
