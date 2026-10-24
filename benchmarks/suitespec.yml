@@ -240,6 +240,16 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  litellm_usage_metrics:
+    paths:
+      - ddtrace/contrib/internal/litellm/_usage_metrics.py
+      - ddtrace/contrib/internal/litellm/_usage_metrics_writer.py
+      - src/native/ai_usage.rs
+      - src/native/Cargo.lock
+      - benchmarks/litellm_usage_metrics/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   rate_limiter:
     paths:
       - '@bootstrap'
