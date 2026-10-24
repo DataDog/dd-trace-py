@@ -131,8 +131,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
             The rediscluster integration should not use it.
@@ -148,8 +147,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The rediscluster integration should use it.
@@ -165,8 +163,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == "mysvc", span.service
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v1(self):
+    def _scenario_test_unspecified_service_v1(self):
         """
         v1: When a service isn't specified, we should end up with
             the default span service name
@@ -177,24 +174,19 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"))
-    def test_env_user_specified_rediscluster_service(self):
+    def _scenario_test_env_user_specified_rediscluster_service(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == "myrediscluster", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="app-svc", DD_REDISCLUSTER_SERVICE="myrediscluster")
-    )
-    def test_service_precedence(self):
+    def _scenario_test_service_precedence(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == "myrediscluster"
 
         self.reset()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_span_name_v0_schema(self):
+    def _scenario_test_span_name_v0_schema(self):
         """
         v0: When a service isn't specified, we should end up with
             the default span service name
@@ -205,8 +197,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.name == "redis.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_span_name_v1_schema(self):
+    def _scenario_test_span_name_v1_schema(self):
         """
         v1: When a service isn't specified, we should end up with
             the default span service name
@@ -262,3 +253,72 @@ def test_full_command_in_resource_config(tracer, redis_client):
             p.set("pipeline-cmd1", 1)
             p.set("pipeline-cmd2", 2)
             p.execute()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_TestGrokzenRedisClusterPatch_user_specified_service_v0():
+    from tests.contrib.rediscluster.test import TestGrokzenRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestGrokzenRedisClusterPatch, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_TestGrokzenRedisClusterPatch_user_specified_service_v1():
+    from tests.contrib.rediscluster.test import TestGrokzenRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestGrokzenRedisClusterPatch, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TestGrokzenRedisClusterPatch_unspecified_service_v1():
+    from tests.contrib.rediscluster.test import TestGrokzenRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestGrokzenRedisClusterPatch, "_scenario_test_unspecified_service_v1") as case:
+        case._scenario_test_unspecified_service_v1()
+
+
+@pytest.mark.subprocess(env=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"), out=None, err=None, command=True)
+def test_TestGrokzenRedisClusterPatch_env_user_specified_rediscluster_service():
+    from tests.contrib.rediscluster.test import TestGrokzenRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestGrokzenRedisClusterPatch, "_scenario_test_env_user_specified_rediscluster_service") as case:
+        case._scenario_test_env_user_specified_rediscluster_service()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_REDISCLUSTER_SERVICE="myrediscluster"), out=None, err=None, command=True
+)
+def test_TestGrokzenRedisClusterPatch_service_precedence():
+    from tests.contrib.rediscluster.test import TestGrokzenRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestGrokzenRedisClusterPatch, "_scenario_test_service_precedence") as case:
+        case._scenario_test_service_precedence()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TestGrokzenRedisClusterPatch_span_name_v0_schema():
+    from tests.contrib.rediscluster.test import TestGrokzenRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestGrokzenRedisClusterPatch, "_scenario_test_span_name_v0_schema") as case:
+        case._scenario_test_span_name_v0_schema()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TestGrokzenRedisClusterPatch_span_name_v1_schema():
+    from tests.contrib.rediscluster.test import TestGrokzenRedisClusterPatch
+    from tests.process import case_context
+
+    with case_context(TestGrokzenRedisClusterPatch, "_scenario_test_span_name_v1_schema") as case:
+        case._scenario_test_span_name_v1_schema()

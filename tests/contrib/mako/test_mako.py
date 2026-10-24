@@ -4,6 +4,7 @@ import os.path
 from mako.lookup import TemplateLookup
 from mako.runtime import Context
 from mako.template import Template
+import pytest
 
 from ddtrace.contrib.internal.mako.constants import DEFAULT_TEMPLATE_NAME
 from ddtrace.contrib.internal.mako.patch import patch
@@ -114,8 +115,7 @@ class MakoTest(TracerTestCase):
 
         return spans
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_service_name_default(self):
+    def _scenario_test_schematized_service_name_default(self):
         """
         default/v0: When a service name is specified by the user
             The mako integration should use it as the service name
@@ -123,8 +123,7 @@ class MakoTest(TracerTestCase):
         spans = self._schema_test_spans()
         assert spans[0].service == "mysvc", f"Expected service name to be mysvc, got {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_service_name_v0(self):
+    def _scenario_test_schematized_service_name_v0(self):
         """
         default/v0: When a service name is specified by the user
             The mako integration should use it as the service name
@@ -132,8 +131,7 @@ class MakoTest(TracerTestCase):
         spans = self._schema_test_spans()
         assert spans[0].service == "mysvc", f"Expected service name to be mysvc, got {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_service_name_v1(self):
+    def _scenario_test_schematized_service_name_v1(self):
         """
         v1: When a service name is specified by the user
             The mako integration should use it as the service name
@@ -141,8 +139,7 @@ class MakoTest(TracerTestCase):
         spans = self._schema_test_spans()
         assert spans[0].service == "mysvc", f"Expected service name to be mysvc, got {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess()
-    def test_schematized_unspecified_service_name_default(self):
+    def _scenario_test_schematized_unspecified_service_name_default(self):
         """
         When a service name is specified by the user
             The mako integration should use it as the service name
@@ -150,8 +147,7 @@ class MakoTest(TracerTestCase):
         spans = self._schema_test_spans()
         assert spans[0].service == "mako", f"Expected service name to be mysvc, got {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_name_v0(self):
+    def _scenario_test_schematized_unspecified_service_name_v0(self):
         """
         v0/default: When a service name is specified by the user
             The mako integration should use it as the service name
@@ -159,8 +155,7 @@ class MakoTest(TracerTestCase):
         spans = self._schema_test_spans()
         assert spans[0].service == "mako", f"Expected service name to be mysvc, got {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_name_v1(self):
+    def _scenario_test_schematized_unspecified_service_name_v1(self):
         """
         v1: When a service name is specified by the user
             The mako integration should use it as the service name
@@ -169,3 +164,73 @@ class MakoTest(TracerTestCase):
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME, (
             f"Expected service name to be mysvc, got {spans[0].service}"
         )
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_MakoTest_schematized_service_name_default():
+    from tests.contrib.mako.test_mako import MakoTest
+    from tests.process import case_context
+
+    with case_context(MakoTest, "_scenario_test_schematized_service_name_default") as case:
+        case._scenario_test_schematized_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_MakoTest_schematized_service_name_v0():
+    from tests.contrib.mako.test_mako import MakoTest
+    from tests.process import case_context
+
+    with case_context(MakoTest, "_scenario_test_schematized_service_name_v0") as case:
+        case._scenario_test_schematized_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_MakoTest_schematized_service_name_v1():
+    from tests.contrib.mako.test_mako import MakoTest
+    from tests.process import case_context
+
+    with case_context(MakoTest, "_scenario_test_schematized_service_name_v1") as case:
+        case._scenario_test_schematized_service_name_v1()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True, test_assertions=True)
+def test_MakoTest_schematized_unspecified_service_name_default():
+    from tests.contrib.mako.test_mako import MakoTest
+    from tests.process import case_context
+
+    with case_context(MakoTest, "_scenario_test_schematized_unspecified_service_name_default") as case:
+        case._scenario_test_schematized_unspecified_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_MakoTest_schematized_unspecified_service_name_v0():
+    from tests.contrib.mako.test_mako import MakoTest
+    from tests.process import case_context
+
+    with case_context(MakoTest, "_scenario_test_schematized_unspecified_service_name_v0") as case:
+        case._scenario_test_schematized_unspecified_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_MakoTest_schematized_unspecified_service_name_v1():
+    from tests.contrib.mako.test_mako import MakoTest
+    from tests.process import case_context
+
+    with case_context(MakoTest, "_scenario_test_schematized_unspecified_service_name_v1") as case:
+        case._scenario_test_schematized_unspecified_service_name_v1()

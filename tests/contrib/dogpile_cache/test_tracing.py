@@ -203,7 +203,7 @@ def test_get_or_create_kwarg_only(region):
         ("mysvc", "v1", "mysvc", "dogpile.command"),
     ],
 )
-def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
+def test_schematization(python_process, schema_tuples):
     service_override, schema_version, expected_service, expected_operation = schema_tuples
     code = f"""
 import pytest
@@ -240,6 +240,9 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service_override
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, out.decode()
     assert err == b"", err.decode()

@@ -1,26 +1,18 @@
-from ddtrace.contrib.internal.azure_functions.patch import get_version
-from ddtrace.contrib.internal.azure_functions.patch import patch
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-try:
-    from ddtrace.contrib.internal.azure_functions.patch import unpatch
-except ImportError:
-    unpatch = None
-from tests.contrib.patch import PatchTestCase
-
-
-class TestAzureFunctionsPatch(PatchTestCase.Base):
-    __integration_name__ = "azure_functions"
-    __module_name__ = "azure.functions"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, azure_functions):
-        self.assert_wrapped(azure_functions.FunctionApp.get_functions)
-
-    def assert_not_module_patched(self, azure_functions):
-        self.assert_not_wrapped(azure_functions.FunctionApp.get_functions)
-
-    def assert_not_module_double_patched(self, azure_functions):
-        self.assert_not_double_wrapped(azure_functions.FunctionApp.get_functions)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestAzureFunctionsPatch(python_process, scenario):
+    module = "tests.contrib.azure_functions"
+    module += "._test_azure_functions_patch_scenarios"
+    case = "TestAzureFunctionsPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

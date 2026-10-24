@@ -1,4 +1,5 @@
 from flask import Flask
+import pytest
 
 from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
 from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
@@ -328,8 +329,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         app = Flask(__name__)
         self.cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematization_service_default(self):
+    def _scenario_test_schematization_service_default(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -341,8 +341,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected service name to be 'mysvc' but was '{span.service}'"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematization_service_v0(self):
+    def _scenario_test_schematization_service_v0(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -354,8 +353,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected service name to be 'mysvc' but was '{span.service}'"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematization_service_v1(self):
+    def _scenario_test_schematization_service_v1(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -370,8 +368,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected service name to be 'mysvc' but was '{span.service}'"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematization_undefined_service_default(self):
+    def _scenario_test_schematization_undefined_service_default(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -383,8 +380,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         for span in spans:
             assert span.service == "flask-cache", f"Expected service name to be 'flask-cache' but was '{span.service}'"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematization_undefined_service_v0(self):
+    def _scenario_test_schematization_undefined_service_v0(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -396,8 +392,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         for span in spans:
             assert span.service == "flask-cache", f"Expected service name to be 'flask-cache' but was '{span.service}'"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematization_undefined_service_v1(self):
+    def _scenario_test_schematization_undefined_service_v1(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -411,8 +406,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
                 f"Expected service name to be 'internal.schema.DEFAULT_SEVICE_NAME' but was '{span.service}'"
             )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematization_operation_name_v0(self):
+    def _scenario_test_schematization_operation_name_v0(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -426,8 +420,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
                 f"Expected span name to be 'flask_cache.command' but was '{span.name}'"
             )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematization_operation_name_v1(self):
+    def _scenario_test_schematization_operation_name_v1(self):
         """
         When a service name is specified by the user
             The flask-cache integration should use it as the service name
@@ -440,3 +433,79 @@ class TestFlaskCacheSchematization(TracerTestCase):
             assert span.name == "flask_cache.command", (
                 f"Expected span name to be 'flask_cache.command' but was '{span.name}'"
             )
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_TestFlaskCacheSchematization_schematization_service_default():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_service_default") as case:
+        case._scenario_test_schematization_service_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_TestFlaskCacheSchematization_schematization_service_v0():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_service_v0") as case:
+        case._scenario_test_schematization_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_TestFlaskCacheSchematization_schematization_service_v1():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_service_v1") as case:
+        case._scenario_test_schematization_service_v1()
+
+
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_TestFlaskCacheSchematization_schematization_undefined_service_default():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_undefined_service_default") as case:
+        case._scenario_test_schematization_undefined_service_default()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TestFlaskCacheSchematization_schematization_undefined_service_v0():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_undefined_service_v0") as case:
+        case._scenario_test_schematization_undefined_service_v0()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TestFlaskCacheSchematization_schematization_undefined_service_v1():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_undefined_service_v1") as case:
+        case._scenario_test_schematization_undefined_service_v1()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TestFlaskCacheSchematization_schematization_operation_name_v0():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_operation_name_v0") as case:
+        case._scenario_test_schematization_operation_name_v0()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TestFlaskCacheSchematization_schematization_operation_name_v1():
+    from tests.contrib.flask_cache.test import TestFlaskCacheSchematization
+    from tests.process import case_context
+
+    with case_context(TestFlaskCacheSchematization, "_scenario_test_schematization_operation_name_v1") as case:
+        case._scenario_test_schematization_operation_name_v1()

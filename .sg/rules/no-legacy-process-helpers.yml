@@ -1,0 +1,14 @@
+id: no-legacy-process-helpers
+message: "Use pytest.mark.subprocess or the typed python_process fixture; this process helper is retired"
+severity: error
+language: python
+files:
+  - "tests/**/*.py"
+  - "scripts/contrib-patch-tests.py"
+rule:
+  kind: identifier
+  regex: "^(SubprocessTestCase|PatchTestCase|subprocesstest|run_in_subprocess|call_program|run_python_code_in_subprocess|ddtrace_run_python_code_in_subprocess|create_ddtrace_subprocess_dir_and_return_test_pyfile)$"
+note: |
+  Use the subprocess marker for self-contained child scenarios and python_process
+  for generated applications, parent-side assertions, or managed processes.
+  Direct subprocess calls remain valid when process behavior itself is tested.

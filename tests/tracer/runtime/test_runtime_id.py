@@ -293,7 +293,7 @@ def test_get_process_role_spawn_child() -> None:
     assert get_process_role() == "worker", get_process_role()
 
 
-def test_refresh_identity_changes_runtime_id(run_python_code_in_subprocess):
+def test_refresh_identity_changes_runtime_id(python_process):
     """refresh_identity() is the non-fork trigger for a new logical process instance."""
     code = """
 from ddtrace.internal import runtime
@@ -306,11 +306,13 @@ assert isinstance(new_runtime_id, str)
 assert new_runtime_id != runtime_id
 assert new_runtime_id == runtime.get_runtime_id()
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_refresh_identity_does_not_record_fork_lineage(run_python_code_in_subprocess):
+def test_refresh_identity_does_not_record_fork_lineage(python_process):
     """Unlike a fork, refresh_identity() must not make get_process_role() report a fake worker.
 
     The previous runtime ID was not a real parent process, so recording it as one would
@@ -339,11 +341,13 @@ assert runtime.get_process_role() is None
 assert runtime.get_parent_runtime_id() is None
 assert runtime.get_ancestor_runtime_id() is None
 """
-    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_refresh_identity_preserves_spawned_lineage(run_python_code_in_subprocess):
+def test_refresh_identity_preserves_spawned_lineage(python_process):
     import os
 
     env = os.environ.copy()
@@ -367,11 +371,13 @@ assert runtime.get_ancestor_runtime_id() == "ancestor-session-id"
 assert runtime.get_parent_runtime_id() == "parent-session-id"
 assert runtime.get_process_role() == "worker"
 """
-    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_refresh_identity_preserves_fork_lineage(run_python_code_in_subprocess):
+def test_refresh_identity_preserves_fork_lineage(python_process):
     import os
 
     env = os.environ.copy()
@@ -408,11 +414,13 @@ if child == 0:
 _, status = os.waitpid(child, 0)
 assert os.WEXITSTATUS(status) == 42
 """
-    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_refresh_identity_notifies_subscribers(run_python_code_in_subprocess):
+def test_refresh_identity_notifies_subscribers(python_process):
     code = """
 from ddtrace.internal import runtime
 
@@ -431,7 +439,9 @@ runtime.refresh_identity()
 
 assert seen == [runtime.get_runtime_id()]
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
@@ -734,7 +744,7 @@ def test_identity_refresh_listener_noop_outside_microvm():
 
 
 @pytest.mark.parametrize("microvm_image_arn", ["", "   "])
-def test_identity_refresh_listener_noop_for_blank_microvm_env(run_python_code_in_subprocess, microvm_image_arn):
+def test_identity_refresh_listener_noop_for_blank_microvm_env(python_process, microvm_image_arn):
     """Blank MicroVM image ARN env values must not enable identity refresh."""
     code = """
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
@@ -755,11 +765,13 @@ assert runtime.get_runtime_id() == runtime_id
 """
     env = os.environ.copy()
     env["AWS_LAMBDA_MICROVM_IMAGE_ARN"] = microvm_image_arn
-    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_refresh_identity_notifies_refresh_subscribers(run_python_code_in_subprocess):
+def test_refresh_identity_notifies_refresh_subscribers(python_process):
     code = """
 from ddtrace.internal import runtime
 
@@ -778,12 +790,14 @@ runtime.refresh_identity()
 
 assert seen == [runtime.get_runtime_id()]
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
 def test_refresh_identity_callback_failure_does_not_block_other_refresh_callbacks(
-    run_python_code_in_subprocess,
+    python_process,
 ):
     code = """
 from ddtrace.internal import runtime
@@ -808,11 +822,13 @@ runtime_id = runtime.get_runtime_id()
 assert ("raises", runtime_id) in seen
 assert ("refresh", runtime_id) in seen
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_refresh_identity_raise_on_error_notifies_successful_callback(run_python_code_in_subprocess):
+def test_refresh_identity_raise_on_error_notifies_successful_callback(python_process):
     code = """
 from ddtrace.internal import runtime
 
@@ -828,11 +844,13 @@ runtime.refresh_identity(raise_on_error=True)
 
 assert seen == [runtime.get_runtime_id()]
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_refresh_identity_propagates_refresh_callback_failure(run_python_code_in_subprocess):
+def test_refresh_identity_propagates_refresh_callback_failure(python_process):
     code = """
 from ddtrace.internal import runtime
 
@@ -862,7 +880,9 @@ new_runtime_id = runtime.get_runtime_id()
 assert new_runtime_id != old_runtime_id
 assert ordinary_callbacks == [new_runtime_id]
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 

@@ -258,8 +258,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
             The elasticsearch integration should not use it.
@@ -272,8 +271,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The elasticsearch integration should use it.
@@ -286,24 +284,21 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_unspecified_service_v0(self):
+    def _scenario_test_unspecified_service_v0(self):
         self.create_index(self.es)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
         assert spans[0].service == "elasticsearch"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v1(self):
+    def _scenario_test_unspecified_service_v1(self):
         self.create_index(self.es)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
-    def test_service_mapping_config(self):
+    def _scenario_test_service_mapping_config(self):
         """
         When a user specifies a service mapping it should override the default
         """
@@ -509,3 +504,70 @@ class _Spy:
     def close(self):
         self._log.append(True)
         self._gen.close()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_ElasticsearchPatchTest_user_specified_service_v0():
+    from tests.contrib.elasticsearch.test_elasticsearch import ElasticsearchPatchTest
+    from tests.process import case_context
+
+    with case_context(ElasticsearchPatchTest, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_ElasticsearchPatchTest_user_specified_service_v1():
+    from tests.contrib.elasticsearch.test_elasticsearch import ElasticsearchPatchTest
+    from tests.process import case_context
+
+    with case_context(ElasticsearchPatchTest, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ElasticsearchPatchTest_unspecified_service_v0():
+    from tests.contrib.elasticsearch.test_elasticsearch import ElasticsearchPatchTest
+    from tests.process import case_context
+
+    with case_context(ElasticsearchPatchTest, "_scenario_test_unspecified_service_v0") as case:
+        case._scenario_test_unspecified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ElasticsearchPatchTest_unspecified_service_v1():
+    from tests.contrib.elasticsearch.test_elasticsearch import ElasticsearchPatchTest
+    from tests.process import case_context
+
+    with case_context(ElasticsearchPatchTest, "_scenario_test_unspecified_service_v1") as case:
+        case._scenario_test_unspecified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_ElasticsearchPatchTest_service_mapping_config():
+    from tests.contrib.elasticsearch.test_elasticsearch import ElasticsearchPatchTest
+    from tests.process import case_context
+
+    with case_context(ElasticsearchPatchTest, "_scenario_test_service_mapping_config") as case:
+        case._scenario_test_service_mapping_config()

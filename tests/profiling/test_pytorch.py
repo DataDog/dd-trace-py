@@ -4,8 +4,8 @@ import sys
 
 import pytest
 
+from tests.process import run_process
 from tests.profiling.collector import pprof_utils
-from tests.utils import call_program
 
 
 try:
@@ -29,9 +29,11 @@ def test_call_script_pytorch_cpu(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
-    _, stderr, exitcode, _ = call_program(
+    _process_result = run_process(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_cpu.py")
     )
+    stderr = _process_result.stderr
+    exitcode = _process_result.returncode
     assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
 
     profile = pprof_utils.parse_newest_profile(filename)
@@ -67,9 +69,11 @@ def test_call_script_pytorch_gpu(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
-    _, stderr, exitcode, _ = call_program(
+    _process_result = run_process(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
+    stderr = _process_result.stderr
+    exitcode = _process_result.returncode
     assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
 
     profile = pprof_utils.parse_newest_profile(filename)

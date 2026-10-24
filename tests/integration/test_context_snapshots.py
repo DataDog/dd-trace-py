@@ -8,7 +8,7 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 
 @snapshot()
-def test_context_multiprocess(run_python_code_in_subprocess):
+def test_context_multiprocess(python_process):
     # Testing example from our docs:
     # https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#tracing-across-processes
     code = """
@@ -39,7 +39,10 @@ if __name__ == "__main__":
     main()
     """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code)
+    _process_result = python_process(code=code)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
     assert stdout == b"", stderr
     assert stderr == b"", stdout

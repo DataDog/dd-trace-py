@@ -145,7 +145,7 @@ def test_inject_llmobs_parent_id_nested_llmobs_spans(llmobs):
     assert last_llmobs_span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(last_llmobs_span.span_id)
 
 
-def test_propagate_correct_llmobs_parent_id_simple(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_propagate_correct_llmobs_parent_id_simple(python_process, llmobs):
     """Test that the correct LLMObs parent ID is propagated in the headers in a simple distributed scenario.
     Service A (subprocess) has a root LLMObs span and a non-LLMObs child span.
     Service B (outside subprocess) has a LLMObs span.
@@ -167,7 +167,10 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -177,7 +180,7 @@ print(json.dumps(headers))
         assert get_llmobs_parent_id(span) == headers["_DD_LLMOBS_SPAN_ID"]
 
 
-def test_propagate_llmobs_parent_id_complex(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_propagate_llmobs_parent_id_complex(python_process, llmobs):
     """Test that the correct LLMObs parent ID is propagated in the headers in a more complex trace.
     Service A (subprocess) has a root LLMObs span and a non-LLMObs child span.
     Service B (outside subprocess) has a non-LLMObs local root span and a LLMObs child span.
@@ -199,7 +202,10 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -211,7 +217,7 @@ print(json.dumps(headers))
             assert get_llmobs_parent_id(llm_span) == headers["_DD_LLMOBS_SPAN_ID"]
 
 
-def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(python_process, llmobs):
     """Test that the correct LLMObs parent ID (None) is extracted from the headers in a simple distributed scenario.
     Service A (subprocess) has spans, but none are LLMObs spans.
     Service B (outside subprocess) has a LLMObs span.
@@ -233,7 +239,10 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -271,7 +280,7 @@ def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
     assert f"llmobs_parent_id:{last_llmobs_span.span_id}" in request_headers.get("tracestate")
 
 
-def test_activate_distributed_headers_propagate_simple(ddtrace_run_python_code_in_subprocess, llmobs_no_ml_app):
+def test_activate_distributed_headers_propagate_simple(python_process, llmobs_no_ml_app):
     """Test that the correct LLMObs parent ID is propagated in the headers in a simple distributed scenario.
     Service A (subprocess) has a root LLMObs span and a non-LLMObs child span.
     Service B (outside subprocess) has a LLMObs span.
@@ -298,7 +307,10 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -310,7 +322,7 @@ print(json.dumps(headers))
         assert get_llmobs_trace_id(span) == headers["_DD_LLMOBS_TRACE_ID"]
 
 
-def test_activate_distributed_headers_propagate_complex(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_activate_distributed_headers_propagate_complex(python_process, llmobs):
     """Test that the correct LLMObs parent ID is propagated in the headers in a more complex trace.
     Service A (subprocess) has a root LLMObs span and a non-LLMObs child span.
     Service B (outside subprocess) has a non-LLMObs local root span and a LLMObs child span.
@@ -333,7 +345,10 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -346,7 +361,7 @@ print(json.dumps(headers))
             assert get_llmobs_ml_app(llm_span) == "test-app"  # should be the one set by `llmobs` fixture
 
 
-def test_activate_distributed_headers_for_local_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_activate_distributed_headers_for_local_ml_app(python_process, llmobs):
     """
     Tests that the local ML app is used when injecting distributed headers from service A, and that
     service B's span uses that ML app from the propagated headers.
@@ -368,7 +383,10 @@ print(json.dumps(headers))
 
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -377,7 +395,7 @@ print(json.dumps(headers))
         assert get_llmobs_ml_app(llm_span) == "local-ml-app"
 
 
-def test_activate_distributed_headers_for_twice_propagated_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_activate_distributed_headers_for_twice_propagated_ml_app(python_process, llmobs):
     """
     Tests that if there is a propagate ML app in service A from some other unknown service, that
     the value of that propagated ML app is used when injecting distributed headers from service A.
@@ -401,7 +419,10 @@ print(json.dumps(headers))
 
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -411,7 +432,7 @@ print(json.dumps(headers))
         assert get_llmobs_ml_app(llm_span) == "twice-propagated-ml-app"
 
 
-def test_activate_distributed_headers_for_session_id(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_activate_distributed_headers_for_session_id(python_process, llmobs):
     """A session_id set on service A's root LLMObs span is inherited by service B's LLMObs child span."""
     code = """
 import json
@@ -429,7 +450,10 @@ print(json.dumps(headers))
 """
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -438,7 +462,7 @@ print(json.dumps(headers))
         assert get_llmobs_session_id(llm_span) == "session-from-service-a"
 
 
-def test_activate_distributed_headers_local_session_id_wins(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_activate_distributed_headers_local_session_id_wins(python_process, llmobs):
     """An explicit session_id on service B's span overrides the session propagated from service A."""
     code = """
 import json
@@ -456,7 +480,10 @@ print(json.dumps(headers))
 """
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -465,9 +492,7 @@ print(json.dumps(headers))
         assert get_llmobs_session_id(llm_span) == "local-session"
 
 
-def test_activate_distributed_headers_propagates_trace_default_over_override(
-    ddtrace_run_python_code_in_subprocess, llmobs
-):
+def test_activate_distributed_headers_propagates_trace_default_over_override(python_process, llmobs):
     """When an override child is active at injection time, service B inherits the trace default
     (the first session set in the trace), not the active override.
     """
@@ -490,7 +515,10 @@ print(json.dumps(headers))
 """
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
@@ -499,9 +527,7 @@ print(json.dumps(headers))
         assert get_llmobs_session_id(llm_span) == "trace-session"
 
 
-def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
-    ddtrace_run_python_code_in_subprocess, llmobs
-):
+def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(python_process, llmobs):
     """Test that the correct LLMObs parent ID (None) is extracted from the headers in a simple distributed scenario.
     Service A (subprocess) has spans, but none are LLMObs spans.
     Service B (outside subprocess) has a LLMObs span.
@@ -521,7 +547,10 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env.update({"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_ENABLED": "1", "DD_TRACE_ENABLED": "0"})
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())

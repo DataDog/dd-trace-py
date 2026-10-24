@@ -975,9 +975,7 @@ def test_worker_custom_service_name_schematized():
         "meta.celery.reply_to",
     ]
 )
-def test_distributed_tracing_propagation_no_producer_span(
-    ddtrace_run_python_code_in_subprocess, distributed_tracing_enabled
-):
+def test_distributed_tracing_propagation_no_producer_span(python_process, distributed_tracing_enabled):
     """Snapshot: one trace across producer and worker when send_task is used without registering the task locally."""
     producer_code = f"""
 import os
@@ -1037,7 +1035,9 @@ celery_app.worker_main(["worker", "--loglevel=info"])
         while _inspect_app.control.inspect(timeout=1).active() is None and waited < max_wait:
             time.sleep(0.5)
             waited += 0.5
-        _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(producer_code, env=env, timeout=30)
+        _process_result = python_process(producer_code, env=env, timeout=30, ddtrace_run=True)
+        stderr = _process_result.stderr
+        status = _process_result.returncode
         assert status == 0, stderr.decode() if stderr else "producer failed"
     finally:
         try:

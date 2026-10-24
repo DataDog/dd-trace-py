@@ -8,36 +8,9 @@ from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import _cluster_id_by_bootstrap
 from ddtrace.contrib.internal.kafka.patch import _get_cluster_id
-from ddtrace.contrib.internal.kafka.patch import get_version
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
-from tests.contrib.patch import PatchTestCase
-
-
-class TestKafkaPatch(PatchTestCase.Base):
-    __integration_name__ = "kafka"
-    __module_name__ = "confluent_kafka"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, confluent_kafka):
-        self.assert_wrapped(confluent_kafka.Producer({}).produce)
-        self.assert_wrapped(confluent_kafka.Consumer({"group.id": "group_id"}).poll)
-        self.assert_wrapped(confluent_kafka.SerializingProducer({}).produce)
-        self.assert_wrapped(confluent_kafka.DeserializingConsumer({"group.id": "group_id"}).poll)
-
-    def assert_not_module_patched(self, confluent_kafka):
-        self.assert_not_wrapped(confluent_kafka.Producer({}).produce)
-        self.assert_not_wrapped(confluent_kafka.Consumer({"group.id": "group_id"}).poll)
-        self.assert_not_wrapped(confluent_kafka.SerializingProducer({}).produce)
-        self.assert_not_wrapped(confluent_kafka.DeserializingConsumer({"group.id": "group_id"}).poll)
-
-    def assert_not_module_double_patched(self, confluent_kafka):
-        self.assert_not_double_wrapped(confluent_kafka.Producer({}).produce)
-        self.assert_not_double_wrapped(confluent_kafka.Consumer({"group.id": "group_id"}).poll)
-        self.assert_not_double_wrapped(confluent_kafka.SerializingProducer({}).produce)
-        self.assert_not_double_wrapped(confluent_kafka.DeserializingConsumer({"group.id": "group_id"}).poll)
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
 @pytest.fixture(autouse=True)
@@ -100,3 +73,18 @@ class TestGetClusterId:
         """Without a prior producer call the consumer still returns ''."""
         consumer = self._make_consumer("localhost:9092")
         assert _get_cluster_id(consumer, "test-topic") == ""
+
+
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestKafkaPatch(python_process, scenario):
+    module = "tests.contrib.kafka"
+    module += "._test_kafka_patch_scenarios"
+    case = "TestKafkaPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

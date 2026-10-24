@@ -1,43 +1,33 @@
-from ddtrace.contrib.internal.azure_cosmos.patch import get_version
-from ddtrace.contrib.internal.azure_cosmos.patch import patch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-try:
-    from ddtrace.contrib.internal.azure_cosmos.patch import unpatch
-except ImportError:
-    unpatch = None
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestAzureCosmosPatch(python_process, scenario):
+    module = "tests.contrib.azure_cosmos"
+    module += "._test_azure_cosmos_patch_scenarios"
+    case = "TestAzureCosmosPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()
 
 
-class TestAzureCosmosPatch(PatchTestCase.Base):
-    __integration_name__ = "azure_cosmos"
-    __module_name__ = "azure.cosmos"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, azure_cosmos):
-        self.assert_wrapped(azure_cosmos._synchronized_request.SynchronizedRequest)
-
-    def assert_not_module_patched(self, azure_cosmos):
-        self.assert_not_wrapped(azure_cosmos._synchronized_request.SynchronizedRequest)
-
-    def assert_not_module_double_patched(self, azure_cosmos):
-        self.assert_not_double_wrapped(azure_cosmos._synchronized_request.SynchronizedRequest)
-
-
-class TestAzureCosmosAioPatch(PatchTestCase.Base):
-    __integration_name__ = "azure_cosmos"
-    __module_name__ = "azure.cosmos.aio"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, azure_cosmos):
-        self.assert_wrapped(azure_cosmos._asynchronous_request.AsynchronousRequest)
-
-    def assert_not_module_patched(self, azure_cosmos):
-        self.assert_not_wrapped(azure_cosmos._asynchronous_request.AsynchronousRequest)
-
-    def assert_not_module_double_patched(self, azure_cosmos):
-        self.assert_not_double_wrapped(azure_cosmos._asynchronous_request.AsynchronousRequest)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestAzureCosmosAioPatch(python_process, scenario):
+    module = "tests.contrib.azure_cosmos"
+    module += "._test_azure_cosmos_patch_scenarios"
+    case = "TestAzureCosmosAioPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

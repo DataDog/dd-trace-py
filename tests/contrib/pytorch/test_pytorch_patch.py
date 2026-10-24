@@ -1,27 +1,9 @@
 import pytest
 
 import ddtrace.contrib.internal.pytorch.patch as pytorch_patch
-from ddtrace.contrib.internal.pytorch.patch import get_version
 from ddtrace.contrib.internal.pytorch.patch import patch
 from ddtrace.contrib.internal.pytorch.patch import unpatch
-from tests.contrib.patch import PatchTestCase
-
-
-class TestPyTorchPatch(PatchTestCase.Base):
-    __integration_name__ = "pytorch"
-    __module_name__ = "torch"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, torch):
-        assert getattr(torch, "_datadog_patch", False) is True
-
-    def assert_not_module_patched(self, torch):
-        assert getattr(torch, "_datadog_patch", False) is False
-
-    def assert_not_module_double_patched(self, torch):
-        assert getattr(torch, "_datadog_patch", False) is True
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
@@ -91,3 +73,18 @@ def test_install_runs_unconditionally(monkeypatch):
         assert _distributed._installed is True
     finally:
         unpatch()
+
+
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestPyTorchPatch(python_process, scenario):
+    module = "tests.contrib.pytorch"
+    module += "._test_pytorch_patch_scenarios"
+    case = "TestPyTorchPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

@@ -139,7 +139,7 @@ def test_rollback(connection, tracer, test_spans):
     ],
 )
 @pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
-def test_schematized_service_and_operation(ddtrace_run_python_code_in_subprocess, service_schema):
+def test_schematized_service_and_operation(python_process, service_schema):
     service, schema = service_schema
     code = """
 import pytest
@@ -166,7 +166,10 @@ if __name__ == "__main__":
     if service:
         env["DD_SERVICE"] = service
 
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 

@@ -346,7 +346,7 @@ async def test_basic_asgi_sets_ip_tags_from_peer_ip(scope, test_spans):
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_span_attribute_schema_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_span_attribute_schema_operation_name(python_process, schema_version):
     expected_span_name = {None: "asgi.request", "v0": "asgi.request", "v1": "http.server.request"}[schema_version]
     code = f"""
 import pytest
@@ -388,7 +388,10 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (err, out)
     assert err == b"", f"STDOUT\n{out.decode()}\nSTDERR\n{err.decode()}"
 
@@ -398,7 +401,7 @@ if __name__ == "__main__":
     [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
 )
 @pytest.mark.snapshot()
-def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+def test_span_attribute_schema_service_name(python_process, schema_version, global_service_name):
     inferred_base_service = DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
     expected_service_name = global_service_name or inferred_base_service
     code = f"""
@@ -443,7 +446,10 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = global_service_name
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (err, out)
     assert err == b""
 

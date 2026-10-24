@@ -6,11 +6,10 @@ import pytest
 from ddtrace.contrib.internal.google_adk.patch import GOOGLE_ADK_VERSION
 from ddtrace.contrib.internal.google_adk.patch import _live_tool_dispatch_target
 from ddtrace.contrib.internal.google_adk.patch import _tool_dispatch_target
-from ddtrace.contrib.internal.google_adk.patch import get_version
 from ddtrace.contrib.internal.google_adk.patch import patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch
 from ddtrace.internal.utils.wrappers import iswrapped
-from tests.contrib.patch import PatchTestCase
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
 def _tool_dispatcher(module):
@@ -28,50 +27,6 @@ def _live_tool_dispatchers(module):
     if live_target is None:
         return []
     return [getattr(importlib.import_module(f"{module.__name__}.{live_target[0]}"), live_target[1])]
-
-
-class TestGoogleADKPatch(PatchTestCase.Base):
-    __integration_name__ = "google_adk"
-    __module_name__ = "google.adk"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, module):
-        self.assert_wrapped(module.runners.Runner.run_async)
-        self.assert_wrapped(module.runners.Runner.run_live)
-        self.assert_wrapped(_tool_dispatcher(module))
-        for live_dispatcher in _live_tool_dispatchers(module):
-            self.assert_wrapped(live_dispatcher)
-        if GOOGLE_ADK_VERSION < (2, 7, 0):
-            self.assert_wrapped(getattr(module.flows.llm_flows.functions, "__call_tool_live"))
-        self.assert_wrapped(module.code_executors.BuiltInCodeExecutor.execute_code)
-        self.assert_wrapped(module.code_executors.VertexAiCodeExecutor.execute_code)
-        self.assert_wrapped(module.code_executors.UnsafeLocalCodeExecutor.execute_code)
-
-    def assert_not_module_patched(self, module):
-        self.assert_not_wrapped(module.runners.Runner.run_async)
-        self.assert_not_wrapped(module.runners.Runner.run_live)
-        self.assert_not_wrapped(_tool_dispatcher(module))
-        for live_dispatcher in _live_tool_dispatchers(module):
-            self.assert_not_wrapped(live_dispatcher)
-        if GOOGLE_ADK_VERSION < (2, 7, 0):
-            self.assert_not_wrapped(getattr(module.flows.llm_flows.functions, "__call_tool_live"))
-        self.assert_not_wrapped(module.code_executors.BuiltInCodeExecutor.execute_code)
-        self.assert_not_wrapped(module.code_executors.VertexAiCodeExecutor.execute_code)
-        self.assert_not_wrapped(module.code_executors.UnsafeLocalCodeExecutor.execute_code)
-
-    def assert_not_module_double_patched(self, module):
-        self.assert_not_double_wrapped(module.runners.Runner.run_async)
-        self.assert_not_double_wrapped(module.runners.Runner.run_live)
-        self.assert_not_double_wrapped(_tool_dispatcher(module))
-        for live_dispatcher in _live_tool_dispatchers(module):
-            self.assert_not_double_wrapped(live_dispatcher)
-        if GOOGLE_ADK_VERSION < (2, 7, 0):
-            self.assert_not_double_wrapped(getattr(module.flows.llm_flows.functions, "__call_tool_live"))
-        self.assert_not_double_wrapped(module.code_executors.BuiltInCodeExecutor.execute_code)
-        self.assert_not_double_wrapped(module.code_executors.VertexAiCodeExecutor.execute_code)
-        self.assert_not_double_wrapped(module.code_executors.UnsafeLocalCodeExecutor.execute_code)
 
 
 @pytest.mark.parametrize(
@@ -165,3 +120,18 @@ def test_dispatcher_wrapped_by_other_instrumentation_is_still_traced_and_kept(mo
     finally:
         unpatch()
     assert getattr(module, dispatch_name) is other_wrapper
+
+
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestGoogleADKPatch(python_process, scenario):
+    module = "tests.contrib.google_adk"
+    module += "._test_google_adk_patch_scenarios"
+    case = "TestGoogleADKPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

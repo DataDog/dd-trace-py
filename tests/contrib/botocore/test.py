@@ -191,8 +191,7 @@ class BotocoreTest(TracerTestCase):
         assert span.span_type == "http"
 
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_ec2_call_default(self):
+    def _scenario_test_schematized_ec2_call_default(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
         ec2.describe_instances()
@@ -203,8 +202,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "ec2.command"
 
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_ec2_call_v0(self):
+    def _scenario_test_schematized_ec2_call_v0(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
         ec2.describe_instances()
@@ -215,8 +213,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "ec2.command"
 
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_ec2_call_v1(self):
+    def _scenario_test_schematized_ec2_call_v1(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
         ec2.describe_instances()
@@ -227,8 +224,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "aws.ec2.request"
 
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_ec2_call_default(self):
+    def _scenario_test_schematized_unspecified_service_ec2_call_default(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
         ec2.describe_instances()
@@ -239,8 +235,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "ec2.command"
 
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_ec2_call_v0(self):
+    def _scenario_test_schematized_unspecified_service_ec2_call_v0(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
         ec2.describe_instances()
@@ -251,8 +246,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "ec2.command"
 
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_ec2_call_v1(self):
+    def _scenario_test_schematized_unspecified_service_ec2_call_v1(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
         ec2.describe_instances()
@@ -596,8 +590,7 @@ class BotocoreTest(TracerTestCase):
             ]
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
-    def test_service_name_override(self):
+    def _scenario_test_service_name_override(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
         params = {
@@ -626,8 +619,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "boto-service.s3", f"Expected 'boto-service.s3' but got {span.service}"
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_s3_client_default(self):
+    def _scenario_test_schematized_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
         s3.list_buckets()
@@ -639,8 +631,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "s3.command"
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_s3_client_v0(self):
+    def _scenario_test_schematized_s3_client_v0(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
         s3.list_buckets()
@@ -652,8 +643,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "s3.command"
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_s3_client_v1(self):
+    def _scenario_test_schematized_s3_client_v1(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
         s3.list_buckets()
@@ -665,8 +655,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "aws.s3.request"
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_s3_client_default(self):
+    def _scenario_test_schematized_unspecified_service_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
         s3.list_buckets()
@@ -678,8 +667,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "s3.command"
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_s3_client_v0(self):
+    def _scenario_test_schematized_unspecified_service_s3_client_v0(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
         s3.list_buckets()
@@ -691,8 +679,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "s3.command"
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_s3_client_v1(self):
+    def _scenario_test_schematized_unspecified_service_s3_client_v1(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
         s3.list_buckets()
@@ -1065,8 +1052,7 @@ class BotocoreTest(TracerTestCase):
         assert trace_in_message is False
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_sqs_client_default(self):
+    def _scenario_test_schematized_sqs_client_default(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
             QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=[{"Id": "1", "MessageBody": "hello"}]
@@ -1086,8 +1072,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "sqs.command"
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_sqs_client_v0(self):
+    def _scenario_test_schematized_sqs_client_v0(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
             QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=[{"Id": "1", "MessageBody": "hello"}]
@@ -1107,8 +1092,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "sqs.command"
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_sqs_client_v1(self):
+    def _scenario_test_schematized_sqs_client_v1(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
             QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=[{"Id": "1", "MessageBody": "hello"}]
@@ -1128,8 +1112,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "aws.sqs.receive"
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_sqs_client_default(self):
+    def _scenario_test_schematized_unspecified_service_sqs_client_default(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
             QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=[{"Id": "1", "MessageBody": "hello"}]
@@ -1149,8 +1132,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "sqs.command"
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_sqs_client_v0(self):
+    def _scenario_test_schematized_unspecified_service_sqs_client_v0(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
             QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=[{"Id": "1", "MessageBody": "hello"}]
@@ -1170,8 +1152,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "sqs.command"
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_sqs_client_v1(self):
+    def _scenario_test_schematized_unspecified_service_sqs_client_v1(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
             QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=[{"Id": "1", "MessageBody": "hello"}]
@@ -1452,8 +1433,7 @@ class BotocoreTest(TracerTestCase):
         lamb.delete_function(FunctionName="black-sabbath")
 
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_lambda_client_default(self):
+    def _scenario_test_schematized_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
@@ -1470,12 +1450,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "lambda.command"
 
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", endpoint_url="http://localhost:4566"
-        )
-    )
-    def test_schematized_lambda_client_v0(self):
+    def _scenario_test_schematized_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
@@ -1492,8 +1467,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "lambda.command"
 
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_lambda_client_v1(self):
+    def _scenario_test_schematized_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
@@ -1510,8 +1484,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "aws.lambda.invoke"
 
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_lambda_client_default(self):
+    def _scenario_test_schematized_unspecified_service_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
@@ -1528,8 +1501,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "lambda.command"
 
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_lambda_client_v0(self):
+    def _scenario_test_schematized_unspecified_service_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
@@ -1546,8 +1518,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "lambda.command"
 
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_lambda_client_v1(self):
+    def _scenario_test_schematized_unspecified_service_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
 
@@ -1727,8 +1698,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("params") is None
 
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_kms_client_default(self):
+    def _scenario_test_schematized_kms_client_default(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
         kms.list_keys(Limit=21)
@@ -1741,8 +1711,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "kms.command"
 
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_kms_client_v0(self):
+    def _scenario_test_schematized_kms_client_v0(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
         kms.list_keys(Limit=21)
@@ -1755,8 +1724,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "kms.command"
 
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_kms_client_v1(self):
+    def _scenario_test_schematized_kms_client_v1(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
         kms.list_keys(Limit=21)
@@ -1769,8 +1737,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "aws.kms.request"
 
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_kms_client_default(self):
+    def _scenario_test_schematized_unspecified_service_kms_client_default(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
         kms.list_keys(Limit=21)
@@ -1783,8 +1750,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "kms.command"
 
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_kms_client_v0(self):
+    def _scenario_test_schematized_unspecified_service_kms_client_v0(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
         kms.list_keys(Limit=21)
@@ -1797,8 +1763,7 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "kms.command"
 
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_kms_client_v1(self):
+    def _scenario_test_schematized_unspecified_service_kms_client_v1(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
         kms.list_keys(Limit=21)
@@ -1870,24 +1835,19 @@ class BotocoreTest(TracerTestCase):
         assert put_record_batch_span.get_tag("aws.operation") == "PutRecordBatch"
         assert put_record_batch_span.get_tag("params.Records") is None
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="true"))
-    def test_distributed_tracing_env_override(self):
+    def _scenario_test_distributed_tracing_env_override(self):
         assert config.botocore.distributed_tracing is True
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"))
-    def test_distributed_tracing_env_override_false(self):
+    def _scenario_test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
-    def test_propagation_enabled_env_override(self):
+    def _scenario_test_propagation_enabled_env_override(self):
         assert config.botocore.propagation_enabled is True
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="false"))
-    def test_propagation_enabled_env_override_false(self):
+    def _scenario_test_propagation_enabled_env_override_false(self):
         assert config.botocore.propagation_enabled is False
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"))
-    def test_invoke_legacy_context_env_override(self):
+    def _scenario_test_invoke_legacy_context_env_override(self):
         assert config.botocore.invoke_with_legacy_context is True
 
     def _test_sns(self, use_default_tracer=False):
@@ -1917,48 +1877,42 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_sns_client_default(self):
+    def _scenario_test_schematized_sns_client_default(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_sns_client_v0(self):
+    def _scenario_test_schematized_sns_client_v0(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_sns_client_v1(self):
+    def _scenario_test_schematized_sns_client_v1(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "mysvc"
         assert span.name == "aws.sns.send", span.name
 
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_sns_client_default(self):
+    def _scenario_test_schematized_unspecified_service_sns_client_default(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_sns_client_v0(self):
+    def _scenario_test_schematized_unspecified_service_sns_client_v0(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_sns_client_v1(self):
+    def _scenario_test_schematized_unspecified_service_sns_client_v1(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
         assert span.name == "aws.sns.send"
@@ -2813,8 +2767,7 @@ class BotocoreTest(TracerTestCase):
         assert decoded_record_data.endswith("\n")
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_kinesis_client_default(self):
+    def _scenario_test_schematized_kinesis_client_default(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
 
@@ -2834,8 +2787,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "kinesis.command"
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_kinesis_client_v0(self):
+    def _scenario_test_schematized_kinesis_client_v0(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
 
@@ -2854,8 +2806,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "kinesis.command"
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_kinesis_client_v1(self):
+    def _scenario_test_schematized_kinesis_client_v1(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
 
@@ -2874,8 +2825,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "aws.kinesis.send"
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_kinesis_client_default(self):
+    def _scenario_test_schematized_unspecified_service_kinesis_client_default(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
 
@@ -2894,8 +2844,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "kinesis.command"
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_kinesis_client_v0(self):
+    def _scenario_test_schematized_unspecified_service_kinesis_client_v0(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
 
@@ -2914,8 +2863,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "kinesis.command"
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_kinesis_client_v1(self):
+    def _scenario_test_schematized_unspecified_service_kinesis_client_v1(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
 
@@ -2981,8 +2929,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_secretsmanager_default(self):
+    def _scenario_test_schematized_secretsmanager_default(self):
         from moto import mock_secretsmanager
 
         with mock_secretsmanager():
@@ -2998,8 +2945,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_secretsmanager_v0(self):
+    def _scenario_test_schematized_secretsmanager_v0(self):
         from moto import mock_secretsmanager
 
         with mock_secretsmanager():
@@ -3015,8 +2961,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_secretsmanager_v1(self):
+    def _scenario_test_schematized_secretsmanager_v1(self):
         from moto import mock_secretsmanager
 
         with mock_secretsmanager():
@@ -3032,8 +2977,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "mysvc"
             assert span.name == "aws.secretsmanager.request"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_secretsmanager_default(self):
+    def _scenario_test_schematized_unspecified_service_secretsmanager_default(self):
         from moto import mock_secretsmanager
 
         with mock_secretsmanager():
@@ -3049,8 +2993,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_secretsmanager_v0(self):
+    def _scenario_test_schematized_unspecified_service_secretsmanager_v0(self):
         from moto import mock_secretsmanager
 
         with mock_secretsmanager():
@@ -3066,8 +3009,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_secretsmanager_v1(self):
+    def _scenario_test_schematized_unspecified_service_secretsmanager_v1(self):
         from moto import mock_secretsmanager
 
         with mock_secretsmanager():
@@ -3428,8 +3370,7 @@ class BotocoreTest(TracerTestCase):
 
     # Peer service tests
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_sqs_client_peer_service_in_lambda(self):
+    def _scenario_test_sqs_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for SQS when running in AWS Lambda"""
         sqs = self.session.create_client("sqs", region_name="us-east-1")
 
@@ -3442,8 +3383,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("peer.service") == "sqs.us-east-1.amazonaws.com"
 
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_s3_client_peer_service_in_lambda(self):
+    def _scenario_test_s3_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for S3 when running in AWS Lambda"""
         s3 = self.session.create_client("s3", region_name="us-east-1")
 
@@ -3457,8 +3397,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("peer.service") == "test-bucket.s3.us-east-1.amazonaws.com"
 
     @mock_dynamodb
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_dynamodb_client_peer_service_in_lambda(self):
+    def _scenario_test_dynamodb_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for DynamoDB when running in AWS Lambda"""
         dynamodb = self.session.create_client("dynamodb", region_name="us-west-2")
 
@@ -3471,8 +3410,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("peer.service") == "dynamodb.us-west-2.amazonaws.com"
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_kinesis_client_peer_service_in_lambda(self):
+    def _scenario_test_kinesis_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for Kinesis when running in AWS Lambda"""
         kinesis = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -3485,8 +3423,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("peer.service") == "kinesis.us-east-1.amazonaws.com"
 
     @mock_sns
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_sns_client_peer_service_in_lambda(self):
+    def _scenario_test_sns_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for SNS when running in AWS Lambda"""
         sns = self.session.create_client("sns", region_name="us-west-2")
 
@@ -3499,8 +3436,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("peer.service") == "sns.us-west-2.amazonaws.com"
 
     @mock_events
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_eventbridge_client_peer_service_in_lambda(self):
+    def _scenario_test_eventbridge_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for EventBridge when running in AWS Lambda"""
         events = self.session.create_client("events", region_name="us-east-1")
 
@@ -3511,3 +3447,638 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
         # Should have peer.service set to events hostname
         assert span.get_tag("peer.service") == "events.us-east-1.amazonaws.com"
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_ec2_call_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_ec2_call_default") as case:
+        case._scenario_test_schematized_ec2_call_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_ec2_call_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_ec2_call_v0") as case:
+        case._scenario_test_schematized_ec2_call_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_ec2_call_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_ec2_call_v1") as case:
+        case._scenario_test_schematized_ec2_call_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_ec2_call_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_ec2_call_default") as case:
+        case._scenario_test_schematized_unspecified_service_ec2_call_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_ec2_call_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_ec2_call_v0") as case:
+        case._scenario_test_schematized_unspecified_service_ec2_call_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_ec2_call_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_ec2_call_v1") as case:
+        case._scenario_test_schematized_unspecified_service_ec2_call_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_BOTOCORE_SERVICE="botocore"), out=None, err=None, command=True)
+def test_BotocoreTest_service_name_override():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_service_name_override") as case:
+        case._scenario_test_service_name_override()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_s3_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_s3_client_default") as case:
+        case._scenario_test_schematized_s3_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_s3_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_s3_client_v0") as case:
+        case._scenario_test_schematized_s3_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_s3_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_s3_client_v1") as case:
+        case._scenario_test_schematized_s3_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_s3_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_s3_client_default") as case:
+        case._scenario_test_schematized_unspecified_service_s3_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_s3_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_s3_client_v0") as case:
+        case._scenario_test_schematized_unspecified_service_s3_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_s3_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_s3_client_v1") as case:
+        case._scenario_test_schematized_unspecified_service_s3_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_sqs_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_sqs_client_default") as case:
+        case._scenario_test_schematized_sqs_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_sqs_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_sqs_client_v0") as case:
+        case._scenario_test_schematized_sqs_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_sqs_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_sqs_client_v1") as case:
+        case._scenario_test_schematized_sqs_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_sqs_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_sqs_client_default") as case:
+        case._scenario_test_schematized_unspecified_service_sqs_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_sqs_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_sqs_client_v0") as case:
+        case._scenario_test_schematized_unspecified_service_sqs_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_sqs_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_sqs_client_v1") as case:
+        case._scenario_test_schematized_unspecified_service_sqs_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_lambda_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_lambda_client_default") as case:
+        case._scenario_test_schematized_lambda_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", endpoint_url="http://localhost:4566"),
+    out=None,
+    err=None,
+    command=True,
+)
+def test_BotocoreTest_schematized_lambda_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_lambda_client_v0") as case:
+        case._scenario_test_schematized_lambda_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_lambda_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_lambda_client_v1") as case:
+        case._scenario_test_schematized_lambda_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_lambda_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_lambda_client_default") as case:
+        case._scenario_test_schematized_unspecified_service_lambda_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_lambda_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_lambda_client_v0") as case:
+        case._scenario_test_schematized_unspecified_service_lambda_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_lambda_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_lambda_client_v1") as case:
+        case._scenario_test_schematized_unspecified_service_lambda_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_kms_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_kms_client_default") as case:
+        case._scenario_test_schematized_kms_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_kms_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_kms_client_v0") as case:
+        case._scenario_test_schematized_kms_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_kms_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_kms_client_v1") as case:
+        case._scenario_test_schematized_kms_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_kms_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_kms_client_default") as case:
+        case._scenario_test_schematized_unspecified_service_kms_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_kms_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_kms_client_v0") as case:
+        case._scenario_test_schematized_unspecified_service_kms_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_kms_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_kms_client_v1") as case:
+        case._scenario_test_schematized_unspecified_service_kms_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="true"), out=None, err=None, command=True)
+def test_BotocoreTest_distributed_tracing_env_override():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_distributed_tracing_env_override") as case:
+        case._scenario_test_distributed_tracing_env_override()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"), out=None, err=None, command=True)
+def test_BotocoreTest_distributed_tracing_env_override_false():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_distributed_tracing_env_override_false") as case:
+        case._scenario_test_distributed_tracing_env_override_false()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"), out=None, err=None, command=True)
+def test_BotocoreTest_propagation_enabled_env_override():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_propagation_enabled_env_override") as case:
+        case._scenario_test_propagation_enabled_env_override()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_BOTOCORE_PROPAGATION_ENABLED="false"), out=None, err=None, command=True)
+def test_BotocoreTest_propagation_enabled_env_override_false():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_propagation_enabled_env_override_false") as case:
+        case._scenario_test_propagation_enabled_env_override_false()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"), out=None, err=None, command=True)
+def test_BotocoreTest_invoke_legacy_context_env_override():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_invoke_legacy_context_env_override") as case:
+        case._scenario_test_invoke_legacy_context_env_override()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_sns_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_sns_client_default") as case:
+        case._scenario_test_schematized_sns_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_sns_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_sns_client_v0") as case:
+        case._scenario_test_schematized_sns_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_sns_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_sns_client_v1") as case:
+        case._scenario_test_schematized_sns_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_sns_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_sns_client_default") as case:
+        case._scenario_test_schematized_unspecified_service_sns_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_sns_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_sns_client_v0") as case:
+        case._scenario_test_schematized_unspecified_service_sns_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_sns_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_sns_client_v1") as case:
+        case._scenario_test_schematized_unspecified_service_sns_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_kinesis_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_kinesis_client_default") as case:
+        case._scenario_test_schematized_kinesis_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_kinesis_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_kinesis_client_v0") as case:
+        case._scenario_test_schematized_kinesis_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_kinesis_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_kinesis_client_v1") as case:
+        case._scenario_test_schematized_kinesis_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_kinesis_client_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_kinesis_client_default") as case:
+        case._scenario_test_schematized_unspecified_service_kinesis_client_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_kinesis_client_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_kinesis_client_v0") as case:
+        case._scenario_test_schematized_unspecified_service_kinesis_client_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_kinesis_client_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_kinesis_client_v1") as case:
+        case._scenario_test_schematized_unspecified_service_kinesis_client_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_secretsmanager_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_secretsmanager_default") as case:
+        case._scenario_test_schematized_secretsmanager_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_secretsmanager_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_secretsmanager_v0") as case:
+        case._scenario_test_schematized_secretsmanager_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_BotocoreTest_schematized_secretsmanager_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_secretsmanager_v1") as case:
+        case._scenario_test_schematized_secretsmanager_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_secretsmanager_default():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_secretsmanager_default") as case:
+        case._scenario_test_schematized_unspecified_service_secretsmanager_default()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_secretsmanager_v0():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_secretsmanager_v0") as case:
+        case._scenario_test_schematized_unspecified_service_secretsmanager_v0()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_BotocoreTest_schematized_unspecified_service_secretsmanager_v1():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_schematized_unspecified_service_secretsmanager_v1") as case:
+        case._scenario_test_schematized_unspecified_service_secretsmanager_v1()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"), out=None, err=None, command=True)
+def test_BotocoreTest_sqs_client_peer_service_in_lambda():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_sqs_client_peer_service_in_lambda") as case:
+        case._scenario_test_sqs_client_peer_service_in_lambda()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"), out=None, err=None, command=True)
+def test_BotocoreTest_s3_client_peer_service_in_lambda():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_s3_client_peer_service_in_lambda") as case:
+        case._scenario_test_s3_client_peer_service_in_lambda()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"), out=None, err=None, command=True)
+def test_BotocoreTest_dynamodb_client_peer_service_in_lambda():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_dynamodb_client_peer_service_in_lambda") as case:
+        case._scenario_test_dynamodb_client_peer_service_in_lambda()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"), out=None, err=None, command=True)
+def test_BotocoreTest_kinesis_client_peer_service_in_lambda():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_kinesis_client_peer_service_in_lambda") as case:
+        case._scenario_test_kinesis_client_peer_service_in_lambda()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"), out=None, err=None, command=True)
+def test_BotocoreTest_sns_client_peer_service_in_lambda():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_sns_client_peer_service_in_lambda") as case:
+        case._scenario_test_sns_client_peer_service_in_lambda()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"), out=None, err=None, command=True)
+def test_BotocoreTest_eventbridge_client_peer_service_in_lambda():
+    from tests.contrib.botocore.test import BotocoreTest
+    from tests.process import case_context
+
+    with case_context(BotocoreTest, "_scenario_test_eventbridge_client_peer_service_in_lambda") as case:
+        case._scenario_test_eventbridge_client_peer_service_in_lambda()

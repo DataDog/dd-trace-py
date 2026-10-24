@@ -1,30 +1,18 @@
-from ddtrace.contrib.internal.httpx2.patch import get_version
-from ddtrace.contrib.internal.httpx2.patch import patch
-from ddtrace.contrib.internal.httpx2.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestHttpx2Patch(PatchTestCase.Base):
-    __integration_name__ = "httpx2"
-    __module_name__ = "httpx2"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, httpx2):
-        self.assert_wrapped(httpx2.Client.send)
-        self.assert_wrapped(httpx2.AsyncClient.send)
-        self.assert_wrapped(httpx2.Client._send_single_request)
-        self.assert_wrapped(httpx2.AsyncClient._send_single_request)
-
-    def assert_not_module_patched(self, httpx2):
-        self.assert_not_wrapped(httpx2.Client.send)
-        self.assert_not_wrapped(httpx2.AsyncClient.send)
-        self.assert_not_wrapped(httpx2.Client._send_single_request)
-        self.assert_not_wrapped(httpx2.AsyncClient._send_single_request)
-
-    def assert_not_module_double_patched(self, httpx2):
-        self.assert_not_double_wrapped(httpx2.Client.send)
-        self.assert_not_double_wrapped(httpx2.AsyncClient.send)
-        self.assert_not_double_wrapped(httpx2.Client._send_single_request)
-        self.assert_not_double_wrapped(httpx2.AsyncClient._send_single_request)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestHttpx2Patch(python_process, scenario):
+    module = "tests.contrib.httpx2"
+    module += "._test_httpx2_patch_scenarios"
+    case = "TestHttpx2Patch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

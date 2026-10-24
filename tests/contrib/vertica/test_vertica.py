@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
@@ -32,6 +33,11 @@ def test_tracer(request, tracer):
 
 @pytest.fixture(scope="function")
 def test_conn(request, test_tracer):
+    request.cls.test_conn = _open_connection(test_tracer)
+    return request.cls.test_conn
+
+
+def _open_connection(test_tracer):
     patch()
 
     import vertica_python  # must happen AFTER installing with patch()
@@ -49,8 +55,17 @@ def test_conn(request, test_tracer):
     )
     TracerSpanContainer(test_tracer).pop()
 
-    request.cls.test_conn = (conn, cur)
     return conn, cur
+
+
+@contextmanager
+def isolated_connection(case):
+    case.test_tracer = case.tracer
+    case.test_conn = _open_connection(case.tracer)
+    try:
+        yield
+    finally:
+        case.test_conn[0].close()
 
 
 class TestVerticaPatching(TracerTestCase):
@@ -374,9 +389,8 @@ class TestVertica(TracerTestCase):
         assert spans[1].name == "vertica.query"
         assert spans[1].resource == "COMMIT;"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"), use_pytest=True)
     @pytest.mark.usefixtures("test_tracer", "test_conn")
-    def test_user_specified_service_default(self):
+    def _scenario_test_user_specified_service_default(self):
         """
         v0 (default): When a user specifies a service for the app
             The vertica integration should not use it.
@@ -395,11 +409,8 @@ class TestVertica(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True
-    )
     @pytest.mark.usefixtures("test_tracer", "test_conn")
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
             The vertica integration should not use it.
@@ -418,11 +429,8 @@ class TestVertica(TracerTestCase):
         span = spans[0]
         assert span.service == "vertica"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True
-    )
     @pytest.mark.usefixtures("test_tracer", "test_conn")
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The vertica integration should use it.
@@ -442,8 +450,7 @@ class TestVertica(TracerTestCase):
         assert span.service == "mysvc"
 
     @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True)
-    def test_unspecified_service_v0(self):
+    def _scenario_test_unspecified_service_v0(self):
         """
         v1: When a service is unspecified, vertica
             should result in the default DD_SERVICE the span service
@@ -459,8 +466,7 @@ class TestVertica(TracerTestCase):
         assert span.service == "vertica"
 
     @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True)
-    def test_unspecified_service_v1(self):
+    def _scenario_test_unspecified_service_v1(self):
         """
         v1: When a service is unspecified, vertica
             should result in the default DD_SERVICE the span service
@@ -476,8 +482,7 @@ class TestVertica(TracerTestCase):
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), use_pytest=True)
-    def test_operation_name_v0(self):
+    def _scenario_test_operation_name_v0(self):
         """
         v0: Vertica has several different names for operations, including 'fetchall, 'fetchone', and 'query'
         """
@@ -520,8 +525,7 @@ class TestVertica(TracerTestCase):
         assert spans[4].name == "vertica.fetchall"
 
     @pytest.mark.usefixtures("test_tracer", "test_conn")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), use_pytest=True)
-    def test_operation_name_v1(self):
+    def _scenario_test_operation_name_v1(self):
         """
         v1: Vertica should use 'query' for all operation names
         """
@@ -562,3 +566,107 @@ class TestVertica(TracerTestCase):
         assert spans[2].name == "vertica.query"  # previously fetchone
         assert spans[3].name == "vertica.query"  # previously fetchone
         assert spans[4].name == "vertica.query"  # previously fetchall
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestVertica_user_specified_service_default():
+    from tests.contrib.vertica.test_vertica import TestVertica
+    from tests.process import case_context
+
+    with case_context(TestVertica, "_scenario_test_user_specified_service_default") as case:
+        from tests.contrib.vertica.test_vertica import isolated_connection
+
+        with isolated_connection(case):
+            case._scenario_test_user_specified_service_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestVertica_user_specified_service_v0():
+    from tests.contrib.vertica.test_vertica import TestVertica
+    from tests.process import case_context
+
+    with case_context(TestVertica, "_scenario_test_user_specified_service_v0") as case:
+        from tests.contrib.vertica.test_vertica import isolated_connection
+
+        with isolated_connection(case):
+            case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestVertica_user_specified_service_v1():
+    from tests.contrib.vertica.test_vertica import TestVertica
+    from tests.process import case_context
+
+    with case_context(TestVertica, "_scenario_test_user_specified_service_v1") as case:
+        from tests.contrib.vertica.test_vertica import isolated_connection
+
+        with isolated_connection(case):
+            case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestVertica_unspecified_service_v0():
+    from tests.contrib.vertica.test_vertica import TestVertica
+    from tests.process import case_context
+
+    with case_context(TestVertica, "_scenario_test_unspecified_service_v0") as case:
+        from tests.contrib.vertica.test_vertica import isolated_connection
+
+        with isolated_connection(case):
+            case._scenario_test_unspecified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestVertica_unspecified_service_v1():
+    from tests.contrib.vertica.test_vertica import TestVertica
+    from tests.process import case_context
+
+    with case_context(TestVertica, "_scenario_test_unspecified_service_v1") as case:
+        from tests.contrib.vertica.test_vertica import isolated_connection
+
+        with isolated_connection(case):
+            case._scenario_test_unspecified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestVertica_operation_name_v0():
+    from tests.contrib.vertica.test_vertica import TestVertica
+    from tests.process import case_context
+
+    with case_context(TestVertica, "_scenario_test_operation_name_v0") as case:
+        from tests.contrib.vertica.test_vertica import isolated_connection
+
+        with isolated_connection(case):
+            case._scenario_test_operation_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestVertica_operation_name_v1():
+    from tests.contrib.vertica.test_vertica import TestVertica
+    from tests.process import case_context
+
+    with case_context(TestVertica, "_scenario_test_operation_name_v1") as case:
+        from tests.contrib.vertica.test_vertica import isolated_connection
+
+        with isolated_connection(case):
+            case._scenario_test_operation_name_v1()

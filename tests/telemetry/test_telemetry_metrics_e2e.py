@@ -91,7 +91,7 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
     assert count == 5
 
 
-def test_span_creation_and_finished_metrics_datadog(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_span_creation_and_finished_metrics_datadog(test_agent_session, python_process):
     code = """
 from ddtrace.trace import tracer
 for _ in range(10):
@@ -102,7 +102,9 @@ for _ in range(10):
     env = os.environ.copy()
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
     env.pop("DD_API_KEY", None)
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, stderr
     metrics_sc = test_agent_session.get_metrics("spans_created")
 
@@ -118,7 +120,7 @@ for _ in range(10):
     assert metrics_sf[0]["points"][0][1] == 10
 
 
-def test_span_creation_and_finished_metrics_otel(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_span_creation_and_finished_metrics_otel(test_agent_session, python_process):
     code = """
 import opentelemetry.trace
 
@@ -131,7 +133,9 @@ for _ in range(9):
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
     env.pop("DD_API_KEY", None)
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, stderr
 
     metrics_sc = test_agent_session.get_metrics("spans_created")

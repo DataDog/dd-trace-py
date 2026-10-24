@@ -113,13 +113,11 @@ class BotocoreDSMTest(TracerTestCase):
             except botocore.exceptions.ClientError:
                 pass
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sns_to_sqs(self):
+    def _scenario_test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
     @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
+    def _scenario_test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """
         Moto doesn't currently handle raw delivery message handling quite correctly.
         In the real world, AWS will encode data for us. Moto does not.
@@ -185,8 +183,7 @@ class BotocoreDSMTest(TracerTestCase):
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sqs(self):
+    def _scenario_test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
             mock.patch("time.time") as mt,
@@ -231,8 +228,7 @@ class BotocoreDSMTest(TracerTestCase):
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sqs_json_body(self):
+    def _scenario_test_data_streams_sqs_json_body(self):
         # A JSON message body must still link the consumer pathway to the producer.
         with (
             mock.patch("time.time") as mt,
@@ -267,8 +263,7 @@ class BotocoreDSMTest(TracerTestCase):
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sqs_batch(self):
+    def _scenario_test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
             mock.patch("time.time") as mt,
@@ -319,8 +314,7 @@ class BotocoreDSMTest(TracerTestCase):
 
     @mock_events
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_eventbridge(self):
+    def _scenario_test_data_streams_eventbridge(self):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
@@ -380,8 +374,7 @@ class BotocoreDSMTest(TracerTestCase):
                 self._delete_eventbridge_resources(bridge, event_bus_name, rule_name, target_id)
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sqs_header_information(self):
+    def _scenario_test_data_streams_sqs_header_information(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         response = self.sqs_client.receive_message(
             QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -394,8 +387,7 @@ class BotocoreDSMTest(TracerTestCase):
         assert "_datadog" in response["Messages"][0]["MessageAttributes"]
 
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
-    def test_data_streams_sqs_no_header(self):
+    def _scenario_test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
             mock.patch("time.time") as mt,
@@ -441,10 +433,9 @@ class BotocoreDSMTest(TracerTestCase):
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
-    def test_kinesis_data_streams_enabled_put_records(self):
+    def _scenario_test_kinesis_data_streams_enabled_put_records(self):
         # (dict -> json string)[]
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 2)
@@ -487,10 +478,9 @@ class BotocoreDSMTest(TracerTestCase):
         self._assert_dsm_counts(in_stats, min_latency_count=2, payload_count=2)
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
-    def test_kinesis_data_streams_enabled_put_record(self):
+    def _scenario_test_kinesis_data_streams_enabled_put_record(self):
         # (dict -> json string)[]
         data = json.dumps({"json": "string"})
         client = self.session.create_client("kinesis", region_name="us-east-1")
@@ -532,9 +522,8 @@ class BotocoreDSMTest(TracerTestCase):
         self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
-    def test_kinesis_consume_keeps_upstream_pathway_start(self):
+    def _scenario_test_kinesis_consume_keeps_upstream_pathway_start(self):
         upstream_age_sec = 3600.0
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
@@ -571,15 +560,8 @@ class BotocoreDSMTest(TracerTestCase):
             "pathway start" % (full_pathway_latency_sec, upstream_age_sec)
         )
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DATA_STREAMS_ENABLED="True",
-            DD_BOTOCORE_DISTRIBUTED_TRACING="False",
-            DD_BOTOCORE_PROPAGATION_ENABLED="False",
-        )
-    )
     @mock_kinesis
-    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled(self):
+    def _scenario_test_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
         stream_name = "kinesis_put_records_inject_data_streams_to_every_record_context_prop_disabled"
@@ -599,15 +581,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert "_datadog" in data
             assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DATA_STREAMS_ENABLED="True",
-            DD_BOTOCORE_DISTRIBUTED_TRACING="True",
-            DD_BOTOCORE_PROPAGATION_ENABLED="True",
-        )
-    )
     @mock_kinesis
-    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled(self):
+    def _scenario_test_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
         stream_name = "kinesis_put_records_inject_data_streams_to_every_record_prop_enabled"
@@ -627,15 +602,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert "_datadog" in data
             assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DATA_STREAMS_ENABLED="False",
-            DD_BOTOCORE_DISTRIBUTED_TRACING="False",
-            DD_BOTOCORE_PROPAGATION_ENABLED="False",
-        )
-    )
     @mock_kinesis
-    def test_kinesis_put_records_inject_data_streams_to_every_record_disable_all_injection(self):
+    def _scenario_test_kinesis_put_records_inject_data_streams_to_every_record_disable_all_injection(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
         stream_name = "kinesis_put_records_inject_data_streams_to_every_record_all_injection_disabled"
@@ -685,3 +653,197 @@ def test_data_streams_botocore_enabled():
 
         finally:
             sqs_client.delete_queue(QueueUrl=queue_url)
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_sns_to_sqs():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_sns_to_sqs") as case:
+        case._scenario_test_data_streams_sns_to_sqs()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_sns_to_sqs_raw_delivery():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_sns_to_sqs_raw_delivery") as case:
+        case._scenario_test_data_streams_sns_to_sqs_raw_delivery()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_sqs():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_sqs") as case:
+        case._scenario_test_data_streams_sqs()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_sqs_json_body():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_sqs_json_body") as case:
+        case._scenario_test_data_streams_sqs_json_body()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_sqs_batch():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_sqs_batch") as case:
+        case._scenario_test_data_streams_sqs_batch()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_eventbridge():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_eventbridge") as case:
+        case._scenario_test_data_streams_eventbridge()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_sqs_header_information():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_sqs_header_information") as case:
+        case._scenario_test_data_streams_sqs_header_information()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_data_streams_sqs_no_header():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_data_streams_sqs_no_header") as case:
+        case._scenario_test_data_streams_sqs_no_header()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_kinesis_data_streams_enabled_put_records():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_kinesis_data_streams_enabled_put_records") as case:
+        case._scenario_test_kinesis_data_streams_enabled_put_records()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_kinesis_data_streams_enabled_put_record():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_kinesis_data_streams_enabled_put_record") as case:
+        case._scenario_test_kinesis_data_streams_enabled_put_record()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_BotocoreDSMTest_kinesis_consume_keeps_upstream_pathway_start():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(BotocoreDSMTest, "_scenario_test_kinesis_consume_keeps_upstream_pathway_start") as case:
+        case._scenario_test_kinesis_consume_keeps_upstream_pathway_start()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DATA_STREAMS_ENABLED="True", DD_BOTOCORE_DISTRIBUTED_TRACING="False", DD_BOTOCORE_PROPAGATION_ENABLED="False"
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_BotocoreDSMTest_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(
+        BotocoreDSMTest, "_scenario_test_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled"
+    ) as case:
+        case._scenario_test_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DATA_STREAMS_ENABLED="True", DD_BOTOCORE_DISTRIBUTED_TRACING="True", DD_BOTOCORE_PROPAGATION_ENABLED="True"
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_BotocoreDSMTest_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(
+        BotocoreDSMTest, "_scenario_test_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled"
+    ) as case:
+        case._scenario_test_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled()
+
+
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DATA_STREAMS_ENABLED="False",
+        DD_BOTOCORE_DISTRIBUTED_TRACING="False",
+        DD_BOTOCORE_PROPAGATION_ENABLED="False",
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_BotocoreDSMTest_kinesis_put_records_inject_data_streams_to_every_record_disable_all_injection():
+    from tests.contrib.botocore.test_dsm import BotocoreDSMTest
+    from tests.process import case_context
+
+    with case_context(
+        BotocoreDSMTest, "_scenario_test_kinesis_put_records_inject_data_streams_to_every_record_disable_all_injection"
+    ) as case:
+        case._scenario_test_kinesis_put_records_inject_data_streams_to_every_record_disable_all_injection()

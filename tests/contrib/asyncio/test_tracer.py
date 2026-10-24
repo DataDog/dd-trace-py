@@ -199,7 +199,7 @@ def test_asyncio_scheduled_tasks_parenting(tracer, test_spans):
     assert spans[0].trace_id == spans[1].trace_id == spans[2].trace_id
 
 
-def test_asyncio_scheduled_tasks_debug_logs(run_python_code_in_subprocess):
+def test_asyncio_scheduled_tasks_debug_logs(python_process):
     code = """
 import ddtrace
 
@@ -217,7 +217,10 @@ if __name__ == "__main__":
 """
     env = os.environ.copy()
     env["PYTHONASYNCIODEBUG"] = "1"
-    out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err + out
 
     pattern = rb"Executing <Task finished name=\'Task-1\' coro=<my_function\(\) done, "

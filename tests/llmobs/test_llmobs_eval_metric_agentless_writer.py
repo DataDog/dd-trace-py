@@ -227,7 +227,7 @@ def test_send_multiple_events(mock_writer_logs):
     )
 
 
-def test_send_on_exit(run_python_code_in_subprocess):
+def test_send_on_exit(python_process):
     requests_received = []
 
     class _Handler(BaseHTTPRequestHandler):
@@ -253,7 +253,7 @@ def test_send_on_exit(run_python_code_in_subprocess):
         pypath.append(env["PYTHONPATH"])
     env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
 
-    out, err, status, pid = run_python_code_in_subprocess(
+    _process_result = python_process(
         """
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _categorical_metric_event
@@ -266,6 +266,9 @@ llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", va
 """,
         env=env,
     )
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
 
     server.shutdown()
     server.server_close()

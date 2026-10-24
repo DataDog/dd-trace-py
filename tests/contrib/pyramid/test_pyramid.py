@@ -10,7 +10,6 @@ from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import TracerTestCase
 from tests.webclient import Client
 
 from .utils import PyramidBase
@@ -151,64 +150,56 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
 class TestSchematization(PyramidBase):
     instrument = True
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_service_name_default(self):
+    def _scenario_test_schematized_service_name_default(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_service_name_v0(self):
+    def _scenario_test_schematized_service_name_v0(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_service_name_v1(self):
+    def _scenario_test_schematized_service_name_v1(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "mysvc", f"Expected 'mysvc' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess()
-    def test_schematized_unspecified_service_name_default(self):
+    def _scenario_test_schematized_unspecified_service_name_default(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_name_v0(self):
+    def _scenario_test_schematized_unspecified_service_name_v0(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_name_v1(self):
+    def _scenario_test_schematized_unspecified_service_name_v1(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == DEFAULT_SPAN_SERVICE_NAME, f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_operation_name_v0(self):
+    def _scenario_test_schematized_operation_name_v0(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "pyramid.request", f"Expected 'pyramid.request' and got {s.name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_operation_name_v1(self):
+    def _scenario_test_schematized_operation_name_v1(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
         assert len(spans) == 1
@@ -370,3 +361,95 @@ class TestAPIGatewayTracing(PyramidBase):
                     else:
                         web_span = spans[0]
                         assert web_span._parent is None
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestSchematization_schematized_service_name_default():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_service_name_default") as case:
+        case._scenario_test_schematized_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSchematization_schematized_service_name_v0():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_service_name_v0") as case:
+        case._scenario_test_schematized_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSchematization_schematized_service_name_v1():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_service_name_v1") as case:
+        case._scenario_test_schematized_service_name_v1()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True, test_assertions=True)
+def test_TestSchematization_schematized_unspecified_service_name_default():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_unspecified_service_name_default") as case:
+        case._scenario_test_schematized_unspecified_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_unspecified_service_name_v0():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_unspecified_service_name_v0") as case:
+        case._scenario_test_schematized_unspecified_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_unspecified_service_name_v1():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_unspecified_service_name_v1") as case:
+        case._scenario_test_schematized_unspecified_service_name_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_operation_name_v0():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_operation_name_v0") as case:
+        case._scenario_test_schematized_operation_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_schematized_operation_name_v1():
+    from tests.contrib.pyramid.test_pyramid import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_schematized_operation_name_v1") as case:
+        case._scenario_test_schematized_operation_name_v1()

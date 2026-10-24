@@ -1,4 +1,5 @@
 from falcon import testing
+import pytest
 
 from ddtrace import config
 from ddtrace.constants import USER_KEEP
@@ -61,8 +62,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         assert traces[0][0].parent_id != 42
         assert traces[0][0].trace_id != 100
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_FALCON_DISTRIBUTED_TRACING="False"))
-    def test_distributed_tracing_disabled_via_env_var(self):
+    def _scenario_test_distributed_tracing_disabled_via_env_var(self):
         self.api = get_app(tracer=self.tracer)
 
         if FALCON_VERSION >= (2, 0, 0):
@@ -81,8 +81,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         assert traces[0][0].parent_id != 42
         assert traces[0][0].trace_id != 100
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"))
-    def test_inferred_spans_api_gateway_distributed_tracing_enabled(self):
+    def _scenario_test_inferred_spans_api_gateway_distributed_tracing_enabled(self):
         config.falcon["distributed_tracing"] = True
         distributed_headers = {
             "x-dd-proxy": "aws-apigateway",
@@ -126,8 +125,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
             distributed_sampling_priority=USER_KEEP,
         )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
-    def test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
+    def _scenario_test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
         # When inferred proxy is disabled, there should be no inferred span
         config.falcon["distributed_tracing"] = True
         distributed_headers = {
@@ -150,3 +148,40 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         web_span = traces[0][0]
         assert web_span._parent is None
         assert web_span.trace_id == 1
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_FALCON_DISTRIBUTED_TRACING="False"), out=None, err=None, command=True, test_assertions=True
+)
+def test_DistributedTracingTestCase_distributed_tracing_disabled_via_env_var():
+    from tests.contrib.falcon.test_distributed_tracing import DistributedTracingTestCase
+    from tests.process import case_context
+
+    with case_context(DistributedTracingTestCase, "_scenario_test_distributed_tracing_disabled_via_env_var") as case:
+        case._scenario_test_distributed_tracing_disabled_via_env_var()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"), out=None, err=None, command=True, test_assertions=True
+)
+def test_DistributedTracingTestCase_inferred_spans_api_gateway_distributed_tracing_enabled():
+    from tests.contrib.falcon.test_distributed_tracing import DistributedTracingTestCase
+    from tests.process import case_context
+
+    with case_context(
+        DistributedTracingTestCase, "_scenario_test_inferred_spans_api_gateway_distributed_tracing_enabled"
+    ) as case:
+        case._scenario_test_inferred_spans_api_gateway_distributed_tracing_enabled()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"), out=None, err=None, command=True, test_assertions=True
+)
+def test_DistributedTracingTestCase_inferred_spans_api_gateway_distributed_tracing_disabled():
+    from tests.contrib.falcon.test_distributed_tracing import DistributedTracingTestCase
+    from tests.process import case_context
+
+    with case_context(
+        DistributedTracingTestCase, "_scenario_test_inferred_spans_api_gateway_distributed_tracing_disabled"
+    ) as case:
+        case._scenario_test_inferred_spans_api_gateway_distributed_tracing_disabled()

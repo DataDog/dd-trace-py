@@ -1,33 +1,18 @@
-from ddtrace.contrib.internal.rq.patch import get_version
-from ddtrace.contrib.internal.rq.patch import patch
-from ddtrace.contrib.internal.rq.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestRQPatch(PatchTestCase.Base):
-    __integration_name__ = "rq"
-    __module_name__ = "rq"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, rq):
-        self.assert_wrapped(rq.job.Job.perform)
-        self.assert_wrapped(rq.queue.Queue.enqueue_job)
-        self.assert_wrapped(rq.queue.Queue.fetch_job)
-        self.assert_wrapped(rq.Worker.perform_job)
-        self.assert_wrapped(rq.SimpleWorker.perform_job)
-
-    def assert_not_module_patched(self, rq):
-        self.assert_not_wrapped(rq.job.Job.perform)
-        self.assert_not_wrapped(rq.queue.Queue.enqueue_job)
-        self.assert_not_wrapped(rq.queue.Queue.fetch_job)
-        self.assert_not_wrapped(rq.Worker.perform_job)
-        self.assert_not_wrapped(rq.SimpleWorker.perform_job)
-
-    def assert_not_module_double_patched(self, rq):
-        self.assert_not_double_wrapped(rq.job.Job.perform)
-        self.assert_not_double_wrapped(rq.queue.Queue.enqueue_job)
-        self.assert_not_double_wrapped(rq.queue.Queue.fetch_job)
-        self.assert_not_double_wrapped(rq.Worker.perform_job)
-        self.assert_not_double_wrapped(rq.SimpleWorker.perform_job)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestRQPatch(python_process, scenario):
+    module = "tests.contrib.rq"
+    module += "._test_rq_patch_scenarios"
+    case = "TestRQPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

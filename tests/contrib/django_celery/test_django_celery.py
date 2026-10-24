@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from tests.utils import call_program
+from tests.process import run_process
 
 
 @pytest.mark.skip(reason="FIXME: make the flaky Celery gevent startup check deterministic")
@@ -21,7 +21,7 @@ def test_django_celery_gevent_startup():
     about Django settings.
     """
     try:
-        out, err, retcode, _ = call_program(
+        _process_result = run_process(
             "ddtrace-run",
             "celery",
             "-A",
@@ -31,6 +31,9 @@ def test_django_celery_gevent_startup():
             cwd=sep.join((dirname(__file__), "app")),
             timeout=3,
         )
+        out = _process_result.stdout
+        err = _process_result.stderr
+        retcode = _process_result.returncode
     except subprocess.TimeoutExpired as celery:
         out = celery.stdout.decode("utf-8")
         err = celery.stderr.decode("utf-8")

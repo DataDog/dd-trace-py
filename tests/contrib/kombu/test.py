@@ -107,15 +107,13 @@ class TestKombuPatch(TracerTestCase):
         rcv, send = self._gen_distributed_spans()
         assert rcv.trace_id == send.trace_id, f"rcv.trace_id {rcv.trace_id}!= send.trace_id {send.trace_id}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_KOMBU_DISTRIBUTED_TRACING="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
-    def test_distributed_tracing_basic_force_on(self):
+    def _scenario_test_distributed_tracing_basic_force_on(self):
         rcv, send = self._gen_distributed_spans()
         assert rcv.trace_id == send.trace_id, f"rcv.trace_id {rcv.trace_id}!= send.trace_id {send.trace_id}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_KOMBU_DISTRIBUTED_TRACING="False"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
-    def test_distributed_tracing_basic_force_off(self):
+    def _scenario_test_distributed_tracing_basic_force_off(self):
         rcv, send = self._gen_distributed_spans()
         assert rcv.trace_id != send.trace_id, f"rcv.trace_id {rcv.trace_id} == send.trace_id {send.trace_id}"
 
@@ -179,58 +177,49 @@ class TestKombuSchematization(TracerTestCase):
 
         return self.get_spans()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_schematized_service_name_default(self):
+    def _scenario_test_schematized_service_name_default(self):
         spans = self._create_schematized_spans()
         for span in spans:
             assert span.service == "mysvc", f"Expected mysvc, got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_service_name_v0(self):
+    def _scenario_test_schematized_service_name_v0(self):
         spans = self._create_schematized_spans()
         for span in spans:
             assert span.service == "mysvc", f"Expected mysvc, got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_service_name_v1(self):
+    def _scenario_test_schematized_service_name_v1(self):
         spans = self._create_schematized_spans()
         for span in spans:
             assert span.service == "mysvc", f"Expected mysvc, got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    def test_schematized_unspecified_service_name_default(self):
+    def _scenario_test_schematized_unspecified_service_name_default(self):
         spans = self._create_schematized_spans()
         assert spans, f"Expected spans, got {spans}"
         assert spans[0].service == "kombu", f"Expected kombu, got {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_unspecified_service_name_v0(self):
+    def _scenario_test_schematized_unspecified_service_name_v0(self):
         spans = self._create_schematized_spans()
         assert spans, f"Expected spans, got {spans}"
         assert spans[0].service == "kombu", f"Expected kombu, got {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_unspecified_service_name_v1(self):
+    def _scenario_test_schematized_unspecified_service_name_v1(self):
         spans = self._create_schematized_spans()
         for span in spans:
             assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
                 f"Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {span.service}"
             )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_operation_name_v0(self):
+    def _scenario_test_schematized_operation_name_v0(self):
         spans = self._create_schematized_spans()
         assert spans[0].name == "kombu.publish", f"Expected kombu.publish, got {spans[0].name}"
         assert spans[1].name == "kombu.receive", f"Expected kombu.receive, got {spans[1].name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_operation_name_v1(self):
+    def _scenario_test_schematized_operation_name_v1(self):
         spans = self._create_schematized_spans()
         assert spans[0].name == "kombu.send", f"Expected kombu.send, got {spans[0].name}"
         assert spans[1].name == "kombu.process", f"Expected kombu.process, got {spans[1].name}"
 
-    @TracerTestCase.run_in_subprocess()
-    def test_programmatic_service_config_applied_to_both_pins(self):
+    def _scenario_test_programmatic_service_config_applied_to_both_pins(self):
         """config.kombu['service'] set before patch() is reflected in both producer and consumer pins."""
         unpatch()
         config.kombu["service"] = "custom-kombu"
@@ -241,8 +230,7 @@ class TestKombuSchematization(TracerTestCase):
         assert spans[0].service == "custom-kombu", f"Producer service: {spans[0].service}"
         assert spans[1].service == "custom-kombu", f"Consumer service: {spans[1].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service_producer(self):
+    def _scenario_test_user_specified_service_producer(self):
         """
         When a service name is specified by the user
             When a parent span with a different service name is provided to the
@@ -338,9 +326,8 @@ class TestKombuDsm(TracerTestCase):
         assert in_stats.full_pathway_latency.count == 1
         assert in_stats.edge_latency.count == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
-    def test_data_streams_basic(self):
+    def _scenario_test_data_streams_basic(self):
         queue_name = self._publish_consume()
         buckets = self.processor._buckets
         assert len(buckets) == 1
@@ -350,11 +337,8 @@ class TestKombuDsm(TracerTestCase):
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
         self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False")
-    )
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
-    def test_data_streams_payload(self):
+    def _scenario_test_data_streams_payload(self):
         for payload, payload_size in [({"key": "test"}, 15), ({"key2": "你"}, 18)]:
             expected_payload_size = payload_size
             expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
@@ -372,9 +356,8 @@ class TestKombuDsm(TracerTestCase):
                 expected_sketch.add(expected_payload_size)
                 assert bucket.payload_size.to_proto() == expected_sketch.to_proto()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
-    def test_data_streams_direct_exchange(self):
+    def _scenario_test_data_streams_direct_exchange(self):
         queue_name = self._publish_consume(exchange=None)
         buckets = self.processor._buckets
         assert len(buckets) == 1
@@ -423,3 +406,146 @@ def test_data_streams_kombu_enabled():
 
     finally:
         conn.close()
+
+
+@pytest.mark.subprocess(env=dict(DD_KOMBU_DISTRIBUTED_TRACING="True"), out=None, err=None, command=True)
+def test_TestKombuPatch_distributed_tracing_basic_force_on():
+    from tests.contrib.kombu.test import TestKombuPatch
+    from tests.process import case_context
+
+    with case_context(TestKombuPatch, "_scenario_test_distributed_tracing_basic_force_on") as case:
+        case._scenario_test_distributed_tracing_basic_force_on()
+
+
+@pytest.mark.subprocess(env=dict(DD_KOMBU_DISTRIBUTED_TRACING="False"), out=None, err=None, command=True)
+def test_TestKombuPatch_distributed_tracing_basic_force_off():
+    from tests.contrib.kombu.test import TestKombuPatch
+    from tests.process import case_context
+
+    with case_context(TestKombuPatch, "_scenario_test_distributed_tracing_basic_force_off") as case:
+        case._scenario_test_distributed_tracing_basic_force_off()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_TestKombuSchematization_schematized_service_name_default():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_service_name_default") as case:
+        case._scenario_test_schematized_service_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True
+)
+def test_TestKombuSchematization_schematized_service_name_v0():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_service_name_v0") as case:
+        case._scenario_test_schematized_service_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True
+)
+def test_TestKombuSchematization_schematized_service_name_v1():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_service_name_v1") as case:
+        case._scenario_test_schematized_service_name_v1()
+
+
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True)
+def test_TestKombuSchematization_schematized_unspecified_service_name_default():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_unspecified_service_name_default") as case:
+        case._scenario_test_schematized_unspecified_service_name_default()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TestKombuSchematization_schematized_unspecified_service_name_v0():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_unspecified_service_name_v0") as case:
+        case._scenario_test_schematized_unspecified_service_name_v0()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TestKombuSchematization_schematized_unspecified_service_name_v1():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_unspecified_service_name_v1") as case:
+        case._scenario_test_schematized_unspecified_service_name_v1()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True)
+def test_TestKombuSchematization_schematized_operation_name_v0():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_operation_name_v0") as case:
+        case._scenario_test_schematized_operation_name_v0()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True)
+def test_TestKombuSchematization_schematized_operation_name_v1():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_schematized_operation_name_v1") as case:
+        case._scenario_test_schematized_operation_name_v1()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True)
+def test_TestKombuSchematization_programmatic_service_config_applied_to_both_pins():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(
+        TestKombuSchematization, "_scenario_test_programmatic_service_config_applied_to_both_pins"
+    ) as case:
+        case._scenario_test_programmatic_service_config_applied_to_both_pins()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True)
+def test_TestKombuSchematization_user_specified_service_producer():
+    from tests.contrib.kombu.test import TestKombuSchematization
+    from tests.process import case_context
+
+    with case_context(TestKombuSchematization, "_scenario_test_user_specified_service_producer") as case:
+        case._scenario_test_user_specified_service_producer()
+
+
+@pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True)
+def test_TestKombuDsm_data_streams_basic():
+    from tests.contrib.kombu.test import TestKombuDsm
+    from tests.process import case_context
+
+    with case_context(TestKombuDsm, "_scenario_test_data_streams_basic") as case:
+        case._scenario_test_data_streams_basic()
+
+
+@pytest.mark.subprocess(
+    command=True, env=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False"), out=None, err=None
+)
+def test_TestKombuDsm_data_streams_payload():
+    from tests.contrib.kombu.test import TestKombuDsm
+    from tests.process import case_context
+
+    with case_context(TestKombuDsm, "_scenario_test_data_streams_payload") as case:
+        case._scenario_test_data_streams_payload()
+
+
+@pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"), out=None, err=None, command=True)
+def test_TestKombuDsm_data_streams_direct_exchange():
+    from tests.contrib.kombu.test import TestKombuDsm
+    from tests.process import case_context
+
+    with case_context(TestKombuDsm, "_scenario_test_data_streams_direct_exchange") as case:
+        case._scenario_test_data_streams_direct_exchange()

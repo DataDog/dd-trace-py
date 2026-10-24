@@ -1,62 +1,18 @@
-from aws_durable_execution_sdk_python import execution
-from aws_durable_execution_sdk_python.context import DurableContext
-from aws_durable_execution_sdk_python.operation.base import OperationExecutor
-from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
+import pytest
 
-from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import get_version
-from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
-from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestAwsDurableExecutionSdkPythonPatch(PatchTestCase.Base):
-    __integration_name__ = "aws_durable_execution_sdk_python"
-    __module_name__ = "aws_durable_execution_sdk_python"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, aws_durable_execution_sdk_python):
-        self.assert_wrapped(aws_durable_execution_sdk_python.durable_execution)
-        self.assert_wrapped(execution.durable_execution)
-        self.assert_wrapped(DurableContext.invoke)
-        self.assert_wrapped(DurableContext.step)
-        self.assert_wrapped(DurableContext.wait)
-        self.assert_wrapped(DurableContext.wait_for_condition)
-        self.assert_wrapped(DurableContext.wait_for_callback)
-        self.assert_wrapped(DurableContext.create_callback)
-        self.assert_wrapped(DurableContext.map)
-        self.assert_wrapped(DurableContext.parallel)
-        self.assert_wrapped(DurableContext.run_in_child_context)
-        self.assert_wrapped(OperationExecutor.process)
-        self.assert_wrapped(StepOperationExecutor.retry_handler)
-
-    def assert_not_module_patched(self, aws_durable_execution_sdk_python):
-        self.assert_not_wrapped(aws_durable_execution_sdk_python.durable_execution)
-        self.assert_not_wrapped(execution.durable_execution)
-        self.assert_not_wrapped(DurableContext.invoke)
-        self.assert_not_wrapped(DurableContext.step)
-        self.assert_not_wrapped(DurableContext.wait)
-        self.assert_not_wrapped(DurableContext.wait_for_condition)
-        self.assert_not_wrapped(DurableContext.wait_for_callback)
-        self.assert_not_wrapped(DurableContext.create_callback)
-        self.assert_not_wrapped(DurableContext.map)
-        self.assert_not_wrapped(DurableContext.parallel)
-        self.assert_not_wrapped(DurableContext.run_in_child_context)
-        self.assert_not_wrapped(OperationExecutor.process)
-        self.assert_not_wrapped(StepOperationExecutor.retry_handler)
-
-    def assert_not_module_double_patched(self, aws_durable_execution_sdk_python):
-        self.assert_not_double_wrapped(aws_durable_execution_sdk_python.durable_execution)
-        self.assert_not_double_wrapped(execution.durable_execution)
-        self.assert_not_double_wrapped(DurableContext.invoke)
-        self.assert_not_double_wrapped(DurableContext.step)
-        self.assert_not_double_wrapped(DurableContext.wait)
-        self.assert_not_double_wrapped(DurableContext.wait_for_condition)
-        self.assert_not_double_wrapped(DurableContext.wait_for_callback)
-        self.assert_not_double_wrapped(DurableContext.create_callback)
-        self.assert_not_double_wrapped(DurableContext.map)
-        self.assert_not_double_wrapped(DurableContext.parallel)
-        self.assert_not_double_wrapped(DurableContext.run_in_child_context)
-        self.assert_not_double_wrapped(OperationExecutor.process)
-        self.assert_not_double_wrapped(StepOperationExecutor.retry_handler)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestAwsDurableExecutionSdkPythonPatch(python_process, scenario):
+    module = "tests.contrib.aws_durable_execution_sdk_python"
+    module += "._test_aws_durable_execution_sdk_python_patch_scenarios"
+    case = "TestAwsDurableExecutionSdkPythonPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

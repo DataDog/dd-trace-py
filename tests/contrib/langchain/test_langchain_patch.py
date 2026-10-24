@@ -1,98 +1,9 @@
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import _extract_model_name
-from ddtrace.contrib.internal.langchain.patch import get_version
-from ddtrace.contrib.internal.langchain.patch import patch
-from ddtrace.contrib.internal.langchain.patch import unpatch
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import _clear_inference_profile_cache
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
-from tests.contrib.patch import PatchTestCase
-
-
-class TestLangchainPatch(PatchTestCase.Base):
-    __integration_name__ = "langchain"
-    __module_name__ = "langchain_core"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, langchain):
-        import langchain_core
-        from langchain_core.embeddings import Embeddings  # noqa: F401
-        from langchain_core.language_models.chat_models import BaseChatModel  # noqa: F401
-        from langchain_core.language_models.llms import BaseLLM  # noqa: F401
-        from langchain_core.prompts.base import BasePromptTemplate  # noqa: F401
-        from langchain_core.runnables.base import RunnableLambda  # noqa: F401
-        from langchain_core.runnables.base import RunnableSequence  # noqa: F401
-        from langchain_core.tools import BaseTool  # noqa: F401
-        from langchain_core.vectorstores import VectorStore  # noqa: F401
-
-        self.assert_wrapped(langchain_core.language_models.llms.BaseLLM.generate)
-        self.assert_wrapped(langchain_core.language_models.llms.BaseLLM.agenerate)
-        self.assert_wrapped(langchain_core.language_models.chat_models.BaseChatModel.generate)
-        self.assert_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.invoke)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.ainvoke)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.batch)
-        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.abatch)
-        self.assert_wrapped(langchain_core.embeddings.Embeddings.__init_subclass__)
-        self.assert_wrapped(langchain_core.vectorstores.VectorStore.__init_subclass__)
-
-    def assert_not_module_patched(self, langchain):
-        import langchain_core
-        from langchain_core.embeddings import Embeddings  # noqa: F401
-        from langchain_core.language_models.chat_models import BaseChatModel  # noqa: F401
-        from langchain_core.language_models.llms import BaseLLM  # noqa: F401
-        from langchain_core.prompts.base import BasePromptTemplate  # noqa: F401
-        from langchain_core.runnables.base import RunnableLambda  # noqa: F401
-        from langchain_core.runnables.base import RunnableSequence  # noqa: F401
-        from langchain_core.tools import BaseTool  # noqa: F401
-        from langchain_core.vectorstores import VectorStore  # noqa: F401
-
-        self.assert_not_wrapped(langchain_core.language_models.llms.BaseLLM.generate)
-        self.assert_not_wrapped(langchain_core.language_models.llms.BaseLLM.agenerate)
-        self.assert_not_wrapped(langchain_core.language_models.chat_models.BaseChatModel.generate)
-        self.assert_not_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.invoke)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.ainvoke)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.batch)
-        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.abatch)
-        self.assert_not_wrapped(langchain_core.embeddings.Embeddings.__init_subclass__)
-        self.assert_not_wrapped(langchain_core.vectorstores.VectorStore.__init_subclass__)
-
-    def assert_not_module_double_patched(self, langchain):
-        import langchain_core
-        from langchain_core.embeddings import Embeddings  # noqa: F401
-        from langchain_core.language_models.chat_models import BaseChatModel  # noqa: F401
-        from langchain_core.language_models.llms import BaseLLM  # noqa: F401
-        from langchain_core.prompts.base import BasePromptTemplate  # noqa: F401
-        from langchain_core.runnables.base import RunnableLambda  # noqa: F401
-        from langchain_core.runnables.base import RunnableSequence  # noqa: F401
-        from langchain_core.tools import BaseTool  # noqa: F401
-        from langchain_core.vectorstores import VectorStore  # noqa: F401
-
-        self.assert_not_double_wrapped(langchain_core.language_models.llms.BaseLLM.generate)
-        self.assert_not_double_wrapped(langchain_core.language_models.llms.BaseLLM.agenerate)
-        self.assert_not_double_wrapped(langchain_core.language_models.chat_models.BaseChatModel.generate)
-        self.assert_not_double_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.invoke)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.ainvoke)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.batch)
-        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.abatch)
-        self.assert_not_double_wrapped(langchain_core.embeddings.Embeddings.__init_subclass__)
-        self.assert_not_double_wrapped(langchain_core.vectorstores.VectorStore.__init_subclass__)
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
 class _FakeInstance:
@@ -183,3 +94,18 @@ def test_extract_model_name_non_application_arn_does_not_record(clear_inference_
     _extract_model_name(instance)
 
     assert lookup_inference_profile(arn) is None
+
+
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestLangchainPatch(python_process, scenario):
+    module = "tests.contrib.langchain"
+    module += "._test_langchain_patch_scenarios"
+    case = "TestLangchainPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

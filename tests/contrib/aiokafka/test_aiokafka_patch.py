@@ -1,26 +1,18 @@
-from ddtrace.contrib.internal.aiokafka.patch import get_version
-from ddtrace.contrib.internal.aiokafka.patch import patch
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-try:
-    from ddtrace.contrib.internal.aiokafka.patch import unpatch
-except ImportError:
-    unpatch = None
-from tests.contrib.patch import PatchTestCase
-
-
-class TestAIOKafkaPatch(PatchTestCase.Base):
-    __integration_name__ = "aiokafka"
-    __module_name__ = "aiokafka"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, aiokafka):
-        pass
-
-    def assert_not_module_patched(self, aiokafka):
-        pass
-
-    def assert_not_module_double_patched(self, aiokafka):
-        pass
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestAIOKafkaPatch(python_process, scenario):
+    module = "tests.contrib.aiokafka"
+    module += "._test_aiokafka_patch_scenarios"
+    case = "TestAIOKafkaPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

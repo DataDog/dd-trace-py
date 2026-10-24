@@ -302,8 +302,7 @@ class TestMolten(TracerTestCase):
         spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service_default_schema(self):
+    def _scenario_test_user_specified_service_default_schema(self):
         """
         default: When a service name is specified by the user
             The molten integration should use it as the service name
@@ -313,8 +312,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0_schema(self):
+    def _scenario_test_user_specified_service_v0_schema(self):
         """
         v0: When a service name is specified by the user
             The molten integration should use it as the service name
@@ -324,8 +322,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1_schema(self):
+    def _scenario_test_user_specified_service_v1_schema(self):
         """
         v1: When a service name is specified by the user
             The molten integration should use it as the service name
@@ -335,8 +332,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess()
-    def test_unspecified_service_default_schema(self):
+    def _scenario_test_unspecified_service_default_schema(self):
         """
         default: When a service name is not specified by the user
             The molten integration should use 'molten' as the service name
@@ -346,8 +342,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "molten", f"Expected 'molten' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_unspecified_service_v0_schema(self):
+    def _scenario_test_unspecified_service_v0_schema(self):
         """
         v0: When a service name is not specified by the user
             The molten integration should use 'molten' as the service name
@@ -357,8 +352,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "molten", f"Expected 'molten' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v1_schema(self):
+    def _scenario_test_unspecified_service_v1_schema(self):
         """
         v1: When a service name is not specified by the user
             The molten integration should use internal.schema.DEFAULT_SPAN_SERVICE_NAME as the service name
@@ -370,8 +364,7 @@ class TestMolten(TracerTestCase):
                 f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' but got {span.service}"
             )
 
-    @TracerTestCase.run_in_subprocess()
-    def test_schematized_operation_name_default(self):
+    def _scenario_test_schematized_operation_name_default(self):
         """
         v0: The molten span name should be "request.span"
         """
@@ -380,8 +373,7 @@ class TestMolten(TracerTestCase):
         root_span = spans[0]
         assert root_span.name == "molten.request", f"Expected 'molten.request' but got {root_span.name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_operation_name_v0(self):
+    def _scenario_test_schematized_operation_name_v0(self):
         """
         v0: The molten span name should be "request.span"
         """
@@ -390,8 +382,7 @@ class TestMolten(TracerTestCase):
         root_span = spans[0]
         assert root_span.name == "molten.request", f"Expected 'molten.request' but got {root_span.name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_operation_name_v1(self):
+    def _scenario_test_schematized_operation_name_v1(self):
         """
         v1: The molten span name should be "http.server.request"
         """
@@ -488,3 +479,104 @@ class TestMolten(TracerTestCase):
                         else:
                             web_span = traces[0][0]
                             assert web_span._parent is None
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestMolten_user_specified_service_default_schema():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_user_specified_service_default_schema") as case:
+        case._scenario_test_user_specified_service_default_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestMolten_user_specified_service_v0_schema():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_user_specified_service_v0_schema") as case:
+        case._scenario_test_user_specified_service_v0_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestMolten_user_specified_service_v1_schema():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_user_specified_service_v1_schema") as case:
+        case._scenario_test_user_specified_service_v1_schema()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True, test_assertions=True)
+def test_TestMolten_unspecified_service_default_schema():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_unspecified_service_default_schema") as case:
+        case._scenario_test_unspecified_service_default_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestMolten_unspecified_service_v0_schema():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_unspecified_service_v0_schema") as case:
+        case._scenario_test_unspecified_service_v0_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestMolten_unspecified_service_v1_schema():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_unspecified_service_v1_schema") as case:
+        case._scenario_test_unspecified_service_v1_schema()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True, test_assertions=True)
+def test_TestMolten_schematized_operation_name_default():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_schematized_operation_name_default") as case:
+        case._scenario_test_schematized_operation_name_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestMolten_schematized_operation_name_v0():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_schematized_operation_name_v0") as case:
+        case._scenario_test_schematized_operation_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestMolten_schematized_operation_name_v1():
+    from tests.contrib.molten.test_molten import TestMolten
+    from tests.process import case_context
+
+    with case_context(TestMolten, "_scenario_test_schematized_operation_name_v1") as case:
+        case._scenario_test_schematized_operation_name_v1()

@@ -64,7 +64,7 @@ def test_get_configuration_debug_logs():
     import sys
     import tempfile
 
-    from tests.utils import call_program
+    from tests.process import run_process
 
     # Create managed config
     with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="managed_config") as managed_config:
@@ -80,7 +80,9 @@ apm_configuration_default:
         env["DD_TRACE_DEBUG"] = "true"
         env["_DD_SC_MANAGED_FILE_OVERRIDE"] = managed_config.name
 
-        _, err, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
+        _process_result = run_process(sys.executable, "-c", "import ddtrace", env=env)
+        err = _process_result.stderr
+        status = _process_result.returncode
         assert status == 0, err
         assert b"Read the following static config: StableConfig" in err
         assert b'ConfigMap([("DD_VERSION", "c")]), tags: {}, rules: [] }' in err

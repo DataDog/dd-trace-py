@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -10,7 +12,6 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
 from .utils import TornadoTestCase
-from .utils import TracerTestCase
 from .web.app import CustomDefaultHandler
 
 
@@ -535,8 +536,7 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
 
         config.tornado.distributed_tracing = original
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TORNADO_DISTRIBUTED_TRACING="False"))
-    def test_no_propagation_via_env_var(self):
+    def _scenario_test_no_propagation_via_env_var(self):
         # it should not propagate the HTTP context
         headers = {
             "x-datadog-trace-id": "1234",
@@ -607,8 +607,7 @@ class TestSchematization(TornadoTestCase):
     Ensure that schematization works for both service name and operations.
     """
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_name_schematization_default(self):
+    def _scenario_test_service_name_schematization_default(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -617,8 +616,7 @@ class TestSchematization(TornadoTestCase):
         request_span = traces[0][0]
         assert "mysvc" == request_span.service, f"Expected 'mysvc' but got {request_span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_service_name_schematization_v0(self):
+    def _scenario_test_service_name_schematization_v0(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -627,8 +625,7 @@ class TestSchematization(TornadoTestCase):
         request_span = traces[0][0]
         assert "mysvc" == request_span.service, f"Expected 'mysvc' but got {request_span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_service_name_schematization_v1(self):
+    def _scenario_test_service_name_schematization_v1(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -637,8 +634,7 @@ class TestSchematization(TornadoTestCase):
         request_span = traces[0][0]
         assert "mysvc" == request_span.service, f"Expected 'mysvc' but got {request_span.service}"
 
-    @TracerTestCase.run_in_subprocess()
-    def test_unspecified_service_name_schematization_default(self):
+    def _scenario_test_unspecified_service_name_schematization_default(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -647,8 +643,7 @@ class TestSchematization(TornadoTestCase):
         request_span = traces[0][0]
         assert "tornado-web" == request_span.service, f"Expected 'tornado-web' but got {request_span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_unspecified_service_name_schematization_v0(self):
+    def _scenario_test_unspecified_service_name_schematization_v0(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -657,8 +652,7 @@ class TestSchematization(TornadoTestCase):
         request_span = traces[0][0]
         assert "tornado-web" == request_span.service, f"Expected 'tornado-web' but got {request_span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_name_schematization_v1(self):
+    def _scenario_test_unspecified_service_name_schematization_v1(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -669,8 +663,7 @@ class TestSchematization(TornadoTestCase):
             f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' but got {request_span.service}"
         )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_unspecified_operation_name_schematization_v0(self):
+    def _scenario_test_unspecified_operation_name_schematization_v0(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -679,8 +672,7 @@ class TestSchematization(TornadoTestCase):
         request_span = traces[0][0]
         assert "tornado.request" == request_span.name, f"Expected 'tornado.request' but got {request_span.name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_operation_name_schematization_v1(self):
+    def _scenario_test_unspecified_operation_name_schematization_v1(self):
         self.fetch("/success/")
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -765,3 +757,106 @@ class TestAPIGatewayTracing(TornadoTestCase):
                     else:
                         web_span = traces[0][0]
                         assert web_span._parent is None
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TORNADO_DISTRIBUTED_TRACING="False"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestNoPropagationTornadoWebViaConfig_no_propagation_via_env_var():
+    from tests.contrib.tornado.test_tornado_web import TestNoPropagationTornadoWebViaConfig
+    from tests.process import case_context
+
+    with case_context(TestNoPropagationTornadoWebViaConfig, "_scenario_test_no_propagation_via_env_var") as case:
+        case._scenario_test_no_propagation_via_env_var()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_TestSchematization_service_name_schematization_default():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_service_name_schematization_default") as case:
+        case._scenario_test_service_name_schematization_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSchematization_service_name_schematization_v0():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_service_name_schematization_v0") as case:
+        case._scenario_test_service_name_schematization_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSchematization_service_name_schematization_v1():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_service_name_schematization_v1") as case:
+        case._scenario_test_service_name_schematization_v1()
+
+
+@pytest.mark.subprocess(env={}, out=None, err=None, command=True, test_assertions=True)
+def test_TestSchematization_unspecified_service_name_schematization_default():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_unspecified_service_name_schematization_default") as case:
+        case._scenario_test_unspecified_service_name_schematization_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_unspecified_service_name_schematization_v0():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_unspecified_service_name_schematization_v0") as case:
+        case._scenario_test_unspecified_service_name_schematization_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_unspecified_service_name_schematization_v1():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_unspecified_service_name_schematization_v1") as case:
+        case._scenario_test_unspecified_service_name_schematization_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_unspecified_operation_name_schematization_v0():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_unspecified_operation_name_schematization_v0") as case:
+        case._scenario_test_unspecified_operation_name_schematization_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSchematization_unspecified_operation_name_schematization_v1():
+    from tests.contrib.tornado.test_tornado_web import TestSchematization
+    from tests.process import case_context
+
+    with case_context(TestSchematization, "_scenario_test_unspecified_operation_name_schematization_v1") as case:
+        case._scenario_test_unspecified_operation_name_schematization_v1()

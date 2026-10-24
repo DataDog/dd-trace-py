@@ -3,6 +3,7 @@ import json
 from operator import itemgetter
 import os
 import sys
+from unittest import TestCase
 from unittest import mock
 
 import pytest
@@ -29,8 +30,6 @@ from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import assert_llmobs_span_data
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
-from tests.subprocesstest import SubprocessTestCase
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyWriter
 
 
@@ -1085,7 +1084,7 @@ def test_llmobs_chat_model_empty_stream(langchain_core, langchain_llmobs):
     assert output_messages == [{"content": "", "role": ""}]
 
 
-class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
+class TestTraceStructureWithLLMIntegrations(TestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
         AWS_SECRET_ACCESS_KEY="testing",
@@ -1286,8 +1285,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             llm = GoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
             llm.invoke("When do you use 'whom' instead of 'who'?")
 
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_with_openai_enabled(self):
+    def _scenario_test_llmobs_with_openai_enabled(self):
         from langchain_openai import OpenAI
 
         patch(langchain=True, openai=True)
@@ -1295,8 +1293,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_openai_llm(OpenAI)
         self._assert_span_kinds(["workflow", "llm"])
 
-    @run_in_subprocess(env_overrides=azure_openai_env_config)
-    def test_llmobs_with_openai_enabled_azure(self):
+    def _scenario_test_llmobs_with_openai_enabled_azure(self):
         from langchain_openai import AzureChatOpenAI
 
         patch(langchain=True, openai=True)
@@ -1304,8 +1301,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_azure_openai_chat(AzureChatOpenAI)
         self._assert_span_kinds(["workflow", "llm"])
 
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_with_openai_enabled_non_ascii_value(self):
+    def _scenario_test_llmobs_with_openai_enabled_non_ascii_value(self):
         """Regression test to ensure that non-ascii text values for workflow spans are not encoded."""
         from langchain_openai import OpenAI
 
@@ -1317,8 +1313,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         assert get_llmobs_span_kind(spans[0]) == "workflow"
         assert get_llmobs_input_value(spans[0]) == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
 
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
+    def _scenario_test_llmobs_langchain_with_embedding_model_openai_enabled(self):
         patch(openai=True, langchain=True)
 
         from langchain_openai import OpenAIEmbeddings
@@ -1327,8 +1322,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_openai_embedding(OpenAIEmbeddings)
         self._assert_span_kinds(["workflow", "embedding"])
 
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
+    def _scenario_test_llmobs_langchain_with_embedding_model_openai_disabled(self):
         patch(langchain=True)
 
         from langchain_openai import OpenAIEmbeddings
@@ -1337,8 +1331,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_openai_embedding(OpenAIEmbeddings)
         self._assert_span_kinds(["embedding"])
 
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_with_openai_disabled(self):
+    def _scenario_test_llmobs_with_openai_disabled(self):
         from langchain_openai import OpenAI
 
         patch(langchain=True)
@@ -1347,8 +1340,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_openai_llm(OpenAI)
         self._assert_span_kinds(["llm"])
 
-    @run_in_subprocess(env_overrides=azure_openai_env_config)
-    def test_llmobs_with_openai_disabled_azure(self):
+    def _scenario_test_llmobs_with_openai_disabled_azure(self):
         from langchain_openai import AzureChatOpenAI
 
         patch(langchain=True)
@@ -1357,8 +1349,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_azure_openai_chat(AzureChatOpenAI)
         self._assert_span_kinds(["llm"])
 
-    @run_in_subprocess(env_overrides=anthropic_env_config)
-    def test_llmobs_with_anthropic_enabled(self):
+    def _scenario_test_llmobs_with_anthropic_enabled(self):
         from langchain_anthropic import ChatAnthropic
 
         patch(langchain=True, anthropic=True)
@@ -1367,8 +1358,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_span_kinds(["workflow", "llm"])
 
-    @run_in_subprocess(env_overrides=anthropic_env_config)
-    def test_llmobs_with_anthropic_disabled(self):
+    def _scenario_test_llmobs_with_anthropic_disabled(self):
         from langchain_anthropic import ChatAnthropic
 
         patch(langchain=True)
@@ -1378,8 +1368,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_span_kinds(["llm"])
 
-    @run_in_subprocess(env_overrides=google_genai_env_config)
-    def test_llmobs_with_google_genai_enabled(self):
+    def _scenario_test_llmobs_with_google_genai_enabled(self):
         try:
             import google.genai  # noqa: F401
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -1392,8 +1381,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_google_genai_chat(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["workflow", "llm"])
 
-    @run_in_subprocess(env_overrides=google_genai_env_config)
-    def test_llmobs_with_google_genai_disabled(self):
+    def _scenario_test_llmobs_with_google_genai_disabled(self):
         try:
             import google.genai  # noqa: F401
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -1406,8 +1394,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_google_genai_chat(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["llm"])
 
-    @run_in_subprocess(env_overrides=google_genai_env_config)
-    def test_llmobs_with_google_genai_enabled_stream(self):
+    def _scenario_test_llmobs_with_google_genai_enabled_stream(self):
         try:
             import google.genai  # noqa: F401
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -1420,8 +1407,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_google_genai_chat_stream(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["workflow", "llm"])
 
-    @run_in_subprocess(env_overrides=google_genai_env_config)
-    def test_llmobs_with_google_genai_enabled_legacy_client(self):
+    def _scenario_test_llmobs_with_google_genai_enabled_legacy_client(self):
         try:
             import google.genai  # noqa: F401
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -1434,8 +1420,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_google_genai_chat_legacy_client(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["llm"])
 
-    @run_in_subprocess(env_overrides=google_genai_env_config)
-    def test_llmobs_with_google_genai_llm_enabled(self):
+    def _scenario_test_llmobs_with_google_genai_llm_enabled(self):
         try:
             import google.genai  # noqa: F401
             from langchain_google_genai import GoogleGenerativeAI
@@ -1448,8 +1433,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_google_genai_llm(GoogleGenerativeAI)
         self._assert_span_kinds(["workflow", "llm"])
 
-    @run_in_subprocess(env_overrides=google_genai_env_config)
-    def test_llmobs_with_google_genai_llm_disabled(self):
+    def _scenario_test_llmobs_with_google_genai_llm_disabled(self):
         try:
             import google.genai  # noqa: F401
             from langchain_google_genai import GoogleGenerativeAI
@@ -1487,3 +1471,226 @@ def test_shadow_tags_chat_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.input_tokens") == 5
     assert span.get_metric("_dd.llmobs.output_tokens") == 3
     assert span.get_metric("_dd.llmobs.total_tokens") == 8
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.openai_env_config, out=None, err=None, command=True, test_assertions=True
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_openai_enabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_openai_enabled") as case:
+        case._scenario_test_llmobs_with_openai_enabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.azure_openai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_openai_enabled_azure():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_openai_enabled_azure") as case:
+        case._scenario_test_llmobs_with_openai_enabled_azure()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.openai_env_config, out=None, err=None, command=True, test_assertions=True
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_openai_enabled_non_ascii_value():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_openai_enabled_non_ascii_value"
+    ) as case:
+        case._scenario_test_llmobs_with_openai_enabled_non_ascii_value()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.openai_env_config, out=None, err=None, command=True, test_assertions=True
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_langchain_with_embedding_model_openai_enabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_langchain_with_embedding_model_openai_enabled"
+    ) as case:
+        case._scenario_test_llmobs_langchain_with_embedding_model_openai_enabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.openai_env_config, out=None, err=None, command=True, test_assertions=True
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_langchain_with_embedding_model_openai_disabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_langchain_with_embedding_model_openai_disabled"
+    ) as case:
+        case._scenario_test_llmobs_langchain_with_embedding_model_openai_disabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.openai_env_config, out=None, err=None, command=True, test_assertions=True
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_openai_disabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_openai_disabled") as case:
+        case._scenario_test_llmobs_with_openai_disabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.azure_openai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_openai_disabled_azure():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_openai_disabled_azure"
+    ) as case:
+        case._scenario_test_llmobs_with_openai_disabled_azure()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.anthropic_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_anthropic_enabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_anthropic_enabled") as case:
+        case._scenario_test_llmobs_with_anthropic_enabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.anthropic_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_anthropic_disabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_anthropic_disabled") as case:
+        case._scenario_test_llmobs_with_anthropic_disabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.google_genai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_google_genai_enabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_google_genai_enabled") as case:
+        case._scenario_test_llmobs_with_google_genai_enabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.google_genai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_google_genai_disabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_google_genai_disabled"
+    ) as case:
+        case._scenario_test_llmobs_with_google_genai_disabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.google_genai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_google_genai_enabled_stream():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_google_genai_enabled_stream"
+    ) as case:
+        case._scenario_test_llmobs_with_google_genai_enabled_stream()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.google_genai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_google_genai_enabled_legacy_client():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_google_genai_enabled_legacy_client"
+    ) as case:
+        case._scenario_test_llmobs_with_google_genai_enabled_legacy_client()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.google_genai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_google_genai_llm_enabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_google_genai_llm_enabled"
+    ) as case:
+        case._scenario_test_llmobs_with_google_genai_llm_enabled()
+
+
+@pytest.mark.subprocess(
+    env=TestTraceStructureWithLLMIntegrations.google_genai_env_config,
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestTraceStructureWithLLMIntegrations_llmobs_with_google_genai_llm_disabled():
+    from tests.contrib.langchain.test_langchain_llmobs import TestTraceStructureWithLLMIntegrations
+    from tests.process import case_context
+
+    with case_context(
+        TestTraceStructureWithLLMIntegrations, "_scenario_test_llmobs_with_google_genai_llm_disabled"
+    ) as case:
+        case._scenario_test_llmobs_with_google_genai_llm_disabled()

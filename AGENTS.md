@@ -21,6 +21,8 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
 15. **Automatic GitLab CI retries on `main` are allowed only for infrastructure failures** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies to infrastructure failures only. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
 
+16. **Process isolation** — Use `pytest.mark.subprocess` for self-contained child scenarios and `python_process` for applications with parent-side setup/assertions. See `docs/contributing-testing.rst`; preserve explicit fork, exec, signal, and subprocess-instrumentation tests.
+
 ## Docstrings and Comments
 
 Guild-agreed convention. It splits on **whether Sphinx renders the docstring**, not on whether the

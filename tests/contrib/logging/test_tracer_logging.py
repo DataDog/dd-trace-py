@@ -55,7 +55,7 @@ def assert_file_contains_log(dd_log_path):
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])
 def test_unrelated_logger_loaded_first(
-    dd_trace_debug, dd_trace_log_file_level, dd_trace_log_file, run_python_code_in_subprocess, tmpdir
+    dd_trace_debug, dd_trace_log_file_level, dd_trace_log_file, python_process, tmpdir
 ):
     """
     When the tracer is imported after logging has been configured,
@@ -88,7 +88,10 @@ assert custom_logger.level == logging.WARN
 ddtrace_logger = logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 """
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert_file_logging(b"ddtrace critical log", out, err, dd_trace_debug, ddtrace_log_path)
 
@@ -97,7 +100,7 @@ ddtrace_logger.critical('ddtrace critical log')
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])
 def test_unrelated_logger_loaded_last(
-    dd_trace_debug, dd_trace_log_file_level, dd_trace_log_file, run_python_code_in_subprocess, tmpdir
+    dd_trace_debug, dd_trace_log_file_level, dd_trace_log_file, python_process, tmpdir
 ):
     """
     When the tracer is imported before logging has been configured in debug mode,
@@ -128,7 +131,10 @@ ddtrace_logger = logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 """
 
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
     assert_file_logging(b"ddtrace critical log", out, err, dd_trace_debug, ddtrace_log_path)
@@ -138,7 +144,7 @@ ddtrace_logger.critical('ddtrace critical log')
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])
 def test_unrelated_logger_in_debug_with_ddtrace_run(
-    dd_trace_debug, dd_trace_log_file_level, dd_trace_log_file, ddtrace_run_python_code_in_subprocess, tmpdir
+    dd_trace_debug, dd_trace_log_file_level, dd_trace_log_file, python_process, tmpdir
 ):
     """
     When using ddtrace-run with a custom logger,
@@ -163,7 +169,10 @@ ddtrace_logger = logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 ddtrace_logger.warning('ddtrace warning log')
 """
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert out == b""
 
@@ -181,12 +190,12 @@ ddtrace_logger.warning('ddtrace warning log')
             assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
 
 
-def test_logs_with_basicConfig(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
+def test_logs_with_basicConfig(python_process):
     """
     When DD_TRACE_DEBUG is not set and logging.basicConfig() is set, then logs are emitted
     to stderr.
     """
-    for run_in_subprocess in [run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess]:
+    for ddtrace_run in [False, True]:
         code = """
 import logging
 import ddtrace
@@ -200,7 +209,10 @@ ddtrace_logger.warning('warning log')
 ddtrace_logger.debug('debug log')
 """
 
-        out, err, status, pid = run_in_subprocess(code)
+        _process_result = python_process(code, ddtrace_run=ddtrace_run)
+        out = _process_result.stdout
+        err = _process_result.stderr
+        status = _process_result.returncode
         assert status == 0, err
         assert re.search(LOG_PATTERN, str(err)) is None
         assert b"warning log" in err, err.decode()
@@ -208,7 +220,7 @@ ddtrace_logger.debug('debug log')
         assert out == b""
 
 
-def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
+def test_warn_logs_can_go_to_file(python_process, tmpdir):
     """
     When DD_TRACE_DEBUG is false and DD_TRACE_LOG_FILE_LEVEL hasn't been configured,
     warn logs are emitted to the path defined in DD_TRACE_LOG_FILE.
@@ -244,11 +256,14 @@ assert ddtrace_logger.handlers[2].backupCount == 1
 ddtrace_logger.warning('warning log')
 """
 
-    for run_in_subprocess, code in [
-        (run_python_code_in_subprocess, patch_code),
-        (ddtrace_run_python_code_in_subprocess, ddtrace_run_code),
+    for ddtrace_run, code in [
+        (False, patch_code),
+        (True, ddtrace_run_code),
     ]:
-        out, err, status, pid = run_in_subprocess(code, env=env)
+        _process_result = python_process(code, env=env, ddtrace_run=ddtrace_run)
+        out = _process_result.stdout
+        err = _process_result.stderr
+        status = _process_result.returncode
         assert status == 0, err
         assert b"warning log\n" in err, err.decode()
         assert out == b"", out.decode()
@@ -260,9 +275,7 @@ ddtrace_logger.warning('warning log')
 
 
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
-def test_debug_logs_streamhandler_default(
-    dd_trace_log_file_level, run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess
-):
+def test_debug_logs_streamhandler_default(dd_trace_log_file_level, python_process):
     """
     When DD_TRACE_DEBUG is true, debug logs are emitted to StreamHandler
     following a configured logging.basicConfig and its defined format.
@@ -286,7 +299,10 @@ ddtrace_logger.warning('warning log')
 ddtrace_logger.debug('debug log')
 """
 
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert re.search(LOG_PATTERN, str(err)) is None
     assert b"warning log" in err
@@ -305,7 +321,10 @@ ddtrace_logger.warning('warning log')
 ddtrace_logger.debug('debug log')
 """
 
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert re.search(LOG_PATTERN, str(err)) is None
     assert "program executable" in str(err)  # comes from ddtrace-run debug logging
@@ -315,9 +334,7 @@ ddtrace_logger.debug('debug log')
 
 
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
-def test_debug_logs_can_go_to_file_backup_count(
-    dd_trace_log_file_level, run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir
-):
+def test_debug_logs_can_go_to_file_backup_count(dd_trace_log_file_level, python_process, tmpdir):
     """
     When DD_TRACE_DEBUG is true and DD_TRACE_LOG_FILE has been specified, debug logs are
     written to a file at the expected backup count, based on the DD_TRACE_LOG_FILE_LEVEL setting.
@@ -352,7 +369,10 @@ for attempt in range(100):
     ddtrace_logger.critical('ddtrace multiple debug log')
 """
 
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
 
     assert status == 0, err
 
@@ -379,7 +399,10 @@ for attempt in range(100):
     ddtrace_logger.critical('ddtrace multiple debug log')
 """
 
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err.decode()
 
     assert "program executable" in str(err)  # comes from ddtrace-run debug logging
@@ -389,7 +412,7 @@ for attempt in range(100):
     assert_log_files(tmpdir.strpath, "testlog.log", 2)
 
 
-def test_unknown_log_level_error(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
+def test_unknown_log_level_error(python_process, tmpdir):
     """
     When DD_TRACE_LOG_FILE_LEVEL is set to an unknown env var, the application raises an error and no logs are written.
     """
@@ -404,7 +427,10 @@ import logging
 import ddtrace
 """
 
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 1, err
     assert "ValueError" in str(err)
     assert out == b""
@@ -415,7 +441,10 @@ import ddtrace
 import logging
 """
 
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 1, err
     assert "ValueError" in str(err)
     assert out == b""
@@ -440,7 +469,7 @@ import logging
         "critical",
     ],
 )
-def test_dd_trace_log_level_overrides_root_logger(dd_log_level, run_python_code_in_subprocess):
+def test_dd_trace_log_level_overrides_root_logger(dd_log_level, python_process):
     """
     When DD_TRACE_LOG_LEVEL is set, it overrides the root logger level even if
     logging.basicConfig() is called after importing ddtrace.
@@ -479,7 +508,9 @@ for level_num, level_name in levels_to_test:
     else:
         ddtrace_logger.log(level_num, f'{{level_name}} log should not appear')
 """
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
     levels_to_check = [
@@ -500,7 +531,7 @@ for level_num, level_name in levels_to_test:
             assert level_bytes + b" log should not appear" not in err
 
 
-def test_dd_trace_debug_takes_precedence_over_dd_trace_log_level(run_python_code_in_subprocess):
+def test_dd_trace_debug_takes_precedence_over_dd_trace_log_level(python_process):
     """
     When both DD_TRACE_DEBUG and DD_TRACE_LOG_LEVEL are set, DD_TRACE_DEBUG takes precedence.
     """
@@ -517,12 +548,14 @@ assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
 
 ddtrace_logger.debug('this is a debug log')
 """
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert b"this is a debug log" in err
 
 
-def test_dd_trace_log_level_does_not_enable_debug_mode(run_python_code_in_subprocess):
+def test_dd_trace_log_level_does_not_enable_debug_mode(python_process):
     """DD_TRACE_LOG_LEVEL=DEBUG sets log level but not debug mode."""
     env = os.environ.copy()
     env["DD_TRACE_LOG_LEVEL"] = "DEBUG"
@@ -533,11 +566,13 @@ ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
 assert ddtrace.config._debug_mode is False
 """
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
 
 
-def test_dd_trace_log_level_inherits_when_not_set(run_python_code_in_subprocess):
+def test_dd_trace_log_level_inherits_when_not_set(python_process):
     """When DD_TRACE_LOG_LEVEL is not set, logger inherits from root."""
     code = """
 import logging
@@ -548,16 +583,16 @@ assert ddtrace_logger.getEffectiveLevel() == logging.INFO
 ddtrace_logger.debug('this is a debug log')
 ddtrace_logger.info('this is an info log')
 """
-    out, err, status, pid = run_python_code_in_subprocess(code)
+    _process_result = python_process(code)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert b"this is a debug log" not in err
     assert b"this is an info log" in err
 
 
-@pytest.mark.parametrize(
-    "run_in_subprocess", ["run_python_code_in_subprocess", "ddtrace_run_python_code_in_subprocess"]
-)
-def test_dd_trace_log_level_invalid_value(run_in_subprocess, request):
+@pytest.mark.parametrize("ddtrace_run", [False, True])
+def test_dd_trace_log_level_invalid_value(ddtrace_run, python_process):
     """Invalid DD_TRACE_LOG_LEVEL logs warning and inherits from root."""
     env = os.environ.copy()
     env["DD_TRACE_LOG_LEVEL"] = "INVALID"
@@ -569,14 +604,15 @@ ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.NOTSET
 assert ddtrace_logger.getEffectiveLevel() == logging.INFO
 """
-    run_func = request.getfixturevalue(run_in_subprocess)
-    out, err, status, pid = run_func(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=ddtrace_run)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert "DD_TRACE_LOG_LEVEL is invalid" in str(err)
     assert "warning" in str(err).lower()
 
 
-def test_dd_trace_log_level_with_dd_trace_log_file(run_python_code_in_subprocess, tmpdir):
+def test_dd_trace_log_level_with_dd_trace_log_file(python_process, tmpdir):
     """DD_TRACE_LOG_LEVEL logger level vs DD_TRACE_LOG_FILE_LEVEL handler level."""
     env = os.environ.copy()
     env["DD_TRACE_LOG_LEVEL"] = "WARNING"
@@ -592,7 +628,9 @@ assert file_handler is not None and file_handler.level == logging.DEBUG
 ddtrace_logger.debug('this is a debug log')
 ddtrace_logger.warning('this is a warning log')
 """
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env)
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, err
     assert b"this is a debug log" not in err
     assert b"this is a warning log" in err

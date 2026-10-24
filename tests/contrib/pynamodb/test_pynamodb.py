@@ -145,9 +145,8 @@ class PynamodbTest(TracerTestCase):
         assert span.error == 1
         assert span.get_tag("error.type") != ""
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @mock_aws
-    def test_schematized_service_default(self):
+    def _scenario_test_schematized_service_default(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -160,9 +159,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_aws
-    def test_schematized_service_v0(self):
+    def _scenario_test_schematized_service_v0(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -175,9 +173,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_aws
-    def test_schematized_service_v1(self):
+    def _scenario_test_schematized_service_v1(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -190,9 +187,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @mock_aws
-    def test_schematized_unspecified_service_default(self):
+    def _scenario_test_schematized_unspecified_service_default(self):
         self._create_table()
         list_result = self.conn.list_tables()
 
@@ -201,9 +197,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_aws
-    def test_schematized_unspecified_service_v0(self):
+    def _scenario_test_schematized_unspecified_service_v0(self):
         self._create_table()
         list_result = self.conn.list_tables()
 
@@ -212,9 +207,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_aws
-    def test_schematized_unspecified_service_v1(self):
+    def _scenario_test_schematized_unspecified_service_v1(self):
         self._create_table()
         list_result = self.conn.list_tables()
 
@@ -225,9 +219,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_aws
-    def test_schematized_operation_v0(self):
+    def _scenario_test_schematized_operation_v0(self):
         self._create_table()
         list_result = self.conn.list_tables()
 
@@ -236,9 +229,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_aws
-    def test_schematized_operation_v1(self):
+    def _scenario_test_schematized_operation_v1(self):
         self._create_table()
         list_result = self.conn.list_tables()
 
@@ -247,9 +239,8 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYNAMODB_SERVICE="mypynamodb"))
     @mock_aws
-    def test_env_user_specified_pynamodb_service(self):
+    def _scenario_test_env_user_specified_pynamodb_service(self):
         self._create_table()
         list_result = self.conn.list_tables()
 
@@ -271,12 +262,129 @@ class PynamodbTest(TracerTestCase):
             assert len(list_result["TableNames"]) == 1
             assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_PYNAMODB_SERVICE="env-pynamodb"))
     @mock_aws
-    def test_service_precedence(self):
+    def _scenario_test_service_precedence(self):
         self._create_table()
         list_result = self.conn.list_tables()
         span = self.get_spans()[0]
         assert span.service == "env-pynamodb", span.service
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_PynamodbTest_schematized_service_default():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_service_default") as case:
+        case._scenario_test_schematized_service_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_PynamodbTest_schematized_service_v0():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_service_v0") as case:
+        case._scenario_test_schematized_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_PynamodbTest_schematized_service_v1():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_service_v1") as case:
+        case._scenario_test_schematized_service_v1()
+
+
+@pytest.mark.subprocess(env=dict(), out=None, err=None, command=True, test_assertions=True)
+def test_PynamodbTest_schematized_unspecified_service_default():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_unspecified_service_default") as case:
+        case._scenario_test_schematized_unspecified_service_default()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PynamodbTest_schematized_unspecified_service_v0():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_unspecified_service_v0") as case:
+        case._scenario_test_schematized_unspecified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PynamodbTest_schematized_unspecified_service_v1():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_unspecified_service_v1") as case:
+        case._scenario_test_schematized_unspecified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PynamodbTest_schematized_operation_v0():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_operation_v0") as case:
+        case._scenario_test_schematized_operation_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PynamodbTest_schematized_operation_v1():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_schematized_operation_v1") as case:
+        case._scenario_test_schematized_operation_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PYNAMODB_SERVICE="mypynamodb"), out=None, err=None, command=True, test_assertions=True
+)
+def test_PynamodbTest_env_user_specified_pynamodb_service():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_env_user_specified_pynamodb_service") as case:
+        case._scenario_test_env_user_specified_pynamodb_service()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="app-svc", DD_PYNAMODB_SERVICE="env-pynamodb"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_PynamodbTest_service_precedence():
+    from tests.contrib.pynamodb.test_pynamodb import PynamodbTest
+    from tests.process import case_context
+
+    with case_context(PynamodbTest, "_scenario_test_service_precedence") as case:
+        case._scenario_test_service_precedence()

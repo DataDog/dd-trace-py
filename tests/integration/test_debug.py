@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import subprocess
+from unittest import TestCase
 from unittest import mock
 
 import pytest
@@ -10,8 +11,6 @@ import pytest
 import ddtrace
 from ddtrace.internal import debug
 from tests.integration.utils import AGENT_VERSION
-from tests.subprocesstest import SubprocessTestCase
-from tests.subprocesstest import run_in_subprocess
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")
@@ -111,20 +110,8 @@ def test_debug_post_configure_uds():
     assert re.match("^Agent not reachable", agent_error)
 
 
-class TestGlobalConfig(SubprocessTestCase):
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_AGENT_HOST="0.0.0.0",
-            DD_TRACE_AGENT_PORT="4321",
-            DD_TRACE_HEALTH_METRICS_ENABLED="true",
-            DD_LOGS_INJECTION="true",
-            DD_ENV="prod",
-            DD_VERSION="123456",
-            DD_SERVICE="service",
-            DD_TAGS="k1:v1,k2:v2",
-        )
-    )
-    def test_env_config(self):
+class TestGlobalConfig(TestCase):
+    def _scenario_test_env_config(self):
         from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
         from ddtrace.trace import tracer
 
@@ -142,25 +129,14 @@ class TestGlobalConfig(SubprocessTestCase):
         icfg = f.get("integrations", {})
         assert "django" not in icfg
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-        )
-    )
-    def test_trace_agent_url(self):
+    def _scenario_test_trace_agent_url(self):
         from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
         from ddtrace.trace import tracer
 
         f = debug.collect(TracerDebugInfo.from_tracer(tracer))
         assert f.get("agent_url") == "http://0.0.0.0:1234"
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://localhost:8126",
-            DD_TRACE_STARTUP_LOGS="1",
-        )
-    )
-    def test_tracer_loglevel_info_connection(self):
+    def _scenario_test_tracer_loglevel_info_connection(self):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
@@ -171,47 +147,24 @@ class TestGlobalConfig(SubprocessTestCase):
             mock_logger.mock_calls
         )
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-            DD_TRACE_STARTUP_LOGS="1",
-        )
-    )
-    def test_tracer_loglevel_info_no_connection(self):
+    def _scenario_test_tracer_loglevel_info_no_connection(self):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             ddtrace.trace.tracer._generate_diagnostic_logs()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
         assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-            DD_TRACE_STARTUP_LOGS="0",
-        )
-    )
-    def test_tracer_log_disabled_error(self):
+    def _scenario_test_tracer_log_disabled_error(self):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             ddtrace.trace.tracer.configure()
         assert mock_logger.mock_calls == []
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
-            DD_TRACE_STARTUP_LOGS="0",
-        )
-    )
-    def test_tracer_log_disabled(self):
+    def _scenario_test_tracer_log_disabled(self):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             ddtrace.trace.tracer.configure()
         assert mock_logger.mock_calls == []
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
-        )
-    )
-    def test_tracer_info_level_log(self):
+    def _scenario_test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             ddtrace.trace.tracer.configure()
@@ -429,3 +382,109 @@ def test_partial_flush_log_subprocess():
 
     assert tracer._span_aggregator.partial_flush_enabled is True
     assert tracer._span_aggregator.partial_flush_min_spans == 2
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_AGENT_HOST="0.0.0.0",
+        DD_TRACE_AGENT_PORT="4321",
+        DD_TRACE_HEALTH_METRICS_ENABLED="true",
+        DD_LOGS_INJECTION="true",
+        DD_ENV="prod",
+        DD_VERSION="123456",
+        DD_SERVICE="service",
+        DD_TAGS="k1:v1,k2:v2",
+    ),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestGlobalConfig_env_config():
+    from tests.integration.test_debug import TestGlobalConfig
+    from tests.process import case_context
+
+    with case_context(TestGlobalConfig, "_scenario_test_env_config") as case:
+        case._scenario_test_env_config()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestGlobalConfig_trace_agent_url():
+    from tests.integration.test_debug import TestGlobalConfig
+    from tests.process import case_context
+
+    with case_context(TestGlobalConfig, "_scenario_test_trace_agent_url") as case:
+        case._scenario_test_trace_agent_url()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_STARTUP_LOGS="1"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestGlobalConfig_tracer_loglevel_info_connection():
+    from tests.integration.test_debug import TestGlobalConfig
+    from tests.process import case_context
+
+    with case_context(TestGlobalConfig, "_scenario_test_tracer_loglevel_info_connection") as case:
+        case._scenario_test_tracer_loglevel_info_connection()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="1"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestGlobalConfig_tracer_loglevel_info_no_connection():
+    from tests.integration.test_debug import TestGlobalConfig
+    from tests.process import case_context
+
+    with case_context(TestGlobalConfig, "_scenario_test_tracer_loglevel_info_no_connection") as case:
+        case._scenario_test_tracer_loglevel_info_no_connection()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="0"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestGlobalConfig_tracer_log_disabled_error():
+    from tests.integration.test_debug import TestGlobalConfig
+    from tests.process import case_context
+
+    with case_context(TestGlobalConfig, "_scenario_test_tracer_log_disabled_error") as case:
+        case._scenario_test_tracer_log_disabled_error()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126", DD_TRACE_STARTUP_LOGS="0"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_TestGlobalConfig_tracer_log_disabled():
+    from tests.integration.test_debug import TestGlobalConfig
+    from tests.process import case_context
+
+    with case_context(TestGlobalConfig, "_scenario_test_tracer_log_disabled") as case:
+        case._scenario_test_tracer_log_disabled()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestGlobalConfig_tracer_info_level_log():
+    from tests.integration.test_debug import TestGlobalConfig
+    from tests.process import case_context
+
+    with case_context(TestGlobalConfig, "_scenario_test_tracer_info_level_log") as case:
+        case._scenario_test_tracer_info_level_log()

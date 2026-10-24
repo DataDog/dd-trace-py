@@ -2,6 +2,7 @@ import os.path
 
 # 3rd party
 import jinja2
+import pytest
 
 from ddtrace.contrib.internal.jinja2.patch import patch
 from ddtrace.contrib.internal.jinja2.patch import unpatch
@@ -158,8 +159,7 @@ class Jinja2Test(TracerTestCase):
         for span in spans:
             assert span.service == "web"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def _scenario_test_user_specified_service(self):
         """
         When a service name is specified by the user
             The jinja integration should use it as the service name
@@ -173,3 +173,12 @@ class Jinja2Test(TracerTestCase):
         spans = self.pop_spans()
         for span in spans:
             assert span.service == "mysvc"
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_Jinja2Test_user_specified_service():
+    from tests.contrib.jinja2.test_jinja2 import Jinja2Test
+    from tests.process import case_context
+
+    with case_context(Jinja2Test, "_scenario_test_user_specified_service") as case:
+        case._scenario_test_user_specified_service()

@@ -104,11 +104,14 @@ def extract_log_correlation_attributes(captured_logs, log_message: str) -> dict:
 
 
 @pytest.mark.skipif(API_VERSION >= (1, 15, 0), reason="OpenTelemetry API >= 1.15.0 supports logs collection")
-def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
+def test_otel_api_version_not_supported(python_process):
     """Test error when OpenTelemetry API version is too old."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
+    _process_result = python_process(code="import opentelemetry", env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
     assert (
         "OpenTelemetry API requires version 1.15.0 or higher to enable logs collection. "
@@ -121,11 +124,14 @@ def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
 @pytest.mark.skipif(
     EXPORTER_VERSION != (0, 0, 0), reason="Test requires OpenTelemetry SDK and Exporter to not be installed"
 )
-def test_otel_exporter_not_installed(ddtrace_run_python_code_in_subprocess):
+def test_otel_exporter_not_installed(python_process):
     """Test error when OpenTelemetry OTLP exporters are not installed."""
     env = os.environ.copy()
     env["DD_LOGS_OTEL_ENABLED"] = "true"
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
+    _process_result = python_process(code="import opentelemetry", env=env, ddtrace_run=True)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
 
     assert (

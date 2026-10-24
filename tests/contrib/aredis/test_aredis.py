@@ -123,7 +123,7 @@ async def test_pipeline_immediate(snapshot_context):
         ("mysvc", "v1", "mysvc", "redis.command"),
     ],
 )
-def test_schematization_of_service_and_operation(ddtrace_run_python_code_in_subprocess, schema_tuplets):
+def test_schematization_of_service_and_operation(python_process, schema_tuplets):
     service, schema, expected_service, expected_operation = schema_tuplets
     code = f"""
 import asyncio
@@ -152,7 +152,10 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service
     if schema:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 

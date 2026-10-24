@@ -326,7 +326,7 @@ or finalized context-usage events must not relabel other turns. Tool results sha
 100,000 characters per turn across handler, outbound, and server observations.
 Truncation is reported in metadata while transcript and audio content are retained.
 
-ElevenLabs includes the standard PatchTestCase lifecycle matrix for every wrapped
+ElevenLabs includes the standard child-only PatchScenario lifecycle matrix for every wrapped
 entry point and checks that the global WebSocket module is left untouched.
 Public-SDK smoke tests install fake transport before ordinary patching and use
 public session start/end/wait methods. Focused state-machine tests remain useful

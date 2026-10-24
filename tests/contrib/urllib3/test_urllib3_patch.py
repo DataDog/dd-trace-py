@@ -1,21 +1,18 @@
-from ddtrace.contrib.internal.urllib3.patch import get_version
-from ddtrace.contrib.internal.urllib3.patch import patch
-from ddtrace.contrib.internal.urllib3.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestUrllib3Patch(PatchTestCase.Base):
-    __integration_name__ = "urllib3"
-    __module_name__ = "urllib3"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, urllib3):
-        self.assert_wrapped(urllib3.connectionpool.HTTPConnectionPool.urlopen)
-
-    def assert_not_module_patched(self, urllib3):
-        self.assert_not_wrapped(urllib3.connectionpool.HTTPConnectionPool.urlopen)
-
-    def assert_not_module_double_patched(self, urllib3):
-        self.assert_not_double_wrapped(urllib3.connectionpool.HTTPConnectionPool.urlopen)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestUrllib3Patch(python_process, scenario):
+    module = "tests.contrib.urllib3"
+    module += "._test_urllib3_patch_scenarios"
+    case = "TestUrllib3Patch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

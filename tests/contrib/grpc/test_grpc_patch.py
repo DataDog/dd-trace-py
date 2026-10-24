@@ -1,35 +1,18 @@
-from ddtrace.contrib.internal.grpc.patch import get_version
-from ddtrace.contrib.internal.grpc.patch import patch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestGRPCPatch(PatchTestCase.Base):
-    __integration_name__ = "grpc"
-    __module_name__ = "grpc"
-    __patch_func__ = patch
-    __unpatch_func__ = None
-    __get_version__ = get_version
-
-    def assert_module_patched(self, grpc):
-        # Client Wrapping
-        self.assert_wrapped(grpc.insecure_channel)
-        self.assert_wrapped(grpc.secure_channel)
-        self.assert_wrapped(grpc.intercept_channel)
-        # Server Wrapping
-        self.assert_wrapped(grpc.server)
-
-    def assert_not_module_patched(self, grpc):
-        # Client Wrapping
-        self.assert_not_wrapped(grpc.insecure_channel)
-        self.assert_not_wrapped(grpc.secure_channel)
-        self.assert_not_wrapped(grpc.intercept_channel)
-        # Server Wrapping
-        self.assert_not_wrapped(grpc.server)
-
-    def assert_not_module_double_patched(self, grpc):
-        # Client Wrapping
-        self.assert_not_double_wrapped(grpc.insecure_channel)
-        self.assert_not_double_wrapped(grpc.secure_channel)
-        self.assert_not_double_wrapped(grpc.intercept_channel)
-        # Server Wrapping
-        self.assert_not_double_wrapped(grpc.server)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestGRPCPatch(python_process, scenario):
+    module = "tests.contrib.grpc"
+    module += "._test_grpc_patch_scenarios"
+    case = "TestGRPCPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

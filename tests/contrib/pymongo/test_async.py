@@ -109,16 +109,7 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="full",
-            DD_ENV="test_env",
-            DD_VERSION="1.2.3",
-            DD_SERVICE="test_service",
-        )
-    )
-    async def test_async_dbm_propagation_full_mode(self) -> None:
+    async def _scenario_test_async_dbm_propagation_full_mode(self) -> None:
         command_capture = AsyncCommandCapture()
         client = AsyncMongoClient(port=MONGO_CONFIG["port"], event_listeners=[command_capture])
         try:
@@ -266,3 +257,18 @@ class TestAsyncPymongo(AsyncioTestCase):
         finally:
             await client.close()
             await asyncio.sleep(0.1)
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_DBM_PROPAGATION_MODE="full", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestAsyncPymongo_async_dbm_propagation_full_mode():
+    from tests.contrib.pymongo.test_async import TestAsyncPymongo
+    from tests.process import case_context
+
+    with case_context(TestAsyncPymongo, "_scenario_test_async_dbm_propagation_full_mode") as case:
+        case.loop.run_until_complete(case._scenario_test_async_dbm_propagation_full_mode())

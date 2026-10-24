@@ -52,7 +52,7 @@ async def test_handler(app, test_spans, aiohttp_client):
 
 @pytest.mark.skipif(PYTEST_ASYNCIO_VERSION >= (1, 0), reason="'loop' fixture removed")
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_service_operation_schema(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_service_operation_schema(python_process, schema_version):
     """
     vO/None:
         operation: module_name.request
@@ -100,7 +100,10 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _process_result = python_process(code, env=env, ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (err.decode(), out.decode())
     assert err == b""
 
@@ -616,7 +619,7 @@ async def test_inferred_spans_api_gateway(
 
 
 @pytest.mark.parametrize("ddtrace_run", [False, True])
-def test_trace_app_without_patch(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, ddtrace_run):
+def test_trace_app_without_patch(python_process, ddtrace_run):
     code = """
 import asyncio
 
@@ -646,14 +649,20 @@ asyncio.run(main())
     env = os.environ.copy()
     if ddtrace_run:
         env["DD_TRACE_ENABLED"] = "false"
-        out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        _process_result = python_process(code, env=env, ddtrace_run=True)
+        out = _process_result.stdout
+        err = _process_result.stderr
+        status = _process_result.returncode
     else:
-        out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+        _process_result = python_process(code, env=env)
+        out = _process_result.stdout
+        err = _process_result.stderr
+        status = _process_result.returncode
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 
 
-def test_config_set_before_trace_app_import(ddtrace_run_python_code_in_subprocess):
+def test_config_set_before_trace_app_import(python_process):
     code = """
 import aiohttp
 
@@ -668,6 +677,9 @@ from ddtrace.contrib.aiohttp import trace_app
 assert config.aiohttp.http.header_is_traced("x-request-id")
 assert config.aiohttp["disable_stream_timing_for_mem_leak"] is True
 """
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
+    _process_result = python_process(code, env=os.environ.copy(), ddtrace_run=True)
+    out = _process_result.stdout
+    err = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()

@@ -2687,9 +2687,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
 @pytest.mark.parametrize(
     "name,styles,extract_behavior,headers,expected_context", EXTRACT_FIXTURES + EXTRACT_FIXTURES_ENV_ONLY
 )
-def test_propagation_extract_env(
-    name, styles, extract_behavior, headers, expected_context, run_python_code_in_subprocess
-):
+def test_propagation_extract_env(name, styles, extract_behavior, headers, expected_context, python_process):
     # Execute the test code in isolation to ensure env variables work as expected
     code = f"""
 import json
@@ -2706,15 +2704,16 @@ assert context == expected_context, f"Expected {{expected_context}} but got {{co
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if extract_behavior is not None:
         env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = extract_behavior
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     print(stderr, stdout)
     assert status == 0, (stdout, stderr)
 
 
 @pytest.mark.parametrize("name,styles,extract_behavior,headers,expected_context", EXTRACT_FIXTURES)
-def test_propagation_extract_w_config(
-    name, styles, extract_behavior, headers, expected_context, run_python_code_in_subprocess
-):
+def test_propagation_extract_w_config(name, styles, extract_behavior, headers, expected_context, python_process):
     # Setting via ddtrace.config works as expected too
     # DEV: This also helps us get code coverage reporting
     overrides = {}
@@ -2783,7 +2782,7 @@ EXTRACT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_extract,headers,expected_context", EXTRACT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess, tmp_path
+    name, styles, styles_extract, headers, expected_context, python_process, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
     code = f"""
@@ -2811,7 +2810,10 @@ with open(os.environ["TEST_RESULT_PATH"], "w") as f:
     result_path = tmp_path / "result.json"
     env["TEST_RESULT_PATH"] = str(result_path)
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
     # The result travels by file, so the subprocess is expected to say nothing at all. Anything
     # here is a foreign write, which used to corrupt the result when it shared stdout.
@@ -3502,7 +3504,7 @@ INJECT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,context,expected_headers", INJECT_FIXTURES)
-def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess, tmp_path):
+def test_propagation_inject(name, styles, context, expected_headers, python_process, tmp_path):
     # Execute the test code in isolation to ensure env variables work as expected
     code = f"""
 import json
@@ -3525,7 +3527,10 @@ with open(os.environ["TEST_RESULT_PATH"], "w") as f:
     result_path = tmp_path / "result.json"
     env["TEST_RESULT_PATH"] = str(result_path)
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
     # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
     assert (stdout, stderr) == (b"", b"")
@@ -3572,7 +3577,7 @@ INJECT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_inject,context,expected_headers", INJECT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess, tmp_path
+    name, styles, styles_inject, context, expected_headers, python_process, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
     code = f"""
@@ -3598,7 +3603,10 @@ with open(os.environ["TEST_RESULT_PATH"], "w") as f:
     result_path = tmp_path / "result.json"
     env["TEST_RESULT_PATH"] = str(result_path)
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    _process_result = python_process(code=code, env=env)
+    stdout = _process_result.stdout
+    stderr = _process_result.stderr
+    status = _process_result.returncode
     assert status == 0, (stdout, stderr)
     # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
     assert (stdout, stderr) == (b"", b"")

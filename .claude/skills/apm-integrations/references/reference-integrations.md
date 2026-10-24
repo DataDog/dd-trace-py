@@ -65,7 +65,7 @@ turn also retires older generation when optional completion events are absent.
 Pre-metadata audio overflow discards the whole buffered prefix and carries the
 omission flag into the next input buffer; it must not export a truncated WAV.
 
-ElevenLabs includes the standard PatchTestCase lifecycle matrix for every wrapped
+ElevenLabs includes the standard child-only PatchScenario lifecycle matrix for every wrapped
 entry point and checks that the global WebSocket module is left untouched.
 Public-SDK smoke tests install fake transport before ordinary patching and use
 public session start/end/wait methods. Focused state-machine tests remain useful

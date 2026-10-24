@@ -6,7 +6,6 @@ import tempfile
 
 import pytest
 
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
 
@@ -58,8 +57,7 @@ class ErrorTestCases(TracerTestCase):
             for j, event_attrs in enumerate(span_events):
                 self.spans[i].assert_span_event_attributes(j, event_attrs)
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_basic_try_except(self):
+    def _scenario_test_basic_try_except(self):
         self._run_error_test(
             "test_basic_try_except_f",
             initial_value=0,
@@ -67,8 +65,7 @@ class ErrorTestCases(TracerTestCase):
             expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}]],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_basic_multiple_except(self):
+    def _scenario_test_basic_multiple_except(self):
         self._run_error_test(
             "test_basic_multiple_except_f",
             initial_value=0,
@@ -81,8 +78,7 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_handle_same_error_multiple_times(self):
+    def _scenario_test_handle_same_error_multiple_times(self):
         self._run_error_test(
             "test_handle_same_error_multiple_times_f",
             initial_value=0,
@@ -95,8 +91,7 @@ class ErrorTestCases(TracerTestCase):
             self.spans[0]._get_events()[0].attributes["exception.stacktrace"]
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_handled_same_error_different_type(self):
+    def _scenario_test_handled_same_error_different_type(self):
         self._run_error_test(
             "test_handled_same_error_different_type_f",
             initial_value=0,
@@ -109,8 +104,7 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_handled_then_raise_error(self):
+    def _scenario_test_handled_then_raise_error(self):
         self._run_error_test(
             "test_handled_then_raise_error_f",
             initial_value=0,
@@ -118,8 +112,7 @@ class ErrorTestCases(TracerTestCase):
             expected_events=[[]],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_more_handled_than_collector_capacity(self):
+    def _scenario_test_more_handled_than_collector_capacity(self):
         self._run_error_test(
             "test_more_handled_than_collector_capacity_f",
             initial_value=0,
@@ -129,8 +122,7 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_async_error(self):
+    def _scenario_test_async_error(self):
         self._run_error_test(
             "test_asyncio_error_f",
             initial_value="",
@@ -143,8 +135,7 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_handled_in_parent_span(self):
+    def _scenario_test_handled_in_parent_span(self):
         from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
         from tests.errortracking._test_functions import handled_in_parent_span_f
 
@@ -168,8 +159,7 @@ class ErrorTestCases(TracerTestCase):
         assert self.spans[1].name == "child_span"
         assert len(self.spans[1]._get_events()) == 0
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
-    def test_unhashable_exception(self):
+    def _scenario_test_unhashable_exception(self):
         """Test that unhashable exceptions (e.g., with mutable attributes) are handled correctly."""
         self._run_error_test(
             "test_unhashable_exception_f",
@@ -194,8 +184,8 @@ class UserCodeErrorTestCases(TracerTestCase):
     a real environment
     """
 
-    @pytest.fixture(scope="class", autouse=True)
-    def load_user_code(self):
+    def setUp(self):
+        super().setUp()
         from tests.errortracking._test_functions import main_user_code_string
         from tests.errortracking._test_functions import module_user_code_string
         from tests.errortracking._test_functions import submodule_1_string
@@ -285,12 +275,7 @@ class UserCodeErrorTestCases(TracerTestCase):
         for message in expected_events.get("messages_absent", []):
             assert message not in event_messages
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS="user",
-        )
-    )
-    def test_user_code_reporting(self):
+    def _scenario_test_user_code_reporting(self):
         self._run_user_code_test(
             initial_value="",
             expected_value="<except_f><except_module_f><except_numpy>",
@@ -301,32 +286,21 @@ class UserCodeErrorTestCases(TracerTestCase):
             },
         )
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS="third_party",
-        )
-    )
-    def test_user_code_reporting_with_third_party(self):
+    def _scenario_test_user_code_reporting_with_third_party(self):
         self._run_user_code_test(
             initial_value="",
             expected_value="<except_f><except_module_f><except_numpy>",
             expected_events={"min_events": 1, "messages_present": ["<error_numpy_f>"]},
         )
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="numpy,user_module",
-        )
-    )
-    def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
+    def _scenario_test_user_code_reporting_with_filtered_third_party_and_user_code(self):
         self._run_user_code_test(
             initial_value="",
             expected_value="<except_f><except_module_f><except_numpy>",
             expected_events={"min_events": 2, "messages_present": ["module caught error", "<error_numpy_f>"]},
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule"))
-    def test_user_code_scoped_reporting(self):
+    def _scenario_test_user_code_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",
             expected_value="<except_f><except_submodule_1><except_submodule_2>",
@@ -338,8 +312,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             use_submodules=True,
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule.submodule_2"))
-    def test_user_code_narrowed_scoped_reporting(self):
+    def _scenario_test_user_code_narrowed_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",
             expected_value="<except_f><except_submodule_1><except_submodule_2>",
@@ -347,3 +320,185 @@ class UserCodeErrorTestCases(TracerTestCase):
             use_maincode=False,
             use_submodules=True,
         )
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_basic_try_except():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_basic_try_except") as case:
+        case._scenario_test_basic_try_except()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_basic_multiple_except():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_basic_multiple_except") as case:
+        case._scenario_test_basic_multiple_except()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_handle_same_error_multiple_times():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_handle_same_error_multiple_times") as case:
+        case._scenario_test_handle_same_error_multiple_times()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_handled_same_error_different_type():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_handled_same_error_different_type") as case:
+        case._scenario_test_handled_same_error_different_type()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_handled_then_raise_error():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_handled_then_raise_error") as case:
+        case._scenario_test_handled_then_raise_error()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_more_handled_than_collector_capacity():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_more_handled_than_collector_capacity") as case:
+        case._scenario_test_more_handled_than_collector_capacity()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_async_error():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_async_error") as case:
+        case._scenario_test_async_error()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_handled_in_parent_span():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_handled_in_parent_span") as case:
+        case._scenario_test_handled_in_parent_span()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"), out=None, err=None, command=True, test_assertions=True
+)
+def test_ErrorTestCases_unhashable_exception():
+    from tests.errortracking.test_handled_exceptions import ErrorTestCases
+    from tests.process import case_context
+
+    with case_context(ErrorTestCases, "_scenario_test_unhashable_exception") as case:
+        case._scenario_test_unhashable_exception()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="user"), out=None, err=None, command=True, test_assertions=True
+)
+def test_UserCodeErrorTestCases_user_code_reporting():
+    from tests.errortracking.test_handled_exceptions import UserCodeErrorTestCases
+    from tests.process import case_context
+
+    with case_context(UserCodeErrorTestCases, "_scenario_test_user_code_reporting") as case:
+        case._scenario_test_user_code_reporting()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="third_party"), out=None, err=None, command=True, test_assertions=True
+)
+def test_UserCodeErrorTestCases_user_code_reporting_with_third_party():
+    from tests.errortracking.test_handled_exceptions import UserCodeErrorTestCases
+    from tests.process import case_context
+
+    with case_context(UserCodeErrorTestCases, "_scenario_test_user_code_reporting_with_third_party") as case:
+        case._scenario_test_user_code_reporting_with_third_party()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="numpy,user_module"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_UserCodeErrorTestCases_user_code_reporting_with_filtered_third_party_and_user_code():
+    from tests.errortracking.test_handled_exceptions import UserCodeErrorTestCases
+    from tests.process import case_context
+
+    with case_context(
+        UserCodeErrorTestCases, "_scenario_test_user_code_reporting_with_filtered_third_party_and_user_code"
+    ) as case:
+        case._scenario_test_user_code_reporting_with_filtered_third_party_and_user_code()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_UserCodeErrorTestCases_user_code_scoped_reporting():
+    from tests.errortracking.test_handled_exceptions import UserCodeErrorTestCases
+    from tests.process import case_context
+
+    with case_context(UserCodeErrorTestCases, "_scenario_test_user_code_scoped_reporting") as case:
+        case._scenario_test_user_code_scoped_reporting()
+
+
+@skipif_errortracking_not_supported
+@pytest.mark.subprocess(
+    env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule.submodule_2"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_UserCodeErrorTestCases_user_code_narrowed_scoped_reporting():
+    from tests.errortracking.test_handled_exceptions import UserCodeErrorTestCases
+    from tests.process import case_context
+
+    with case_context(UserCodeErrorTestCases, "_scenario_test_user_code_narrowed_scoped_reporting") as case:
+        case._scenario_test_user_code_narrowed_scoped_reporting()

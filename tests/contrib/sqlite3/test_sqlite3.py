@@ -249,8 +249,7 @@ class TestSQLite(TracerTestCase):
         db = sqlite3.connect(":memory:")
         return db
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_app_service_v0(self):
+    def _scenario_test_app_service_v0(self):
         """
         v0: When a user specifies a service for the app
             The sqlite3 integration should not use it.
@@ -271,8 +270,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_app_service_v1(self):
+    def _scenario_test_app_service_v1(self):
         """
         v1: When a user specifies a service for the app
             The sqlite3 integration should use it.
@@ -293,10 +291,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
@@ -308,10 +303,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == "my-svc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
@@ -323,8 +315,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == "my-svc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v1(self):
+    def _scenario_test_unspecified_service_v1(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
@@ -336,8 +327,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_span_name_v0_schema(self):
+    def _scenario_test_span_name_v0_schema(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
@@ -349,8 +339,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.name == "sqlite.query"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_span_name_v1_schema(self):
+    def _scenario_test_span_name_v1_schema(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
@@ -384,3 +373,96 @@ def test_backup(patched_conn):
 
     with destination:
         patched_conn.backup(destination, pages=1)
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSQLite_app_service_v0():
+    from tests.contrib.sqlite3.test_sqlite3 import TestSQLite
+    from tests.process import case_context
+
+    with case_context(TestSQLite, "_scenario_test_app_service_v0") as case:
+        case._scenario_test_app_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSQLite_app_service_v1():
+    from tests.contrib.sqlite3.test_sqlite3 import TestSQLite
+    from tests.process import case_context
+
+    with case_context(TestSQLite, "_scenario_test_app_service_v1") as case:
+        case._scenario_test_app_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSQLite_user_specified_service_v0():
+    from tests.contrib.sqlite3.test_sqlite3 import TestSQLite
+    from tests.process import case_context
+
+    with case_context(TestSQLite, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_TestSQLite_user_specified_service_v1():
+    from tests.contrib.sqlite3.test_sqlite3 import TestSQLite
+    from tests.process import case_context
+
+    with case_context(TestSQLite, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSQLite_unspecified_service_v1():
+    from tests.contrib.sqlite3.test_sqlite3 import TestSQLite
+    from tests.process import case_context
+
+    with case_context(TestSQLite, "_scenario_test_unspecified_service_v1") as case:
+        case._scenario_test_unspecified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSQLite_span_name_v0_schema():
+    from tests.contrib.sqlite3.test_sqlite3 import TestSQLite
+    from tests.process import case_context
+
+    with case_context(TestSQLite, "_scenario_test_span_name_v0_schema") as case:
+        case._scenario_test_span_name_v0_schema()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_TestSQLite_span_name_v1_schema():
+    from tests.contrib.sqlite3.test_sqlite3 import TestSQLite
+    from tests.process import case_context
+
+    with case_context(TestSQLite, "_scenario_test_span_name_v1_schema") as case:
+        case._scenario_test_span_name_v1_schema()

@@ -1,58 +1,33 @@
-from ddtrace.contrib.internal.azure_servicebus.patch import get_version
-from ddtrace.contrib.internal.azure_servicebus.patch import patch
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-try:
-    from ddtrace.contrib.internal.azure_servicebus.patch import unpatch
-except ImportError:
-    unpatch = None
-from tests.contrib.patch import PatchTestCase
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestAzureServiceBusPatch(python_process, scenario):
+    module = "tests.contrib.azure_servicebus"
+    module += "._test_azure_servicebus_patch_scenarios"
+    case = "TestAzureServiceBusPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()
 
 
-class TestAzureServiceBusPatch(PatchTestCase.Base):
-    __integration_name__ = "azure_servicebus"
-    __module_name__ = "azure.servicebus"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, azure_servicebus):
-        self.assert_wrapped(azure_servicebus.ServiceBusMessageBatch.add_message)
-        self.assert_wrapped(azure_servicebus.ServiceBusSender.create_message_batch)
-        self.assert_wrapped(azure_servicebus.ServiceBusSender.send_messages)
-        self.assert_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
-
-    def assert_not_module_patched(self, azure_servicebus):
-        self.assert_not_wrapped(azure_servicebus.ServiceBusMessageBatch.add_message)
-        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.create_message_batch)
-        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.send_messages)
-        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
-
-    def assert_not_module_double_patched(self, azure_servicebus):
-        self.assert_not_double_wrapped(azure_servicebus.ServiceBusMessageBatch.add_message)
-        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.create_message_batch)
-        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.send_messages)
-        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
-
-
-class TestAzureServiceBusAioPatch(PatchTestCase.Base):
-    __integration_name__ = "azure_servicebus"
-    __module_name__ = "azure.servicebus.aio"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, azure_servicebus):
-        self.assert_wrapped(azure_servicebus.ServiceBusSender.create_message_batch)
-        self.assert_wrapped(azure_servicebus.ServiceBusSender.send_messages)
-        self.assert_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
-
-    def assert_not_module_patched(self, azure_servicebus):
-        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.create_message_batch)
-        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.send_messages)
-        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
-
-    def assert_not_module_double_patched(self, azure_servicebus):
-        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.create_message_batch)
-        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.send_messages)
-        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestAzureServiceBusAioPatch(python_process, scenario):
+    module = "tests.contrib.azure_servicebus"
+    module += "._test_azure_servicebus_patch_scenarios"
+    case = "TestAzureServiceBusAioPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

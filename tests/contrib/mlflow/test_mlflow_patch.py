@@ -1,21 +1,18 @@
-from ddtrace.contrib.internal.mlflow.patch import get_version
-from ddtrace.contrib.internal.mlflow.patch import patch
-from ddtrace.contrib.internal.mlflow.patch import unpatch
-from tests.contrib.patch import PatchTestCase
+import pytest
+
+from tests.contrib.patch_scenarios import PATCH_SCENARIOS
 
 
-class TestMLflowPatch(PatchTestCase.Base):
-    __integration_name__ = "mlflow"
-    __module_name__ = "mlflow"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
-
-    def assert_module_patched(self, mlflow):
-        pass
-
-    def assert_not_module_patched(self, mlflow):
-        pass
-
-    def assert_not_module_double_patched(self, mlflow):
-        pass
+@pytest.mark.parametrize("scenario", PATCH_SCENARIOS)
+def test_TestMLflowPatch(python_process, scenario):
+    module = "tests.contrib.mlflow"
+    module += "._test_mlflow_patch_scenarios"
+    case = "TestMLflowPatch"
+    result = python_process(
+        f"from tests.contrib.patch import run_scenario; run_scenario({module!r}, {case!r}, {scenario!r})"
+    )
+    if result.returncode == 77:
+        pytest.skip(result.stdout.decode())
+    if result.returncode == 78:
+        pytest.xfail(result.stdout.decode())
+    result.check_returncode()

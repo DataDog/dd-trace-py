@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 from .common import _GRPC_VERSION
@@ -23,8 +22,7 @@ from .hello_pb2_grpc import HelloStub
 
 
 class GrpcTestCase(GrpcBaseTestCase):
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_user_specified_service_v1(self):
+    def _scenario_test_user_specified_service_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -33,8 +31,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_user_specified_service_v0(self):
+    def _scenario_test_user_specified_service_v0(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
@@ -46,8 +43,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert spans[0].service == "grpc-client"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v1(self):
+    def _scenario_test_unspecified_service_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -56,8 +52,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_unspecified_service_v0(self):
+    def _scenario_test_unspecified_service_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -66,8 +61,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "grpc-client"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_client_service_name_config_env_override_v0(self):
+    def _scenario_test_client_service_name_config_env_override_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -76,8 +70,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert spans[0].service == "mygrpc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_client_service_name_config_env_override_v1(self):
+    def _scenario_test_client_service_name_config_env_override_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -86,10 +79,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "mygrpc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
-    def test_service_precedence_v1(self):
+    def _scenario_test_service_precedence_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -98,10 +88,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "mygrpc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
-    def test_service_precedence_v0(self):
+    def _scenario_test_service_precedence_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -525,8 +512,7 @@ class GrpcTestCase(GrpcBaseTestCase):
             rpc_error = exception_context.exception
             assert grpc.StatusCode.UNIMPLEMENTED == rpc_error.code()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_app_service_name(self):
+    def _scenario_test_app_service_name(self):
         """
         When a service name is specified by the user
             It should be used for grpc server spans
@@ -548,8 +534,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_server_span(spans[1], "mysvc", "SayHello", "unary")
         self._check_client_span(spans[0], "grpc-client", "SayHello", "unary")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_name_config_override(self):
+    def _scenario_test_service_name_config_override(self):
         """
         When a service name is specified by the user in config.grpc{_server}
             It should be used in grpc client spans
@@ -567,8 +552,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_server_span(spans[1], "myserversvc", "SayHello", "unary")
         self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
-    def test_client_service_name_config_env_override(self):
+    def _scenario_test_client_service_name_config_env_override(self):
         """
         When a service name is specified by the user in the DD_GRPC_SERVICE env var
             It should be used in grpc client spans
@@ -581,8 +565,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         spans = self.get_spans_with_sync_and_assert(size=2)
         self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    def test_schematized_operation_name_v0(self):
+    def _scenario_test_schematized_operation_name_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -592,8 +575,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert client_span.name == "grpc", "Expected 'grpc', got %s" % client_span.name
         assert server_span.name == "grpc", "Expected 'grpc', got %s" % server_span.name
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_schematized_operation_name_v1(self):
+    def _scenario_test_schematized_operation_name_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
@@ -741,3 +723,164 @@ class _SpanActivationClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_GrpcTestCase_user_specified_service_v1():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_user_specified_service_v1") as case:
+        case._scenario_test_user_specified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_GrpcTestCase_user_specified_service_v0():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_user_specified_service_v0") as case:
+        case._scenario_test_user_specified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_GrpcTestCase_unspecified_service_v1():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_unspecified_service_v1") as case:
+        case._scenario_test_unspecified_service_v1()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_GrpcTestCase_unspecified_service_v0():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_unspecified_service_v0") as case:
+        case._scenario_test_unspecified_service_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_GrpcTestCase_client_service_name_config_env_override_v0():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_client_service_name_config_env_override_v0") as case:
+        case._scenario_test_client_service_name_config_env_override_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    command=True,
+    test_assertions=True,
+)
+def test_GrpcTestCase_client_service_name_config_env_override_v1():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_client_service_name_config_env_override_v1") as case:
+        case._scenario_test_client_service_name_config_env_override_v1()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_GrpcTestCase_service_precedence_v1():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_service_precedence_v1") as case:
+        case._scenario_test_service_precedence_v1()
+
+
+@pytest.mark.subprocess(
+    command=True,
+    env=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    out=None,
+    err=None,
+    test_assertions=True,
+)
+def test_GrpcTestCase_service_precedence_v0():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_service_precedence_v0") as case:
+        case._scenario_test_service_precedence_v0()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_GrpcTestCase_app_service_name():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_app_service_name") as case:
+        case._scenario_test_app_service_name()
+
+
+@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"), out=None, err=None, command=True, test_assertions=True)
+def test_GrpcTestCase_service_name_config_override():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_service_name_config_override") as case:
+        case._scenario_test_service_name_config_override()
+
+
+@pytest.mark.subprocess(env=dict(DD_GRPC_SERVICE="myclientsvc"), out=None, err=None, command=True, test_assertions=True)
+def test_GrpcTestCase_client_service_name_config_env_override():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_client_service_name_config_env_override") as case:
+        case._scenario_test_client_service_name_config_env_override()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"), out=None, err=None, command=True, test_assertions=True
+)
+def test_GrpcTestCase_schematized_operation_name_v0():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_schematized_operation_name_v0") as case:
+        case._scenario_test_schematized_operation_name_v0()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"), out=None, err=None, command=True, test_assertions=True
+)
+def test_GrpcTestCase_schematized_operation_name_v1():
+    from tests.contrib.grpc.test_grpc import GrpcTestCase
+    from tests.process import case_context
+
+    with case_context(GrpcTestCase, "_scenario_test_schematized_operation_name_v1") as case:
+        case._scenario_test_schematized_operation_name_v1()
