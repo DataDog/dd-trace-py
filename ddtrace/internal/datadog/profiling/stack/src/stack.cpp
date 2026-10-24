@@ -1026,9 +1026,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     const bool want = static_cast<bool>(enabled);
-    if (!want) {
-        fast_copy_user_disabled = true;
-    }
+    fast_copy_user_disabled = !want;
     set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
@@ -1128,6 +1126,28 @@ stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(
         Py_RETURN_NONE;
     }
     return Py_BuildValue("(ss)", error->type_name.c_str(), error->message.c_str());
+}
+
+static PyObject*
+stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Keep the GIL: this is a short optional swap, and releasing it lets
+    // finalization start before we reacquire.
+    std::optional<ForeignSegvHandler> handler = Sampler::get().take_foreign_segv_handler();
+    if (!handler.has_value()) {
+        Py_RETURN_NONE;
+    }
+    // dladdr paths may contain non-UTF-8 bytes. DecodeFSDefault uses
+    // surrogateescape on POSIX, and those surrogates fail when the telemetry
+    // Rust layer encodes to String — after take() has already cleared the latch.
+    // Replace so the owner stays encodable and the telemetry event is not lost.
+    PyObject* owner =
+      PyUnicode_Decode(handler->owner.c_str(), static_cast<Py_ssize_t>(handler->owner.size()), "utf-8", "replace");
+    if (owner == nullptr) {
+        return nullptr;
+    }
+    return Py_BuildValue(
+      "(ONO)", handler->already_owned ? Py_True : Py_False, owner, handler->sampling_stopped ? Py_True : Py_False);
 }
 
 static PyMethodDef stack_methods[] = {
@@ -1230,6 +1250,10 @@ static PyMethodDef stack_methods[] = {
       stack_take_sampling_thread_error,
       METH_NOARGS,
       "Return and clear the (error_type, message) that terminated the sampling thread, or None" },
+    { "take_foreign_segv_handler",
+      stack_take_foreign_segv_handler,
+      METH_NOARGS,
+      "Return and clear (already_owned, owner, sampling_stopped), or None" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,
