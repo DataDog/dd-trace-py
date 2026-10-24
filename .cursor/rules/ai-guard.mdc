@@ -53,6 +53,9 @@ ddtrace/aiguard/
 │                           #   AIGuardAbortError, Message, Evaluation, Options,
 │                           #   ToolCall, Function, … (lazily via __getattr__)
 ├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport
+├── middleware.py           # PUBLIC customer filters/callbacks: AIGuardMiddleware,
+│                           #   AIGuardContext, register_middleware() (not re-exported
+│                           #   from __init__; import ddtrace.aiguard.middleware)
 ├── _types.py               # Message / ToolCall / Function / ContentPart TypedDicts
 ├── _constants.py           # AI_GUARD constants: env var names, tags, metrics
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
@@ -168,6 +171,20 @@ plain dicts *or* SDK objects.
 `sds_findings` are copied through untouched. Their `location` offsets are
 computed on the **redacted** string, so they only line up when the reported
 messages are the redacted ones — never slice on them.
+
+### Middlewares (filters and callbacks)
+
+`register_middleware()` appends an `AIGuardMiddleware` instance to a global list that
+`AIGuardClient.evaluate()` iterates (SDK and auto-instrumentation alike) and returns a
+`MiddlewareRegistration` whose `unregister()` is idempotent. `should_evaluate` runs before
+the span (only an explicit `False` skips: ALLOW result, no span, `skipped:true` on
+`ai_guard.requests`, which otherwise reports `skipped:false`). The span then gets its core
+`ai_guard.target` / `.direction` / `.source` / `.integration` tags before `pre_evaluate`
+runs, and `post_evaluate` runs once from a `finally`, whatever the outcome. The
+`AIGuardContext` follows the cross-tracer RFC (`local_root_span`, `ai_guard_span`,
+`request.{source,integration,direction,target,messages}`) plus `result` / `error`;
+direction is OUTPUT when the last message is from the assistant. Hook exceptions are
+logged at debug and ignored.
 
 ### 5. Double-scan avoidance (`_context.py`)
 
