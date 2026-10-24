@@ -353,8 +353,12 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     time.sleep(2)
     p.stop()
 
-    restart_files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
-    assert restart_files, "Expected at least one internal_metadata.json file after restart"
+    # Exclude first-run uploads so a quiet restart cannot pass by re-reading them.
+    first_run_files: set[str] = set(files)
+    restart_files: list[str] = [
+        f for f in pprof_utils.get_internal_metadata_files(output_filename) if f not in first_run_files
+    ]
+    assert restart_files, "Expected at least one new internal_metadata.json file after restart"
 
     restart_metadata: Optional[dict[str, Any]] = None
     for f in reversed(restart_files):

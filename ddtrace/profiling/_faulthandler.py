@@ -18,12 +18,12 @@ faulthandler is imported (before or after ddtrace).
 
 from __future__ import annotations
 
-import threading
 from types import ModuleType
 import typing
 from typing import Callable
 
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.datadog.profiling.stack._handler_swap_lock import handler_swap_lock
 from ddtrace.internal.module import ModuleWatchdog
 
 
@@ -34,10 +34,11 @@ def _(faulthandler: ModuleType) -> None:
 
     _original_enable: Callable[..., None] = faulthandler.enable
     _original_disable: Callable[[], bool] = faulthandler.disable
-    _enable_lock: threading.Lock = threading.Lock()
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
-        with _enable_lock:
+        # Same lock as crashtracking.start so a nested pause/resume cannot clear
+        # the other component's pause mid-swap.
+        with handler_swap_lock:
             # pause_sampling returns:
             #   True  — sampler paused (safe to swap handlers)
             #   False — sampler not running (safe to swap; no racing thread)
@@ -83,7 +84,7 @@ def _(faulthandler: ModuleType) -> None:
                     stack.resume_sampling()
 
     def _patched_disable() -> bool:
-        with _enable_lock:
+        with handler_swap_lock:
             pause_result: bool | None = stack.pause_sampling()
             safe_to_swap: bool = pause_result is not None
             try:
