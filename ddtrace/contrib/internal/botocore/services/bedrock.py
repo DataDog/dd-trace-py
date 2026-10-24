@@ -376,18 +376,35 @@ def _extract_streamed_response_metadata(
     """
     provider = ctx["model_provider"]
     metadata = {}
+    usage = {}
     if provider == _AI21:
         pass  # ai21 does not support streamed responses
     elif provider in [_AMAZON, _ANTHROPIC, _COHERE, _META] and streamed_body:
         metadata = streamed_body[-1].get("amazon-bedrock-invocationMetrics", {})
+        usage = streamed_body[-1].get("metadata", {}).get("usage", {})
     elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
 
     input_tokens = metadata.get("inputTokenCount")
     output_tokens = metadata.get("outputTokenCount")
+    cache_read_tokens = None
+    cache_write_tokens = None
+    # Amazon Nova streams report 0 tokens in the invocation metrics; the counts are in metadata.usage
+    if not input_tokens and not output_tokens and usage:
+        input_tokens = usage.get("inputTokens")
+        output_tokens = usage.get("outputTokens")
+        cache_read_tokens = usage.get("cacheReadInputTokenCount")
+        cache_write_tokens = usage.get("cacheWriteInputTokenCount")
 
-    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), None, None, None)
+    _set_llmobs_usage(
+        ctx,
+        safe_token_count(input_tokens),
+        safe_token_count(output_tokens),
+        None,
+        safe_token_count(cache_read_tokens),
+        safe_token_count(cache_write_tokens),
+    )
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
