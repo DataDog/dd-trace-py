@@ -6,6 +6,9 @@ import os
 from textwrap import dedent
 from unittest import mock
 
+import pytest
+
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
@@ -171,6 +174,50 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
         output_value=mock.ANY,
         tags={"service": "mcptest", "ml_app": "<ml-app-name>", "integration": "mcp"},
         name="MCP Client list Tools",
+    )
+
+
+def test_llmobs_client_tool_cancellation(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        started = asyncio.Event()
+
+        @mcp_server.tool()
+        async def slow_tool(argument: str) -> str:
+            started.set()
+            await asyncio.Event().wait()
+            return argument
+
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            task = asyncio.create_task(client.call_tool("slow_tool", {"argument": "value"}))
+            await asyncio.wait_for(started.wait(), timeout=10)
+            task.cancel("cancelled by caller")
+            with pytest.raises(asyncio.CancelledError, match="cancelled by caller"):
+                await task
+
+    asyncio.run(run_test())
+
+    client_spans = [span for span in test_spans.pop() if span.resource == "client_tool_call"]
+    assert len(client_spans) == 1
+    client_span = client_spans[0]
+    events = [
+        call.args[0]
+        for call in mcp_llmobs._instance._llmobs_span_writer.enqueue.call_args_list
+        if call.args[0]["span_id"] == str(client_span.span_id)
+    ]
+    assert len(events) == 1
+    assert events[0]["meta"]["span"]["kind"] == "tool"
+    assert events[0]["status"] == "error"
+    assert client_span.finished
+    assert client_span.error
+    assert client_span.get_tag(ERROR_TYPE) == "asyncio.exceptions.CancelledError"
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(client_span),
+        span_kind="tool",
+        name="MCP Client Tool Call: slow_tool",
+        input_value=json.dumps({"argument": "value"}, sort_keys=True),
+        error=mock.ANY,
     )
 
 
