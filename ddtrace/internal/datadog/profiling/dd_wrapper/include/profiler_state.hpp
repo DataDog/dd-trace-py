@@ -95,6 +95,12 @@ class ProfilerState
     // Upload state
     // ========================================================================
     std::mutex upload_lock{};
+    // Orders token cancellation against exporter destruction (for TSan).
+    // Cancelling wakes the exporter's Tokio runtime (a write to its wake fd) and dropping the
+    // exporter tears that runtime down. Tokio already orders the two through the waker's refcount,
+    // but libdatadog is not built with TSan, so TSan cannot see that and reports a race on the fd.
+    // Hold this lock for every cancellation and for every drop of an exporter that may have sent.
+    std::mutex upload_cancel_lock{};
     // ddog_CancellationToken is documented as an opaque type, but we access .inner directly to
     // zero-initialize it: the C API provides no constructor, and the default value of .inner
     // is undefined. We check .inner != nullptr as a sentinel for "a token is in flight".
