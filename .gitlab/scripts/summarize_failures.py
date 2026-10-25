@@ -19,6 +19,7 @@ Auth flow:
   1. Download authanywhere and run it (--audience rapid-devex-ci) for a BTI JWT.
   2. Call BTI /gitlab/token to get a short-lived GitLab PAT (api scope).
   3. Use the GitLab PAT with CI_API_V4_URL to list jobs and bridges.
+     (TODO(ddci-run migration, CIEXE-2696): steps 2-4 call GitLab/bti-ci-api; see BTI_BASE_URL.)
   4. Use the BTI trace endpoint to download individual job logs.
   5. Run authanywhere again (--audience rapid-ai-platform) for the AI Gateway.
 
@@ -63,6 +64,9 @@ LOGS_DIR = Path(os.environ["CI_FAILURE_LOGS_DIR"])
 GH_OWNER = "DataDog"
 GH_REPO = "dd-trace-py"
 
+# TODO(ddci-run migration, CIEXE-2696): bti-ci-api mints GitLab PATs and reads GitLab pipelines/jobs, and
+# CI_API_V4_URL below lists jobs/bridges; neither exists under DDCI Run. Replace with the DDCI API
+# (requests/{id}/tasks, executions, logs) once the job's DDCI API auth is established.
 BTI_BASE_URL = "https://bti-ci-api.us1.ddbuild.io/internal/ci"
 AUTHANYWHERE_URL = "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64"
 AI_GATEWAY_BASE_URL = "https://ai-gateway.us1.ddbuild.io"

@@ -932,6 +932,8 @@ publishing-gate:
   # The gate only echoes; without this, stage ordering downloads every prior job's artifacts.
   dependencies: []
 
+# TODO(ddci-run migration, CIEXE-2696): the included llm-validation-platform job script mints a GitLab
+# token via bti-ci-api (/gitlab/token); it lives in the pinned remote include, so the fix belongs upstream.
 "llm validation":
   variables:
     LLMVAL_PLATFORM_PROJECT: "ddoghq/llm-validation-platform"  # canonical mirror; the DataDog/ mirror is stale (frozen ~v0.1.1)
