@@ -1,0 +1,22 @@
+[
+  {
+    "description": "ordinary allocation remains eligible when activation equals cutoff",
+    "flag": "no-log-flag", "variationType": "BOOLEAN", "defaultValue": false, "targetingKey": "subject",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T12:00:00Z" },
+    "result": { "value": true, "reason": "STATIC" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": true, "reason": "STATIC" },
+      "experimentationOptOutFutureExperimentsOnly": { "value": true, "reason": "STATIC" }
+    }
+  },
+  {
+    "description": "ordinary allocation remains eligible when activation is after cutoff",
+    "flag": "no-log-flag", "variationType": "BOOLEAN", "defaultValue": false, "targetingKey": "subject",
+    "attributes": { "dd_experimentation_opt_out_at": "2026-10-19T11:59:59Z" },
+    "result": { "value": true, "reason": "STATIC" },
+    "capabilities": {
+      "experimentationOptOutImmediate": { "value": true, "reason": "STATIC" },
+      "experimentationOptOutFutureExperimentsOnly": { "value": true, "reason": "STATIC" }
+    }
+  }
+]
