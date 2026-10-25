@@ -363,16 +363,6 @@ integrations:
       min: 1.10.0
       max: 2.2.1
 
-- integration_name: elevenlabs
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - elevenlabs
-  tested_versions_by_dependency:
-    elevenlabs:
-      min: 2.70.0
-      max: 2.70.0
-
 - integration_name: elasticsearch
   is_external_package: true
   is_tested: true
@@ -410,6 +400,16 @@ integrations:
     opensearch-py:
       min: 1.1.0
       max: 3.2.0
+
+- integration_name: elevenlabs
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - elevenlabs
+  tested_versions_by_dependency:
+    elevenlabs:
+      min: 2.70.0
+      max: 2.70.0
 
 - integration_name: falcon
   is_external_package: true
@@ -551,7 +551,7 @@ integrations:
   tested_versions_by_dependency:
     httpx2:
       min: 2.0.0
-      max: 2.13.1
+      max: 2.16.0
 
 - integration_name: jinja2
   is_external_package: true
