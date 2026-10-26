@@ -134,7 +134,10 @@ Bottle's plugin supplies ``prepare`` and ``complete`` hooks and an execution ada
 to the shared runner, using ``context_name_override="bottle.request"``. Bottle
 continues to manage plugin ordering, skip settings, installation, and callback-cache
 resets. The adapter interprets Bottle responses and closes discarded response bodies;
-these details stay outside the shared runner.
+these details stay outside the shared runner. Completion sets
+``response_from_exception`` for raised HTTP responses, allowing the tracing
+subscriber to apply OpenTelemetry status-based error semantics while preserving
+the exception for Bottle. Replacement responses clear the flag.
 
 The adapter dispatches ``BottleRequestStartEvent`` before invoking the route callback
 and ``BottleResponseEvent`` after metadata completion, while the response can still

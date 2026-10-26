@@ -27,6 +27,9 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Whether header keys should preserve their original casing during extraction.
     headers_case_sensitive: bool = event_field()
 
+    # Set at completion when a framework exception represents an HTTP response.
+    response_from_exception: bool = event_field(default=False)
+
     # Optional per-request override for distributed tracing header activation.
     distributed_headers_config_override: Optional[bool] = event_field(default=None)
 

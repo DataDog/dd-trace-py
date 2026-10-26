@@ -179,3 +179,4 @@ def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optio
         500 if isinstance(error, Exception) and not isinstance(error, HTTPResponse) else response_data.status_code
     )
     event.response_headers = response_data.headers
+    event.response_from_exception = isinstance(error, HTTPResponse)

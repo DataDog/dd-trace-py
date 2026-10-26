@@ -1,4 +1,5 @@
 import bottle
+import pytest
 import webtest
 
 import ddtrace
@@ -7,6 +8,8 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -704,3 +707,117 @@ class TestPluginLifecycle(TracerTestCase):
         route.reset()
         client.get("/stream")
         assert len(self.pop_spans()) == 1
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_span_attributes():
+    from functools import partial
+
+    import bottle
+    import webtest
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    assert_span = partial(assert_otel_server_span, peer_address=False)
+
+    app = bottle.Bottle()
+
+    @app.route("/hi/<name>")
+    def hi(name):
+        return "hi %s" % name
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = webtest.TestApp(app, lint=False)
+
+        response = client.get("/hi/dougie?q=1", headers=TEST_HEADERS)
+        assert response.status_int == 200
+        assert_span(
+            spans.get_root_span(),
+            method="GET",
+            status=200,
+            path="/hi/dougie",
+            query="q=1",
+            route="/hi/<name>",
+            resource="GET /hi/<name>",
+        )
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True)
+def test_otel_semantics_server_error_statuses_override():
+    import bottle
+    import webtest
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = bottle.Bottle()
+
+    @app.route("/missing")
+    def missing():
+        bottle.response.status = 404
+        return "missing"
+
+    @app.route("/broken")
+    def broken():
+        bottle.response.status = 500
+        return "oops"
+
+    @app.route("/abort/<status:int>")
+    def abort_response(status):
+        bottle.abort(status)
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = webtest.TestApp(app, lint=False)
+
+        assert client.get("/missing", headers=TEST_HEADERS, expect_errors=True).status_int == 404
+        span = spans.get_root_span()
+        assert span.error == 1
+        assert span.get_tag("error.type") == "404"
+        assert span.resource == "GET /missing"
+        assert span.get_metric("http.response.status_code") == 404
+
+        spans.reset()
+        assert client.get("/broken", headers=TEST_HEADERS, expect_errors=True).status_int == 500
+        span = spans.get_root_span()
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+        assert span.resource == "GET /broken"
+        assert span.get_metric("http.response.status_code") == 500
+
+        for status, expected_error in ((404, 1), (500, 0)):
+            spans.reset()
+            assert client.get("/abort/%s" % status, expect_errors=True).status_int == status
+            span = spans.get_root_span()
+            assert span.get_metric("http.response.status_code") == status
+            assert span.error == expected_error
+            if not expected_error:
+                assert span.get_tag("error.type") is None
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_abort_4xx_is_not_an_error():
+    import bottle
+    import webtest
+
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = bottle.Bottle()
+
+    @app.route("/missing")
+    def missing():
+        bottle.abort(404)
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        webtest.TestApp(app, lint=False).get("/missing", expect_errors=True)
+        span = spans.get_root_span()
+        assert span.get_metric("http.response.status_code") == 404
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
