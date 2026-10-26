@@ -1078,6 +1078,7 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter():
     with override_global_config(dict(_trace_agentless_enabled=True, _dd_api_key="an-api-key")):
         aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
         old_writer = aggregator.writer
+        old_writer._set_resource_attributes({"team": "updated"})
         assert old_writer.agentless is True
         assert old_writer.status is ServiceStatus.STOPPED, "writer should not have started yet"
 
@@ -1087,6 +1088,7 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter():
 
             assert shutdown.called, "the unstarted writer's exporter was never released"
             assert aggregator.writer.agentless is False
+            assert aggregator.writer._resource_attributes == {"team": "updated"}
         finally:
             try:
                 aggregator.writer.stop()

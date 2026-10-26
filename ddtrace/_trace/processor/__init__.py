@@ -347,7 +347,6 @@ class SpanAggregator(SpanProcessor):
         self.sampling_processor = TraceSamplingProcessor(
             config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out
         )
-        self._tracer_tags = tracer_tags if tracer_tags is not None else {}
         self.tags_processor = TraceTagsProcessor()
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
@@ -356,17 +355,12 @@ class SpanAggregator(SpanProcessor):
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
-            resource_attributes=self._tracer_tags,
+            resource_attributes=tracer_tags,
         )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
         super().__init__()
-
-    def set_tracer_tags(self, tags: dict[str, str]) -> None:
-        self._tracer_tags = tags
-        if isinstance(self.writer, NativeWriter):
-            self.writer._set_resource_attributes(tags)
 
     def __repr__(self) -> str:
         return (
@@ -551,7 +545,7 @@ class SpanAggregator(SpanProcessor):
             self.writer = create_trace_writer(
                 response_callback=self._agent_response_callback,
                 agentless=enable,
-                resource_attributes=self._tracer_tags,
+                resource_attributes=old_writer._resource_attributes if isinstance(old_writer, NativeWriter) else None,
             )
         except Exception:
             log.error(

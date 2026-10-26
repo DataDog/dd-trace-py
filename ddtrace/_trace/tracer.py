@@ -68,6 +68,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.version import __version__
 
 
@@ -1063,7 +1064,9 @@ class Tracer:
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
-        self._span_aggregator.set_tracer_tags(self._tags)
+        writer = self._span_aggregator.writer
+        if isinstance(writer, NativeWriter):
+            writer._set_resource_attributes(self._tags)
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
         """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
