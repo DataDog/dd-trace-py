@@ -144,6 +144,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._collect_import_coverage: bool = False
         self._include_paths: list[Path] = []
         self._alias_matcher: t.Optional[t.Callable[[Path], bool]] = None
+        self._alias_admitted_modules: set[str] = set()
         # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
         # in the root directory of a repository). An installed copy of the library under test that a coverage [paths]
         # alias maps back to this repository is exempt from these exclusions: that is the normal wheel-under-test
@@ -609,6 +610,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             if self._alias_matcher is None or not self._alias_matcher(code_path):
                 return code
             aliased = True
+            self._alias_admitted_modules.add(_module.__name__)
 
         # An aliased installed copy of the library under test is exempt from the
         # interpreter's stdlib/venv exclusions, but never from the collector's own
@@ -665,6 +667,44 @@ class ModuleCodeCollector(ModuleWatchdog):
                 self._file_level_covered_paths_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
+
+    def reinstrument_alias_admitted_modules(self) -> None:
+        """Re-run admission for modules imported before their aliases were known.
+
+        The [paths] aliases can change after a module was imported (e.g. a
+        coverage.py instance with a custom --cov-config starting during
+        pytest_configure, after the module was imported while conftest files
+        were loading). Modules rejected at import under the earlier aliases
+        have the code objects reachable from their namespaces instrumented
+        here. Import-time execution stays unrecorded, and on Python < 3.12
+        instrumented copies cannot replace live code objects, so only modules
+        imported after the change are collected there.
+        """
+        if self._alias_matcher is None or not self._coverage_enabled:
+            return
+
+        for module in list(sys.modules.values()):
+            file = getattr(module, "__file__", None)
+            if not file or not file.endswith(".py"):
+                continue
+            if module.__name__ in self._alias_admitted_modules:
+                continue
+            code_path = Path(file)
+            if not self._alias_matcher(code_path):
+                continue
+            self._alias_admitted_modules.add(module.__name__)
+            if any(is_contained(code_path, exclude_path) for exclude_path in self._self_exclude_paths):
+                continue
+            package = module.__package__ if module.__package__ is not None else ""
+            for value in vars(module).values():
+                code = getattr(value, "__code__", None)
+                if code is not None:
+                    self.instrument_code(code, package)
+                if isinstance(value, type):
+                    for attr in vars(value).values():
+                        code = getattr(attr, "__code__", None)
+                        if code is not None:
+                            self.instrument_code(code, package)
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
         if is_obfuscated_code(code):

@@ -594,3 +594,89 @@ def test_alias_matcher_rejects_identity_aliases(tmp_path, monkeypatch) -> None:
         assert not matcher(lib_file)
     finally:
         clear_coverage_path_caches()
+
+
+def test_alias_relative_destination_uses_config_base_dir(tmp_path, monkeypatch) -> None:
+    """Relative alias destinations resolve against the config's directory.
+
+    A test that changes the working directory before importing the installed
+    library must not make the destination resolve under the temporary
+    directory.
+    """
+    site_packages = _make_site_packages(tmp_path)
+    (tmp_path / ".coveragerc").write_text(
+        "[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    clear_coverage_path_caches()
+    try:
+        # Aliases are resolved while the configuration is discoverable.
+        assert tracer_api_coverage._relative_coverage_path(str(site_packages / "__init__.py"), str(tmp_path)) == (
+            "/covered_pkg/__init__.py"
+        )
+
+        # A later working-directory change must not change the resolution for
+        # files resolved after the change.
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+        assert tracer_api_coverage._relative_coverage_path(str(site_packages / "mod.py"), str(tmp_path)) == (
+            "/covered_pkg/mod.py"
+        )
+    finally:
+        clear_coverage_path_caches()
+
+
+@pytest.mark.subprocess
+def test_early_imported_library_reinstrumented_on_instance_start() -> None:
+    """A library imported before a custom-config instance starts is revisited.
+
+    The collector installs while conftest files load, before a pytest-cov
+    --cov-config instance starts in pytest_configure. Modules imported in
+    between are rejected at import; the alias change must re-instrument them
+    in time for test execution.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+    from unittest import mock
+
+    repo = Path(tempfile.mkdtemp()) / "repo"
+    env_site = repo / ".cache/uv-test-environments/abc/lib/python3.12/site-packages"
+    (repo / "tests").mkdir(parents=True)
+    (env_site / "early_pkg").mkdir(parents=True)
+    (env_site / "early_pkg/__init__.py").write_text("def bump():\n    return 42\n")
+
+    os.chdir(repo)
+
+    import ddtrace.testing.internal.tracer_api.coverage as tracer_api_coverage
+
+    # The aliases only exist on a custom-configured coverage instance that has
+    # not started yet (no .coveragerc in the workspace).
+    custom_config = repo / "custom-coverage.cfg"
+    custom_config.write_text("[paths]\nearly_pkg =\n    early_pkg/\n    */site-packages/early_pkg/\n")
+
+    tracer_api_coverage.install_coverage(repo)
+    try:
+        sys.path.insert(0, str(env_site))
+
+        # The module is imported before the custom instance starts: no aliases
+        # are discoverable, so it is rejected at import time.
+        from coverage import Coverage
+        import early_pkg
+
+        cov_instance = Coverage(config_file=str(custom_config))
+        with mock.patch.object(tracer_api_coverage, "get_coverage_instance", return_value=cov_instance):
+            # Entering the collection context refreshes the aliases (as at the
+            # start of each test) and re-instruments the early-imported module.
+            with tracer_api_coverage.coverage_collection() as coverage_data:
+                assert early_pkg.bump() == 42
+            bitmaps = dict(coverage_data.get_coverage_bitmaps(relative_to=repo))
+
+        assert "/early_pkg/__init__.py" in bitmaps
+    finally:
+        tracer_api_coverage.uninstall_coverage()
+        sys.path.remove(str(env_site))

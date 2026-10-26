@@ -47,18 +47,25 @@ class _AliasMatcher:
 
     def __init__(self, workspace_path: Path) -> None:
         self._workspace_path_str = str(workspace_path)
-        # Resolved (pattern, regex, result) alias specs; set when pickled to a
-        # child process and restored on unpickling.
+        # Resolved (pattern, regex, result) alias specs and the directory they
+        # were loaded from; set when pickled to a child process and restored on
+        # unpickling.
         self._alias_specs: t.Optional[tuple[tuple[str, t.Any, str], ...]] = None
+        self._alias_base_dir_str: t.Optional[str] = None
 
     def __getstate__(self) -> dict[str, t.Any]:
         aliases = _coverage_path_aliases()
         specs = tuple(aliases.aliases) if aliases is not None else ()
-        return {"workspace_path": self._workspace_path_str, "alias_specs": specs}
+        return {
+            "workspace_path": self._workspace_path_str,
+            "alias_specs": specs,
+            "alias_base_dir": str(_alias_base_dir),
+        }
 
     def __setstate__(self, state: dict[str, t.Any]) -> None:
         self._workspace_path_str = state["workspace_path"]
         self._alias_specs = state["alias_specs"] or None
+        self._alias_base_dir_str = state.get("alias_base_dir")
 
     def __call__(self, code_path: Path) -> bool:
         specs = self._alias_specs
@@ -67,7 +74,10 @@ class _AliasMatcher:
             if aliases is None:
                 return False
             specs = aliases.aliases
-        matched, mapped = _map_path_with_specs(specs, str(code_path), self._workspace_path_str)
+            base_dir = _alias_base_dir
+        else:
+            base_dir = Path(self._alias_base_dir_str) if self._alias_base_dir_str else Path.cwd()
+        matched, mapped = _map_path_with_specs(specs, base_dir, str(code_path), self._workspace_path_str)
         if not matched or mapped is None:
             return False
         # A broad alias (e.g. a whole-workspace "source" group) can map an
@@ -100,7 +110,21 @@ def uninstall_coverage() -> None:
 _UNSET = object()  # sentinel distinguishing "no aliases built yet" from "built from no instance"
 _alias_source: t.Any = _UNSET
 _path_aliases: t.Optional[t.Any] = None
+# Where the current aliases were loaded from: relative alias destinations
+# resolve against it, not against whatever the working directory happens to
+# be when a module is imported or a bitmap is resolved.
+_alias_base_dir: Path = Path.cwd()
 _alias_generation: int = 0  # bumped whenever the aliases are rebuilt
+
+
+def _reinstrument_alias_admitted_modules() -> None:
+    """Give modules imported under earlier aliases a second chance."""
+    collector = ModuleCodeCollector._instance
+    if collector is not None:
+        try:
+            collector.reinstrument_alias_admitted_modules()
+        except Exception:
+            log.debug("Could not re-instrument modules after an alias change", exc_info=True)
 
 
 def _coverage_path_aliases() -> t.Optional[t.Any]:
@@ -114,7 +138,7 @@ def _coverage_path_aliases() -> t.Optional[t.Any]:
     (e.g. pytest-cov starting during pytest_configure, after a module was
     imported during conftest loading) is honored for the rest of the session.
     """
-    global _alias_source, _path_aliases, _alias_generation
+    global _alias_source, _path_aliases, _alias_base_dir, _alias_generation
     instance = get_coverage_instance()
     if instance is not _alias_source:
         try:
@@ -124,6 +148,10 @@ def _coverage_path_aliases() -> t.Optional[t.Any]:
             _path_aliases = None
         _alias_source = instance
         _alias_generation += 1
+        _alias_base_dir = Path.cwd()
+        # Modules imported under the previous aliases get a second chance under
+        # the new ones.
+        _reinstrument_alias_admitted_modules()
     return _path_aliases
 
 
@@ -134,16 +162,17 @@ def clear_coverage_path_caches() -> None:
     instance and the configuration discovered from the working directory, so
     they must not be reused across sessions that may change either.
     """
-    global _alias_source, _path_aliases, _alias_generation
+    global _alias_source, _path_aliases, _alias_base_dir, _alias_generation
     _alias_source = _UNSET
     _path_aliases = None
+    _alias_base_dir = Path.cwd()
     # Monotonic: never reuse results cached by an earlier session.
     _alias_generation += 1
     _relative_coverage_path_cached.cache_clear()
 
 
 def _map_path_with_specs(
-    specs: t.Iterable[tuple[str, t.Any, str]], absolute_path: str, relative_to: str
+    specs: t.Iterable[tuple[str, t.Any, str]], base_dir: Path, absolute_path: str, relative_to: str
 ) -> tuple[bool, t.Optional[str]]:
     """Whether one of the given alias specs matches the file, and its upload path."""
     for _pattern, regex, result in specs:
@@ -152,11 +181,20 @@ def _map_path_with_specs(
             if Path(mapped).is_absolute():
                 mapped_path = Path(mapped)
             else:
-                mapped_path = Path(os.path.normpath(str(Path.cwd() / mapped)))
-            relative = relative_path(mapped_path, Path(relative_to))
-            if relative is None:
-                return True, None  # mapped outside the current repository
-            return True, f"/{relative}"
+                # Relative destinations are relative to the directory the
+                # coverage configuration was loaded from, not to whatever the
+                # working directory happens to be at match time.
+                mapped_path = Path(os.path.normpath(str(base_dir / mapped)))
+            # The working directory is always a resolved path; the workspace and
+            # absolute destinations from the configuration may not be (e.g.
+            # behind a symlink). Compare the resolved forms before dropping.
+            for candidate in (mapped_path, mapped_path.resolve()):
+                relative = relative_path(candidate, Path(relative_to))
+                if relative is None:
+                    relative = relative_path(candidate, Path(relative_to).resolve())
+                if relative is not None:
+                    return True, f"/{relative}"
+            return True, None  # mapped outside the current repository
     return False, None
 
 
@@ -171,7 +209,7 @@ def _alias_mapped_path(absolute_path: str, relative_to: str) -> tuple[bool, t.Op
     aliases = _coverage_path_aliases()
     if aliases is None:
         return False, None
-    return _map_path_with_specs(aliases.aliases, absolute_path, relative_to)
+    return _map_path_with_specs(aliases.aliases, _alias_base_dir, absolute_path, relative_to)
 
 
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
@@ -241,6 +279,11 @@ class CoverageData:
 
 @contextlib.contextmanager
 def coverage_collection() -> t.Generator[CoverageData, None, None]:
+    # The aliases may have changed since the previous test (e.g. a coverage.py
+    # instance with a custom --cov-config starting during pytest_configure);
+    # refresh before collecting so modules imported earlier under different
+    # aliases are re-instrumented in time for this test's execution.
+    _coverage_path_aliases()
     with ModuleCodeCollector.CollectInContext() as coverage_collector:
         coverage_data = CoverageData()
         yield coverage_data
