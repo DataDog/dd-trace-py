@@ -46,9 +46,10 @@ Follow `ddtrace/llmobs/_contrib/anthropic/` and the LLMObs guide so contrib does
 - Test patch/unpatch behavior and the affected instrumentation, including errors and applicable
   sync/async or streaming paths. Prefer existing snapshot fixtures for APM span assertions.
   The usual layout is `tests/contrib/<name>/test_<name>_patch.py` for patch cycles and
-  `test_<name>.py` for APM behavior; `tests/contrib/httpx/` provides both. Keep an existing suite's
-  more specific split when extending it. Use `@pytest.mark.snapshot` where the suite has snapshot
-  support, rather than replacing its fixtures.
+  `test_<name>.py` for APM behavior. Use `tests/contrib/anthropic/test_anthropic_patch.py` for
+  patch/unpatch and double-patch assertions, and `tests/contrib/httpx/test_httpx.py` for snapshots.
+  Keep an existing suite's more specific split when extending it. Use `@pytest.mark.snapshot`
+  where the suite has snapshot support, rather than replacing its fixtures.
 - Use the [LLMObs testing guide](../../llmobs-integrations/references/testing-guide.md) for LLMObs assertions
   and transport fixtures. Only add vcrpy where the suite uses it.
 - Reference the integration's `__init__.py` docstring through an `automodule` entry in
