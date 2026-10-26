@@ -19,7 +19,6 @@ import pytest
 import requests.utils
 from starlette.background import BackgroundTask
 from starlette.responses import PlainTextResponse
-from starlette.responses import Response
 from starlette.responses import StreamingResponse
 
 from ddtrace.appsec._iast._constants import IAST
@@ -1242,26 +1241,36 @@ def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted,
         @child.get("/")
         async def endpoint(request: Request):
             request.state.query = request.query_params["query"]
+            request.state.request_span = tracer.current_span()
+            return PlainTextResponse("ok")
 
-            async def response_sent():
-                request.state.response_sent.set()
+        class InspectResponse:
+            def __init__(self, app):
+                self.app = app
 
-            return PlainTextResponse("ok", background=BackgroundTask(response_sent))
+            async def __call__(self, scope, receive, send):
+                if scope["type"] != "http":
+                    return await self.app(scope, receive, send)
 
-        @application.middleware("http")
-        async def inspect_response(request, call_next):
-            request.state.response_sent = asyncio.Event()
-            owner = tracer.current_span()
-            owners.append(owner)
-            response = await call_next(request)
-            body = b"".join([chunk async for chunk in response.body_iterator])
-            # The child has sent its response; the outer middleware is still running.
-            await asyncio.wait_for(request.state.response_sent.wait(), timeout=5)
-            assert not owner.finished
-            assert get_tainted_ranges(request.state.query)
-            with closing(sqlite3.connect(":memory:")) as connection:
-                connection.execute(request.state.query)
-            return Response(body, status_code=response.status_code, headers=dict(response.headers))
+                owner = tracer.current_span()
+                owners.append(owner)
+                messages = []
+
+                async def buffer_send(message):
+                    messages.append(message)
+
+                # Let the child finish before inspecting and forwarding its response.
+                await self.app(scope, receive, buffer_send)
+                assert scope["state"]["request_span"].finished is mounted
+                assert not owner.finished
+                query = scope["state"]["query"]
+                assert get_tainted_ranges(query)
+                with closing(sqlite3.connect(":memory:")) as connection:
+                    connection.execute(query)
+                for message in messages:
+                    await send(message)
+
+        application.add_middleware(InspectResponse)
 
         with TestClient(application) as client:
             headers = (
