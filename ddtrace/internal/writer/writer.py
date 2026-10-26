@@ -1038,6 +1038,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.shutdown_exporter()
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
+        agentless_stats_endpoint = self._agentless_stats_endpoint
+        if self.agentless and (compute_stats_enabled is not None or stats_opt_out is not None):
+            # The agentless stats endpoint depends on the stats state, which these flags
+            # change: re-resolve it instead of carrying a stale value.
+            agentless_stats_endpoint = _resolve_agentless_stats_endpoint()
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
@@ -1057,7 +1062,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_endpoint=self._otlp_endpoint,
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
             api_key=self._api_key,
-            agentless_stats_endpoint=self._agentless_stats_endpoint,
+            agentless_stats_endpoint=agentless_stats_endpoint,
         )
 
     def _downgrade(self, status, client):

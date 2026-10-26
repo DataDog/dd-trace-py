@@ -1145,6 +1145,30 @@ def test_native_writer_recreate_stats_opt_out_disables_stats(mock_trace_exporter
     mock_builder.set_client_computed_stats.assert_called_once_with()
 
 
+def test_native_writer_recreate_recomputes_agentless_stats_endpoint():
+    """Changing the stats flags on an agentless writer must re-resolve its stats endpoint."""
+    with mock.patch(
+        "ddtrace.internal.writer.writer._resolve_agentless_stats_endpoint",
+        return_value="https://stats-intake",
+    ) as resolve_stats_url:
+        # The writer was created while opted out, so it has no agentless stats endpoint.
+        writer = NativeWriter("http://dne:1234", api_key="key", compute_stats_enabled=True, stats_opt_out=True)
+        assert writer._agentless_stats_endpoint is None
+
+        writer = writer.recreate(stats_opt_out=False)
+        assert writer._agentless_stats_endpoint == "https://stats-intake"
+
+        resolve_stats_url.return_value = None
+        writer = writer.recreate(stats_opt_out=True)
+        assert writer._agentless_stats_endpoint is None
+
+        # Non-agentless writers never resolve a stats endpoint.
+        writer = NativeWriter("http://dne:1234", compute_stats_enabled=True)
+        writer = writer.recreate(compute_stats_enabled=True, stats_opt_out=False)
+        assert writer._agentless_stats_endpoint is None
+        assert resolve_stats_url.call_count == 2
+
+
 def test_writer_recreate_keeps_response_callback():
     def response_callback(response):
         pass
