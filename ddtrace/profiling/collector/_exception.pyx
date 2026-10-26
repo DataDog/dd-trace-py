@@ -156,8 +156,10 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
 
 
 if HAS_MONITORING:
-    class _ExceptionMonitoringHandler(_monitoring.MonitoringEventHandler):
+    class _ExceptionMonitoringHandler(_monitoring.DirectSafeEventHandler):
         # Expose the guarded Cython callback without a Python forwarding method.
+        # Subclassing DirectSafeEventHandler selects direct delivery: CPython
+        # calls the guarded Cython callback, as the dedicated slot did before.
         on_raise = staticmethod(_on_exception)
 
     _exception_handler = _ExceptionMonitoringHandler()
@@ -199,9 +201,9 @@ class ExceptionCollector(collector.Collector):
             # Register with the shared multiplexer before writing _state so a
             # registration failure leaves the existing _state untouched.
             # register_global is the atomic claim: it owns the RAISE event and
-            # rolls itself back on failure. direct=True keeps CPython calling
-            # the guarded Cython callback, as the dedicated slot did before.
-            _monitoring.register_global(_exception_handler, direct=True)
+            # rolls itself back on failure. Delivery mode derives from the
+            # DirectSafeEventHandler base class.
+            _monitoring.register_global(_exception_handler)
         except _monitoring.MonitoringToolUnavailable as e:
             LOG.exception("Failed to set up exception monitoring")
             # Raise instead of returning so Service.start() does not mark this

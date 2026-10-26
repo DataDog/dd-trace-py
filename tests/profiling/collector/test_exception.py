@@ -301,6 +301,14 @@ def test_exception_monitoring_unavailable_raises_collector_unavailable():
     assert sys.monitoring.get_tool(4) == "external-4"
 
 
+def test_exception_handler_is_direct_safe() -> None:
+    """The profiler handler earns its DirectSafeEventHandler claim."""
+    from ddtrace.internal import monitoring
+    from ddtrace.profiling.collector import _exception
+
+    monitoring.assert_direct_safe(_exception._exception_handler)
+
+
 @pytest.mark.subprocess(out=None, err=None)
 def test_exception_second_collector_start_is_rejected():
     """A second collector cannot run alongside the active one or clear its state.
