@@ -21,7 +21,7 @@ If you're trying to set up a local development environment, read `this <https://
 Thanks for working with us!
 
 Coding assistant skills
-======================
+=======================
 
 Shared repository skills live in ``.agents/skills/<name>/SKILL.md``. Codex, Cursor,
 OpenCode, and Pi discover this directory directly. Claude Code uses the relative
