@@ -708,7 +708,7 @@ def test_trace_tags_processor_opt_out_shadows_single_span_tagging(tracer, apm_op
     ctx = Context(trace_id=1, span_id=1)
     root = Span("root", trace_id=ctx.trace_id, context=ctx)
     single_sampled = Span("child", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id)
-    single_sampled.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+    single_sampled._set_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
 
     with override_global_config(dict(_trace_compute_stats=True)):
         TraceTagsProcessor(apm_opt_out=apm_opt_out).process_trace([root, single_sampled])
