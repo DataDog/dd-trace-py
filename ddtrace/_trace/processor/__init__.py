@@ -587,7 +587,12 @@ class SpanAggregator(SpanProcessor):
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
+        self.writer = self.writer.recreate(
+            appsec_enabled=appsec_enabled,
+            llmobs_enabled=llmobs_enabled,
+            compute_stats_enabled=compute_stats,
+            stats_opt_out=apm_opt_out,
+        )
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats

@@ -138,6 +138,8 @@ class TraceWriter(metaclass=abc.ABCMeta):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "TraceWriter":
         pass
 
@@ -174,6 +176,8 @@ class LogWriter(TraceWriter):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
@@ -1020,6 +1024,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "NativeWriter":
         # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
         # the API version to v0.4.
@@ -1035,7 +1041,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
-            compute_stats_enabled=self._compute_stats_enabled,
+            compute_stats_enabled=(
+                self._compute_stats_enabled if compute_stats_enabled is None else compute_stats_enabled
+            ),
             client_side_stats_obfuscation=self._client_side_stats_obfuscation,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
@@ -1045,7 +1053,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             report_metrics=self._report_metrics,
             response_callback=self._response_cb,
             test_session_token=self._test_session_token,
-            stats_opt_out=self._stats_opt_out,
+            stats_opt_out=self._stats_opt_out if stats_opt_out is None else stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
             api_key=self._api_key,

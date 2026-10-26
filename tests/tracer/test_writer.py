@@ -1081,6 +1081,16 @@ def test_native_writer_recreate_keeps_stats_opt_out():
     assert writer._stats_opt_out
 
 
+def test_native_writer_recreate_updates_stats_settings():
+    # Leaving standalone mode must be able to re-enable stats on a writer that was
+    # created with stats disabled and the opt-out marker set.
+    writer = NativeWriter("http://dne:1234", compute_stats_enabled=False, stats_opt_out=True)
+
+    writer = writer.recreate(compute_stats_enabled=True, stats_opt_out=False)
+    assert writer._compute_stats_enabled is True
+    assert writer._stats_opt_out is False
+
+
 def test_writer_recreate_keeps_response_callback():
     def response_callback(response):
         pass

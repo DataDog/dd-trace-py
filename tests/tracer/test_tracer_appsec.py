@@ -227,9 +227,12 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
 
 
 @pytest.mark.parametrize("initial_compute_stats", [True, False])
+@pytest.mark.parametrize("stats_while_opted_out", [None, True, False])
 @pytest.mark.parametrize("compute_stats_enabled", [None, True, False])
 @pytest.mark.parametrize("apm_tracing_disabled", [True, False])
-def test_standalone_restores_compute_stats(tracer, initial_compute_stats, compute_stats_enabled, apm_tracing_disabled):
+def test_standalone_restores_compute_stats(
+    tracer, initial_compute_stats, stats_while_opted_out, compute_stats_enabled, apm_tracing_disabled
+):
     with mock.patch.object(config, "_trace_compute_stats", initial_compute_stats):
         with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
             try:
@@ -238,15 +241,30 @@ def test_standalone_restores_compute_stats(tracer, initial_compute_stats, comput
                 tracer.configure(appsec_enabled=True)
                 assert config._trace_compute_stats is False
 
+                # Explicit stats updates while opted out override the captured
+                # pre-opt-out value, so they become the value to restore.
+                if stats_while_opted_out is not None:
+                    tracer.configure(appsec_enabled=True, compute_stats_enabled=stats_while_opted_out)
+                    assert config._trace_compute_stats is stats_while_opted_out
+
                 tracer.configure(
                     appsec_enabled=False,
                     apm_tracing_disabled=apm_tracing_disabled,
                     compute_stats_enabled=compute_stats_enabled,
                 )
                 expected_stats = initial_compute_stats
+                if stats_while_opted_out is not None:
+                    expected_stats = stats_while_opted_out
                 if compute_stats_enabled is not None:
                     expected_stats = compute_stats_enabled
                 assert config._trace_compute_stats is expected_stats
+                # The restored value must also reach the writer and the sampling
+                # processor, which were configured with stats disabled while opted out.
+                aggr = tracer._span_aggregator
+                assert aggr.sampling_processor._compute_stats_enabled is expected_stats
+                inner_writer = aggr.writer._inner_writer
+                assert inner_writer._compute_stats_enabled is expected_stats
+                assert inner_writer._stats_opt_out is False
 
                 tracer.configure(trace_processors=[])
                 assert config._trace_compute_stats is expected_stats
