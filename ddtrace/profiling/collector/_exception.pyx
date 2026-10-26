@@ -144,7 +144,7 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
         # its f_back chain is the full Python stack up to the entry point.
         _collect_exception(state, type(exception), exception, tb.tb_frame)
     except Exception:
-        LOG.debug("Failed to collect exception")
+        LOG.debug("[profiling] Failed to collect exception", exc_info=True)
     finally:
         _collecting = False
 
@@ -166,7 +166,7 @@ class ExceptionCollector(collector.Collector):
         global _state
 
         if _GIL_DISABLED:
-            LOG.debug("Exception profiling is not supported on free-threaded CPython, skipping")
+            LOG.debug("[profiling] Exception profiling is not supported on free-threaded CPython, skipping")
             return
 
         if HAS_MONITORING:
@@ -199,10 +199,10 @@ class ExceptionCollector(collector.Collector):
 
             _state = state
         else:
-            LOG.debug("Exception profiling only supports Python 3.12+, skipping")
+            LOG.debug("[profiling] Exception profiling only supports Python 3.12+, skipping")
             return
 
-        LOG.debug("ExceptionCollector started: interval=%d", _state.sampling_interval)
+        LOG.debug("[profiling] ExceptionCollector started: interval=%d", _state.sampling_interval)
 
     def _stop_service(self) -> None:
         global _state
@@ -220,19 +220,19 @@ class ExceptionCollector(collector.Collector):
                 None,
             )
         except Exception:
-            LOG.debug("Failed to unregister exception monitoring callback", exc_info=True)
+            LOG.debug("[profiling] Failed to unregister exception monitoring callback", exc_info=True)
 
         try:
             sys.monitoring.set_events(_MONITORING_TOOL_ID, 0)
         except Exception:
-            LOG.debug("Failed to disable exception monitoring events", exc_info=True)
+            LOG.debug("[profiling] Failed to disable exception monitoring events", exc_info=True)
 
         try:
             if self._owns_tool_id:
                 try:
                     sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
                 except Exception:
-                    LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
+                    LOG.debug("[profiling] Failed to free exception monitoring tool_id", exc_info=True)
                     raise
                 else:
                     self._owns_tool_id = False

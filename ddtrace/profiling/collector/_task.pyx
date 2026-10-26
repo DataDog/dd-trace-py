@@ -17,7 +17,7 @@ def _initialize_gevent_module(gevent: ModuleType) -> None:
     from ddtrace.profiling import _gevent
 
     _gevent_helper = _gevent
-    if config.stack.enabled:
+    if config.install or config.stack.enabled:
         _gevent.patch()
 
 

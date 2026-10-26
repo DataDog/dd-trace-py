@@ -1,31 +1,18 @@
 from functools import partial
-import json
 from typing import Any
 
 import anthropic
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.internal.utils.streaming import AsyncStreamHandler
 from ddtrace.internal.utils.streaming import StreamHandler
 from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 log = get_logger(__name__)
-
-
-def _get_attr(o: object, attr: str, default: object):
-    # Streamed chunks may be SDK objects or plain dicts.
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    return getattr(o, attr, default)
-
-
-def safe_load_json(value: str):
-    try:
-        return json.loads(value)
-    except (json.JSONDecodeError, TypeError):
-        return {"value": str(value)}
 
 
 def _text_stream_generator(traced_stream):

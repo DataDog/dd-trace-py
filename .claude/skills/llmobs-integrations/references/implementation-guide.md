@@ -5,19 +5,20 @@ Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integra
 ## Design: Two-Layer Architecture
 
 LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
-- Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and dispatches `LlmEvents.SPAN_STARTING`, `SPAN_STARTED`, and `SPAN_FINISHING` with the execution context
-- LLMObs subscribers in `ddtrace/llmobs/_contrib/{name}/` listen to those events, build the `BaseLLMIntegration` subclass lazily, and call it to set the span type, base tags, and LLMObs tags, so the contrib never imports `ddtrace.llmobs`
-- Older integrations instead store the instance on the module (`module._datadog_integration = ...`) and pass it as `LlmRequestEvent(llmobs_integration=...)`; `LlmTracingSubscriber` then calls it directly
+- Patch code in `ddtrace/contrib/internal/{name}/` constructs an `LlmRequestEvent` and enters it with `core.context_with_event()`. It does not import LLMObs or create the integration.
+- `LlmTracingSubscriber` (`ddtrace/_trace/subscribers/llm.py`) manages the span lifecycle and dispatches `LlmEvents` (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) with the `ExecutionContext`
+- LLMObs subscribers in `ddtrace/llmobs/_contrib/{name}/` handle those events: they lazily build the `BaseLLMIntegration` subclass, set LLMObs base tags at span start, and call `integration.llmobs_set_tags()` at span finish (see Step 2 below)
 - The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, usage, metadata, and tool extraction
-- Some existing or specialized integrations still call `integration.trace()` directly for direct child spans; follow the closest current reference before using that pattern
 
-This separation keeps APM patching decoupled from LLMObs data extraction.
+This separation keeps contrib code from depending on LLMObs: the patch layer only emits events, and LLMObs decides what to do with them.
+
+Legacy integrations that predate this pattern still create the integration in patch code, store it on the module (`module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`), and pass it as `LlmRequestEvent(llmobs_integration=...)`; `LlmTracingSubscriber` then calls it directly. Some specialized integrations also call `integration.trace()` directly for child spans. Don't copy either pattern into a new integration, because both make contrib import LLMObs.
 
 ## Overview
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
 - **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
-- **Step 1b (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers and register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
+- **Step 2 (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers, with `listen()`/`unlisten()` in its `__init__.py`, and declare that module under the `ddtrace.integration_hooks` entry-point group in `pyproject.toml`
 - **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and usage extraction (this guide)
 - **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
 - **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
@@ -109,14 +110,21 @@ Key points:
 - For errors, call `ctx.dispatch_ended_event(*sys.exc_info())` and re-raise; do not call `span.set_exc_info()` or `span.finish()` directly in the patch wrapper
 - LLMObs tag setting is handled by the LLMObs subscribers, not directly in the patch wrapper
 
-## Step 1b Expanded: LLMObs Subscribers
+## Step 2 Expanded: LLMObs Subscribers
 
 Read `ddtrace/llmobs/_contrib/anthropic/` for the pattern. `LlmTracingSubscriber` dispatches three events with the `ExecutionContext`. They are shared by every LLM integration, so each handler returns early unless `ctx.event.component` matches:
 - `LlmEvents.SPAN_STARTING` runs before the span exists. This is the only point where `event.span_type` can still be set to `SpanTypes.LLM`, which `LLMObs._on_span_start` needs at creation.
 - `LlmEvents.SPAN_STARTED` runs after the span is created. Use it for `_set_base_span_tags()`, `_annotate_integration_tag()`, and `_stamp_llmobs_span_kind_at_start()`.
 - `LlmEvents.SPAN_FINISHING` runs before the span is finished. Call `integration.llmobs_set_tags()` here.
 
-Subscribers set `auto_register = False`. Register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py` on the `{name}.patch` core event, and unregister them on `{name}.unpatch` -- except the `SPAN_FINISHING` subscriber, which stays registered so requests and deferred streams already in flight at unpatch time still get finalized. `listen_integrations()` runs from both the product's `post_preload` and `LLMObs.enable()`. Applications that call `patch()` manually without `ddtrace-run` or `LLMObs.enable()` are not a supported setup for subscriber-based integrations: their subscribers never register, so those spans lack the LLMObs shadow tags. Do not add registration hooks to `ddtrace.patch()` or `ddtrace/_monkey.py` to cover it. Test fixtures that call the contrib's `patch()` directly should call `listen_integrations()` first.
+Subscribers set `auto_register = False`. Register them from `listen()` in `ddtrace/llmobs/_contrib/{name}/__init__.py`, and unregister them from `unlisten()` -- except the `SPAN_FINISHING` subscriber, which stays registered so requests and deferred streams already in flight at unpatch time still get finalized. Declare the module in `pyproject.toml`:
+
+```toml
+[project.entry-points.'ddtrace.integration_hooks']
+{name} = "ddtrace.llmobs._contrib.{name}"
+```
+
+The contrib's `patch()` calls `integration_hooks.on_patch("{name}")` after wrapping, and `unpatch()` calls `integration_hooks.on_unpatch("{name}")` before unwrapping. The hook module is only imported when that integration is patched, so the contrib never imports LLMObs, and registration works for `ddtrace-run`, `import ddtrace.auto` and direct `patch()` calls alike. Do not add registration hooks to `ddtrace.patch()` or `ddtrace/_monkey.py`. Entry points are read from installed package metadata, so rebuild dev environments (`scripts/run-tests -r`) after adding one.
 - The async variant is identical but uses `async def` / `await`
 
 Some older or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly. Use that pattern when modifying an existing integration that already does so, when the closest current reference uses it (for example Google GenAI), or when the behavior requires direct child spans (for example OpenAI MCP tool spans or agent/tool child spans).
@@ -250,7 +258,88 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `ddtrace/llmobs/_integrations/{name}.py` — `BaseLLMIntegration` subclass
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans, with no `ddtrace.llmobs` imports (see anthropic for pattern)
-- [ ] `ddtrace/llmobs/_contrib/{name}/` — `LlmEvents` subscribers, registered from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
+- [ ] `ddtrace/llmobs/_contrib/{name}/` — `LlmEvents` subscribers, registered through the `ddtrace.integration_hooks` entry point in `pyproject.toml`
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
+
+## Hosted voice conversations: ElevenLabs Agents
+
+The ElevenLabs integration instruments the synchronous and asynchronous Agents
+WebSocket loops. Its conversation-local socket proxies observe successful sends
+and received messages without changing the audio interface or event subscriptions.
+Provider event IDs identify turns; text equality and optional completion events do
+not. A turn can contain multiple agent utterances around tools. Reconcile final
+text, streaming parts, resends, and corrections by response_id, preserving their
+first-observed order, and join their text for the turn. Ignore late parts after
+an identified response completes. Events without response_id retain the legacy
+single-response fallback. Retain at most 64 response IDs per turn and cap each
+response and the combined exported text at 100,000 characters.
+Keep a bounded window of open turns for late interrupted transcripts and flush it
+on worker exit. Unknown event IDs at or below the interruption boundary cannot
+open turns or consume pending input; known interrupted turns still accept late text.
+Capture APM and LLMObs parent contexts at startup, including explicit absence.
+Create spans under a scoped LLMObs context so both caller contexts remain unchanged;
+retain the captured LLMObs snapshot after its parent has finished. Audio payloads belong only to LLM messages, with a shared encoded
+budget for input and output. Direct sibling workflow phases retain approximate
+transport-based timing and explicitly annotate metadata.ttfa_eligible = false.
+Do not infer TTFA or token usage from these estimates. Client tool execution uses
+the SDK's actual handler, with explicit parenting and fail-open instrumentation.
+
+Regression fixtures preserve event order and shapes with synthetic audio and text.
+Cover default/custom audio interfaces, both SDK loops, ordinary event subscriptions,
+typed messages, interruption, errors, parent context, concurrent conversations,
+missing completion events, and audio limits.
+Cover failed or cancelled external shutdown before the SDK stop signal, plus end
+callback failures after that signal; only the former may restore observation.
+
+Optional ElevenLabs vad_score events produce user_speech_activity metadata only
+on the matching user speech phase. Version 1 carries source=elevenlabs_vad,
+timing=estimated, and at most 128 clip-relative integer-millisecond intervals_ms
+pairs. An empty list means observed silence; absent metadata keeps phase-based
+colors. Input WAV bytes and placement anchors remain unchanged. Scores enter speech
+at 0.5 and leave at 0.35. Low scores cover at most 500 ms of input samples, with
+stale delivery gaps and unobserved portions conservatively active. State follows
+input-buffer transfers and shutdown extension; overflow omits activity metadata.
+Never turn these observations into TTFA or alter customer event subscriptions.
+
+
+ElevenLabs protocol/audio state is product-owned in llmobs/_integrations/elevenlabs_agents.py.
+Contrib wrappers depend only on a neutral state Protocol and request state through
+core event elevenlabs.conversation.start. LLMObs registers/removes the factory with
+its service lifecycle. Client-tool handler bodies scope both APM and LLMObs contexts,
+restoring caller contexts on success, failure, and cancellation. Synthetic replay
+fixtures are stored as deterministic gzip JSON to preserve exact event/audio data
+within the added-file size limit.
+
+ElevenLabs captures explicit routing (including no routing) at conversation startup
+and scopes it around span creation and client-tool handlers. Raw SDK threads must
+not pick up another conversation's or worker's destination. Completion state is
+separate from retained turns: later failures affect only unfinished responses,
+and interruptions affect unfinished generation or audio still playing. A newer
+turn also retires older generation when optional completion events are absent.
+Pre-metadata audio overflow discards the whole buffered prefix and carries the
+omission flag into the next input buffer; it must not export a truncated WAV.
+
+Configured model hints belong only to their matching retained event ID; unknown
+or finalized context-usage events must not relabel other turns. Tool results share
+100,000 characters per turn across handler, outbound, and server observations.
+Truncation is reported in metadata while transcript and audio content are retained.
+
+ElevenLabs includes the standard PatchTestCase lifecycle matrix for every wrapped
+entry point and checks that the global WebSocket module is left untouched.
+Public-SDK smoke tests install fake transport before ordinary patching and use
+public session start/end/wait methods. Focused state-machine tests remain useful
+for malformed events, late delivery, and buffer limits. Accepted streamed text
+observations advance the response end-time fallback; ignored late parts do not.
+The provider conversation ID replaces the bootstrap UUID when metadata arrives.
+
+## Duplex audio streams
+
+Use a connection-local adapter to observe successful sends and consumed output
+without reading ahead. Preserve input half-close and finish once on output EOF,
+close, cancellation, or error. Snapshot caller context and activate it only while
+emitting turns. Keep audio retention limits separate from timing validity.
+
+See [Nova Sonic](nova-sonic.md) for its turn boundaries, context propagation,
+audio budgets, interruption handling, tool metadata, and cumulative usage rules.

@@ -19,9 +19,9 @@ LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They 
 
 LLMObs integrations consist of two cooperating layers:
 
-1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle. The patch layer must not import from `ddtrace.llmobs`.
+1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle and LLMObs tag extraction.
 2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and usage metrics.
-3. **LLMObs Subscribers** (`ddtrace/llmobs/_contrib/{name}/`) -- subscribe to the `LlmEvents` span lifecycle events (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) that `LlmTracingSubscriber` dispatches, filter on `ctx.event.component`, and call the integration layer. `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py` registers them when the library is patched.
+3. **LLMObs Subscribers** (`ddtrace/llmobs/_contrib/{name}/`) -- subscribe to the `LlmEvents` span lifecycle events (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) that `LlmTracingSubscriber` dispatches, filter on `ctx.event.component`, and call the integration layer. The contrib's `patch()` registers them through the `ddtrace.integration_hooks` entry point declared in `pyproject.toml`.
 
 The layers must work together. The patch layer identifies the operation and passes request/response data through the event; the subscribers connect the event to the integration layer, which controls what data is extracted.
 
@@ -119,7 +119,7 @@ Note two already-shipped integrations predate this key: bedrock and the claude-a
 - **Event-based patch wrappers** should not call `span.set_exc_info()`, `span.finish()`, or `integration.llmobs_set_tags()` directly; the tracing subscriber handles that when the event ends
 - **Direct integration spans** must keep `integration.llmobs_set_tags()` and span lifecycle handling aligned with the closest current reference
 - **Integration instance**: subscriber-based integrations build it lazily in the LLMObs subscriber (see `ddtrace/llmobs/_contrib/anthropic/subscribers.py`); older integrations store it on the module as `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
-- **Subscriber registration**: subscriber-based integrations hook `{name}.patch`/`{name}.unpatch` core events in `listen_integrations()` and stay registered while LLMObs is disabled, because they also set the APM shadow tags. `listen_integrations()` runs only under `ddtrace-run` or `LLMObs.enable()`; manual `patch()` calls without either do not need to be supported
+- **Subscriber registration**: the contrib's `patch()`/`unpatch()` call `integration_hooks.on_patch("{name}")`/`on_unpatch("{name}")` (`ddtrace/internal/integration_hooks.py`), which load the module registered for `{name}` under the `ddtrace.integration_hooks` entry-point group and call its `listen()`/`unlisten()`. Subscribers stay registered while LLMObs is disabled, because they also set the APM shadow tags. This works for `ddtrace-run`, `import ddtrace.auto`, and direct `patch()` calls alike
 
 ## Message Types
 

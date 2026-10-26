@@ -21,6 +21,7 @@ from ddtrace.contrib.internal.llama_index._utils import build_text_embedding_bat
 from ddtrace.contrib.internal.llama_index._utils import get_model_provider
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.logger import get_logger
 
 
@@ -326,7 +327,7 @@ def patch():
 
     # Let products (LLMObs) attach their own LlmEvents subscribers without this
     # module importing them.
-    core.dispatch("llama_index.patch", tuple())
+    integration_hooks.on_patch("llama_index")
 
 
 def unpatch():
@@ -334,7 +335,7 @@ def unpatch():
         return
     llama_core._datadog_patch = False
 
-    core.dispatch("llama_index.unpatch", tuple())
+    integration_hooks.on_unpatch("llama_index")
 
     for (cls, method_name), original in _originals.items():
         try:

@@ -462,7 +462,8 @@ def run_function_from_file(item, params=None):
 
     try:
         with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
-            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+            # Keep test assertions active while imported application code retains its optimization level.
+            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec", optimize=0), fp.file)
 
             # If running a module with -m, we change directory to the module's
             # folder and run the module directly.

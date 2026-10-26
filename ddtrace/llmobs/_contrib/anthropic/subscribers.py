@@ -1,17 +1,13 @@
 from ddtrace.contrib._events.llm import LlmEvents
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.anthropic._constants import COMPONENT
 from ddtrace.internal import core
 from ddtrace.llmobs._contrib._subscribers import LLMObsLlmSubscriber
 from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 
 
-# Must match ddtrace.contrib.internal.anthropic.patch.COMPONENT. Duplicated so this module
-# does not import the contrib, which imports the anthropic library.
-ANTHROPIC_COMPONENT = "anthropic"
-
-
 class LLMObsAnthropicSubscriber(LLMObsLlmSubscriber):
-    component = ANTHROPIC_COMPONENT
+    component = COMPONENT
     integration_cls = AnthropicIntegration
 
 
