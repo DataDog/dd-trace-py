@@ -302,6 +302,42 @@ def test_exception_monitoring_unavailable_raises_collector_unavailable():
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_exception_second_collector_start_is_rejected():
+    """A second collector cannot run alongside the active one or clear its state.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import sys
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector import exception
+
+    first = exception.ExceptionCollector(sampling_interval=1)
+    first.start()
+
+    second = exception.ExceptionCollector(sampling_interval=1)
+    with pytest.raises(collector.CollectorUnavailable):
+        second.start()
+    assert second.status == service.ServiceStatus.STOPPED
+
+    # The active collector is untouched by the rejected start.
+    assert monitoring._global_raise_handler is not None
+    tool_id = monitoring.get_tool_id()
+    assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE
+
+    first.stop()
+    assert monitoring._global_raise_handler is None
+    if not len(monitoring._registry):
+        assert monitoring._tool_id is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_exception_sampler_setup_failure_does_not_claim_tool():
     """A sampler failure must not leave a global registration behind.
 

@@ -550,7 +550,10 @@ def register_global(handler: MonitoringEventHandler, *, direct: bool = False) ->
                             )
                         )
             _sys_monitoring.set_events(tool_id, _compute_global_events())
-        except Exception:
+        except BaseException:
+            # Also roll back on KeyboardInterrupt/SystemExit: a handler left
+            # recorded as an owner without armed events would make a retry hit
+            # the idempotent early return and silently stay inactive.
             _global_exception_handled_handler = previous_exception_handled
             _global_raise_handler = previous_raise
             for event, callback in reversed(previous_callbacks):
@@ -573,7 +576,11 @@ def unregister_global(handler: MonitoringEventHandler) -> None:
             _global_raise_handler = None
             removed_events |= _E.RAISE
         if not removed_events:
-            return
+            # A previous teardown may have been interrupted after the owners
+            # were cleared but before the events were disarmed; finish that
+            # teardown so a retry releases the tool.
+            if _tool_id is None or not (_sys_monitoring.get_events(_tool_id) & _GLOBAL_EVENTS):
+                return
         if _tool_id is not None:
             _sys_monitoring.set_events(_tool_id, _compute_global_events())
             # Release direct bound callbacks even while another owner keeps the tool alive.

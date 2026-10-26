@@ -1499,3 +1499,71 @@ def test_direct_global_unregister_releases_callback(
     assert not (_sys_monitoring.get_events(tool_id) & event)
     monitoring.unregister(target.__code__, local)
     assert monitoring._tool_id is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_register_global_rolls_back_on_base_exception():
+    """An interrupted registration must not leave an owner recorded without armed events.
+
+    A KeyboardInterrupt between publishing the owner and arming the events
+    bypassed the Exception-only rollback, so a retry hit the idempotent
+    early return and stayed silently inactive.
+    """
+    import sys
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_raise(self, code, instruction_offset, exception):
+            pass
+
+    handler = Handler()
+    real_setup = monitoring._setup
+
+    def interrupting_setup():
+        raise KeyboardInterrupt
+
+    monitoring._setup = interrupting_setup
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            monitoring.register_global(handler)
+    finally:
+        monitoring._setup = real_setup
+
+    assert monitoring._global_raise_handler is None
+
+    # The retry registers for real instead of hitting the idempotent path.
+    monitoring.register_global(handler)
+    try:
+        tool_id = monitoring.get_tool_id()
+        assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE
+    finally:
+        monitoring.unregister_global(handler)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_unregister_global_completes_interrupted_teardown():
+    """A retry finishes a teardown interrupted after the owners were cleared."""
+    import sys
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_raise(self, code, instruction_offset, exception):
+            pass
+
+    handler = Handler()
+    monitoring.register_global(handler)
+    tool_id = monitoring.get_tool_id()
+    assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE
+
+    # Simulate a teardown interrupted between clearing the owners and
+    # disarming the events.
+    monitoring._global_raise_handler = None
+
+    monitoring.unregister_global(handler)
+    assert not (sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE)
+    if not len(monitoring._registry):
+        assert monitoring._tool_id is None

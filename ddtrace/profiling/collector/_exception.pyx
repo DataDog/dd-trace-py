@@ -189,8 +189,10 @@ class ExceptionCollector(collector.Collector):
             return
 
         if _state is not None:
-            LOG.debug("[profiling] ExceptionCollector already running, skipping")
-            return
+            # Reject rather than skip: Service.start() must not mark this
+            # collector RUNNING when another instance owns the active
+            # registration, and a non-owner stop must never clear it.
+            raise collector.CollectorUnavailable("an exception profiler is already running")
 
         state = _SamplerState(self._sampling_interval, self._collect_message)
         try:
@@ -217,7 +219,8 @@ class ExceptionCollector(collector.Collector):
         global _state
 
         if not self._monitoring_registered:
-            _state = None
+            # This collector never owned the registration; leave the active
+            # collector's state untouched.
             return
 
         try:
