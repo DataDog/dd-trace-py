@@ -359,6 +359,10 @@ suites:
           dependencies: [pytest-xdist, wrapt]
         - name: wrapping
           dependencies: [pytest-xdist, 'wrapt<2.0.0']
+        - name: wrapping
+          python: ['3.15']
+          command: pytest -v {cmdargs} tests/wrapping/test_obfuscation.py
+          dependencies: [pytest-xdist, wrapt]
   lib_injection:
     venvs_per_job: 3
     paths:
