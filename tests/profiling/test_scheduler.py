@@ -17,7 +17,11 @@ def test_exporter_failure(caplog: pytest.LogCaptureFixture) -> None:
         with mock.patch.object(ddup, "upload", side_effect=RuntimeError("LOL")):
             s.flush()
 
-    assert ("ddtrace.profiling.scheduler", logging.ERROR, "Failed to upload profile") in caplog.record_tuples
+    assert (
+        "ddtrace.profiling.scheduler",
+        logging.ERROR,
+        "[profiling] Failed to upload profile",
+    ) in caplog.record_tuples
 
 
 def test_periodic_survives_export_failure() -> None:
@@ -67,7 +71,7 @@ def test_before_flush_failure(caplog: pytest.LogCaptureFixture) -> None:
     s = scheduler.Scheduler(before_flush=call_me)
     s.flush()
     assert caplog.record_tuples == [
-        (("ddtrace.profiling.scheduler", logging.ERROR, "Scheduler before_flush hook failed"))
+        (("ddtrace.profiling.scheduler", logging.ERROR, "[profiling] Scheduler before_flush hook failed"))
     ]
 
 

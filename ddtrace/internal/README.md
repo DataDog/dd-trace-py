@@ -12,6 +12,12 @@ and do not follow the semver versioning scheme of the `ddtrace` package.
 producers and encoders. Products that attach payloads to spans use these shared
 limits to keep their output within the encoding limits.
 
+## HTTP endpoint normalization
+
+`ddtrace.internal.utils.endpoint.SimplifiedEndpointComputer` normalizes URL paths
+for both tracing resource names and API Security endpoint grouping. It operates on
+URLs independently of span processing.
+
 ## Coverage collection contexts
 
 `ModuleCodeCollector.CollectInContext` owns the line and file coverage for one

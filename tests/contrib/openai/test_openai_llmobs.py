@@ -5,11 +5,11 @@ from unittest import mock
 import openai as openai_module
 import pytest
 
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._integrations.utils import _inline_image_budget
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metadata
