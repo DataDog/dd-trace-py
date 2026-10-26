@@ -364,6 +364,27 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
 
+    def test_otel_semantics_preserves_custom_span_resource(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            self.getPage("/custom_span")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "overridden"
+
+    def test_otel_semantics_sets_method_resource_before_in_handler_sampling(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            self.getPage("/sampled_resource")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        self.assertBody("GET")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "GET"
+
     def test_http_request_header_tracing(self):
         config.cherrypy.http.trace_headers(["Host", "my-header"])
         self.getPage(
