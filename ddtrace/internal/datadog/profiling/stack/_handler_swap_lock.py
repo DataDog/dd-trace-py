@@ -7,7 +7,8 @@ for the whole pause/uninstall/reinstall/resume transaction.
 
 from __future__ import annotations
 
-from ddtrace.internal.threads import Lock
+from ddtrace.internal.forksafe import Lock
 
 
+# forksafe.Lock resets after fork so a child does not inherit a held mutex.
 handler_swap_lock = Lock()
