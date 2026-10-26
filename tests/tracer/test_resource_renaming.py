@@ -1,9 +1,9 @@
 import pytest
 
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
-from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.utils.endpoint import SimplifiedEndpointComputer
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import override_global_config
