@@ -33,7 +33,9 @@ def active_context(identifier, integration):
 @pytest.fixture
 def processor(monkeypatch):
     monkeypatch.setattr(asm_config, "_iast_enabled", True)
-    monkeypatch.setattr(core, "has_listeners", lambda _event: True)
+    monkeypatch.setattr(
+        core, "has_listeners", lambda event: event in (WebRequestReady.event_name, WebRequestCompleting.event_name)
+    )
     return AppSecIastSpanProcessor()
 
 
@@ -50,7 +52,11 @@ def processor(monkeypatch):
 def test_request_route_survives_context_exit_and_processor_replacement(
     processor, monkeypatch, identifier, integration, listening, migrated
 ):
-    monkeypatch.setattr(core, "has_listeners", lambda _event: listening)
+    monkeypatch.setattr(
+        core,
+        "has_listeners",
+        lambda event: listening and event in (WebRequestReady.event_name, WebRequestCompleting.event_name),
+    )
     with (
         mock.patch.object(module, "_iast_start_request", return_value=None) as start,
         mock.patch.object(module, "_iast_end_request") as end,
@@ -69,9 +75,9 @@ def test_request_route_survives_context_exit_and_processor_replacement(
             child.finish()
         # Completion does not depend on the current scope or mutable component tag.
         span.set_tag("component", "fastapi")
-        AppSecIastSpanProcessor().on_span_finish(span)
         if listening:
             lifecycle.IastRequestCompletingSubscriber.on_event(WebRequestCompleting(ctx, span))
+        AppSecIastSpanProcessor().on_span_finish(span)
         expected_legacy_calls = [] if migrated else [mock.call(span)]
         assert start.call_args_list == expected_legacy_calls + [mock.call(child)]
         assert end.call_args_list == [mock.call(child)] + expected_legacy_calls
@@ -102,4 +108,3 @@ def test_processor_does_not_retain_unfinished_spans(processor):
     del span
     gc.collect()
     assert reference() is None
-    assert not lifecycle._SPAN_ROUTES

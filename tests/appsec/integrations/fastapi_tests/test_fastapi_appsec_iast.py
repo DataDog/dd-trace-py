@@ -26,7 +26,6 @@ from starlette.responses import StreamingResponse
 from ddtrace import config
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
-from ddtrace.appsec._iast._listener import iast_listen
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -97,7 +96,6 @@ def _restore_request_validations(original_validate):
 
 def _aux_appsec_prepare_tracer(tracer):
     initialize_native_state()
-    iast_listen()
     _on_iast_fastapi_patch()
     patch_fastapi()
     patch_sqlite_sqli()
@@ -1346,32 +1344,10 @@ def test_streaming_background_work_cannot_taint_a_later_request(tracer):
                 assert get_tainted_ranges(own_value)
                 return PlainTextResponse("ok")
 
-            async def invoke(path):
-                async def receive():
-                    await asyncio.Event().wait()
-
-                async def send(message):
-                    pass
-
-                scope = dict(
-                    type="http",
-                    asgi=dict(version="3.0", spec_version="2.3"),
-                    http_version="1.1",
-                    method="GET",
-                    scheme="http",
-                    path=path,
-                    root_path="",
-                    query_string=b"value=own-request",
-                    headers=[],
-                    server=("localhost", 80),
-                    client=("127.0.0.1", 1234),
-                )
-                await application(scope, receive, send)
-
-            first_task = asyncio.create_task(invoke("/first"))
+            first_task = asyncio.create_task(_invoke_asgi(application, "/first", b"value=own-request", "2.3"))
             await late_work_started.wait()
             # This task inherits the clean caller context, not the first request's.
-            second_task = asyncio.create_task(invoke("/replacement"))
+            second_task = asyncio.create_task(_invoke_asgi(application, "/replacement", b"value=own-request", "2.3"))
             await asyncio.gather(first_task, second_task)
 
         asyncio.run(asyncio.wait_for(run(), timeout=10))
@@ -1464,7 +1440,11 @@ def test_new_request_inside_background_task(iast_fastapi, tracer, test_spans, pr
         assert [v["type"] for report in reports if report for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
 
 
-def test_fastapi_analysis_survives_manual_spans_and_nested_legacy_request(tracer, iast_fastapi):
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+def test_fastapi_analysis_with_manual_spans_and_nested_legacy_request(
+    tracer, iast_fastapi, monkeypatch, tracing_enabled
+):
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
     application = iast_fastapi
 
     async def legacy_app(_scope, _receive, send):
@@ -1475,6 +1455,7 @@ def test_fastapi_analysis_survives_manual_spans_and_nested_legacy_request(tracer
     async def endpoint(request: Request):
         value = request.query_params["value"]
         context_id = IAST_CONTEXT.get()
+        assert (context_id is not None) is tracing_enabled
         for span_type in ("web", None):
             with tracer.trace("nested.manual", span_type=span_type) as nested:
                 nested.span_type = "web"
@@ -1485,7 +1466,7 @@ def test_fastapi_analysis_survives_manual_spans_and_nested_legacy_request(tracer
         scope = {key: value for key, value in request.scope.items() if key != "datadog"}
         await TraceMiddleware(legacy_app)(scope, request.receive, send)
         assert IAST_CONTEXT.get() == context_id
-        assert get_tainted_ranges(value)
+        assert bool(get_tainted_ranges(value)) is tracing_enabled
         return PlainTextResponse("ok")
 
     asyncio.run(_invoke_asgi(application, "/nested", b"value=unsafe"))

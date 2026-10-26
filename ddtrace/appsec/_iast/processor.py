@@ -59,6 +59,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
         """
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
-        if _SPAN_ROUTES.pop(span, False):
+        if _SPAN_ROUTES and _SPAN_ROUTES.pop(span, False):
             return
         _iast_end_request(span)

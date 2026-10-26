@@ -13,16 +13,18 @@ from ddtrace.internal.native._native import SpanData
 
 
 # Remove this policy and bookkeeping with the legacy processor.
-_EVENT_MANAGED_REQUESTS: frozenset[tuple[str, str]] = frozenset({("asgi.request", "fastapi")})
+_EVENT_MANAGED_REQUESTS: dict[str, frozenset[str]] = {"asgi.request": frozenset({"fastapi"})}
 # Weak keys do not retain unfinished spans; keep the route stable until finish.
 _SPAN_ROUTES: WeakKeyDictionary[SpanData, bool] = WeakKeyDictionary()
 
 
 def uses_request_events(ctx: core.ExecutionContext[Event], span: SpanData) -> bool:
+    integrations = _EVENT_MANAGED_REQUESTS.get(ctx.identifier)
+    if integrations is None:
+        return False
     integration = ctx.get_item("integration_config")
     if not (
-        integration is not None
-        and (ctx.identifier, integration.integration_name) in _EVENT_MANAGED_REQUESTS
+        getattr(integration, "integration_name", None) in integrations
         and core.has_listeners(WebRequestReady.event_name)
         and core.has_listeners(WebRequestCompleting.event_name)
     ):
@@ -39,7 +41,7 @@ class IastRequestReadySubscriber(Subscriber):
 
     @classmethod
     def on_event(cls, event: WebRequestReady) -> None:
-        if uses_request_events(event.ctx, event.span):
+        if event.span in _SPAN_ROUTES:
             _iast_start_request(event.span)
 
 
@@ -49,5 +51,5 @@ class IastRequestCompletingSubscriber(Subscriber):
 
     @classmethod
     def on_event(cls, event: WebRequestCompleting) -> None:
-        if uses_request_events(event.ctx, event.span):
+        if event.span in _SPAN_ROUTES:
             _iast_end_request(event.span)

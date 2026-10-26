@@ -299,8 +299,9 @@ async def test_microvm_run_hook_refreshes_identity(scope):
 
 
 @pytest.mark.parametrize("interrupt_completion", [False, True])
+@pytest.mark.parametrize("scope", [{}], indirect=True)
 @pytest.mark.asyncio
-async def test_request_lifecycle_without_ready_subscriber(interrupt_completion):
+async def test_request_lifecycle_without_ready_subscriber(interrupt_completion, scope):
     notifications = []
     finalized = []
 
@@ -313,16 +314,6 @@ async def test_request_lifecycle_without_ready_subscriber(interrupt_completion):
         if interrupt_completion and len(notifications) == 1:
             raise asyncio.CancelledError
 
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": "/",
-        "scheme": "http",
-        "query_string": b"",
-        "headers": [],
-        "server": ("localhost", 80),
-        "client": ("127.0.0.1", 1234),
-    }
     core.on(WebRequestCompleting.event_name, finalize)
     core.on(WebRequestCompleting.event_name, observe)
     try:
