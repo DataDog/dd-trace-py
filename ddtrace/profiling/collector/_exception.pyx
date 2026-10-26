@@ -197,8 +197,9 @@ class ExceptionCollector(collector.Collector):
             # Register with the shared multiplexer before writing _state so a
             # registration failure leaves the existing _state untouched.
             # register_global is the atomic claim: it owns the RAISE event and
-            # rolls itself back on failure.
-            _monitoring.register_global(_exception_handler)
+            # rolls itself back on failure. direct=True keeps CPython calling
+            # the guarded Cython callback, as the dedicated slot did before.
+            _monitoring.register_global(_exception_handler, direct=True)
         except _monitoring.MonitoringToolUnavailable as e:
             LOG.exception("Failed to set up exception monitoring")
             # Raise instead of returning so Service.start() does not mark this

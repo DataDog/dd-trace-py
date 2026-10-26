@@ -429,6 +429,15 @@ monitoring.unregister_global(handler)
 Each supported global event has one owner. Registering the same handler is
 idempotent; registering a different handler for an occupied event is rejected.
 
+Global handlers that contain their own failures can use
+`monitoring.register_global(handler, direct=True)`. CPython then invokes the
+handler's callback directly, avoiding the Python multiplexer dispatch on every
+event. Direct callbacks must handle their own exceptions and return `None`.
+Ownership checks, rollback, and teardown still belong to the multiplexer. The
+first registration selects the delivery mode until the event is unregistered.
+Exception profiling uses this mode with its guarded Cython callback exposed as
+a static method, so no additional adapter frame is added to the hot path.
+
 The multiplexer keeps the tool claimed while registrations exist and releases
 it after the final local or global registration is removed. Releasing first
 disables events and removes callbacks, so another monitoring consumer can safely
