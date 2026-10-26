@@ -15,6 +15,7 @@ if typing.TYPE_CHECKING:
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
@@ -25,7 +26,19 @@ if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
 
+log = get_logger(__name__)
+
 ASYNCIO_IMPORTED: bool = False
+
+# The _asyncio module once it has finished executing. On Python 3.14+ its state points to CPython's AsyncioDebug
+# table, where native code reads the asyncio task-list offsets, and that pointer is set only at the end of its init.
+_C_ASYNCIO: typing.Optional[ModuleType] = None
+# True once the asyncio hook has initialized native asyncio support, so the _asyncio hook knows to call it again.
+_NATIVE_ASYNCIO_INIT: bool = False
+# True only while the _asyncio hook is being registered. Registration calls the hook at once if _asyncio is in
+# sys.modules, possibly while another thread is still executing it.
+_REGISTERING_C_ASYNCIO_HOOK: bool = False
+_LOGGED_NO_TASK_LISTS: bool = False
 
 
 _ASYNCIO_MONITORING_MIN: tuple[int, int] = (3, 15)
@@ -112,7 +125,27 @@ def _task_get_name(task: asyncio.Task[typing.Any]) -> str:
     return "Task-%d" % id(task)
 
 
+def _is_initializing(module: ModuleType) -> bool:
+    return bool(getattr(getattr(module, "__spec__", None), "_initializing", False))
+
+
+def _completed_c_asyncio() -> typing.Optional[ModuleType]:
+    """Return _asyncio once it has finished executing, else None.
+
+    Also picks up a module that the _asyncio hook had to skip at registration because it was still executing then.
+    """
+    global _C_ASYNCIO
+
+    if _C_ASYNCIO is None:
+        module = sys.modules.get("_asyncio")
+        if isinstance(module, ModuleType) and not _is_initializing(module):
+            _C_ASYNCIO = module
+    return _C_ASYNCIO
+
+
 def _call_init_asyncio(asyncio: ModuleType) -> None:
+    global _LOGGED_NO_TASK_LISTS
+
     from asyncio import tasks as asyncio_tasks
 
     if sys.hexversion >= 0x030C0000:
@@ -122,7 +155,18 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
         scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
         eager_tasks = None
 
-    stack.init_asyncio(scheduled_tasks, eager_tasks)
+    asyncio_c = _completed_c_asyncio()
+    if stack.init_asyncio(scheduled_tasks, eager_tasks, asyncio_c) or _LOGGED_NO_TASK_LISTS:
+        return
+
+    if asyncio_c is None:
+        pending = sys.modules.get("_asyncio")
+        if isinstance(pending, ModuleType) and _is_initializing(pending):
+            # _asyncio imported asyncio from its own init. The _asyncio hook calls again once that init has finished.
+            return
+
+    _LOGGED_NO_TASK_LISTS = True
+    log.debug("Could not locate the native asyncio task lists; suspended asyncio tasks will not be profiled")
 
 
 def link_existing_loop_to_current_thread() -> None:
@@ -151,6 +195,7 @@ def link_existing_loop_to_current_thread() -> None:
 @ModuleWatchdog.after_module_imported("asyncio")
 def _(asyncio: ModuleType) -> None:
     global ASYNCIO_IMPORTED
+    global _NATIVE_ASYNCIO_INIT
 
     ASYNCIO_IMPORTED = True
 
@@ -334,7 +379,33 @@ def _(asyncio: ModuleType) -> None:
                     stack.weak_link_tasks(parent, task)
                 return task
 
+        _NATIVE_ASYNCIO_INIT = True
         _call_init_asyncio(asyncio)
+
+
+def _on_c_asyncio_imported(asyncio_c: typing.Optional[ModuleType]) -> None:
+    global _C_ASYNCIO
+
+    # A None entry in sys.modules marks _asyncio as unavailable.
+    if not isinstance(asyncio_c, ModuleType):
+        return
+    # Outside registration, the hook runs right after exec_module returns, when importlib still reports the module as
+    # initializing, so the check only applies to registration.
+    if _REGISTERING_C_ASYNCIO_HOOK and _is_initializing(asyncio_c):
+        return
+
+    _C_ASYNCIO = asyncio_c
+    if _NATIVE_ASYNCIO_INIT:
+        # _asyncio was imported first and asyncio, imported from its init, ran the asyncio hook before the AsyncioDebug
+        # pointer was set.
+        _call_init_asyncio(sys.modules["asyncio"])
+
+
+_REGISTERING_C_ASYNCIO_HOOK = True
+try:
+    ModuleWatchdog.register_module_hook("_asyncio", _on_c_asyncio_imported)
+finally:
+    _REGISTERING_C_ASYNCIO_HOOK = False
 
 
 @ModuleWatchdog.after_module_imported("uvloop")

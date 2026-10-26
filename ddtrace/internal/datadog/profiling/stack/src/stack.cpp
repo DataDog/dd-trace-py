@@ -13,9 +13,11 @@
 #include "sampler.hpp"
 #include "span_links.hpp"
 
+#include "echion/cpython/asyncio_discovery.h"
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <atomic>
 #include <cmath>
 #include <string_view>
 #include <utility>
@@ -358,31 +360,66 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+// Where the asyncio task-list head offsets in use came from. Reported by _asyncio_task_lists for tests.
+enum class AsyncioOffsetsSource : int
+{
+    None,
+    RuntimeTable,
+};
+
+static std::atomic<AsyncioOffsetsSource> g_asyncio_offsets_source{ AsyncioOffsetsSource::None };
+
+// Returns whether the native asyncio task lists can be walked. Always true before Python 3.14, which has no such
+// lists. On 3.14+, the head offsets come from CPython's AsyncioDebug table, found through the state of the _asyncio
+// module passed as the optional third argument, and stay published for the process lifetime once found. There is no
+// compile-time fallback: those offsets move between 3.14 patch releases, so a wheel built on one release would walk
+// the wrong memory on another.
 static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
     (void)self;
     PyObject* asyncio_scheduled_tasks;
     PyObject* asyncio_eager_tasks;
+    PyObject* asyncio_c = Py_None;
 
-    if (!PyArg_ParseTuple(args, "OO", &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
+    if (!PyArg_ParseTuple(args, "OO|O", &asyncio_scheduled_tasks, &asyncio_eager_tasks, &asyncio_c)) {
         return nullptr;
     }
 
 #if PY_VERSION_HEX >= 0x030e0000
-    // AsyncioOffsets uses 0 to mean unavailable, so a real offset must never be 0.
-    static_assert(offsetof(PyInterpreterState, asyncio_tasks_head) != 0,
-                  "PyInterpreterState.asyncio_tasks_head must not be at offset 0");
-    static_assert(offsetof(_PyThreadStateImpl, asyncio_tasks_head) != 0,
-                  "_PyThreadStateImpl.asyncio_tasks_head must not be at offset 0");
-    Sampler::get().get_echion().set_asyncio_offsets(AsyncioOffsets{
-      .interpreter_tasks_head = offsetof(PyInterpreterState, asyncio_tasks_head),
-      .thread_tasks_head = offsetof(_PyThreadStateImpl, asyncio_tasks_head),
-    });
+    auto& echion = Sampler::get().get_echion();
+    bool native_task_lists =
+      echion.asyncio_thread_tasks_head_offset() != 0 && echion.asyncio_interpreter_tasks_head_offset() != 0;
+    // Discovery runs no Python code and never detaches, so the interpreter cannot start finalizing under it once this
+    // check has passed.
+    if (!native_task_lists && asyncio_c != Py_None && !Py_IsFinalizing()) {
+        if (auto offsets = discover_asyncio_offsets(asyncio_c)) {
+            echion.set_asyncio_offsets(*offsets);
+            g_asyncio_offsets_source.store(AsyncioOffsetsSource::RuntimeTable, std::memory_order_relaxed);
+            native_task_lists = true;
+        }
+    }
+#else
+    (void)asyncio_c;
+    const bool native_task_lists = true;
 #endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
-    Py_RETURN_NONE;
+    return PyBool_FromLong(native_task_lists);
+}
+
+// Test hook: (interpreter list-head offset, thread list-head offset, source) as published to the sampler.
+static PyObject*
+stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    auto& echion = Sampler::get().get_echion();
+    const char* source = g_asyncio_offsets_source.load(std::memory_order_relaxed) == AsyncioOffsetsSource::RuntimeTable
+                           ? "runtime-table"
+                           : "none";
+    return Py_BuildValue("(nns)",
+                         static_cast<Py_ssize_t>(echion.asyncio_interpreter_tasks_head_offset()),
+                         static_cast<Py_ssize_t>(echion.asyncio_thread_tasks_head_offset()),
+                         source);
 }
 
 static PyObject*
@@ -1179,6 +1216,10 @@ static PyMethodDef stack_methods[] = {
     // asyncio task support
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
+    { "_asyncio_task_lists",
+      stack_asyncio_task_lists,
+      METH_NOARGS,
+      "Return the published asyncio task-list head offsets and their source (test hook)" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support
