@@ -998,24 +998,6 @@ def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
         span_from_context(ctx)._set_attribute(db.ROWCOUNT, rowcount)
 
 
-def _on_test_visibility_enable(config) -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.enable(config=config)
-
-
-def _on_test_visibility_disable() -> None:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    CIVisibility.disable()
-
-
-def _on_test_visibility_is_enabled() -> bool:
-    from ddtrace.internal.ci_visibility import CIVisibility
-
-    return CIVisibility.enabled
-
-
 def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescription) -> None:
     span._add_span_pointer(
         pointer_kind=span_pointer_description.pointer_kind,
@@ -1878,9 +1860,6 @@ def listen():
     core.on("inferred_proxy.start", _on_inferred_proxy_start)
     core.on("inferred_proxy.finish", _on_inferred_proxy_finish)
 
-    core.on("test_visibility.enable", _on_test_visibility_enable)
-    core.on("test_visibility.disable", _on_test_visibility_disable)
-    core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
