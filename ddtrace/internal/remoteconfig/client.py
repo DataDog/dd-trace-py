@@ -11,7 +11,7 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.logger import get_safe_logger as get_logger
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload

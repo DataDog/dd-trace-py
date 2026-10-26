@@ -15,7 +15,7 @@ from openfeature.hook import Hook
 from openfeature.hook import HookContext
 from openfeature.hook import HookHints
 
-from ddtrace.internal.logger import get_safe_logger as get_logger
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._config import _ConfigurationIdentity
 
 
@@ -77,7 +77,7 @@ def log_provider_resolution(
             configuration_identity,
         )
     except Exception:
-        # A context property may raise before the record reaches the isolated logger.
+        # Debug output must not change the resolution result, even if a custom context property raises.
         return
 
 
@@ -112,5 +112,5 @@ class DebugLoggingHook(Hook):
                 getattr(context, "attributes", None),
             )
         except Exception:
-            # Properties can fail before the arguments reach the isolated logger.
+            # Debug output must not change the evaluation, even if a custom context property raises.
             return

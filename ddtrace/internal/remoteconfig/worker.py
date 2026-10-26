@@ -7,7 +7,7 @@ from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
-from ddtrace.internal.logger import get_safe_logger as get_logger
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config

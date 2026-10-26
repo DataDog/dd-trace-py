@@ -27,7 +27,7 @@ from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
-from ddtrace.internal.logger import get_safe_logger as get_logger
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot

@@ -13,7 +13,7 @@ from openfeature.hook import Hook
 from openfeature.hook import HookContext
 from openfeature.hook import HookHints
 
-from ddtrace.internal.logger import get_safe_logger as get_logger
+from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)

@@ -10,7 +10,7 @@ import logging
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.logger import get_safe_logger as get_logger
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _ConfigurationIdentity
 from ddtrace.internal.openfeature._config import _FfeSnapshot
