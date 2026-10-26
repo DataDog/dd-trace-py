@@ -746,15 +746,26 @@ prechecks:
       echo -e "\\e[0Ksection_end:`date +%s`:pip_cache_info\\r\\e[0K"
         """
         )
-        for i, (name, command) in enumerate(checks):
-            f.write(
-                rf"""
-    - |
-      echo -e "\e[0Ksection_start:`date +%s`:section_{i}[collapsed=true]\\r\\e[0K{name}"
-      {command}
-      echo -e "\e[0Ksection_end:`date +%s`:section_{i}\\r\\e[0K"
+        f.write(
             """
-            )
+    - |
+      # Build the shared lint environment once up front: the checks below run
+      # in parallel and would otherwise all queue behind the uv environment
+      # lock while the first one creates .venv-lint.
+      scripts/lint prepare
+    - |
+      # Run the selected checks in parallel. The runner buffers each check's
+      # output and prints it as a collapsible section (failed checks stay
+      # expanded), followed by a summary; it exits non-zero if any check fails.
+      scripts/run-parallel-prechecks.sh - <<'EOF'
+"""
+        )
+        for name, command in checks:
+            f.write("      " + name + "\t" + command + "\n")
+        f.write(
+            """      EOF
+"""
+        )
         f.write(
             """
   cache:

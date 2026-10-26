@@ -226,3 +226,73 @@ def test_client_library_services_wait_in_the_client_environment(gen_gitlab_confi
         "--with-requirements tests/requirements_locks/wait.txt --no-progress "
         f"python tests/wait-for-services.py {' '.join(services)}"
     ) in command
+
+
+def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatch, tmp_path):
+    """The prechecks job must feed every selected check to the parallel runner."""
+    import needs_testrun
+
+    monkeypatch.setattr(needs_testrun, "_changed_files_override", {"ddtrace/foo.py", "pyproject.toml"})
+    tests_gen = tmp_path / "tests-gen.yml"
+    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tests_gen)
+
+    gen_gitlab_config_mod.gen_pre_checks()
+
+    out = tests_gen.read_text()
+    assert "scripts/lint prepare" in out
+    assert "scripts/run-parallel-prechecks.sh - <<'EOF'" in out
+    for check in (
+        "Style\tscripts/lint style",
+        "Typing\tscripts/lint typing",
+        "Spelling\tscripts/lint spelling",
+        "Security\tscripts/lint security",
+    ):
+        assert f"      {check}\n" in out
+    # Checks must not be emitted as sequential script steps anymore.
+    assert "section_0" not in out
+
+
+def test_run_parallel_prechecks_reports_each_result(tmp_path):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.sh"
+    checks = tmp_path / "checks.tsv"
+    checks.write_text("Passing\techo ok\nFailing\techo oops >&2; exit 3\n")
+
+    proc = subprocess.run(["bash", str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 1
+    assert "Passing: PASS" in proc.stdout
+    assert "Failing: FAIL" in proc.stdout
+    assert "oops" in proc.stdout
+    assert proc.stdout.index("Passing: PASS") < proc.stdout.index("Failing: FAIL")
+    # Both checks must appear in the summary table.
+    assert "  FAIL" in proc.stdout
+
+
+def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.sh"
+    checks = tmp_path / "checks.tsv"
+    checks.write_text("No tab in this line\n")
+
+    proc = subprocess.run(["bash", str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 2
+    assert "malformed check line" in proc.stderr
+
+
+def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
+    """Two checks that wait for each other's sentinel file can only pass in parallel."""
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.sh"
+    wait_for = 'touch "{d}/{name}"; for _ in $(seq 50); do [ -e "{d}/{other}" ] && exit 0; sleep 0.1; done; exit 1'
+    checks = tmp_path / "checks.tsv"
+    checks.write_text(
+        "\t".join(["First", wait_for.format(d=tmp_path, name="a", other="b")])
+        + "\n"
+        + "\t".join(["Second", wait_for.format(d=tmp_path, name="b", other="a")])
+        + "\n"
+    )
+
+    proc = subprocess.run(["bash", str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 0
+    assert "First: PASS" in proc.stdout
+    assert "Second: PASS" in proc.stdout
