@@ -275,7 +275,7 @@ integrations:
   tested_versions_by_dependency:
     claude-agent-sdk:
       min: 0.0.23
-      max: 0.1.49
+      max: 0.2.160
 
 - integration_name: consul
   is_external_package: true
@@ -453,7 +453,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 2.11.0
+      max: 2.12.0
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
