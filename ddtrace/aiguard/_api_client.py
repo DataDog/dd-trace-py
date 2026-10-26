@@ -1,5 +1,6 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
+from collections.abc import Iterator
 from copy import deepcopy
 import json
 import re
@@ -324,6 +325,24 @@ class AIGuardClient:
         return None
 
     @staticmethod
+    def _extra_entries(field: str, entries: object) -> Iterator[tuple[str, Any]]:
+        """Yield the (key, value) pairs of a backend list of {"key": ..., "value": ...} objects.
+
+        Keys are dotted, which is why the backend sends a list instead of a JSON object.
+        """
+        if entries is None:
+            return
+        if not isinstance(entries, list):
+            logger.debug("Ignoring AI Guard %s of type %s", field, type(entries).__name__)
+            return
+        for entry in entries:
+            key = entry.get("key") if isinstance(entry, dict) else None
+            if isinstance(key, str) and key:
+                yield key, entry.get("value")
+            else:
+                logger.debug("Ignoring malformed AI Guard %s entry", field)
+
+    @staticmethod
     def _apply_extra_tags(
         span: SpanData, meta_struct: dict[str, Any], extra_tags: object, extra_metastruct: object
     ) -> None:
@@ -332,23 +351,17 @@ class AIGuardClient:
         Best effort: a malformed payload is skipped and must never change the evaluation outcome.
         """
         try:
-            if isinstance(extra_tags, dict):
-                for key, value in extra_tags.items():
-                    if not isinstance(key, str) or not key or key in _RESERVED_EXTRA_TAGS:
-                        continue
-                    if isinstance(value, str):
-                        span._set_attribute(key, value)
-                    else:
-                        logger.debug("Ignoring AI Guard extra tag %s of type %s", key, type(value).__name__)
-            elif extra_tags is not None:
-                logger.debug("Ignoring AI Guard extra_tags of type %s", type(extra_tags).__name__)
+            for key, value in AIGuardClient._extra_entries("extra_tags", extra_tags):
+                if key in _RESERVED_EXTRA_TAGS:
+                    continue
+                if isinstance(value, str):
+                    span._set_attribute(key, value)
+                else:
+                    logger.debug("Ignoring AI Guard extra tag %s of type %s", key, type(value).__name__)
 
-            if isinstance(extra_metastruct, dict):
-                for key, value in extra_metastruct.items():
-                    if isinstance(key, str) and key and value is not None and key not in _RESERVED_EXTRA_STRUCT_KEYS:
-                        meta_struct[key] = value
-            elif extra_metastruct is not None:
-                logger.debug("Ignoring AI Guard extra_metastruct of type %s", type(extra_metastruct).__name__)
+            for key, value in AIGuardClient._extra_entries("extra_metastruct", extra_metastruct):
+                if value is not None and key not in _RESERVED_EXTRA_STRUCT_KEYS:
+                    meta_struct[key] = value
         except Exception:
             logger.debug("Could not apply AI Guard extra_tags", exc_info=True)
 
