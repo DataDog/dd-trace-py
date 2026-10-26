@@ -21,6 +21,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import DD_TRACE_CONTEXT_META_KEY
@@ -31,7 +32,6 @@ from ddtrace.llmobs._integrations.mcp import TELEMETRY_KEY
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._integrations.mcp import get_tool_error_message
 from ddtrace.llmobs._integrations.mcp import is_tool_error
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
 
