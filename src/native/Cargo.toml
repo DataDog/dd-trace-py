@@ -34,8 +34,8 @@ serde_json = "1.0"
 smallvec = "1"
 tokio = "1"
 libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.0", optional = true, features = ["pyo3"] }
-# TODO: replace with the libdatadog release that ships libdd-ai-usage.
-libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "4e9412f91f3283b8afaa12c0fb7e84a76bcbc723", optional = true, features = ["otlp"] }
+# TODO: replace with the first libdatadog release that ships libdd-ai-usage (pinned to its merge commit on main until then).
+libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "83c9c89232efa93fd369d3cafd94961cd4acda89", optional = true, features = ["otlp"] }
 libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.0", features = ["one_way_shm_futex"] }
 libdd-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.0" }
 libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.0", features = [
