@@ -55,8 +55,11 @@ class MonitoringToolUnavailable(RuntimeError):
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # Every ddtrace sys.monitoring consumer registers here instead of claiming a
-# slot directly. Prefer custom slot 3 and fall back to slot 4 now that the
-# exception profiler also uses the multiplexer; never claim coverage.py's slot 1.
+# slot directly. sys.monitoring names four tool IDs by convention: 0 for
+# debuggers, 1 for coverage tools (coverage.py and ddtrace's own coverage
+# instrumentation both claim it), 2 for the native stack profiler, and 5 for
+# optimizers. Custom slots 3 and 4 are the only ones left, so the multiplexer
+# claims 3 first and falls back to 4.
 _CANDIDATE_TOOL_IDS = (3, 4)
 
 _tool_id: Optional[int] = None
