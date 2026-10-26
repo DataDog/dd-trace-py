@@ -54,17 +54,28 @@ class _AliasMatcher:
         self._alias_base_dir_str: t.Optional[str] = None
 
     def __getstate__(self) -> dict[str, t.Any]:
-        aliases = _coverage_path_aliases()
-        specs = tuple(aliases.aliases) if aliases is not None else ()
+        specs = self._alias_specs
+        if specs is None:
+            # Snapshot the currently resolved aliases: an empty tuple means the
+            # active configuration deliberately has none, and a spawned child
+            # must not fall back to default discovery. A matcher that was itself
+            # restored from a pickle keeps its inherited snapshot, so nested
+            # spawns preserve the original configuration.
+            aliases = _coverage_path_aliases()
+            specs = tuple(aliases.aliases) if aliases is not None else ()
         return {
             "workspace_path": self._workspace_path_str,
             "alias_specs": specs,
-            "alias_base_dir": str(_alias_base_dir),
+            "alias_base_dir": self._alias_base_dir_str
+            if self._alias_base_dir_str is not None
+            else str(_alias_base_dir),
         }
 
     def __setstate__(self, state: dict[str, t.Any]) -> None:
         self._workspace_path_str = state["workspace_path"]
-        self._alias_specs = state["alias_specs"] or None
+        # An empty tuple is a resolved snapshot ("no aliases configured"); only
+        # a missing value means the matcher has never been pickled.
+        self._alias_specs = state["alias_specs"]
         self._alias_base_dir_str = state.get("alias_base_dir")
 
     def __call__(self, code_path: Path) -> bool:
@@ -179,7 +190,11 @@ def _map_path_with_specs(
         if match := regex.match(absolute_path):
             mapped = absolute_path.replace(match[0], result, 1).removeprefix("./")
             if Path(mapped).is_absolute():
-                mapped_path = Path(mapped)
+                # Normalize ".." segments lexically: a destination such as
+                # /repo/src/../pkg/ must not be uploaded with the redundant
+                # segment, and one escaping the workspace via ".." must fail
+                # the containment check.
+                mapped_path = Path(os.path.normpath(mapped))
             else:
                 # Relative destinations are relative to the directory the
                 # coverage configuration was loaded from, not to whatever the

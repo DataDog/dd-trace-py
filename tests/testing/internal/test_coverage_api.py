@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 from unittest import mock
 
 from coverage import Coverage
@@ -630,6 +631,10 @@ def test_alias_relative_destination_uses_config_base_dir(tmp_path, monkeypatch) 
 
 
 @pytest.mark.subprocess
+@pytest.mark.skipif(
+    sys.version_info < (3, 12),
+    reason="re-instrumentation of live code objects requires sys.monitoring (Python 3.12+)",
+)
 def test_early_imported_library_reinstrumented_on_instance_start() -> None:
     """A library imported before a custom-config instance starts is revisited.
 
@@ -680,3 +685,94 @@ def test_early_imported_library_reinstrumented_on_instance_start() -> None:
     finally:
         tracer_api_coverage.uninstall_coverage()
         sys.path.remove(str(env_site))
+
+
+def test_alias_matcher_preserves_empty_alias_snapshot(tmp_path, monkeypatch) -> None:
+    """An empty alias snapshot stays empty in spawned children.
+
+    A custom --cov-config without [paths] snapshots an empty tuple; a child
+    process whose working directory holds an alias-bearing default config must
+    not rediscover it and admit packages the parent excluded.
+    """
+    import pickle
+
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    # Default discovery in the child would find this...
+    (cwd / ".coveragerc").write_text("[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n")
+    site_packages = _make_site_packages(tmp_path)
+
+    # ...but the parent's active instance has no aliases at all.
+    custom_config = tmp_path / "custom-coverage.cfg"
+    custom_config.write_text("[run]\nomit = nothing\n")
+    monkeypatch.chdir(cwd)
+    cov_instance = Coverage(config_file=str(custom_config))
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: cov_instance)
+
+    clear_coverage_path_caches()
+    try:
+        matcher = tracer_api_coverage._AliasMatcher(tmp_path)
+        child_matcher = pickle.loads(pickle.dumps(matcher))
+
+        assert not child_matcher(site_packages / "__init__.py")
+    finally:
+        clear_coverage_path_caches()
+
+
+def test_alias_matcher_preserves_snapshot_across_nested_spawns(tmp_path, monkeypatch) -> None:
+    """A restored matcher keeps its inherited aliases when re-pickled.
+
+    A spawned worker launching another spawn/forkserver process must not
+    rebuild aliases from its local configuration; the grandchild inherits the
+    original snapshot.
+    """
+    import pickle
+
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()  # no .coveragerc here
+    custom_config = tmp_path / "custom-coverage.cfg"
+    custom_config.write_text("[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n")
+    site_packages = _make_site_packages(tmp_path)
+    monkeypatch.chdir(cwd)
+    cov_instance = Coverage(config_file=str(custom_config))
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: cov_instance)
+
+    clear_coverage_path_caches()
+    try:
+        matcher = tracer_api_coverage._AliasMatcher(tmp_path)
+        child_matcher = pickle.loads(pickle.dumps(matcher))
+
+        # The grandchild is pickled from the restored matcher with no active
+        # instance and no discoverable configuration.
+        with mock.patch.object(tracer_api_coverage, "get_coverage_instance", lambda: None):
+            grandchild_matcher = pickle.loads(pickle.dumps(child_matcher))
+
+        assert grandchild_matcher(site_packages / "__init__.py")
+    finally:
+        clear_coverage_path_caches()
+
+
+def test_absolute_alias_destination_normalized(tmp_path, monkeypatch) -> None:
+    """Absolute destinations with '..' normalize before containment checks."""
+    site_packages = _make_site_packages(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    clear_coverage_path_caches()
+    try:
+        # A redundant '..' segment inside the workspace.
+        (tmp_path / ".coveragerc").write_text(
+            "[paths]\ncovered_pkg =\n    %s/src/../covered_pkg/\n    */site-packages/covered_pkg/\n" % tmp_path
+        )
+        assert tracer_api_coverage._relative_coverage_path(str(site_packages / "__init__.py"), str(tmp_path)) == (
+            "/covered_pkg/__init__.py"
+        )
+
+        # A destination escaping the workspace via '..': dropped.
+        (tmp_path / ".coveragerc").write_text(
+            "[paths]\ncovered_pkg =\n    %s/../outside/covered_pkg/\n    */site-packages/covered_pkg/\n" % tmp_path
+        )
+        clear_coverage_path_caches()
+        assert tracer_api_coverage._relative_coverage_path(str(site_packages / "__init__.py"), str(tmp_path)) is None
+    finally:
+        clear_coverage_path_caches()

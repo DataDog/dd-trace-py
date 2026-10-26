@@ -682,6 +682,10 @@ class ModuleCodeCollector(ModuleWatchdog):
         """
         if self._alias_matcher is None or not self._coverage_enabled:
             return
+        if not _PY_GE_312:
+            # On Python < 3.12 instrumentation rewrites code objects; live code
+            # imported before the aliases were known cannot be replaced.
+            return
 
         for module in list(sys.modules.values()):
             file = getattr(module, "__file__", None)
