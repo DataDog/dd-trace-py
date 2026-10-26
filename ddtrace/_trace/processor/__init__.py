@@ -379,7 +379,7 @@ class SpanAggregator(SpanProcessor):
     def set_tracer_tags(self, tags: dict[str, str]) -> None:
         self.tags_processor.tracer_tags = tags
         if isinstance(self.writer, NativeWriter):
-            self.writer._resource_attributes = self.tags_processor.resource_attributes()
+            self.writer._set_resource_attributes(self.tags_processor.resource_attributes())
 
     def __repr__(self) -> str:
         return (
