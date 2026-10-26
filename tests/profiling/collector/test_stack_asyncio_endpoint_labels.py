@@ -13,7 +13,7 @@ import pytest
     },
     err=None,
 )
-def test_stack_keeps_asyncio_task_endpoints_separate():
+def test_stack_keeps_asyncio_task_endpoints_separate() -> None:
     """Keep concurrent tasks associated with their own trace endpoints."""
     import asyncio
     import os
@@ -26,33 +26,33 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
 
     endpoint_a = "async-endpoint-a"
     endpoint_b = "async-endpoint-b"
-    span_ids = {}
+    span_ids: dict[str, int] = {}
 
-    def task_a_work():
+    def task_a_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
     # A enters its span, then B enters its span and sleeps, then A runs. B's span was activated on
     # the thread last, so per-thread labels tag A's samples with B.
-    async def task_a(a_active, b_active):
+    async def task_a(a_active: asyncio.Event, b_active: asyncio.Event) -> None:
         with tracer.trace("async.request.a", resource=endpoint_a, span_type=ext.SpanTypes.WEB) as span:
             span_ids["a"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             a_active.set()
             await b_active.wait()
             task_a_work()
 
-    async def task_b_wait():
+    async def task_b_wait() -> None:
         await asyncio.sleep(0.6)
 
-    async def task_b(a_active, b_active):
+    async def task_b(a_active: asyncio.Event, b_active: asyncio.Event) -> None:
         await a_active.wait()
         with tracer.trace("async.request.b", resource=endpoint_b, span_type=ext.SpanTypes.WEB) as span:
             span_ids["b"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             b_active.set()
             await task_b_wait()
 
-    async def main():
+    async def main() -> None:
         a_active = asyncio.Event()
         b_active = asyncio.Event()
         await asyncio.gather(
@@ -91,7 +91,7 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
     },
     err=None,
 )
-def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
+def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task() -> None:
     """Never borrow a traced task's endpoint for an untraced task on the same thread."""
     import asyncio
     import os
@@ -105,22 +105,22 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
     endpoint = "traced-task-endpoint"
 
     # The traced task keeps its span open until the untraced task has finished its work.
-    async def traced_task(traced_task_active, untraced_task_finished):
+    async def traced_task(traced_task_active: asyncio.Event, untraced_task_finished: asyncio.Event) -> None:
         with tracer.trace("traced.task.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
             traced_task_active.set()
             await untraced_task_finished.wait()
 
-    def untraced_task_work():
+    def untraced_task_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def untraced_task(traced_task_active, untraced_task_finished):
+    async def untraced_task(traced_task_active: asyncio.Event, untraced_task_finished: asyncio.Event) -> None:
         await traced_task_active.wait()
         untraced_task_work()
         untraced_task_finished.set()
 
-    async def main():
+    async def main() -> None:
         traced_task_active = asyncio.Event()
         untraced_task_finished = asyncio.Event()
         await asyncio.gather(
@@ -159,7 +159,7 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
     },
     err=None,
 )
-def test_stack_respects_explicit_empty_child_task_context():
+def test_stack_respects_explicit_empty_child_task_context() -> None:
     """Honor an explicit empty child Context instead of inheriting the creator's endpoint."""
     import asyncio
     import contextvars
@@ -173,17 +173,19 @@ def test_stack_respects_explicit_empty_child_task_context():
 
     endpoint = "outer-thread-endpoint"
 
-    def explicit_empty_context_work():
+    def explicit_empty_context_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def explicit_context_child():
+    async def explicit_context_child() -> None:
         explicit_empty_context_work()
 
-    async def main():
+    async def main() -> None:
         await asyncio.create_task(
-            explicit_context_child(), name="explicit-empty-context-child", context=contextvars.Context()
+            explicit_context_child(),
+            name="explicit-empty-context-child",
+            context=contextvars.Context(),  # type: ignore[call-arg]
         )
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -215,12 +217,13 @@ def test_stack_respects_explicit_empty_child_task_context():
     },
     err=None,
 )
-def test_stack_omits_unverifiable_pre312_custom_factory_context():
+def test_stack_omits_unverifiable_pre312_custom_factory_context() -> None:
     """Omit pre-3.12 attribution when a custom factory's actual Context cannot be inspected."""
     import asyncio
     import contextvars
     import os
     import time
+    from typing import Any
 
     from ddtrace import ext
     from ddtrace.profiling import profiler
@@ -229,18 +232,18 @@ def test_stack_omits_unverifiable_pre312_custom_factory_context():
 
     endpoint = "pre312-outer-endpoint"
 
-    def custom_factory_work():
+    def custom_factory_work() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def child():
+    async def child() -> None:
         custom_factory_work()
 
-    async def main():
+    async def main() -> None:
         loop = asyncio.get_running_loop()
 
-        def empty_context_task_factory(loop, coro):
+        def empty_context_task_factory(loop: asyncio.AbstractEventLoop, coro: Any) -> asyncio.Task[Any]:
             return contextvars.Context().run(asyncio.Task, coro, loop=loop)
 
         loop.set_task_factory(empty_context_task_factory)
@@ -278,7 +281,7 @@ def test_stack_omits_unverifiable_pre312_custom_factory_context():
     parametrize={"CHILD": ["finishes_eagerly", "suspends"]},
     err=None,
 )
-def test_stack_respects_explicit_empty_context_for_eager_task():
+def test_stack_respects_explicit_empty_context_for_eager_task() -> None:
     """Honor an eager task's explicit empty Context in its eager first step and after it resumes."""
     import asyncio
     import contextvars
@@ -291,33 +294,37 @@ def test_stack_respects_explicit_empty_context_for_eager_task():
     from tests.profiling.collector import pprof_utils
 
     suspend = os.environ["CHILD"] == "suspends"
-    child_ids = []
+    child_ids: list[int] = []
 
-    def busy_cpu():
+    def busy_cpu() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
     # Separate names so each phase is checked on its own samples.
-    def eager_first_step_work():
+    def eager_first_step_work() -> None:
         busy_cpu()
 
-    def resumed_step_work():
+    def resumed_step_work() -> None:
         busy_cpu()
 
-    async def child():
+    async def child() -> None:
         child_ids.append(id(asyncio.current_task()))
         eager_first_step_work()
         if suspend:
             await asyncio.sleep(0)
             resumed_step_work()
 
-    async def main():
+    async def main() -> None:
         loop = asyncio.get_running_loop()
-        loop.set_task_factory(asyncio.eager_task_factory)
+        loop.set_task_factory(asyncio.eager_task_factory)  # type: ignore[attr-defined]
         try:
             with tracer.trace("eager.parent", resource="eager-endpoint", span_type=ext.SpanTypes.WEB):
-                await asyncio.create_task(child(), name="eager-child", context=contextvars.Context())
+                await asyncio.create_task(
+                    child(),
+                    name="eager-child",
+                    context=contextvars.Context(),  # type: ignore[call-arg]
+                )
         finally:
             loop.set_task_factory(None)
 
