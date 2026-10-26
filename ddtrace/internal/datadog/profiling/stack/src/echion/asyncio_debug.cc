@@ -12,14 +12,6 @@
 
 #include <limits>
 
-#if defined(__linux__)
-#include <sys/uio.h>
-#include <unistd.h>
-#elif defined(__APPLE__)
-#include <mach/mach.h>
-#include <mach/mach_vm.h>
-#endif
-
 std::optional<AsyncioOffsets>
 parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
 {
@@ -58,29 +50,6 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
                                               offsets.task.task_awaited_by_is_set,
                                               offsets.task.task_coro,
                                               offsets.task.task_node } };
-}
-
-bool
-read_own_memory(uintptr_t address, void* buffer, size_t size)
-{
-    if (address == 0 || size == 0) {
-        return false;
-    }
-
-#if defined(__linux__)
-    struct iovec local = { buffer, size };
-    // The kernel copies from this address; it is never dereferenced here.
-    struct iovec remote = { reinterpret_cast<void*>(address), size }; // NOLINT(performance-no-int-to-ptr)
-    return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
-#elif defined(__APPLE__)
-    mach_vm_size_t copied = 0;
-    return mach_vm_read_overwrite(
-             mach_task_self(), address, size, reinterpret_cast<mach_vm_address_t>(buffer), &copied) == KERN_SUCCESS &&
-           copied == size;
-#else
-    (void)buffer;
-    return false;
-#endif
 }
 
 std::optional<AsyncioOffsets>

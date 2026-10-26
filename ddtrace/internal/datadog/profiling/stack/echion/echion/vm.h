@@ -5,6 +5,8 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -127,6 +129,17 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
 #endif
+
+// Copies size bytes of this process's memory at address into buffer through the kernel (process_vm_readv on Linux,
+// mach_vm_read_overwrite on macOS). Returns false, without faulting, when any part of the range is unreadable.
+// Addresses are integers because callers take them from memory that has not been validated yet.
+//
+// Unlike copy_memory, this never goes through safe_copy: the sampler switches safe_copy between strategies while it
+// runs, and its safe_memcpy strategy depends on a signal handler that faulthandler and crashtracking swap out while
+// the sampler, but not a caller on another thread, is paused. A kernel read is also free of C++ data races on memory
+// other threads write. Copy errors are not counted in g_copy_memory_error_count.
+bool
+read_own_memory(uintptr_t address, void* buffer, size_t size);
 
 inline pid_t pid = 0;
 

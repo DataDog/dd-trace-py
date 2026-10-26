@@ -5,6 +5,7 @@
 
 #include "echion/cpython/asyncio_discovery.h"
 #include "echion/echion_sampler.h"
+#include "echion/vm.h"
 
 #include <gtest/gtest.h>
 

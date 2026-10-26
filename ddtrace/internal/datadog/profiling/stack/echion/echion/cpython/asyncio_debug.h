@@ -68,13 +68,6 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets);
 // of the range is unreadable. Addresses are integers because they come from memory that has not been validated yet.
 using AsyncioReadMemory = bool (*)(uintptr_t address, void* buffer, size_t size);
 
-// Reads this process's memory through the kernel (process_vm_readv on Linux, mach_vm_read_overwrite on macOS). Not
-// Echion's copy_memory: the sampler switches that between strategies while it runs, and its safe_memcpy strategy
-// depends on a signal handler that faulthandler and crashtracking swap out while the sampler, but not this caller, is
-// paused. A kernel read is also free of C++ data races on memory other threads write.
-bool
-read_own_memory(uintptr_t address, void* buffer, size_t size);
-
 // Reads and validates the table at table_address. Returns no offsets for a null, misaligned or unreadable address, a
 // table that fails parse_asyncio_debug_offsets, or a task layout different from expected_task_layout.
 std::optional<AsyncioOffsets>

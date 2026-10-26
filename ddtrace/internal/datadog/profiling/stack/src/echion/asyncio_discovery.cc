@@ -9,6 +9,7 @@
 #include <echion/echion_sampler.h>
 
 #include <echion/cpython/asyncio_discovery.h>
+#include <echion/vm.h>
 
 #if PY_VERSION_HEX >= 0x030e0000
 
