@@ -324,32 +324,31 @@ class AIGuardClient:
         return None
 
     @staticmethod
-    def _apply_extra_tags(span: SpanData, meta_struct: dict[str, Any], extra_tags: object) -> None:
-        """Copy backend-provided tags to the span, scalars as tags and structured values to meta_struct.
+    def _apply_extra_tags(
+        span: SpanData, meta_struct: dict[str, Any], extra_tags: object, extra_metastruct: object
+    ) -> None:
+        """Copy backend-provided extra_tags to the span and extra_metastruct to the ai_guard meta_struct.
 
         Best effort: a malformed payload is skipped and must never change the evaluation outcome.
         """
-        if extra_tags is None:
-            return
         try:
-            if not isinstance(extra_tags, dict):
-                logger.debug("Ignoring AI Guard extra_tags of type %s", type(extra_tags).__name__)
-                return
-            for key, value in extra_tags.items():
-                if not isinstance(key, str) or not key:
-                    continue
-                if isinstance(value, bool):
-                    # Lowercase like every other boolean AI Guard tag, not Python's str(True).
-                    if key not in _RESERVED_EXTRA_TAGS:
-                        span._set_attribute(key, "true" if value else "false")
-                elif isinstance(value, (str, int, float)):
-                    if key not in _RESERVED_EXTRA_TAGS:
+            if isinstance(extra_tags, dict):
+                for key, value in extra_tags.items():
+                    if not isinstance(key, str) or not key or key in _RESERVED_EXTRA_TAGS:
+                        continue
+                    if isinstance(value, str):
                         span._set_attribute(key, value)
-                elif isinstance(value, (dict, list)):
-                    if key not in _RESERVED_EXTRA_STRUCT_KEYS:
+                    else:
+                        logger.debug("Ignoring AI Guard extra tag %s of type %s", key, type(value).__name__)
+            elif extra_tags is not None:
+                logger.debug("Ignoring AI Guard extra_tags of type %s", type(extra_tags).__name__)
+
+            if isinstance(extra_metastruct, dict):
+                for key, value in extra_metastruct.items():
+                    if isinstance(key, str) and key and value is not None and key not in _RESERVED_EXTRA_STRUCT_KEYS:
                         meta_struct[key] = value
-                else:
-                    logger.debug("Ignoring AI Guard extra tag %s of type %s", key, type(value).__name__)
+            elif extra_metastruct is not None:
+                logger.debug("Ignoring AI Guard extra_metastruct of type %s", type(extra_metastruct).__name__)
         except Exception:
             logger.debug("Could not apply AI Guard extra_tags", exc_info=True)
 
@@ -462,6 +461,7 @@ class AIGuardClient:
                         # metadata only and never drive redaction.
                         redaction_replacements = attributes.get("redaction_replacements")
                         extra_tags = attributes.get("extra_tags")
+                        extra_metastruct = attributes.get("extra_metastruct")
                     except Exception as e:
                         error_type = AI_GUARD.ERROR_BAD_RESPONSE
                         value = json.dumps(result, indent=2)[:500]
@@ -503,7 +503,7 @@ class AIGuardClient:
                         meta_struct.update({"sds": sds_findings})
                     if tag_probs is not None:
                         meta_struct.update({"tag_probs": tag_probs})
-                    self._apply_extra_tags(span, meta_struct, extra_tags)
+                    self._apply_extra_tags(span, meta_struct, extra_tags, extra_metastruct)
                 else:
                     error_type = AI_GUARD.ERROR_BAD_STATUS
                     error_status = response.status
