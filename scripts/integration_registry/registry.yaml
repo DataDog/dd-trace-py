@@ -1090,7 +1090,7 @@ integrations:
   - valkey
   tested_versions_by_dependency:
     valkey:
-      min: 6.1.1
+      min: 6.0.2
       max: 6.2.0
 
 - integration_name: vertexai

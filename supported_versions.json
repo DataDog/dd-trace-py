@@ -4448,7 +4448,18 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=6.0.0",
+                "tested": [
+                    "6.0.2",
+                    "6.1.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.10"
                     ]
                 },
