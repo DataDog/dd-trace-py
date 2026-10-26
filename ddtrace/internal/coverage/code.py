@@ -676,15 +676,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         pytest_configure, after the module was imported while conftest files
         were loading). Modules rejected at import under the earlier aliases
         have the code objects reachable from their namespaces instrumented
-        here. Import-time execution stays unrecorded, and on Python < 3.12
-        instrumented copies cannot replace live code objects, so only modules
-        imported after the change are collected there.
+        here. Import-time execution stays unrecorded. On Python < 3.12 the
+        rewritten code object is installed back on the live function so
+        subsequent calls are recorded; code defined inside function bodies is
+        only reachable on Python 3.12+.
         """
         if self._alias_matcher is None or not self._coverage_enabled:
-            return
-        if not _PY_GE_312:
-            # On Python < 3.12 instrumentation rewrites code objects; live code
-            # imported before the aliases were known cannot be replaced.
             return
 
         for module in list(sys.modules.values()):
@@ -701,14 +698,40 @@ class ModuleCodeCollector(ModuleWatchdog):
                 continue
             package = module.__package__ if module.__package__ is not None else ""
             for value in vars(module).values():
-                code = getattr(value, "__code__", None)
+                self._reinstrument_value(value, code_path.parent, package)
+
+    def _reinstrument_value(self, value: t.Any, module_dir: Path, package: str) -> None:
+        """Instrument a module-namespace value, if it is code from module_dir."""
+        code = getattr(value, "__code__", None)
+        if code is not None:
+            self._reinstrument_code(code, value, module_dir, package)
+            return
+        # Descriptors (staticmethod, classmethod, property) do not expose
+        # __code__ directly; unwrap the underlying function.
+        for attr in ("__func__", "fget", "fset", "fdel"):
+            inner = getattr(value, attr, None)
+            if inner is not None and inner is not value:
+                code = getattr(inner, "__code__", None)
                 if code is not None:
-                    self.instrument_code(code, package)
-                if isinstance(value, type):
-                    for attr in vars(value).values():
-                        code = getattr(attr, "__code__", None)
-                        if code is not None:
-                            self.instrument_code(code, package)
+                    self._reinstrument_code(code, inner, module_dir, package)
+        if isinstance(value, type):
+            for attr in vars(value).values():
+                self._reinstrument_value(attr, module_dir, package)
+
+    def _reinstrument_code(self, code: CodeType, holder: t.Any, module_dir: Path, package: str) -> None:
+        # The namespace can re-export functions and classes from unrelated
+        # dependencies; only code originating from the admitted module's own
+        # package is recovered.
+        if not is_contained(Path(code.co_filename), module_dir):
+            return
+        new_code = self.instrument_code(code, package)
+        if new_code is not code and new_code is not None:
+            # On Python < 3.12 instrumentation rewrites the code object;
+            # install it on the live function so subsequent calls are recorded.
+            try:
+                holder.__code__ = new_code
+            except (AttributeError, TypeError, ValueError):
+                log.debug("Could not install re-instrumented code on %r", holder)
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
         if is_obfuscated_code(code):

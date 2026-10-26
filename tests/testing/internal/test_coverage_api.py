@@ -1,5 +1,4 @@
 from pathlib import Path
-import sys
 from unittest import mock
 
 from coverage import Coverage
@@ -466,10 +465,17 @@ def test_venv_installed_library_collected_and_remapped() -> None:
     purelib = Path(sysconfig.get_paths()["purelib"])
     lib_dir = purelib / "venvlib"
     dep_dir = purelib / "venvdep"
-    lib_dir.mkdir(parents=True)
-    dep_dir.mkdir(parents=True)
+    # A previous failed run may not have cleaned up its directories.
+    lib_dir.mkdir(parents=True, exist_ok=True)
+    dep_dir.mkdir(parents=True, exist_ok=True)
     (lib_dir / "__init__.py").write_text("def bump():\n    return 42\n")
     (dep_dir / "__init__.py").write_text("def noop():\n    pass\n")
+
+    # The import system may have cached the site-packages listing before the
+    # packages above were created (directory mtime granularity).
+    import importlib
+
+    importlib.invalidate_caches()
 
     os.chdir(repo)
 
@@ -631,10 +637,6 @@ def test_alias_relative_destination_uses_config_base_dir(tmp_path, monkeypatch) 
 
 
 @pytest.mark.subprocess
-@pytest.mark.skipif(
-    sys.version_info < (3, 12),
-    reason="re-instrumentation of live code objects requires sys.monitoring (Python 3.12+)",
-)
 def test_early_imported_library_reinstrumented_on_instance_start() -> None:
     """A library imported before a custom-config instance starts is revisited.
 
@@ -653,7 +655,25 @@ def test_early_imported_library_reinstrumented_on_instance_start() -> None:
     env_site = repo / ".cache/uv-test-environments/abc/lib/python3.12/site-packages"
     (repo / "tests").mkdir(parents=True)
     (env_site / "early_pkg").mkdir(parents=True)
-    (env_site / "early_pkg/__init__.py").write_text("def bump():\n    return 42\n")
+    (env_site / "dep_pkg").mkdir(parents=True)
+    (env_site / "dep_pkg/__init__.py").write_text("def noop():\n    pass\n")
+    (env_site / "early_pkg/__init__.py").write_text(
+        "from dep_pkg import noop as dep_noop\n"
+        "\n"
+        "\n"
+        "def bump():\n"
+        "    return 42\n"
+        "\n"
+        "\n"
+        "class Thing:\n"
+        "    @staticmethod\n"
+        "    def smeth():\n"
+        "        return 1\n"
+        "\n"
+        "    @property\n"
+        "    def prop(self):\n"
+        "        return 2\n"
+    )
 
     os.chdir(repo)
 
@@ -679,9 +699,14 @@ def test_early_imported_library_reinstrumented_on_instance_start() -> None:
             # start of each test) and re-instruments the early-imported module.
             with tracer_api_coverage.coverage_collection() as coverage_data:
                 assert early_pkg.bump() == 42
+                assert early_pkg.Thing.smeth() == 1
+                assert early_pkg.Thing().prop == 2
+                early_pkg.dep_noop()
             bitmaps = dict(coverage_data.get_coverage_bitmaps(relative_to=repo))
 
         assert "/early_pkg/__init__.py" in bitmaps
+        # The re-exported dependency stays excluded.
+        assert not any("dep_pkg" in path for path in bitmaps)
     finally:
         tracer_api_coverage.uninstall_coverage()
         sys.path.remove(str(env_site))
