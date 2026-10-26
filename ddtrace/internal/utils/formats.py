@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 from typing import Optional
@@ -22,6 +23,20 @@ T = TypeVar("T")
 
 
 log = logging.getLogger(__name__)
+
+
+def _get_attr(o: object, attr: str, default: object) -> Any:
+    # LLM SDK responses may be SDK objects or plain dicts.
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
+
+
+def safe_load_json(value: str) -> Any:
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {"value": str(value)}
 
 
 def deep_getattr(obj: Any, attr_string: str, default: Optional[Any] = None) -> Optional[Any]:
