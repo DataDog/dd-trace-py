@@ -29,7 +29,7 @@ struct AsyncioOffsets
     std::optional<AsyncioTaskLayout> task_layout = std::nullopt;
 };
 
-// Mirrors the runtime table defined in CPython 3.14.7's Modules/_asynciomodule.c.
+// Mirrors the runtime table in Modules/_asynciomodule.c, unchanged from CPython 3.14.0 through 3.14.8.
 // TODO: Use more of these runtime offsets on Python 3.14+ to replace compile-time private-layout assumptions.
 struct PyAsyncioDebugOffsets
 {
@@ -87,7 +87,8 @@ read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary);
 std::optional<AsyncioOffsets>
 find_asyncio_debug_offsets();
 
-// Changes when binaries are loaded or unloaded. Discovery inspects only loaded binaries, so a failed discovery cannot
-// succeed until this value changes. Returns no value when the platform cannot report changes; callers then retry.
+// Changes when binaries are loaded or unloaded. Discovery inspects only loaded binaries, so a failed discovery is
+// unlikely to succeed until this value changes. Returns no value when the platform cannot report changes; callers
+// then retry.
 std::optional<uint64_t>
 loaded_binaries_generation();
