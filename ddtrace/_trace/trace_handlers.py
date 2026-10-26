@@ -11,7 +11,6 @@ from typing import Protocol
 from urllib import parse
 
 from ddtrace import config
-from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
@@ -67,6 +66,7 @@ from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
+from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace.internal.constants import MESSAGING_BATCH_COUNT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_MESSAGE_ID

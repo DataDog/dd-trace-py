@@ -10,11 +10,11 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
-from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
+from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
