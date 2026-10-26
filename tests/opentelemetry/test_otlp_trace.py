@@ -4,6 +4,74 @@ import pytest
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
+        "DD_TRACE_SAMPLE_RATE": "1",
+        "DD_SERVICE": "resource-test",
+        "DD_TAGS": None,
+        "OTEL_RESOURCE_ATTRIBUTES": "team=core,region=us1,workers=7",
+    },
+    parametrize={"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"]},
+)
+def test_otlp_resource_attributes_are_not_span_attributes():
+    from http.server import BaseHTTPRequestHandler
+    from http.server import ThreadingHTTPServer
+    import json
+    import os
+    import queue
+    import threading
+
+    os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/json"
+    received = queue.Queue()
+
+    class OtlpHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.put(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), OtlpHandler) as server:
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{server.server_address[1]}/v1/traces"
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            from ddtrace.trace import tracer
+
+            with tracer.trace("resource-root"):
+                with tracer.trace("resource-child") as child:
+                    child.set_tag("region", "eu1")
+                    child._set_attribute("workers", 7)
+                    child.set_tag("span.only", "retained")
+            tracer.flush()
+            payload = received.get(timeout=10)
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+    resource_spans = payload["resourceSpans"][0]
+    resource = {a["key"]: a["value"] for a in resource_spans["resource"]["attributes"]}
+    spans = {
+        span["name"]: {a["key"]: a["value"] for a in span["attributes"]}
+        for scope in resource_spans["scopeSpans"]
+        for span in scope["spans"]
+    }
+    assert {"resource-root", "resource-child"} == spans.keys()
+    assert resource.get("team") == {"stringValue": "core"}, (resource, spans)
+    assert resource.get("region") == {"stringValue": "us1"}
+    assert resource.get("workers") == {"stringValue": "7"}
+    for attributes in spans.values():
+        assert "team" not in attributes
+    assert "region" not in spans["resource-root"]
+    assert "workers" not in spans["resource-root"]
+    assert spans["resource-child"]["region"] == {"stringValue": "eu1"}
+    assert spans["resource-child"]["workers"] == {"intValue": "7"}
+    assert spans["resource-child"]["span.only"] == {"stringValue": "retained"}
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
         "DD_TRACE_SAMPLE_RATE": "1",
