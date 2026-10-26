@@ -68,7 +68,7 @@ experiments:
           # telemetrydependencies
           - name: telemetrydependencies-first-50-deps-sca-off
             thresholds:
-              - execution_time < 3.50 ms
+              - execution_time < 0.23 ms
           # litellmusagemetrics: the three records of one proxied LiteLLM call
           - name: litellmusagemetrics-untagged
             thresholds:

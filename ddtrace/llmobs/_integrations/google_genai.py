@@ -2,6 +2,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
@@ -11,7 +12,6 @@ from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
