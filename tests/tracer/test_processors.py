@@ -1066,7 +1066,8 @@ def test_register_unregister_span_processor(tracer):
     assert span.get_tag("on_finish") is None
 
 
-def test_configure_agentless_writer_releases_an_unstarted_exporter():
+@pytest.mark.parametrize("agentless", [False, True])
+def test_configure_agentless_writer_releases_an_unstarted_exporter(agentless):
     """Swapping away from a writer that never started must still release its native exporter.
 
     NativeWriter builds the exporter in __init__ rather than on first write, so stop() raises
@@ -1075,20 +1076,20 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter():
     """
     from ddtrace._trace.processor import SpanAggregator
 
-    with override_global_config(dict(_trace_agentless_enabled=True, _dd_api_key="an-api-key")):
-        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    tags = {"team": "core", "region": "us1"}
+    with override_global_config(dict(_trace_agentless_enabled=agentless, _dd_api_key="an-api-key")):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1, tracer_tags=tags)
         old_writer = aggregator.writer
-        old_writer._set_resource_attributes({"team": "updated"})
-        assert old_writer.agentless is True
+        assert old_writer.agentless is agentless
         assert old_writer.status is ServiceStatus.STOPPED, "writer should not have started yet"
 
         try:
             with mock.patch.object(type(old_writer), "shutdown_exporter", autospec=True) as shutdown:
-                assert aggregator.configure_agentless_writer(False) is True
+                assert aggregator.configure_agentless_writer(not agentless) is True
 
             assert shutdown.called, "the unstarted writer's exporter was never released"
-            assert aggregator.writer.agentless is False
-            assert aggregator.writer._resource_attributes == {"team": "updated"}
+            assert aggregator.writer.agentless is not agentless
+            assert aggregator.writer._resource_attributes == tags
         finally:
             try:
                 aggregator.writer.stop()

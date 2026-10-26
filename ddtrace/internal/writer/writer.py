@@ -1415,6 +1415,7 @@ def create_trace_writer(
             # combined with agentless. OTLP trace metrics are permitted, and go to the intake.
             otlp_metrics_endpoint=otlp_metrics_endpoint,
             agentless_stats_endpoint=agentless_stats_endpoint,
+            resource_attributes=resource_attributes,
         )
 
     verify_url(agent_config.trace_agent_url)
