@@ -40,8 +40,7 @@ def test_otlp_resource_attributes_are_not_span_attributes():
     assert resource.get("team") == {"stringValue": "core"}, (resource, spans)
     assert resource.get("region") == {"stringValue": "us1"}
     assert resource.get("workers") == {"stringValue": "7"}
-    assert resource["long"]["stringValue"].endswith("<truncated>...")
-    assert len(resource["long"]["stringValue"]) < 25001
+    assert resource["long"] == {"stringValue": "x" * 25001}
     for attributes in spans.values():
         assert "long" not in attributes
     assert "team" not in spans["resource-root"]
@@ -77,6 +76,7 @@ def test_otlp_resource_uses_current_tags_at_export():
 
     from ddtrace import config
     from ddtrace import tracer
+    from ddtrace._trace.product import _apply_config_change
     from ddtrace._trace.product import apm_tracing_rc
     from tests.opentelemetry.utils import _capture_http_requests
 
@@ -101,7 +101,7 @@ def test_otlp_resource_uses_current_tags_at_export():
         with tracer.trace("reset"):
             pass
         tracer.flush()
-        tracer._tags = {}
+        _apply_config_change("tags", {}, config)
         with tracer.trace("empty"):
             pass
         tracer.flush()

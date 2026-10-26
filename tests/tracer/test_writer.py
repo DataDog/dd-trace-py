@@ -53,26 +53,6 @@ def mock_sys_platform(new_value):
         sys.platform = old_value
 
 
-def test_otlp_resource_tags_are_read_at_export():
-    tags = {"team": "before"}
-    with managed_writer(
-        NativeWriter,
-        "http://localhost:9126",
-        otlp_endpoint="http://localhost:4318/v1/traces",
-        get_resource_attributes=lambda: tags,
-        processing_interval=1000,
-    ) as writer:
-        with mock.patch.object(writer, "_exporter") as exporter:
-            exporter.send.return_value = ""
-            writer.write([Span("first")])
-            tags = {"team": "after"}
-            writer.flush_queue(raise_exc=True)
-            writer.write([Span("second")])
-            tags = {}
-            writer.flush_queue(raise_exc=True)
-            assert exporter.set_otlp_resource_attributes.call_args_list == [mock.call({"team": "after"}), mock.call({})]
-
-
 @contextlib.contextmanager
 def managed_writer(writer_class, writer_url, **writer_kwargs):
     """Context manager that creates, starts, and stops a writer, ensuring all payloads are flushed."""

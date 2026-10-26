@@ -15,7 +15,6 @@ from typing import TextIO
 from typing import cast
 from urllib.parse import urlparse as _urlparse
 
-from ddtrace.internal._encoding import _truncate_string
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
@@ -816,7 +815,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         otlp_metrics_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         agentless_stats_endpoint: Optional[str] = None,
-        get_resource_attributes: Optional[Callable[[], Optional[dict[str, str]]]] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -852,7 +851,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
-        self._get_resource_attributes = get_resource_attributes
+        self._resource_attributes = resource_attributes or {}
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
         self._agentless_stats_endpoint = agentless_stats_endpoint
@@ -1053,7 +1052,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
             api_key=self._api_key,
             agentless_stats_endpoint=self._agentless_stats_endpoint,
-            get_resource_attributes=self._get_resource_attributes,
+            resource_attributes=self._resource_attributes,
         )
 
     def _downgrade(self, status, client):
@@ -1124,11 +1123,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             with self._exporter_lock:
                 exporter = self._exporter
-                if self._otlp_endpoint is not None and self._get_resource_attributes is not None:
-                    attributes = self._get_resource_attributes() or {}
-                    exporter.set_otlp_resource_attributes(
-                        {_truncate_string(k): _truncate_string(v) for k, v in attributes.items()}
-                    )
+                if self._otlp_endpoint is not None:
+                    exporter.set_otlp_resource_attributes(self._resource_attributes)
                 response_body = exporter.send(payload)
         except native.RequestError as e:
             try:
@@ -1367,7 +1363,7 @@ def _resolve_agentless_stats_endpoint() -> Optional[str]:
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
-    get_resource_attributes: Optional[Callable[[], Optional[dict[str, str]]]] = None,
+    resource_attributes: Optional[dict[str, str]] = None,
 ) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
@@ -1422,6 +1418,6 @@ def create_trace_writer(
         response_callback=response_callback,
         stats_opt_out=standalone_config.apm_opt_out,
         otlp_endpoint=otlp_endpoint,
-        get_resource_attributes=get_resource_attributes,
+        resource_attributes=resource_attributes,
         otlp_metrics_endpoint=otlp_metrics_endpoint,
     )

@@ -33,6 +33,7 @@ from ddtrace.internal.telemetry.metrics import get_metric_recorder
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -233,16 +234,15 @@ class ServiceNameProcessor(TraceProcessor):
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
-    def __init__(self, get_tracer_tags: Optional[Callable[[], Optional[dict[str, str]]]] = None):
-        self._get_tracer_tags = get_tracer_tags
+    def __init__(self, tracer_tags: Optional[dict[str, str]] = None):
+        self.tracer_tags = tracer_tags or {}
 
-    def resource_attributes(self) -> Optional[dict[str, str]]:
-        tags = self._get_tracer_tags() if self._get_tracer_tags is not None else None
-        return (
-            {k: v for k, v in tags.items() if k not in _OTLP_SPAN_TAG_KEYS and not k.startswith("_dd.")}
-            if tags is not None
-            else None
-        )
+    def resource_attributes(self) -> dict[str, str]:
+        return {
+            k: v
+            for k, v in self.tracer_tags.items()
+            if isinstance(k, str) and isinstance(v, str) and k not in _OTLP_SPAN_TAG_KEYS and not k.startswith("_dd.")
+        }
 
     def _set_git_metadata(self, chunk_root):
         repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
@@ -357,6 +357,7 @@ class SpanAggregator(SpanProcessor):
         dd_processors: Optional[list[TraceProcessor]] = None,
         user_processors: Optional[list[TraceProcessor]] = None,
         get_tracer_tags: Optional[Callable[[], Optional[dict[str, str]]]] = None,
+        tracer_tags: Optional[dict[str, str]] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -365,7 +366,7 @@ class SpanAggregator(SpanProcessor):
         self.sampling_processor = TraceSamplingProcessor(
             config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out, get_tracer_tags
         )
-        self.tags_processor = TraceTagsProcessor(get_tracer_tags)
+        self.tags_processor = TraceTagsProcessor(tracer_tags)
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
@@ -373,12 +374,17 @@ class SpanAggregator(SpanProcessor):
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
-            get_resource_attributes=self.tags_processor.resource_attributes,
+            resource_attributes=self.tags_processor.resource_attributes(),
         )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
         super().__init__()
+
+    def set_tracer_tags(self, tags: dict[str, str]) -> None:
+        self.tags_processor.tracer_tags = tags
+        if isinstance(self.writer, NativeWriter):
+            self.writer._resource_attributes = self.tags_processor.resource_attributes()
 
     def __repr__(self) -> str:
         return (
@@ -563,7 +569,7 @@ class SpanAggregator(SpanProcessor):
             self.writer = create_trace_writer(
                 response_callback=self._agent_response_callback,
                 agentless=enable,
-                get_resource_attributes=self.tags_processor.resource_attributes,
+                resource_attributes=self.tags_processor.resource_attributes(),
             )
         except Exception:
             log.error(

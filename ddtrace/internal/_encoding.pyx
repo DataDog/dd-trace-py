@@ -107,12 +107,6 @@ cdef inline object truncate_string(object string):
             return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + "<truncated>..."
     return string
 
-
-def _truncate_string(str value):
-    """Apply the MessagePack string limit to matching resource attributes."""
-    return truncate_string(value)
-
-
 cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
     cdef int ret
 

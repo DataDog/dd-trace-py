@@ -189,6 +189,7 @@ class Tracer:
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
             get_tracer_tags=self._get_otlp_tracer_tags,
+            tracer_tags=self._tags,
         )
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
@@ -1091,6 +1092,7 @@ class Tracer:
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
+        self._span_aggregator.set_tracer_tags(self._tags)
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
         """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
