@@ -26,7 +26,7 @@ from ddtrace.contrib.internal.asyncio import _context_switch_uvloop
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal._context_watcher import context_switches_require_fallback
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
@@ -34,7 +34,7 @@ from ddtrace.internal.wrapping import wrap
 
 
 _installed = False
-if PYTHON_VERSION_INFO >= (3, 12):
+if is_at_least_py(3, 12):
     _eager_task_factory_code = asyncio.eager_task_factory.__code__  # type: ignore[attr-defined]  # Added in 3.12.
 else:
     _eager_task_factory_code = None
@@ -48,7 +48,7 @@ def install() -> None:
         return
 
     wrap(asyncio.Handle._run, _wrapped_run_handle)  # type: ignore[arg-type]
-    if PYTHON_VERSION_INFO < (3, 12):
+    if not is_at_least_py(3, 12):
         wrap(asyncio.BaseEventLoop.call_exception_handler, _wrapped_call_exception_handler)  # type: ignore[arg-type]
     _installed = True
     _context_switch_uvloop.install()
@@ -67,7 +67,7 @@ def uninstall() -> None:
         if _eager_task_factory_code is not None:
             unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
             unwrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
-        if PYTHON_VERSION_INFO < (3, 12):
+        if not is_at_least_py(3, 12):
             unwrap(asyncio.BaseEventLoop.call_exception_handler, _wrapped_call_exception_handler)
         unwrap(asyncio.Handle._run, _wrapped_run_handle)
         _context_switch_uvloop.uninstall()

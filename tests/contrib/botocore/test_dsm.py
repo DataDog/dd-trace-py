@@ -1,12 +1,13 @@
 import base64
 import json
 import sys
+import time
 import unittest
+from unittest import mock
 
 import botocore
 import botocore.exceptions
 import botocore.session
-import mock
 from moto import mock_events
 from moto import mock_kinesis
 from moto import mock_sns
@@ -49,7 +50,7 @@ class BotocoreDSMTest(TracerTestCase):
 
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
-        super(BotocoreDSMTest, self).setUp()
+        super().setUp()
 
         # Setting the validated flag to False ensures the redaction paths configurations are re-validated
         # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
@@ -59,7 +60,7 @@ class BotocoreDSMTest(TracerTestCase):
         span_tags._PAYLOAD_TAGGER.validated = False
 
     def tearDown(self):
-        super(BotocoreDSMTest, self).tearDown()
+        super().tearDown()
 
         unpatch()
         self.sqs_client.delete_queue(QueueUrl=self.sqs_test_queue["QueueUrl"])
@@ -529,6 +530,46 @@ class BotocoreDSMTest(TracerTestCase):
         _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
         assert in_parent_hash == out_hash
         self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
+
+    @mock_kinesis
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
+    def test_kinesis_consume_keeps_upstream_pathway_start(self):
+        upstream_age_sec = 3600.0
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_consume_keeps_upstream_pathway_start"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        processor = data_streams_processor()
+        assert processor is not None, "Datastream Monitoring is not enabled"
+
+        # The producing service consumed a message whose pathway started an hour ago.
+        processor.new_pathway(now_sec=time.time() - upstream_age_sec)
+        processor.set_checkpoint(["direction:in", "topic:upstream", "type:sqs"])
+
+        client.put_record(
+            StreamName=stream_name, Data=json.dumps({"json": "string"}), PartitionKey="1234", StreamARN=stream_arn
+        )
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+        with mock.patch.object(
+            processor, "on_checkpoint_creation", wraps=processor.on_checkpoint_creation
+        ) as checkpoint_spy:
+            client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        in_tags = [
+            "direction:in",
+            "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_consume_keeps_upstream_pathway_start",
+            "type:kinesis",
+        ]
+        consume_calls = [c for c in checkpoint_spy.call_args_list if c.args[2] == in_tags]
+        assert len(consume_calls) == 1
+        full_pathway_latency_sec = consume_calls[0].args[5]
+        assert full_pathway_latency_sec >= upstream_age_sec, (
+            "Kinesis consume reported a full pathway latency of %.3fs; expected at least %.0fs from the upstream "
+            "pathway start" % (full_pathway_latency_sec, upstream_age_sec)
+        )
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(

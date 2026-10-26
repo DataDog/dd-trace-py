@@ -12,10 +12,11 @@ import typing as _t
 import psutil
 from requests.exceptions import ConnectionError  # noqa: A004
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
+from tests.utils import override_config
 from tests.webclient import Client
 
 
@@ -64,9 +65,11 @@ def _wait_for_server_ready(client: Client, server_process, port: int, use_multip
                     sock.settimeout(0.2)
                     sock.connect(("0.0.0.0", int(port)))
             else:
-                timeout = min(10.0, max(0.5, deadline - time.monotonic()))
-                response = client.get_ignored("/", timeout=timeout)
+                with override_config("requests", dict(distributed_tracing=False)):
+                    # Never cap this: a timed-out probe is still served, so a retry would be served twice.
+                    response = client.get_ignored("/", timeout=max(0.5, deadline - time.monotonic()))
                 assert response.status_code == 200, f"server answered {response.status_code}"
+            assert _process_exit_code(server_process) is None, "server process exited during startup"
             return
         except Exception:
             # A server that died on import is never going to answer, so spending the rest of
@@ -93,6 +96,105 @@ def _server_diagnostics(server_process, port: int, cmd: list, port_was_free_at_s
         f"than dead; a non-zero code with the port bound means another server still holds it)\n"
         f"command={cmd}" + already_taken
     )
+
+
+def _read_proc_file(path: str) -> str:
+    try:
+        with open(path, errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return "?"
+
+
+def _server_cgroup(pid: int) -> str:
+    """The server's own cgroup v2 directory, falling back to the mount root (the node, without a private namespace)."""
+    for entry in _read_proc_file(f"/proc/{pid}/cgroup").splitlines():
+        if entry.startswith("0::") and entry[3:] not in ("", "/"):
+            candidate = "/sys/fs/cgroup" + entry[3:]
+            if os.path.isdir(candidate):
+                return candidate
+    return "/sys/fs/cgroup"
+
+
+def _kernel_snapshot(server_process) -> str:
+    """Kernel view of the server tree, to tell a disk stall, CPU starvation and a lock or socket wait apart.
+
+    Thread states (D is uninterruptible: disk, page faults or memory reclaim; S sleeps; R wants a CPU) and
+    wait channels are read first, at the timeout. CPU, I/O and context switch counters are then sampled
+    0.2s apart to show whether anything still moves, keeping the stack dump that follows close to the timeout.
+    """
+    try:
+        parent = psutil.Process(server_process.pid)
+        procs = [parent] + parent.children(recursive=True)
+    except psutil.Error as exc:
+        return f"could not enumerate the server tree for its kernel state: {exc}"
+
+    thread_lines: dict[int, list[str]] = {}
+    for proc in procs:
+        task_dir = f"/proc/{proc.pid}/task"
+        try:
+            tids = sorted(os.listdir(task_dir), key=int)
+        except OSError:
+            tids = []
+        thread_lines[proc.pid] = []
+        for tid in tids:
+            stat = _read_proc_file(f"{task_dir}/{tid}/stat")
+            fields = stat.rsplit(")", 1)[-1].split()
+            state = fields[0] if fields else "?"
+            thread_lines[proc.pid].append(
+                f"  pid={proc.pid} tid={tid} comm={_read_proc_file(f'{task_dir}/{tid}/comm')} state={state} "
+                f"wchan={_read_proc_file(f'{task_dir}/{tid}/wchan')}"
+            )
+
+    cgroup = _server_cgroup(server_process.pid)
+
+    def read(getter):
+        try:
+            return getter()
+        except (psutil.Error, AttributeError, NotImplementedError):
+            return None
+
+    def sample():
+        counters = {
+            proc.pid: (
+                read(lambda: proc.cpu_times()),
+                read(lambda: proc.io_counters()),
+                read(lambda: proc.num_ctx_switches()),
+            )
+            for proc in procs
+        }
+        return counters, _read_proc_file(f"{cgroup}/cpu.stat").replace("\n", ", ")
+
+    before, cgroup_before = sample()
+    time.sleep(0.2)
+    after, cgroup_after = sample()
+
+    lines = []
+    for proc in procs:
+        pid = proc.pid
+        (cpu0, io0, ctx0), (cpu1, io1, ctx1) = before[pid], after[pid]
+        line = f"pid={pid} over 0.2s:"
+        if cpu0 and cpu1:
+            line += f" cpu +{max(0.0, cpu1.user + cpu1.system - cpu0.user - cpu0.system):.2f}s"
+        if io0 and io1:
+            line += (
+                f" syscr +{io1.read_count - io0.read_count} syscw +{io1.write_count - io0.write_count}"
+                f" read_bytes +{io1.read_bytes - io0.read_bytes} write_bytes +{io1.write_bytes - io0.write_bytes}"
+            )
+        if ctx0 and ctx1:
+            line += (
+                f" main_thread_ctx_switches voluntary +{ctx1.voluntary - ctx0.voluntary}"
+                f" involuntary +{ctx1.involuntary - ctx0.involuntary}"
+            )
+        lines.append(line)
+        lines.extend(thread_lines[pid])
+    lines.append(f"cgroup {cgroup} cpu.stat before: {cgroup_before}")
+    lines.append(f"cgroup {cgroup} cpu.stat after:  {cgroup_after}")
+    for resource in ("cpu", "io", "memory"):
+        container = _read_proc_file(f"{cgroup}/{resource}.pressure").replace("\n", ", ")
+        host = _read_proc_file(f"/proc/pressure/{resource}").replace("\n", ", ")
+        lines.append(f"pressure {resource}: container {container} | host {host}")
+    return "\n".join(lines)
 
 
 def _dump_server_stacks(server_process) -> str:
@@ -427,7 +529,7 @@ def appsec_application_server(
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
-        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
+        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = f"X-Datadog-Test-Session-Token:{token}"
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
     else:
@@ -439,17 +541,17 @@ def appsec_application_server(
         env["DD_APM_TRACING_ENABLED"] = ""
 
     if iast_enabled is not None and iast_enabled != "false":
-        env[IAST.ENV] = iast_enabled
-        env[IAST.ENV_REQUEST_SAMPLING] = "100"
+        env["DD_IAST_ENABLED"] = iast_enabled
+        env["DD_IAST_REQUEST_SAMPLING"] = "100"
         env["DD_IAST_DEDUPLICATION_ENABLED"] = "false"
         env["_DD_IAST_PATCH_MODULES"] = "tests.appsec."
         env[IAST.ENV_NO_DIR_PATCH] = "false"
         if assert_debug:
-            env["_" + IAST.ENV_DEBUG] = iast_enabled
-            env["_" + IAST.ENV_PROPAGATION_DEBUG] = iast_enabled
+            env["_DD_IAST_DEBUG"] = iast_enabled
+            env["_DD_IAST_PROPAGATION_DEBUG"] = iast_enabled
             env["DD_TRACE_DEBUG"] = iast_enabled
     else:
-        env[IAST.ENV] = iast_enabled
+        env["DD_IAST_ENABLED"] = iast_enabled
 
     if tracer_enabled:
         env["DD_TRACE_ENABLED"] = tracer_enabled
@@ -512,15 +614,20 @@ def appsec_application_server(
             print("Server started in %.3fs" % (time.monotonic() - startup_started))
         except Exception as exc:
             # Elapsed time separates a slow contended start from a server that died on import.
+            elapsed = time.monotonic() - startup_started
             diagnostics = _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
             # Still running means it stalled rather than died, and its stacks are the only record
             # of where. A server that died has none, and signalling it would only add noise.
             if _process_exit_code(server_process) is None:
+                try:
+                    diagnostics += "\n" + _kernel_snapshot(server_process)
+                except Exception as snapshot_exc:
+                    diagnostics += f"\nkernel snapshot failed: {snapshot_exc!r}"
                 diagnostics += "\n" + _dump_server_stacks(server_process)
             raise AssertionError(
                 "Server failed to start within %.3fs (of a %.1fs budget, override with "
                 "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
-                "above.\n" % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT) + diagnostics
+                "above.\n" % (elapsed, SERVER_STARTUP_TIMEOUT) + diagnostics
             ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py

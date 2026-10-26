@@ -1,5 +1,5 @@
-from typing import Optional  # noqa:F401
-from typing import Protocol  # noqa:F401
+from typing import Optional
+from typing import Protocol
 
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.settings._agent import config as agent_config
@@ -48,7 +48,7 @@ class InstrumentationTelemetryMetricsClient(MetricsClient):
         telemetry_writer.add_distribution_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
 
 
-class Metrics(object):
+class Metrics:
     """Higher-level DogStatsD interface.
 
     This class provides automatic handling of namespaces for metrics, with the
@@ -71,7 +71,7 @@ class Metrics(object):
         self.enabled = False
         self.client = client
 
-    class Meter(object):
+    class Meter:
         def __init__(self, metrics: "Metrics", name: str) -> None:
             self.metrics = metrics
             self.name = name

@@ -2,7 +2,7 @@
 Generic dbapi tracing code.
 """
 
-from typing import Mapping
+from collections.abc import Mapping
 from typing import Optional
 
 import wrapt
@@ -43,8 +43,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -66,7 +65,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 removal_version="5.0.0",
             )
 
-        super(TracedCursor, self).__init__(cursor)
+        super().__init__(cursor)
 
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
@@ -77,7 +76,7 @@ class TracedCursor(wrapt.ObjectProxy):
         span_name = (
             cfg["_dbapi_span_operation_name"]
             if cfg and "_dbapi_span_operation_name" in cfg
-            else "{}.query".format(span_name_prefix)
+            else f"{span_name_prefix}.query"
         )
         self._self_datadog_name = span_name
         self._self_dbapi_span_name_prefix = span_name_prefix
@@ -140,11 +139,21 @@ class TracedCursor(wrapt.ObjectProxy):
                 # Try to fetch custom properties that were passed by the specific Database implementation
                 self._set_post_execute_tags(s)
 
+    def _dbapi_query_encoding(self) -> Optional[str]:
+        """Return the connection's Python codec, or None when it is unknown."""
+        return None
+
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(
+                    query=query,
+                    span_name_prefix=self._self_dbapi_span_name_prefix,
+                    get_encoding=self._dbapi_query_encoding,
+                )
+            )
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -164,8 +173,14 @@ class TracedCursor(wrapt.ObjectProxy):
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+        if isinstance(query, (str, bytes, bytearray, memoryview)):
+            core.dispatch_event(
+                DbQueryEvent(
+                    query=query,
+                    span_name_prefix=self._self_dbapi_span_name_prefix,
+                    get_encoding=self._dbapi_query_encoding,
+                )
+            )
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -268,9 +283,9 @@ class TracedConnection(wrapt.ObjectProxy):
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedCursor if cfg.trace_fetch_methods else TracedCursor
 
-        super(TracedConnection, self).__init__(conn)
+        super().__init__(conn)
         name = _get_vendor(conn)
-        self._self_datadog_name = "{}.connection".format(name)
+        self._self_datadog_name = f"{name}.connection"
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls

@@ -1,18 +1,19 @@
 import base64
+from collections.abc import Iterable
 from dataclasses import dataclass
 import inspect
 import json
 import re
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -31,8 +32,10 @@ from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import STORAGE_SEARCH_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import WEB_SEARCH_COUNT_METRIC_KEY
 
 # Audio helpers were moved to audio_utils.py to keep this module manageable; the noqa'd names below
 # are re-exported so existing ``from ...utils import <helper>`` imports keep working.
@@ -49,13 +52,12 @@ from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime  # noqa
 from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
@@ -182,7 +184,9 @@ LITELLM_METADATA_COMPLETION_KEYS = (
     "custom_llm_provider",
 )
 
-REACT_AGENT_TOOL_CALL_REGEX = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+# ReAct "Action: <tool>" and "Action Input: <input>" markers.
+REACT_ACTION_REGEX = re.compile(r"Action\s*(?:\d+\s*)?:")
+REACT_ACTION_INPUT_REGEX = re.compile(r"Action\s*(?:\d+\s*)?Input\s*(?:\d+\s*)?:")
 
 
 def get_llmobs_metrics_tags(integration_name, span):
@@ -255,6 +259,46 @@ def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
     ):
         metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
         metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
+
+
+_OPENAI_SERVER_TOOL_CALL_METRIC_KEYS = {
+    "web_search_call": WEB_SEARCH_COUNT_METRIC_KEY,
+    "file_search_call": STORAGE_SEARCH_COUNT_METRIC_KEY,
+}
+
+
+def get_openai_server_tool_usage_metrics(resp: Any) -> dict[str, int]:
+    """Count the billable server-side tool calls in an OpenAI Responses response.
+
+    Web searches are read from the untyped tool_usage.web_search.num_requests when present, otherwise
+    counted from completed search actions (open_page / find_in_page steps are not billed). File searches
+    have no usage counter, so each completed file_search_call item counts once. Zero counts are omitted.
+    """
+    reported_web_searches = _get_attr(
+        _get_attr(_get_attr(resp, "tool_usage", None), "web_search", None), "num_requests", None
+    )
+    if not isinstance(reported_web_searches, int):
+        reported_web_searches = None
+    output = _get_attr(resp, "output", None)
+    if not isinstance(output, list):
+        output = []
+    metrics: dict[str, int] = {}
+    for item in output:
+        item_type = _get_attr(item, "type", None)
+        metric_key = _OPENAI_SERVER_TOOL_CALL_METRIC_KEYS.get(item_type)
+        if metric_key is None or _get_attr(item, "status", None) != "completed":
+            continue
+        if item_type == "web_search_call":
+            if reported_web_searches is not None:
+                continue
+            # Items without an action (older payloads) are assumed to be searches.
+            action_type = _get_attr(_get_attr(item, "action", None), "type", None)
+            if action_type is not None and action_type != "search":
+                continue
+        metrics[metric_key] = metrics.get(metric_key, 0) + 1
+    if reported_web_searches:
+        metrics[WEB_SEARCH_COUNT_METRIC_KEY] = reported_web_searches
     return metrics
 
 
@@ -464,7 +508,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
-                Message(content="[Unsupported content type: {}]".format(content_type), role=role)
+                Message(content=f"[Unsupported content type: {content_type}]", role=role)
             )
     message: Message = Message()
     if tool_calls_info:
@@ -495,7 +539,7 @@ def _openai_finish_reason_metadata(finish_reasons: list[Any]) -> dict[str, Any]:
 
 
 def openai_set_meta_tags_from_completion(
-    span: Span, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
+    span: _LLMObsSpan, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
@@ -666,7 +710,7 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[Imag
 
 
 def openai_set_meta_tags_from_chat(
-    span: Span, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+    span: _LLMObsSpan, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
@@ -794,7 +838,7 @@ def openai_set_meta_tags_from_chat(
 
 
 def _openai_extract_tool_calls_and_results_chat(
-    message: dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+    message: dict[str, Any], llm_span: Optional[_LLMObsSpan] = None, dispatch_llm_choice: bool = False
 ) -> tuple[list[ToolCall], list[ToolResult]]:
     tool_calls = []
     tool_results = []
@@ -859,7 +903,7 @@ def _openai_extract_tool_calls_and_results_chat(
 
 
 def capture_plain_text_tool_usage(
-    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
+    tool_calls_info: Any, tool_results_info: Any, content: str, span: _LLMObsSpan, is_input: bool = False
 ) -> None:
     """
     Captures plain text tool calls and tool results from a content string.
@@ -876,10 +920,11 @@ def capture_plain_text_tool_usage(
         return
 
     try:
-        action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
-        if action_match and isinstance(tool_calls_info, list):
-            tool_name = action_match.group(1).strip().strip("*").strip()
-            tool_input_with_observation = action_match.group(2).split("\nObservation:")
+        action_match = REACT_ACTION_REGEX.search(content)
+        action_input_match = REACT_ACTION_INPUT_REGEX.search(content, action_match.end()) if action_match else None
+        if action_match and action_input_match and isinstance(tool_calls_info, list):
+            tool_name = content[action_match.end() : action_input_match.start()].strip().strip("*").strip()
+            tool_input_with_observation = content[action_input_match.end() :].lstrip().split("\nObservation:")
             tool_input = tool_input_with_observation[0].strip("`").strip().strip(' "')
             observation = ""
             if len(tool_input_with_observation) > 1:
@@ -1348,7 +1393,7 @@ def _has_multimodal_inputs(variables: dict[str, Any]) -> bool:
     return False
 
 
-def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None:
+def set_prompt_tracking_tags(span: _LLMObsSpan, *, is_multimodal: bool = False) -> None:
     """Set prompt tracking telemetry tags on a span.
 
     Args:
@@ -1363,7 +1408,7 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
 
 
 def openai_set_meta_tags_from_response(
-    span: Span, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
+    span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
@@ -1426,6 +1471,33 @@ def openai_set_meta_tags_from_response(
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     tool_definitions = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
+
+
+def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+    """Extract input, questions, and answers from a decisions api call."""
+    metadata: dict[str, Any] = {}
+    questions = kwargs.get("questions")
+    if isinstance(questions, (list, tuple)):
+        metadata["questions"] = [load_data_value(q) for q in questions]
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
+        metadata=metadata,
+    )
+    if not response:
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        return
+
+    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(answers) or "")])
+
+
+def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
+    if hasattr(answer, "model_dump"):
+        return answer.model_dump(mode="json", exclude_none=True)
+    if isinstance(answer, dict):
+        return {k: v for k, v in answer.items() if v is not None}
+    return {}
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
@@ -1585,7 +1657,7 @@ class OaiSpanAdapter:
         """Get the span name."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
             return self._raw_oai_span.span_data.name
-        return "openai_agents.{}".format(self.span_type.lower())
+        return f"openai_agents.{self.span_type.lower()}"
 
     @property
     def span_type(self) -> str:

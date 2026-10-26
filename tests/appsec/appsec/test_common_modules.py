@@ -3,8 +3,8 @@ import contextlib
 import copy
 import pathlib
 import types
+from unittest import mock
 
-import mock
 import pytest
 from wrapt import FunctionWrapper
 
@@ -26,6 +26,7 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -40,7 +41,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) == types.BuiltinFunctionType
+    assert type(open) is types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -53,7 +54,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == FunctionWrapper
+        assert type(open) is FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -274,6 +275,59 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     finally:
         httplib_unpatch()
         unpatch_common_modules()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="Pre-3.11 wrapping uses different failed-entry cleanup semantics")
+def test_blocked_recursive_call_restores_the_outer_call_storage():
+    """A block during a recursive call's entry must only unwind that call.
+
+    The contexts it already entered exit, and the outer call keeps its own storage.
+    """
+    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
+
+    exited = []
+
+    class _Entered(WrappingContext):
+        __priority__ = -1
+
+        def __enter__(self):
+            super().__enter__()
+            self.set("value", self.get_local("value"))
+            return self
+
+        def __exit__(self, *exc):
+            exited.append(self.get("value"))
+            super().__exit__(*exc)
+
+    class _Blocker(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            if self.get_local("value") == "inner":
+                raise BlockingException("blocked")
+            return self
+
+    def target(value):
+        if value == "outer":
+            outer_storage = [context._storage.get() for context in (entered, blocker, universal)]
+            with pytest.raises(BlockingException):
+                target("inner")
+            for context, storage in zip((entered, blocker, universal), outer_storage):
+                assert context._storage.get() is storage
+            assert entered.get("value") == "outer"
+        return value
+
+    entered = _Entered(target)
+    blocker = _Blocker(target)
+    entered.wrap()
+    blocker.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        assert target("outer") == "outer"
+        assert exited == ["inner"]
+        assert all(context._storage.get() is None for context in (entered, blocker, universal))
+    finally:
+        blocker.unwrap()
+        entered.unwrap()
 
 
 def test_a_concurrent_request_does_not_consume_the_pending_block():
@@ -704,7 +758,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == FunctionWrapper
+        assert type(original_func) is FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")
@@ -761,7 +815,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
         with mock.patch.object(cmp, "get_rasp_capability", return_value=True):
             pool_manager = urllib3.PoolManager(num_pools=1)
             try:
-                response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
+                response = pool_manager.request("GET", f"http://127.0.0.1:{port}/source", timeout=10)
                 assert response.status == 200
             finally:
                 pool_manager.clear()
@@ -775,7 +829,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
 
     assert inspected, "no downstream request was inspected"
     # The redirected hop must be inspected as an absolute URL carrying the target host.
-    assert inspected[-1] == "http://127.0.0.1:{}/target".format(port), inspected
+    assert inspected[-1] == f"http://127.0.0.1:{port}/target", inspected
 
 
 def test_the_getresponse_context_releases_storage_when_rasp_is_off():
@@ -1176,14 +1230,14 @@ def test_a_redirect_publishes_the_redirected_url():
             mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
         ):
             with contextlib.suppress(Exception):
-                urllib.request.urlopen("http://127.0.0.1:{}/source".format(port), timeout=5)
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/source", timeout=5)
     finally:
         unpatch_common_modules()
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
 
-    assert "http://127.0.0.1:{}/source".format(port) in published, published
+    assert f"http://127.0.0.1:{port}/source" in published, published
     assert any(url and url.endswith("/target") for url in published), published
 
 

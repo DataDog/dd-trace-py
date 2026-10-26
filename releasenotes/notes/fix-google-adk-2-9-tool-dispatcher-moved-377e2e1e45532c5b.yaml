@@ -1,0 +1,12 @@
+---
+upgrade:
+  - |
+    google-adk: With ``google-adk`` 2.9.0 and later, tool call spans use the resource name
+    ``FunctionTool._call_tool_async`` (one leading underscore) instead of
+    ``FunctionTool.__call_tool_async``, following a rename in ``google-adk`` itself. Update any
+    monitor or dashboard that matches on the old resource name.
+fixes:
+  - |
+    google-adk: Fixes an issue where applications using ``google-adk`` 2.9.0 and later fail to
+    start when tracing is enabled, or start normally but report no tool call or code execution
+    spans. Tool calls and code execution are now traced on all supported ``google-adk`` versions.

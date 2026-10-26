@@ -84,8 +84,7 @@ def test_encode_traces_civisibility_v0():
     all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
     for given_span, received_event in zip(all_spans, received_events):
         expected_meta = {
-            "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
-            for key, value in sorted(given_span._get_str_attributes().items())
+            f"{key}".encode(): f"{value}".encode() for key, value in sorted(given_span._get_str_attributes().items())
         }
         expected_event = {
             b"type": b"test" if given_span.span_type == "test" else b"span",
@@ -295,6 +294,31 @@ def test_ci_visibility_encoder_truncates_event_meta_string_values():
     assert event_content[b"test_suite_id"] == 789
     assert b"test_session_id" not in meta
     assert event_content[b"metrics"][b"numeric_metric"] == 42
+
+
+def test_ci_visibility_encoder_keeps_tail_of_error_stack_and_message():
+    long_stack = "s" * MAX_META_TAG_VALUE_LENGTH + "STACK_TAIL"
+    long_message = "m" * MAX_META_TAG_VALUE_LENGTH + "MESSAGE_TAIL"
+    long_other = "OTHER_HEAD" + "o" * MAX_META_TAG_VALUE_LENGTH
+    span = Span(name="client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
+    span._set_attribute(EVENT_TYPE, "test")
+    span.set_tag("error.stack", long_stack)
+    span.set_tag("error.message", long_message)
+    span.set_tag("other_meta", long_other)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.put([span])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, _)] = encoded_traces
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    meta = decoded[b"events"][0][b"content"][b"meta"]
+
+    assert {k: meta[k] for k in (b"error.stack", b"error.message", b"other_meta")} == {
+        b"error.stack": long_stack[-MAX_META_TAG_VALUE_LENGTH:].encode(),
+        b"error.message": long_message[-MAX_META_TAG_VALUE_LENGTH:].encode(),
+        b"other_meta": long_other[:MAX_META_TAG_VALUE_LENGTH].encode(),
+    }
 
 
 def test_ci_visibility_encoder_truncates_payload_metadata_without_mutating_stored_metadata():

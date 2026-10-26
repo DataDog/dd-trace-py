@@ -1,7 +1,7 @@
+from collections.abc import Sequence
 import os
 from typing import Any
 from typing import Callable
-from typing import Sequence
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger

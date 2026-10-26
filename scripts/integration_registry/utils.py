@@ -9,7 +9,7 @@ def get_integration_to_dependency_map(special_cases: Optional[dict[str, str]] = 
     REGISTRY_YAML_PATH = pathlib.Path(__file__).parent / "registry.yaml"
     dependency_map: defaultdict[str, set] = defaultdict(set)
 
-    with open(REGISTRY_YAML_PATH, "r", encoding="utf-8") as f:
+    with open(REGISTRY_YAML_PATH, encoding="utf-8") as f:
         registry_content = yaml.safe_load(f)
 
     integrations_list = registry_content["integrations"]

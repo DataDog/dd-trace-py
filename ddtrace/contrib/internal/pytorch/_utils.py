@@ -208,7 +208,7 @@ def set_cached_run_metadata(
         _publish_view_locked()
 
 
-def get_cached_run_metadata() -> "_types_mp.MappingProxyType[str, Any]":
+def get_cached_run_metadata() -> _types_mp.MappingProxyType[str, Any]:
     """Lock-free read of the latest published snapshot.
 
     Returns a `MappingProxyType[str, Any]` — read-only at runtime. Callers that

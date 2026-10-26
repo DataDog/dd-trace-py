@@ -23,7 +23,7 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, apm_tracing_enabled,
     filepath = "test_gunicorn_when_appsec_reads_chunked_requests.txt"
     with open(filepath, "w") as f:
         for i in range(1024):
-            f.writelines("1234567890_qwertyuiopasdfghjklzxcvbnm_{}".format(i))
+            f.writelines(f"1234567890_qwertyuiopasdfghjklzxcvbnm_{i}")
 
     try:
         with server(

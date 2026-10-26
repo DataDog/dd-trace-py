@@ -3,6 +3,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -11,7 +12,6 @@ from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -136,6 +136,11 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
     usage = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
 
+    # total_token_count includes tool-use prompt tokens, so count them as input
+    tool_use_tokens = _get_attr(usage_metadata, "tool_use_prompt_token_count", None)
+    if input_tokens is not None or tool_use_tokens is not None:
+        input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
+
     candidates_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
     thought_tokens = _get_attr(usage_metadata, "thoughts_token_count", None)
     if candidates_tokens is not None or thought_tokens is not None:
@@ -246,13 +251,13 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     inline_data = _get_attr(part, "inline_data", None)
     if inline_data:
         mime_type = str(_get_attr(inline_data, "mime_type", "") or "")
-        message["content"] = "[inline data: {}]".format(mime_type) if mime_type else "[inline data]"
+        message["content"] = f"[inline data: {mime_type}]" if mime_type else "[inline data]"
         return message
 
     file_data = _get_attr(part, "file_data", None)
     if file_data:
         descriptor = str(_get_attr(file_data, "file_uri", "") or _get_attr(file_data, "mime_type", "") or "")
-        message["content"] = "[file data: {}]".format(descriptor) if descriptor else "[file data]"
+        message["content"] = f"[file data: {descriptor}]" if descriptor else "[file data]"
         return message
 
     try:
@@ -271,7 +276,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     # inputs, so keep a placeholder rather than silently dropping them from the LLMObs I/O.
     file_uri = _get_attr(part, "uri", None)
     if file_uri:
-        message["content"] = "[file: {}]".format(file_uri)
+        message["content"] = f"[file: {file_uri}]"
         return message
 
     try:
@@ -283,7 +288,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         message["content"] = "[image]"
         return message
 
-    message["content"] = "[unsupported content: {}]".format(type(part).__name__)
+    message["content"] = f"[unsupported content: {type(part).__name__}]"
     return message
 
 

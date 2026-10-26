@@ -552,6 +552,16 @@
         ]
       }
     ],
+    "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_AWS_TAG_NO_PARAMS": [
       {
         "implementation": "A",
@@ -1600,6 +1610,16 @@
         "default": "elasticsearch",
         "aliases": [
           "DD_ELASTICSEARCH_SERVICE_NAME"
+        ]
+      }
+    ],
+    "DD_ELEVENLABS_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_ELEVENLABS_SERVICE_NAME"
         ]
       }
     ],
@@ -4025,6 +4045,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AZURE_COSMOS_ENABLED": [
       {
         "implementation": "A",
@@ -4235,6 +4262,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_ELEVENLABS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_ENABLED": [
       {
         "implementation": "B",
@@ -4439,6 +4473,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "400-499"
       }
     ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
@@ -5110,6 +5151,20 @@
         "experimental": true
       }
     ],
+    "DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "100"
+      }
+    ],
+    "DD_TRACE_STATS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "D",
+        "type": "int",
+        "default": "7000"
+      }
+    ],
     "DD_TRACE_STATS_COMPUTATION_ENABLED": [
       {
         "implementation": "C",
@@ -5118,6 +5173,27 @@
         "aliases": [
           "DD_TRACE_COMPUTE_STATS"
         ]
+      }
+    ],
+    "DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "512"
+      }
+    ],
+    "DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "512"
+      }
+    ],
+    "DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "1024"
       }
     ],
     "DD_TRACE_STRUCTLOG_ENABLED": [
@@ -5146,6 +5222,20 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_TRIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_TYPESAFE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_UNITTEST_ENABLED": [
@@ -5265,6 +5355,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TYPESAFE_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_TYPESAFE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_UNITTEST_OPERATION_NAME": [
@@ -6021,14 +6121,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true",
-        "internal": true
-      }
-    ],
-    "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
         "internal": true
       }
     ],

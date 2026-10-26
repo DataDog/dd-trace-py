@@ -115,7 +115,7 @@ class ExposureWriter(PeriodicService):
         if interval is None:
             interval = ffe_config.ffe_intake_heartbeat_interval
 
-        super(ExposureWriter, self).__init__(interval=interval)
+        super().__init__(interval=interval)
         self._lock = RLock()
         self._buffer: list[ExposureEvent] = []
         self._buffer_size: int = 0
@@ -147,7 +147,7 @@ class ExposureWriter(PeriodicService):
             logger.debug("ExposureWriter disabled, not starting")
             return
 
-        super(ExposureWriter, self).start()
+        super().start()
         logger.debug("started ExposureWriter to %s", self._url)
         atexit.register(self.on_shutdown)
 
@@ -155,7 +155,7 @@ class ExposureWriter(PeriodicService):
         if not self._enabled:
             return
 
-        super(ExposureWriter, self).stop(timeout=timeout)
+        super().stop(timeout=timeout)
         logger.debug("stopped ExposureWriter to %s", self._url)
         atexit.unregister(self.on_shutdown)
 

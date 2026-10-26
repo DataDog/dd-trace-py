@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
+from collections import deque
 import itertools
+import logging
 import os
 import traceback
 from typing import TYPE_CHECKING
@@ -23,7 +24,11 @@ from ...internal import forksafe
 from .._runtime_id import get_ancestor_runtime_id
 from .._runtime_id import get_parent_runtime_id
 from .._runtime_id import get_runtime_id
+from .._runtime_id import on_runtime_identity_refresh
+from .._runtime_id import remove_runtime_identity_refresh
+from ..native.exceptions import is_panic_exception
 from ..periodic import PeriodicService
+from ..serverless import in_aws_lambda_microvm
 from ..utils.formats import get_test_session_token
 from ..utils.version import version as tracer_version
 from .constants import TELEMETRY_APM_PRODUCT
@@ -142,6 +147,8 @@ class TelemetryWriter:
     # native worker so configuration ordering is preserved for tests.
     _sequence_configurations = itertools.count(1)
     CWD = os.getcwd()
+    # Default for writers built without __init__; __init__ sets the real value.
+    _is_microvm = False
 
     def __init__(self, agentless: Optional[bool] = None) -> None:
         self._dependency_tracker = DependencyTracker()
@@ -163,18 +170,22 @@ class TelemetryWriter:
         self._agentless = agentless
 
         # The native worker, lazily built in enable() once the native runtime exists.
-        self._worker: Optional["TelemetryWorker"] = None
+        self._worker: Optional[TelemetryWorker] = None
+        # The runtime ID self._worker was built with, so periodic() can tell it is stale.
+        self._worker_runtime_id: Optional[str] = None
         # Registered native metric contexts, keyed by (namespace, name, type) - deliberately NOT
         # by tags, which ride along with each point instead, so this stays bounded by the number of
         # distinct metrics. ContextKeys are worker-specific, so it is cleared on every worker
         # rebuild (see enable()).
-        self._metric_contexts: dict[tuple[TELEMETRY_NAMESPACE, str, str], "MetricContext"] = {}
+        self._metric_contexts: dict[tuple[TELEMETRY_NAMESPACE, str, str], MetricContext] = {}
         # Serializes first-time metric-context registration so two threads recording the same new
         # metric can't both register it (which would create duplicate native contexts / split the
         # series). Only taken on a cache miss; the hot add path reads the cache lock-free.
         self._metric_lock = forksafe.Lock()
-        # Serializes building and publishing the native worker in enable().
-        self._enable_lock = forksafe.Lock()
+        self._is_microvm = in_aws_lambda_microvm()
+        # Serializes building and publishing the native worker in enable(). Bootstrap
+        # configuration reporting and MicroVM identity refresh can re-enter enable().
+        self._enable_lock = forksafe.RLock()
         # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
         # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
         # health metrics) has to be handed the new one rather than keeping a stale clone.
@@ -189,9 +200,19 @@ class TelemetryWriter:
         self._payload_file_dir: Optional[str] = None
         self._test_session_token: Optional[str] = get_test_session_token()
         self.started = False
+        # Preserve lifecycle state across a failed identity refresh so a retry starts the replacement.
+        self._identity_refresh_started = False
+        # Set once the bootstrap configurations are recorded in _configurations for MicroVM replay.
+        self._bootstrap_configurations_recorded = False
 
         # Product enablement is tracked so the version can be passed alongside each change.
         self._product_versions: dict[str, str] = {product.value: tracer_version for product in TELEMETRY_APM_PRODUCT}
+        # Native worker rebuilds lose configuration state. Match libdatadog's bounded store.
+        self._configurations: deque[tuple[str, Optional[str], str, Optional[str]]] = deque(maxlen=5000)
+        # Native worker rebuilds lose integration state; keep the latest payload for replay.
+        self._integrations: dict[str, tuple[Optional[str], bool, Optional[bool], Optional[bool], Optional[str]]] = {}
+        # Native worker rebuilds lose product-change state; keep the latest status for replay.
+        self._product_statuses: dict[str, bool] = {}
 
         if self._enabled:
             # Captures unhandled exceptions during application start up
@@ -209,10 +230,20 @@ class TelemetryWriter:
             # is marked abandoned in the child; the replacement worker starts lazily after
             # all child hooks have completed, without unparking the inherited Tokio runtime.
             forksafe.register(self._fork_writer)
-            get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
+            error_handler = DDTelemetryErrorHandler(self)
+            if self._is_microvm:
+                on_runtime_identity_refresh(self._refresh_runtime_identity)
+                # emit() forwards ERROR records to add_log() under the handler lock, and add_log() can
+                # wait for the enable lock. Refresh logs DEBUG while holding that lock, so keep lower
+                # records from taking the handler lock at all.
+                error_handler.setLevel(logging.ERROR)
+            get_logger("ddtrace").addHandler(error_handler)
 
-    def _build_worker(self) -> "TelemetryWorker":
-        """Build (or rebuild) the native TelemetryWorker from current config + host/app data."""
+    def _build_worker(self, runtime_id: str) -> "TelemetryWorker":
+        """Build (or rebuild) the native TelemetryWorker from current config + host/app data.
+
+        runtime_id is passed in so the worker's runtime and session IDs match the ID enable() records.
+        """
         # Lazy import so importing the telemetry package never hard-fails if the native
         # symbol has not been built yet.
         from ddtrace.internal.native import TelemetryWorker
@@ -244,7 +275,7 @@ class TelemetryWriter:
             language_name=application["language_name"],
             language_version=application["language_version"],
             tracer_version=application["tracer_version"],
-            runtime_id=get_runtime_id(),
+            runtime_id=runtime_id,
             runtime_name=application.get("runtime_name"),
             runtime_version=application.get("runtime_version"),
             process_tags=application.get("process_tags") or None,
@@ -258,7 +289,7 @@ class TelemetryWriter:
             container_id=host.get("container_id") or None,
             endpoint_url=endpoint_url,
             api_key=api_key,
-            session_id=get_runtime_id(),
+            session_id=runtime_id,
             parent_session_id=get_parent_runtime_id(),
             root_session_id=get_ancestor_runtime_id(),
             heartbeat_interval_secs=config.HEARTBEAT_INTERVAL,
@@ -275,6 +306,35 @@ class TelemetryWriter:
             install_time=config.INSTALL_TIME,
         )
 
+    def _replay_worker_state(self, worker: "TelemetryWorker") -> None:
+        # MicroVM only. Runs under the enable lock, which every writer of this state holds.
+        # Rebuilt native workers start with empty stores. Replay each accepted configuration event
+        # in sequence order so dynamic updates and repeated values retain their original semantics.
+        origin_cls = _native_telemetry_enums()["origin"]
+        for name, value, origin, config_id in list(self._configurations):
+            seq_id = next(self._sequence_configurations)
+            worker.add_configuration(
+                name,
+                value,
+                getattr(origin_cls, origin, origin_cls.unknown),
+                config_id,
+                seq_id,
+            )
+        # Replay the latest integration state for the rebuilt worker.
+        for integration_name, state in list(self._integrations.items()):
+            version, patched, compatible, auto_patched, error_msg = state
+            worker.add_integration(
+                integration_name,
+                version,
+                patched,
+                compatible,
+                auto_patched,
+                error_msg,
+            )
+        # Replay the latest product state for the rebuilt worker.
+        for product, status in list(self._product_statuses.items()):
+            worker.add_product_change(product, status, self._product_versions.get(product, tracer_version))
+
     def enable(self) -> bool:
         """
         Enable the instrumentation telemetry collection service. If the service has already been
@@ -288,35 +348,85 @@ class TelemetryWriter:
 
         with self._enable_lock:
             # extra check to skip the self._worker check on the hotter path
+            if not self._enabled:
+                return False
             if self._worker is not None:
                 return True  # type: ignore[unreachable]
 
+            worker_runtime_id = get_runtime_id()
             try:
-                worker = self._build_worker()
-            except Exception:
+                worker = self._build_worker(worker_runtime_id)
+            except BaseException as e:
+                # In a MicroVM this can run on an app thread after a refresh whose rebuild panicked.
+                if not (isinstance(e, Exception) or (self._is_microvm and is_panic_exception(e))):
+                    raise
                 log.debug("Failed to build the native telemetry worker", exc_info=True)
                 return False
-            self._metric_contexts.clear()
-            self._worker = worker
+            # Replay before publishing: a caller that reads the published worker sends after the
+            # replay, so the replay's older state cannot overwrite its update.
+            if self._is_microvm:
+                if get_parent_runtime_id() is None and not getattr(self, "_bootstrap_configurations_recorded", False):
+                    # Record ahead of updates made before the first successful build, so those keep the
+                    # later sequence IDs, as they do outside MicroVMs.
+                    self._configurations.extendleft(
+                        (name, _config_value_to_str(value), origin, None)
+                        for name, value, origin in reversed(get_python_config_vars())
+                    )
+                    self._bootstrap_configurations_recorded = True
+                try:
+                    self._replay_worker_state(worker)
+                except BaseException as e:
+                    # The worker isn't published, so nothing else would stop it and release its native task.
+                    try:
+                        worker.stop(send_app_closing=False)
+                    except BaseException as stop_error:
+                        if not (isinstance(stop_error, Exception) or is_panic_exception(stop_error)):
+                            raise
+                        log.debug("Failed to stop the unpublished telemetry worker", exc_info=True)
+                    if not (isinstance(e, Exception) or is_panic_exception(e)):
+                        raise
+                    log.debug("Failed to replay telemetry state into the new worker", exc_info=True)
+                    return False
+            # Publish under the metric lock so _register_metric_context()'s replaced-worker check
+            # and its cache write cannot straddle a MicroVM refresh that swaps the worker.
+            with self._metric_lock:
+                self._metric_contexts.clear()
+                self._worker = worker
+            self._worker_runtime_id = worker_runtime_id
             # Adopt the recorders onto the new worker while still holding the lock, so no thread
             # can observe a published worker whose recorders still point at the previous one.
             _bind_metric_recorders(self, worker)
             self._notify_worker_changed(worker)
 
-        # Every process starts its worker so it heartbeats with its own session id.
-        # app-started is emitted only by the root process; this is enforced inside the
-        # worker via emit_app_lifecycle (set in _build_worker), so calling start() in a
-        # forked child schedules heartbeats without re-emitting app-started.
-        # The root process defers app-started until startup configuration has been reported
-        # (products load + report_configuration run after enable()); see app_started(), which is
-        # invoked once products are loaded. (Forked children never emit app-started, so just start.)
-        if get_parent_runtime_id() is None:
-            if not self.started:
-                self.add_configurations(get_python_config_vars())
-        else:
-            worker.start()
-            self.started = True
+            # Every process starts its worker so it heartbeats with its own session id.
+            # app-started is emitted only by the root process; this is enforced inside the
+            # worker via emit_app_lifecycle (set in _build_worker), so calling start() in a
+            # forked child schedules heartbeats without re-emitting app-started.
+            # The root process defers app-started until startup configuration has been reported
+            # (products load + report_configuration run after enable()); see app_started(), which is
+            # invoked once products are loaded. (Forked children never emit app-started, so just start.)
+            # worker.start() must stay under this lock: it uses the local `worker` reference built
+            # above, and a concurrent identity refresh (which shares this lock in MicroVMs) could
+            # otherwise stop/replace self._worker in between, leaving this thread starting an
+            # already-discarded worker and marking self.started against the wrong generation.
+            if get_parent_runtime_id() is None:
+                # A MicroVM worker received the bootstrap configurations in the replay above.
+                if not self.started and not self._is_microvm:
+                    self.add_configurations(get_python_config_vars())
+            else:
+                worker.start()
+                self.started = True
 
+            if self._is_microvm:
+                # disable() takes this lock in a MicroVM, so it can't stop the collector and clear the
+                # endpoint callback between the publish above and this setup.
+                self._start_reporting()
+
+        if not self._is_microvm:
+            self._start_reporting()
+        return True
+
+    def _start_reporting(self) -> None:
         # Subscribe before replaying, so an endpoint registered in between is forwarded twice
         # rather than lost; the native worker dedupes them (ASM API security).
         endpoint_collection.on_endpoint_registered = self._record_endpoint
@@ -330,10 +440,17 @@ class TelemetryWriter:
             self._deps_collector = _TelemetryDependencyCollector(self.periodic, config.HEARTBEAT_INTERVAL)
             self._deps_collector.start()
 
-        return True
-
     def app_started(self) -> None:
         """Emit the root process's app-started event, exactly once."""
+        if self._is_microvm:
+            # A refresh between start() and setting started would leave started set for a replacement
+            # that was never started. The refresh holds this lock throughout.
+            with self._enable_lock:
+                self._app_started_without_lock()
+        else:
+            self._app_started_without_lock()
+
+    def _app_started_without_lock(self) -> None:
         if self.started:
             return
         if not self.enable() or self._worker is None:
@@ -351,7 +468,11 @@ class TelemetryWriter:
             self._report_dependencies()
         try:
             self._worker.start()
-        except Exception:
+        except BaseException as e:
+            # In a MicroVM, periodic() retries a start that failed during a refresh, and an exception that
+            # escapes periodic() ends the heartbeat thread for good.
+            if not (isinstance(e, Exception) or (self._is_microvm and is_panic_exception(e))):
+                raise
             log.debug("Failed to start the native telemetry worker", exc_info=True)
             return
         self.started = True
@@ -366,12 +487,57 @@ class TelemetryWriter:
         self.enable()
         return self._worker
 
+    def _rebuild_stale_worker_without_lock(self) -> bool:
+        # MicroVM only. Rebuild a worker still bound to an older runtime ID; return False if it is still stale.
+        if self._worker is None or self._worker_runtime_id == get_runtime_id():
+            return True
+        try:
+            self._refresh_runtime_identity_without_lock(get_runtime_id())
+        except Exception:
+            log.debug("Failed to rebuild the stale telemetry worker", exc_info=True)
+        except BaseException as e:
+            if not is_panic_exception(e):
+                raise
+            log.debug("Failed to rebuild the stale telemetry worker", exc_info=True)
+        return self._worker is None or self._worker_runtime_id == get_runtime_id()
+
+    def _discard_worker(self, reason: str) -> None:
+        """Stop and detach the worker built for the previous runtime ID.
+
+        stop() ignores its lifecycle argument and flushes the queue and app-closing under the
+        previous runtime ID. That one bounded flush is preferred over keeping the old worker,
+        which would report under the snapshot's shared runtime ID for the rest of the process
+        lifetime.
+
+        The worker is stopped before the writer lets go of it, so a failure leaves the writer
+        unchanged and propagates. The /run refresh runs once, so periodic() retries the discard
+        instead. A stop() that failed would otherwise leave the worker registered with the native
+        runtime, which restarts it with the runtime after a fork.
+        """
+        worker = self._worker
+        if worker is None:
+            return
+        worker.stop(send_app_closing=False)
+        self._worker = None
+        self.started = False
+        _unbind_metric_recorders(self)
+        self._notify_worker_changed(None)
+
     def disable(self) -> None:
         """
         Disable the telemetry collection service and drop the existing integrations and events
         Once disabled, telemetry collection can not be re-enabled.
         """
+        if self._is_microvm:
+            with self._enable_lock:
+                self._disable_without_lock()
+        else:
+            self._disable_without_lock()
+
+    def _disable_without_lock(self) -> None:
         self._enabled = False
+        if self._is_microvm:
+            remove_runtime_identity_refresh(self._refresh_runtime_identity)
         if endpoint_collection.on_endpoint_registered == self._record_endpoint:
             endpoint_collection.on_endpoint_registered = None
         if self._deps_collector is not None:
@@ -461,20 +627,27 @@ class TelemetryWriter:
         :param str integration_name: name of patched module
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
-        if not self.enable() or self._worker is None:
+        compatible = None if error_msg is None else (error_msg == "")
+        state = (version or None, patched, compatible, auto_patched, error_msg or None)
+        if self._is_microvm:
+            # Record and send under the enable lock, so a refresh can't replay this update between the
+            # two and have this thread send it again after newer updates. If no worker exists yet,
+            # enable() replays the recorded update into the one it builds, so don't send it again.
+            with self._enable_lock:
+                had_worker = self._worker is not None
+                self._integrations[integration_name] = state
+                if not self.enable() or (worker := self._worker) is None or not had_worker:
+                    return
+                worker.add_integration(integration_name, *state)
+                return
+
+        # Read the worker once: a MicroVM identity refresh on another thread can clear it.
+        if not self.enable() or (worker := self._worker) is None:
             return
 
-        compatible = None if error_msg is None else (error_msg == "")
-        self._worker.add_integration(
-            integration_name,
-            version or None,
-            patched,
-            compatible,
-            auto_patched,
-            # Preserve the failure detail so the backend keeps the message/stack for diagnosing
-            # patch failures; empty means "compatible, no error" -> send null.
-            error_msg or None,
-        )
+        # Preserve the failure detail so the backend keeps the message/stack for diagnosing
+        # patch failures; empty means "compatible, no error" -> send null.
+        worker.add_integration(integration_name, *state)
 
     def attach_dependency_metadata(
         self,
@@ -509,7 +682,15 @@ class TelemetryWriter:
 
         Returns the reported dependency records or ``None`` when nothing was reported for testing.
         """
-        if not self._enabled or self._worker is None:
+        if self._is_microvm:
+            # A refresh between reading the worker and consuming the tracker's report would send the
+            # full report it schedules to the stopped worker. The refresh holds this lock throughout.
+            with self._enable_lock:
+                return self._report_dependencies_without_lock()
+        return self._report_dependencies_without_lock()
+
+    def _report_dependencies_without_lock(self) -> Optional[list]:
+        if not self._enabled or (worker := self._worker) is None:
             return None
         deps = self._dependency_tracker.collect_report()
         if not deps:
@@ -521,7 +702,7 @@ class TelemetryWriter:
                 metadata = [(m["type"], m["value"]) for m in dep["metadata"]]
             else:
                 metadata = None
-            self._worker.add_dependency(name, version, metadata)
+            worker.add_dependency(name, version, metadata)
         return deps
 
     def _record_endpoint(self, endpoint: HttpEndPoint) -> None:
@@ -560,7 +741,8 @@ class TelemetryWriter:
         worker = self._worker
         if worker is None:
             return
-        for endpoint in endpoint_collection.endpoints:
+        # Snapshot: a route registered on another thread during the replay would change the set.
+        for endpoint in list(endpoint_collection.endpoints):
             worker.add_endpoint(
                 endpoint.method,
                 endpoint.path,
@@ -572,10 +754,18 @@ class TelemetryWriter:
 
     def product_activated(self, product: str, status: bool) -> None:
         """Updates the product enablement state and emits an app-product-change."""
-        if not self.enable() or self._worker is None:
+        if self._is_microvm:
+            # Recorded and sent under the enable lock, as in add_integration().
+            with self._enable_lock:
+                had_worker = self._worker is not None
+                self._product_statuses[product] = status
+                if not self.enable() or (worker := self._worker) is None or not had_worker:
+                    return
+                worker.add_product_change(product, status, self._product_versions.get(product, tracer_version))
+                return
+        if not self.enable() or (worker := self._worker) is None:
             return
-        version = self._product_versions.get(product, tracer_version)
-        self._worker.add_product_change(product, status, version)
+        worker.add_product_change(product, status, self._product_versions.get(product, tracer_version))
 
     def add_configuration(
         self,
@@ -595,14 +785,33 @@ class TelemetryWriter:
             # convert unsupported types to strings
             configuration_value = str(configuration_value)
 
-        if not self.enable() or self._worker is None:
+        serialized_value = _config_value_to_str(configuration_value)
+        if self._is_microvm:
+            # Recorded and sent under the enable lock, as in add_integration().
+            with self._enable_lock:
+                had_worker = self._worker is not None
+                self._configurations.append((configuration_name, serialized_value, origin, config_id))
+                if not self.enable() or (worker := self._worker) is None or not had_worker:
+                    return
+                seq_id = next(self._sequence_configurations)
+                origin_cls = _native_telemetry_enums()["origin"]
+                worker.add_configuration(
+                    configuration_name,
+                    serialized_value,
+                    getattr(origin_cls, origin, origin_cls.unknown),
+                    config_id,
+                    seq_id,
+                )
+                return
+
+        if not self.enable() or (worker := self._worker) is None:
             return
 
         seq_id = next(self._sequence_configurations)
         origin_cls = _native_telemetry_enums()["origin"]
-        self._worker.add_configuration(
+        worker.add_configuration(
             configuration_name,
-            _config_value_to_str(configuration_value),
+            serialized_value,
             getattr(origin_cls, origin, origin_cls.unknown),
             config_id,
             seq_id,
@@ -610,13 +819,29 @@ class TelemetryWriter:
 
     def add_configurations(self, configuration_list: list[tuple[str, str, str]]) -> None:
         """Creates and queues a list of configurations"""
-        if not self.enable() or self._worker is None:
+        serialized = [(name, _config_value_to_str(value), origin) for name, value, origin in configuration_list]
+        if self._is_microvm:
+            # Recorded and sent under the enable lock, as in add_integration().
+            with self._enable_lock:
+                had_worker = self._worker is not None
+                self._configurations.extend((name, value, origin, None) for name, value, origin in serialized)
+                if not self.enable() or (worker := self._worker) is None or not had_worker:
+                    return
+                origin_cls = _native_telemetry_enums()["origin"]
+                for name, serialized_value, origin in serialized:
+                    seq_id = next(self._sequence_configurations)
+                    worker.add_configuration(
+                        name, serialized_value, getattr(origin_cls, origin, origin_cls.unknown), None, seq_id
+                    )
+                return
+
+        if not self.enable() or (worker := self._worker) is None:
             return
         origin_cls = _native_telemetry_enums()["origin"]
-        for name, value, origin in configuration_list:
+        for name, serialized_value, origin in serialized:
             seq_id = next(self._sequence_configurations)
-            self._worker.add_configuration(
-                name, _config_value_to_str(value), getattr(origin_cls, origin, origin_cls.unknown), None, seq_id
+            worker.add_configuration(
+                name, serialized_value, getattr(origin_cls, origin, origin_cls.unknown), None, seq_id
             )
 
     def add_log(self, level, message: str, stack_trace: str = "", tags: Optional[dict] = None) -> None:
@@ -627,7 +852,7 @@ class TelemetryWriter:
         if tags is None:
             tags = {}
 
-        if not self.enable() or self._worker is None:
+        if not self.enable() or (worker := self._worker) is None:
             return
 
         tags_str = None
@@ -646,7 +871,7 @@ class TelemetryWriter:
             data["stack_trace"] = stack_trace
         identifier = hash(data) & 0xFFFFFFFFFFFFFFFF
 
-        self._worker.add_log(
+        worker.add_log(
             identifier,
             message,
             _native_telemetry_enums()["level"][level],
@@ -741,7 +966,10 @@ class TelemetryWriter:
                 return context
             # No tags on the context itself; they are sent per point.
             context = register_metric_context(worker, metric_type, namespace, name)
-            self._metric_contexts[key] = context
+            # Contexts are worker-specific. If a MicroVM identity refresh replaced worker after the
+            # caller read it, caching this context would hand it to the new worker.
+            if worker is self._worker:
+                self._metric_contexts[key] = context
             return context
 
     # The four ``add_*_metric`` methods inline the hot path (worker fetch + cached-context lookup
@@ -840,6 +1068,10 @@ class TelemetryWriter:
         """
         # Fallback trigger for the deferred root app-started (e.g. shutdown, CI visibility, tests
         # that flush without going through product load). No-op once already started.
+        if self._is_microvm:
+            # The /run refresh runs once, so retry a discard that failed there on every heartbeat.
+            with self._enable_lock:
+                self._rebuild_stale_worker_without_lock()
         self.app_started()
 
         if self._worker is None:
@@ -918,6 +1150,39 @@ class TelemetryWriter:
         # worker owns the message-batch seq_id and resets it when rebuilt.
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
+    def _refresh_runtime_identity(self, runtime_id: str) -> None:
+        # Identity refresh is MicroVM-only.
+        if not self._is_microvm:
+            return
+        with self._enable_lock:
+            try:
+                self._refresh_runtime_identity_without_lock(runtime_id)
+            except BaseException as e:
+                if not is_panic_exception(e):
+                    raise
+                # Stay below ERROR: the MicroVM log handler forwards ERROR records to add_log(), which can
+                # wait for the enable lock this thread holds.
+                log.warning("Failed to refresh the telemetry worker after a runtime identity refresh", exc_info=True)
+
+    def _refresh_runtime_identity_without_lock(self, runtime_id: str) -> None:
+        if not self._enabled:
+            return
+        # periodic() may already have rebuilt the worker for this ID.
+        if self._worker is not None and getattr(self, "_worker_runtime_id", None) == runtime_id:
+            return
+        was_started = self.started or getattr(self, "_identity_refresh_started", False)
+        self._identity_refresh_started = was_started
+        if self._worker is not None:
+            self._discard_worker("while refreshing runtime identity")
+        self._dependency_tracker.refresh()
+        # The old worker is already discarded; do not report refresh success when enable() fails.
+        if not self.enable():
+            raise RuntimeError("Failed to rebuild the telemetry worker during identity refresh")
+        if was_started:
+            # A failed start is retried by periodic() on the next heartbeat.
+            self.app_started()
+        self._identity_refresh_started = False
+
     def _fork_writer(self) -> None:
         # Runs in the child after a Python-managed fork. Drop the inherited worker handle
         # without shutting it down: the shared runtime is marked abandoned, and rebuilding
@@ -972,7 +1237,7 @@ class TelemetryWriter:
                         1,
                         (("integration_name", integration_name), ("error_type", tp.__name__)),
                     )
-                    error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                    error_msg = f"{filename}:{lineno} {str(value)}"
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             self.app_shutdown()

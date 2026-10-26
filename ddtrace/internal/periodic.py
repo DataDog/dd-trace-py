@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import typing
 
 from ddtrace.internal import forksafe
@@ -47,8 +46,13 @@ class PeriodicService(service.Service):
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         """Stop the periodic collector."""
         if self._worker:
-            self._worker.stop()
-        super(PeriodicService, self)._stop_service(*args, **kwargs)  # type: ignore[safe-super]
+            if self._worker.cancel_if_not_started():
+                # The worker never started: its start was deferred by a fork and either
+                # failed or was just cancelled. There is nothing to stop or join.
+                self._worker = None
+            else:
+                self._worker.stop()
+        super()._stop_service(*args, **kwargs)  # type: ignore[safe-super]
 
     def join(
         self,
@@ -69,6 +73,7 @@ class AwakeablePeriodicService(PeriodicService):
     """A service that runs periodically but that can also be awakened on demand."""
 
     def awake(self) -> None:
+        """Request a run of periodic() as soon as possible, without waiting for it."""
         if self._worker:
             self._worker.awake()
 

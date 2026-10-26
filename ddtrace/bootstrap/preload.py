@@ -8,6 +8,7 @@ import typing as t
 from ddtrace import config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.packages import prefetch_distributions
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -41,6 +42,9 @@ manager.run_protocol()
 # Post preload operations
 register_post_preload(manager.post_preload_products)
 
+# Scan installed distributions in the background, at the end of the bootstrap.
+register_post_preload(prefetch_distributions)
+
 
 # TODO: Migrate the following product logic to the new product plugin interface
 
@@ -53,6 +57,19 @@ if crashtracker_config.enabled:
     except Exception:
         log.error("failed to enable crashtracking", exc_info=True)
 
+
+if profiling_config.install:
+    # Install the stack profiler hooks now, so that the profiler can be enabled at runtime and still
+    # see the threads, event loops and greenlets created before that. If the profiler is also enabled
+    # below, it calls init_stack and initialize_gevent_support again: both install their hooks only once.
+    try:
+        from ddtrace.profiling.collector import _task as _profiling_task
+        from ddtrace.profiling.collector import threading as _profiling_threading
+
+        _profiling_threading.init_stack()
+        _profiling_task.initialize_gevent_support()
+    except Exception:
+        log.debug("failed to install the profiling hooks", exc_info=True)
 
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")

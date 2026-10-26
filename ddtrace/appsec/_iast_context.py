@@ -1,8 +1,8 @@
 """Context-local IAST state, independent of request lifecycle and reporting."""
 
+from collections.abc import Iterator
 import contextlib
 import contextvars
-from typing import Iterator
 from typing import Optional
 
 

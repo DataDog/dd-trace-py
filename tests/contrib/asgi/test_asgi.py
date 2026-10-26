@@ -1,12 +1,13 @@
 import asyncio
+from collections.abc import Awaitable
 from functools import partial
 import logging
 import os
 import random
 from typing import Any
-from typing import Awaitable
 from typing import Callable
 from typing import TypedDict
+from unittest import mock
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
@@ -15,10 +16,12 @@ import pytest
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -137,7 +140,7 @@ def _check_span_tags(scope, span):
     assert span.get_tag("http.method") == scope["method"]
     server = scope.get("server")
     expected_http_url = (
-        "http://{}{}".format(server[0], ":{}/".format(server[1]) if server[1] != 80 else "/") if server else None
+        "http://{}{}".format(server[0], f":{server[1]}/" if server[1] != 80 else "/") if server else None
     )
     assert expected_http_url or span.get_tag("http.url") == expected_http_url
     assert (
@@ -156,6 +159,139 @@ def _check_span_tags(scope, span):
         or scope["asgi"].get("spec_version") is None
         or span.get_tag("asgi.spec_version") == scope["asgi"]["spec_version"]
     )
+
+
+@pytest.mark.parametrize(
+    "method,path,root_path,want_path",
+    [
+        ("POST", "/run", "/aws/lambda-microvms/runtime/v1", "/aws/lambda-microvms/runtime/v1/run"),
+        ("POST", "/aws/lambda-microvms/runtime/v1/run", "", "/aws/lambda-microvms/runtime/v1/run"),
+        (
+            "POST",
+            "/aws/lambda-microvms/runtime/v1/run",
+            "/aws/lambda-microvms/runtime/v1",
+            "/aws/lambda-microvms/runtime/v1/run",
+        ),
+        ("GET", "/run", "/aws/lambda-microvms/runtime/v1", "/aws/lambda-microvms/runtime/v1/run"),
+        ("POST", "/other", "/aws/lambda-microvms/runtime/v1", "/aws/lambda-microvms/runtime/v1/other"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_asgi_dispatches_web_request_starting(scope, method, path, root_path, want_path):
+    scope.update({"method": method, "path": path, "root_path": root_path})
+    app = TraceMiddleware(basic_app)
+    instance = ApplicationCommunicator(app, scope)
+    request_starting_calls = []
+
+    def record_request_starting(request_method, request_path):
+        request_starting_calls.append((request_method, request_path))
+
+    core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+    try:
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+    finally:
+        core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+    assert request_starting_calls == [(method, want_path)]
+
+
+@pytest.mark.asyncio
+async def test_web_request_starting_dispatch_precedes_span_creation(scope):
+    events = []
+    original_trace = tracer.trace
+
+    def record_request_starting(*args, **kwargs):
+        events.append("request_starting")
+
+    def record_span_creation(*args, **kwargs):
+        events.append("span")
+        return original_trace(*args, **kwargs)
+
+    app = TraceMiddleware(basic_app)
+    instance = ApplicationCommunicator(app, scope)
+
+    core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+    try:
+        with mock.patch.object(tracer, "trace", side_effect=record_span_creation):
+            await instance.send_input({"type": "http.request", "body": b""})
+            await instance.receive_output(1)
+            await instance.receive_output(1)
+    finally:
+        core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+    assert events.index("request_starting") < events.index("span")
+
+
+@pytest.mark.asyncio
+async def test_web_request_starting_dispatch_precedes_distributed_header_activation(scope):
+    # A MicroVM /run refresh detaches the active context from this event, so the request's own
+    # distributed context must not be active yet, matching WSGI.
+    active_at_request_starting = []
+
+    def record_request_starting(*args, **kwargs):
+        active_at_request_starting.append(tracer.current_trace_context())
+
+    scope["headers"] = [(b"x-datadog-trace-id", b"1234"), (b"x-datadog-parent-id", b"5678")]
+    app = TraceMiddleware(basic_app)
+    instance = ApplicationCommunicator(app, scope)
+
+    core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+    try:
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+    finally:
+        core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+    assert active_at_request_starting == [None]
+
+
+async def test_microvm_run_hook_refreshes_identity(scope):
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    app = TraceMiddleware(basic_app)
+    scope.update({"method": "POST", "path": "/run", "root_path": "/aws/lambda-microvms/runtime/v1"})
+    # The middleware stores its spans in scope["datadog"], and a scope that has it is treated as a
+    # sub-app that skips the request-start event. Give each request its own copy.
+    base_scope = dict(scope)
+    dispatched = []
+
+    def record_request_starting(method, path):
+        dispatched.append((method, path))
+
+    _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+    core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+    core.on(event_name, record_request_starting)
+
+    try:
+        with mock.patch.object(_runtime_id, "in_aws_lambda_microvm", return_value=True):
+            core.on(event_name, runtime.maybe_refresh_identity)
+            runtime_id = runtime.get_runtime_id()
+
+            instance = ApplicationCommunicator(app, dict(base_scope))
+            await instance.send_input({"type": "http.request", "body": b""})
+            await instance.receive_output(1)
+            await instance.receive_output(1)
+
+            refreshed_runtime_id = runtime.get_runtime_id()
+            assert refreshed_runtime_id != runtime_id
+
+            instance = ApplicationCommunicator(app, dict(base_scope))
+            await instance.send_input({"type": "http.request", "body": b""})
+            await instance.receive_output(1)
+            await instance.receive_output(1)
+
+            # Both requests dispatched the event, so the once-per-process guard kept the ID.
+            assert len(dispatched) == 2
+            assert runtime.get_runtime_id() == refreshed_runtime_id
+    finally:
+        core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+        core.reset_listeners(event_name, record_request_starting)
+        _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
 
 
 @pytest.mark.asyncio
@@ -212,7 +348,7 @@ async def test_basic_asgi_sets_ip_tags_from_peer_ip(scope, test_spans):
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_span_attribute_schema_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
     expected_span_name = {None: "asgi.request", "v0": "asgi.request", "v1": "http.server.request"}[schema_version]
-    code = """
+    code = f"""
 import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
@@ -243,12 +379,12 @@ async def test(scope, test_spans):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.name == "{}"
+    assert request_span.name == "{expected_span_name}"
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_span_name)
+    """
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -265,7 +401,7 @@ if __name__ == "__main__":
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
     inferred_base_service = DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
     expected_service_name = global_service_name or inferred_base_service
-    code = """
+    code = f"""
 import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
@@ -295,13 +431,13 @@ async def test(scope, test_spans):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    service = "{}"
+    service = "{expected_service_name}"
     assert request_span.service == (service or None)
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
     env = os.environ.copy()
     if global_service_name:
         env["DD_SERVICE"] = global_service_name
@@ -449,8 +585,8 @@ async def test_asgi_error_custom(scope, test_spans):
 async def test_distributed_tracing(scope, test_spans):
     app = TraceMiddleware(basic_app)
     headers = [
-        (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
-        (http_propagation.HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
+        (http_propagation.HTTP_HEADER_PARENT_ID.encode(), b"1234"),
+        (http_propagation.HTTP_HEADER_TRACE_ID.encode(), b"5678"),
     ]
     scope["headers"] = headers
     instance = ApplicationCommunicator(app, scope)
@@ -867,9 +1003,13 @@ async def _send_complete_http_response(
 
 
 @pytest.mark.asyncio
-async def test_unfinished_llm_child_finished_when_request_completes(test_spans):
-    """An LLM span left open by an abandoned stream generator must not keep the
-    request trace in the aggregator after the HTTP response finishes.
+async def test_unfinished_llm_child_not_finished_when_request_completes(test_spans):
+    """An ASGI request must never force-finish LLM spans it did not open.
+
+    An agent can intentionally outlive the HTTP request that started it, and
+    the middleware cannot tell that apart from an abandoned stream. Abandoned
+    streams are reclaimed by TracedStream.__del__ / the generator `finally`
+    instead -- see tests/llmobs/test_stream_handler.py.
     """
     llm_span = None
 
@@ -884,84 +1024,54 @@ async def test_unfinished_llm_child_finished_when_request_completes(test_spans):
     await instance.receive_output(1)
 
     assert llm_span is not None
-    assert llm_span.duration_ns is not None
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    names = {span.name for span in traces[0]}
-    assert names == {"asgi.request", "openai.request"}
-    assert all(span.duration_ns is not None for span in traces[0])
-
-
-@pytest.mark.asyncio
-async def test_unfinished_llm_child_finished_when_request_errors(test_spans):
-    llm_span = None
-
-    async def app(scope, receive, send):
-        nonlocal llm_span
-        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
-        raise OSError("client disconnected")
-
-    instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
-    with pytest.raises(OSError, match="client disconnected"):
-        await instance.send_input({"type": "http.request", "body": b""})
-        await instance.receive_output(1)
-
-    assert llm_span is not None
-    assert llm_span.duration_ns is not None
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    names = {span.name for span in traces[0]}
-    assert names == {"asgi.request", "openai.request"}
-
-
-@pytest.mark.asyncio
-async def test_enclosing_llm_span_not_finished_by_nested_asgi_request(test_spans):
-    """An in-process ASGI call under LLMObs.llm() must not finish the enclosing
-    agent span. Only LLM descendants of the request span are swept.
-    """
-    leftover = None
-
-    async def outer_app(scope, receive, send):
-        nonlocal leftover
-        leftover = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
-        await TraceMiddleware(basic_app)(scope, receive, send)
-
-    instance = ApplicationCommunicator(outer_app, _http_scope())
-    await instance.send_input({"type": "http.request", "body": b""})
-    await instance.receive_output(1)
-    await instance.receive_output(1)
-
-    assert leftover is not None
-    assert leftover.duration_ns is None
+    assert llm_span.duration_ns is None
     assert test_spans.pop_traces() == []
-    leftover.finish()
+    llm_span.finish()
 
 
 @pytest.mark.asyncio
-async def test_llm_span_can_be_annotated_after_last_response_chunk(test_spans):
-    """The request span finishes on the last http.response.body, but the app
-    may still be running. Sweeping LLM spans at that moment would drop
-    output/token tags set after the last chunk.
+async def test_background_llm_span_outliving_request_stays_nested(test_spans):
+    """Regression test for #20392: an agent spawned during a request and still
+    running after the response must keep its span open, and work it starts
+    afterwards must stay nested under it rather than becoming a new root trace.
     """
-    llm_span = None
+    agent_span = None
+    child_parent_id = None
+    child_trace_id = None
+    agent_done = asyncio.Event()
+
+    async def background_agent():
+        nonlocal agent_span, child_parent_id, child_trace_id
+        agent_span = tracer.trace("agent", resource="agent", span_type=SpanTypes.LLM)
+        try:
+            await asyncio.sleep(0.05)
+            child = tracer.trace("llm.call", resource="llm", span_type=SpanTypes.LLM)
+            child_parent_id = child.parent_id
+            child_trace_id = child.trace_id
+            child.finish()
+        finally:
+            agent_span.finish()
+            agent_done.set()
 
     async def app(scope, receive, send):
-        nonlocal llm_span
-        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
+        asyncio.ensure_future(background_agent())
+        await asyncio.sleep(0)  # let the agent span start inside the request
         await _send_complete_http_response(receive, send)
-        llm_span.set_tag("output", "done")
-        llm_span.finish()
 
     instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
     await instance.send_input({"type": "http.request", "body": b""})
     await instance.receive_output(1)
     await instance.receive_output(1)
 
-    assert llm_span is not None
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    flushed = next(span for span in traces[0] if span.name == "openai.request")
-    assert flushed.get_tag("output") == "done"
+    # The response is sent but the agent is still working.
+    assert agent_span is not None
+    assert agent_span.duration_ns is None
+
+    await asyncio.wait_for(agent_done.wait(), 5)
+
+    # Work started after the response stays under the agent, in the same trace.
+    assert child_parent_id == agent_span.span_id
+    assert child_trace_id == agent_span.trace_id
 
 
 @pytest.mark.asyncio

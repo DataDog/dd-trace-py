@@ -44,6 +44,7 @@ The suite schema is as follows:
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
     services: # The services to start before running the suite, defined in .gitlab/services.yml
+    no_proxy: # Add the suite's external test domains to NO_PROXY and no_proxy
     matrix: # Shared configuration and named dependency variants
 ```
 
@@ -71,6 +72,10 @@ can be declared in any file within the `/tests` sub-tree. The CI configuration
 generator will aggregate all the components and suites to build the full test
 suite specification and resolve the components after that.
 
+For suites using the `postgres` service, set `POSTGRES_IMAGE` in the suite's `env`
+to select a different CI PostgreSQL image. The shared default is PostgreSQL 12;
+Django selects PostgreSQL 16 to meet its database version requirements.
+
 For standard test suites, `venvs_per_job` is the target number of dependency
 environments per generated job. The job count is the environment count divided by
 this value and rounded up, with a limit of 25 jobs per suite. Lower values increase
@@ -79,3 +84,7 @@ omitting it runs the suite as one job. Do not set `parallelism` directly.
 
 Suites using `ddtest: true` shard each dependency environment with `ddtest_nodes`
 instead. They must not set `venvs_per_job`.
+
+Set `no_proxy: true` only for suites whose VCR-backed or network-behavior tests need to bypass the
+CI proxy. The generated job preserves existing `NO_PROXY` and `no_proxy` values and appends the
+standard test-domain exclusions.

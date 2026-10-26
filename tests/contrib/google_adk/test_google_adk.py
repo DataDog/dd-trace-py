@@ -1,12 +1,22 @@
+import asyncio
+import contextlib
 import gc
 from typing import Any
 
+from google.adk.agents import LlmAgent
+from google.adk.agents.live_request_queue import LiveRequestQueue
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.base_llm_connection import BaseLlmConnection
+from google.adk.models.llm_response import LlmResponse
+from google.adk.runners import InMemoryRunner
 from google.adk.tools.function_tool import FunctionTool
+from google.genai import types
 import pytest
 
 from ddtrace.contrib.internal.google_adk.patch import _traced_functions_call_tool_live
+from tests.contrib.google_adk.conftest import ADK_VERSION
 from tests.contrib.google_adk.conftest import call_tool_async
 from tests.contrib.google_adk.conftest import create_test_message
 from tests.contrib.google_adk.conftest import stream_then_raise
@@ -32,6 +42,11 @@ async def test_agent_run_async(test_runner, test_spans, request_vcr):
                     continue
                 for part in event.content.parts:
                     if hasattr(part, "function_response") and part.function_response is not None:
+                        # google-adk >= 2.9.0 answers the hallucinated exec_python call with a
+                        # tool-not-found function response instead of raising; skip responses that
+                        # aren't from the agent's own tools.
+                        if part.function_response.name not in ("search_docs", "multiply"):
+                            continue
                         response = part.function_response.response
                         if "results" in response:
                             output += response["results"][0]
@@ -95,9 +110,9 @@ async def test_agent_with_tool_usage(test_runner, test_spans, request_vcr):
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
-    tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     assert len(tool_spans) >= 1, (
-        f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+        f"Expected FunctionTool call_tool_async spans, got spans: {[s.resource for s in spans]}"
     )
 
     runner_span = runner_spans[0]
@@ -158,9 +173,9 @@ async def test_agent_with_tool_calculation(test_runner, test_spans, request_vcr)
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
-    tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     assert len(tool_spans) >= 1, (
-        f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+        f"Expected FunctionTool call_tool_async spans, got spans: {[s.resource for s in spans]}"
     )
 
     runner_span = runner_spans[0]
@@ -244,7 +259,7 @@ async def test_error_handling_e2e(test_runner, test_spans, request_vcr):
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
-    tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     if tool_spans:
         tool_span = tool_spans[0]
         assert tool_span.name == "google_adk.request"
@@ -293,7 +308,7 @@ async def test_streaming_tool_called_with_keyword_arguments(adk, test_spans, str
     assert [item async for item in result] == [{"value": 0}, {"value": 1}, {"value": 2}]
 
     spans = [s for t in test_spans.pop_traces() for s in t]
-    tool_spans = [s for s in spans if "__call_tool_async" in s.resource]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     assert len(tool_spans) == 1
     assert tool_spans[0].duration is not None, "the tool span should stay open until the stream is exhausted"
 
@@ -310,7 +325,12 @@ async def test_streaming_tool_span_finished_when_stream_raises(adk, test_spans, 
         async for _ in result:
             pass
 
-    tool_spans = [s for t in test_spans.pop_traces() for s in t if "__call_tool_async" in s.resource]
+    tool_spans = [
+        s
+        for t in test_spans.pop_traces()
+        for s in t
+        if "FunctionTool." in s.resource and "call_tool_async" in s.resource
+    ]
     assert len(tool_spans) == 1
     assert tool_spans[0].duration is not None
     assert tool_spans[0].error == 1
@@ -328,7 +348,12 @@ async def test_streaming_tool_span_finished_when_consumer_stops_early(adk, test_
         break
     await result.aclose()
 
-    tool_spans = [s for t in test_spans.pop_traces() for s in t if "__call_tool_async" in s.resource]
+    tool_spans = [
+        s
+        for t in test_spans.pop_traces()
+        for s in t
+        if "FunctionTool." in s.resource and "call_tool_async" in s.resource
+    ]
     assert len(tool_spans) == 1
     assert tool_spans[0].duration is not None, "the span must be finished when the consumer stops early"
 
@@ -349,7 +374,103 @@ async def test_streaming_tool_span_finished_when_stream_never_started(adk, test_
     del result
     gc.collect()
 
-    tool_spans = [s for t in test_spans.pop_traces() for s in t if "__call_tool_async" in s.resource]
+    tool_spans = [
+        s
+        for t in test_spans.pop_traces()
+        for s in t
+        if "FunctionTool." in s.resource and "call_tool_async" in s.resource
+    ]
     assert len(tool_spans) == 1
     assert tool_spans[0].duration is not None, "an abandoned stream must not leave its span unfinished"
     assert tool_spans[0].duration >= 0, "an abandoned stream must not report a negative duration"
+
+
+class _ToolCallingLiveConnection(BaseLlmConnection):
+    """Live connection that asks for one get_weather call, then answers once the tool result arrives.
+
+    Live mode streams over a websocket, which the cassette recorder cannot capture, so the model
+    connection is stubbed. Everything between the model and the tool runs for real.
+    """
+
+    def __init__(self):
+        self._responses = asyncio.Queue()
+        self._responses.put_nowait(
+            LlmResponse(
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part(function_call=types.FunctionCall(name="get_weather", args={"city": "Paris"}))],
+                )
+            )
+        )
+
+    async def send_history(self, history):
+        pass
+
+    async def send_content(self, content):
+        if any(part.function_response for part in content.parts or []):
+            await self._responses.put(
+                LlmResponse(content=types.Content(role="model", parts=[types.Part(text="Sunny.")]), turn_complete=True)
+            )
+
+    async def send_realtime(self, blob):
+        pass
+
+    async def receive(self):
+        while True:
+            yield await self._responses.get()
+
+    async def close(self):
+        pass
+
+
+class _ToolCallingLiveModel(BaseLlm):
+    @classmethod
+    def supported_models(cls):
+        return ["tool-calling-live-model"]
+
+    async def generate_content_async(self, llm_request, stream=False):
+        raise NotImplementedError("only live mode is exercised")
+        yield  # pragma: no cover
+
+    @contextlib.asynccontextmanager
+    async def connect(self, llm_request):
+        yield _ToolCallingLiveConnection()
+
+
+@pytest.mark.skipif(ADK_VERSION < (2, 7, 0), reason="live tool calls go through __call_tool_live before 2.7.0")
+@pytest.mark.asyncio
+async def test_run_live_tool_call_is_traced(adk, test_spans):
+    """A tool called from Runner.run_live gets a tool span.
+
+    google-adk 2.12.0 moved live tool execution into tools._live_caller, which keeps its own reference
+    to the dispatcher, so this fails unless that copy is wrapped too.
+    """
+    tool_calls = []
+
+    def get_weather(city: str) -> dict:
+        """Return the weather for a city."""
+        tool_calls.append(city)
+        return {"city": city, "forecast": "sunny"}
+
+    agent = LlmAgent(
+        name="live_agent", model=_ToolCallingLiveModel(model="tool-calling-live-model"), tools=[get_weather]
+    )
+    runner = InMemoryRunner(agent=agent, app_name="live_app")
+    session = await runner.session_service.create_session(app_name="live_app", user_id="live-user")
+    queue = LiveRequestQueue()
+    queue.send_content(create_test_message("Weather in Paris?"))
+
+    # Close the stream explicitly: breaking out of `async for` leaves the run_live span open until
+    # garbage collection, so its trace would not be flushed yet.
+    stream = runner.run_live(user_id="live-user", session_id=session.id, live_request_queue=queue)
+    async for event in stream:
+        if tool_calls and event.turn_complete:
+            queue.close()
+            break
+    await stream.aclose()
+
+    assert tool_calls == ["Paris"]
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
+    assert len(tool_spans) == 1
+    assert any(s.resource.endswith("run_live") for s in spans)

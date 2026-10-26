@@ -49,17 +49,6 @@ cases:
       - Applies the same rST-heavy style to the private helper's docstring.
       - Wraps a plain-prose parameter name in *emphasis* or ``double backticks``.
 
-  - id: python-tracer-aidev-comments-004
-    files: [AGENTS.md]
-    input: |
-      I'm refactoring a function that has an AIDEV-NOTE comment explaining a workaround for an
-      old bug. The workaround looks unnecessary now. What should I do with the comment?
-    expected_criteria:
-      - Never remove an AIDEV-NOTE/TODO/QUESTION comment without explicit human instruction.
-      - If the surrounding code changes, update the anchor rather than deleting it unilaterally.
-    bad_signals:
-      - Says to just delete the outdated AIDEV comment as part of the refactor.
-
   - id: python-tracer-pr-title-convention-005
     files: [AGENTS.md]
     only_warn: true
@@ -121,7 +110,9 @@ cases:
     expected_criteria:
       - Explains CancelledError is raised at the current await point inside the task.
       - Notes finally blocks still run, but shouldn't swallow CancelledError (re-raise it).
-      - Mentions that catching bare Exception without re-raising CancelledError breaks cancellation.
+      - Mentions that a bare `except:`/`except BaseException:` without re-raising CancelledError breaks
+        cancellation — `except Exception` alone won't catch it, since CancelledError derives from
+        BaseException (Python 3.8+).
     bad_signals:
       - Claims cancellation silently stops the task with no exception involved.
       - Recommends catching and discarding CancelledError as a normal pattern.

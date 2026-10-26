@@ -23,7 +23,7 @@ def pop_and_seed_inferred_service():
     the same service as import time. Without this, detect_service(sys.argv) in
     a test would re-compute from sys.argv (which under ddtest has individual
     files, yielding a subpackage like tests.tracer.runtime instead of
-    tests.tracer). Under riot CI xdist workers (sys.argv=['-c']), the natural
+    tests.tracer). Under ordinary xdist workers (sys.argv=['-c']), the natural
     result is None, so we only seed when the env var differs from the natural
     result — this avoids breaking tests that expect config.service is None.
     """

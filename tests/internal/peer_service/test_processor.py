@@ -1,6 +1,6 @@
 import os
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.constants import SPAN_KIND
@@ -98,6 +98,11 @@ def test_peer_service_enablement(schema_peer_enabled):
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": env_enabled}):
         with mock.patch("ddtrace.internal.settings.peer_service.SCHEMA_VERSION", schema_version):
             assert PeerServiceConfig().set_defaults_enabled == expected
+
+
+def test_otel_http_semantics_disable_peer_service_defaults():
+    with mock.patch("ddtrace.internal.settings.peer_service.config._otel_trace_semantics_enabled", True):
+        assert PeerServiceConfig(set_defaults_enabled=True).set_defaults_enabled is False
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True"), ddtrace_run=True)

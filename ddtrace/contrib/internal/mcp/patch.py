@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -18,12 +20,13 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._integrations.mcp import get_tool_error_message
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
 
@@ -52,7 +55,7 @@ def _supported_versions() -> dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "ClientRequest":
+def _set_distributed_headers_into_mcp_request(request: ClientRequest) -> ClientRequest:
     """Inject distributed tracing headers into MCP request metadata."""
     span = tracer.current_span()
     if span is None:
@@ -92,7 +95,7 @@ def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "Clie
         return request
 
 
-def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[dict[str, str]]:
+def _extract_distributed_headers_from_mcp_request(request_root: Request) -> Optional[dict[str, str]]:
     """Extract distributed tracing headers from MCP request params.meta field."""
     request_params = _get_attr(request_root, "params", None)
     meta = _get_attr(request_params, "meta", None) if request_params else None
@@ -119,12 +122,10 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
         result = await func(*args, **kwargs)
 
         if getattr(result, "isError", False):
-            content = getattr(result, "content", [])
             span.error = 1
-
-            content_block = content[0] if content and isinstance(content, list) else None
-            if content_block and getattr(content_block, "text", None):
-                span.set_tag(ERROR_MSG, content_block.text)
+            error_message = get_tool_error_message(result)
+            if error_message:
+                span.set_tag(ERROR_MSG, error_message)
 
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=result, operation=CLIENT_TOOL_CALL_OPERATION_NAME

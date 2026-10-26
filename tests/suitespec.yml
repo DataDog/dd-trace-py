@@ -5,8 +5,7 @@ components:
     - docker-compose.base.yml
     - docker-compose.podman.yml
     - docker-compose.yml
-    - riotfile.py
-    - .riot/requirements/*
+    - tests/requirements_locks/*
     - scripts/ddtest
     - pyproject.toml
     - tests/conftest.py
@@ -56,6 +55,7 @@ components:
     - ddtrace/internal/debug.py
     - ddtrace/internal/dogstatsd.py
     - ddtrace/internal/forksafe.py
+    - ddtrace/internal/locks.py
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
     - ddtrace/internal/ipc.py
@@ -86,6 +86,8 @@ components:
     - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
+  context_watcher:
+    - ddtrace/internal/_context_watcher.py
   datastreams:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
@@ -181,7 +183,7 @@ suites:
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82']
           python: ['3.9', '3.10', '3.11']
         - name: crashtracker
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
@@ -201,7 +203,7 @@ suites:
       python: ['3.10']
       variants: [{name: meta-testing}]
   ddtracerun:
-    venvs_per_job: 2
+    venvs_per_job: 4
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -216,7 +218,6 @@ suites:
         - name: ddtracerun
           dependencies: [redis, gevent, pytest-randomly]
   detect_global_locks:
-    venvs_per_job: 3
     paths:
       - 'ddtrace/*'
       - 'setup.py'
@@ -240,8 +241,7 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants: [{name: detect_global_locks}]
   integration_agent:
-    ddtest_nodes: 2
-    ddtest: true
+    venvs_per_job: 4
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     paths:
@@ -259,20 +259,14 @@ suites:
       variants:
         - name: integration-latest
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
           env:
-            DDTEST_SUITE_PATH: tests/integration
-            DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-latest-civisibility
           dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
-          env:
-            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
-            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
+          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   integration_testagent:
-    ddtest_nodes: 2
-    ddtest: true
+    venvs_per_job: 4
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
@@ -294,20 +288,15 @@ suites:
       variants:
         - name: integration-snapshot
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
           env:
-            DDTEST_SUITE_PATH: tests/integration
-            DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-snapshot-civisibility
           dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
-          env:
-            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
-            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
+          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   internal:
+    venvs_per_job: 6
     retry: 2
-    venvs_per_job: 2
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
@@ -319,7 +308,10 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/*
+      - scripts/check_no_new_aidev_anchors.py
       - scripts/gen_gitlab_config.py
+      - scripts/run-tests
+      - scripts/update-libddwaf-checksums.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
@@ -351,6 +343,7 @@ suites:
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
         - name: internal
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           command: pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, pyarmor]
   wrapping:
@@ -366,24 +359,34 @@ suites:
         DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS: 'true'
       variants:
         - name: wrapping
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-xdist, wrapt]
         - name: wrapping
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-xdist, 'wrapt<2.0.0']
+        - name: wrapping
+          python: ['3.15']
+          command: pytest -v {cmdargs} tests/wrapping/test_obfuscation.py
+          dependencies: [pytest-xdist, wrapt]
   lib_injection:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@contrib'
       - '@lib_injection'
-    venvs_per_job: 2
     pattern: ^lib_injection$
     matrix:
       command: pytest {cmdargs} tests/lib_injection/
       variants:
         - name: lib_injection
-          dependencies: [PyYAML, 'pip==26.0.1; python_version < ''3.10''', 'pip==26.2.1; python_version >= ''3.10''', pytest-randomly]
-          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', PyYAML, pytest-randomly]
+          python: ['3.9']
+          dependencies: [PyYAML, 'pip==26.0.1', pytest-randomly]
+        - name: lib_injection
+          # 3.9 stays on pip 26.0.1. 3.10+ uses pip 26.2.1, including 3.15.
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: [PyYAML, 'pip==26.2.1', pytest-randomly]
   runtime:
     paths:
       - '@bootstrap'
@@ -407,8 +410,10 @@ suites:
       command: pytest {cmdargs} tests/openfeature
       variants:
         - name: openfeature
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'openfeature-sdk~=0.8.0']
         - name: openfeature
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, openfeature-sdk]
   telemetry:
     env:
@@ -434,18 +439,15 @@ suites:
       command: pytest {cmdargs} tests/telemetry/
       variants:
         - name: telemetry
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask>=3.1.2']
         - name: telemetry
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
-    ddtest: true
-    ddtest_nodes: 2
+    venvs_per_job: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
-      DDTEST_SUITE_PATH: tests/tracer
-      DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
       DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
@@ -460,32 +462,31 @@ suites:
       - '@futures'
       - '@ci_visibility'
       - '@vendor'
+      - '@context_watcher'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
     matrix:
-      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
+      command: pytest -v -n auto --dist=worksteal {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
       env:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
-        DDTEST_SUITE_PATH: tests/tracer
-        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
         DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
         - name: tracer-python-optimize
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
           env:
             PYTHONOPTIMIZE: '1'
         - name: tracer-legacy-attrs
           python: ['3.9']
-          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
+          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun, 'cattrs<23.2.0']
         - name: tracer-128-bit-traceid-disabled
-          python: ['3.14']
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          python: ['3.14', '3.15']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:
@@ -504,8 +505,6 @@ suites:
     matrix:
       command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py
       env:
-        DDTEST_SUITE_PATH: tests/tracer
-        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
         DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
         DD_CIVISIBILITY_LOG_LEVEL: none

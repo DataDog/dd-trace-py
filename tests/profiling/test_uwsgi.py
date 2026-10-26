@@ -15,6 +15,7 @@ The tests spawn actual uwsgi processes and verify:
 2. Valid configurations produce actual profile samples in each worker
 """
 
+from collections.abc import Generator
 import glob
 from importlib.metadata import version
 import logging
@@ -29,8 +30,9 @@ import sys
 import time
 from typing import IO
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
-from typing import Generator
+from typing import NoReturn
 from typing import Optional
 
 import pytest
@@ -49,6 +51,9 @@ if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# Exit status uWSGI's end_me() uses for a worker stopped by SIGINT/SIGTERM. Defined in uwsgi.h and
+# unchanged since uWSGI 0.9.5, so it does not need gating on the uWSGI version.
+UWSGI_END_CODE = 30
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
@@ -85,7 +90,7 @@ def uwsgi(
 def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     """uWSGI postfork startup should set the active profiler singleton in workers."""
 
-    def _raise_master(*args, **kwargs):
+    def _raise_master(*args: Any, **kwargs: Any) -> NoReturn:
         raise profiler.uwsgi.uWSGIMasterProcess()
 
     monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
@@ -103,6 +108,32 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     p.stop(flush=False)  # type: ignore[unreachable]
 
 
+def test_uwsgi_postfork_start_reports_profiler_activated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The uWSGI master skips the telemetry report, so the worker must send it."""
+    from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+
+    def _raise_master(*args, **kwargs):
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
+
+    product_changes: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        profiler.telemetry_writer,
+        "product_activated",
+        lambda product, status: product_changes.append((product, status)),
+    )
+
+    p = profiler.Profiler()
+    p.start()
+    assert product_changes == []
+
+    p._start_on_fork()
+    assert product_changes == [(TELEMETRY_APM_PRODUCT.PROFILER, True)]
+
+    p.stop(flush=False)
+
+
 def test_uwsgi_worker_blocks_second_profiler_start(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -110,7 +141,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     """A worker started through uWSGI postfork should still reject a second profiler."""
     callback_holder = {}
 
-    def _register_postfork(callback, atexit=None):
+    def _register_postfork(callback: Callable[[], None], atexit: Optional[Callable[[], None]] = None) -> NoReturn:
         callback_holder["callback"] = callback
         raise profiler.uwsgi.uWSGIMasterProcess()
 
@@ -136,7 +167,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     p1.stop(flush=False)
 
 
-def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
+def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]) -> None:
     """Test that profiler fails when uwsgi threads are not enabled.
 
     The profiler requires threading support to run its background sampling thread.
@@ -241,12 +272,18 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
 
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
-        assert len(worker_pids) == 2, "expected 2 workers, saw %r" % worker_pids
+        assert len(worker_pids) == 2, "expected 2 workers, saw %r (uwsgi returncode=%r)" % (
+            worker_pids,
+            proc.poll(),
+        )
         for pid in worker_pids:
             _wait_for_profile_samples(filename, pid, "wall-time")
     finally:
         proc.terminate()
-        proc.wait()
+        exit_code = proc.wait()
+
+    # Without --master, SIGTERM terminates a worker via uWSGI's end_me() handler.
+    assert exit_code == UWSGI_END_CODE
 
 
 def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
@@ -354,12 +391,17 @@ def _wait_for_profile_samples(
                 raise FileNotFoundError(f"No profile files found for {filename_prefix}")
 
             profiles = [pprof_utils.parse_profile(f) for f in files]
-            profile = pprof_utils.merge_profiles(profiles)
         except _retry_exc:
             time.sleep(interval)
             continue
 
-        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
+        samples: list[pprof_pb2.Sample] = []
+        for profile in profiles:
+            try:
+                samples.extend(pprof_utils.get_samples_with_value_type(profile, value_type))
+            except StopIteration:
+                continue
+
         if samples:
             return samples
         time.sleep(interval)

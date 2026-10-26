@@ -1,10 +1,11 @@
 from typing import TYPE_CHECKING
 from typing import Optional
+from typing import Union
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
-from ddtrace.internal.appsec.prototypes import SpanProtocol
+from ddtrace.internal.native._native import SpanData
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -16,14 +17,19 @@ class IASTEnvironment:
     an object of this class contains all iast data
     for a single request. It is bound to a single iast request context.
     It is contained into a ContextVar.
+
+    Immutable source objects are retained until request teardown so their addresses
+    cannot be reused while source overrides preserve their secure marks.
     """
 
-    def __init__(self, span: Optional[SpanProtocol] = None):
+    def __init__(self, span: Optional[SpanData] = None, context_id: Optional[int] = None) -> None:
         self.span = span or span_bus.get_span()
+        self.context_id = context_id
 
-        self.iast_reporter: Optional["IastSpanReporter"] = None
+        self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: dict[str, int] = {}
         self.iast_hash_object_tracking: dict[int, bool] = {}
+        self.iast_taint_source_objects: dict[int, Union[str, bytes]] = {}
         self.iast_stack_trace_reported: bool = False
         self.vulnerability_copy_global_limit: dict[str, int] = {}
         self.vulnerabilities_request_limit: dict[str, int] = {}
@@ -36,10 +42,6 @@ class IASTEnvironment:
     def endpoint_key(self) -> str:
         """
         Create a unique key for an endpoint based on HTTP method and route.
-
-        Args:
-            method (str): HTTP method (GET, POST, etc.)
-            route (str): HTTP route/endpoint path
 
         Returns:
             str: Combined key as "METHOD:ROUTE"

@@ -1,7 +1,7 @@
 import inspect
-from typing import Any  # noqa:F401
+from typing import Any
 from typing import Mapping
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 import starlette
 from starlette import requests as starlette_requests
@@ -22,14 +22,13 @@ from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.trace import Span  # noqa:F401
+from ddtrace.trace import Span
 from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
 
@@ -148,7 +147,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
 
     path, is_route = route_match
     method = scope.get("method")
-    span.resource = "{} {}".format(method, path) if method else path
+    span.resource = f"{method} {path}" if method else path
     if is_route:
         span._set_attribute(http.ROUTE, path)
 
@@ -337,10 +336,7 @@ def traced_handler(wrapped, instance, args, kwargs):
                 break
 
         if request_spans:
-            if asm_config._iast_enabled:
-                from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
-
-                _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
+            core.dispatch("starlette.route.handle", (scope, request_spans[0].get_tag(http.ROUTE)))
 
             trace_utils.set_http_meta(
                 request_spans[0],

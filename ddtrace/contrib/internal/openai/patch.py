@@ -77,6 +77,9 @@ _RESOURCES = {
         "create": _endpoint_hooks._ResponseHook,
         "parse": _endpoint_hooks._ResponseParseHook,
     },
+    "decisions.Decisions": {
+        "create": _endpoint_hooks._DecisionHook,
+    },
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
@@ -135,7 +138,7 @@ def patch():
             log.debug("WARNING: resource %s is not found", resource)
             continue
         for method_name, endpoint_hook in method_hook_dict.items():
-            sync_method = "resources.{}.{}".format(resource, method_name)
+            sync_method = f"resources.{resource}.{method_name}"
             async_method = "resources.{}.{}".format(".Async".join(resource.split(".")), method_name)
             if deep_getattr(openai, sync_method) is not None:
                 wrap(openai, sync_method, _patched_endpoint(endpoint_hook))

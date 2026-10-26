@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AAP: Adds Server-Side Request Forgery (SSRF) exploit prevention and downstream request
+    analysis for outgoing requests made with the ``aiohttp`` client.

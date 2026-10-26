@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 from typing import Any
@@ -10,18 +12,16 @@ from ddtrace.internal.span_bus import span_from_context
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.settings._config import Config  # noqa:F401
-    from ddtrace.trace import Span  # noqa:F401
-    from ddtrace.trace import Tracer  # noqa:F401
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.trace import Span
+    from ddtrace.trace import Tracer
 
 from urllib.parse import quote
 from urllib.parse import unquote_to_bytes
 
-import wrapt
-
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -59,7 +59,7 @@ def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
 
 
-class _DDWSGIMiddlewareBase(object):
+class _DDWSGIMiddlewareBase:
     """Base WSGI middleware class.
 
     :param application: The WSGI application to apply the middleware to.
@@ -70,9 +70,9 @@ class _DDWSGIMiddlewareBase(object):
 
     def __init__(
         self,
-        application: Iterable,
-        tracer: Optional["Tracer"],
-        int_config: "Config",
+        application: Iterable[Any],
+        tracer: Optional[Tracer],
+        int_config: Config,
         app_is_iterator: bool = False,
     ) -> None:
         if tracer is not None:
@@ -101,7 +101,10 @@ class _DDWSGIMiddlewareBase(object):
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
+    def __call__(self, environ: Iterable[Any], start_response: Callable[..., Any]) -> Iterable[Any]:
+        # Publish before the root span so request-start listeners run ahead of it.
+        trace_utils.dispatch_wsgi_web_request_starting(environ)
+
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
@@ -197,8 +200,8 @@ class _DDWSGIMiddlewareBase(object):
     def _traced_start_response(
         self,
         start_response: Callable,
-        request_span: "Span",
-        app_span: "Span",
+        request_span: Span,
+        app_span: Span,
         status: str,
         environ: dict,
         exc_info: Any = None,
@@ -218,13 +221,13 @@ class _DDWSGIMiddlewareBase(object):
         ):
             return start_response(status, environ, exc_info)
 
-    def _request_span_modifier(self, req_span: "Span", environ: dict, parsed_headers: Optional[dict] = None) -> None:
+    def _request_span_modifier(self, req_span: Span, environ: dict, parsed_headers: Optional[dict] = None) -> None:
         """Implement to modify span attributes on the request_span"""
 
-    def _application_span_modifier(self, app_span: "Span", environ: dict, result: Iterable) -> None:
+    def _application_span_modifier(self, app_span: Span, environ: dict, result: Iterable) -> None:
         """Implement to modify span attributes on the application_span"""
 
-    def _response_span_modifier(self, resp_span: "Span", response: dict) -> None:
+    def _response_span_modifier(self, resp_span: Span, response: dict) -> None:
         """Implement to modify span attributes on the request_span"""
 
 
@@ -372,12 +375,12 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def __init__(
         self,
-        application: Iterable,
-        tracer: Optional["Tracer"] = None,
-        span_modifier: Callable[["Span", dict[str, str]], None] = default_wsgi_span_modifier,
+        application: Iterable[Any],
+        tracer: Optional[Tracer] = None,
+        span_modifier: Callable[[Span, dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,
     ) -> None:
-        super(DDWSGIMiddleware, self).__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
+        super().__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):

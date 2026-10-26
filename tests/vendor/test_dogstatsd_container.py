@@ -186,7 +186,7 @@ class TestReadCgroupPath:
     def test_non_enoent_io_error_raises_not_implemented(self) -> None:
         reader: ContainerID = ContainerID.__new__(ContainerID)
         reader.CGROUP_PATH = "/some/path"
-        io_err: IOError = IOError()
+        io_err: IOError = OSError()
         io_err.errno = errno.EACCES
         with mock.patch("builtins.open", side_effect=io_err):
             try:

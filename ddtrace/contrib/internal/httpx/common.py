@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Awaitable
@@ -6,6 +8,7 @@ from typing import Optional
 
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace._trace.otel.http.tags import otel_client_url
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
@@ -27,7 +30,7 @@ class HttpxPatcher:
     def __init__(
         self,
         module: Any,
-        integration_config: "IntegrationConfig",
+        integration_config: IntegrationConfig,
     ) -> None:
         self._module = module
         self._integration_config = integration_config
@@ -180,10 +183,10 @@ def httpx_url_to_str(url: Any) -> str:
         url += b":" + ensure_binary(str(port))
     url += raw_path
 
-    return ensure_text(url)
+    return otel_client_url(ensure_text(url), scheme, host, port, raw_path)
 
 
-def httpx_get_service_name(request: Any, integration_config: "IntegrationConfig") -> Optional[str]:
+def httpx_get_service_name(request: Any, integration_config: IntegrationConfig) -> Optional[str]:
     if integration_config.split_by_domain:
         if hasattr(request.url, "netloc"):
             return ensure_text(request.url.netloc, errors="backslashreplace")

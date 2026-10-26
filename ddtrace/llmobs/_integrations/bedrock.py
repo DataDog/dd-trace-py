@@ -1,10 +1,11 @@
+from collections.abc import Generator
 from typing import Any
-from typing import Generator
 from typing import Optional
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
@@ -24,8 +25,8 @@ from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
@@ -108,7 +109,7 @@ class BedrockIntegration(BaseLLMIntegration):
         )
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
+        if response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
@@ -192,11 +193,11 @@ class BedrockIntegration(BaseLLMIntegration):
         """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
-        step_spans_by_step_id: dict[str, Span] = {}
+        step_spans_by_step_id: dict[str, _LLMObsSpan] = {}
         # Holds a span whose output event hasn't arrived yet (e.g. modelInvocationInput waiting
         # for its matching modelInvocationOutput).
-        pending_span_by_step_id: dict[str, Span] = {}
-        child_spans_by_step_id: dict[str, list[Span]] = {}
+        pending_span_by_step_id: dict[str, _LLMObsSpan] = {}
+        child_spans_by_step_id: dict[str, list[_LLMObsSpan]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
             if trace_step_id is None:
@@ -304,8 +305,8 @@ class BedrockIntegration(BaseLLMIntegration):
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
                 for token_type in ("input", "output", "total"):
-                    if "{}Tokens".format(token_type) in usage:
-                        usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
+                    if f"{token_type}Tokens" in usage:
+                        usage_metrics[f"{token_type}_tokens"] = usage[f"{token_type}Tokens"]
 
                 cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
                     "cacheReadInputTokens", None

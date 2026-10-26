@@ -20,7 +20,7 @@ def test_base_service(ddtrace_run_python_code_in_subprocess, schema_version, glo
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
 
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -57,12 +57,12 @@ def test(processor):
     assert _BASE_SERVICE_KEY not in fake_trace[0].get_tags()
     assert _BASE_SERVICE_KEY not in fake_trace[1].get_tags(), config.service
     assert fake_trace[2].get_tag(_BASE_SERVICE_KEY) is not None
-    assert fake_trace[2].get_tag(_BASE_SERVICE_KEY) == '{}'
+    assert fake_trace[2].get_tag(_BASE_SERVICE_KEY) == '{expected_base_service_name}'
     assert _BASE_SERVICE_KEY not in fake_trace[3].get_tags(), fake_trace[3].service + fake_trace[3].get_tags()
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_base_service_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:

@@ -1,7 +1,7 @@
 import random
+from unittest import mock
 from uuid import uuid4
 
-import mock
 import pytest
 
 from ddtrace.debugging._config import di_config
@@ -15,6 +15,7 @@ from ddtrace.debugging._probe.remoteconfig import InvalidProbeConfiguration
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._probe.remoteconfig import build_probe
+from ddtrace.debugging._probe.remoteconfig import get_probes
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
@@ -22,7 +23,7 @@ from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
 
 
-class MockConfig(object):
+class MockConfig:
     def __init__(self, *args, **kwargs):
         self.probes = {}
 
@@ -101,7 +102,7 @@ class SyncProbeRCAdapter(ProbeRCAdapter):
 
     def __init__(self, *args, **kwargs):
         status_logger = kwargs.pop("status_logger", ProbeStatusLogger("test"))
-        super(SyncProbeRCAdapter, self).__init__(*args, **kwargs, status_logger=status_logger)
+        super().__init__(*args, **kwargs, status_logger=status_logger)
 
 
 def config_metadata(config_id=None):
@@ -686,3 +687,32 @@ def test_expression_compilation_error(rc_poller, mock_config_exc):
         assert status_logger.error.call_args[1]["probe"].probe_id == "error"
     finally:
         di_config.diagnostics_interval = old_interval
+
+
+@pytest.mark.parametrize(
+    "invalid_expr",
+    [
+        {"when": {"dsl": "notARealOperator(foo)", "json": {"notARealOperator": [{"ref": "foo"}]}}},
+        {"segments": [{"dsl": "notARealOperator(foo)", "json": {"notARealOperator": [{"ref": "foo"}]}}]},
+    ],
+)
+def test_invalid_expression_rejects_probe(invalid_expr):
+    status_logger = mock.Mock()
+    probes = get_probes(
+        {
+            "id": "invalid-expr",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "where": {"typeName": "foo", "methodName": "bar"},
+            "captureSnapshot": True,
+            **invalid_expr,
+        },
+        status_logger,
+    )
+
+    assert probes == []
+    status_logger.error.assert_called_once()
+    assert status_logger.error.call_args[1]["probe"].probe_id == "invalid-expr"
+    error_type, error_message = status_logger.error.call_args[1]["error"]
+    assert error_type == "DDExpressionCompilationError"
+    assert "notARealOperator(foo)" in error_message

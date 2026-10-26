@@ -1,6 +1,6 @@
 import json
+from unittest import mock
 
-import mock
 import pytest
 
 from tests.contrib.botocore.bedrock_utils import _MODELS

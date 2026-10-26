@@ -263,7 +263,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
                 self._dd_env = "none"
                 dd_env_msg = " (not set in environment)"
             if not self._api_key:
-                raise EnvironmentError(
+                raise OSError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
                     "cannot be initialized."
                 )

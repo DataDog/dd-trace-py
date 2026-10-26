@@ -3,7 +3,7 @@ from typing import Optional
 from typing import Union
 
 
-class NoOpTelemetryWriter(object):
+class NoOpTelemetryWriter:
     """No-op TelemetryWriter used when DD_INSTRUMENTATION_TELEMETRY_ENABLED=false.
 
     Keeps method-for-method parity with the native-backed TelemetryWriter so callers
@@ -106,6 +106,9 @@ class NoOpTelemetryWriter(object):
         pass
 
     def _restart_sequence(self) -> None:
+        pass
+
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
         pass
 
     def _fork_writer(self) -> None:

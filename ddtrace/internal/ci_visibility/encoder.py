@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 from typing import Any
-from typing import Mapping
 from typing import Optional
 from typing import Protocol
 from typing import Union
 from typing import cast
 from uuid import uuid4
 
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
@@ -66,11 +68,13 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
     _MAX_PAYLOAD_SIZE = 5 * 1024 * 1024  # 5MB
     _MAX_META_TAG_VALUE_LENGTH = 5000
+    # The most useful part of an error (the failing frame and exception line) is at the end.
+    _TAIL_TRUNCATED_META_KEYS = frozenset({ERROR_STACK, ERROR_MSG})
 
     def __init__(self, *args: Any) -> None:
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
-        super(CIVisibilityEncoderV01, self).__init__()  # type: ignore[call-arg]
+        super().__init__()  # type: ignore[call-arg]
         self._metadata: dict[str, dict[str, str]] = {}
         self._lock = RLock()
         self._is_xdist_worker = env.get("PYTEST_XDIST_WORKER") is not None
@@ -271,8 +275,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     @staticmethod
     def _truncate_meta_string_values(meta: dict[str, Any]) -> dict[str, Any]:
+        max_length = CIVisibilityEncoderV01._MAX_META_TAG_VALUE_LENGTH
+        tail_keys = CIVisibilityEncoderV01._TAIL_TRUNCATED_META_KEYS
         return {
-            key: value[: CIVisibilityEncoderV01._MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value
+            key: (value[-max_length:] if key in tail_keys else value[:max_length]) if isinstance(value, str) else value
             for key, value in meta.items()
         }
 
@@ -307,7 +313,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
         if not spans_with_coverage:
             raise NoEncodableSpansError()
-        return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
+        return super().put(spans_with_coverage)
 
     def _build_coverage_attachment(self, data: bytes) -> list[bytes]:
         return [

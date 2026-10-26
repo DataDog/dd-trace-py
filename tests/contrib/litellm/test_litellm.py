@@ -129,13 +129,13 @@ async def test_litellm_atext_completion(litellm, snapshot_context, request_vcr, 
                     pass
 
 
-@pytest.mark.parametrize("model", ["command-r", "anthropic/claude-sonnet-4-5-20250929"])
+@pytest.mark.parametrize("model", ["cohere_chat/command-r", "anthropic/claude-sonnet-4-5-20250929"])
 def test_litellm_completion_different_models(litellm, snapshot_context, request_vcr, model):
     model_base = model.split("/")[0]
     is_new_litellm = parse_version(get_version()) >= (1, 74, 15)
 
-    if model == "command-r" and is_new_litellm:
-        pytest.skip("Cassette not yet generated for command-r on litellm >= 1.74.15")
+    if model_base == "cohere_chat" and is_new_litellm:
+        pytest.skip("Cassette not yet generated for cohere_chat/command-r on litellm >= 1.74.15")
 
     if is_new_litellm:
         cassette_name = f"completion_{model_base}_v1_74_15.yaml"

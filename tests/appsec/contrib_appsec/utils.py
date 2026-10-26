@@ -1,10 +1,10 @@
+from collections.abc import Generator
 import contextlib
 import itertools
 import json
 import sys
 from typing import Any
 from typing import ClassVar
-from typing import Generator
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -60,6 +60,45 @@ def mock_metric_points():
 
 
 SECID: str = "[security_response_id]"
+
+_API10_DOWNSTREAM_ATTEMPTS = 3
+_TRANSIENT_DOWNSTREAM_ERRORS = frozenset(
+    {
+        "BrokenPipeError",
+        "ChunkedEncodingError",
+        "ClientConnectorError",
+        "ClientOSError",
+        "ClientPayloadError",
+        "CloseError",
+        "ConnectError",
+        "ConnectTimeout",
+        "ConnectTimeoutError",
+        "ConnectionAbortedError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "ConnectionTimeoutError",
+        "IncompleteRead",
+        "MaxRetryError",
+        "NewConnectionError",
+        "PoolTimeout",
+        "ProtocolError",
+        "ReadError",
+        "ReadTimeout",
+        "ReadTimeoutError",
+        "RemoteDisconnected",
+        "RemoteProtocolError",
+        "ServerDisconnectedError",
+        "ServerTimeoutError",
+        "SocketTimeoutError",
+        "Timeout",
+        "TimeoutError",
+        "URLError",
+        "WriteError",
+        "WriteTimeout",
+        "timeout",
+    }
+)
 
 try:
     from ddtrace.appsec import track_user_sdk as _track_user_sdk  # noqa: F401
@@ -159,6 +198,27 @@ class _Contrib_TestClass_Base:
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
+
+    def api10_downstream_request(self, interface, test_spans, api10_server, path, data=None) -> dict[str, Any]:
+        attempt = 1
+        while True:
+            url = f"{path}/{api10_server.port()}"
+            if data:
+                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
+            else:
+                response = interface.client.get(url)
+            assert self.status(response) == 200, f"{self.status(response)} is not 200 {self.body(response)}"
+            result = json.loads(self.body(response))
+            error = result.get("error")
+            if error is None:
+                return result
+            retryable = error.partition("(")[0] in _TRANSIENT_DOWNSTREAM_ERRORS
+            assert retryable and attempt < _API10_DOWNSTREAM_ATTEMPTS, (
+                f"downstream request failed on attempt {attempt}/{_API10_DOWNSTREAM_ATTEMPTS}: {result}"
+            )
+            attempt += 1
+            test_spans.reset()
+            api10_server.restart()
 
     def check_rule_triggered(self, rule_id: str, entry_span):
         """Check that the given rule_id is among the triggered rules."""
@@ -543,7 +603,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     "abc",
                     b"abc",
                 )
-                assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
+                assert int(path_params["param_int"] if isinstance(path_params, dict) else path_params[0]) == 137
             else:
                 assert path_params is None
 
@@ -560,7 +620,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
     )
-    @pytest.mark.xfail_interface("tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", "aiohttp", skip=True)
     def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
         # RFC-1103: when API Security is active, every request span carrying http.route also carries
         # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
@@ -576,7 +636,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", "aiohttp", skip=True)
     def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
         # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
         # feature is independently disabled — in that configuration the normalized route tag must still be absent.
@@ -587,7 +647,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
             assert tag is None, f"normalized_route should be unset when API Security is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("django", "flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("django", "flask", "tornado", "aiohttp", skip=True)
     def test_normalized_route_survives_request_span_name_override(
         self, interface: Interface, entry_span, get_entry_span_tag
     ):
@@ -680,6 +740,19 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 )
             else:
                 assert get_entry_span_tag(http.CLIENT_IP) is None
+
+    @pytest.mark.parametrize("ip_header", ["X-Use-This", "x-use-this"])
+    def test_request_ipblock_client_ip_header_set_by_env_var(
+        self, interface: Interface, get_entry_span_tag, entry_span, ip_header
+    ):
+        with override_global_config(
+            dict(_asm_enabled=True, _client_ip_header=ip_header, _asm_static_rule_file=rules.RULES_GOOD_PATH)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={"X-Use-This": rules._IP.BLOCKED})
+            assert (st := self.status(response)) == 403, f"status mismatch {st}"
+            assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
+            self.check_single_rule_triggered("blk-001-001", entry_span)
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -1498,8 +1571,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
-                # all tornado path params are always strings
-                if interface.name == "tornado" and name == "_dd.appsec.s.req.params":
+                # all tornado and aiohttp path params are always strings
+                if interface.name in ("tornado", "aiohttp") and name == "_dd.appsec.s.req.params":
                     expected_value = [[{"param_int": [8], "param_str": [8]}], [[[8]], {"len": 2}]]
                 if expected_value is not None:
                     if name == "_dd.appsec.s.res.body" and blocked:
@@ -1977,7 +2050,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                         == str(user == "testuuid").lower()
                     )
                     # check for manual instrumentation tag in manual instrumented frameworks
-                    if interface.name in ["flask", "fastapi", "tornado"]:
+                    if interface.name in ["flask", "fastapi", "tornado", "aiohttp"]:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
                     else:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") is None
@@ -1992,7 +2065,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     if mode == "identification":
                         assert get_entry_span_tag("_dd.appsec.usr.login") == user
                     # check for manual instrumentation tag in manual instrumented frameworks
-                    if interface.name in ["flask", "fastapi", "tornado"]:
+                    if interface.name in ["flask", "fastapi", "tornado", "aiohttp"]:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") == "true"
                     else:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") is None
@@ -2248,7 +2321,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
-    def test_api10_addresses(self, integration, route, data, tag, interface, api10_http_server_port, get_tag):
+    def test_api10_addresses(self, integration, route, data, tag, interface, api10_server, test_spans, get_tag):
         """test api10 on downstream request/response headers and body"""
 
         with override_global_config(
@@ -2261,22 +2334,17 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
         ):
             self.update_tracer(interface)
-            url = f"/redirect{integration}/{route}/{api10_http_server_port}"
-            if data:
-                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
-            else:
-                response = interface.client.get(url)
-            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            result = self.api10_downstream_request(
+                interface, test_spans, api10_server, f"/redirect{integration}/{route}", data
+            )
             c_tag = get_tag("_dd.appsec.trace.mark")
-            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {self.body(response)}"
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {result}"
 
     @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
-    def test_api10_addresses_redirects(self, integration, interface, api10_http_server_port, entry_span):
+    def test_api10_addresses_redirects(self, integration, interface, api10_server, test_spans, entry_span):
         INSPECTED_FINAL_RESP_BODY = "apiA-100-004"
         INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
         INSPECTED_REDIRECT_RESP_STATUS = "apiA-100-007"
-
-        url = f"/redirect{integration}/redirect-source/{api10_http_server_port}"
 
         with override_global_config(
             dict(
@@ -2288,11 +2356,11 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
         ):
             self.update_tracer(interface)
-            response = interface.client.get(url)
-            assert self.status(response) == 200, f"{self.status(response)} is not 200"
-            redirect_response_payload = json.loads(self.body(response)).get("payload")
-            api_response_payload = json.loads(redirect_response_payload).get("payload")
-            assert api_response_payload == "api10-response-body"
+            result = self.api10_downstream_request(
+                interface, test_spans, api10_server, f"/redirect{integration}/redirect-source"
+            )
+            api_response_payload = json.loads(result["payload"]).get("payload")
+            assert api_response_payload == "api10-response-body", result
 
             expected_rules = [
                 INSPECTED_FINAL_RESP_BODY,

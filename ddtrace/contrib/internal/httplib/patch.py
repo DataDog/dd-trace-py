@@ -6,6 +6,9 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import otel_client_url
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -19,6 +22,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
@@ -120,6 +124,14 @@ def _wrap_request(func, instance, args, kwargs):
 
         instance._datadog_span = span
 
+        if config._otel_trace_semantics_enabled:
+            # Name the span before injection: the sampling decision made there must see the
+            # OTel resource.
+            method = get_argument_value(args, kwargs, 0, "method")
+            if isinstance(method, str):
+                set_method_tag(span, method)
+                set_otel_resource_for_method(span, method)
+
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
             if len(args) > 3:
@@ -163,11 +175,11 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         method, path = args[:2]
         scheme = "https" if isinstance(instance, httplib.HTTPSConnection) else "http"
-        port = ":{port}".format(port=instance.port)
+        port = f":{instance.port}"
 
         if (scheme == "http" and instance.port == 80) or (scheme == "https" and instance.port == 443):
             port = ""
-        url = "{scheme}://{host}{port}{path}".format(scheme=scheme, host=instance.host, port=port, path=path)
+        url = otel_client_url(f"{scheme}://{instance.host}{port}{path}", scheme, instance.host, instance.port, path)
 
         # sanitize url
         parsed = parse.urlparse(url)
@@ -177,8 +189,6 @@ def _wrap_putrequest(func, instance, args, kwargs):
         trace_utils.set_http_meta(
             span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
         )
-        if config._otel_trace_semantics_enabled:
-            span.resource = method.upper()
 
     except Exception:
         log.debug("error applying request tags", exc_info=True)

@@ -1,11 +1,11 @@
+import json
 import logging
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import TypeVar  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Optional
+from typing import TypeVar
+from typing import Union
 
-from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
 from ddtrace.internal.native._native import is_sequence  # noqa: F401
 from ddtrace.internal.settings import env
@@ -23,6 +23,20 @@ T = TypeVar("T")
 
 
 log = logging.getLogger(__name__)
+
+
+def _get_attr(o: object, attr: str, default: object) -> Any:
+    # LLM SDK responses may be SDK objects or plain dicts.
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
+
+
+def safe_load_json(value: str) -> Any:
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {"value": str(value)}
 
 
 def deep_getattr(obj: Any, attr_string: str, default: Optional[Any] = None) -> Optional[Any]:
@@ -116,14 +130,14 @@ def get_test_session_token() -> Optional[str]:
     return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
 
 
-def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> Text:
+def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> str:
     """Convert a list of arguments into a space concatenated string
 
     This function is useful to convert a list of cache keys
     into a resource name or tag value with a max size limit.
     """
     length = 0
-    out: list[Text] = []
+    out: list[str] = []
     for arg in args:
         try:
             if isinstance(arg, (bytes, str)):
@@ -150,4 +164,4 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
 
 def format_trace_id(trace_id: int) -> str:
     """Translate a trace ID to a string format supported by the backend."""
-    return "{:032x}".format(trace_id) if trace_id > MAX_UINT_64BITS else str(trace_id)
+    return f"{trace_id:032x}" if trace_id > MAX_UINT_64BITS else str(trace_id)

@@ -66,8 +66,10 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -81,8 +83,6 @@ from ddtrace.llmobs._integrations.audio_utils import g711_variant
 from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
@@ -974,7 +974,7 @@ class _RealtimeState:
         )
 
     def _build_message(
-        self, role: str, content: str, audio: "_AudioAccumulator", mime_type: str, sample_rate: int
+        self, role: str, content: str, audio: _AudioAccumulator, mime_type: str, sample_rate: int
     ) -> Optional[Message]:
         audio_part = None
         if audio.chunks:
@@ -1187,7 +1187,7 @@ def _as_float(value: Any) -> Optional[float]:
         return None
 
 
-def _segment_format(audio: "_AudioAccumulator", mime: str, rate: int) -> tuple[str, int]:
+def _segment_format(audio: _AudioAccumulator, mime: str, rate: int) -> tuple[str, int]:
     """The audio format to interpret `audio` with: the one recorded when its first chunk arrived,
     falling back to the session's current format.
 
@@ -1249,7 +1249,7 @@ def patched_connect(func: Callable[..., Any], instance: Any, args: tuple[Any, ..
     return manager
 
 
-def _finish_session_on_gc(state: "_RealtimeState") -> None:
+def _finish_session_on_gc(state: _RealtimeState) -> None:
     """Last-resort finalizer: submit whatever the session still holds when the connection is dropped.
 
     Runs from a `weakref.finalize` callback (garbage collection, or interpreter exit), so it must
@@ -1419,7 +1419,7 @@ def patch_realtime() -> None:
             if cls is None or not hasattr(cls, method_name):
                 continue
             try:
-                wrap(module, "{}.{}".format(class_name, method_name), wrapper)
+                wrap(module, f"{class_name}.{method_name}", wrapper)
             except Exception:
                 log.debug("failed to wrap realtime %s.%s", class_name, method_name, exc_info=True)
 
