@@ -9,10 +9,6 @@ from ddtrace.testing.internal.tracer_api.coverage import clear_coverage_path_cac
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 
 
-def _clear_coverage_path_caches() -> None:
-    clear_coverage_path_caches()
-
-
 def _make_site_packages(tmp_path: Path) -> Path:
     site_packages = tmp_path / ".cache/uv-test-environments/abc/lib/python3.12/site-packages/covered_pkg"
     site_packages.mkdir(parents=True)
@@ -58,7 +54,7 @@ def test_get_coverage_bitmaps_paths_alias_remap(tmp_path, monkeypatch) -> None:
         "/not/repo/path/baz.py": mock.Mock(to_bytes=lambda: b"abc789"),
     }
 
-    _clear_coverage_path_caches()
+    clear_coverage_path_caches()
     try:
         with mock.patch.object(ModuleCodeCollector, "CollectInContext") as mock_collect_in_context:
             mock_collect_in_context().__enter__().get_covered_lines.return_value = covered_lines
@@ -73,7 +69,7 @@ def test_get_coverage_bitmaps_paths_alias_remap(tmp_path, monkeypatch) -> None:
                 ("/tests/test_x.py", b"abc123"),
             ]
     finally:
-        _clear_coverage_path_caches()
+        clear_coverage_path_caches()
 
 
 def test_get_coverage_bitmaps_paths_alias_absolute_destination(tmp_path, monkeypatch) -> None:
@@ -95,7 +91,7 @@ def test_get_coverage_bitmaps_paths_alias_absolute_destination(tmp_path, monkeyp
             covered_file: mock.Mock(to_bytes=lambda: b"abc456"),
         }
 
-    _clear_coverage_path_caches()
+    clear_coverage_path_caches()
     try:
         with mock.patch.object(ModuleCodeCollector, "CollectInContext") as mock_collect_in_context:
             mock_enter = mock_collect_in_context().__enter__()
@@ -116,7 +112,7 @@ def test_get_coverage_bitmaps_paths_alias_absolute_destination(tmp_path, monkeyp
             (tmp_path / ".coveragerc").write_text(
                 "[paths]\ncovered_pkg =\n    /outside/workspace/covered_pkg/\n    */site-packages/covered_pkg/\n"
             )
-            _clear_coverage_path_caches()
+            clear_coverage_path_caches()
             mock_enter.get_covered_lines.return_value = _covered_lines()
             with coverage_collection() as coverage_data:
                 pass
@@ -124,7 +120,7 @@ def test_get_coverage_bitmaps_paths_alias_absolute_destination(tmp_path, monkeyp
                 ("/tests/test_x.py", b"abc123"),
             ]
     finally:
-        _clear_coverage_path_caches()
+        clear_coverage_path_caches()
 
 
 def test_get_coverage_bitmaps_paths_alias_active_coverage_instance(tmp_path, monkeypatch) -> None:
@@ -147,7 +143,7 @@ def test_get_coverage_bitmaps_paths_alias_active_coverage_instance(tmp_path, mon
         str(site_packages / "__init__.py"): mock.Mock(to_bytes=lambda: b"abc456"),
     }
 
-    _clear_coverage_path_caches()
+    clear_coverage_path_caches()
     try:
         cov_instance = Coverage(config_file=str(custom_config))
         with mock.patch.object(tracer_api_coverage, "get_coverage_instance", return_value=cov_instance):
@@ -162,7 +158,7 @@ def test_get_coverage_bitmaps_paths_alias_active_coverage_instance(tmp_path, mon
                     ("/tests/test_x.py", b"abc123"),
                 ]
     finally:
-        _clear_coverage_path_caches()
+        clear_coverage_path_caches()
 
 
 def test_coverage_path_caches_reset_for_new_session(tmp_path, monkeypatch) -> None:
@@ -182,7 +178,7 @@ def test_coverage_path_caches_reset_for_new_session(tmp_path, monkeypatch) -> No
             "[paths]\ncovered_pkg =\n    %s/\n    */site-packages/covered_pkg/\n" % destination
         )
 
-    _clear_coverage_path_caches()
+    clear_coverage_path_caches()
     try:
         _write_config("first")
         assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) == ("/first/__init__.py")
@@ -191,7 +187,7 @@ def test_coverage_path_caches_reset_for_new_session(tmp_path, monkeypatch) -> No
         clear_coverage_path_caches()
         assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) == ("/second/__init__.py")
     finally:
-        _clear_coverage_path_caches()
+        clear_coverage_path_caches()
 
 
 def test_paths_alias_first_match_precedence(tmp_path, monkeypatch) -> None:
@@ -217,8 +213,8 @@ def test_paths_alias_first_match_precedence(tmp_path, monkeypatch) -> None:
     # Default config discovery only: no active coverage instance interferes.
     monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
 
-    _clear_coverage_path_caches()
+    clear_coverage_path_caches()
     try:
         assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) == ("/lib/covered_pkg/mod.py")
     finally:
-        _clear_coverage_path_caches()
+        clear_coverage_path_caches()
