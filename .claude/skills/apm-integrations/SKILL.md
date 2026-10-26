@@ -24,7 +24,7 @@ Keep optional security-product logic out of contrib; follow `.cursor/rules/isola
 
 ## Typing
 
-Fully annotate new integration functions and methods, including return types; legacy modules
+Fully annotate new integration functions and methods, including return types; some modules
 may have mypy exemptions, so passing checks alone does not establish that new code is typed.
 
 - Patch exports use `patch() -> None`, `unpatch() -> None`, `get_version() -> str`, and
@@ -49,5 +49,5 @@ may have mypy exemptions, so passing checks alone does not establish that new co
 - [Contributor guide](../../../docs/contributing-integrations.rst): compatibility and manifest policy.
 
 Use `run-tests`, `lint`, and `releasenote` for validation and PR preparation. Match current signatures
-in source; do not copy missing annotations from legacy code. For native build failures, consult
+in source and add the required annotations. For native build failures, consult
 [troubleshooting](../../../docs/troubleshooting.rst) before deleting caches or rebuilding.

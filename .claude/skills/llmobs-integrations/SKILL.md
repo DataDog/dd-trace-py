@@ -20,7 +20,8 @@ integrations may use direct spans. Follow the current integration's lifecycle de
 - Base contract: `ddtrace/llmobs/_integrations/base.py`.
 - Streaming: `ddtrace/internal/utils/streaming.py`.
 - Shared extraction: `ddtrace/llmobs/_integrations/utils.py`.
-- Span annotation and structural types: `ddtrace/llmobs/_utils.py`, `_span.py`, and `types.py`.
+- Span annotation: `ddtrace/llmobs/_utils.py`; span protocol: `ddtrace/llmobs/_span.py`;
+  payload types: `ddtrace/llmobs/types.py`.
 - Metric and field keys: `ddtrace/llmobs/_constants.py`.
 
 ## Invariants
@@ -66,7 +67,7 @@ implementation guide rather than constructing unbounded inline payloads.
 `metadata` is not request-only. Scalars the provider reports on the *response* belong there too, so
 long as they are not already covered by `metrics` (usage counts) or `output_messages`.
 
-The stop reason is the established case. Record it under the key `finish_reason` for every provider,
+For new provider integrations, record the stop reason under the key `finish_reason`,
 so one facet answers "why did generation stop" regardless of integration, and keep each provider's
 own vocabulary as the value (`stop`/`length`/`content_filter`/`tool_calls` for the OpenAI family,
 `end_turn`/`max_tokens`/`refusal`/`tool_use` for Anthropic). Read it from:
@@ -85,10 +86,10 @@ Rules:
   entirely rather than writing `None` or `""`.
 - **Keep the value a single string.** When a request returns multiple choices (`n > 1`), comma-join
   the per-choice reasons in choice order (`"stop,length"`) instead of emitting a list, so the key
-  never changes type. `_openai_finish_reason_metadata()` in `_integrations/utils.py` does this.
+  never changes type. `_openai_finish_reason_metadata()` in `ddtrace/llmobs/_integrations/utils.py`
+  does this.
 - **Guard on the response, not `span.error`.** A response can exist on an errored span (see the AI
-  Guard case in `_integrations/anthropic.py`); gate on `response is not None`.
+  Guard case in `ddtrace/llmobs/_integrations/anthropic.py`); gate on `response is not None`.
 
-Note two already-shipped integrations predate this key: bedrock and the claude-agent-sdk both write
-`metadata["stop_reason"]`. Renaming those is a breaking change and has not been done — follow
-`finish_reason` for new work.
+Preserve `metadata["stop_reason"]` in the Bedrock and Claude Agent SDK integrations for
+compatibility. Use `finish_reason` for new provider integrations.

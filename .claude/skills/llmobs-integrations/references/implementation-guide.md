@@ -1,6 +1,6 @@
 # LLMObs Integration Guide
 
-Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integrations/references/implementation-guide.md) for patch registration, configuration, and tests. This guide covers LLM-specific behavior.
+Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integrations/references/implementation-guide.md) for patch registration, configuration, and tests. This guide covers LLM-specific behavior. Paths are repository-relative; integration filenames in the table below are under `ddtrace/llmobs/_integrations/`.
 
 ## Integration class
 
@@ -24,9 +24,16 @@ integration. For the standard patched-SDK pattern, `patch()` constructs the inte
 `integration_config=config.<name>` and stores it on `module._datadog_integration`; wrappers
 reuse that instance. See `ddtrace/contrib/internal/anthropic/patch.py` for initialization and cleanup.
 
-Do not import the concrete `Span` class (`ddtrace.trace.Span` / `ddtrace._trace.span.Span`) into `ddtrace/llmobs/_integrations/` modules — that recreates a `product:llmobs -> product:tracing` dependency. Type the `span` parameter as `SpanData` from `ddtrace.internal.native._native` instead; it carries the attributes and struct/attribute-tag methods (`_set_attribute`, `_get_struct_tag`, `_set_struct_tag`, etc.) without pulling in `Span`.
+Keep concrete `Span` imports out of `ddtrace/llmobs/_integrations/` to avoid a
+`product:llmobs -> product:tracing` dependency. Choose the parameter type by the required interface:
 
-`_annotate_llmobs_span_data` (and a few other helpers such as `get_tool_version_from_llm_span`) need `_set_ctx_item`, which `SpanData` doesn't have, so they're typed to accept `_LLMObsSpan` from `ddtrace.llmobs._span` — the single structural `Protocol` all LLMObs code uses for spans. Extend it there when a new call site needs another `Span` member instead of declaring a new per-module protocol. `SpanData` does not satisfy that protocol, so a caller passing a bare `SpanData` there is a type error rather than a silently swallowed exception. The object every integration actually passes at runtime is a full `Span`, which does satisfy the protocol, so annotate your integration's `_llmobs_set_tags` override (and its helpers) with `span: _LLMObsSpan`. That is a valid override of the base class's `span: Span` parameter. Don't type the span as `SpanData` and then `cast(Any, span)` at the call site: that disables the very check the protocol exists for.
+- Use `_LLMObsSpan` from `ddtrace.llmobs._span` for `_llmobs_set_tags()` and helpers that call
+  `_annotate_llmobs_span_data()` or need context-item methods such as `_set_ctx_item`.
+  The runtime `Span` satisfies this structural protocol. Extend the shared protocol when another
+  member is needed; do not create per-module copies or bypass it with `cast(Any, span)`.
+- Use `SpanData` from `ddtrace.internal.native._native` only for operations its interface supports,
+  such as `_set_attribute`, `_get_struct_tag`, and `_set_struct_tag`. A bare `SpanData` lacks
+  `_set_ctx_item` and does not satisfy `_LLMObsSpan`.
 
 Read the current method signatures in `BaseLLMIntegration` and the closest integration.
 Implement only the extraction helpers needed by the provider. Register exported classes in
@@ -45,7 +52,7 @@ Key points:
 - LLMObs tag setting is handled by `LlmTracingSubscriber`, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
 
-Some older or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly. Use that pattern when modifying an existing integration that already does so, when the closest current reference uses it (for example Google GenAI), or when the behavior requires direct child spans (for example OpenAI MCP tool spans or agent/tool child spans).
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Google GenAI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans or agent/tool child spans; keep their creation, extraction, and finishing under one owner.
 
 ## Streaming
 
@@ -53,7 +60,7 @@ Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/internal/utils/strea
 
 - `initialize_chunk_storage()` — set up accumulators for content, usage, role
 - `process_chunk(chunk)` — accumulate text, tool blocks, usage from each chunk
-- `finalize_stream(exception)` — build the final response and complete the deferred span lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; direct-trace integrations may need to call `llmobs_set_tags()` and `span.finish()` themselves. Call this only via `close_stream()` (including eager finish from `process_chunk`, as Claude Agent SDK does). `close_stream()` invokes it at most once. A local idempotency guard inside `finalize_stream()` is still fine if an older path can call it directly.
+- `finalize_stream(exception)` — build the final response and complete the deferred span lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; direct-trace integrations may need to call `llmobs_set_tags()` and `span.finish()` themselves. Call this via `close_stream()` (including eager finish from `process_chunk`, as Claude Agent SDK does). `close_stream()` invokes it at most once. Retain a local idempotency guard when existing callers can also invoke `finalize_stream()` directly.
 
 `TracedStream` / `TracedAsyncStream` invoke `close_stream()` from `__iter__`/`__aiter__` (`finally`), from `StopIteration`/`StopAsyncIteration` on `__next__`/`__anext__`, from `__exit__`/`__aexit__` after the wrapped stream exits, and from `__del__` as a last resort. `__exit__`/`__aexit__` catch `BaseException` so `asyncio.CancelledError` from wrapped cleanup still finalizes. That path matters: a caller that uses `with stream:` and does not exhaust the iterator still finishes the span.
 
@@ -67,7 +74,7 @@ For the agent pattern (tool child spans within streams), see `ddtrace/llmobs/_in
 
 Different libraries structure messages differently — implement only the helpers you need. Read `ddtrace/llmobs/_integrations/anthropic.py` for full code examples.
 
-**Check `_integrations/utils.py` first.** Providers reachable through more than one API share a payload format, and the extraction for it belongs there rather than in each integration. Anthropic content blocks, for example, are parsed by `get_messages_from_anthropic_content()`, `anthropic_tool_call_from_block()`, `anthropic_tool_result_from_block()`, and `get_tool_definitions_from_anthropic_tools()`, which the Anthropic and Amazon Bedrock integrations both call. Converse-format payloads have their own equivalents. Reuse or extend those helpers instead of copying the logic; duplicated parsers drift as providers add content block types.
+**Check `ddtrace/llmobs/_integrations/utils.py` first.** Providers reachable through more than one API share a payload format, and the extraction for it belongs there rather than in each integration. Anthropic content blocks, for example, are parsed by `get_messages_from_anthropic_content()`, `anthropic_tool_call_from_block()`, `anthropic_tool_result_from_block()`, and `get_tool_definitions_from_anthropic_tools()`, which the Anthropic and Amazon Bedrock integrations both call. Converse-format payloads have their own equivalents. Reuse or extend those helpers instead of copying the logic; duplicated parsers drift as providers add content block types.
 
 - `_extract_input_messages(kwargs)` — handle system message, multi-part content blocks, tool results
 - `_extract_output_messages(response)` — handle text blocks, tool use blocks, thinking blocks
@@ -76,7 +83,7 @@ Different libraries structure messages differently — implement only the helper
 - `_extract_audio_parts(...)` — for multimodal audio providers, populate `Message.audio_parts` with `AudioPart` entries containing `mime_type` plus either inline base64 `content` or an `attachment_key`
 - `_extract_<lib>_image_source(...)` — same, for `Message.image_parts`. See `anthropic.py`
 
-`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and usage normalization in the integration subclass rather than in the patch wrapper — except where a payload format is shared with another integration, which belongs in `_integrations/utils.py` as above.
+Keep provider-specific message, tool, metadata, and usage normalization in the integration subclass. Put extraction shared by multiple integrations in `ddtrace/llmobs/_integrations/utils.py`. The patch wrapper supplies the request and response to the integration.
 
 ### Inline Media Size Guards
 
@@ -84,7 +91,7 @@ Oversized inline media makes `_writer._truncate_span_event` blank the span's ent
 
 - Pass raw data, not a pre-encoded string, so an oversized payload is rejected before paying to encode it.
 - Do non-size rejection (bad MIME, non-ASCII "base64", a `Path`) in the *extractor*. If the guard returns `None` for a non-size reason, the caller's "too large" marker starts lying.
-- Each guard bounds one part. Several that each fit can still exceed the event limit — no cross-field budget exists yet.
+- Each guard bounds one part; it does not enforce a combined payload budget. Several individually valid parts can still exceed the event limit.
 
 ### Metadata Hygiene
 
@@ -137,11 +144,11 @@ Return `"agent"` when the kwargs signal an agent span. The base-class default re
 
 Return the agent's LLMObs display name when it can be determined at `trace()` call time. Return `None` to fall back to the span resource name. Override when the integration can resolve the name from kwargs (e.g. Google ADK passes `_dd_agent=<agent_instance>` and the integration reads `agent.name`).
 
-If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph), `_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. In that case, stamp the name directly in the integration's `trace()` override after calling `super()`:
-
-See `ddtrace/llmobs/_integrations/langgraph.py` for an override that captures an instance,
-and `ddtrace/llmobs/_integrations/google_adk.py` for the agent-name hook. Read their actual
-signatures rather than copying a partial override with an undefined instance.
+If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph),
+`_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. Stamp the name directly
+in the integration's `trace()` override after calling `super().trace()` and before returning
+the span. Follow `ddtrace/llmobs/_integrations/langgraph.py` for this pattern, or
+`ddtrace/llmobs/_integrations/google_adk.py` when the instance is available to the agent-name hook.
 
 ## Duplex audio streams
 

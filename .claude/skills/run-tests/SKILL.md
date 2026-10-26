@@ -62,7 +62,7 @@ scripts/run-tests -r --venv <hash>
 
 Use `-r` after native source or build-configuration changes, or after updating from main when
 those inputs changed. Dependency locks and environment definitions invalidate caches automatically,
-but not every source/build input does. The legacy runner `-s` is a no-op; test-command `-s`
+but not every source/build input does. The runner's `-s` option is a no-op; test-command `-s`
 after `--` still disables output capture.
 
 ## Diagnose and report

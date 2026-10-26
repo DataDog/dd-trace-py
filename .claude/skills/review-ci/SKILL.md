@@ -84,8 +84,8 @@ expand it when evidence is missing.
 Paginate when results are truncated. For missing logs, first check job identity and time range.
 Inspect the connected log tool's schema for supported storage-tier options; retry with a broader
 tier only when that option is actually available. Record the tier/window searched, and fall back
-to provider logs when necessary. Do not reuse a storage-tier enum from an older MCP version
-without checking it. Read build, formatting, and changelog failures as well as test failures.
+to provider logs when necessary. Use only enum values accepted by the connected tool's schema.
+Read build, formatting, and changelog failures as well as test failures.
 
 Extract these details when the event payload provides them; flattened attributes, nested fields,
 and provider-specific names can differ. Missing fields remain unknown:
