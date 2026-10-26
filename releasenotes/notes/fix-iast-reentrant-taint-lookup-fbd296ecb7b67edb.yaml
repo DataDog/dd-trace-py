@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    App and API Protection: Fixes a potential process crash when a tainted string subclass changes its taint state from its custom hash method.
