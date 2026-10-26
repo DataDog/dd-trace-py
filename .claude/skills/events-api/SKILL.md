@@ -1,10 +1,7 @@
 ---
 name: events-api
 description: >
-  Design, implement, migrate, or review dd-trace-py typed events and subscribers.
-  Use for core.context_with_event, core.dispatch_event, event contracts,
-  Subscriber/ContextSubscriber/TracingSubscriber composition, registration,
-  or moving context_with_data and trace_handlers behavior into shared subscribers.
+  Design, implement, migrate, or review dd-trace-py typed events and subscribers. Use for core.context_with_event, core.dispatch_event, event contracts, Subscriber/ContextSubscriber/TracingSubscriber composition, registration, or moving context_with_data and trace_handlers behavior into shared subscribers.
 ---
 
 # Events and Subscribers
