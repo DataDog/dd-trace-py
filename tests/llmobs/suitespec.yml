@@ -82,7 +82,15 @@ suites:
           dependencies: ['claude-agent-sdk==0.1.49', pytest-asyncio]
         - name: claude_agent_sdk
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [claude-agent-sdk, pytest-asyncio]
+          # Pinned: claude-agent-sdk deletes old releases from PyPI (to free project
+          # storage), which breaks unpinned locks once the resolved version is gone.
+          # 0.1.22 is the closest surviving release to the previously resolved 0.1.21.
+          dependencies: ['claude-agent-sdk==0.1.22', pytest-asyncio]
+        - name: claude_agent_sdk
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
+          # current SDK line stays covered without latest-tracking (see above).
+          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
   google_adk:
     venvs_per_job: 3
     paths:
@@ -455,13 +463,16 @@ suites:
       - tests/snapshots/tests.contrib.vllm.*
     gpu: true
     snapshot: true
-    skip: true # Temporarily disabled
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
+      env:
+        # vLLM 0.27 samples with FlashInfer, which JIT-compiles a kernel with nvcc.
+        # The CI image has no CUDA toolkit, so use the PyTorch sampler.
+        VLLM_USE_FLASHINFER_SAMPLER: '0'
       variants:
         - name: vllm
           python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2']
+          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]

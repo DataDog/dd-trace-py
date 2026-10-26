@@ -886,12 +886,14 @@
                 "supportedRange": ">=0.0.23",
                 "tested": [
                     "0.0.23",
-                    "0.1.21",
+                    "0.1.22",
                     "0.1.29",
-                    "0.1.49"
+                    "0.1.49",
+                    "0.2.160"
                 ]
             }
-        ]
+        ],
+        "pinned": true
     },
     {
         "dependencyName": "python-consul",
@@ -1628,7 +1630,18 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.10",
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=1.0.0",
+                "tested": [
+                    "1.0.0",
+                    "2.11.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.11",
                         "3.12",
                         "3.13",
@@ -1638,7 +1651,7 @@
                 "supportedRange": ">=1.0.0",
                 "tested": [
                     "1.0.0",
-                    "2.11.0"
+                    "2.12.0"
                 ]
             }
         ]
