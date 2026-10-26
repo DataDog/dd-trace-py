@@ -5,9 +5,9 @@ from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
-from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 
 
 log = get_logger(__name__)

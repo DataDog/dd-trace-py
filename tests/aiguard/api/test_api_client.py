@@ -303,6 +303,18 @@ def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_gu
     assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_without_registered_tracer(mock_execute_request, ai_guard_client):
+    """With no tracer on the core registry the verdict can't be reported, so evaluate fails before the request."""
+    with patch("ddtrace.aiguard._api_client.core") as core_mock:
+        core_mock.root.get_item.return_value = None
+        with pytest.raises(AIGuardClientError, match="requires the global tracer"):
+            ai_guard_client.evaluate(TOOL_CALL)
+
+    core_mock.root.get_item.assert_called_once_with("tracer")
+    mock_execute_request.assert_not_called()
+
+
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_client):
