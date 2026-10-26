@@ -100,4 +100,4 @@ comparable conditions; a small stable regression in a hot path can matter.
 
 For CI gates, consult the scenario's actual SLO and ownership in `.gitlab/benchmarks/slos/`
 and [.gitlab/benchmarks/microbenchmarks.md](../../../.gitlab/benchmarks/microbenchmarks.md).
-Do not substitute a universal 2%/5% threshold or alter an SLO just to make a regression pass.
+Use that scenario's threshold; do not alter an SLO just to make a regression pass.

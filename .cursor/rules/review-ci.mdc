@@ -1,5 +1,5 @@
 ---
-description: Review CI results for a branch, commit, or PR using the Datadog MCP
+description: Review CI results for a branch, commit, or PR using available CI tools and provider logs
 globs: []
 alwaysApply: false
 ---

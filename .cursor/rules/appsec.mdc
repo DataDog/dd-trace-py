@@ -17,8 +17,7 @@ Use `.cursor/rules/iast.mdc` for taint tracking and `.cursor/rules/ai-guard.mdc`
 - User-facing configuration: `docs/configuration.rst`.
 - WAF binding and request lifecycle: `ddtrace/appsec/_ddwaf/`,
   `ddtrace/appsec/_asm_request_context.py`, and `ddtrace/appsec/_processor.py`.
-- User tracking SDK: `ddtrace/appsec/track_user_sdk.py`; use its current exported functions
-  and signatures rather than examples from the older `trace_utils` SDK.
+- User tracking SDK: `ddtrace/appsec/track_user_sdk.py`; use its exported functions and signatures.
 - Behavioral references and fixtures: `tests/appsec/`.
 
 ## Feature boundaries

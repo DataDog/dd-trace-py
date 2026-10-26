@@ -296,6 +296,7 @@ tests/contrib/typesafe                                        @DataDog/ml-observ
 tests/contrib/vllm                                            @DataDog/ml-observability
 tests/contrib/claude_agent_sdk                                @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
+.agents/skills/llmobs-integrations/                           @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.langchain.*                     @DataDog/ml-observability

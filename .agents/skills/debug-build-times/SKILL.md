@@ -21,9 +21,11 @@ Read [Debugging Build Performance](../../../docs/build_system.rst) for cache arc
 timing variables, and source locations. Use an isolated checkout for cold-build experiments;
 clearing compiled artifacts in the user's working tree can disrupt unrelated work.
 
-1. Select a relevant environment with `scripts/run-tests --list <changed-files>`.
+1. Identify the build being measured: a local editable install or a wheel build. For local tests,
+   select an environment with `scripts/run-tests --list <changed-files>`. For a CI wheel, use the
+   job's build command, container, interpreter, and flags; see `.gitlab/scripts/build-wheel-helpers.sh`.
 2. Set `_DD_DEBUG_EXT=1` and `_DD_DEBUG_EXT_FILE=<output-path>` in the build process's environment
-   to capture timings when rebuilding with `scripts/run-tests -r --venv <hash>`.
+   to capture timings. For a local editable install, rebuild with `scripts/run-tests -r --venv <hash>`.
    The default container runner does not forward these variables from the host. For example,
    temporarily set them in `testrunner.environment` in `docker-compose.base.yml` in the isolated
    checkout, using an output path under `/home/bits/project` so it is visible on the host.
@@ -44,15 +46,19 @@ per-extension thresholds: hardware, dependency downloads, and build configuratio
 
 ## Cache helper and round trip
 
-Run these commands from the isolated checkout's repository root, inside `scripts/ddtest` for
-container builds. Set `build_python` to the interpreter used by the selected build, not the host
+Run these commands from the isolated checkout's repository root in the build's environment.
+For local container tests, enter it with `scripts/ddtest`; for wheel experiments, use the wheel
+build's container or environment. Set `build_python` to the interpreter used by that build, not the host
 Python. `ext_cache.py` invokes `setup.py` with its own interpreter; it needs the build dependencies
 even when the build used an isolated environment. This Linux bootstrap follows
 `.gitlab/scripts/build-wheel-helpers.sh`; align dependency versions and build flags with the run
-being investigated (requirements are in `pyproject.toml`).
+being investigated (requirements are in `pyproject.toml`). In the Bash example below,
+`cache_output_args=()` selects editable outputs; use `cache_output_args=(--build-lib)` for wheel
+outputs. Keep that choice consistent for hashing, saving, restoring, and the subsequent rebuild.
 
 ```bash
 build_python=/path/to/selected/build/python
+cache_output_args=()
 cache_python() {
     uv run --no-project --python "$build_python" \
         --with setuptools --with cython --with 'setuptools-rust<2' \
@@ -72,8 +78,8 @@ for name, digest, path in sorted(dependencies):
 PY
 }
 mkdir -p .cache/ext-cache-probe
-cache_hashes
-cache_python scripts/ext_cache.py --root .cache/ext-cache-probe save
+cache_hashes "${cache_output_args[@]}"
+cache_python scripts/ext_cache.py --root .cache/ext-cache-probe "${cache_output_args[@]}" save
 ```
 
 Save only after a successful build. Inspect the reported targets and saved files, then remove
@@ -81,15 +87,20 @@ only the generated outputs being tested in this isolated checkout. Do not delete
 or the cache. Restore from the same helper shell:
 
 ```bash
-cache_python scripts/ext_cache.py --root .cache/ext-cache-probe restore
+cache_python scripts/ext_cache.py --root .cache/ext-cache-probe "${cache_output_args[@]}" restore
 ```
 
-Then rerun the original `scripts/run-tests -r --venv <hash>` from the host for container builds.
+Repeat the build that produced the saved artifacts:
+
+- Local editable install: rerun `scripts/run-tests -r --venv <hash>` from the host for container tests.
+- Wheel build: rerun the original wheel-build command with the same interpreter, dependencies,
+  flags, and environment. The CI helper's build phase uses `uv build --wheel`; `run-tests` in CI
+  installs a prebuilt wheel and does not rebuild its extensions.
+
 Check the restore messages, resulting artifacts, skip/compile messages, and phase timings.
-For wheel outputs, call `cache_hashes --build-lib` and add `--build-lib` before `save`/`restore`.
 Use `--no-shared-deps` only when intentionally excluding shared C++ dependency trees from the
-experiment. Reusing `invoke_ext_hashes()` clears generated `.eggs` before each setup invocation,
-avoiding repeated-call failures with older setuptools. Saving prunes old cache generations;
+experiment. Keep `invoke_ext_hashes()` in the helper: it clears generated `.eggs` before each
+setup invocation so repeated probes can run reliably. Saving prunes old cache generations;
 the isolated checkout and probe cache keep that work scoped.
 
 ## Hash and timestamp diagnostics
@@ -102,7 +113,7 @@ internally; collect rebuild logs separately for skip/compile evidence.
 (
     set -e -o pipefail
     for cache_pass in 1 2; do
-        cache_hashes > ".cache/ext-cache-probe/hash-$cache_pass.log" 2>&1
+        cache_hashes "${cache_output_args[@]}" > ".cache/ext-cache-probe/hash-$cache_pass.log" 2>&1
         awk '/^#(EXTHASH|SHAREDEPINFO):/' ".cache/ext-cache-probe/hash-$cache_pass.log" |
             LC_ALL=C sort > ".cache/ext-cache-probe/hash-$cache_pass.txt"
         test -s ".cache/ext-cache-probe/hash-$cache_pass.txt"

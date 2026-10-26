@@ -13,9 +13,9 @@ description (e.g., "GIL lifecycle: no new PyEval_RestoreThread calls" or
 triage checklist with trigger symbols and stop conditions, see
 `.cursor/rules/native-code.mdc`.
 
-**Maintenance:** Historical incidents are investigation leads. Verify applicable claims against
-current code and the exact dependency versions being reviewed; update a rule when that evidence
-changes rather than requiring a human refresh based only on the document's age.
+**Maintenance:** Use incident links to investigate the failure conditions behind each check.
+Verify applicable claims against current code and the exact dependency versions being reviewed;
+update a rule when that evidence changes.
 
 ---
 
