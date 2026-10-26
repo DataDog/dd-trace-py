@@ -188,6 +188,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "elevenlabs",
         "crewai",
         "pydantic_ai",
         "vllm",
