@@ -280,6 +280,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "bedrock": "botocore",
     "aws_sdk_bedrock_runtime": "aws_sdk_bedrock_runtime",
     "openai": "openai",
+    "elevenlabs": "elevenlabs",
     "langchain": "langchain",
     "google_adk": "google_adk",
     "google_genai": "google_genai",
