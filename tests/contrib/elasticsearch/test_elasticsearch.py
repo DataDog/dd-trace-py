@@ -208,7 +208,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("span.kind") == "client"
 
-        self.assertTrue(span.get_metric("elasticsearch.took") > 0)
+        assert span.get_metric("elasticsearch.took") == result["took"]
 
         # Search by type not supported by default json encoder
         query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}

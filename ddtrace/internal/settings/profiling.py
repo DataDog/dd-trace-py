@@ -148,7 +148,7 @@ def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
 
 
 def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
-    tags = {
+    updated_tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
             _update_git_metadata_tags(parse_tags_str(env.get("DD_TAGS"))).items(),
@@ -156,7 +156,7 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
         )
     }
 
-    return tags
+    return updated_tags
 
 
 # The profiling backend accepts at most this many locations per sample.
@@ -182,11 +182,17 @@ class ProfilingConfig(DDConfig):
         parser=_parse_profiling_enabled,
         default=False,
         help_type="Boolean",
-        help="Enable Datadog profiling when using ``ddtrace-run``",
+        help=(
+            "Enable Datadog profiling when using ``ddtrace-run``. "
+            "Experimental: set this to ``armed`` to install profiling hooks "
+            "but not start the profiler right away."
+        ),
     )
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
+
+        self.install: bool = self.source.get("DD_PROFILING_ENABLED", "").strip().lower() == "armed"
 
         # When DD_PROFILING_ENABLED is not set, envier uses the default value directly
         # without invoking the parser. This means the DD_INJECTION_ENABLED check in
@@ -695,6 +701,7 @@ if not platform_is_supported:
     if config.enabled:
         logger.debug("Profiling is not supported on this platform (%s), disabling", platform_unsupported_msg)
     config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.install = False  # pyright: ignore[reportAttributeAccessIssue]
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
     config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
     config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
@@ -711,6 +718,7 @@ else:
             f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
         )
         config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
 
     # We also need to check if stack module is available, and turn if off
     # if it s not.
@@ -725,6 +733,7 @@ else:
                 "Failed to load stack module (%s), disabling stack profiling" % msg,
             )
         config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Exception profiling requires sys.monitoring (Python 3.12+) and is not
 # supported on free-threaded builds.  Disable the config so that
@@ -768,6 +777,14 @@ if config.stack.fast_copy and _is_python_embedded():
 # Report configuration after all availability overrides so telemetry
 # reflects the effective state.
 report_configuration(config)
+if config.install:
+    # The parsed value of DD_PROFILING_ENABLED is False in armed mode
+    telemetry_writer.add_configuration(
+        "DD_PROFILING_ENABLED",
+        "armed",
+        config.value_source("DD_PROFILING_ENABLED"),
+        config.config_id("DD_PROFILING_ENABLED"),
+    )
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]

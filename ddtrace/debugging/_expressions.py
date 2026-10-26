@@ -182,8 +182,8 @@ class DDCompiler:
         return safe_getitem(o, i)
 
     @classmethod
-    def __ref__(cls, x: Any) -> Any:
-        return x
+    def __ref__(cls, _locals: Mapping[str, Any], name: str) -> Any:
+        return get_local(_locals, name)
 
     def _make_function(self, instrs: list[Instr], args: tuple[str, ...], name: str) -> FunctionType:
         abstract_code = Bytecode([*instrs, Instr("RETURN_VALUE")])
@@ -341,9 +341,7 @@ class DDCompiler:
                     raise ValueError(msg)
                 return [Instr("LOAD_FAST", f"_dd_{arg[1:]}")]
 
-            return self._call_function(
-                get_local, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", self.__ref__(arg))]
-            )
+            return self._call_function(self.__ref__, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", arg)])
 
         return None
 
@@ -486,16 +484,21 @@ class DDExpressionEvaluationError(Exception):
         self.error = str(e)
 
 
-E = TypeVar("E", bound="DDExpression")
+class DDExpressionCompilationError(Exception):
+    """Thrown when a dsl expression cannot be compiled.
 
-
-def _invalid_expression(_: Any) -> None:
-    """Forces probes with invalid expression/conditions to never trigger.
-
-    Any signs of invalid conditions in logs is an indication of a problem with
-    the expression compiler.
+    Propagated so that the probe that carries the expression is rejected with
+    an ERROR diagnostic instead of being installed in a state where it can
+    never trigger.
     """
-    return None
+
+    def __init__(self, dsl: str, e: Exception) -> None:
+        super().__init__('Cannot compile expression "%s": %s' % (dsl, str(e)))
+        self.dsl = dsl
+        self.error = str(e)
+
+
+E = TypeVar("E", bound="DDExpression")
 
 
 @dataclass
@@ -515,11 +518,6 @@ class DDExpression:
         return self.eval(scope)
 
     @classmethod
-    def on_compiler_error(cls, dsl: str, exc: Exception) -> Callable[[Mapping[str, Any]], Any]:
-        log.error("Cannot compile expression: %s", dsl, exc_info=True)
-        return _invalid_expression
-
-    @classmethod
     def compile(cls: type[E], expr: Mapping[str, Any]) -> E:
         ast = expr["json"]
         dsl = expr["dsl"]
@@ -527,6 +525,6 @@ class DDExpression:
         try:
             compiled = cls.__compiler__(ast)
         except Exception as e:
-            compiled = cls.on_compiler_error(dsl, e)
+            raise DDExpressionCompilationError(dsl, e) from e
 
         return cls(dsl=dsl, callable=compiled)
