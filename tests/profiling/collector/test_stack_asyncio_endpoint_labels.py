@@ -1,5 +1,3 @@
-# Each task runs its work in a function with a unique name, so the assertions can pick out that
-# task's samples with get_samples_with_function.
 import sys
 
 import pytest
