@@ -436,8 +436,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030e0000
 Result<void>
-ThreadInfo::for_each_task_address_from_thread_list(size_t tasks_head_offset, const TaskAddressCallback& callback)
+ThreadInfo::for_each_task_address_from_thread_list(EchionSampler& echion, const TaskAddressCallback& callback)
 {
+    const size_t tasks_head_offset = echion.asyncio_thread_tasks_head_offset();
     if (this->tstate_addr == 0 || this->asyncio_loop == 0 || tasks_head_offset == 0 ||
         tasks_head_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
         return Result<void>::ok();
@@ -461,10 +462,11 @@ ThreadInfo::for_each_task_address_from_thread_list(size_t tasks_head_offset, con
 }
 
 Result<void>
-ThreadInfo::for_each_task_address_from_interpreter_list(PyThreadState* tstate,
-                                                        size_t tasks_head_offset,
+ThreadInfo::for_each_task_address_from_interpreter_list(EchionSampler& echion,
+                                                        PyThreadState* tstate,
                                                         const TaskAddressCallback& callback)
 {
+    const size_t tasks_head_offset = echion.asyncio_interpreter_tasks_head_offset();
     if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0 || tasks_head_offset == 0) {
         return Result<void>::ok();
     }
@@ -556,12 +558,11 @@ ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, 
     // Task moving between sources. get_all_tasks deduplicates the resulting snapshots by address. Invalid linked-list
     // snapshots are treated as empty sources, while callback failures stop traversal and propagate to the caller.
     if (tstate != nullptr && this->tstate_addr != 0) {
-        auto result = for_each_task_address_from_thread_list(echion.asyncio_thread_tasks_head_offset(), callback);
+        auto result = for_each_task_address_from_thread_list(echion, callback);
         if (!result) {
             return result.error();
         }
-        result =
-          for_each_task_address_from_interpreter_list(tstate, echion.asyncio_interpreter_tasks_head_offset(), callback);
+        result = for_each_task_address_from_interpreter_list(echion, tstate, callback);
         if (!result) {
             return result.error();
         }
