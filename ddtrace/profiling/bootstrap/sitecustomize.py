@@ -25,8 +25,8 @@ def start_profiler() -> None:
 
     # Export the profiler so we can introspect it if needed
     profiler_instance = profiler.Profiler()
-    bootstrap.profiler = profiler_instance  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
-    bootstrap.profiler.start()  # type: ignore[attr-defined]  # pyright: ignore[reportCallIssue]
+    bootstrap.profiler = profiler_instance
+    bootstrap.profiler.start()
 
 
 _platform_unsupported_msg, _platform_is_supported = _is_platform_supported()

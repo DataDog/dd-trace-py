@@ -15,138 +15,138 @@ allowed-tools:
   - TodoWrite
 ---
 
-# Debug Build Times Skill
+# Diagnose native build caching
 
-For architecture, root causes, key files, and env vars see
-**[docs/build_system.rst](docs/build_system.rst)** — "Debugging Build Performance" section.
+Read [Debugging Build Performance](../../../docs/build_system.rst) for cache architecture,
+timing variables, and source locations. Use an isolated checkout for cold-build experiments;
+clearing compiled artifacts in the user's working tree can disrupt unrelated work.
 
-## Quick Start
+1. Identify the build being measured: a local editable install or a wheel build. For local tests,
+   select an environment with `scripts/run-tests --list <changed-files>`. For a CI wheel, use the
+   job's build command, container, interpreter, and flags; see `.gitlab/scripts/build-wheel-helpers.sh`.
+2. Set `_DD_DEBUG_EXT=1` and `_DD_DEBUG_EXT_FILE=<output-path>` in the build process's environment
+   to capture timings. For a local editable install, rebuild with `scripts/run-tests -r --venv <hash>`.
+   The default container runner does not forward these variables from the host. For example,
+   temporarily set them in `testrunner.environment` in `docker-compose.base.yml` in the isolated
+   checkout, using an output path under `/home/bits/project` so it is visible on the host.
+   Remove those diagnostic settings after measuring; they are not part of the fix.
+3. Compare cold/warm runs with the same Python, platform, compiler settings, and source revision.
+   Distinguish environment reuse from an editable rebuild that actually exercises extension caching.
+4. Inspect `scripts/ext_cache.py` restore/save behavior and `setup.py` skip conditions. The Python
+   used for cache hashing must match the build interpreter because extension suffixes differ.
+   To test `ext_cache` itself, save a completed build, clear only the generated outputs under
+   investigation in the isolated checkout, restore the cache, then rebuild with matching settings.
+   `run-tests` does not perform that cache save/restore cycle; a warm in-tree rebuild alone
+   does not verify cache restoration.
+5. Check changed hashes, missing cached outputs, newer inputs, and compile commands before deciding
+   that an extension rebuilt unnecessarily. Timing alone is not proof of a cache miss.
 
-On a warm run (extensions cached) `pip install -e .` should complete in **under 30s**.
+Report measured phase times and the evidence for invalidation. Avoid universal wall-clock or
+per-extension thresholds: hardware, dependency downloads, and build configuration affect timing.
 
-Create a throwaway `test_venv_cache.sh` in the repo root (don't commit it), run it,
-then inspect the metadata files:
+## Cache helper and round trip
+
+Run these commands from the isolated checkout's repository root in the build's environment.
+For local container tests, enter it with `scripts/ddtest`; for wheel experiments, use the wheel
+build's container or environment. Set `build_python` to the interpreter used by that build, not the host
+Python. `ext_cache.py` invokes `setup.py` with its own interpreter; it needs the build dependencies
+even when the build used an isolated environment. This Linux bootstrap follows
+`.gitlab/scripts/build-wheel-helpers.sh`; align dependency versions and build flags with the run
+being investigated (requirements are in `pyproject.toml`). In the Bash example below,
+`cache_output_args=()` selects editable outputs; use `cache_output_args=(--build-lib)` for wheel
+outputs. Keep that choice consistent for hashing, saving, restoring, and the subsequent rebuild.
 
 ```bash
-bash test_venv_cache.sh 3.13   # or whichever Python version
-cat debug_ext_metadata_cold.txt
-cat debug_ext_metadata_warm.txt
-```
-
-### test_venv_cache.sh (recreate when needed)
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-PYTHON_VERSION="${1:-3.12}"
-CACHE_ROOT="/tmp/dd_ext_cache_test"
-# IMPORTANT: use a version-specific venv to match CI's ext_cache_venv${PYTHON_VERSION} pattern.
-# ext_cache.py uses sys.executable to call setup.py ext_hashes, which computes extension
-# targets with the running Python's suffix (e.g. cpython-313).  If the venv Python doesn't
-# match the build Python, cache save/restore silently operates on the wrong suffix and the
-# ext_cache becomes a no-op for that Python version.
-EXT_CACHE_VENV="/tmp/dd_ext_cache_venv${PYTHON_VERSION}"
-METADATA_COLD="debug_ext_metadata_cold.txt"
-METADATA_WARM="debug_ext_metadata_warm.txt"
-SMOKE_HASH="$(
-  scripts/run-tests --all-suites --list |
-    jq -r --arg python "$PYTHON_VERSION" \
-      '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == $python) | .hash'
-)"
-
-header() { echo; echo "══════════════════════════════════════════"; echo "  $*"; echo "══════════════════════════════════════════"; }
-step()   { echo "── $*"; }
-
-# One-time venv for running ext_cache.py (mirrors CI's EXT_CACHE_VENV)
-if [ ! -d "$EXT_CACHE_VENV" ]; then
-    step "Creating ext_cache venv (python${PYTHON_VERSION})"
-    "python${PYTHON_VERSION}" -m venv "$EXT_CACHE_VENV"
-    "$EXT_CACHE_VENV/bin/pip" install -q wheel cmake setuptools_rust Cython
-fi
-
-cache_restore() { "$EXT_CACHE_VENV/bin/python" scripts/ext_cache.py --root "$CACHE_ROOT" restore; }
-cache_save()    { "$EXT_CACHE_VENV/bin/python" scripts/ext_cache.py --root "$CACHE_ROOT" save; }
-
-run_build() {
-    local label="$1" metadata_out="$2"
-    header "$label build (python $PYTHON_VERSION)"
-    step "Restoring from cache"; cache_restore
-    step "Building smoke test environment"
-    export _DD_DEBUG_EXT=1 _DD_DEBUG_EXT_FILE="$metadata_out"
-    scripts/run-tests --venv "$SMOKE_HASH"
-    unset _DD_DEBUG_EXT _DD_DEBUG_EXT_FILE
-    step "Saving to cache"; cache_save
-    cat "$metadata_out" 2>/dev/null || echo "(no metadata written)"
+build_python=/path/to/selected/build/python
+cache_output_args=()
+cache_python() {
+    uv run --no-project --python "$build_python" \
+        --with setuptools --with cython --with 'setuptools-rust<2' \
+        --with 'cmake>=3.24.2,<3.28' --with 'patchelf>=0.17.0.0' python "$@"
 }
+cache_hashes() {
+    cache_python - "$@" <<'PY'
+import sys
+from scripts import ext_cache
 
-header "Clearing test state"
-rm -rf ".cache/test-environments/${SMOKE_HASH}" ".cache/test-environments/${SMOKE_HASH}.txt"
-rm -rf "$CACHE_ROOT"
-rm -rf .eggs  # stale eggs cause ENOTEMPTY on Python ≤3.10's legacy setuptools
-# Remove compiled .so files for a true cold state
-find ddtrace -name "*.so" -o -name "*.dylib" -o -name "*.pyd" | grep -v "_vendor" | xargs rm -f 2>/dev/null || true
-
-run_build "COLD" "$METADATA_COLD"
-header "Clearing smoke test environment for warm run"
-rm -rf ".cache/test-environments/${SMOKE_HASH}" ".cache/test-environments/${SMOKE_HASH}.txt"
-run_build "WARM" "$METADATA_WARM"
-
-header "Summary"
-diff --unified=0 --label COLD --label WARM "$METADATA_COLD" "$METADATA_WARM" || true
+ext_cache.INPLACE = "--build-lib" not in sys.argv[1:]
+extensions, dependencies = ext_cache.invoke_ext_hashes()
+for entry in sorted(extensions):
+    print("#EXTHASH:", entry)
+for name, digest, path in sorted(dependencies):
+    print("#SHAREDEPINFO:", (name, digest, str(path)))
+PY
+}
+mkdir -p .cache/ext-cache-probe
+cache_hashes "${cache_output_args[@]}"
+cache_python scripts/ext_cache.py --root .cache/ext-cache-probe "${cache_output_args[@]}" save
 ```
 
-**Expected results:** The warm editable build completes in under 30s. Any extension showing
-more than 0.05s on warm is rebuilding unnecessarily.
-
-## Diagnosing a New Warm Rebuild
-
-### Step 1: Enable phase timing
-
-Run `bash test_venv_cache.sh 3.13` with `_DD_DEBUG_EXT=1` (the script sets this). The
-metadata files show per-phase and per-extension times.
-
-### Step 2: Identify the slow extension
-
-In `debug_ext_metadata_warm.txt`, any extension with >0.05s is rebuilding.
-
-### Step 3: Check the skip condition
-
-```python
-print(f"DEBUG {ext.name}: ext_path={ext_path} exists={ext_path.exists()} needs_rebuild={needs_rebuild}")
-```
+Save only after a successful build. Inspect the reported targets and saved files, then remove
+only the generated outputs being tested in this isolated checkout. Do not delete source inputs
+or the cache. Restore from the same helper shell:
 
 ```bash
-smoke_hash=$(
-  scripts/run-tests --all-suites --list |
-    jq -r '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == "3.13") | .hash'
+cache_python scripts/ext_cache.py --root .cache/ext-cache-probe "${cache_output_args[@]}" restore
+```
+
+Repeat the build that produced the saved artifacts:
+
+- Local editable install: rerun `scripts/run-tests -r --venv <hash>` from the host for container tests.
+- Wheel build: rerun the original wheel-build command with the same interpreter, dependencies,
+  flags, and environment. The CI helper's build phase uses `uv build --wheel`; `run-tests` in CI
+  installs a prebuilt wheel and does not rebuild its extensions.
+
+Check the restore messages, resulting artifacts, skip/compile messages, and phase timings.
+Use `--no-shared-deps` only when intentionally excluding shared C++ dependency trees from the
+experiment. Keep `invoke_ext_hashes()` in the helper: it clears generated `.eggs` before each
+setup invocation so repeated probes can run reliably. Saving prunes old cache generations;
+the isolated checkout and probe cache keep that work scoped.
+
+## Hash and timestamp diagnostics
+
+With unchanged sources and settings, compare repeated hashes using the same helper. Preserve
+returned records and stderr, but compare just hash records. The helper captures setup stdout
+internally; collect rebuild logs separately for skip/compile evidence.
+
+```bash
+(
+    set -e -o pipefail
+    for cache_pass in 1 2; do
+        cache_hashes "${cache_output_args[@]}" > ".cache/ext-cache-probe/hash-$cache_pass.log" 2>&1
+        awk '/^#(EXTHASH|SHAREDEPINFO):/' ".cache/ext-cache-probe/hash-$cache_pass.log" |
+            LC_ALL=C sort > ".cache/ext-cache-probe/hash-$cache_pass.txt"
+        test -s ".cache/ext-cache-probe/hash-$cache_pass.txt"
+    done
+    diff -u .cache/ext-cache-probe/hash-1.txt .cache/ext-cache-probe/hash-2.txt
 )
-rm -rf ".cache/test-environments/${smoke_hash}" ".cache/test-environments/${smoke_hash}.txt"
-_DD_DEBUG_EXT=1 scripts/run-tests --venv "$smoke_hash" 2>&1 | grep "DEBUG\|skipping\|building"
 ```
 
-### Step 4: Find the newer source
+If records change, inspect `ExtensionHashes.run` and `CMakeExtension.get_sources` in `setup.py`
+for generated files entering the source set or changing configuration. A stable hash with no
+cached output may mean the artifact was never saved or was pruned; it does not prove a hash bug.
 
-```python
-# In a Python shell after restoring from cache:
-from pathlib import Path
-from distutils.dep_util import newer_group
-import sysconfig
-suffix = sysconfig.get_config_var('EXT_SUFFIX')
-source_dir = Path('ddtrace/profiling/collector')  # adjust as needed
-ext_path = source_dir / f'_memalloc{suffix}'
-srcs = [s for s in source_dir.glob('**/*') if s.is_file() and s.suffix not in {'.py','.pyc','.pyi','.c','.so','.dylib','.dll','.pyd'}]
-ext_mtime = ext_path.stat().st_mtime
-newer = [(str(s), round(s.stat().st_mtime - ext_mtime, 3)) for s in srcs if s.stat().st_mtime > ext_mtime]
-print(newer)
-```
-
-### Step 5: Check ext_cache is actually restoring
+For an unexpected rebuild, replace the example paths below with one candidate output and its
+actual input files from the relevant `setup.py` skip check. Non-CMake checks substitute a `.pyx`
+sibling for each source when present and include every `ddtrace/**/*.pxd`. CMake checks use
+`get_sources()` (including extra source directories) plus dependency artifacts. Check both
+in-place and build-directory output candidates; missing CMake dependencies can force a build.
 
 ```bash
-/tmp/dd_ext_cache_venv3.13/bin/python scripts/ext_cache.py --root /tmp/dd_ext_cache_test restore 2>&1 | grep -i "warning\|error\|restoring"
+cache_python - path/to/output.so path/to/input.pyx path/to/declaration.pxd <<'PY'
+from pathlib import Path
+import sys
+
+output = Path(sys.argv[1])
+if not output.is_file():
+    raise SystemExit(f"Missing output: {output}")
+for source in sorted({Path(name) for name in sys.argv[2:]}):
+    if not source.is_file():
+        print(f"Missing input: {source}")
+    elif source.stat().st_mtime > output.stat().st_mtime:
+        print(f"Newer input: {source}")
+PY
 ```
 
-Warnings about "No cached files found" mean the hash changed between save and restore.
-Run `python setup.py ext_hashes --inplace` twice and compare — if hashes differ, there's
-a hash stability bug.
+No reported offenders only rules out those inputs for that output. Also inspect forced builds,
+`DD_CMAKE_INCREMENTAL_BUILD`, and the actual compile command before concluding caching failed.

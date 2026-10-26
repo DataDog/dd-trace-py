@@ -188,6 +188,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "elevenlabs",
         "crewai",
         "pydantic_ai",
         "vllm",
@@ -219,6 +220,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aiokafka",
         "google_cloud_pubsub",
         "mistralai",
+        "typesafe",
     }
 )
 

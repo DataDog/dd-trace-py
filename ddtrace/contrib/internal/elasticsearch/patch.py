@@ -227,7 +227,7 @@ def _get_perform_request_coro(transport):
                     data = result
 
                 took = data.get("took")
-                if took:
+                if took is not None:
                     span._set_attribute(metadata.TOOK, int(took))
             except Exception:
                 log.debug("Unexpected exception", exc_info=True)

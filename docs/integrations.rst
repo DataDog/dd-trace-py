@@ -443,6 +443,13 @@ mysqlclient
 .. automodule:: ddtrace.contrib.internal.mysqldb
 
 
+.. _elevenlabs:
+
+ElevenLabs
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.elevenlabs
+
+
 .. _openai:
 
 OpenAI
@@ -641,6 +648,13 @@ Tornado
 Trio
 ^^^^
 .. automodule:: ddtrace.contrib.internal.trio
+
+
+.. _typesafe:
+
+TypeSafe
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.typesafe
 
 
 .. _unittest:
