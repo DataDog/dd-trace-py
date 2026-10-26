@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    mcp: LLM Observability MCP server spans, including tool call spans, now include the calling client's
+    self-reported name, title, and version as the ``mcp_client_name``, ``mcp_client_title``, and
+    ``mcp_client_version`` tags. Tool call spans are not tagged for servers on ``mcp<2`` using stateless
+    streamable HTTP, where the client's identity is unavailable.

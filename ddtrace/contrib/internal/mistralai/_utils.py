@@ -1,10 +1,10 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
+from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.internal.utils.formats import _get_attr
 
 
 def _accumulate_tool_calls(tool_calls_map: dict[int, dict[str, Any]], tool_calls: list[Any]) -> None:

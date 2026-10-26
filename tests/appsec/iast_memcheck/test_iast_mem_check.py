@@ -4,8 +4,8 @@ import pytest
 from pytest_memray import LeaksFilterFunction
 from pytest_memray import Stack
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request

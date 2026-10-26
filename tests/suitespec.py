@@ -17,7 +17,7 @@ TESTS = REPO / "tests"
 BENCHMARKS = REPO / "benchmarks"
 DDTRACE = REPO / "ddtrace"
 SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
-LOCK_ROOT = Path(".riot/requirements")
+LOCK_ROOT = Path("tests/requirements_locks")
 LOCK_PLATFORM = "linux"
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
@@ -31,7 +31,7 @@ DEFAULT_DEPENDENCIES = (
     "opentracing",
     "hypothesis<6.45.1",
 )
-DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14")
+DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15")
 DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",
@@ -46,7 +46,8 @@ DEFAULT_ENVIRONMENT = {
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
-NIGHTLY_ENVIRONMENT = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
+# Focus report upload on new Python support without duplicating its cost across the matrix.
+NIGHTLY_COVERAGE_PYTHON_VERSIONS = ("3.15",)
 
 
 class MatrixError(ValueError):
@@ -316,7 +317,7 @@ def get_patterns(suite: str) -> set[str]:
     in the components that the matching sources import directly. References to
     components declared elsewhere are dependencies and are taken as they are.
 
-    >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest")
+    >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest_benchmark")
     True
     >>> "ddtrace/internal/remoteconfig/*" in get_patterns("debugging::debugger")  # discovered from @debugging
     True
@@ -401,11 +402,16 @@ def _requirement_key(requirement: str) -> str:
     return f"{name}{extras or ''}".lower().replace("_", "-")
 
 
+# Was: int(sha256(payload), 16) % ((1 << 61) - 1), hex truncated to 7 chars
+# (Riot-compatible). That modulo skewed leading digits (~52% of locks started
+# with 1). Now: 12 hex chars of sha256 over name, python, and deps sorted
+# case-insensitive, original string as tie-breaker — order-stable and unbiased.
+_HASH_LENGTH: int = 12
+
+
 def _test_environment_hash(name: str, python: str, dependencies: tuple[str, ...]) -> str:
-    packages = " ".join(f"'{dependency}'" for dependency in dependencies)
-    payload = f"{name!r}Interpreter(_hint={python!r}){packages}".encode()
-    digest = int(hashlib.sha256(payload).hexdigest(), 16)
-    return f"{digest % ((1 << 61) - 1):x}"[:7]
+    payload: str = "\n".join((name, python, *sorted(dependencies, key=lambda dep: (dep.casefold(), dep))))
+    return hashlib.sha256(payload.encode()).hexdigest()[:_HASH_LENGTH]
 
 
 def _merge_dependencies(*groups: tuple[str, ...]) -> tuple[str, ...]:
@@ -446,12 +452,15 @@ def _variant_settings(
     suite_config: dict[str, Any],
     matrix: dict[str, Any],
     variant: dict[str, Any],
+    python: str,
     nightly: bool,
 ) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
     if nightly:
-        environment.update(NIGHTLY_ENVIRONMENT)
+        environment["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = (
+            "1" if python in NIGHTLY_COVERAGE_PYTHON_VERSIONS else "0"
+        )
     if "env" in matrix:
         environment.update(matrix["env"])
     if "env" in variant:
@@ -484,14 +493,15 @@ def _expand_suite_matrix(
         python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies, integration, runs = _variant_settings(
-            suite,
-            suite_config,
-            matrix,
-            variant,
-            nightly,
-        )
         for python in python_versions:
+            dependencies, integration, runs = _variant_settings(
+                suite,
+                suite_config,
+                matrix,
+                variant,
+                python,
+                nightly,
+            )
             environments.append(
                 TestEnvironment(
                     suite=suite,

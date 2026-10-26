@@ -104,6 +104,10 @@ Declare these in `paths` explicitly, because imports cannot reveal them:
 
 Discovery only adds patterns: the declared ones always apply.
 
+For suites using the `postgres` service, set `POSTGRES_IMAGE` in the suite's `env`
+to select a different CI PostgreSQL image. The shared default is PostgreSQL 12;
+Django selects PostgreSQL 16 to meet its database version requirements.
+
 For standard test suites, `venvs_per_job` is the target number of dependency
 environments per generated job. The job count is the environment count divided by
 this value and rounded up, with a limit of 25 jobs per suite. Lower values increase

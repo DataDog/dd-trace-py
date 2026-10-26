@@ -1032,6 +1032,46 @@ def test_agent_attribution_propagates_across_asyncio_task(llmobs, llmobs_events,
     }
 
 
+def test_agent_version_propagates_across_asyncio_task(llmobs, llmobs_events, patched_asyncio):
+    import asyncio
+
+    async def main():
+        with llmobs.agent(name="my_agent", version="v3"):
+
+            async def child():
+                with llmobs.tool(name="async_tool"):
+                    pass
+
+            await asyncio.create_task(child())
+
+    asyncio.run(main())
+    matches = [e for e in llmobs_events if e["name"] == "async_tool"]
+    assert len(matches) == 1
+    assert "agent_version:v3" in matches[0]["tags"]
+
+
+def test_agent_version_propagates_across_thread_pool(llmobs, llmobs_events, patched_futures):
+    import concurrent.futures
+
+    def child():
+        with llmobs.tool(name="thread_tool"):
+            pass
+
+    with llmobs.agent(name="my_agent", version="v3"):
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.submit(child).result()
+    matches = [e for e in llmobs_events if e["name"] == "thread_tool"]
+    assert len(matches) == 1
+    assert "agent_version:v3" in matches[0]["tags"]
+
+
+def test_agent_version_not_propagated_across_services(llmobs):
+    with llmobs.agent(name="my_agent", version="v3"):
+        with llmobs.tool(name="my_tool") as tool_span:
+            headers = llmobs.inject_distributed_headers({}, span=tool_span)
+    assert "v3" not in json.dumps(headers)
+
+
 def test_inject_no_stale_agent_attribution_after_agent_finishes(llmobs):
     """A sibling with no agent ancestor must not inherit the agent that injected before it.
 
@@ -1140,3 +1180,12 @@ def test_inject_agent_attribution_still_set_for_child_inside_agent(llmobs):
     tags_header = headers.get("x-datadog-tags", "")
     assert f"_dd.p.llmobs_pagent_span_id={agent_span.span_id}" in tags_header
     assert "_dd.p.llmobs_pagent_name=triage" in tags_header
+
+
+@pytest.mark.parametrize("trace_id", [None, _DECIMAL_TRACE_ID])
+def test_distributed_context_keeps_application_without_apm_parent(llmobs, trace_id):
+    ctx = _make_upstream_llmobs_context(trace_id)
+    ctx._meta[PROPAGATED_ML_APP_KEY] = "remote-app"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("detached-child") as span:
+        assert get_llmobs_ml_app(span) == "remote-app"

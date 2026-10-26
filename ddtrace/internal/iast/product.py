@@ -76,11 +76,13 @@ def post_preload():
     if asm_config._iast_enabled:
         # Import locally to avoid early module loading conflicts
         from ddtrace.appsec._iast import enable_iast_propagation
+        from ddtrace.appsec._iast._listener import iast_instrumentation_listen
         from ddtrace.appsec._iast.main import patch_iast
 
         log.debug("Enabling IAST by auto import")
         enable_iast_propagation()
         patch_iast()
+        iast_instrumentation_listen()
 
         # Remove modules that can conflict with Gevent's monkey patching
         # These modules must be cleaned up to prevent memory conflicts that
