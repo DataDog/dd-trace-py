@@ -8,6 +8,7 @@ import hashlib
 from pathlib import Path
 import re
 from typing import Any
+from typing import Optional
 
 from ruamel.yaml import YAML  # noqa
 
@@ -211,8 +212,8 @@ def _lazy_exports(package: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
 
 
 @cache
-def _direct_imports(path: str) -> frozenset[str]:
-    """Files of the ddtrace modules that a ddtrace source file imports itself.
+def _direct_imports(path: str) -> Optional[frozenset[str]]:
+    """Files of the ddtrace modules that a ddtrace source file imports itself, or None if they are unknown.
 
     Only the imported modules count, not their parent packages, so that a
     component depends on what its code names rather than on everything that
@@ -234,8 +235,7 @@ def _direct_imports(path: str) -> frozenset[str]:
         try:
             collector.visit(ast.parse(source, filename=path))
         except SyntaxError:
-            # Dependencies are unknown, so be conservative: any ddtrace change is relevant.
-            return frozenset({"ddtrace/*"})
+            return None
         names = collector.names
     else:
         names = _cython_imports(source.decode(), module[:-1])
@@ -290,22 +290,33 @@ def _owners(path: str) -> frozenset[str]:
 
 
 @cache
-def _imported_components(patterns: frozenset[str]) -> frozenset[str]:
-    """Components owning the files that the ddtrace sources matching the patterns import directly.
+def _imported_patterns(patterns: frozenset[str]) -> frozenset[str]:
+    """References to the components owning the files that the ddtrace sources matching the patterns import directly.
 
-    >>> deps = _imported_components(frozenset({"ddtrace/debugging/*"}))
-    >>> {"core", "remoteconfig", "tracing"} <= deps
+    >>> deps = _imported_patterns(frozenset({"ddtrace/debugging/*"}))
+    >>> {"@core", "@remoteconfig", "@tracing"} <= deps
     True
-    >>> "bootstrap" in deps
+    >>> "@bootstrap" in deps
     False
+    >>> _direct_imports.cache_clear()
+    >>> from unittest import mock
+    >>> with mock.patch.object(ast, "parse", side_effect=SyntaxError):
+    ...     "ddtrace/*" in _imported_patterns.__wrapped__(frozenset({"ddtrace/debugging/_debugger.py"}))
+    True
+    >>> _direct_imports.cache_clear()
     """
     matcher = re.compile("|".join(fnmatch.translate(p) for p in patterns))
-    components: set[str] = set()
+    discovered: set[str] = set()
     for source in _ddtrace_sources():
         if matcher.match(source):
-            for imported in _direct_imports(source):
-                components |= _owners(imported)
-    return frozenset(components)
+            imports = _direct_imports(source)
+            if imports is None:
+                # Dependencies are unknown, so be conservative: any ddtrace change is relevant.
+                discovered.add("ddtrace/*")
+                continue
+            for imported in imports:
+                discovered |= {f"@{c}" for c in _owners(imported)}
+    return frozenset(discovered)
 
 
 @cache
@@ -335,7 +346,7 @@ def get_patterns(suite: str) -> set[str]:
     suite_patterns = set(SUITESPEC["suites"][suite]["paths"])
     sources = frozenset(p for p in suite_patterns if p.startswith("ddtrace/"))
     if sources:
-        suite_patterns |= {f"@{c}" for c in _imported_components(sources)}
+        suite_patterns |= _imported_patterns(sources)
 
     # Include patterns from include-always components
     for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
