@@ -16,6 +16,7 @@ from openfeature.hook import HookContext
 from openfeature.hook import HookHints
 
 from ddtrace.internal.logger import get_safe_logger as get_logger
+from ddtrace.internal.openfeature._config import _ConfigurationIdentity
 
 
 log = get_logger(__name__)
@@ -49,7 +50,7 @@ def log_provider_resolution(
     default_value: typing.Any,
     evaluation_context: typing.Optional[EvaluationContext],
     details: FlagResolutionDetails[typing.Any],
-    configuration_identity: typing.Any = None,
+    configuration_identity: typing.Optional[_ConfigurationIdentity] = None,
 ) -> None:
     """Log the inputs the provider resolved against and what it resolved.
 

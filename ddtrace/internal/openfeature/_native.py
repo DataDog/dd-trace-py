@@ -12,6 +12,7 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_safe_logger as get_logger
 from ddtrace.internal.native._native import ffe
+from ddtrace.internal.openfeature._config import _ConfigurationIdentity
 from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config
 
@@ -45,11 +46,13 @@ def process_ffe_configuration(config: Any) -> bool:
         config_json = json.dumps(config)
         config_bytes = config_json.encode("utf-8")
         native_config = ffe.Configuration(config_bytes)
-        identity = None
+        identity: Optional[_ConfigurationIdentity] = None
         if log.isEnabledFor(logging.DEBUG):
             _log_flag_summary(config, native_config)
             if isinstance(config, dict):
-                identity = {"created_at": config.get("createdAt"), "environment": config.get("environment")}
+                identity = _ConfigurationIdentity(
+                    created_at=config.get("createdAt"), environment=config.get("environment")
+                )
         # Notifies registered providers as part of setting the snapshot; see
         # ddtrace.internal.openfeature._config for why the registry lives there.
         _set_ffe_config(_FfeSnapshot(native_config, observe_full_evaluation_data, identity))

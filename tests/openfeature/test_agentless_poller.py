@@ -2,6 +2,7 @@ import gzip
 import json
 import logging
 import socket
+import time
 
 import pytest
 
@@ -308,6 +309,8 @@ def test_poll_failure_logs_redact_transport_urls(harness, caplog, recovers, sche
             "redirect from https://host/secret to https://other/secret failed",
             "redirect from <endpoint> to <endpoint> failed",
         ),
+        ("bad path host//secret?token=secret", "bad path host<endpoint>"),
+        ("bad url 1https://host/secret", "bad url 1https:<endpoint>"),
     ],
 )
 def test_describe_error_redacts_urls(message, expected):

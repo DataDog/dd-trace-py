@@ -64,7 +64,10 @@ _WAIT_EPSILON_S = 1e-6
 
 # Remove the entire URL: credentials can occur in userinfo, paths and queries.
 # Include embedded quotes; only trailing message punctuation is preserved.
-_URL_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
+# The lookbehind only lets a scheme start where a run of scheme characters starts;
+# otherwise each position inside a long run rescans the rest of it (quadratic).
+# It is inside the optional group so a bare "//" is still redacted anywhere.
+_URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
