@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 
@@ -85,6 +86,19 @@ class TestProfilingGCConfig:
         monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
         config: ProfilingConfig = ProfilingConfig()
         assert config.gc.enabled is False
+
+    def test_registry_is_opt_in_not_fleet_default_on(self) -> None:
+        # Fleet letter A is Ruby/.NET default-on. Python is opt-in first, so
+        # the local registry must use a new letter with default false.
+        from pathlib import Path
+
+        repo_root: Path = Path(__file__).resolve().parents[2]
+        registry_path: Path = repo_root / "supported-configurations.json"
+        registry: dict[str, Any] = json.loads(registry_path.read_text())
+        entry: dict[str, Any] = registry["supportedConfigurations"]["DD_PROFILING_GC_ENABLED"][0]
+        assert entry["implementation"] == "B"
+        assert entry["default"] == "false"
+        assert entry["type"] == "boolean"
 
     def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
