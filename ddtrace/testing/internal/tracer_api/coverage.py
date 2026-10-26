@@ -247,6 +247,13 @@ def _relative_coverage_path_cached(absolute_path: str, relative_to: str, _genera
     relative = relative_path(Path(absolute_path), Path(relative_to))
     if relative is None:
         return None  # covered file does not belong to current repo
+    # Site-packages files only reach the coverage data through alias admission;
+    # one that the active aliases no longer remap was admitted under superseded
+    # aliases (e.g. a default config replaced by a custom --cov-config) and must
+    # not be uploaded with an unattributable raw path.
+    parts = Path(absolute_path).parts
+    if "site-packages" in parts or "dist-packages" in parts:
+        return None
     return f"/{relative}"
 
 

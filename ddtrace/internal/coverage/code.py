@@ -693,14 +693,21 @@ class ModuleCodeCollector(ModuleWatchdog):
             code_path = Path(file)
             if not self._alias_matcher(code_path):
                 continue
-            self._alias_admitted_modules.add(module.__name__)
             if any(is_contained(code_path, exclude_path) for exclude_path in self._self_exclude_paths):
+                # Decided: excluded, so do not retry on later alias changes.
+                self._alias_admitted_modules.add(module.__name__)
                 continue
             package = module.__package__ if module.__package__ is not None else ""
+            # Class namespaces can be cyclic (e.g. Node.kind = Node); visit
+            # each class at most once.
+            visited: set[int] = set()
             for value in vars(module).values():
-                self._reinstrument_value(value, code_path.parent, package)
+                self._reinstrument_value(value, code_path.parent, package, visited)
+            # Mark admitted only after the walk: a module whose walk failed is
+            # retried on the next alias change instead of being skipped.
+            self._alias_admitted_modules.add(module.__name__)
 
-    def _reinstrument_value(self, value: t.Any, module_dir: Path, package: str) -> None:
+    def _reinstrument_value(self, value: t.Any, module_dir: Path, package: str, visited: set[int]) -> None:
         """Instrument a module-namespace value, if it is code from module_dir."""
         code = getattr(value, "__code__", None)
         if code is not None:
@@ -714,9 +721,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 code = getattr(inner, "__code__", None)
                 if code is not None:
                     self._reinstrument_code(code, inner, module_dir, package)
-        if isinstance(value, type):
+        if isinstance(value, type) and id(value) not in visited:
+            visited.add(id(value))
             for attr in vars(value).values():
-                self._reinstrument_value(attr, module_dir, package)
+                self._reinstrument_value(attr, module_dir, package, visited)
 
     def _reinstrument_code(self, code: CodeType, holder: t.Any, module_dir: Path, package: str) -> None:
         # The namespace can re-export functions and classes from unrelated

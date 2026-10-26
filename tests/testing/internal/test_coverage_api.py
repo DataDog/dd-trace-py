@@ -673,6 +673,14 @@ def test_early_imported_library_reinstrumented_on_instance_start() -> None:
         "    @property\n"
         "    def prop(self):\n"
         "        return 2\n"
+        "\n"
+        "\n"
+        "class Node:\n"
+        "    pass\n"
+        "\n"
+        "\n"
+        "# A cyclic class reference: the recovery walk must not recurse forever.\n"
+        "Node.kind = Node\n"
     )
 
     os.chdir(repo)
@@ -799,5 +807,37 @@ def test_absolute_alias_destination_normalized(tmp_path, monkeypatch) -> None:
         )
         clear_coverage_path_caches()
         assert tracer_api_coverage._relative_coverage_path(str(site_packages / "__init__.py"), str(tmp_path)) is None
+    finally:
+        clear_coverage_path_caches()
+
+
+def test_revoked_alias_admission_dropped_at_upload(tmp_path, monkeypatch) -> None:
+    """Files admitted under superseded aliases are dropped, not raw-pathed.
+
+    A default-config alias admits an installed module; when a custom
+    --cov-config instance starts without that alias, the collected file must
+    not be uploaded under its raw site-packages path.
+    """
+    site_packages = _make_site_packages(tmp_path)
+    covered_file = str(site_packages / "__init__.py")
+    (tmp_path / ".coveragerc").write_text(
+        "[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    custom_config = tmp_path / "custom-coverage.cfg"
+    custom_config.write_text("[run]\nomit = nothing\n")
+
+    clear_coverage_path_caches()
+    try:
+        # Admitted (and reported) under the default aliases.
+        assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) == ("/covered_pkg/__init__.py")
+
+        # The custom instance starts without any aliases: the file is dropped
+        # rather than uploaded with its raw site-packages path.
+        cov_instance = Coverage(config_file=str(custom_config))
+        with mock.patch.object(tracer_api_coverage, "get_coverage_instance", return_value=cov_instance):
+            assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) is None
     finally:
         clear_coverage_path_caches()
