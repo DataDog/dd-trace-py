@@ -139,8 +139,17 @@ these details stay outside the shared runner. Completion sets
 subscriber to apply OpenTelemetry status-based error semantics while preserving
 the exception for Bottle. Replacement responses clear the flag.
 
-The adapter dispatches ``BottleRequestStartEvent`` before invoking the route callback
-and ``BottleResponseEvent`` after metadata completion, while the response can still
+The shared inspection events are defined in
+``ddtrace.contrib._events.web_framework``. AppSec registers their subscribers in
+``ddtrace.appsec._contrib.web_framework``. Request inspection carries explicit
+peer IP, cookies, and path parameters alongside the request event; subscribers
+do not receive framework request objects. Another synchronous adapter can reuse
+these events and subscribers. The default ``web.request`` context has shared
+AppSec cleanup; a specialized context route must register a subclass of
+``WebFrameworkRequestContextSubscriber`` for that route.
+
+The adapter dispatches ``WebFrameworkRequestInspectEvent`` before invoking the route callback
+and ``WebFrameworkResponseInspectEvent`` after metadata completion, while the response can still
 be replaced. These notifications use ``core.dispatch_event``. AppSec subscribers own
 request evaluation, blocking configuration, and registration of the public
 ``block_request()`` capability. They inspect request headers, URI, query parameters,
@@ -149,7 +158,7 @@ request or response bodies.
 
 The adapter catches ``BlockingException`` inside the request context, including
 blocks raised before the callback and blocks nested in exception groups. A
-``BottleBlockResponseEvent`` subscriber supplies the selected status, headers, and
+``WebFrameworkBlockResponseEvent`` subscriber supplies the selected status, headers, and
 body on the event. Bottle constructs an ``HTTPResponse`` and completes the replacement
 metadata before returning to the shared runner. Discarded response iterables are
 closed without iteration. A pending block is checked again at response inspection,

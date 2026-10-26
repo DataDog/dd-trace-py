@@ -11,10 +11,16 @@ from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import set_blocked
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec.trace_utils import block_request
+from ddtrace.contrib._events.web_framework import WebFrameworkBlockResponseEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkResponseInspectEvent
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
 from tests.appsec.rules import RULES_SRB
 from tests.utils import assert_span_http_status_code
@@ -232,3 +238,40 @@ def test_block_inside_exception_group_is_enforced(app, request_spans):
     assert_span_http_status_code(request_spans[0], 429)
     assert request_spans[0].error == 0
     assert get_active_asm_context() is None
+
+
+@pytest.mark.parametrize("phase", ["request", "response"])
+def test_shared_appsec_events_without_framework_objects(appsec, phase):
+    parent = get_active_asm_context()
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="test",
+        integration_config=IntegrationConfig(Config(), "test"),
+        request_method="GET",
+        request_url="http://localhost/.git" if phase == "request" else "http://localhost/hello",
+        request_headers={},
+        headers_case_sensitive=False,
+    )
+    with core.context_with_event(event):
+        assert get_active_asm_context() is not None
+        inspection = WebFrameworkRequestInspectEvent(
+            request_event=event,
+            peer_ip="127.0.0.1",
+            cookies={"session": "example"},
+            path_params={"name": "world"},
+        )
+        with pytest.raises(BlockingException) as blocked:
+            core.dispatch_event(inspection)
+            assert phase == "response"
+            event.response_status_code = 200
+            event.response_headers = {"X-Test": "MagicKey_Al4h7iCFep9s1"}
+            core.dispatch_event(WebFrameworkResponseInspectEvent(event))
+        replacement = WebFrameworkBlockResponseEvent(blocked.value.args[0])
+        core.dispatch_event(replacement)
+        assert replacement.response is not None
+        status, headers, body = replacement.response
+        assert status == 403
+        assert int(headers["Content-Length"]) == len(body)
+        event.response_status_code = status
+        event.response_headers = headers
+    assert get_active_asm_context() is parent

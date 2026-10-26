@@ -5,10 +5,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from ddtrace.contrib._events.bottle import BottleBlockResponseEvent
-from ddtrace.contrib._events.bottle import BottleRequestStartEvent
-from ddtrace.contrib._events.bottle import BottleResponseEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkBlockResponseEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkResponseInspectEvent
 from ddtrace.contrib.internal.bottle.trace import _run_request
 from ddtrace.contrib.internal.web_framework import complete_request_safely
 from ddtrace.contrib.internal.web_framework import run_web_framework_request
@@ -227,20 +227,20 @@ def test_typed_notifications_reach_subscribers(event, tracer, test_spans, block_
 
     class Observer(Subscriber):
         event_names = (
-            BottleRequestStartEvent.event_name,
-            BottleResponseEvent.event_name,
-            BottleBlockResponseEvent.event_name,
+            WebFrameworkRequestInspectEvent.event_name,
+            WebFrameworkResponseInspectEvent.event_name,
+            WebFrameworkBlockResponseEvent.event_name,
         )
 
         @classmethod
         def on_event(cls, notification):
             notifications.append(notification)
-            if isinstance(notification, BottleBlockResponseEvent):
+            if isinstance(notification, WebFrameworkBlockResponseEvent):
                 assert notification.block is block
                 notification.response = (429, {"Content-Type": "text/plain"}, b"blocked")
             else:
                 assert notification.request_event is event
-                if isinstance(notification, BottleRequestStartEvent):
+                if isinstance(notification, WebFrameworkRequestInspectEvent):
                     assert notification.path_params == {"name": "world"}
                     if block_at == "start":
                         raise BlockingException(block)
@@ -260,9 +260,9 @@ def test_typed_notifications_reach_subscribers(event, tracer, test_spans, block_
         Observer.unregister()
 
     assert [type(notification) for notification in notifications] == [
-        BottleRequestStartEvent,
-        BottleResponseEvent,
-    ] + ([BottleBlockResponseEvent] if block_at else [])
+        WebFrameworkRequestInspectEvent,
+        WebFrameworkResponseInspectEvent,
+    ] + ([WebFrameworkBlockResponseEvent] if block_at else [])
     if block_at:
         assert result.status_code == 429
         assert result.body == b"blocked"

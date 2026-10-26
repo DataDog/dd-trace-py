@@ -10,10 +10,10 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace.contrib._events.bottle import BottleBlockResponseEvent
-from ddtrace.contrib._events.bottle import BottleRequestStartEvent
-from ddtrace.contrib._events.bottle import BottleResponseEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkBlockResponseEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkResponseInspectEvent
 from ddtrace.contrib.internal.web_framework import complete_request_safely
 from ddtrace.contrib.internal.web_framework import run_web_framework_request
 from ddtrace.internal import core
@@ -98,7 +98,14 @@ def _execute_request(
         try:
             try:
                 # WAF evaluation can block, so it must run inside the handler rather than context entry.
-                core.dispatch_event(BottleRequestStartEvent(event, request, path_params))
+                core.dispatch_event(
+                    WebFrameworkRequestInspectEvent(
+                        request_event=event,
+                        peer_ip=request.environ.get("REMOTE_ADDR"),
+                        cookies=dict(request.cookies),
+                        path_params=path_params,
+                    )
+                )
             except BaseException as exc:
                 # The shared invocation was skipped, so it cannot complete this outcome.
                 complete_request_safely(complete, event, None, exc)
@@ -109,7 +116,7 @@ def _execute_request(
             error = exc
             raise
         finally:
-            core.dispatch_event(BottleResponseEvent(event))
+            core.dispatch_event(WebFrameworkResponseInspectEvent(event))
     except BaseException as exc:
         blocking = find_exception(exc, BlockingException)
         if blocking is None:
@@ -136,7 +143,7 @@ def _execute_request(
 
 
 def _blocked_response(block: Block_config) -> HTTPResponse:
-    event = BottleBlockResponseEvent(block)
+    event = WebFrameworkBlockResponseEvent(block)
     core.dispatch_event(event)
     block_response = event.response
     if block_response is None:
