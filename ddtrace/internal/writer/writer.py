@@ -2,6 +2,7 @@ import abc
 import binascii
 from collections import defaultdict
 from collections.abc import Sequence
+from contextlib import nullcontext
 import gzip
 import os
 import socket
@@ -851,6 +852,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
+        self._otlp_buffer_lock = forksafe.RLock() if otlp_endpoint is not None else nullcontext()
+        self._otlp_resource_attributes: dict[str, str] = {}
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
         self._agentless_stats_endpoint = agentless_stats_endpoint
@@ -925,9 +928,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
-            builder.set_otlp_resource_attributes(
-                {_truncate_string(key): _truncate_string(value) for key, value in config.tags.items()}
-            )
             # Only http/json and http/protobuf are supported; fall back to http/protobuf
             # for anything else (e.g. grpc).
             otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
@@ -1120,10 +1120,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # PERF: avoid setting via Span.set_metric
             trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
-    def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
+    def _send_payload(
+        self,
+        payload: bytes,
+        count: int,
+        client: WriterClientBase,
+        resource_attributes: Optional[dict[str, str]] = None,
+    ):
         try:
             with self._exporter_lock:
-                response_body = self._exporter.send(payload)
+                exporter = self._exporter
+                if resource_attributes is not None:
+                    exporter.set_otlp_resource_attributes(resource_attributes)
+                response_body = exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -1148,22 +1157,30 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+    def write(
+        self,
+        spans: Optional[Sequence[SpanData]] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
+    ) -> None:
         # Identity refresh can close this writer concurrently; only MicroVM writers need this lock.
         writer_lock = self._writer_lock
         if writer_lock is None:
-            self._write_unlocked(spans)
+            self._write_unlocked(spans, resource_attributes)
             return
         with writer_lock:
             if not self._accepting_writes:
                 return
-            self._write_unlocked(spans)
+            self._write_unlocked(spans, resource_attributes)
 
-    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+    def _write_unlocked(
+        self,
+        spans: Optional[Sequence[SpanData]] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
+    ) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
-            self._write_with_client(client, spans=spans)
+            self._write_with_client(client, spans=spans, resource_attributes=resource_attributes)
         if self._sync_mode:
             # Flush under the writer lock: once refresh closes this writer, recreate() shuts down
             # a sync writer's exporter, so a flush after that would send through a dead exporter.
@@ -1189,7 +1206,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             else:
                 span_data._remove_attribute(W3C_TRACESTATE_KEY)
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[Sequence[SpanData]] = None) -> None:
+    def _write_with_client(
+        self,
+        client: WriterClientBase,
+        spans: Optional[Sequence[SpanData]] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
+    ) -> None:
         if spans is None:
             return
 
@@ -1206,8 +1228,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
 
+        attributes = None
+        if self._otlp_endpoint is not None and resource_attributes is not None:
+            attributes = {_truncate_string(k): _truncate_string(v) for k, v in resource_attributes.items()}
         try:
-            client.encoder.put(spans)
+            with self._otlp_buffer_lock:
+                client.encoder.put(spans)
+                if spans and attributes is not None:
+                    self._otlp_resource_attributes = attributes
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
             _safelog(
@@ -1247,8 +1275,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
         try:
-            if not (encoded_traces := client.encoder.encode()):
-                return
+            with self._otlp_buffer_lock:
+                if not (encoded_traces := client.encoder.encode()):
+                    return
+                resource_attributes = self._otlp_resource_attributes if self._otlp_endpoint is not None else None
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
             _safelog(log.error, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
@@ -1257,15 +1287,29 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         for payload in encoded_traces:
             encoded_data, n_traces = payload
-            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
+            self._flush_single_payload(
+                encoded_data,
+                n_traces,
+                client=client,
+                raise_exc=raise_exc,
+                resource_attributes=resource_attributes,
+            )
 
     def _flush_single_payload(
-        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
+        self,
+        encoded: Optional[bytes],
+        n_traces: int,
+        client: WriterClientBase,
+        raise_exc: bool = False,
+        resource_attributes: Optional[dict[str, str]] = None,
     ) -> None:
         if encoded is None:
             return
         try:
-            self._send_payload(encoded, n_traces, client)
+            if resource_attributes is None:
+                self._send_payload(encoded, n_traces, client)
+            else:
+                self._send_payload(encoded, n_traces, client, resource_attributes)
         except Exception as e:
             if raise_exc:
                 raise

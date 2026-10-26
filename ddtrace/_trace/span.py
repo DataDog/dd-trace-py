@@ -46,6 +46,25 @@ _SPECIAL_TAG_KEYS = frozenset(
     (net.TARGET_PORT, MANUAL_KEEP_KEY, MANUAL_DROP_KEY, SERVICE_KEY, SERVICE_VERSION_KEY, _SPAN_MEASURED_KEY)
 )
 
+_OTLP_SPAN_TAG_KEYS = _SPECIAL_TAG_KEYS | frozenset(
+    (
+        "env",
+        "version",
+        "service.name",
+        "service.version",
+        "deployment.environment.name",
+        "telemetry.sdk.name",
+        "telemetry.sdk.language",
+        "telemetry.sdk.version",
+        "runtime-id",
+        "datadog.sdk.semantics",
+        "span.kind",
+        "error.msg",
+        "error.message",
+        "tracestate",
+    )
+)
+
 
 def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
     """Get the 64 lowest order bits from a 128bit integer"""

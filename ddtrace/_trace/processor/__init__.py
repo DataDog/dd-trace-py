@@ -2,9 +2,11 @@ import abc
 from collections import defaultdict
 from itertools import chain
 import logging
+from typing import Callable
 from typing import Optional
 
 from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.span import _OTLP_SPAN_TAG_KEYS
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY
@@ -31,6 +33,7 @@ from ddtrace.internal.telemetry.metrics import get_metric_recorder
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -132,12 +135,14 @@ class TraceSamplingProcessor(TraceProcessor):
         compute_stats_enabled: bool,
         single_span_rules: list[SpanSamplingRule],
         apm_opt_out: bool,
+        get_tracer_tags: Optional[Callable[[], Optional[dict[str, str]]]] = None,
     ):
         super().__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
         self.sampler = DatadogSampler()
         self.apm_opt_out = apm_opt_out
+        self._get_tracer_tags = get_tracer_tags
 
     @property
     def apm_opt_out(self):
@@ -166,7 +171,11 @@ class TraceSamplingProcessor(TraceProcessor):
                     span._set_attribute(_APM_ENABLED_METRIC_KEY, 0)
 
             if chunk_root.context.sampling_priority is None:
-                _, discard = self.sampler.sample_or_discard(chunk_root._local_root)
+                tags = self._get_tracer_tags() if self._get_tracer_tags is not None else None
+                if tags is None:
+                    _, discard = self.sampler.sample_or_discard(chunk_root._local_root)
+                else:
+                    _, discard = self.sampler.sample_or_discard(chunk_root._local_root, tracer_tags=tags)
                 if discard:
                     return None
                 if chunk_root.context.sampling_priority is None:
@@ -224,6 +233,17 @@ class ServiceNameProcessor(TraceProcessor):
 
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
+
+    def __init__(self, get_tracer_tags: Optional[Callable[[], Optional[dict[str, str]]]] = None):
+        self._get_tracer_tags = get_tracer_tags
+
+    def resource_attributes(self) -> Optional[dict[str, str]]:
+        tags = self._get_tracer_tags() if self._get_tracer_tags is not None else None
+        return (
+            {k: v for k, v in tags.items() if k not in _OTLP_SPAN_TAG_KEYS and not k.startswith("_dd.")}
+            if tags is not None
+            else None
+        )
 
     def _set_git_metadata(self, chunk_root):
         repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
@@ -337,15 +357,16 @@ class SpanAggregator(SpanProcessor):
         partial_flush_min_spans: int,
         dd_processors: Optional[list[TraceProcessor]] = None,
         user_processors: Optional[list[TraceProcessor]] = None,
+        get_tracer_tags: Optional[Callable[[], Optional[dict[str, str]]]] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
         self.partial_flush_min_spans = partial_flush_min_spans
         # Initialize trace processors
         self.sampling_processor = TraceSamplingProcessor(
-            config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out
+            config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out, get_tracer_tags
         )
-        self.tags_processor = TraceTagsProcessor()
+        self.tags_processor = TraceTagsProcessor(get_tracer_tags)
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
@@ -482,7 +503,11 @@ class SpanAggregator(SpanProcessor):
                     sampling_mechanism,
                     should_partial_flush,
                 )
-            self.writer.write(spans)
+            resource_attributes = self.tags_processor.resource_attributes()
+            if resource_attributes is not None and isinstance(self.writer, NativeWriter):
+                self.writer.write(spans, resource_attributes=resource_attributes)
+            else:
+                self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.

@@ -22,6 +22,7 @@ def test_otlp_resource_attributes_are_not_span_attributes():
     with _capture_http_requests(port=14318) as requests:
         with tracer.trace("resource-root"):
             with tracer.trace("resource-child") as child:
+                child.set_tag("team", "core")
                 child.set_tag("region", "eu1")
                 child._set_attribute("workers", 7)
                 child.set_tag("span.only", "retained")
@@ -43,12 +44,117 @@ def test_otlp_resource_attributes_are_not_span_attributes():
     assert len(resource["long"]["stringValue"]) < 25001
     for attributes in spans.values():
         assert "long" not in attributes
-        assert "team" not in attributes
+    assert "team" not in spans["resource-root"]
+    assert spans["resource-child"]["team"] == {"stringValue": "core"}
     assert "region" not in spans["resource-root"]
     assert "workers" not in spans["resource-root"]
     assert spans["resource-child"]["region"] == {"stringValue": "eu1"}
     assert spans["resource-child"]["workers"] == {"intValue": "7"}
     assert spans["resource-child"]["span.only"] == {"stringValue": "retained"}
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:14318/v1/traces",
+        "DD_TRACE_SAMPLE_RATE": "1",
+        "DD_TRACE_WRITER_INTERVAL_SECONDS": "1000",
+        "DD_TRACE_PARTIAL_FLUSH_ENABLED": "true",
+        "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1",
+        "DD_TAGS": "team:initial,removed:yes",
+    },
+    parametrize={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"],
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": ["http/json", "http/protobuf"],
+    },
+)
+def test_otlp_resource_uses_latest_finished_tags():
+    import json
+    import os
+
+    from google.protobuf.json_format import MessageToDict
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace._trace.product import apm_tracing_rc
+    from tests.opentelemetry.utils import _capture_http_requests
+
+    def decode(body):
+        if os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] == "http/json":
+            return json.loads(body)
+        return MessageToDict(ExportTraceServiceRequest.FromString(body))
+
+    with _capture_http_requests(port=14318) as requests:
+        with tracer.trace("buffered") as old:
+            assert old.get_tag("team") is None
+        with tracer.trace("open") as root:
+            apm_tracing_rc({"tracing_tags": ["team:remote"]}, config)
+            with tracer.trace("child") as child:
+                child.set_tag("team", "override")
+            assert root.get_tag("team") is None
+        tracer.flush()
+        apm_tracing_rc({}, config)
+        tracer.set_tags({"team": "setter"})
+        with tracer.trace("reset"):
+            pass
+        tracer.flush()
+        tracer._tags = {}
+        with tracer.trace("empty"):
+            pass
+        tracer.flush()
+
+    assert len(requests) == 3
+    resources = []
+    for body in requests:
+        [resource_spans] = decode(body)["resourceSpans"]
+        resources.append({a["key"]: a["value"] for a in resource_spans["resource"]["attributes"]})
+    assert resources[0]["team"] == {"stringValue": "remote"}
+    assert "removed" not in resources[0]
+    assert resources[1]["team"] == {"stringValue": "setter"}
+    assert resources[1]["removed"] == {"stringValue": "yes"}
+    assert "team" not in resources[2] and "removed" not in resources[2]
+    spans = {
+        span["name"]: {a["key"]: a["value"] for a in span.get("attributes", [])}
+        for scope in decode(requests[0])["resourceSpans"][0]["scopeSpans"]
+        for span in scope["spans"]
+    }
+    assert set(spans) == {"buffered", "open", "child"}
+    assert "team" not in spans["buffered"] and "team" not in spans["open"]
+    assert spans["child"]["team"] == {"stringValue": "override"}
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://127.0.0.1:14318/v1/traces",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"name":"keep","sample_rate":1}]',
+        "DD_TAGS": "team:core",
+    },
+    parametrize={"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"]},
+)
+def test_otlp_resource_survives_root_drop():
+    import json
+
+    from ddtrace import tracer
+    from tests.opentelemetry.utils import _capture_http_requests
+
+    with _capture_http_requests(port=14318) as requests:
+        with tracer.trace("drop") as root:
+            with tracer.trace("keep"):
+                pass
+        assert root.context.sampling_priority < 0
+        tracer.flush()
+
+    assert len(requests) == 1
+    [resource_spans] = json.loads(requests[0])["resourceSpans"]
+    resource = {a["key"]: a["value"] for a in resource_spans["resource"]["attributes"]}
+    assert resource["team"] == {"stringValue": "core"}
+    spans = [span for scope in resource_spans["scopeSpans"] for span in scope["spans"]]
+    assert [span["name"] for span in spans] == ["keep"]
+    assert "team" not in {a["key"] for a in spans[0]["attributes"]}
 
 
 @pytest.mark.subprocess(

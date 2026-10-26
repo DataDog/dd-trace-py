@@ -972,3 +972,132 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
         probabilistic_decision=True,
     )
     assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr
+
+
+@pytest.mark.parametrize(
+    "span_value,tracer_tags,pattern,expected",
+    [
+        (None, {"tag": "inherited"}, "inherit*", True),
+        (None, {}, "*", False),
+        (None, None, "*", False),
+        ("explicit", {"tag": "inherited"}, "explicit", True),
+        ("explicit", {"tag": "inherited"}, "inherited", False),
+        ("", {"tag": "inherited"}, "inherited", False),
+        (7, {"tag": "8"}, "7", True),
+        (0, {"tag": "7"}, "7", False),
+        (7.0, {"tag": "8"}, "7", True),
+        (7.5, {"tag": "7"}, "7", False),
+        (7.5, {"tag": "7.5"}, "7.*", False),
+        (7.5, {"tag": "other"}, "?*", True),
+    ],
+)
+def test_sampling_rule_tracer_tags_are_only_a_fallback(span_value, tracer_tags, pattern, expected):
+    span = Span("test.span")
+    if span_value is not None:
+        span._set_attribute("tag", span_value)
+    before_strings = span.get_tags()
+    before_numbers = dict(span._get_numeric_attributes())
+    rule = SamplingRule(0.0, tags={"tag": pattern})
+
+    assert rule.matches(span, tracer_tags=tracer_tags) is expected
+    assert span.get_tags() == before_strings
+    assert span._get_numeric_attributes() == before_numbers
+
+
+@pytest.mark.parametrize("method", ["sample", "sample_or_discard"])
+def test_datadog_sampler_uses_current_tracer_tags_without_mutating_spans(method):
+    sampler = DatadogSampler(rules=[SamplingRule(0.0, tags={"team": "core"}, discard=True)])
+    span = Span("test.span")
+    tracer_tags = {"team": "core"}
+
+    def assert_sampled(expected):
+        result = getattr(sampler, method)(span, tracer_tags=tracer_tags)
+        assert result == (expected if method == "sample" else (expected, not expected))
+        assert span.get_tag("team") is None
+
+    assert_sampled(False)
+    tracer_tags = {"team": "edge"}
+    assert_sampled(True)
+    tracer_tags = {}
+    assert_sampled(True)
+    tracer_tags = {"team": "core"}
+    assert_sampled(False)
+
+
+@pytest.mark.parametrize("method", ["sample", "sample_or_discard"])
+@pytest.mark.parametrize("span_value", ["explicit", 7])
+def test_datadog_sampler_span_tags_override_tracer_tags(method, span_value):
+    sampler = DatadogSampler(
+        rules=[
+            SamplingRule(0.0, tags={"tag": "inherited"}, discard=True),
+            SamplingRule(1.0, tags={"tag": str(span_value), "team": "core"}),
+        ],
+        rate_limit=-1,
+    )
+    span = Span("test.span")
+    span._set_attribute("tag", span_value)
+
+    result = getattr(sampler, method)(span, tracer_tags={"tag": "inherited", "team": "core"})
+
+    assert result == (True if method == "sample" else (True, False))
+    assert span.get_metric(_SAMPLING_RULE_DECISION) == 1.0
+    assert span.get_tag("team") is None
+    if isinstance(span_value, str):
+        assert span.get_tag("tag") == span_value
+    else:
+        assert span.get_metric("tag") == span_value
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"},
+    parametrize={"SAMPLING_PATH": ["early", "partial"]},
+    err=b"Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.\n",
+)
+def test_otlp_sampling_uses_owning_tracer_tags():
+    import os
+
+    from ddtrace import tracer as global_tracer
+    from ddtrace._trace.sampler import DatadogSampler
+    from ddtrace._trace.sampling_rule import SamplingRule
+    from ddtrace.constants import USER_KEEP
+    from ddtrace.constants import USER_REJECT
+    from ddtrace.trace import Tracer
+
+    global_tracer._tags = {"team": "different-owner"}
+    tracer = Tracer()
+    tracer.enabled = False
+    tracer._sampler = DatadogSampler(
+        rules=[
+            SamplingRule(1.0, name="root", tags={"team": "core", "tag": "explicit"}),
+            SamplingRule(1.0, name="root", tags={"team": "core", "tag": "7"}),
+            SamplingRule(0.0),
+        ],
+        rate_limit=-1,
+    )
+    for tags, explicit_value, expected in (
+        ({"team": "core", "tag": "explicit"}, None, USER_KEEP),
+        ({}, None, USER_REJECT),
+        ({"team": "core", "tag": 7}, None, USER_REJECT),
+        ({"team": "core", "tag": "inherited"}, "explicit", USER_KEEP),
+        ({"team": "core", "tag": "inherited"}, 7, USER_KEEP),
+    ):
+        tracer._tags = {"team": "before-update", "tag": "inherited"}
+        with tracer.start_span("root") as root:
+            if explicit_value is not None:
+                root._set_attribute("tag", explicit_value)
+            with tracer.start_span("child", child_of=root) as child:
+                tracer._tags = tags
+                assert root.context.sampling_priority is None
+                if os.environ["SAMPLING_PATH"] == "early":
+                    tracer.sample(root)
+                else:
+                    assert child._local_root is root
+                    assert tracer._span_aggregator.sampling_processor.process_trace([child]) == [child]
+                assert root.context.sampling_priority == expected
+                assert child.context.sampling_priority == expected
+                assert root.get_tag("team") is None
+                if isinstance(explicit_value, int):
+                    assert root.get_metric("tag") == explicit_value
+                else:
+                    assert root.get_tag("tag") == explicit_value
+    tracer.shutdown()
