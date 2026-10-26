@@ -460,6 +460,19 @@ def test_pending_exports_are_bounded(otlp_endpoint, monkeypatch, sleeps):
     assert not any(b"user-one" in body for body in bodies)
 
 
+def test_the_flushes_of_one_exit_share_its_deadline(otlp_endpoint, monkeypatch):
+    # The proxy's shutdown flushes first, then the exit signal or atexit: together they take no longer than the
+    # shutdown time.
+    writer = UsageMetricsWriter("otlp", interval=60)
+    flushes = []
+    monkeypatch.setattr(writer, "flush", lambda retry=True, deadline=None: flushes.append((retry, deadline)))
+    writer.on_exit()
+    writer.on_shutdown()
+    [(retry, deadline), later] = flushes
+    assert retry is False and deadline is not None and later == (False, deadline)
+    assert writer._stopping.is_set()
+
+
 def test_on_shutdown_tries_pending_exports_once_without_waiting(otlp_endpoint, sleeps):
     Collector.status = 503
     writer = UsageMetricsWriter("otlp", interval=60)

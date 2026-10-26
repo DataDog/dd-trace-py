@@ -499,6 +499,14 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._stopping.set()
         self.flush(retry=False, deadline=deadline if deadline is not None else self._shutdown_deadline)
 
+    def on_exit(self) -> None:
+        """The process is about to exit: flush as at exit. Every later exit flush keeps to the same deadline, so that
+        the flushes of one exit together take no longer than the shutdown time.
+        """
+        if self._shutdown_deadline is None:
+            self._shutdown_deadline = time.monotonic() + _SHUTDOWN_SECONDS
+        self.on_shutdown()
+
     def close(self) -> None:
         """Stop the worker, flush what is left as at exit, and release the exporter's socket, all within the shutdown
         time.

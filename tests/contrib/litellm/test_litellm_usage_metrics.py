@@ -1375,6 +1375,33 @@ def test_usage_metrics_are_flushed_on_an_exit_signal(enabled, monkeypatch):
 
 
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_usage_metrics_are_flushed_when_the_proxy_shuts_down(enabled, monkeypatch):
+    # A gunicorn UvicornWorker dies by its SIGTERM once uvicorn has shut down, so neither the exit-signal flush nor
+    # atexit runs there; the proxy's own shutdown event does.
+    try:
+        module = importlib.import_module(litellm_patch._PROXY_SERVER_MODULE)
+    except ImportError:
+        pytest.skip("the LiteLLM proxy is not installed")
+    original = vars(module)["proxy_shutdown_event"]
+    patch()
+    try:
+        assert module.proxy_shutdown_event is not original
+        flushed = []
+        monkeypatch.setattr(litellm._datadog_usage_metrics_writer, "on_exit", lambda: flushed.append(True))
+        events = []
+
+        async def shutdown(**kwargs):
+            events.append(kwargs)
+
+        run(litellm_patch.traced_proxy_shutdown_event(shutdown, None, (), {"worker_heartbeat": None}))
+        assert events == [{"worker_heartbeat": None}]
+        assert flushed == [True]
+    finally:
+        unpatch()
+    assert vars(module)["proxy_shutdown_event"] is original
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_an_unusable_exporter_endpoint_leaves_the_integration_patched(enabled, monkeypatch):
     monkeypatch.setattr(
         litellm_patch._usage_metrics_writer.agent_config, "dogstatsd_url", "tcp://user:hunter2@localhost:8125"

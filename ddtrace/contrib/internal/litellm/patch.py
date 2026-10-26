@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import time
 import weakref
@@ -297,6 +298,26 @@ _ANTHROPIC_PASSTHROUGH_MODULE = (
 )
 _RESPONSES_STREAM_MODULE = "litellm.responses.streaming_iterator"
 _ANTHROPIC_CHAT_MODULE = "litellm.llms.anthropic.chat.handler"
+_PROXY_SERVER_MODULE = "litellm.proxy.proxy_server"
+
+
+async def traced_proxy_shutdown_event(func, instance, args, kwargs):
+    """Flush the usage metrics once the proxy has shut down, as its last callbacks have run.
+
+    A gunicorn UvicornWorker (litellm --run_gunicorn) resets SIGTERM to its default action after the fork, and uvicorn
+    re-raises the signal once it has shut down: the worker dies by the signal, so neither the exit-signal flush nor
+    atexit runs, and everything recorded since the last flush would be lost.
+    """
+    try:
+        return await func(*args, **kwargs)
+    finally:
+        writer = getattr(litellm, "_datadog_usage_metrics_writer", None)
+        if writer is not None:
+            try:
+                # Off the event loop: an export can take up to the shutdown time.
+                await asyncio.to_thread(writer.on_exit)
+            except Exception:
+                log.debug("LiteLLM usage metrics: failed to flush at proxy shutdown", exc_info=True)
 
 
 # The original class attributes of the stream methods wrapped below. Unpatching restores them as they were: a static
@@ -333,6 +354,13 @@ def _wrap_anthropic_chat_stream(module):
         log.debug("LiteLLM usage metrics: cannot observe Anthropic chat streams", exc_info=True)
 
 
+def _wrap_proxy_shutdown(module):
+    try:
+        _wrap_stream_method(module, "proxy_shutdown_event", traced_proxy_shutdown_event)
+    except Exception:
+        log.debug("LiteLLM usage metrics: cannot flush at proxy shutdown", exc_info=True)
+
+
 def _wrap_responses_stream(module):
     try:
         _wrap_stream_method(module.BaseResponsesAPIStreamingIterator, "_process_chunk", traced_responses_stream_event)
@@ -345,6 +373,7 @@ _STREAM_MODULE_HOOKS = (
     (_ANTHROPIC_PASSTHROUGH_MODULE, _wrap_anthropic_stream),
     (_RESPONSES_STREAM_MODULE, _wrap_responses_stream),
     (_ANTHROPIC_CHAT_MODULE, _wrap_anthropic_chat_stream),
+    (_PROXY_SERVER_MODULE, _wrap_proxy_shutdown),
 )
 
 
