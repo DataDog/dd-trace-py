@@ -511,6 +511,10 @@ def service_tier(payload: dict[str, Any]) -> Optional[str]:
     tier = _get(response, "service_tier") if isinstance(response, dict) else None
     if not isinstance(tier, str) or not tier:
         tier = _get((payload.get("metadata") or {}).get("usage_object"), "service_tier")
+    return valid_service_tier(tier)
+
+
+def valid_service_tier(tier: Any) -> Optional[str]:
     return tier if isinstance(tier, str) and _SERVICE_TIER.fullmatch(tier) else None
 
 
@@ -613,24 +617,27 @@ def _sse_events(chunks: Any, kinds: tuple[str, ...]) -> Any:
             yield event
 
 
-def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str]]:
-    """Which sides of a native Anthropic Messages stream the provider reported, and the model it named.
+def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str], Optional[str]]:
+    """Which sides of a native Anthropic Messages stream the provider reported, and the model and service tier it
+    named.
 
-    message_start carries the input count and a placeholder output count; message_delta carries the output
-    count. A stream that ends without one leaves LiteLLM to estimate that side.
+    message_start carries the input count, a placeholder output count and the tier the call was served at;
+    message_delta carries the output count. A stream that ends without one leaves LiteLLM to estimate that side.
     """
     input_reported = output_reported = False
-    model = None
+    model = tier = None
     for event in _sse_events(chunks, ("message_start", "message_delta")):
         kind = event.get("type")
         if kind == "message_start":
             message = event.get("message") or {}
-            input_reported = input_reported or _count(_get(message.get("usage"), "input_tokens")) is not None
+            usage = message.get("usage")
+            input_reported = input_reported or _count(_get(usage, "input_tokens")) is not None
             name = message.get("model")
             model = model or (name if isinstance(name, str) and name else None)
+            tier = tier or valid_service_tier(_get(usage, "service_tier"))
         elif kind == "message_delta":
             output_reported = output_reported or _count(_get(event.get("usage"), "output_tokens")) is not None
-    return input_reported, output_reported, model
+    return input_reported, output_reported, model, tier
 
 
 def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str]]:
@@ -667,6 +674,7 @@ class _Attempt:
         "output_reported",
         "reasoning_reported",
         "response_model",
+        "service_tier",
         "operator_ids",
         "provider_ids",
     )
@@ -684,12 +692,13 @@ class _Attempt:
         self.model_id = model_info.get("id") or kwargs.get("model_id")
         self.closed = False
         # What the integration's stream wrappers saw of this attempt's stream: whether it streamed, which counts the
-        # provider reported in it, and the model it named.
+        # provider reported in it, and the model and service tier it named.
         self.streaming = False
         self.input_reported = False
         self.output_reported = False
         self.reasoning_reported = False
         self.response_model: Optional[str] = None
+        self.service_tier: Optional[str] = None
         self.operator_ids = _operator_ids(model_info)
         # The provider account, project and key ids of the attempt: the operator's until it is recorded.
         self.provider_ids: dict[str, str] = dict(self.operator_ids)
@@ -841,9 +850,10 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         output_reported: bool,
         model: Optional[str] = None,
         reasoning_reported: bool = False,
+        service_tier: Optional[str] = None,
     ) -> None:
         """Called by the integration's stream wrappers with what a chunk or event of the latest attempt's stream
-        carried: which token counts the provider reported, and the model it named.
+        carried: which token counts the provider reported, and the model and service tier it named.
         """
         request = self._request(call_id, create=False)
         if request is None or not request.attempts:
@@ -855,6 +865,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         attempt.reasoning_reported = attempt.reasoning_reported or reasoning_reported
         if model and attempt.response_model is None:
             attempt.response_model = model
+        if attempt.service_tier is None:
+            attempt.service_tier = valid_service_tier(service_tier)
 
     def attempt_failed(self, kwargs: dict[str, Any], exception: BaseException) -> None:
         """Called by the integration's wrapper when a chat or text completion attempt raises before streaming.
@@ -982,7 +994,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             if isinstance(cost, (int, float)) and not isinstance(cost, bool) and (cost > 0 or _priced_at_zero(kwargs)):
                 observation["cost_usd"] = float(cost)
                 observation["cost_source"] = "estimated"
-            tier = service_tier(payload)
+            # A stream's assembled response often drops the tier its chunks named.
+            tier = service_tier(payload) or attempt.service_tier
             if tier is not None:
                 observation["service_tier"] = tier
         metadata = _metadata(kwargs)

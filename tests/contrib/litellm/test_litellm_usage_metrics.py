@@ -335,11 +335,12 @@ def test_anthropic_stream_usage_reads_the_raw_events():
         True,
         True,
         "claude-haiku-4-5-20251001",
+        None,
     )
     # A stream that ended without its final usage event: LiteLLM estimates the output.
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START]) == (True, False, "claude-haiku-4-5-20251001")
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START]) == (True, False, "claude-haiku-4-5-20251001", None)
     assert _usage_metrics.anthropic_stream_usage([MESSAGE_START + MESSAGE_DELTA.decode()])[:2] == (True, True)
-    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None)
+    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None)
     # Generated text that names an event kind is not an event of that kind.
     text = {"type": "text_delta", "text": '{"type": "message_delta", "usage": {"output_tokens": 9}}'}
     delta = "data: " + json.dumps({"type": "content_block_delta", "index": 0, "delta": text})
@@ -353,7 +354,8 @@ def test_anthropic_messages_stream_reports_each_side(logger, writer, final_usage
     proxy.start()
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
     events = [MESSAGE_START, MESSAGE_DELTA] if final_usage else [MESSAGE_START]
-    logger.observe_stream("call-1", *_usage_metrics.anthropic_stream_usage(events))
+    input_reported, output_reported, model, tier = _usage_metrics.anthropic_stream_usage(events)
+    logger.observe_stream("call-1", input_reported, output_reported, model, service_tier=tier)
     proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, cost=8.35e-5, first_chunk=0.2, model="claude-haiku-4-5")
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert "input_token_source" not in attempt
@@ -1002,9 +1004,102 @@ def test_the_anthropic_chat_stream_parser_is_wrapped(enabled):
     patch()
     iterator = ModelResponseIterator(streaming_response=iter(()), sync_stream=True)
     iterator.chunk_parser(MESSAGE_START_EVENT)
-    assert litellm_patch._served_model(iterator) == "claude-haiku-4-5-20251001"
+    assert litellm_patch._anthropic_stream_start(iterator) == ("claude-haiku-4-5-20251001", None)
     unpatch()
     assert vars(ModelResponseIterator)["chunk_parser"] is original
+
+
+def test_anthropic_stream_usage_reads_the_service_tier():
+    start = json.loads(MESSAGE_START.split("data: ", 1)[1])
+    start["message"]["usage"]["service_tier"] = "standard"
+    event = "data: " + json.dumps(start)
+    assert _usage_metrics.anthropic_stream_usage([event, MESSAGE_DELTA])[3] == "standard"
+    start["message"]["usage"]["service_tier"] = "not a tier"
+    assert _usage_metrics.anthropic_stream_usage(["data: " + json.dumps(start)])[3] is None
+
+
+@pytest.mark.parametrize(
+    "payload_extra, usage, tier",
+    [
+        # The tier only the stream named.
+        ({}, ANTHROPIC_USAGE, "standard"),
+        # A tier the logged response states wins over the stream's.
+        ({}, dict(ANTHROPIC_USAGE, service_tier="batch"), "batch"),
+        ({"response": {"service_tier": "priority"}}, ANTHROPIC_USAGE, "priority"),
+    ],
+)
+def test_a_streamed_service_tier_fills_in_for_the_response(logger, writer, payload_extra, usage, tier):
+    proxy = Proxy(logger, call_type="anthropic_messages", stream=True, route="claude")
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    logger.observe_stream("call-1", True, False, service_tier="standard")
+    # The first valid tier a stream names is kept.
+    logger.observe_stream("call-1", False, True, service_tier="flex")
+    proxy.succeeded(1.0, usage=usage, first_chunk=0.2, model="claude-haiku-4-5", payload_extra=payload_extra)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    [(breakdown, _)] = writer.of(TOKEN_BREAKDOWN)
+    assert attempt["service_tier"] == breakdown["service_tier"] == tier
+
+
+@pytest.mark.parametrize("tier", ["", "on demand", "t" * 33, 1, None])
+def test_an_invalid_streamed_service_tier_is_ignored(logger, writer, tier):
+    proxy = Proxy(logger, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    logger.observe_stream("call-1", True, True, service_tier=tier)
+    proxy.succeeded(0.5, first_chunk=0.1)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert "service_tier" not in attempt
+
+
+def test_openai_chat_stream_service_tier_from_its_chunks(installed, writer):
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    first = dict(chunk(model="gpt-4o-mini-2024-07-18"), service_tier="default")
+    feed(StreamWrapper("openai"), first, dict(chunk(12, 7), service_tier="default"))
+    proxy.succeeded(0.5, first_chunk=0.1)
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["service_tier"] == "default"
+
+
+def test_anthropic_chat_stream_service_tier_from_message_start(installed, writer):
+    iterator = type("ModelResponseIterator", (), {})()
+    event = {
+        "type": "message_start",
+        "message": dict(
+            MESSAGE_START_EVENT["message"], usage=dict(MESSAGE_START_EVENT["message"]["usage"], service_tier="standard")
+        ),
+    }
+    litellm_patch.traced_anthropic_chunk_parser(lambda chunk: None, iterator, (event,), {})
+    assert litellm_patch._anthropic_stream_start(iterator) == ("claude-haiku-4-5-20251001", "standard")
+    wrapper = StreamWrapper("anthropic")
+    wrapper.completion_stream = iterator
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    # LiteLLM's chunks of a recent version name the model but never the tier.
+    feed(wrapper, chunk(60, 1, model="claude-haiku-4-5-20251001"), chunk(60, 5, "end_turn"))
+    proxy.succeeded(0.5, usage=ANTHROPIC_USAGE, first_chunk=0.1, model="claude-haiku-4-5")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["service_tier"] == "standard"
+    assert attempt["response_model"] == "claude-haiku-4-5-20251001"
+
+
+def test_the_native_anthropic_stream_wrapper_passes_the_service_tier(installed, writer):
+    start = json.loads(MESSAGE_START.split("data: ", 1)[1])
+    start["message"]["usage"]["service_tier"] = "standard"
+    proxy = Proxy(installed, call_type="anthropic_messages", stream=True, route="claude")
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    logging_obj = type("LoggingObj", (), {"litellm_call_id": "call-1"})()
+    litellm_patch.traced_anthropic_stream_events(
+        lambda *args: None, None, (["data: " + json.dumps(start), MESSAGE_DELTA], logging_obj), {}
+    )
+    proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, first_chunk=0.2, model="claude-haiku-4-5")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["service_tier"] == "standard"
+    assert "input_token_source" not in attempt and "output_token_source" not in attempt
 
 
 def test_openai_chat_stream_usage_chunk(installed, writer):
@@ -1090,6 +1185,31 @@ def enabled(monkeypatch):
         monkeypatch.setattr(litellm, name, [], raising=False)
     yield
     unpatch()
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+@pytest.mark.parametrize("value", ["custom_handler.handler", ["custom_handler.handler"]])
+def test_the_logger_survives_the_proxy_callback_setup(enabled, tmp_path, value):
+    # A single callback given as a string replaces litellm.callbacks on the proxy.
+    try:
+        from litellm.proxy import proxy_server
+        from litellm.proxy.common_utils import callback_utils
+    except ImportError:
+        pytest.skip("the LiteLLM proxy extras are not installed")
+    (tmp_path / "custom_handler.py").write_text(
+        "from litellm.integrations.custom_logger import CustomLogger\nhandler = CustomLogger()\n"
+    )
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("")
+    patch()
+    logger = litellm._datadog_usage_metrics_logger
+    for initialize in (callback_utils.initialize_callbacks_on_proxy, proxy_server.initialize_callbacks_on_proxy):
+        initialize(value=value, premium_user=False, config_file_path=str(config_file), litellm_settings={})
+        assert [callback for callback in litellm.callbacks if callback is logger] == [logger], litellm.callbacks
+        assert any(type(callback).__name__ == "CustomLogger" for callback in litellm.callbacks), litellm.callbacks
+    unpatch()
+    assert not hasattr(callback_utils.initialize_callbacks_on_proxy, "__wrapped__")
+    assert not hasattr(proxy_server.initialize_callbacks_on_proxy, "__wrapped__")
 
 
 def mock_call():

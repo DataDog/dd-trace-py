@@ -7,6 +7,7 @@ its response headers, and the service tier in its response. Nothing leaves local
 """
 
 import collections
+import gzip
 import http.server
 import json
 import os
@@ -297,13 +298,19 @@ class _Provider(http.server.BaseHTTPRequestHandler):
 
 
 class _OtlpCollector(http.server.BaseHTTPRequestHandler):
+    """Keeps every export decoded, as a collector does, and the Content-Encoding each came with."""
+
     bodies = []
+    encodings = []
 
     def log_message(self, *args):
         pass
 
     def do_POST(self):
-        _OtlpCollector.bodies.append(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        encoding = self.headers.get("Content-Encoding")
+        _OtlpCollector.encodings.append(encoding)
+        _OtlpCollector.bodies.append(gzip.decompress(body) if encoding == "gzip" else body)
         self.send_response(200)
         self.send_header("Content-Length", "0")
         self.end_headers()
@@ -378,7 +385,7 @@ class DogStatsdCollector:
         return [line for packet in self.packets for line in packet.decode().split("\n") if line]
 
 
-def _config(provider_port):
+def _config(provider_port, callbacks=None):
     openai = f"api_base: http://127.0.0.1:{provider_port}/v1, api_key: {PROVIDER_KEYS[0]}"
     anthropic = f"api_base: http://127.0.0.1:{provider_port}, api_key: {PROVIDER_KEYS[1]}"
     key_id = f"model_info: {{datadog_api_key_id: {DECLARED_KEY_ID}}}"
@@ -419,6 +426,7 @@ def _config(provider_port):
           - model_name: custom-unpriced
             litellm_params: {{model: openai/my-custom-model-xyz, {openai}}}
         litellm_settings:
+          {f"callbacks: {callbacks}" if callbacks else ""}
           cache: true
           cache_params: {{type: local, mode: default_off}}
           drop_params: true
@@ -453,16 +461,33 @@ _AUTH = textwrap.dedent(
 )
 
 
+# A callback of the operator's own, which writes a line for each successful call.
+_CALLBACK = textwrap.dedent(
+    """
+    from litellm.integrations.custom_logger import CustomLogger
+
+    class Handler(CustomLogger):
+        async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
+            with open("callback.log", "a") as f:
+                f.write("success\\n")
+
+    handler = Handler()
+    """
+)
+
+
 class Proxy:
     """A LiteLLM proxy under ddtrace-run with usage metrics on, in front of the fake provider."""
 
-    def __init__(self, workdir, exporter, provider_port, otlp_port, dogstatsd_port, env_overrides=None):
+    def __init__(self, workdir, exporter, provider_port, otlp_port, dogstatsd_port, env_overrides=None, callbacks=None):
         self.port = free_port()
         self.workdir = str(workdir)
         with open(os.path.join(self.workdir, "config.yaml"), "w") as f:
-            f.write(_config(provider_port))
+            f.write(_config(provider_port, callbacks))
         with open(os.path.join(self.workdir, "usage_metrics_proxy_auth.py"), "w") as f:
             f.write(_AUTH)
+        with open(os.path.join(self.workdir, "usage_metrics_proxy_callback.py"), "w") as f:
+            f.write(_CALLBACK)
         bindir = os.path.dirname(sys.executable)
         env = dict(os.environ)
         env.update(
@@ -553,6 +578,7 @@ class Gateway:
         _Provider.counters.clear()
         _Provider.requests = []
         _OtlpCollector.bodies = []
+        _OtlpCollector.encodings = []
         _TraceCollector.payloads = []
         self.provider = _serve(_Provider)
         self.otlp = _serve(_OtlpCollector)
@@ -568,10 +594,14 @@ class Gateway:
         return _OtlpCollector.bodies
 
     @property
+    def otlp_encodings(self):
+        return _OtlpCollector.encodings
+
+    @property
     def trace_payloads(self):
         return _TraceCollector.payloads
 
-    def proxy(self, workdir, exporter):
+    def proxy(self, workdir, exporter, callbacks=None):
         trace_agent = {
             "DD_TRACE_AGENT_URL": f"http://127.0.0.1:{self.traces.server_address[1]}",
             "DD_TRACE_API_VERSION": "v0.4",
@@ -583,6 +613,7 @@ class Gateway:
             self.otlp.server_address[1],
             self.dogstatsd.port,
             env_overrides=trace_agent,
+            callbacks=callbacks,
         )
 
     def close(self):

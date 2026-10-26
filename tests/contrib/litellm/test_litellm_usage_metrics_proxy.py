@@ -186,6 +186,8 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
     log = proxy.output()
     bodies = list(gateway.otlp_bodies)
     assert bodies, f"no OTLP export received:\n{log}"
+    # Exports are gzip-compressed by default.
+    assert set(gateway.otlp_encodings) == {"gzip"}
     export = Export(bodies)
 
     # One scope per profile, named after the integration.
@@ -385,8 +387,8 @@ def check_provider_ids(export):
     input_tokens = "gen_ai.client.inference.usage.input_tokens"
 
     # Chat, streamed or not: every series carries the ids from the provider's headers, and the key id the
-    # operator declared. The served tier is on the token and cost counters of the call that was not streamed only:
-    # a stream's assembled response has none.
+    # operator declared, and the token and cost counters the served tier: from the response, or from the stream's
+    # chunks, as a stream's assembled response has none.
     gpt = {"trajectory.gateway.route": "gpt-4o-mini", "user.id": "user-alice"}
     for name in (
         "gen_ai.client.inference.duration",
@@ -396,8 +398,10 @@ def check_provider_ids(export):
     ):
         series = export.series(name, **gpt)
         assert series and all(openai_ids.items() <= s.items() for s in series), (name, series)
-    assert export.total(input_tokens, trajectory__request__service_tier=OPENAI_SERVICE_TIER, **gpt) == 12
-    assert export.total(input_tokens, trajectory__request__service_tier=None, **gpt) == 12
+    assert export.total(input_tokens, trajectory__request__service_tier=OPENAI_SERVICE_TIER, **gpt) == 24
+    assert export.total(input_tokens, trajectory__request__service_tier=None, **gpt) == 0
+    nousage = export.series(input_tokens, trajectory__gateway__route="gpt-4o-mini-nousage")
+    assert nousage and {s.get(TIER) for s in nousage} == {OPENAI_SERVICE_TIER}, nousage
     assert all(TIER not in s for s in export.series("gen_ai.client.inference.duration"))
     assert all(TIER not in s for s in export.series("trajectory.gen_ai.gateway.request.estimated_cost"))
 
@@ -415,15 +419,19 @@ def check_provider_ids(export):
     assert claude_chat and all(
         s[ACCOUNT] == DECLARED_ACCOUNT and s[PROJECT] == DECLARED_PROJECT and KEY_ID not in s for s in claude_chat
     ), _ids(claude_chat)
+    # An Anthropic chat stream names its tier in message_start only. (LiteLLM 1.6x records only its output count.)
+    claude_chat = export.series("gen_ai.client.inference.usage.output_tokens", trajectory__gateway__route="claude-chat")
+    assert claude_chat and {s.get(TIER) for s in claude_chat} == {ANTHROPIC_SERVICE_TIER}, _ids(claude_chat)
 
-    # The Anthropic Messages route: the organization from the provider's headers, streamed or not. LiteLLM 1.104
-    # keeps Anthropic's tier in the usage object; earlier versions drop it.
+    # The Anthropic Messages route: the organization from the provider's headers, streamed or not. A stream's tier
+    # comes from its message_start event; LiteLLM 1.104 keeps a call's tier in the usage object, and earlier
+    # versions drop it.
     if LITELLM_VERSION >= (1, 80):
         anthropic_ids = {ACCOUNT: ANTHROPIC_ORGANIZATION, KEY_ID: DECLARED_KEY_ID}
-        for route, tier in (("claude-haiku-4-5", None), ("claude-messages", ANTHROPIC_SERVICE_TIER)):
+        for route, streamed in (("claude-haiku-4-5", True), ("claude-messages", False)):
             series = export.series(input_tokens, trajectory__gateway__route=route)
             assert series and all(anthropic_ids.items() <= s.items() and PROJECT not in s for s in series), _ids(series)
-            expected = tier if LITELLM_VERSION >= (1, 104) else None
+            expected = ANTHROPIC_SERVICE_TIER if streamed or LITELLM_VERSION >= (1, 104) else None
             assert {s.get(TIER) for s in series} == {expected}, (route, _ids(series))
 
     if RESPONSES:
@@ -431,3 +439,23 @@ def check_provider_ids(export):
         assert series and all(openai_ids.items() <= s.items() and s.get(TIER) == OPENAI_SERVICE_TIER for s in series), (
             series
         )
+
+
+@pytest.mark.parametrize(
+    "callbacks", ["usage_metrics_proxy_callback.handler", "[usage_metrics_proxy_callback.handler]"]
+)
+def test_metrics_with_the_operators_own_callbacks(gateway, tmp_path, callbacks):
+    # A single callback given as a string replaces litellm.callbacks as the proxy starts.
+    proxy = gateway.proxy(tmp_path, "otlp", callbacks=callbacks)
+    try:
+        assert proxy.chat("gpt-4o-mini")[0] == 200
+        time.sleep(2)
+    finally:
+        proxy.stop()
+    export = Export(gateway.otlp_bodies)
+    gpt = {"trajectory.gateway.route": "gpt-4o-mini"}
+    assert export.count("gen_ai.client.inference.duration", **gpt) == 1, proxy.output()
+    assert export.total("gen_ai.client.inference.usage.input_tokens", **gpt) == 12
+    assert len(export.series("trajectory.gen_ai.gateway.request.estimated_cost", **gpt)) == 1
+    # The operator's callback ran too.
+    assert (tmp_path / "callback.log").read_text() == "success\n"

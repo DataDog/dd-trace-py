@@ -2,7 +2,7 @@
 
 Records are projected into metric points by the native ai_usage module as they arrive. Every
 interval the points recorded since the last flush are encoded once and sent, either as an OTLP/HTTP
-protobuf ExportMetricsServiceRequest (delta temporality) or as DogStatsD lines.
+protobuf ExportMetricsServiceRequest (delta temporality), gzip-compressed by default, or as DogStatsD lines.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from collections import deque
 import datetime
 import email.utils
 import errno
+import gzip
 import random
 import socket
 import time
@@ -58,8 +59,12 @@ _RETRYABLE_STATUSES = frozenset((429, 502, 503, 504))
 # Backoff before each retry within one flush, before jitter. An export that still fails waits for the next flush.
 _RETRY_DELAYS_SECONDS = (0.5, 1.0)
 _MAX_RETRY_DELAY_SECONDS = 5.0
-# Exports kept for a later flush while the endpoint is unavailable; the oldest is dropped first.
+# Exports kept for a later flush while the endpoint is unavailable, by count and by total encoded size; the oldest is
+# dropped first. A high-cardinality export can take tens of megabytes before compression.
 _MAX_PENDING_EXPORTS = 8
+_MAX_PENDING_BYTES = 64 * 1024 * 1024
+# A fast level: the payload is highly repetitive, so most of the gain comes at the lowest level.
+_GZIP_LEVEL = 1
 # How long the last flush at exit may spend sending what is left.
 _SHUTDOWN_SECONDS = 5.0
 
@@ -181,6 +186,25 @@ def _partial_success(body: bytes) -> Optional[tuple[int, str]]:
     return None
 
 
+_compression_warned = False
+
+
+def _compression() -> bool:
+    """Whether OTLP exports are gzip-compressed: OTEL_EXPORTER_OTLP_METRICS_COMPRESSION, falling back to
+    OTEL_EXPORTER_OTLP_COMPRESSION, gzip unless it is none. The OTLP specification requires every receiver to accept
+    gzip, and an uncompressed high-cardinality export can exceed a collector's request size limit.
+    """
+    global _compression_warned
+    value = _setting("OTEL_EXPORTER_OTLP_METRICS_COMPRESSION") or _setting("OTEL_EXPORTER_OTLP_COMPRESSION")
+    name = (value or "gzip").strip().lower()
+    if name in ("gzip", "none"):
+        return name == "gzip"
+    if not _compression_warned:
+        _compression_warned = True
+        log.warning("Ignoring the unknown OTLP metrics compression %r; using gzip", value)
+    return True
+
+
 def _timeout_ms() -> int:
     """OTEL_EXPORTER_OTLP_METRICS_TIMEOUT, falling back to OTEL_EXPORTER_OTLP_TIMEOUT as the endpoint and headers do.
     ddtrace's own settings already report both to telemetry. A value that is not a positive whole number of
@@ -237,12 +261,22 @@ class _OtlpSender:
         self.path = (url.path or "/") + (f"?{url.query}" if url.query else "")
         self.endpoint = _redacted(endpoint)
         self._timeout_ms = _timeout_ms()
+        self.gzip = _compression()
+        self._headers = [("Content-Type", "application/x-protobuf")]
+        if self.gzip:
+            self._headers.append(("Content-Encoding", "gzip"))
         self._client = HTTPClient(
             f"{url.scheme}://{url.netloc}",
             timeout_ms=self._timeout_ms,
             headers=headers,
             treat_http_errors_as_errors=False,
         )
+
+    def encode(self, payload: bytes) -> bytes:
+        """The request body of an export: compressed once, so that its retries and its size in the pending queue are
+        those of what is sent.
+        """
+        return gzip.compress(payload, compresslevel=_GZIP_LEVEL, mtime=0) if self.gzip else payload
 
     def send(self, payload: bytes, stopping: Any, retry: bool = True, deadline: Optional[float] = None) -> bool:
         """Send one export, retrying a retryable failure after a short backoff, unless stopping is set. A request
@@ -262,7 +296,7 @@ class _OtlpSender:
             try:
                 response = self._client.post(
                     self.path,
-                    headers=[("Content-Type", "application/x-protobuf")],
+                    headers=self._headers,
                     body=payload,
                     timeout_ms=timeout_ms,
                 )
@@ -307,6 +341,11 @@ class _OtlpSender:
         return False
 
 
+def _os_error_name(error: OSError) -> str:
+    """The error's errno name, such as ECONNREFUSED, else its type: a timeout carries no errno."""
+    return errno.errorcode.get(error.errno or 0, type(error).__name__)
+
+
 class _DogStatsdSender:
     def __init__(self) -> None:
         url = agent_config.dogstatsd_url
@@ -328,6 +367,7 @@ class _DogStatsdSender:
             self._max_packet = _UDP_MAX_PACKET
         else:
             raise ValueError(f"Unknown scheme `{parsed.scheme}` for the DogStatsD URL")
+        self._target = parsed.path if self._family is not None else "%s:%s" % self._address
         self._socket: Optional[socket.socket] = None
         # Failed sends so far: each makes the next connection start at the next address the host resolves to.
         self._failed_sends = 0
@@ -433,6 +473,14 @@ class _DogStatsdSender:
                     # The receiver's buffer is full; macOS reports it at once instead of blocking.
                     time.sleep(0.005)
                     continue
+                # Rate-limited per call site, like the OTLP warning. Without it, a closed UDP port (refused on a later
+                # send), a missing socket or an Agent that does not read loses every metric silently.
+                log.warning(
+                    "LiteLLM usage metrics: sending to DogStatsD at %s failed (%s); %d lines dropped",
+                    self._target,
+                    _os_error_name(e),
+                    len(packet),
+                )
                 log.debug("LiteLLM usage metrics: failed to send a DogStatsD packet", exc_info=True)
                 # A UDP connect succeeds without a listener, so only a failed send shows that an address is wrong.
                 self._failed_sends += 1
@@ -467,7 +515,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._otlp: Optional[_OtlpSender] = None
         self._dogstatsd: Optional[_DogStatsdSender] = None
         # OTLP exports that failed in a retryable way, oldest first.
-        self._pending: deque[bytes] = deque(maxlen=_MAX_PENDING_EXPORTS)
+        self._pending: deque[bytes] = deque()
         if exporter == "dogstatsd":
             self._dogstatsd = _DogStatsdSender()
         else:
@@ -554,9 +602,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
                     SCOPE_NAME, __version__, start_ns, end_ns, datadog=self._otlp.to_datadog
                 )
                 if payload:
-                    if len(self._pending) == self._pending.maxlen:
-                        log.debug("LiteLLM usage metrics: dropping the oldest unsent OTLP export")
-                    self._pending.append(payload)
+                    self._enqueue(self._otlp.encode(payload))
                 self._send_pending(self._otlp, deadline)
             elif self._dogstatsd is not None:
                 lines = self._usage.take_dogstatsd()
@@ -566,6 +612,15 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             log.debug("LiteLLM usage metrics: export failed", exc_info=True)
         finally:
             self._flush_lock.release()
+
+    def _enqueue(self, body: bytes) -> None:
+        """Queue an export, dropping the oldest ones beyond the count and size bounds. The newest is always kept."""
+        self._pending.append(body)
+        size = sum(len(pending) for pending in self._pending)
+        while len(self._pending) > 1 and (len(self._pending) > _MAX_PENDING_EXPORTS or size > _MAX_PENDING_BYTES):
+            dropped = self._pending.popleft()
+            size -= len(dropped)
+            log.debug("LiteLLM usage metrics: dropping the oldest unsent OTLP export (%d bytes)", len(dropped))
 
     def _send_pending(self, sender: _OtlpSender, deadline: Optional[float]) -> None:
         """Send the pending exports in order. Normally stop at the first that has to wait for a later flush; at

@@ -1,6 +1,7 @@
 import datetime
 import email.utils
 import errno
+import gzip
 import http.server
 import os
 import socket
@@ -41,6 +42,7 @@ def observation(user="u1", input_tokens=12):
 
 class Collector(http.server.BaseHTTPRequestHandler):
     requests = []
+    sizes = []
     status = 200
     # Statuses for the next requests, before status applies again.
     statuses = []
@@ -54,6 +56,10 @@ class Collector(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        # Decoded as a collector does; the size sent is kept apart.
+        Collector.sizes.append(len(body))
+        if self.headers.get("Content-Encoding") == "gzip":
+            body = gzip.decompress(body)
         Collector.requests.append((self.path, {k.lower(): v for k, v in self.headers.items()}, body))
         time.sleep(Collector.delay)
         status = Collector.statuses.pop(0) if Collector.statuses else Collector.status
@@ -74,6 +80,7 @@ class Collector(http.server.BaseHTTPRequestHandler):
 @pytest.fixture
 def collector():
     Collector.requests = []
+    Collector.sizes = []
     Collector.status = 200
     Collector.statuses = []
     Collector.retry_after = None
@@ -1073,3 +1080,142 @@ def test_dogstatsd_without_a_listener_never_raises(monkeypatch):
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     writer.record(PROVIDER_ATTEMPT, *observation())
     writer.flush()
+
+
+@pytest.fixture
+def no_compression_settings(monkeypatch):
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_COMPRESSION", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_COMPRESSION", raising=False)
+    monkeypatch.setattr(_usage_metrics_writer, "_compression_warned", False)
+
+
+def test_otlp_exports_are_gzipped_by_default(otlp_endpoint, no_compression_settings):
+    metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
+    writer = UsageMetricsWriter("otlp", interval=60)
+    for i in range(50):
+        writer.record(PROVIDER_ATTEMPT, *observation(user=f"user-{i:03d}"))
+    writer.flush()
+    [(_, headers, body)] = Collector.requests
+    assert headers["content-encoding"] == "gzip"
+    assert headers["content-type"] == "application/x-protobuf"
+    # The collector decoded the body it received; the series repeat their names and attributes, which compress well.
+    request = metrics_service_pb2.ExportMetricsServiceRequest()
+    request.ParseFromString(body)
+    assert request.resource_metrics
+    assert Collector.sizes[0] * 5 < len(body)
+
+
+@pytest.mark.parametrize(
+    "variables, gzipped",
+    [
+        ({"OTEL_EXPORTER_OTLP_COMPRESSION": "none"}, False),
+        ({"OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": "NONE"}, False),
+        ({"OTEL_EXPORTER_OTLP_COMPRESSION": "none", "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": "gzip"}, True),
+        ({"OTEL_EXPORTER_OTLP_COMPRESSION": "gzip", "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": "none"}, False),
+    ],
+)
+def test_otlp_compression_follows_the_settings(otlp_endpoint, no_compression_settings, monkeypatch, variables, gzipped):
+    for name, value in variables.items():
+        monkeypatch.setenv(name, value)
+    writer = UsageMetricsWriter("otlp", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    [(_, headers, body)] = Collector.requests
+    assert ("content-encoding" in headers) is gzipped
+    assert b"gen_ai.client.inference.duration" in body
+    assert (Collector.sizes[0] < len(body)) is gzipped
+
+
+@pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
+def test_otlp_compression_comes_from_stable_configuration(no_compression_settings, monkeypatch, source_name):
+    monkeypatch.setitem(getattr(settings_core, source_name), "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION", "none")
+    assert _usage_metrics_writer._compression() is False
+
+
+def test_an_unknown_otlp_compression_warns_once_and_uses_gzip(no_compression_settings, monkeypatch):
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_COMPRESSION", "zstd")
+    assert _usage_metrics_writer._compression() is True
+    assert _usage_metrics_writer._compression() is True
+    assert [args[1] for args in warnings] == ["zstd"]
+
+
+def test_pending_exports_are_bounded_by_size(otlp_endpoint, no_compression_settings, monkeypatch, sleeps):
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_COMPRESSION", "none")
+    Collector.status = 503
+    writer = UsageMetricsWriter("otlp", interval=60)
+    users = ("user-one", "user-two", "user-three", "user-four")
+    for user in users[:2]:
+        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.flush()
+    # Room for the two exports pending and one more, not two more.
+    size = max(len(body) for body in writer._pending)
+    monkeypatch.setattr(_usage_metrics_writer, "_MAX_PENDING_BYTES", 3 * size + size // 2)
+    for user in users[2:]:
+        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.flush()
+    assert len(writer._pending) == 3
+    Collector.status = 200
+    sent = len(Collector.requests)
+    writer.flush()
+    bodies = [body for _, _, body in Collector.requests[sent:]]
+    # The oldest export was dropped first.
+    assert [user for body in bodies for user in users if user.encode() in body] == list(users[1:])
+
+
+def test_an_export_larger_than_the_size_bound_is_still_kept(otlp_endpoint, monkeypatch, sleeps):
+    monkeypatch.setattr(_usage_metrics_writer, "_MAX_PENDING_BYTES", 1)
+    Collector.status = 503
+    writer = UsageMetricsWriter("otlp", interval=60)
+    for user in ("user-one", "user-two"):
+        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.flush()
+    [body] = writer._pending
+    assert b"user-two" in gzip.decompress(body)
+
+
+def test_dogstatsd_send_failures_warn(monkeypatch):
+    # A UDP port nobody listens on: the first send succeeds, a later one is refused once the ICMP error came back.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{port}")
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    for _ in range(5):
+        writer.record(PROVIDER_ATTEMPT, *observation())
+        writer.flush()
+        if warnings:
+            break
+        time.sleep(0.05)
+    assert warnings, "no warning for a refused DogStatsD port"
+    assert warnings[0][1] == f"127.0.0.1:{port}"
+    assert warnings[0][2] == "ECONNREFUSED"
+
+
+def test_dogstatsd_warns_when_the_socket_is_missing(monkeypatch):
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setattr(agent_config, "dogstatsd_url", "unix:///nonexistent/dsd.sock")
+    writer = UsageMetricsWriter("dogstatsd", interval=60)
+    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.flush()
+    [args] = warnings
+    assert args[1] == "/nonexistent/dsd.sock"
+    assert args[2] == "ENOENT"
+
+
+def test_dogstatsd_warns_when_the_socket_stays_full(monkeypatch):
+    warnings = []
+    monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setattr(_usage_metrics_writer.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(agent_config, "dogstatsd_url", "unix:///var/run/dsd.sock")
+    sender = _usage_metrics_writer._DogStatsdSender()
+    sock = FullSocket()
+    sender._socket = sock
+    sender.send(["a:1|c", "b:1|c"])
+    assert sock.attempts == _usage_metrics_writer._SEND_ATTEMPTS
+    assert warnings == [(warnings[0][0], "/var/run/dsd.sock", "ENOBUFS", 2)]

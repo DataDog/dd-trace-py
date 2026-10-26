@@ -49,9 +49,10 @@ For each request from the proxy to a model provider, including each retry and fa
 - ``trajectory.gen_ai.client.inference.usage.cost``: the proxy's own price for the call, tagged
   ``trajectory.cost.source:estimated``.
 
-The token and cost metrics of a call carry ``trajectory.request.service_tier`` when the provider's response names the
-tier it served the call at, in the provider's own words (for example ``default`` or ``flex`` for OpenAI, ``standard``
-for Anthropic). The tier a request asked for is never used, and a streamed chat completion has none.
+The token and cost metrics of a call carry ``trajectory.request.service_tier`` when the provider names the tier it
+served the call at, in the provider's own words (for example ``default`` or ``flex`` for OpenAI, ``standard`` for
+Anthropic): from its response, or for a streamed call from the stream itself (the chunks of an OpenAI chat stream, the
+``message_start`` event of an Anthropic stream). The tier a request asked for is never used.
 
 For each client request to the proxy, ``trajectory.gen_ai.gateway.request.estimated_cost`` is the amount the proxy charged
 against its budgets. The two cost metrics describe the same spend and are never added together. Every point is tagged
@@ -78,7 +79,15 @@ against its budgets. The two cost metrics describe the same spend and are never 
    ``OTEL_EXPORTER_OTLP_PROTOCOL``, set to ``grpc``) is not supported: set ``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL`` to
    ``http/protobuf`` with an OTLP/HTTP ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``, or the metrics are not enabled. An export
    that fails with status 429, 502, 503 or 504, a refused connection or a timeout is retried, and kept for later exports
-   while the endpoint stays unavailable. ``dogstatsd`` sends the same series to the Datadog Agent's DogStatsD endpoint.
+   while the endpoint stays unavailable, up to 8 exports and 64 MiB in all; the oldest is dropped first.
+
+   Exports are compressed with gzip (``Content-Encoding: gzip``), which the OTLP specification requires every
+   receiver to accept. Set ``OTEL_EXPORTER_OTLP_METRICS_COMPRESSION``, or else
+   ``OTEL_EXPORTER_OTLP_COMPRESSION``, to ``none`` to send them uncompressed, or to ``gzip``. Compression keeps an
+   export with many series well under the request size limits collectors commonly set.
+
+   ``dogstatsd`` sends the same series to the Datadog Agent's DogStatsD endpoint. A failing send, such as one to a
+   port nothing listens on, logs a warning.
 
    Without a configured endpoint, or with Datadog's OTLP intake configured, Datadog stores the export as it arrives,
    so cost is sent in USD, the same values ``dogstatsd`` sends. An export to another configured endpoint, such as an

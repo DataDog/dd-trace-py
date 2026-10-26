@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import time
+from typing import Optional
 import weakref
 
 import litellm
@@ -197,7 +198,7 @@ def _count(value):
 
 
 def traced_chunk_creator(func, instance, args, kwargs):
-    """Note which token counts a provider's stream chunk reports, and the model it names.
+    """Note which token counts a provider's stream chunk reports, and the model and service tier it names.
 
     LiteLLM estimates each side of a stream on its own when no chunk reported it. An Anthropic stream reports its
     input count first, with a placeholder output count; the real output count comes with the final chunk.
@@ -217,41 +218,53 @@ def traced_chunk_creator(func, instance, args, kwargs):
                 output_reported = bool(_field(choices[0], "finish_reason"))
             reasoning = _field(_field(usage, "completion_tokens_details"), "reasoning_tokens")
             model = _field(chunk, "model")
-            if not isinstance(model, str) or not model:
-                model = _served_model(getattr(instance, "completion_stream", None))
+            # OpenAI's chunks name the tier at their top level; an Anthropic stream names it in message_start only.
+            tier = _field(chunk, "service_tier")
+            if not isinstance(model, str) or not model or not isinstance(tier, str) or not tier:
+                start_model, start_tier = _anthropic_stream_start(getattr(instance, "completion_stream", None))
+                if not isinstance(model, str) or not model:
+                    model = start_model
+                if not isinstance(tier, str) or not tier:
+                    tier = start_tier
             logger.observe_stream(
                 getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None),
                 input_reported,
                 output_reported,
                 model if isinstance(model, str) else None,
                 isinstance(reasoning, int),
+                tier if isinstance(tier, str) else None,
             )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
     return func(*args, **kwargs)
 
 
-# The model each Anthropic chat stream's message_start event names, by LiteLLM's stream iterator. LiteLLM before 1.10x
-# builds that stream's chunks without it.
-_anthropic_served_models: "weakref.WeakKeyDictionary[object, str]" = weakref.WeakKeyDictionary()
+# The model and service tier each Anthropic chat stream's message_start event names, by LiteLLM's stream iterator.
+# LiteLLM before 1.10x builds that stream's chunks without the model, and no version passes the tier on.
+_anthropic_stream_starts: "weakref.WeakKeyDictionary[object, tuple[Optional[str], Optional[str]]]" = (
+    weakref.WeakKeyDictionary()
+)
 
 
-def _served_model(stream):
+def _anthropic_stream_start(stream) -> "tuple[Optional[str], Optional[str]]":
     try:
-        return _anthropic_served_models.get(stream)
+        return _anthropic_stream_starts.get(stream, (None, None))
     except TypeError:
         # A stream that takes no weak reference (a string, a list) is not an Anthropic stream iterator.
-        return None
+        return None, None
 
 
 def traced_anthropic_chunk_parser(func, instance, args, kwargs):
-    """Note the model an Anthropic chat stream's message_start event names."""
+    """Note the model and service tier an Anthropic chat stream's message_start event names."""
     try:
         chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
         if _field(chunk, "type") == "message_start":
-            model = _field(_field(chunk, "message"), "model")
-            if isinstance(model, str) and model:
-                _anthropic_served_models[instance] = model
+            message = _field(chunk, "message")
+            model = _field(message, "model")
+            tier = _usage_metrics.valid_service_tier(_field(_field(message, "usage"), "service_tier"))
+            model = model if isinstance(model, str) and model else None
+            if model or tier:
+                _anthropic_stream_starts[instance] = (model, tier)
     except Exception:
         log.debug("LiteLLM usage metrics: failed to inspect an Anthropic stream event", exc_info=True)
     return func(*args, **kwargs)
@@ -264,8 +277,14 @@ def traced_anthropic_stream_events(func, instance, args, kwargs):
         try:
             chunks = get_argument_value(args, kwargs, 0, "all_chunks", optional=True) or ()
             logging_obj = get_argument_value(args, kwargs, 1, "litellm_logging_obj", optional=True)
-            input_reported, output_reported, model = _usage_metrics.anthropic_stream_usage(chunks)
-            logger.observe_stream(getattr(logging_obj, "litellm_call_id", None), input_reported, output_reported, model)
+            input_reported, output_reported, model, tier = _usage_metrics.anthropic_stream_usage(chunks)
+            logger.observe_stream(
+                getattr(logging_obj, "litellm_call_id", None),
+                input_reported,
+                output_reported,
+                model,
+                service_tier=tier,
+            )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect an Anthropic stream", exc_info=True)
     return func(*args, **kwargs)
@@ -299,6 +318,8 @@ _ANTHROPIC_PASSTHROUGH_MODULE = (
 _RESPONSES_STREAM_MODULE = "litellm.responses.streaming_iterator"
 _ANTHROPIC_CHAT_MODULE = "litellm.llms.anthropic.chat.handler"
 _PROXY_SERVER_MODULE = "litellm.proxy.proxy_server"
+_PROXY_CALLBACKS_MODULE = "litellm.proxy.common_utils.callback_utils"
+_INITIALIZE_CALLBACKS = "initialize_callbacks_on_proxy"
 
 
 async def traced_proxy_shutdown_event(func, instance, args, kwargs):
@@ -354,11 +375,43 @@ def _wrap_anthropic_chat_stream(module):
         log.debug("LiteLLM usage metrics: cannot observe Anthropic chat streams", exc_info=True)
 
 
+def traced_initialize_callbacks_on_proxy(func, instance, args, kwargs):
+    """Attach the usage metrics logger again once the proxy has set up its configured callbacks: a single callback
+    given as a string, rather than a list, replaces litellm.callbacks, which would drop the logger.
+    """
+    try:
+        return func(*args, **kwargs)
+    finally:
+        logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
+        if logger is not None:
+            try:
+                _attach_usage_metrics_logger(logger)
+            except Exception:
+                log.debug(
+                    "LiteLLM usage metrics: failed to attach the logger after the proxy's callbacks", exc_info=True
+                )
+
+
 def _wrap_proxy_shutdown(module):
     try:
         _wrap_stream_method(module, "proxy_shutdown_event", traced_proxy_shutdown_event)
     except Exception:
         log.debug("LiteLLM usage metrics: cannot flush at proxy shutdown", exc_info=True)
+    _wrap_initialize_callbacks(module)
+
+
+def _wrap_initialize_callbacks(module):
+    """Wrap the proxy's callback setup where it is defined and where the proxy server imported it by name, unless
+    that name already refers to the wrapped definition.
+    """
+    try:
+        defining = sys.modules.get(_PROXY_CALLBACKS_MODULE)
+        if module is not defining and defining is not None:
+            if vars(module).get(_INITIALIZE_CALLBACKS) is vars(defining).get(_INITIALIZE_CALLBACKS):
+                return
+        _wrap_stream_method(module, _INITIALIZE_CALLBACKS, traced_initialize_callbacks_on_proxy)
+    except Exception:
+        log.debug("LiteLLM usage metrics: cannot keep the logger through the proxy's callback setup", exc_info=True)
 
 
 def _wrap_responses_stream(module):
@@ -373,6 +426,7 @@ _STREAM_MODULE_HOOKS = (
     (_ANTHROPIC_PASSTHROUGH_MODULE, _wrap_anthropic_stream),
     (_RESPONSES_STREAM_MODULE, _wrap_responses_stream),
     (_ANTHROPIC_CHAT_MODULE, _wrap_anthropic_chat_stream),
+    (_PROXY_CALLBACKS_MODULE, _wrap_initialize_callbacks),
     (_PROXY_SERVER_MODULE, _wrap_proxy_shutdown),
 )
 
@@ -479,11 +533,7 @@ def _enable_usage_metrics():
     )
     # LiteLLM registers one logger of a class: a usage metrics logger left in its lists would make it ignore this one.
     _remove_usage_metrics_loggers()
-    manager = getattr(litellm, "logging_callback_manager", None)
-    if manager is not None:
-        manager.add_litellm_callback(logger)
-    if not any(callback is logger for callback in litellm.callbacks):
-        litellm.callbacks.append(logger)
+    _attach_usage_metrics_logger(logger)
     atexit.register(writer.on_shutdown)
     if not _exit_signal_flush_installed:
         # Termination through ddtrace's signal handlers re-raises the signal, which skips atexit. A handler installed
@@ -497,6 +547,17 @@ def _enable_usage_metrics():
     wrap("litellm", "litellm_core_utils.streaming_handler.CustomStreamWrapper.chunk_creator", traced_chunk_creator)
     for module, hook in _STREAM_MODULE_HOOKS:
         ModuleWatchdog.register_module_hook(module, hook)
+
+
+def _attach_usage_metrics_logger(logger):
+    """Add the logger to litellm.callbacks unless it is there already."""
+    if any(callback is logger for callback in litellm.callbacks):
+        return
+    manager = getattr(litellm, "logging_callback_manager", None)
+    if manager is not None:
+        manager.add_litellm_callback(logger)
+    if not any(callback is logger for callback in litellm.callbacks):
+        litellm.callbacks.append(logger)
 
 
 def _disable_usage_metrics():
