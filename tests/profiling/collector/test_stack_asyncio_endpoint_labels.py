@@ -1,3 +1,5 @@
+# Each task runs its work in a function with a unique name, so the assertions can pick out that
+# task's samples with get_samples_with_function.
 import sys
 
 import pytest
@@ -33,6 +35,8 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
         while time.thread_time_ns() < deadline:
             pass
 
+    # A enters its span, then B enters its span and sleeps, then A runs. B's span was activated on
+    # the thread last, so per-thread labels tag A's samples with B.
     async def task_a(a_active, b_active):
         with tracer.trace("async.request.a", resource=endpoint_a, span_type=ext.SpanTypes.WEB) as span:
             span_ids["a"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
@@ -102,6 +106,7 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
 
     endpoint = "traced-task-endpoint"
 
+    # The traced task keeps its span open until the untraced task has finished its work.
     async def traced_task(traced_task_active, untraced_task_finished):
         with tracer.trace("traced.task.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
             traced_task_active.set()
@@ -200,7 +205,10 @@ def test_stack_respects_explicit_empty_child_task_context():
     assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in child_samples)
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 12), reason="covers task factories without Task.get_context()")
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    reason="Task.get_context() is 3.12+; covers older versions where the task's Context can't be read",
+)
 @pytest.mark.xfail(strict=True, reason="task created in an empty Context by a custom factory gets the outer endpoint")
 @pytest.mark.subprocess(
     env={
@@ -267,7 +275,9 @@ def test_stack_omits_unverifiable_pre312_custom_factory_context():
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_eager_empty_task_context",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
     },
-    parametrize={"SUSPEND": ["0", "1"]},
+    # finishes_eagerly: the child completes inside create_task and is never scheduled.
+    # suspends: the child also runs a normal step after its eager first step.
+    parametrize={"CHILD": ["finishes_eagerly", "suspends"]},
     err=None,
 )
 def test_stack_respects_explicit_empty_context_for_eager_task():
@@ -282,7 +292,7 @@ def test_stack_respects_explicit_empty_context_for_eager_task():
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    suspend = os.environ["SUSPEND"] == "1"
+    suspend = os.environ["CHILD"] == "suspends"
     child_ids = []
 
     def busy_cpu():
