@@ -87,8 +87,8 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
-CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY = "ttl_30m_input_tokens"
-CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY = "ttl_12h_input_tokens"
+CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY = "ephemeral_30m_input_tokens"
+CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY = "ephemeral_12h_input_tokens"
 
 # Server-side tool calls billed per call by the provider, on top of token costs.
 WEB_SEARCH_COUNT_METRIC_KEY = "web_search_count"

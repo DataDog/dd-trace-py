@@ -1,6 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: The OpenAI integration now reports ``ttl_30m_input_tokens`` and ``ttl_12h_input_tokens``
-    metrics for Responses API calls on models that support ``prompt_cache_options``. These metrics split
-    ``cache_write_input_tokens`` into 30 minute and 12 hour prompt cache writes, which OpenAI bills at different rates.
+    LLM Observability: The OpenAI integration now reports ``ephemeral_30m_input_tokens`` and ``ephemeral_12h_input_tokens`` metrics for Responses API calls.

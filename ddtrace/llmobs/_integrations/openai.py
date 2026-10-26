@@ -324,8 +324,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             cache_write_tokens = _get_attr(prompt_tokens_details, "cache_write_tokens", None)
             if cache_write_tokens is not None:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
-            # The responses API splits cache writes by TTL (30 minutes vs 12 hours) since each TTL is billed at a
-            # different rate. The openai SDK does not type this field yet, so it may arrive as a plain dict.
             cache_write_tokens_details = _get_attr(prompt_tokens_details, "cache_write_tokens_details", None)
             if cache_write_tokens_details:
                 ttl_30m_tokens = _get_attr(cache_write_tokens_details, "ttl_30m_tokens", None)
