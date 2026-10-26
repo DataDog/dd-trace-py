@@ -251,25 +251,30 @@ def _resolver_middleware(next_middleware, root, info, **args):
         return next_middleware(root, info, **args)
 
 
+def _get_middleware_index(is_sync: bool) -> int:
+    """Return the positional index of middleware for this GraphQL version."""
+    if _graphql_version >= (3, 3):
+        # execute_sync omits subscribe_field_resolver and enable_early_execution.
+        return 9 if is_sync else 11
+    if _graphql_version >= (3, 2, 10):
+        # max_coercion_errors was inserted before middleware in 3.2.10.
+        return 10
+    if _graphql_version >= (3, 2):
+        return 9
+    return 8
+
+
 def _inject_trace_middleware_to_args(
     trace_middleware: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any], is_sync: bool = False
 ) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
-    middlewares_arg = 8
-    if _graphql_version >= (3, 3):
-        # execute_sync omits subscribe_field_resolver and enable_early_execution.
-        middlewares_arg = 9 if is_sync else 11
-    elif _graphql_version >= (3, 2, 10):
-        # max_coercion_errors was inserted before middleware in 3.2.10.
-        middlewares_arg = 10
-    elif _graphql_version >= (3, 2):
-        middlewares_arg = 9
+    middleware_index = _get_middleware_index(is_sync)
 
     # get middlewares from args or kwargs
     try:
-        middlewares = get_argument_value(args, kwargs, middlewares_arg, "middleware") or []
+        middlewares = get_argument_value(args, kwargs, middleware_index, "middleware") or []
         if isinstance(middlewares, MiddlewareManager):
             # First we must get the middlewares iterable from the MiddlewareManager then append
             # trace_middleware. For the trace_middleware to be called a new MiddlewareManager will
@@ -284,7 +289,7 @@ def _inject_trace_middleware_to_args(
     middlewares = list(middlewares) + [trace_middleware]
 
     # update args and kwargs to contain trace_middleware
-    args, kwargs = set_argument_value(args, kwargs, middlewares_arg, "middleware", middlewares)
+    args, kwargs = set_argument_value(args, kwargs, middleware_index, "middleware", middlewares)
     return args, kwargs
 
 
