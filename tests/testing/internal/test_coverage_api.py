@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest import mock
 
 from coverage import Coverage
+import pytest
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 import ddtrace.testing.internal.tracer_api.coverage as tracer_api_coverage
@@ -218,3 +219,114 @@ def test_paths_alias_first_match_precedence(tmp_path, monkeypatch) -> None:
         assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) == ("/lib/covered_pkg/mod.py")
     finally:
         clear_coverage_path_caches()
+
+
+def test_paths_alias_relative_destination_from_subdirectory(tmp_path, monkeypatch) -> None:
+    """Relative [paths] destinations are resolved against the working directory.
+
+    Running pytest from below the repository root with a destination such as
+    ../pkg/ must report the repository-relative path, not /../pkg/.
+    """
+    tmp_path.joinpath("lib/covered_pkg").mkdir(parents=True)
+    cwd = tmp_path / "tests"
+    cwd.mkdir()
+    # Config discovery happens relative to the working directory.
+    (cwd / ".coveragerc").write_text(
+        "[paths]\ncovered_pkg =\n    ../lib/covered_pkg/\n    */site-packages/covered_pkg/\n"
+    )
+    site_packages = _make_site_packages(tmp_path)
+    covered_file = str(site_packages / "__init__.py")
+    monkeypatch.chdir(cwd)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    clear_coverage_path_caches()
+    try:
+        assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) == (
+            "/lib/covered_pkg/__init__.py"
+        )
+    finally:
+        clear_coverage_path_caches()
+
+
+@pytest.mark.subprocess
+def test_wheel_installed_library_collected_and_remapped() -> None:
+    """Wheel-installed library files are collected and remapped end to end.
+
+    Unlike the mocked tests, this goes through the real collection gates: files
+    under site-packages are normally not instrumented at all, so without the
+    alias matcher there would be nothing to remap.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    repo = Path(tempfile.mkdtemp()) / "repo"
+    env_site = repo / ".cache/uv-test-environments/abc/lib/python3.12/site-packages"
+    (repo / "tests").mkdir(parents=True)
+    (env_site / "covered_pkg").mkdir(parents=True)
+    (env_site / "dep_pkg").mkdir(parents=True)
+    (repo / ".coveragerc").write_text("[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n")
+    (env_site / "covered_pkg/__init__.py").write_text("def bump():\n    return 42\n")
+    (env_site / "dep_pkg/__init__.py").write_text("def noop():\n    pass\n")
+
+    os.chdir(repo)
+
+    import ddtrace.testing.internal.tracer_api.coverage as tracer_api_coverage
+
+    tracer_api_coverage.install_coverage(repo)
+    try:
+        sys.path.insert(0, str(env_site))
+        with tracer_api_coverage.coverage_collection() as coverage_data:
+            import covered_pkg
+            import dep_pkg
+
+            assert covered_pkg.bump() == 42
+            dep_pkg.noop()
+
+        bitmaps = dict(coverage_data.get_coverage_bitmaps(relative_to=repo))
+        # The aliased installed copy is collected and remapped to its repository path.
+        assert "/covered_pkg/__init__.py" in bitmaps
+        # A plain dependency under site-packages is still not instrumented.
+        assert not any("dep_pkg" in path for path in bitmaps)
+    finally:
+        tracer_api_coverage.uninstall_coverage()
+        sys.path.remove(str(env_site))
+
+
+@pytest.mark.subprocess
+def test_installed_libraries_not_collected_without_aliases() -> None:
+    """Without [paths] aliases, installed libraries stay outside collection.
+
+    The site-packages gate must hold when no alias maps the installed copy back
+    to the repository: the alias matcher never admits anything.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    repo = Path(tempfile.mkdtemp()) / "repo"
+    env_site = repo / ".cache/uv-test-environments/abc/lib/python3.12/site-packages"
+    (repo / "tests").mkdir(parents=True)
+    (env_site / "covered_pkg").mkdir(parents=True)
+    (repo / ".coveragerc").write_text("[run]\nomit = covered_pkg/vendor/*\n")
+    (env_site / "covered_pkg/__init__.py").write_text("def bump():\n    return 42\n")
+
+    os.chdir(repo)
+
+    import ddtrace.testing.internal.tracer_api.coverage as tracer_api_coverage
+
+    tracer_api_coverage.install_coverage(repo)
+    try:
+        sys.path.insert(0, str(env_site))
+        with tracer_api_coverage.coverage_collection() as coverage_data:
+            import covered_pkg
+
+            assert covered_pkg.bump() == 42
+
+        bitmaps = dict(coverage_data.get_coverage_bitmaps(relative_to=repo))
+        assert not any("covered_pkg" in path for path in bitmaps)
+    finally:
+        tracer_api_coverage.uninstall_coverage()
+        sys.path.remove(str(env_site))

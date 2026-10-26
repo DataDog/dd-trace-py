@@ -143,6 +143,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         # Coverage collection configuration
         self._collect_import_coverage: bool = False
         self._include_paths: list[Path] = []
+        self._alias_matcher: t.Optional[t.Callable[[Path], bool]] = None
         # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
         # in the root directory of a repository)
         self._exclude_paths: list[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
@@ -184,6 +185,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         include_paths: t.Optional[list[Path]] = None,
         collect_import_time_coverage: bool = False,
         file_level_coverage: t.Optional[bool] = None,
+        alias_matcher: t.Optional[t.Callable[[Path], bool]] = None,
     ):
         if ModuleCodeCollector.is_installed():
             return
@@ -198,6 +200,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             include_paths = [Path(os.getcwd())]
 
         cls._instance._include_paths = include_paths
+        cls._instance._alias_matcher = alias_matcher
         cls._instance._collect_import_coverage = collect_import_time_coverage
         cls._instance._file_level_coverage = (
             is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
@@ -590,13 +593,15 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         code_path = resolved_code_origin(code)
 
-        if _is_site_packages_path(code_path):
-            # Do not instrument dependencies vendored or installed under the workspace.
-            return code
-
-        if not any(is_contained(code_path, include_path) for include_path in self._include_paths):
-            # Not a code object we want to instrument
-            return code
+        if _is_site_packages_path(code_path) or not any(
+            is_contained(code_path, include_path) for include_path in self._include_paths
+        ):
+            # Dependencies under site-packages and code outside the workspace are
+            # not instrumented, unless a coverage [paths] alias maps the file back
+            # to this repository (an installed copy of the library under test,
+            # e.g. a wheel in a virtual environment's site-packages).
+            if self._alias_matcher is None or not self._alias_matcher(code_path):
+                return code
 
         if any(is_contained(code_path, exclude_path) for exclude_path in self._exclude_paths):
             # Don't instrument code from standard library/site packages/etc.

@@ -10,11 +10,13 @@ def install(
     include_paths: t.Optional[list[Path]] = None,
     collect_import_time_coverage: bool = False,
     file_level_coverage: t.Optional[bool] = None,
+    alias_matcher: t.Optional[t.Callable[[Path], bool]] = None,
 ) -> None:
     ModuleCodeCollector.install(
         include_paths=include_paths,
         collect_import_time_coverage=collect_import_time_coverage,
         file_level_coverage=file_level_coverage,
+        alias_matcher=alias_matcher,
     )
     _patch_multiprocessing()
     _patch_threading()

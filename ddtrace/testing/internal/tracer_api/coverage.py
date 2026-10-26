@@ -8,6 +8,7 @@ coverage data.
 import contextlib
 import functools
 import logging
+import os
 from pathlib import Path
 import typing as t
 
@@ -33,10 +34,20 @@ log = logging.getLogger(__name__)
 
 
 def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
+    def alias_matcher(code_path: Path) -> bool:
+        # Installed copies of the library under test (e.g. a wheel in a virtual
+        # environment's site-packages) normally fail the collector's gates: they
+        # live under site-packages and possibly outside the workspace. When a
+        # coverage [paths] alias maps such a copy back to this repository, collect
+        # it so the coverage report can attribute it to the repository.
+        matched, mapped = _alias_mapped_path(str(code_path), str(workspace_path))
+        return matched and mapped is not None
+
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
         file_level_coverage=file_level_coverage,
+        alias_matcher=alias_matcher,
     )
     ModuleCodeCollector.start_coverage()
 
@@ -72,25 +83,40 @@ def clear_coverage_path_caches() -> None:
     _relative_coverage_path.cache_clear()
 
 
+def _alias_mapped_path(absolute_path: str, relative_to: str) -> tuple[bool, t.Optional[str]]:
+    """Whether a [paths] alias matches the file, and its upload path.
+
+    The first matching alias wins. Relative destinations are resolved against
+    the working directory, and every destination is reported relative to the
+    workspace; a destination outside the workspace cannot be attributed to the
+    repository, so the file is dropped (matched with a None path).
+    """
+    aliases = _coverage_path_aliases()
+    if aliases is None:
+        return False, None
+    for _pattern, regex, result in aliases.aliases:
+        if match := regex.match(absolute_path):
+            mapped = absolute_path.replace(match[0], result, 1).removeprefix("./")
+            if Path(mapped).is_absolute():
+                mapped_path = Path(mapped)
+            else:
+                mapped_path = Path(os.path.normpath(str(Path.cwd() / mapped)))
+            relative = relative_path(mapped_path, Path(relative_to))
+            if relative is None:
+                return True, None  # mapped outside the current repository
+            return True, f"/{relative}"
+    return False, None
+
+
 @functools.lru_cache(maxsize=65536)
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
     # Aliases take precedence so installed copies of repository files are reported
     # at their repository paths, matching what coverage combine does for reports.
-    # The first matching alias wins: an identity mapping keeps the default result,
-    # and an absolute destination is reported relative to the workspace, like the
-    # LCOV remapper does. A destination outside the workspace cannot be attributed
-    # to the repository, so the file is dropped.
-    aliases = _coverage_path_aliases()
-    if aliases is not None:
-        for _pattern, regex, result in aliases.aliases:
-            if match := regex.match(absolute_path):
-                mapped = absolute_path.replace(match[0], result, 1).removeprefix("./")
-                if Path(mapped).is_absolute():
-                    relative = relative_path(Path(mapped), Path(relative_to))
-                    if relative is None:
-                        return None  # mapped outside the current repository
-                    mapped = relative
-                return f"/{mapped}"
+    matched, mapped = _alias_mapped_path(absolute_path, relative_to)
+    if matched:
+        # A None mapping falls outside the repository, so the file is dropped
+        # rather than uploaded with a path the backend cannot attribute.
+        return mapped
     relative = relative_path(Path(absolute_path), Path(relative_to))
     if relative is None:
         return None  # covered file does not belong to current repo
