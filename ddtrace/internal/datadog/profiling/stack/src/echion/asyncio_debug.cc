@@ -61,23 +61,21 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
 }
 
 bool
-read_own_memory(const void* address, void* buffer, size_t size)
+read_own_memory(uintptr_t address, void* buffer, size_t size)
 {
-    if (address == nullptr || size == 0) {
+    if (address == 0 || size == 0) {
         return false;
     }
 
 #if defined(__linux__)
     struct iovec local = { buffer, size };
-    struct iovec remote = { const_cast<void*>(address), size };
+    // The kernel copies from this address; it is never dereferenced here.
+    struct iovec remote = { reinterpret_cast<void*>(address), size }; // NOLINT(performance-no-int-to-ptr)
     return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
 #elif defined(__APPLE__)
     mach_vm_size_t copied = 0;
-    return mach_vm_read_overwrite(mach_task_self(),
-                                  reinterpret_cast<mach_vm_address_t>(address),
-                                  size,
-                                  reinterpret_cast<mach_vm_address_t>(buffer),
-                                  &copied) == KERN_SUCCESS &&
+    return mach_vm_read_overwrite(
+             mach_task_self(), address, size, reinterpret_cast<mach_vm_address_t>(buffer), &copied) == KERN_SUCCESS &&
            copied == size;
 #else
     (void)buffer;
@@ -95,7 +93,7 @@ read_asyncio_debug_offsets_at(uintptr_t table_address,
     }
 
     PyAsyncioDebugOffsets table{};
-    if (!read(reinterpret_cast<const void*>(table_address), &table, sizeof(table))) {
+    if (!read(table_address, &table, sizeof(table))) {
         return std::nullopt;
     }
 
@@ -123,14 +121,13 @@ bool
 asyncio_list_head_is_consistent(uintptr_t head_address, AsyncioReadMemory read)
 {
     ListNode head{};
-    if (!read(reinterpret_cast<const void*>(head_address), &head, sizeof(head)) || head.next == 0 || head.prev == 0) {
+    if (!read(head_address, &head, sizeof(head)) || head.next == 0 || head.prev == 0) {
         return false;
     }
 
     ListNode next{};
     ListNode prev{};
-    return read(reinterpret_cast<const void*>(head.next), &next, sizeof(next)) &&
-           read(reinterpret_cast<const void*>(head.prev), &prev, sizeof(prev)) && next.prev == head_address &&
+    return read(head.next, &next, sizeof(next)) && read(head.prev, &prev, sizeof(prev)) && next.prev == head_address &&
            prev.next == head_address;
 }
 

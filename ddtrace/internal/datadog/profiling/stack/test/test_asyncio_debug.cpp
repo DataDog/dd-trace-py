@@ -24,12 +24,11 @@ namespace {
 std::vector<std::pair<uintptr_t, size_t>> g_readable;
 
 bool
-fake_read(const void* address, void* buffer, size_t size)
+fake_read(uintptr_t start, void* buffer, size_t size)
 {
-    const auto start = reinterpret_cast<uintptr_t>(address);
     for (const auto& [base, length] : g_readable) {
         if (start >= base && size <= length && start - base <= length - size) {
-            std::memcpy(buffer, address, size);
+            std::memcpy(buffer, reinterpret_cast<const void*>(start), size);
             return true;
         }
     }
@@ -316,10 +315,10 @@ TEST(AsyncioReadOwnMemory, ReadsReadableMemoryAndRejectsUnreadableMemory)
 {
     const uint64_t source[4] = { 1, 2, 3, 4 };
     uint64_t copy[4] = {};
-    ASSERT_TRUE(read_own_memory(source, copy, sizeof(source)));
+    ASSERT_TRUE(read_own_memory(reinterpret_cast<uintptr_t>(source), copy, sizeof(source)));
     EXPECT_EQ(std::memcmp(source, copy, sizeof(source)), 0);
 
-    EXPECT_FALSE(read_own_memory(nullptr, copy, sizeof(copy)));
+    EXPECT_FALSE(read_own_memory(0, copy, sizeof(copy)));
 
     // Two pages, the second inaccessible: a read entirely in it fails, and so does one that starts readable and runs
     // into it.
@@ -329,9 +328,10 @@ TEST(AsyncioReadOwnMemory, ReadsReadableMemoryAndRejectsUnreadableMemory)
     ASSERT_NE(pages, MAP_FAILED);
     ASSERT_EQ(mprotect(pages + page, page, PROT_NONE), 0);
 
-    EXPECT_FALSE(read_own_memory(pages + page, copy, sizeof(copy)));
-    EXPECT_FALSE(read_own_memory(pages + page - sizeof(uint64_t), copy, sizeof(copy)));
-    EXPECT_TRUE(read_own_memory(pages + page - sizeof(copy), copy, sizeof(copy)));
+    const auto base = reinterpret_cast<uintptr_t>(pages);
+    EXPECT_FALSE(read_own_memory(base + page, copy, sizeof(copy)));
+    EXPECT_FALSE(read_own_memory(base + page - sizeof(uint64_t), copy, sizeof(copy)));
+    EXPECT_TRUE(read_own_memory(base + page - sizeof(copy), copy, sizeof(copy)));
 
     munmap(pages, 2 * page);
 }

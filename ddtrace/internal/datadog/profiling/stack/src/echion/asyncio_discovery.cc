@@ -38,7 +38,7 @@ discover_asyncio_offsets(PyObject* asyncio_module)
     // In bounds because m_size matched. Copied through the kernel rather than loaded: if a same-size layout change put
     // task_name_counter here, a plain load would race with its atomic updates on free-threaded builds.
     uintptr_t table_address = 0;
-    if (!read_own_memory(static_cast<const char*>(state) + offsetof(AsyncioStateMirror, debug_offsets),
+    if (!read_own_memory(reinterpret_cast<uintptr_t>(state) + offsetof(AsyncioStateMirror, debug_offsets),
                          &table_address,
                          sizeof(table_address))) {
         return std::nullopt;

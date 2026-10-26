@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <string_view>
 #include <utility>
 
@@ -361,7 +362,7 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
 }
 
 // Where the asyncio task-list head offsets in use came from. Reported by _asyncio_task_lists for tests.
-enum class AsyncioOffsetsSource : int
+enum class AsyncioOffsetsSource : std::uint8_t
 {
     None,
     RuntimeTable,
