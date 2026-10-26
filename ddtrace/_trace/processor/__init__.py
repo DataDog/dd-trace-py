@@ -25,6 +25,7 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.standalone import standalone_config
+from ddtrace.internal.span_processor import SpanProcessor as _SpanProcessorBase
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
@@ -63,55 +64,8 @@ class _NoopTraceProcessor(TraceProcessor):
         return trace
 
 
-class SpanProcessor(metaclass=abc.ABCMeta):
+class SpanProcessor(_SpanProcessorBase[Span]):
     """A Processor is used to process spans as they are created and finished by a tracer."""
-
-    __processors__: list["SpanProcessor"] = []
-
-    def __init__(self) -> None:
-        """Default post initializer which logs the representation of the
-        Processor at the ``logging.DEBUG`` level.
-        """
-        pass
-
-    @abc.abstractmethod
-    def on_span_start(self, span: Span) -> None:
-        """Called when a span is started.
-
-        This method is useful for making upfront decisions on spans.
-
-        For example, a sampling decision can be made when the span is created
-        based on its resource name.
-        """
-        pass
-
-    @abc.abstractmethod
-    def on_span_finish(self, span: Span) -> None:
-        """Called with the result of any previous processors or initially with
-        the finishing span when a span finishes.
-
-        It can return any data which will be passed to any processors that are
-        applied afterwards.
-        """
-        pass
-
-    def shutdown(self, timeout: Optional[float]) -> None:
-        """Called when the processor is done being used.
-
-        Any clean-up or flushing should be performed with this method.
-        """
-        pass
-
-    def register(self) -> None:
-        """Register the processor with the global list of processors."""
-        SpanProcessor.__processors__.append(self)
-
-    def unregister(self) -> None:
-        """Unregister the processor from the global list of processors."""
-        try:
-            SpanProcessor.__processors__.remove(self)
-        except ValueError:
-            log.warning("Span processor %r not registered", self)
 
 
 class TraceSamplingProcessor(TraceProcessor):

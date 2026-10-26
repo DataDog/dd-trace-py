@@ -6,7 +6,7 @@ limit. It will measure operations being executed in a request and it will deacti
 
 from typing import Optional
 
-from ddtrace._trace.sampler import RateSampler
+from ddtrace.internal.sampling import RateSampler
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger

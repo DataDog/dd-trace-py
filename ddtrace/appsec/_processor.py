@@ -8,7 +8,7 @@ from typing import ClassVar
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.processor import SpanProcessor
+from ddtrace.internal.span_processor import SpanProcessor
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -83,7 +83,7 @@ def _get_rate_limiter() -> RateLimiter:
 
 
 @dataclasses.dataclass(eq=False)
-class AppSecSpanProcessor(SpanProcessor):
+class AppSecSpanProcessor(SpanProcessor[SpanData]):
     rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)

@@ -10,7 +10,7 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
+from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive

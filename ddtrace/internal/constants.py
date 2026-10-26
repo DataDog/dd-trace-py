@@ -245,3 +245,8 @@ class EXPERIMENTAL_FEATURES:
 # server.port is required whenever server.address is set, so a URL that omits the port falls
 # back to the port its scheme implies.
 DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+# Names of the synthetic spans the tracer infers for an upstream proxy (API Gateway, APIM) or a push subscription
+# (GCP Pub/Sub push). Products match on the name because it is all they have in on_span_start; the inferred-span tag
+# is only set once the span has been created. Every span name in _inferred_proxy.supported_proxies must be listed.
+INFERRED_SPAN_NAMES = frozenset({"aws.apigateway", "aws.httpapi", "azure.apim", "gcp.pubsub.receive"})

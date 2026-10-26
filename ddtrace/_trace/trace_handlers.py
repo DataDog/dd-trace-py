@@ -11,7 +11,7 @@ from typing import Protocol
 from urllib import parse
 
 from ddtrace import config
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
+from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist

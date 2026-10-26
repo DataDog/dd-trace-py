@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 from typing import Optional
 
-from ddtrace._trace.processor import SpanProcessor
+from ddtrace.internal.span_processor import SpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
@@ -15,7 +15,7 @@ log = get_logger(__name__)
 
 
 @dataclass(eq=False)
-class AppSecIastSpanProcessor(SpanProcessor):
+class AppSecIastSpanProcessor(SpanProcessor[SpanData]):
     _instance: ClassVar[Optional["AppSecIastSpanProcessor"]] = None
 
     @classmethod

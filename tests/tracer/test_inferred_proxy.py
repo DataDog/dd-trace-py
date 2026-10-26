@@ -1,9 +1,14 @@
 import pytest
 
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
+from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._inferred_proxy import supported_proxies
 from ddtrace._trace.span import Span
 from ddtrace.internal.core import ExecutionContext
+
+
+def test_inferred_span_names_cover_supported_proxies() -> None:
+    assert {info.span_name for info in supported_proxies.values()} <= INFERRED_SPAN_NAMES
 
 
 @pytest.mark.parametrize("missing_resource_path", [False, True])
