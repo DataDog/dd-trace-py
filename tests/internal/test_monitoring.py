@@ -33,6 +33,7 @@ class _MonitoringEvents(Protocol):
     PY_UNWIND: int
     LINE: int
     EXCEPTION_HANDLED: int
+    RAISE: int
 
 
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
@@ -120,6 +121,28 @@ class HandledExceptionHandler(monitoring.MonitoringEventHandler):
 
     def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
         self.handled.append((code, exception))
+
+
+class RaiseHandler(monitoring.MonitoringEventHandler):
+    def __init__(self) -> None:
+        self.raised: list[tuple[CodeType, BaseException]] = []
+
+    def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        self.raised.append((code, exception))
+
+
+class RaisingRaiseHandler(monitoring.MonitoringEventHandler):
+    def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        raise RuntimeError("raise handler exploded")
+
+
+class HandledAndRaiseHandler(HandledExceptionHandler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.raised: list[tuple[CodeType, BaseException]] = []
+
+    def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        self.raised.append((code, exception))
 
 
 class RaisingHandledExceptionHandler(monitoring.MonitoringEventHandler):
@@ -507,9 +530,8 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
 
 
-def test_multiplexer_uses_only_tool_id_3() -> None:
-    """Slot 4 remains available until the exception profiler joins the multiplexer."""
-    assert monitoring._CANDIDATE_TOOL_IDS == (3,)
+def test_multiplexer_prefers_tool_id_3() -> None:
+    assert monitoring._CANDIDATE_TOOL_IDS == (3, 4)
     assert monitoring.get_tool_id() == 3
 
 
@@ -810,22 +832,18 @@ def test_gc_collecting_last_registration_during_register_is_contained() -> None:
 
 
 @pytest.mark.subprocess(out=None, err=None)
-def test_get_tool_id_does_not_fall_back_to_profiler_slot() -> None:
-    """An occupied slot 3 is preserved without claiming the profiler's slot 4."""
+def test_get_tool_id_falls_back_without_disturbing_occupied_slot() -> None:
+    """After the profiler migrates, setup can fall back to custom slot 4."""
     import sys
-
-    import pytest
 
     sys_monitoring = getattr(sys, "monitoring")
     sys_monitoring.use_tool_id(3, "external")
 
     from ddtrace.internal import monitoring
 
-    with pytest.raises(monitoring.MonitoringToolUnavailable):
-        monitoring.get_tool_id()
-
+    assert monitoring.get_tool_id() == 4
     assert sys_monitoring.get_tool(3) == "external"
-    assert sys_monitoring.get_tool(4) is None
+    assert sys_monitoring.get_tool(4) == "ddtrace"
 
 
 @pytest.mark.subprocess(out=None, err=None)
@@ -1156,3 +1174,200 @@ def test_register_global_rejects_different_exception_handler(
 def test_register_global_rejects_local_only_handler() -> None:
     with pytest.raises(ValueError, match="no global"):
         monitoring.register_global(LineHandler())
+
+
+def test_raise_handler_receives_exceptions(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A global RAISE handler receives exceptions when they are raised."""
+
+    def fn() -> None:
+        try:
+            raise ValueError("raised")
+        except ValueError:
+            return
+
+    raise_handler = cast(RaiseHandler, registered_global(RaiseHandler()))
+
+    tool_id = monitoring._tool_id
+    assert tool_id is not None
+    assert _sys_monitoring.get_events(tool_id) & _E.RAISE
+
+    fn()
+
+    assert any(code is fn.__code__ and exc.args == ("raised",) for code, exc in raise_handler.raised)
+
+    raise_count = len(raise_handler.raised)
+    monitoring.unregister_global(raise_handler)
+    assert not (_sys_monitoring.get_events(tool_id) & _E.RAISE)
+
+    fn()
+    assert len(raise_handler.raised) == raise_count
+
+
+def test_raise_and_exception_handled_coexist(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """RAISE and EXCEPTION_HANDLED handlers can be registered simultaneously."""
+
+    def fn() -> None:
+        try:
+            raise ValueError("both")
+        except ValueError:
+            return
+
+    raise_handler = cast(RaiseHandler, registered_global(RaiseHandler()))
+    handled_handler = cast(HandledExceptionHandler, registered_global(HandledExceptionHandler()))
+
+    tool_id = monitoring._tool_id
+    assert tool_id is not None
+    assert _sys_monitoring.get_events(tool_id) & _E.RAISE
+    assert _sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED
+
+    fn()
+
+    assert any(code is fn.__code__ and exc.args == ("both",) for code, exc in raise_handler.raised)
+    assert any(code is fn.__code__ and exc.args == ("both",) for code, exc in handled_handler.handled)
+
+
+def test_register_global_rejects_different_raise_handler(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A second RAISE owner cannot silently replace the active handler."""
+
+    def fn() -> None:
+        pass
+
+    first: RaiseHandler = registered_global(RaiseHandler())  # type: ignore[assignment]
+    second = RaiseHandler()
+
+    with pytest.raises(ValueError, match="RAISE already has a different"):
+        monitoring.register_global(second)
+
+    exception = ValueError("raised")
+    monitoring._on_raise(fn.__code__, 0, exception)
+    assert (fn.__code__, exception) in first.raised
+    assert not second.raised
+
+
+def test_register_global_same_handler_is_idempotent(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    handler = registered_global(HandledAndRaiseHandler())
+    tool_id = monitoring.get_tool_id()
+    events = _sys_monitoring.get_events(tool_id)
+
+    monitoring.register_global(handler)
+
+    assert monitoring.get_tool_id() == tool_id
+    assert _sys_monitoring.get_events(tool_id) == events
+    assert monitoring._global_exception_handled_handler is handler
+    assert monitoring._global_raise_handler is handler
+
+
+def test_register_global_rejects_multi_event_handler_atomically(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A conflict on one event cannot claim another event as a side effect."""
+    registered_global(RaiseHandler())
+    combined = HandledAndRaiseHandler()
+
+    with pytest.raises(ValueError, match="RAISE already has a different"):
+        monitoring.register_global(combined)
+
+    assert monitoring._global_exception_handled_handler is None
+    assert monitoring._global_raise_handler is not combined
+    assert not (_sys_monitoring.get_events(monitoring.get_tool_id()) & _E.EXCEPTION_HANDLED)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_failed_global_event_install_rolls_back_every_owner() -> None:
+    import sys
+    from types import CodeType
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class FailingMonitoring:
+        def __getattr__(self, name: str) -> object:
+            return getattr(sys_monitoring, name)
+
+        def set_events(self, tool_id: int, events: int) -> None:
+            if events:
+                raise RuntimeError("set_events failed")
+            sys_monitoring.set_events(tool_id, events)
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+            pass
+
+        def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+            pass
+
+    monitoring._sys_monitoring = FailingMonitoring()
+    with pytest.raises(RuntimeError, match="set_events failed"):
+        monitoring.register_global(Handler())
+
+    assert monitoring._global_exception_handled_handler is None
+    assert monitoring._global_raise_handler is None
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(3) is None
+    assert sys_monitoring.get_tool(4) is None
+
+
+def test_raise_handler_failure_does_not_affect_user_code(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A failing RAISE handler is isolated from user code."""
+
+    def fn() -> None:
+        pass
+
+    registered_global(RaisingRaiseHandler())
+    monitoring._on_raise(fn.__code__, 0, ValueError("raised"))
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_last_global_unregister_releases_tool_and_callbacks() -> None:
+    import sys
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+            pass
+
+        def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+            pass
+
+    def target() -> None:
+        pass
+
+    class LocalHandler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    local = LocalHandler()
+    monitoring.register(target.__code__, local)
+    tool_id = monitoring.get_tool_id()
+
+    handler = Handler()
+    monitoring.register_global(handler)
+    assert sys_monitoring.get_events(tool_id) & sys_monitoring.events.EXCEPTION_HANDLED
+    assert sys_monitoring.get_events(tool_id) & sys_monitoring.events.RAISE
+
+    monitoring.unregister_global(handler)
+    assert not (sys_monitoring.get_events(tool_id) & sys_monitoring.events.EXCEPTION_HANDLED)
+    assert not (sys_monitoring.get_events(tool_id) & sys_monitoring.events.RAISE)
+    assert sys_monitoring.get_tool(tool_id) == "ddtrace"
+
+    monitoring.unregister(target.__code__, local)
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
