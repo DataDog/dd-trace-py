@@ -222,6 +222,11 @@ def _release_storage_var(name: str, var: StorageVar) -> None:
 # function return value. The wrapped function can be accessed via the
 # __wrapped__ attribute. Context-specific values can be stored and retrieved
 # with the set and get methods.
+#
+# The stored values live only while the wrapped call runs. When the call ends,
+# __return__ or __exit__ empties the storage. Read every value before you call
+# super().__return__ or super().__exit__. Reading or writing the storage after
+# that, for example from a callback or a copied Context, is not supported.
 
 CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
@@ -518,13 +523,14 @@ class BaseWrappingContext(ABC):
 
         return self
 
-    def _pop_storage(self) -> dict[str, t.Any]:
+    def _pop_storage(self) -> None:
+        """Empty the storage so that a Context copied during the call does not keep the frame alive."""
         storage = t.cast(t.Optional[WrappingContextStorage], self._storage.get())
         if storage is None:
-            return {}
+            return
         self._storage.set(storage.pop(_STORAGE_PREV))
         del storage[_STORAGE_OWNER]
-        return storage
+        storage.clear()
 
     def __return__(self, value: T) -> T:
         self._pop_storage()
