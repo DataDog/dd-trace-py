@@ -72,13 +72,13 @@ def test_disabled_tracing_publishes_request_metadata(app, tracer, test_spans, mo
         calls.append(name)
         return bottle.HTTPResponse("hello", status=201, headers={"X-Response": "observed"})
 
-    core.on("context.started.web.request", on_started)
-    core.on("context.ended.web.request", on_ended)
+    core.on("context.started.bottle.request", on_started)
+    core.on("context.ended.bottle.request", on_ended)
     try:
         response = webtest.TestApp(app).get("/hello/world?key=value")
     finally:
-        core.reset_listeners("context.started.web.request", on_started)
-        core.reset_listeners("context.ended.web.request", on_ended)
+        core.reset_listeners("context.started.bottle.request", on_started)
+        core.reset_listeners("context.ended.bottle.request", on_ended)
 
     assert response.status_int == 201
     assert response.text == "hello"

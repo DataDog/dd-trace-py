@@ -10,12 +10,16 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
+from ddtrace.contrib._events.bottle import BottleBlockResponseEvent
+from ddtrace.contrib._events.bottle import BottleRequestStartEvent
+from ddtrace.contrib._events.bottle import BottleResponseEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import Block_config
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
@@ -82,13 +86,14 @@ def _run_request(
     if event is None:
         return callback(*args, **kwargs)
 
-    with core.context_with_event(event) as ctx:
+    with core.context_with_event(event, context_name_override="bottle.request"):
         result = None
         error: Optional[BaseException] = None
         blocking: Optional[BlockingException] = None
         try:
             try:
-                core.dispatch("bottle.request.start", (ctx, request, kwargs))
+                # WAF evaluation can block, so it must run inside the handler rather than context entry.
+                core.dispatch_event(BottleRequestStartEvent(event, request, kwargs))
                 result = callback(*args, **kwargs)
                 return result
             except BaseException as exc:
@@ -96,7 +101,7 @@ def _run_request(
                 raise
             finally:
                 _complete_request_safely(complete, event, result, error)
-                core.dispatch("bottle.request.response", (ctx,))
+                core.dispatch_event(BottleResponseEvent(event))
         except BaseException as exc:
             blocking = find_exception(exc, BlockingException)
             if blocking is None:
@@ -113,16 +118,13 @@ def _run_request(
                     close()
                 except Exception:
                     log.debug("Failed to close blocked Bottle response", exc_info=True)
-            result = _blocked_response(ctx, blocking.args[0])
+            result = _blocked_response(blocking.args[0])
             _complete_request_safely(complete, event, result, None)
             return result
         finally:
-            try:
-                core.dispatch("bottle.request.end", (ctx, (None, None, None)))
-            finally:
-                # Do not retain the application's traceback through this frame.
-                error = None
-                blocking = None
+            # Do not retain the application's traceback through this frame.
+            error = None
+            blocking = None
 
 
 def _complete_request_safely(
@@ -137,10 +139,10 @@ def _complete_request_safely(
         log.debug("Failed to complete web framework request metadata", exc_info=True)
 
 
-def _blocked_response(ctx: core.ExecutionContext[WebFrameworkRequestEvent], block: Any) -> HTTPResponse:
-    core.dispatch("bottle.request.block", (ctx, block))
-    block_response = ctx.get_item("bottle.block_response")
-    ctx.discard_local_item("bottle.block_response")
+def _blocked_response(block: Block_config) -> HTTPResponse:
+    event = BottleBlockResponseEvent(block)
+    core.dispatch_event(event)
+    block_response = event.response
     if block_response is None:
         body = _format_template(BLOCKED_RESPONSE_JSON, "default").encode("utf-8")
         block_response = (403, {"Content-Type": "application/json", "Content-Length": str(len(body))}, body)

@@ -55,11 +55,11 @@ def request_spans():
         if ctx.event.component == "bottle":
             spans.append(span_from_context(ctx))
 
-    core.on("context.started.web.request", capture, name="bottle.appsec.test.capture")
+    core.on("context.started.bottle.request", capture, name="bottle.appsec.test.capture")
     try:
         yield spans
     finally:
-        core.reset_listeners("context.started.web.request", capture)
+        core.reset_listeners("context.started.bottle.request", capture)
 
 
 @pytest.mark.parametrize(

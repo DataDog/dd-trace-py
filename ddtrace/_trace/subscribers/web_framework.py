@@ -18,7 +18,7 @@ log = get_logger(__name__)
 class WebFrameworkRequestSubscriber(TracingSubscriber):
     """Shared tracing logic for web framework integrations."""
 
-    event_names = (WebFrameworkRequestEvent.event_name,)
+    event_names = (WebFrameworkRequestEvent.event_name, "bottle.request")
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:

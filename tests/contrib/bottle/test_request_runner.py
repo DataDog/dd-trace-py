@@ -1,11 +1,18 @@
 """Bottle's request runner preserves application behavior around metadata hooks."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
+from ddtrace.contrib._events.bottle import BottleBlockResponseEvent
+from ddtrace.contrib._events.bottle import BottleRequestStartEvent
+from ddtrace.contrib._events.bottle import BottleResponseEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.bottle.trace import _run_request
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from tests.utils import assert_span_http_status_code
@@ -170,3 +177,94 @@ def test_returned_iterator_is_not_consumed_or_wrapped(event, tracer, test_spans)
     assert span.finished
     assert list(returned) == [b"body"]
     assert iterated == [None]
+
+
+@pytest.mark.parametrize("failure", [None, ValueError("callback failed"), Cancelled("cancelled")])
+def test_bottle_context_lifecycle_preserves_exception(event, tracer, failure):
+    started = Mock()
+    ended = Mock()
+    generic_started = Mock()
+    parent = core.current
+    core.on("context.started.bottle.request", started)
+    core.on("context.ended.bottle.request", ended)
+    core.on("context.started.web.request", generic_started)
+    try:
+        callback = Mock(return_value="result", side_effect=failure)
+        if failure is None:
+            assert _run_request(callback, (), {}, prepare=lambda: event, complete=Mock()) == "result"
+        else:
+            with pytest.raises(type(failure)) as caught:
+                _run_request(callback, (), {}, prepare=lambda: event, complete=Mock())
+            assert caught.value is failure
+    finally:
+        core.reset_listeners("context.started.bottle.request", started)
+        core.reset_listeners("context.ended.bottle.request", ended)
+        core.reset_listeners("context.started.web.request", generic_started)
+
+    started.assert_called_once()
+    ended.assert_called_once()
+    generic_started.assert_not_called()
+    ctx, exc_info = ended.call_args.args
+    assert ctx is started.call_args.args[0]
+    assert ctx.identifier == "bottle.request"
+    assert exc_info[1] is failure
+    assert exc_info[0] is (type(failure) if failure is not None else None)
+    assert core.current is parent
+    assert tracer.current_span() is None
+
+
+@pytest.mark.parametrize("block_at", [None, "start", "response"])
+def test_typed_notifications_reach_subscribers(event, tracer, test_spans, block_at):
+    notifications = []
+    block = SimpleNamespace(status_code=429, type="none", location="")
+
+    class Observer(Subscriber):
+        event_names = (
+            BottleRequestStartEvent.event_name,
+            BottleResponseEvent.event_name,
+            BottleBlockResponseEvent.event_name,
+        )
+
+        @classmethod
+        def on_event(cls, notification):
+            notifications.append(notification)
+            if isinstance(notification, BottleBlockResponseEvent):
+                assert notification.block is block
+                notification.response = (429, {"Content-Type": "text/plain"}, b"blocked")
+            else:
+                assert notification.request_event is event
+                if isinstance(notification, BottleRequestStartEvent):
+                    assert notification.path_params == {"name": "world"}
+                    if block_at == "start":
+                        raise BlockingException(block)
+                else:
+                    assert event.response_status_code == 200
+                    if block_at == "response":
+                        raise BlockingException(block)
+
+    callback = Mock(return_value="allowed")
+
+    def complete(request_event, result, error):
+        request_event.response_status_code = getattr(result, "status_code", 200)
+
+    try:
+        result = _run_request(callback, (), {"name": "world"}, prepare=lambda: event, complete=complete)
+    finally:
+        Observer.unregister()
+
+    assert [type(notification) for notification in notifications] == [
+        BottleRequestStartEvent,
+        BottleResponseEvent,
+    ] + ([BottleBlockResponseEvent] if block_at else [])
+    if block_at:
+        assert result.status_code == 429
+        assert result.body == b"blocked"
+        assert result.headers["Content-Type"] == "text/plain"
+    else:
+        assert result == "allowed"
+    assert callback.call_count == int(block_at != "start")
+    (span,) = test_spans.pop()
+    assert span.finished
+    assert span.error == 0
+    assert_span_http_status_code(span, 429 if block_at else 200)
+    assert tracer.current_span() is None

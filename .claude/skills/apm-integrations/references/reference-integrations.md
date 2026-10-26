@@ -53,10 +53,17 @@ manages plugin ordering, skip settings, installation, removal, and callback-cach
 resets. The helper is specific to Bottle's synchronous callback lifetime and is
 not a shared integration API.
 
-Bottle emits bottle.request.start/response/block/end hooks inside its request
-context. AppSec listeners own WAF evaluation, the block_request callable, response
-selection, and security-context cleanup. The plugin catches BlockingException
-(including exception groups), converts the chosen response to HTTPResponse, and
+Bottle uses context_name_override="bottle.request" with WebFrameworkRequestEvent;
+the shared tracing subscriber listens to both web.request and bottle.request.
+AppSec cleanup uses a ContextSubscriber for bottle.request. Bottle dispatches
+BottleRequestStartEvent, BottleResponseEvent, and BottleBlockResponseEvent through
+core.dispatch_event inside its request context. AppSec owns their Subscriber
+implementations, registered through listen(). The block event carries the selected
+response back to the integration; do not use string-keyed context items for it.
+Request WAF evaluation stays inside the blocking handler because a block raised during
+context entry would skip context exit. AppSec listeners own WAF evaluation, the
+block_request callable, response selection, and security-context cleanup. The
+plugin catches BlockingException (including exception groups), converts the chosen response to HTTPResponse, and
 updates event metadata before tracing finishes. Never catch blocking exceptions
 as ordinary metadata failures or let them escape past the request context.
 Response inspection uses headers from a returned or raised HTTPResponse when
