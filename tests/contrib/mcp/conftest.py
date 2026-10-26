@@ -144,7 +144,7 @@ def mcp_server_initialized():
     mcp_server = FastMCP("TestInitServer")
 
     async def run_init():
-        client_info = Implementation(name="test-client", version="1.2.3")
+        client_info = Implementation(name="test-client", title="Test Client", version="1.2.3")
         async with create_connected_server_and_client_session(mcp_server._mcp_server, client_info=client_info):
             pass
 
