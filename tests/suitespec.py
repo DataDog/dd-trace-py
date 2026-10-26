@@ -219,10 +219,11 @@ def _variant_settings(
 ) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
-    if nightly:
-        environment["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = (
-            "1" if python in NIGHTLY_COVERAGE_PYTHON_VERSIONS else "0"
-        )
+    # Coverage report uploads are forced on for every run (previously nightly
+    # only, on Python 3.15) so the library under test's presence in the
+    # uploaded report can be verified directly; see .coveragerc [run]
+    # source_pkgs. Revert to the nightly policy once verified.
+    environment["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
     if "env" in matrix:
         environment.update(matrix["env"])
     if "env" in variant:
