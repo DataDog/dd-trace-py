@@ -524,11 +524,14 @@ class BaseWrappingContext(ABC):
         return self
 
     def _pop_storage(self) -> None:
-        """Empty the storage so that a Context copied during the call does not keep the frame alive."""
+        """End the storage of the current call and make the storage of the enclosing call current again."""
         storage = t.cast(t.Optional[WrappingContextStorage], self._storage.get())
         if storage is None:
             return
         self._storage.set(storage.pop(_STORAGE_PREV))
+        # Code can copy the current Context during the call, for example when it creates a gRPC channel.
+        # The copy keeps this dict alive after the call ends. Empty the dict, because it holds the frame
+        # of the call, and the frame holds the local variables.
         storage.clear()
 
     def __return__(self, value: T) -> T:
