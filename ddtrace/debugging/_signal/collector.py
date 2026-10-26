@@ -25,7 +25,10 @@ guardrails_meter = metrics.get_meter("")
 
 def _event_type(signal: Signal) -> str:
     probe = signal.probe
-    return "snapshot" if isinstance(probe, LogProbeMixin) and probe.take_snapshot else "log"
+    # Capture expressions produce snapshot data, and share the snapshot rate and budget.
+    return (
+        "snapshot" if isinstance(probe, LogProbeMixin) and (probe.take_snapshot or probe.capture_expressions) else "log"
+    )
 
 
 class SignalCollector:

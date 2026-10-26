@@ -14,6 +14,8 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal._encoding import BufferFull
+from tests.debugging.utils import compile_capture_expressions
+from tests.debugging.utils import create_capture_expressions_line_probe
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_snapshot_line_probe
@@ -216,6 +218,28 @@ def test_push_skip_log_probe_emits_log_event_type():
         collector.push(signal)
 
     m.increment.assert_any_call("events.skipped", tags={"reason": "rateLimitProbe", "event_type": "log"})
+
+
+def test_push_skip_capture_expressions_probe_emits_snapshot_event_type():
+    collector, _ = _make_collector()
+    frame = inspect.currentframe()
+    assert frame is not None
+    signal = Snapshot(
+        probe=create_capture_expressions_line_probe(
+            probe_id=uuid4(),
+            source_file="file.py",
+            line=1,
+            **compile_capture_expressions([{"name": "foo", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}]),
+        ),
+        frame=frame,
+        thread=threading.current_thread(),
+    )
+    signal.state = SignalState.SKIP_RATE_PROBE
+
+    with mock.patch("ddtrace.debugging._signal.collector.guardrails_meter") as m:
+        collector.push(signal)
+
+    m.increment.assert_any_call("events.skipped", tags={"reason": "rateLimitProbe", "event_type": "snapshot"})
 
 
 def test_push_skip_reports_unprefixed_metric_name():
