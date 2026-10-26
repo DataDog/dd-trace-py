@@ -9,7 +9,7 @@ import pytest
         "DD_TRACE_SAMPLE_RATE": "1",
         "DD_SERVICE": "resource-test",
         "DD_TAGS": None,
-        "OTEL_RESOURCE_ATTRIBUTES": "team=core,region=us1,workers=7",
+        "OTEL_RESOURCE_ATTRIBUTES": "team=core,region=us1,workers=7,long=" + "x" * 25001,
     },
     parametrize={"DD_TRACE_OTEL_SEMANTICS_ENABLED": ["true", "false"]},
 )
@@ -39,7 +39,10 @@ def test_otlp_resource_attributes_are_not_span_attributes():
     assert resource.get("team") == {"stringValue": "core"}, (resource, spans)
     assert resource.get("region") == {"stringValue": "us1"}
     assert resource.get("workers") == {"stringValue": "7"}
+    assert resource["long"]["stringValue"].endswith("<truncated>...")
+    assert len(resource["long"]["stringValue"]) < 25001
     for attributes in spans.values():
+        assert "long" not in attributes
         assert "team" not in attributes
     assert "region" not in spans["resource-root"]
     assert "workers" not in spans["resource-root"]

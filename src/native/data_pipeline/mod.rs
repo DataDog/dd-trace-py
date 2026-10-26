@@ -5,6 +5,7 @@ use libdd_data_pipeline::trace_exporter::{
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use std::collections::BTreeMap;
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
@@ -84,6 +85,14 @@ impl TraceExporterBuilderPy {
 
     fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_process_tags(process_tags);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_resource_attributes(
+        mut slf: PyRefMut<'_, Self>,
+        attributes: BTreeMap<String, String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_resource_attributes(attributes);
         Ok(slf.into())
     }
 

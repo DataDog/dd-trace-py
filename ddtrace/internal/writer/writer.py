@@ -15,6 +15,7 @@ from typing import TextIO
 from typing import cast
 from urllib.parse import urlparse as _urlparse
 
+from ddtrace.internal._encoding import _truncate_string
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
@@ -924,6 +925,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
+            builder.set_otlp_resource_attributes(
+                {_truncate_string(key): _truncate_string(value) for key, value in config.tags.items()}
+            )
             # Only http/json and http/protobuf are supported; fall back to http/protobuf
             # for anything else (e.g. grpc).
             otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
