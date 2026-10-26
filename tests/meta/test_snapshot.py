@@ -19,6 +19,7 @@ import ddtrace
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import NativeWriter
 from tests.utils import TestAgentClient as AgentClient
+from tests.utils import snapshot
 from tests.utils import snapshot_context
 
 
@@ -115,6 +116,28 @@ def test_snapshot_compares_once_and_propagates_token(agent, snapshot_writer, asy
     for path in ("start", "snapshot", "clear"):
         assert agent.matching(f"/test/session/{path}")[0][1]["test_session_token"] == [session.token]
     assert snapshot_writer._test_session_token is None
+
+
+@pytest.mark.parametrize("bound_method", [True, False])
+def test_snapshot_decorator_infers_baseline_name(agent, snapshot_writer, bound_method):
+    class Example:
+        @snapshot()
+        def method(self):
+            pass
+
+    @snapshot()
+    def function(first, second):
+        pass
+
+    if bound_method:
+        Example().method()
+        name = "Example.method"
+    else:
+        function("first", "second")
+        name = "function"
+    comparison = agent.matching("/test/session/snapshot")
+    assert len(comparison) == 1
+    assert comparison[0][1]["file"] == [f"/snapshots/{__name__}.{name}"]
 
 
 def test_snapshot_attempts_keep_baseline_and_change_token(agent, snapshot_writer):

@@ -1442,16 +1442,11 @@ def snapshot(
 
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
-        if len(args) > 1:
-            self = args[0]
-            clsname = self.__class__.__name__
-        else:
-            clsname = ""
+        clsname = instance.__class__.__name__ if instance is not None else ""
 
         module = inspect.getmodule(wrapped)
 
-        # Use the fully qualified function name as a unique test token to
-        # identify the snapshot.
+        # Use the module, class, and method name for the baseline filename.
         token = (
             "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
             if token_override is None

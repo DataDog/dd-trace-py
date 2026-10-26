@@ -3087,9 +3087,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores, token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_sqs"
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3136,10 +3134,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores,
-        token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_sqs_invalid_config",
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs_invalid_config(self):
         # Recreate setUp operations to ensure spans are captured by snapshot test
@@ -3177,9 +3172,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores, token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_sns"
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns(self):
@@ -3227,10 +3220,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores,
-        token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_sns_valid_config",
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns_valid_config(self):
@@ -3286,9 +3276,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores, token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_s3"
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3319,10 +3307,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores,
-        token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_s3_invalid_config",
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_s3
     @pytest.mark.skip(reason="Flaky test")
     def test_aws_payload_tagging_s3_invalid_config(self):
@@ -3343,10 +3328,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores,
-        token_override="tests.contrib.botocore.test.BotocoreTest.test_dynamodb_payload_tagging",
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_dynamodb
     def test_dynamodb_payload_tagging(self):
         with self.override_config(
@@ -3394,10 +3376,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores,
-        token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_s3_valid_config",
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_valid_config(self):
         with self.override_config(
@@ -3416,10 +3395,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores,
-        token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_eventbridge",
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_events
     @mock_sqs
     def test_aws_payload_tagging_eventbridge(self):
@@ -3464,10 +3440,7 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
     )
-    @snapshot(
-        ignores=snapshot_ignores,
-        token_override="tests.contrib.botocore.test.BotocoreTest.test_aws_payload_tagging_kinesis",
-    )
+    @snapshot(ignores=snapshot_ignores)
     @mock_kinesis
     def test_aws_payload_tagging_kinesis(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
