@@ -35,6 +35,7 @@ Individual pre-commit hooks (run in numeric order):
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
 | `12-check-test-locks` | Checks that staged lock or suitespec changes still match the staged test lock inventory (index snapshot, not the live worktree) |
+| `13-check-new-python-annotations` | Fails the commit when staged Python adds a function, parameter, local, or global without a type. Skipped when no Python files are staged. |
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:

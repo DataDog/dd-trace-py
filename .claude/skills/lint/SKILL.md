@@ -149,6 +149,18 @@ scripts/lint type-comments-check --base-ref origin/main
 
 **When to use:** After adding type annotations, or before opening a PR.
 
+#### `new-annotations-check` - Require types on new Python
+Fails if the branch adds a `.py` function with a missing parameter or return type, a new untyped parameter, or a new untyped local, module/class global, or `self.field` in `__init__`. Existing names are left alone. Vendor and `*_pb2.py` files are skipped.
+
+**Usage:**
+```bash
+scripts/lint new-annotations-check
+scripts/lint new-annotations-check --base-ref origin/main
+scripts/lint new-annotations-check --staged
+```
+
+**When to use:** Before committing new Python, or when the pre-commit hook reports a missing type.
+
 ### Security Checks
 
 #### `security` - Security audit with Bandit

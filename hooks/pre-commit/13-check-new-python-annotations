@@ -1,0 +1,14 @@
+#!/bin/sh
+# Fail the commit when staged Python introduces a function, parameter,
+# local, or global without a type.
+
+LINT_CMD="${LINT_CMD:-scripts/lint}"
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.py$' || true)
+if [ -z "$staged_files" ]; then
+    echo 'New-annotation check skipped: no staged Python files'
+    exit 0
+fi
+
+file_count=$(echo "$staged_files" | wc -w | tr -d ' ')
+echo "Checking type annotations on new Python in $file_count staged file(s)..."
+"$LINT_CMD" new-annotations-check --staged

@@ -126,6 +126,9 @@ case "$cmd" in
   type-comments-check)
     uv_lint python scripts/check_type_comments.py "$@"
     ;;
+  new-annotations-check)
+    uv_lint python scripts/check_new_untyped_defs.py "$@"
+    ;;
   supported-config-check)
     uv_lint python scripts/supported_configurations.py --check "$@"
     ;;
@@ -205,6 +208,7 @@ Subcommands:
   profiling-native-check    Check profiling native coverage
   error-log-check           Check constant log messages
   type-comments-check       Fail if new PEP 484 type comments were added
+  new-annotations-check     Fail if new Python is missing type annotations
   supported-config-check    Check supported-configurations.json is in sync and complete
   ci-deps-check             scripts/check-ci-dependencies
 
