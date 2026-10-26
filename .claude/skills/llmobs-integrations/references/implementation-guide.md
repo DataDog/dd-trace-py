@@ -7,7 +7,7 @@ Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integra
 LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
 - Patch code in `ddtrace/contrib/internal/{name}/` constructs an `LlmRequestEvent` and enters it with `core.context_with_event()`. It does not import LLMObs or create the integration.
 - `LlmTracingSubscriber` (`ddtrace/_trace/subscribers/llm.py`) manages the span lifecycle and dispatches `LlmEvents` (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) with the `ExecutionContext`
-- LLMObs subscribers in `ddtrace/llmobs/_contrib/{name}/` handle those events: they lazily build the `BaseLLMIntegration` subclass, set LLMObs base tags at span start, and call `integration.llmobs_set_tags()` at span finish (see Step 2 below)
+- Shared LLMObs subscribers in `ddtrace/llmobs/_contrib/_subscribers.py` handle those events: they lazily build the `BaseLLMIntegration` subclass, set LLMObs base tags at span start, and call `integration.llmobs_set_tags()` at span finish (see Step 2 below)
 - The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, usage, metadata, and tool extraction
 
 This separation keeps contrib code from depending on LLMObs: the patch layer only emits events, and LLMObs decides what to do with them.
@@ -18,7 +18,7 @@ Legacy integrations that predate this pattern still create the integration in pa
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
 - **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
-- **Step 2 (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers, with `listen()`/`unlisten()` in its `__init__.py`, and declare that module under the `ddtrace.integration_hooks` entry-point group in `pyproject.toml`
+- **Step 2 (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` registration, with `listen()`/`unlisten()` in its `__init__.py`, and declare that module under the `ddtrace.integration_hooks` entry-point group in `pyproject.toml`
 - **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and usage extraction (this guide)
 - **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
 - **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
@@ -112,12 +112,12 @@ Key points:
 
 ## Step 2 Expanded: LLMObs Subscribers
 
-Read `ddtrace/llmobs/_contrib/anthropic/` for the pattern. `LlmTracingSubscriber` dispatches three events with the `ExecutionContext`. They are shared by every LLM integration, so each handler returns early unless `ctx.event.component` matches:
+Read `ddtrace/llmobs/_contrib/anthropic/` for the pattern. `LlmTracingSubscriber` dispatches three events with the `ExecutionContext`. The shared subscribers in `ddtrace/llmobs/_contrib/_subscribers.py` select the registered integration using `ctx.event.component`:
 - `LlmEvents.SPAN_STARTING` runs before the span exists. This is the only point where `event.span_type` can still be set to `SpanTypes.LLM`, which `LLMObs._on_span_start` needs at creation.
 - `LlmEvents.SPAN_STARTED` runs after the span is created. Use it for `_set_base_span_tags()`, `_annotate_integration_tag()`, and `_stamp_llmobs_span_kind_at_start()`.
 - `LlmEvents.SPAN_FINISHING` runs before the span is finished. Call `integration.llmobs_set_tags()` here.
 
-Subscribers set `auto_register = False`. Register them from `listen()` in `ddtrace/llmobs/_contrib/{name}/__init__.py`, and unregister them from `unlisten()` -- except the `SPAN_FINISHING` subscriber, which stays registered so requests and deferred streams already in flight at unpatch time still get finalized. Declare the module in `pyproject.toml`:
+In `ddtrace/llmobs/_contrib/{name}/__init__.py`, `listen()` calls the shared `register(component, integration_cls)` and `unlisten()` calls `unregister(component)`. Do not create per-integration subscriber classes. Shared listeners remain registered; unregistering removes only that component from the registry and cache. Each started request retains its integration on its execution context, so it still finalizes after unpatch or repatch. Declare the module in `pyproject.toml`:
 
 ```toml
 [project.entry-points.'ddtrace.integration_hooks']
