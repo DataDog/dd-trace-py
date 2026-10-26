@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from contextlib import ExitStack
 from functools import wraps
 import sys
 from typing import Any
@@ -9,6 +10,8 @@ from urllib import parse
 from ddtrace import config
 from ddtrace._trace.http_tags import set_status_code_tag
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.web_request import WebRequestCompleting
+from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
@@ -256,7 +259,14 @@ class TraceMiddleware:
                 is_subapp=is_subapp,
             ) as ctx,
             span_from_context(ctx) as span,
+            ExitStack() as cleanup,
         ):
+            if core.has_listeners(WebRequestCompleting.event_name):
+                cleanup.callback(core.dispatch_event, WebRequestCompleting(ctx, span))
+
+            if core.has_listeners(WebRequestReady.event_name):
+                core.dispatch_event(WebRequestReady(ctx, span))
+
             if self.span_modifier:
                 self.span_modifier(span, scope)
 
@@ -429,6 +439,7 @@ class TraceMiddleware:
                     ):
                         # Close handshake span once connection is upgraded
                         if span and span.error == 0:
+                            cleanup.close()
                             span.finish()
                         return await send(message)
 
@@ -474,6 +485,7 @@ class TraceMiddleware:
                             _call_route_resource_resolver(scope, span)
                         # If the span has an error status code delay finishing the span until the
                         # traceback and exception message is available
+                        cleanup.close()
                         span.finish()
 
             async def wrapped_blocked_send(message: Mapping[str, Any]):
@@ -501,6 +513,7 @@ class TraceMiddleware:
                         span, self.integration_config, status_code=status, response_headers=dict(headers)
                     )
                     if message.get("type") == "http.response.body" and span.error == 0:
+                        cleanup.close()
                         span.finish()
 
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
