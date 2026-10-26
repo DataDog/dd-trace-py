@@ -23,6 +23,7 @@ except ImportError:
 from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.settings.profiling import memory_max_frames
 from ddtrace.profiling import collector
 
 
@@ -39,7 +40,7 @@ class MemoryCollector:
         ignore_profiler: Optional[bool] = None,
         mem_domain_enabled: Optional[bool] = None,
     ) -> None:
-        self.max_nframe = cast(int, max_nframe if max_nframe is not None else config.max_frames)
+        self.max_nframe = cast(int, max_nframe if max_nframe is not None else memory_max_frames(config))
         self.heap_sample_size = cast(
             int,
             heap_sample_size if heap_sample_size is not None else config.heap.sample_size,  # pyright: ignore

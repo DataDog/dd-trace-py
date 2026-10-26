@@ -3001,6 +3001,13 @@
         "default": "16"
       }
     ],
+    "DD_PROFILING_MEMORY_MAX_FRAMES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null
+      }
+    ],
     "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED": [
       {
         "implementation": "B",

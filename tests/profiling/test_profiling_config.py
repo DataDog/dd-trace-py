@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import typing as t
 
 import pytest
 
 from ddtrace.internal.settings.profiling import ProfilingConfig
+from ddtrace.internal.settings.profiling import ProfilingConfigMemory
+from ddtrace.internal.settings.profiling import config_str
+from ddtrace.internal.settings.profiling import memory_max_frames
 
 
 class TestMaxFramesConfig:
@@ -23,6 +27,93 @@ class TestMaxFramesConfig:
         monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", str(value))
 
         assert ProfilingConfig().max_frames == value
+
+
+class TestMemoryMaxFramesConfig:
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_MAX_FRAMES", raising=False)
+        monkeypatch.delenv("DD_PROFILING_MEMORY_MAX_FRAMES", raising=False)
+
+    @pytest.fixture
+    def memory_default_256(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(ProfilingConfigMemory.max_frames, "default", 256)
+
+    def test_default_is_unset(self) -> None:
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert config.memory.max_frames is None
+        assert memory_max_frames(config) == 64
+
+    def test_explicit_memory_wins_over_explicit_global(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", "128")
+        monkeypatch.setenv("DD_PROFILING_MEMORY_MAX_FRAMES", "32")
+
+        assert memory_max_frames(ProfilingConfig()) == 32
+
+    @pytest.mark.usefixtures("memory_default_256")
+    def test_explicit_global_wins_over_memory_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", "128")
+
+        assert memory_max_frames(ProfilingConfig()) == 128
+
+    @pytest.mark.usefixtures("memory_default_256")
+    def test_memory_default_wins_over_global_default(self) -> None:
+        assert memory_max_frames(ProfilingConfig()) == 256
+
+    def test_global_default_when_nothing_set(self) -> None:
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert memory_max_frames(config) == config.max_frames == 64
+
+    @pytest.mark.parametrize("value", (600, 10_000))
+    def test_clamps_to_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_MEMORY_MAX_FRAMES", str(value))
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert config.memory.max_frames == 599
+        assert memory_max_frames(config) == 599
+
+    def test_config_str_omits_tag_when_values_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MEMORY_MAX_FRAMES", "64")
+
+        assert "MEMMAXF" not in config_str(ProfilingConfig())
+
+    def test_config_str_omits_tag_by_default(self) -> None:
+        assert "MEMMAXF" not in config_str(ProfilingConfig())
+
+    def test_config_str_includes_tag_when_values_differ(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MEMORY_MAX_FRAMES", "256")
+        features: list[str] = config_str(ProfilingConfig()).split("_")
+
+        assert "MAXF64" in features
+        assert "MEMMAXF256" in features
+
+    @pytest.mark.parametrize(
+        "global_env,memory_env,expected",
+        (
+            (None, None, 64),
+            ("128", None, 128),
+            (None, "256", 256),
+            ("128", "32", 32),
+        ),
+    )
+    def test_memory_collector_uses_resolved_value(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        global_env: t.Optional[str],
+        memory_env: t.Optional[str],
+        expected: int,
+    ) -> None:
+        from ddtrace.profiling.collector import memalloc
+
+        if global_env is not None:
+            monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", global_env)
+        if memory_env is not None:
+            monkeypatch.setenv("DD_PROFILING_MEMORY_MAX_FRAMES", memory_env)
+        monkeypatch.setattr(memalloc, "config", ProfilingConfig())
+
+        assert memalloc.MemoryCollector().max_nframe == expected
 
 
 class TestAdaptiveSamplingConfig:

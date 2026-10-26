@@ -568,6 +568,17 @@ class ProfilingConfigMemory(DDConfig):
         ),
     )
 
+    max_frames = DDConfig.v(
+        t.Optional[int],
+        "max_frames",
+        default=None,
+        parser=_clamp_max_frames,
+        validator=validators.range(0, MAX_FRAMES),
+        help_type="Integer",
+        help="The maximum number of frames to capture in memory allocation and heap profiles. When unset, "
+        f"``DD_PROFILING_MAX_FRAMES`` applies. Values above {MAX_FRAMES} are clamped.",
+    )
+
 
 class ProfilingConfigHeap(DDConfig):
     __item__ = __prefix__ = "heap"
@@ -790,6 +801,21 @@ if config.install:
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
+def memory_max_frames(config: ProfilingConfig) -> int:
+    """Return the max frames for the memory (alloc and heap) collector.
+
+    Precedence: a user-set memory value, then a user-set global value, then the
+    memory default, then the global default. A changed default never overrides
+    a value the user set.
+    """
+    memory_value: t.Optional[int] = config.memory.max_frames  # pyright: ignore[reportAttributeAccessIssue]
+    memory_is_explicit: bool = config.value_source("DD_PROFILING_MEMORY_MAX_FRAMES") != ValueSource.DEFAULT
+    global_is_explicit: bool = config.value_source("DD_PROFILING_MAX_FRAMES") != ValueSource.DEFAULT
+    if memory_value is not None and (memory_is_explicit or not global_is_explicit):
+        return memory_value
+    return t.cast(int, config.max_frames)
+
+
 def config_str(config: ProfilingConfig) -> str:
     configured_features: list[str] = []
     if config.stack.enabled:
@@ -812,4 +838,7 @@ def config_str(config: ProfilingConfig) -> str:
     configured_features.append("exp_dd")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))
+    memory_frames: int = memory_max_frames(config)
+    if memory_frames != config.max_frames:
+        configured_features.append("MEMMAXF" + str(memory_frames))
     return "_".join(configured_features)

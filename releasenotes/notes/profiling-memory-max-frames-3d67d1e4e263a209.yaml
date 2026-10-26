@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: Adds ``DD_PROFILING_MEMORY_MAX_FRAMES`` to set the maximum stack depth for memory allocation and heap profiles separately from ``DD_PROFILING_MAX_FRAMES``. When unset, memory profiles keep using ``DD_PROFILING_MAX_FRAMES``.
