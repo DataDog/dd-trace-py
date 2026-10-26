@@ -12,7 +12,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.settings._config import Config
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.writer import NativeWriter
@@ -66,12 +65,14 @@ def test_aggregator_reset_with_args():
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is False
+    assert aggr.tags_processor.apm_opt_out is False
     # Reset the aggregator with new args and new user processors and expect the new values to be set
     aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
     assert aggr.user_processors == []
     assert dd_proc in aggr.dd_processors
     assert aggr.sampling_processor.apm_opt_out is True
     assert aggr.sampling_processor._compute_stats_enabled is True
+    assert aggr.tags_processor.apm_opt_out is True
     assert aggr.writer._api_version == "v0.4"
     assert span.trace_id in aggr._traces
 
@@ -224,52 +225,6 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
         finally:
             with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
-
-
-@pytest.mark.parametrize("initial_compute_stats", [True, False])
-@pytest.mark.parametrize("stats_while_opted_out", [None, True, False])
-@pytest.mark.parametrize("compute_stats_enabled", [None, True, False])
-@pytest.mark.parametrize("apm_tracing_disabled", [True, False])
-def test_standalone_restores_compute_stats(
-    tracer, initial_compute_stats, stats_while_opted_out, compute_stats_enabled, apm_tracing_disabled
-):
-    with mock.patch.object(config, "_trace_compute_stats", initial_compute_stats):
-        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
-            try:
-                tracer.configure(appsec_enabled=True, iast_enabled=False, apm_tracing_disabled=True)
-                assert config._trace_compute_stats is False
-                tracer.configure(appsec_enabled=True)
-                assert config._trace_compute_stats is False
-
-                # Explicit stats updates while opted out override the captured
-                # pre-opt-out value, so they become the value to restore.
-                if stats_while_opted_out is not None:
-                    tracer.configure(appsec_enabled=True, compute_stats_enabled=stats_while_opted_out)
-                    assert config._trace_compute_stats is stats_while_opted_out
-
-                tracer.configure(
-                    appsec_enabled=False,
-                    apm_tracing_disabled=apm_tracing_disabled,
-                    compute_stats_enabled=compute_stats_enabled,
-                )
-                expected_stats = initial_compute_stats
-                if stats_while_opted_out is not None:
-                    expected_stats = stats_while_opted_out
-                if compute_stats_enabled is not None:
-                    expected_stats = compute_stats_enabled
-                assert config._trace_compute_stats is expected_stats
-                # The restored value must also reach the writer and the sampling
-                # processor, which were configured with stats disabled while opted out.
-                aggr = tracer._span_aggregator
-                assert aggr.sampling_processor._compute_stats_enabled is expected_stats
-                inner_writer = aggr.writer._inner_writer
-                assert inner_writer._compute_stats_enabled is expected_stats
-                assert inner_writer._stats_opt_out is False
-
-                tracer.configure(trace_processors=[])
-                assert config._trace_compute_stats is expected_stats
-            finally:
-                tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])

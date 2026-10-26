@@ -175,14 +175,8 @@ class Tracer:
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
 
-        # Capture stats setting before standalone mode overrides it, so it
-        # can be restored when opting back into APM tracing.
-        self._compute_stats_before_apm_opt_out = None
         if standalone_config.apm_opt_out:
             self.enabled = False
-            # Disable compute stats (neither agent or tracer should compute them)
-            self._compute_stats_before_apm_opt_out = config._trace_compute_stats
-            config._trace_compute_stats = False
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
@@ -362,8 +356,6 @@ class Tracer:
            Trace processors are used to modify and filter traces based on certain criteria.
         """
 
-        was_apm_opt_out = standalone_config.apm_opt_out
-
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
         if appsec_enabled_origin:
@@ -376,31 +368,10 @@ class Tracer:
             standalone_config.apm_tracing_enabled = not apm_tracing_disabled
 
         if standalone_config.apm_opt_out:
-            if not was_apm_opt_out:
-                self._compute_stats_before_apm_opt_out = config._trace_compute_stats
             config._tracing_enabled = self.enabled = False
-            # Disable compute stats (neither agent or tracer should compute them)
-            config._trace_compute_stats = False
             log.debug("Standalone mode is enabled, traces will be rate limited at 1 trace per minute")
         elif standalone_config.apm_tracing_enabled:
             config._tracing_enabled = self.enabled = True
-
-        # The stats value pushed to the writer and span processors when they are recreated:
-        # an explicit configure() argument wins, otherwise the value restored after
-        # leaving standalone mode is used.
-        effective_compute_stats = compute_stats_enabled
-
-        if was_apm_opt_out and not standalone_config.apm_opt_out:
-            # Restore the stats setting captured before opting out. The writer was built
-            # with stats disabled while opted out, so the restored value is also pushed to
-            # the writer when it is recreated below.
-            if compute_stats_enabled is None:
-                effective_compute_stats = self._compute_stats_before_apm_opt_out
-            config._trace_compute_stats = self._compute_stats_before_apm_opt_out
-        elif standalone_config.apm_opt_out and compute_stats_enabled is not None:
-            # Explicit stats updates while opted out replace the captured pre-opt-out
-            # value, so they become the value restored when opting back in.
-            self._compute_stats_before_apm_opt_out = compute_stats_enabled
 
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
@@ -409,7 +380,7 @@ class Tracer:
             x is not None
             for x in [
                 trace_processors,
-                effective_compute_stats,
+                compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
                 apm_tracing_disabled,
@@ -417,7 +388,7 @@ class Tracer:
         ):
             self._recreate(
                 trace_processors,
-                effective_compute_stats,
+                compute_stats_enabled,
                 standalone_config.apm_opt_out,
                 appsec_enabled,
                 reset_buffer=False,
