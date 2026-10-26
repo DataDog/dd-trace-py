@@ -934,21 +934,3 @@ publishing-gate:
     LLMVAL_BASE_REF: "main"
     LLMVAL_PLATFORM_REF: "68250345c9e358d4345545516f4c180e0370eb76"  # v0.1.5 (keep identical to the include ref above)
 
-
-# TEMPORARY: verifies core dump collection end to end. Revert before merging.
-coredump_smoke:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  retry: 0
-  timeout: 10m
-  script:
-    - ls -ld /var/crash
-    - id
-    - command -v gdb
-    # Plain interpreter crash.
-    - python3 -X faulthandler -c "import ctypes; ctypes.string_at(0)" || echo "python exited with $?"
-    # Crash through a console-script wrapper, the way pytest runs in CI.
-    - printf '#!%s\nimport ctypes\nctypes.string_at(0)\n' "$(pyenv which python3.12)" > crash-wrapper && chmod +x crash-wrapper
-    - ./crash-wrapper || echo "wrapper exited with $?"
-    - ls -la /var/crash
