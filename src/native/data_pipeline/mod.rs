@@ -88,14 +88,6 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    fn set_otlp_resource_attributes(
-        mut slf: PyRefMut<'_, Self>,
-        attributes: BTreeMap<String, String>,
-    ) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?.set_otlp_resource_attributes(attributes);
-        Ok(slf.into())
-    }
-
     fn set_tracer_tags(
         mut slf: PyRefMut<'_, Self>,
         tracer_tags: Vec<String>,

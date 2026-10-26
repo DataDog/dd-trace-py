@@ -68,7 +68,7 @@ def test_otlp_resource_attributes_are_not_span_attributes():
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": ["http/json", "http/protobuf"],
     },
 )
-def test_otlp_resource_uses_latest_finished_tags():
+def test_otlp_resource_uses_current_tags_at_export():
     import json
     import os
 
@@ -93,7 +93,9 @@ def test_otlp_resource_uses_latest_finished_tags():
             with tracer.trace("child") as child:
                 child.set_tag("team", "override")
             assert root.get_tag("team") is None
+        tracer.set_tags({"team": "at-export"})
         tracer.flush()
+        tracer.configure(trace_processors=[])
         apm_tracing_rc({}, config)
         tracer.set_tags({"team": "setter"})
         with tracer.trace("reset"):
@@ -109,7 +111,7 @@ def test_otlp_resource_uses_latest_finished_tags():
     for body in requests:
         [resource_spans] = decode(body)["resourceSpans"]
         resources.append({a["key"]: a["value"] for a in resource_spans["resource"]["attributes"]})
-    assert resources[0]["team"] == {"stringValue": "remote"}
+    assert resources[0]["team"] == {"stringValue": "at-export"}
     assert "removed" not in resources[0]
     assert resources[1]["team"] == {"stringValue": "setter"}
     assert resources[1]["removed"] == {"stringValue": "yes"}

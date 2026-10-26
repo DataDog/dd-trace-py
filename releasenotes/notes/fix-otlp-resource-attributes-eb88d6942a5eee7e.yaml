@@ -2,6 +2,6 @@ fixes:
   - |
     tracing: Fixes an issue where global tags configured through
     ``OTEL_RESOURCE_ATTRIBUTES`` or ``DD_TAGS`` are missing from OTLP trace
-    resources and repeated on spans. OTLP exports use one resource with the latest
-    tracer tags supplied by finished chunks, including remote configuration updates.
+    resources and repeated on spans. Each OTLP export uses one resource with the
+    current tracer tags, including remote configuration updates.
     Explicit span attributes are preserved and take precedence when sampling.

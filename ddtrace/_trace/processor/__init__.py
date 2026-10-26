@@ -33,7 +33,6 @@ from ddtrace.internal.telemetry.metrics import get_metric_recorder
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -374,6 +373,7 @@ class SpanAggregator(SpanProcessor):
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
+            get_resource_attributes=self.tags_processor.resource_attributes,
         )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
@@ -503,11 +503,7 @@ class SpanAggregator(SpanProcessor):
                     sampling_mechanism,
                     should_partial_flush,
                 )
-            resource_attributes = self.tags_processor.resource_attributes()
-            if resource_attributes is not None and isinstance(self.writer, NativeWriter):
-                self.writer.write(spans, resource_attributes=resource_attributes)
-            else:
-                self.writer.write(spans)
+            self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
@@ -564,7 +560,11 @@ class SpanAggregator(SpanProcessor):
 
         old_writer = self.writer
         try:
-            self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=enable)
+            self.writer = create_trace_writer(
+                response_callback=self._agent_response_callback,
+                agentless=enable,
+                get_resource_attributes=self.tags_processor.resource_attributes,
+            )
         except Exception:
             log.error(
                 "Failed to create %s APM trace writer; writer swap aborted.",

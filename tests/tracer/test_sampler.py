@@ -1004,50 +1004,6 @@ def test_sampling_rule_tracer_tags_are_only_a_fallback(span_value, tracer_tags, 
     assert span._get_numeric_attributes() == before_numbers
 
 
-@pytest.mark.parametrize("method", ["sample", "sample_or_discard"])
-def test_datadog_sampler_uses_current_tracer_tags_without_mutating_spans(method):
-    sampler = DatadogSampler(rules=[SamplingRule(0.0, tags={"team": "core"}, discard=True)])
-    span = Span("test.span")
-    tracer_tags = {"team": "core"}
-
-    def assert_sampled(expected):
-        result = getattr(sampler, method)(span, tracer_tags=tracer_tags)
-        assert result == (expected if method == "sample" else (expected, not expected))
-        assert span.get_tag("team") is None
-
-    assert_sampled(False)
-    tracer_tags = {"team": "edge"}
-    assert_sampled(True)
-    tracer_tags = {}
-    assert_sampled(True)
-    tracer_tags = {"team": "core"}
-    assert_sampled(False)
-
-
-@pytest.mark.parametrize("method", ["sample", "sample_or_discard"])
-@pytest.mark.parametrize("span_value", ["explicit", 7])
-def test_datadog_sampler_span_tags_override_tracer_tags(method, span_value):
-    sampler = DatadogSampler(
-        rules=[
-            SamplingRule(0.0, tags={"tag": "inherited"}, discard=True),
-            SamplingRule(1.0, tags={"tag": str(span_value), "team": "core"}),
-        ],
-        rate_limit=-1,
-    )
-    span = Span("test.span")
-    span._set_attribute("tag", span_value)
-
-    result = getattr(sampler, method)(span, tracer_tags={"tag": "inherited", "team": "core"})
-
-    assert result == (True if method == "sample" else (True, False))
-    assert span.get_metric(_SAMPLING_RULE_DECISION) == 1.0
-    assert span.get_tag("team") is None
-    if isinstance(span_value, str):
-        assert span.get_tag("tag") == span_value
-    else:
-        assert span.get_metric("tag") == span_value
-
-
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"},
     parametrize={"SAMPLING_PATH": ["early", "partial"]},

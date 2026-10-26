@@ -53,64 +53,24 @@ def mock_sys_platform(new_value):
         sys.platform = old_value
 
 
-def test_otlp_resource_tags_follow_accepted_buffer_writes():
+def test_otlp_resource_tags_are_read_at_export():
+    tags = {"team": "before"}
     with managed_writer(
         NativeWriter,
         "http://localhost:9126",
         otlp_endpoint="http://localhost:4318/v1/traces",
-        api_version="v0.4",
-        processing_interval=1000,
-        max_payload_size=1024,
-    ) as writer:
-        with mock.patch.object(writer, "_exporter") as exporter:
-            exporter.send.return_value = ""
-            writer.write([Span("accepted")], resource_attributes={"team": "first", "removed": "yes"})
-            writer.write([Span("x" * 10000)], resource_attributes={"team": "rejected"})
-            writer.flush_queue(raise_exc=True)
-            exporter.set_otlp_resource_attributes.assert_called_once_with({"team": "first", "removed": "yes"})
-            writer.write([Span("second")], resource_attributes={"team": "second"})
-            writer.write([Span("empty")], resource_attributes={})
-            writer.flush_queue(raise_exc=True)
-            assert exporter.set_otlp_resource_attributes.call_args_list[-1] == mock.call({})
-
-
-def test_otlp_drained_payload_keeps_its_resource_tags():
-    with managed_writer(
-        NativeWriter,
-        "http://localhost:9126",
-        otlp_endpoint="http://localhost:4318/v1/traces",
-        api_version="v0.4",
+        get_resource_attributes=lambda: tags,
         processing_interval=1000,
     ) as writer:
         with mock.patch.object(writer, "_exporter") as exporter:
             exporter.send.return_value = ""
-            writer.write([Span("first")], resource_attributes={"team": "first"})
-            send = writer._flush_single_payload
-
-            def write_between_drain_and_send(*args, **kwargs):
-                writer.write([Span("second")], resource_attributes={"team": "second"})
-                send(*args, **kwargs)
-
-            with mock.patch.object(writer, "_flush_single_payload", side_effect=write_between_drain_and_send):
-                writer.flush_queue(raise_exc=True)
+            writer.write([Span("first")])
+            tags = {"team": "after"}
             writer.flush_queue(raise_exc=True)
-            assert exporter.set_otlp_resource_attributes.call_args_list == [
-                mock.call({"team": "first"}),
-                mock.call({"team": "second"}),
-            ]
-            names = [msgpack.unpackb(call.args[0], raw=False)[0][0]["name"] for call in exporter.send.call_args_list]
-            assert names == ["first", "second"]
-
-
-def test_otlp_resource_update_and_send_use_same_exporter():
-    with managed_writer(NativeWriter, "http://localhost:9126") as writer:
-        replacement = mock.Mock()
-        with mock.patch.object(writer, "_exporter") as exporter:
-            exporter.send.return_value = ""
-            exporter.set_otlp_resource_attributes.side_effect = lambda _: setattr(writer, "_exporter", replacement)
-            writer._send_payload(b"payload", 1, writer._clients[0], resource_attributes={"team": "core"})
-            exporter.send.assert_called_once_with(b"payload")
-            replacement.send.assert_not_called()
+            writer.write([Span("second")])
+            tags = {}
+            writer.flush_queue(raise_exc=True)
+            assert exporter.set_otlp_resource_attributes.call_args_list == [mock.call({"team": "after"}), mock.call({})]
 
 
 @contextlib.contextmanager

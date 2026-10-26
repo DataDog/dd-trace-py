@@ -1276,7 +1276,7 @@ Agent
 
          If a tag value is not supplied the value will be an empty string.
 
-         For OTLP trace export, ordinary string tags are attached to the resource instead of each span. Each export uses the latest tracer tags supplied by a finished chunk, including for older buffered spans.
+         For OTLP trace export, ordinary string tags are attached to the resource instead of each span. Each export reads the current tracer tags once and uses them for all spans in the payload.
          Sampling reads both tracer tags and explicit span attributes, with explicit span attributes taking precedence. Ordinary resource tags are not returned by span tag accessors unless explicitly set on that span.
 
      version_added:
