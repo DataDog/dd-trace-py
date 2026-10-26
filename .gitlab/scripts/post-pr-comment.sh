@@ -52,7 +52,7 @@ jq --null-input \
 wget -nv -P "$AUTHANYWHERE_DIR" binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
 chmod +x "$AUTHANYWHERE_DIR/authanywhere-linux-amd64"
 
-curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+curl -fsS --retry 5 --retry-delay 2 --retry-connrefused 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
   -H "$("$AUTHANYWHERE_DIR/authanywhere-linux-amd64")" \
   -H 'Content-Type: application/json' \
   -X PATCH \
