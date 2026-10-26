@@ -16,13 +16,9 @@ description: |
 
 # dd-trace-py APM Integrations
 
-dd-trace-py integrations use monkey-patching via `wrapt` to intercept library calls
-and expose operations through typed events. Product subscribers implement tracing
-and other product behavior.
+dd-trace-py integrations use monkey-patching via `wrapt` to intercept library calls and expose operations through typed events. Product subscribers implement tracing and other product behavior.
 
-**Use the events API for new integrations and new instrumentation.** Read
-[events-api](../events-api/SKILL.md) before designing the event contract or
-implementing handlers. Search for reusable events and subscribers first.
+**Use the events API for new integrations and new instrumentation.** Read [events-api](../events-api/SKILL.md) before designing the event contract or implementing handlers. Search for reusable events and subscribers first.
 
 ## Architecture
 
@@ -34,21 +30,13 @@ Patch Module (ddtrace/contrib/internal/)
         Create spans, set tags, or perform other product behavior
 ```
 
-**The target architecture is product-agnostic integrations with no tracing code.**
-Use `core.context_with_event()` for operation lifecycles and
-`core.dispatch_event()` for point-in-time notifications. Events are typed
-transports with minimal data preparation; subscribers own product behavior.
-Reuse or compose existing contracts and subscribers before creating new ones.
-For tracing, use `TracingEvent` and `TracingSubscriber` where their contracts fit.
+**The target architecture is product-agnostic integrations with no tracing code.** Use `core.context_with_event()` for operation lifecycles and `core.dispatch_event()` for point-in-time notifications. Events are typed transports with minimal data preparation; subscribers own product behavior. Reuse or compose existing contracts and subscribers before creating new ones. For tracing, use `TracingEvent` and `TracingSubscriber` where their contracts fit.
 
 Existing integrations also contain **legacy patterns**:
 - **`context_with_data()` + `trace_handlers.py`**: Untyped context payloads and centralized handlers remain in existing code. Do not choose this pattern for new instrumentation or add duplicate handlers when a shared subscriber can own the behavior.
 - **`Pin` + `tracer.trace()`** (DEPRECATED): Direct tracing remains in existing integrations. Do not introduce it in new code.
 
-When fixing existing integrations, preserve observable behavior and keep migration
-scope appropriate to the task. A focused fix does not require migrating the whole
-integration. Existing code and reference examples may contain transitional
-patterns; use the events-api skill as the architectural guidance for new work.
+When fixing existing integrations, preserve observable behavior and keep migration scope appropriate to the task. A focused fix does not require migrating the whole integration. Existing code and reference examples may contain transitional patterns; use the events-api skill as the architectural guidance for new work.
 
 **LLM integrations** still use the APM integration workflow for contrib module layout, patch registration, and APM span tests, but LLMObs-specific span lifecycle and extraction belong in the `llmobs-integrations` skill.
 
@@ -82,22 +70,15 @@ dd-trace-py uses mypy for type checking. All new integration code must pass the 
 
 **Always read 1-2 references of the same type before writing or modifying code.**
 
-All patch modules live in `ddtrace/contrib/internal/{name}/`. See
-[Reference Integrations](references/reference-integrations.md) for canonical
-examples, secondary references, and pattern notes.
+All patch modules live in `ddtrace/contrib/internal/{name}/`. See [Reference Integrations](references/reference-integrations.md) for canonical examples, secondary references, and pattern notes.
 
 ---
 
 ## LLM Integrations (LLMObs)
 
-Use this APM skill for the shared integration work: contrib package layout,
-`patch()` / `unpatch()`, registration in `PATCH_MODULES`,
-`scripts/integration_registry/registry.yaml`, config registration, APM span
-tests, suitespec plumbing, and release-note/documentation expectations.
+Use this APM skill for the shared integration work: contrib package layout, `patch()` / `unpatch()`, registration in `PATCH_MODULES`, `scripts/integration_registry/registry.yaml`, config registration, APM span tests, suitespec plumbing, and release-note/documentation expectations.
 
-Use the **llmobs-integrations** skill for LLM-specific patch patterns,
-`LlmRequestEvent`, stream handlers, message/tool/token extraction, metadata
-sanitization, LLMObs assertions, and VCR cassette setup.
+Use the **llmobs-integrations** skill for LLM-specific patch patterns, `LlmRequestEvent`, stream handlers, message/tool/token extraction, metadata sanitization, LLMObs assertions, and VCR cassette setup.
 
 ---
 
@@ -123,8 +104,7 @@ See [Implementation Guide](references/implementation-guide.md) for detailed step
 
 ### Native Extension Build Issues
 
-If `pip install -e .` fails with Rust compilation errors, `target3.1*` path errors, or stale cached artifacts causing builds to break, refer to
-[Troubleshooting](../../../docs/troubleshooting.rst)
+If `pip install -e .` fails with Rust compilation errors, `target3.1*` path errors, or stale cached artifacts causing builds to break, refer to [Troubleshooting](../../../docs/troubleshooting.rst)
 
 This clears the Rust target directory and pip's download/build caches. Run this before retrying any `pip install` that fails with native extension errors.
 
