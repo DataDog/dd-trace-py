@@ -32,6 +32,7 @@ RESPONSES = json.load(open(os.path.join(HERE, "rc_mocked_responses_asm_features.
 
 BASE_PATH = "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"
 SECOND_PATH = "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config"
+THIRD_PATH = "datadog/2/ASM_FEATURES/ASM_FEATURES-third/config"
 
 
 class _Sink(RCCallback):
@@ -145,6 +146,27 @@ def test_no_delta_on_unchanged_repoll():
     # yields no delta, so __call__ is not invoked again (with an empty batch).
     assert len(sink.batches) == 1
     assert len(sink.batches[0]) == 1
+
+
+def test_new_native_client_removes_configs_missing_from_its_first_poll():
+    # A rebuilt native client (e.g. when switching to the intake) starts with no
+    # state, so its first poll carries additions only. Configs applied through
+    # the previous client that it no longer reports must still be removed.
+    with _MockAgent([RESPONSES[4]]) as agent:
+        client, sink = _client(agent.url)
+        assert client.request() is True
+    assert sorted(p.path for p in sink.last) == sorted([BASE_PATH, SECOND_PATH])
+
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client._native = None
+        client.agent_url = agent.url
+        assert client.request() is True
+        assert [(p.path, p.content is None) for p in sink.last] == [(SECOND_PATH, True), (BASE_PATH, False)]
+
+        assert client.request() is True
+
+    # Only the first delivery of a new client is reconciled.
+    assert len(sink.batches) == 2
 
 
 def test_enabled_products_reported_to_agent():
@@ -454,6 +476,54 @@ def test_fork_broadcast():
     assert count == "1"
     assert path == BASE_PATH
     assert json.loads(content) == {"asm": {"enabled": True}}
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_fork_removes_configs_deleted_before_first_read():
+    # The child inherits the callback state of the origin, but its reader starts
+    # from scratch and reports the active configs as additions only. A config
+    # the origin removed after the fork, but before the child's first read, must
+    # still be removed in the child.
+    with _MockAgent([RESPONSES[4], RESPONSES[5]]) as agent:
+        client, _ = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+        go_read, go_write = os.pipe()
+        read_fd, write_fd = os.pipe()
+        pid = os.fork()
+        if pid == 0:  # child
+            os.close(go_write)
+            os.close(read_fd)
+            try:
+                os.read(go_read, 1)
+                sink = _Sink()
+                client._product_callbacks[RemoteConfigProduct.AsmFeatures] = sink
+                reader = client.make_reader()
+                client.dispatch_native_changes(reader.read(client.enabled_product_names()))
+                msg = ",".join("%s:%d" % (p.path, p.content is None) for p in sink.last)
+                os.write(write_fd, msg.encode())
+            finally:
+                os.close(write_fd)
+                os._exit(0)
+
+        os.close(go_read)
+        os.close(write_fd)
+        assert client.request() is True  # base + third: second removed after the fork
+        os.write(go_write, b"x")
+        os.close(go_write)
+        out = os.read(read_fd, 4096).decode()
+        os.close(read_fd)
+        os.waitpid(pid, 0)
+
+    removals, additions = [], []
+    for entry in out.split(","):
+        path, removed = entry.rsplit(":", 1)
+        (removals if removed == "1" else additions).append(path)
+    assert removals == [SECOND_PATH]
+    assert sorted(additions) == sorted([BASE_PATH, THIRD_PATH])
+    # Removals are delivered first.
+    assert out.startswith(SECOND_PATH)
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")

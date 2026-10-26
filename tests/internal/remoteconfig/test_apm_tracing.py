@@ -1,11 +1,15 @@
+import typing as t
+
 from ddtrace import config
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
 from tests.utils import remote_config_build_payload as build_payload
 
 
-def _record(config_id, lib_config, service_target=None):
-    content = None
+def _record(
+    config_id: str, lib_config: t.Optional[dict[str, t.Any]], service_target: t.Optional[dict[str, str]] = None
+) -> Payload:
+    content: t.Optional[dict[str, t.Any]] = None
     if lib_config is not None:
         content = {"service_target": service_target or {"service": "*", "env": "*"}, "lib_config": lib_config}
     return Payload(

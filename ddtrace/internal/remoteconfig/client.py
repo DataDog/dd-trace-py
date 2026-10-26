@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+import dataclasses
 import json
 import os
 from typing import TYPE_CHECKING
@@ -112,6 +113,14 @@ class RemoteConfigClient:
         self._native: Optional[Any] = None
         self._reader: Optional[Any] = None
 
+        # Configs dispatched to the product callbacks and not removed since, by
+        # path. Forked children inherit this together with the callback state.
+        self._applied: dict[str, tuple[RemoteConfigProduct, ConfigMetadata]] = {}
+        # Applied configs that the first delivery from a new source of changes
+        # must confirm. A new native client or reader delivers a full snapshot
+        # without removals, so whatever it does not carry was removed meanwhile.
+        self._unconfirmed: set[str] = set()
+
     def ensure_native(self) -> Any:
         if self._native is None:
             from ddtrace.internal.native import RemoteConfigClient as _NativeClient
@@ -148,6 +157,7 @@ class RemoteConfigClient:
             )
             if self._capability_values:
                 self._native.add_capabilities(self._capability_values)
+            self._unconfirmed = set(self._applied)
         return self._native
 
     def switch_to_agentless(self) -> None:
@@ -246,6 +256,34 @@ class RemoteConfigClient:
             grouped.setdefault(change.product, []).append(Payload(metadata, change.path, content))
         return grouped
 
+    def _reconcile(self, grouped: dict[Any, list[Payload]]) -> dict[Any, list[Payload]]:
+        """Track the applied configs, adding removals for those a full snapshot did not confirm."""
+        delivered = {payload.path for payloads in grouped.values() for payload in payloads}
+
+        removals: dict[Any, list[Payload]] = {}
+        for path in self._unconfirmed - delivered:
+            product, metadata = self._applied[path]
+            # Readers withhold the configs of products that are not enabled yet,
+            # so their absence from the snapshot does not mean they were removed.
+            if product not in self._enabled_products:
+                continue
+            del self._applied[path]
+            removals.setdefault(product, []).append(Payload(dataclasses.replace(metadata, length=None), path, None))
+        self._unconfirmed = set()
+
+        for product, payloads in grouped.items():
+            for payload in payloads:
+                if payload.content is None:
+                    self._applied.pop(payload.path, None)
+                else:
+                    self._applied[payload.path] = (product, payload.metadata)
+
+        # Removals go first, as they do in the changes from the native client.
+        for product, payloads in removals.items():
+            grouped[product] = payloads + grouped.get(product, [])
+
+        return grouped
+
     def run_periodic(self) -> None:
         """Run every registered product's ``periodic()`` housekeeping.
 
@@ -329,7 +367,7 @@ class RemoteConfigClient:
         Used by the child-process subscriber: a bare poll tick (``records`` is
         empty) still fires every callback's ``periodic()`` via an empty dispatch.
         """
-        self._dispatch_to_products(self._build_payloads(records) if records else {})
+        self._dispatch_to_products(self._reconcile(self._build_payloads(records) if records else {}))
 
     def request(self) -> bool:
         try:
@@ -341,7 +379,7 @@ class RemoteConfigClient:
             # Deliver payloads only; product periodic() housekeeping is driven
             # once per cycle by the poller (RemoteConfigPoller.periodic), so it
             # keeps running even when a fetch fails.
-            self._dispatch_payloads(self._build_payloads(changes))
+            self._dispatch_payloads(self._reconcile(self._build_payloads(changes)))
             return True
         except Exception:
             log.debug("remote configuration client request failed", exc_info=True)
@@ -361,6 +399,7 @@ class RemoteConfigClient:
             # only the memoized data must be cleared so the full snapshot is re-emitted here.
             try:
                 self._reader.reset()
+                self._unconfirmed = set(self._applied)
             except Exception:
                 log.debug("failed to reset inherited remote config reader", exc_info=True)
                 self._reader = None
@@ -370,6 +409,7 @@ class RemoteConfigClient:
             return None
         try:
             self._reader = self._native.make_reader()
+            self._unconfirmed = set(self._applied)
         except Exception:
             log.debug("failed to create remote config reader", exc_info=True)
             self._reader = None
