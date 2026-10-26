@@ -9,6 +9,7 @@ import webtest
 
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import set_blocked
+from ddtrace.appsec._contrib.web_framework import subscribers as web_framework_subscribers
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec.trace_utils import block_request
 from ddtrace.contrib._events.web_framework import WebFrameworkBlockResponseEvent
@@ -240,8 +241,10 @@ def test_block_inside_exception_group_is_enforced(app, request_spans):
     assert get_active_asm_context() is None
 
 
+@pytest.mark.parametrize("context_name", ["web.request", "bottle.request"])
 @pytest.mark.parametrize("phase", ["request", "response"])
-def test_shared_appsec_events_without_framework_objects(appsec, phase):
+def test_shared_appsec_events_without_framework_objects(appsec, phase, context_name, mocker):
+    cleanup = mocker.spy(web_framework_subscribers, "_on_context_ended")
     parent = get_active_asm_context()
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
@@ -252,7 +255,7 @@ def test_shared_appsec_events_without_framework_objects(appsec, phase):
         request_headers={},
         headers_case_sensitive=False,
     )
-    with core.context_with_event(event):
+    with core.context_with_event(event, context_name_override=context_name) as ctx:
         assert get_active_asm_context() is not None
         inspection = WebFrameworkRequestInspectEvent(
             request_event=event,
@@ -275,3 +278,5 @@ def test_shared_appsec_events_without_framework_objects(appsec, phase):
         event.response_status_code = status
         event.response_headers = headers
     assert get_active_asm_context() is parent
+    cleanup.assert_called_once_with(ctx, (None, None, None))
+    assert ctx.identifier == context_name

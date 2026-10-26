@@ -16,6 +16,7 @@ from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib._events.web_framework import WebFrameworkBlockResponseEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkResponseInspectEvent
@@ -121,7 +122,7 @@ class WebFrameworkBlockResponseSubscriber(Subscriber):
 
 class WebFrameworkRequestContextSubscriber(ContextSubscriber[WebFrameworkRequestEvent]):
     auto_register = False
-    event_names = ("web.request",)
+    event_names = (WebFrameworkEvents.WEB_REQUEST.value, "bottle.request")
 
     @classmethod
     def on_ended(

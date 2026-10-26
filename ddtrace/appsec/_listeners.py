@@ -114,7 +114,6 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     from ddtrace.appsec._asm_request_context import asm_listen
     from ddtrace.appsec._contrib.aiohttp import listen as aiohttp_listen
     from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
-    from ddtrace.appsec._contrib.bottle import listen as bottle_listen
     from ddtrace.appsec._contrib.django import listen as django_listen
     from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
     from ddtrace.appsec._contrib.flask import listen as flask_listen
@@ -138,7 +137,6 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         tornado_listen()
         aiohttp_listen()
         web_framework_listen()
-        bottle_listen()
 
         # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
         # grpc_listen()

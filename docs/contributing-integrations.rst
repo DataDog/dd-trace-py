@@ -144,9 +144,10 @@ The shared inspection events are defined in
 ``ddtrace.appsec._contrib.web_framework``. Request inspection carries explicit
 peer IP, cookies, and path parameters alongside the request event; subscribers
 do not receive framework request objects. Another synchronous adapter can reuse
-these events and subscribers. The default ``web.request`` context has shared
-AppSec cleanup; a specialized context route must register a subclass of
-``WebFrameworkRequestContextSubscriber`` for that route.
+these events and subscribers. The shared ``WebFrameworkRequestContextSubscriber`` handles cleanup for both
+``web.request`` and ``bottle.request``. Additional context routes with the same
+cleanup behavior can join its event names; distinct behavior requires a specialized
+subscriber.
 
 The adapter dispatches ``WebFrameworkRequestInspectEvent`` before invoking the route callback
 and ``WebFrameworkResponseInspectEvent`` after metadata completion, while the response can still
@@ -163,7 +164,7 @@ body on the event. Bottle constructs an ``HTTPResponse`` and completes the repla
 metadata before returning to the shared runner. Discarded response iterables are
 closed without iteration. A pending block is checked again at response inspection,
 including when application code catches the blocking exception. AppSec cleanup uses
-a ``ContextSubscriber`` for ``bottle.request``.
+the shared context subscriber, preserving the ``bottle.request`` lifecycle hooks.
 
 These notifications run independently of APM tracing enablement. AppSec subscribers
 check their own enablement. Blocking is limited to callbacks covered by the plugin;

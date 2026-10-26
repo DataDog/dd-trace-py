@@ -60,8 +60,8 @@ Bottle uses context_name_override="bottle.request" with WebFrameworkRequestEvent
 the shared tracing subscriber listens to both web.request and bottle.request.
 AppSec inspection and block-response subscribers live in appsec/_contrib/web_framework;
 they consume explicit peer IP, cookies, and path parameters rather than library request
-objects. The shared cleanup subscriber supports web.request; Bottle specializes it
-for bottle.request without overriding its hooks. Notifications use
+objects. The shared cleanup subscriber listens to both web.request and bottle.request.
+Reuse its event-name list for identical cleanup; specialize only for different behavior. Notifications use
 WebFrameworkRequestInspectEvent, WebFrameworkResponseInspectEvent, and WebFrameworkBlockResponseEvent through
 core.dispatch_event. The block event carries the selected response back to the
 adapter; do not use string-keyed context items for it. Request WAF evaluation stays
