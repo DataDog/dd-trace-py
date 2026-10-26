@@ -27,6 +27,9 @@ Use the [LLMObs implementation guide](../../llmobs-integrations/references/imple
 for event/span ownership and extraction. Register new exported integration classes in
 `_INTEGRATION_MODULES` in `ddtrace/llmobs/_integrations/__init__.py`; `__all__` is derived from
 that lazy mapping. Do not replace lazy registration with eager imports of every integration.
+Connect standard request integrations through `LlmEvents` subscribers under
+`ddtrace/llmobs/_contrib/<name>/`, registered through the `ddtrace.integration_hooks` entry point.
+Follow `ddtrace/llmobs/_contrib/anthropic/` and the LLMObs guide so contrib does not import LLMObs.
 
 ## Tests and documentation
 

@@ -2897,5 +2897,8 @@ suites:
       command: pytest {cmdargs} tests/contrib/valkey
       variants:
         - name: valkey
+          python: ['3.9']
+          dependencies: ['valkey~=6.0.0', pytest-randomly, 'pytest-asyncio==0.23.7']
+        - name: valkey
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [valkey, pytest-randomly, 'pytest-asyncio==0.23.7']

@@ -11,11 +11,15 @@ Use `apm-integrations` as well when changing contrib patching, registration, or 
 ## Ownership and references
 
 Standard request spans use `LlmRequestEvent` and `core.context_with_event()`; the tracing
-subscriber owns span creation, errors, extraction, and finishing. Specialized agent/tool/duplex
-integrations may use direct spans. Follow the current integration's lifecycle deliberately.
+subscriber owns span creation, errors, and finishing. For new integrations, leave the event's
+`llmobs_integration` unset and connect extraction through `LlmEvents` subscribers under
+`ddtrace/llmobs/_contrib/<name>/`. Specialized agent/tool/duplex integrations may use direct spans.
+Preserve the existing lifecycle when extending an integration.
 
 - Standard requests: `ddtrace/contrib/internal/anthropic/patch.py` and
   `ddtrace/llmobs/_integrations/anthropic.py`.
+- Product subscribers: `ddtrace/llmobs/_contrib/anthropic/`; patch hooks:
+  `ddtrace/internal/integration_hooks.py` and `pyproject.toml`'s `ddtrace.integration_hooks` group.
 - Agent/tool spans: `ddtrace/llmobs/_integrations/claude_agent_sdk.py`.
 - Base contract: `ddtrace/llmobs/_integrations/base.py`.
 - Streaming: `ddtrace/internal/utils/streaming.py`.
@@ -33,6 +37,10 @@ integrations may use direct spans. Follow the current integration's lifecycle de
   stream owner, not an ASGI sweep that could truncate an agent outliving its request.
 - Stamp agent kind/name when the span starts so children can resolve their parent attribution.
 - Reuse extraction and metadata sanitizers; retain provider-specific token accounting and media limits.
+- Build subscriber-owned integration instances lazily. Register through the contrib's
+  `integration_hooks.on_patch()` / `on_unpatch()` calls so direct patching also works.
+  Keep subscribers available when LLMObs is disabled for APM shadow tags, and retain finishing
+  handlers for requests/streams in flight at unpatch. See the implementation guide for lifecycle details.
 
 Read only the reference relevant to the change:
 [implementation](references/implementation-guide.md), [failure modes](references/failure-modes.md),
