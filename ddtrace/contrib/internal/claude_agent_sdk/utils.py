@@ -3,7 +3,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.internal.utils.formats import _get_attr
 
 
 log = get_logger(__name__)
