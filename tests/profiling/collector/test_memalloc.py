@@ -1395,7 +1395,9 @@ def test_memory_collector_reports_true_omitted_frame_count(tmp_path: Path) -> No
             ]
             for location_id in sample.location_id
         ]
-        if "_allocate_at_depth" not in names:
+        # The leaf must be the recursion itself: a finalizer run by GC on top of it (e.g. a pytest
+        # generator) makes the stack one frame deeper than the depth measured above.
+        if names[0] != "_allocate_at_depth":
             continue
         match: Optional[re.Match[str]] = re.fullmatch(r"<(\d+) frames? omitted>", names[-1])
         assert match is not None, f"Expected an omitted-frames marker at the root of {names}"
@@ -1414,7 +1416,7 @@ def test_memory_collector_reports_true_omitted_frame_count(tmp_path: Path) -> No
         stats: dict[str, Any] = metadata["frame_truncation"][collector]
         assert stats["max_frames"] == max_frames
         assert stats["samples_truncated"] > 0
-        assert stats["max_depth"] == stack_depth
+        assert stats["max_depth"] >= stack_depth
         assert stats["depth_buckets"][expected_bucket] > 0
     assert metadata["memalloc_walk_ns"] > 0
 
