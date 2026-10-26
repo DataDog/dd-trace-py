@@ -945,3 +945,19 @@ publishing-gate:
     LLMVAL_BASE_REF: "main"
     LLMVAL_PLATFORM_REF: "68250345c9e358d4345545516f4c180e0370eb76"  # v0.1.5 (keep identical to the include ref above)
 
+
+# TEMPORARY: checks that coredump_smoke fails when cores aren't collected. Revert before merging.
+coredump_smoke_no_ulimit:
+  extends: coredump_smoke
+  allow_failure: true
+  script:
+    - ulimit -c 0
+    - bash .gitlab/scripts/coredump-smoke.sh
+
+coredump_smoke_old_collector:
+  extends: coredump_smoke
+  allow_failure: true
+  script:
+    - git fetch --depth=1 origin main
+    - git show FETCH_HEAD:.gitlab/scripts/generate-core-backtraces.sh > .gitlab/scripts/generate-core-backtraces.sh
+    - bash .gitlab/scripts/coredump-smoke.sh
