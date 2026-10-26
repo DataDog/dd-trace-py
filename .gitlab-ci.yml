@@ -633,6 +633,39 @@ check_type_comments:
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_type_comments.py --base-ref FETCH_HEAD
 
+check_new_python_annotations:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+    - python3 scripts/check_new_untyped_defs.py --base-ref FETCH_HEAD
+
 # Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
 # tests stub git/curl (no network), so we skip the heavier .testrunner setup.
 test_resolve_base_branch:
