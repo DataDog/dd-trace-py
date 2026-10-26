@@ -308,12 +308,8 @@ class BedrockIntegration(BaseLLMIntegration):
                     if f"{token_type}Tokens" in usage:
                         usage_metrics[f"{token_type}_tokens"] = usage[f"{token_type}Tokens"]
 
-                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
-                    "cacheReadInputTokens", None
-                )
-                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
-                    "cacheWriteInputTokens", None
-                )
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", usage.get("cacheReadInputTokens", None))
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", usage.get("cacheWriteInputTokens", None))
 
                 if cache_read_tokens is not None:
                     usage_metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens

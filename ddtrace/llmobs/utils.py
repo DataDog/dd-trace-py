@@ -263,7 +263,7 @@ class Documents:
                 if not isinstance(document_id, str):
                     raise TypeError("document id must be a string.")
                 formatted_document["id"] = document_id
-            if document_score:
+            if document_score is not None:
                 if not isinstance(document_score, (int, float)):
                     raise TypeError("document score must be an integer or float.")
                 formatted_document["score"] = document_score

@@ -426,19 +426,15 @@ def handle_bedrock_response(
     if ctx["resource"] == "Converse":
         if "metrics" in result:
             latency = result.get("metrics", {}).get("latencyMs", "")
-            request_latency = str(latency) if latency else request_latency
+            request_latency = str(latency) if latency not in (None, "") else request_latency
         if "usage" in result:
             usage = result.get("usage", {})
             if usage:
                 input_tokens = usage.get("inputTokens", input_tokens)
                 output_tokens = usage.get("outputTokens", output_tokens)
                 total_tokens = usage.get("totalTokens", total_tokens)
-                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
-                    "cacheReadInputTokens", None
-                )
-                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
-                    "cacheWriteInputTokens", None
-                )
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", usage.get("cacheReadInputTokens", None))
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", usage.get("cacheWriteInputTokens", None))
 
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))

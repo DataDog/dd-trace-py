@@ -1,0 +1,15 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where a document score of ``0`` was dropped from retrieval spans.
+  - |
+    vertexai: Fixes an issue where LLM Observability spans omitted generation parameters set to ``0`` (such as
+    ``temperature=0``), or reported the model's default value instead of the ``0`` set on the request.
+  - |
+    anthropic: Fixes an issue where LLM Observability spans omitted ``temperature`` and ``max_tokens`` when set to ``0``.
+  - |
+    botocore: Fixes an issue where Bedrock Converse spans omitted cache read or cache write token counts of ``0``,
+    and reported the invocation latency header instead of a Converse latency of ``0`` milliseconds.
+  - |
+    claude_agent_sdk: Fixes an issue where LLM Observability spans omitted input or output token counts of ``0``,
+    and omitted the total token count when either of them was ``0``.

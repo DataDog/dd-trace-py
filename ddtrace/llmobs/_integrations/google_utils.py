@@ -303,8 +303,10 @@ def llmobs_get_metadata_vertexai(kwargs, instance):
     for param in parameters:
         model_config_value = _get_attr(model_config, param, None)
         request_config_value = _get_attr(request_config, param, None)
-        if model_config_value or request_config_value:
-            metadata[param] = request_config_value or model_config_value
+        if request_config_value is not None:
+            metadata[param] = request_config_value
+        elif model_config_value is not None:
+            metadata[param] = model_config_value
     return metadata
 
 

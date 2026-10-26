@@ -315,16 +315,16 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         metrics: dict[str, int] = {}
         usage = _get_attr(message, "usage", None) or {}
         if usage and isinstance(usage, dict):
-            input_tokens = usage.get("input_tokens") or 0
-            output_tokens = usage.get("output_tokens") or 0
+            input_tokens = usage.get("input_tokens")
+            output_tokens = usage.get("output_tokens")
             cache_creation = usage.get("cache_creation_input_tokens") or 0
             cache_read = usage.get("cache_read_input_tokens") or 0
 
-            if input_tokens:
+            if input_tokens is not None:
                 metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens + cache_creation + cache_read
-            if output_tokens:
+            if output_tokens is not None:
                 metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-            if input_tokens and output_tokens:
+            if input_tokens is not None and output_tokens is not None:
                 metrics[TOTAL_TOKENS_METRIC_KEY] = metrics[INPUT_TOKENS_METRIC_KEY] + metrics[OUTPUT_TOKENS_METRIC_KEY]
             if cache_creation:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation
