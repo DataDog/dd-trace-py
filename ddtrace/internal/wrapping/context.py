@@ -529,7 +529,6 @@ class BaseWrappingContext(ABC):
         if storage is None:
             return
         self._storage.set(storage.pop(_STORAGE_PREV))
-        del storage[_STORAGE_OWNER]
         storage.clear()
 
     def __return__(self, value: T) -> T:
