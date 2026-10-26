@@ -555,3 +555,42 @@ def test_alias_matcher_carries_resolved_aliases_to_children(tmp_path, monkeypatc
             assert child_matcher(site_packages / "__init__.py")
     finally:
         clear_coverage_path_caches()
+
+
+def test_alias_matcher_rejects_identity_aliases(tmp_path, monkeypatch) -> None:
+    """Broad aliases that map a file to where it already sits do not admit it.
+
+    A whole-workspace alias (e.g. the repository's own "source" group) maps
+    every nested dependency to itself; those must stay excluded so only
+    relocated installed copies of the library under test are collected.
+    """
+    site_packages = _make_site_packages(tmp_path)
+    dep_venv = tmp_path / ".venv/lib/python3.12/site-packages/dep_pkg"
+    dep_venv.mkdir(parents=True)
+    lib_file = site_packages / "__init__.py"
+    dep_file = dep_venv / "mod.py"
+
+    def _write_config(broad_first: bool) -> None:
+        covered = "[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n"
+        source = f"source =\n    ./\n    {tmp_path}\n"
+        (tmp_path / ".coveragerc").write_text(source + covered if broad_first else covered + source)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+    matcher = tracer_api_coverage._AliasMatcher(tmp_path)
+
+    clear_coverage_path_caches()
+    try:
+        _write_config(broad_first=False)
+        # The library copy is relocated to its repository path: admitted.
+        assert matcher(lib_file)
+        # The dependency maps to the location it already occupies: excluded.
+        assert not matcher(dep_file)
+
+        # First-match precedence applies to admission as well: with the broad
+        # alias listed first, the library copy is identity-mapped and excluded.
+        _write_config(broad_first=True)
+        clear_coverage_path_caches()
+        assert not matcher(lib_file)
+    finally:
+        clear_coverage_path_caches()

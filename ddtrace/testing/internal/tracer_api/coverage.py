@@ -68,7 +68,14 @@ class _AliasMatcher:
                 return False
             specs = aliases.aliases
         matched, mapped = _map_path_with_specs(specs, str(code_path), self._workspace_path_str)
-        return matched and mapped is not None
+        if not matched or mapped is None:
+            return False
+        # A broad alias (e.g. a whole-workspace "source" group) can map an
+        # installed dependency to the location it already occupies. Only
+        # aliases that relocate the file to a repository path admit it past
+        # the collector's exclusions; identity mappings leave dependencies
+        # excluded.
+        return Path(self._workspace_path_str) / mapped.lstrip("/") != Path(code_path)
 
 
 def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
