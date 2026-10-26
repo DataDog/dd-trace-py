@@ -33,21 +33,33 @@ log = logging.getLogger(__name__)
 log = logging.getLogger(__name__)
 
 
-def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
-    def alias_matcher(code_path: Path) -> bool:
-        # Installed copies of the library under test (e.g. a wheel in a virtual
-        # environment's site-packages) normally fail the collector's gates: they
-        # live under site-packages and possibly outside the workspace. When a
-        # coverage [paths] alias maps such a copy back to this repository, collect
-        # it so the coverage report can attribute it to the repository.
-        matched, mapped = _alias_mapped_path(str(code_path), str(workspace_path))
+class _AliasMatcher:
+    """Picklable admission predicate for installed copies of the library under test.
+
+    Instances are serialized to spawned child processes (multiprocessing
+    spawn/forkserver), where the [paths] aliases are rebuilt from the child's
+    active coverage configuration.
+    """
+
+    def __init__(self, workspace_path: Path) -> None:
+        self._workspace_path_str = str(workspace_path)
+
+    def __call__(self, code_path: Path) -> bool:
+        matched, mapped = _alias_mapped_path(str(code_path), self._workspace_path_str)
         return matched and mapped is not None
 
+
+def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
+    # Installed copies of the library under test (e.g. a wheel in a virtual
+    # environment's site-packages) normally fail the collector's gates: they
+    # live under site-packages and possibly outside the workspace. The matcher
+    # admits copies that a coverage [paths] alias maps back to this repository,
+    # so the coverage report can attribute them to the repository.
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
         file_level_coverage=file_level_coverage,
-        alias_matcher=alias_matcher,
+        alias_matcher=_AliasMatcher(workspace_path),
     )
     ModuleCodeCollector.start_coverage()
 
@@ -135,19 +147,34 @@ class CoverageData:
         relative_to_str = str(relative_to)
 
         if self._covered_file_paths is not None:
+            # A checkout copy and an installed copy can alias to the same upload
+            # filename; report it once.
+            seen: set[str] = set()
             for absolute_path in self._covered_file_paths:
                 path_str = _relative_coverage_path(absolute_path, relative_to_str)
-                if path_str is not None:
+                if path_str is not None and path_str not in seen:
+                    seen.add(path_str)
                     yield path_str, _FILE_LEVEL_BITMAP
             return
 
         if not self._covered_lines:
             return
 
+        # A checkout copy and an installed copy (e.g. reported by a child process)
+        # can alias to the same upload filename; union their covered lines so the
+        # file has a single bitmap entry instead of split duplicates.
+        bitmaps: dict[str, CoverageLines] = {}
         for absolute_path, covered_lines in self._covered_lines.items():
             path_str = _relative_coverage_path(absolute_path, relative_to_str)
-            if path_str is not None:
-                yield path_str, covered_lines.to_bytes()
+            if path_str is None:
+                continue
+            if path_str in bitmaps:
+                bitmaps[path_str].update(covered_lines)
+            else:
+                bitmaps[path_str] = covered_lines
+
+        for path_str, covered_lines in bitmaps.items():
+            yield path_str, covered_lines.to_bytes()
 
 
 @contextlib.contextmanager

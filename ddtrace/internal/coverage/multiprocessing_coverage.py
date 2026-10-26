@@ -107,7 +107,9 @@ class CoverageCollectingMultiprocess(BaseProcess):
         if self._dd_coverage_enabled:
             # Inline the installer logic to avoid a circular import:
             # installer.py imports _patch_multiprocessing from this module.
-            ModuleCodeCollector.install(include_paths=self._dd_coverage_include_paths)
+            ModuleCodeCollector.install(
+                include_paths=self._dd_coverage_include_paths, alias_matcher=self._dd_alias_matcher
+            )
             _patch_multiprocessing()
             _patch_threading()
             ModuleCodeCollector.start_coverage()
@@ -133,6 +135,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
     def __init__(self, *posargs, **kwargs) -> None:
         self._dd_coverage_enabled = False
         self._dd_coverage_include_paths: list[Path] = []
+        self._dd_alias_matcher: t.Optional[t.Callable[[Path], bool]] = None
 
         # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
         self._parent_conn: t.Optional[Connection] = None
@@ -152,6 +155,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
             self._dd_coverage_enabled = True
             if ModuleCodeCollector._instance is not None:
                 self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
+                self._dd_alias_matcher = ModuleCodeCollector._instance._alias_matcher
 
             # Capture context-level coverage dict if active (runs in the main thread)
             if ctx_coverage_enabled.get():
@@ -190,25 +194,35 @@ class Stowaway:
     ModuleCodeCollector in it leads to incomplete code coverage data.
     """
 
-    def __init__(self, include_paths: t.Optional[list[Path]] = None, dd_coverage_enabled: bool = True) -> None:
+    def __init__(
+        self,
+        include_paths: t.Optional[list[Path]] = None,
+        dd_coverage_enabled: bool = True,
+        alias_matcher: t.Optional[t.Callable[[Path], bool]] = None,
+    ) -> None:
         self.dd_coverage_enabled: bool = dd_coverage_enabled
         self.include_paths_strs: list[str] = []
         if include_paths is not None:
             self.include_paths_strs = [str(include_path) for include_path in include_paths]
+        # Picklable admission predicate for installed copies of the library under
+        # test (see ddtrace.testing's [paths] alias matcher); pickle serializes it
+        # by reference to its module-level class.
+        self.alias_matcher = alias_matcher
 
     def __getstate__(self) -> dict[str, t.Any]:
         return {
             "include_paths_strs": json.dumps(self.include_paths_strs),
             "dd_coverage_enabled": self.dd_coverage_enabled,
+            "alias_matcher": self.alias_matcher,
         }
 
-    def __setstate__(self, state: dict[str, str]) -> None:
+    def __setstate__(self, state: dict[str, t.Any]) -> None:
         include_paths = [Path(include_path_str) for include_path_str in json.loads(state["include_paths_strs"])]
 
         if state["dd_coverage_enabled"]:
             # Inline the installer logic to avoid a circular import:
             # installer.py imports _patch_multiprocessing from this module.
-            ModuleCodeCollector.install(include_paths=include_paths)
+            ModuleCodeCollector.install(include_paths=include_paths, alias_matcher=state.get("alias_matcher"))
             _patch_threading()
             _patch_multiprocessing()
 
@@ -234,12 +248,15 @@ def _patch_multiprocessing():
     else:
 
         def get_preparation_data_with_stowaway(name: str) -> dict[str, t.Any]:
-            """Make sure that the ModuleCodeCollector is installed as soon as possible, with the same include paths"""
+            """Make sure that the ModuleCodeCollector is installed as soon as possible, with the same settings"""
             d = original_get_preparation_data(name)
-            include_paths = (
-                [] if ModuleCodeCollector._instance is None else ModuleCodeCollector._instance._include_paths
-            )
-            d["stowaway"] = Stowaway(include_paths=include_paths)
+            if ModuleCodeCollector._instance is None:
+                include_paths: t.Optional[list[Path]] = []
+                alias_matcher = None
+            else:
+                include_paths = ModuleCodeCollector._instance._include_paths
+                alias_matcher = ModuleCodeCollector._instance._alias_matcher
+            d["stowaway"] = Stowaway(include_paths=include_paths, alias_matcher=alias_matcher)
             return d
 
         spawn.get_preparation_data = get_preparation_data_with_stowaway

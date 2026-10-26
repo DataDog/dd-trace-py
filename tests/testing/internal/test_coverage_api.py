@@ -330,3 +330,112 @@ def test_installed_libraries_not_collected_without_aliases() -> None:
     finally:
         tracer_api_coverage.uninstall_coverage()
         sys.path.remove(str(env_site))
+
+
+def test_alias_matcher_propagates_to_spawned_processes(tmp_path, monkeypatch) -> None:
+    """The alias matcher survives pickling to spawn/forkserver child collectors.
+
+    Stowaway is what reinstalls the collector in a spawned child; without the
+    matcher traveling with it, wheel-installed modules fail the child's
+    site-packages gate and contribute no coverage.
+    """
+    import pickle
+
+    from ddtrace.internal.coverage.multiprocessing_coverage import Stowaway
+
+    site_packages = _make_site_packages(tmp_path)
+    other_pkg = tmp_path / ".cache/env/lib/python3.12/site-packages/other_pkg"
+    other_pkg.mkdir(parents=True)
+    (tmp_path / ".coveragerc").write_text(
+        "[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    clear_coverage_path_caches()
+    try:
+        stowaway = Stowaway(include_paths=[tmp_path], alias_matcher=tracer_api_coverage._AliasMatcher(tmp_path))
+        state = stowaway.__getstate__()
+
+        # The matcher round-trips through pickle and still admits installed
+        # copies of the aliased library, but not other dependencies.
+        matcher = pickle.loads(pickle.dumps(state["alias_matcher"]))
+        assert matcher(site_packages / "__init__.py")
+        assert not matcher(other_pkg / "mod.py")
+
+        # The child-side install receives the matcher.
+        with (
+            mock.patch.object(ModuleCodeCollector, "install") as mock_install,
+            mock.patch("ddtrace.internal.coverage.multiprocessing_coverage._patch_threading"),
+            mock.patch("ddtrace.internal.coverage.multiprocessing_coverage._patch_multiprocessing"),
+        ):
+            Stowaway.__setstate__(Stowaway.__new__(Stowaway), state)
+
+        mock_install.assert_called_once_with(include_paths=[tmp_path], alias_matcher=state["alias_matcher"])
+    finally:
+        clear_coverage_path_caches()
+
+
+def test_get_coverage_bitmaps_coalesce_aliased_copies(tmp_path, monkeypatch) -> None:
+    """Copies aliasing to the same upload filename yield one unioned bitmap.
+
+    A checkout copy and a wheel-installed copy (e.g. executed in a child
+    process) of the same file must not produce duplicate split entries.
+    """
+    from ddtrace.internal.coverage.coverage_lines import CoverageLines
+
+    site_packages = _make_site_packages(tmp_path)
+    (tmp_path / "covered_pkg").mkdir()
+    (tmp_path / ".coveragerc").write_text(
+        "[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    covered_lines = {
+        str(tmp_path / "covered_pkg/__init__.py"): CoverageLines.from_list([1, 2]),
+        str(site_packages / "__init__.py"): CoverageLines.from_list([3]),
+    }
+
+    clear_coverage_path_caches()
+    try:
+        with mock.patch.object(ModuleCodeCollector, "CollectInContext") as mock_collect_in_context:
+            mock_collect_in_context().__enter__().get_covered_lines.return_value = covered_lines
+
+            with coverage_collection() as coverage_data:
+                pass
+
+            assert dict(coverage_data.get_coverage_bitmaps(tmp_path)) == {
+                "/covered_pkg/__init__.py": CoverageLines.from_list([1, 2, 3]).to_bytes(),
+            }
+    finally:
+        clear_coverage_path_caches()
+
+
+def test_get_coverage_bitmaps_dedupe_file_level_aliased_copies(tmp_path, monkeypatch) -> None:
+    """File-level bitmaps for aliased copies are reported once per filename."""
+    site_packages = _make_site_packages(tmp_path)
+    (tmp_path / "covered_pkg").mkdir()
+    (tmp_path / ".coveragerc").write_text(
+        "[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    clear_coverage_path_caches()
+    try:
+        with (
+            mock.patch.object(ModuleCodeCollector, "CollectInContext") as mock_collect_in_context,
+            mock.patch.object(ModuleCodeCollector, "file_level_coverage_enabled", return_value=True),
+        ):
+            mock_collect_in_context().__enter__().get_covered_file_paths.return_value = [
+                str(tmp_path / "covered_pkg/__init__.py"),
+                str(site_packages / "__init__.py"),
+            ]
+
+            with coverage_collection() as coverage_data:
+                pass
+
+            assert list(coverage_data.get_coverage_bitmaps(tmp_path)) == [("/covered_pkg/__init__.py", mock.ANY)]
+    finally:
+        clear_coverage_path_caches()
