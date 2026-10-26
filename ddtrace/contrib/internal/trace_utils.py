@@ -21,6 +21,7 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.http_tags import set_client_address_tags
 from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
@@ -417,31 +418,32 @@ def set_http_meta(
         ``resolver_match.args``, Tornado ``path_args``).
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
-    if otel_http is not None and otel_http.is_client:
+    if otel_http is not None:
         _set_http_meta_otel(
             otel_http,
-            method,
-            url,
-            target_host,
-            server_address,
-            status_code,
-            query,
-            request_headers,
-            headers_are_case_sensitive,
-            route,
+            method=method,
+            url=url,
+            raw_uri=raw_uri,
+            target_host=target_host,
+            server_address=server_address,
+            status_code=status_code,
+            query=query,
+            request_headers=request_headers,
+            headers_are_case_sensitive=headers_are_case_sensitive,
+            route=route,
         )
     else:
         _set_http_meta(
             span,
             integration_config,
-            method,
-            url,
-            target_host,
-            server_address,
-            status_code,
-            query,
-            request_headers,
-            headers_are_case_sensitive,
+            method=method,
+            url=url,
+            target_host=target_host,
+            server_address=server_address,
+            status_code=status_code,
+            query=query,
+            request_headers=request_headers,
+            headers_are_case_sensitive=headers_are_case_sensitive,
         )
 
     if status_msg is not None:
@@ -472,11 +474,9 @@ def set_http_meta(
             # Not calculated: framework does not support IP blocking or testing env
             request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
 
-        if request_ip:
-            span._set_attribute(http.CLIENT_IP, request_ip)
-
-        if peer_ip:
-            span._set_attribute("network.client.ip", peer_ip)
+        if otel_http is None or not otel_http.is_client:
+            # Under OTel semantics an outgoing request has no client address, so client spans report none.
+            set_client_address_tags(span, request_ip, peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
@@ -558,6 +558,7 @@ def _set_http_meta_otel(
     otel_http: OTelHTTPSpanAttributes,
     method: Optional[str],
     url: Optional[str],
+    raw_uri: Optional[str],
     target_host: Optional[str],
     server_address: Optional[str],
     status_code: Optional[Union[int, str]],
@@ -568,7 +569,9 @@ def _set_http_meta_otel(
 ) -> None:
     """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
     otel_http.set_method(method)
-    otel_http.set_url(url, query=query, server_address=server_address, fallback_server_address=target_host)
+    otel_http.set_url(
+        url, query=query, raw_uri=raw_uri, server_address=server_address, fallback_server_address=target_host
+    )
     otel_http.set_status_code(status_code)
     if request_headers:
         otel_http.set_user_agent(_get_request_header_user_agent(request_headers, headers_are_case_sensitive))

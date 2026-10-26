@@ -54,8 +54,9 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     echion_sampler.init_asyncio(p_scheduled, Py_None);
 #if PY_VERSION_HEX >= 0x030e0000
     // These synthetic state objects need only list heads. Small offsets keep both lists reachable with short inputs;
-    // runtime discovery would describe the host interpreter, not the fuzz memory image.
-    echion_sampler.set_asyncio_offsets(AsyncioOffsets{ 2 * sizeof(uintptr_t), sizeof(uintptr_t) });
+    // the host interpreter's offsets would describe its own structs, not the fuzz memory image.
+    echion_sampler.set_asyncio_offsets(
+      AsyncioOffsets{ .interpreter_tasks_head = 2 * sizeof(uintptr_t), .thread_tasks_head = sizeof(uintptr_t) });
     tstate.interp =
       reinterpret_cast<PyInterpreterState*>(addr_from_u64(load_u64_le(data, size, 3 * sizeof(uintptr_t))));
 #endif

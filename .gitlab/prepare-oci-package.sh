@@ -62,10 +62,4 @@ echo "Deduplicating package files"
 cd ./sources
 rdfind -makesymlinks true -makeresultsfile true -checksum sha256 -deterministic true -outputname deduped.txt .
 echo "Converting symlinks to relative symlinks"
-find . -type l | while read -r l; do
-  target="$(realpath "$l")"
-  rel_target="$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")"
-  dest_base="$(basename "$l")"
-  dest_dir="$(dirname "$l")"
-  (cd "${dest_dir}" && ln -sf "${rel_target}" "${dest_base}")
-done
+python3 ../../.gitlab/scripts/make-symlinks-relative.py .

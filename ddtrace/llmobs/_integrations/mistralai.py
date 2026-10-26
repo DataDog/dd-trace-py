@@ -2,6 +2,8 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -10,8 +12,6 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall

@@ -116,6 +116,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
             "mcp_method": "tools/call",
             "mcp_tool": "calculator",
             "mcp_tool_kind": "server",
+            "mcp_client_name": "mcp",
+            "mcp_client_version": "0.1.0",
         },
         name="calculator",
         parent_id=mock.ANY,
@@ -159,6 +161,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
             "mcp_method": "initialize",
             "client_name": "mcp",
             "client_version": "mcp_0.1.0",
+            "mcp_client_name": "mcp",
+            "mcp_client_version": "0.1.0",
         },
         name="mcp.initialize",
     )
@@ -257,6 +261,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
             "mcp_method": "tools/call",
             "mcp_tool": "failing_tool",
             "mcp_tool_kind": "server",
+            "mcp_client_name": "mcp",
+            "mcp_client_version": "0.1.0",
         },
         error={
             "type": "ToolError",
@@ -289,6 +295,9 @@ def test_server_initialization_span_created(mcp_setup, mcp_llmobs, test_spans, m
             "mcp_method": "initialize",
             "client_name": "test-client",
             "client_version": "test-client_1.2.3",
+            "mcp_client_name": "test-client",
+            "mcp_client_title": "Test Client",
+            "mcp_client_version": "1.2.3",
         },
     )
 
@@ -301,6 +310,48 @@ def test_server_initialization_span_created(mcp_setup, mcp_llmobs, test_spans, m
     assert "protocolVersion" in output_data
     assert "capabilities" in output_data
     assert "serverInfo" in output_data
+
+
+def test_server_tool_call_tagged_with_client_info(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+    from mcp.shared.memory import create_connected_server_and_client_session
+    from mcp.types import Implementation
+
+    async def run():
+        client_info = Implementation(name="test-client", title="Test Client", version="1.2.3")
+        async with create_connected_server_and_client_session(
+            mcp_server._mcp_server, client_info=client_info
+        ) as client:
+            await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+
+    asyncio.run(run())
+
+    all_spans = [span for trace in test_spans.pop_traces() for span in trace]
+    server_span = next(span for span in all_spans if span.resource == "server_tool_call")
+    tags = get_llmobs_tags(server_span)
+    assert tags["mcp_client_name"] == "test-client"
+    assert tags["mcp_client_title"] == "Test Client"
+    assert tags["mcp_client_version"] == "1.2.3"
+
+
+def test_client_info_tags_are_truncated():
+    from mcp.types import Implementation
+
+    from ddtrace.llmobs._integrations.mcp import MAX_CLIENT_INFO_TAG_LENGTH
+    from ddtrace.llmobs._integrations.mcp import get_client_info_tags
+
+    tags = get_client_info_tags(Implementation(name="n" * 10_000, title="t" * 10_000, version="1.2.3"))
+    assert tags["mcp_client_name"] == "n" * MAX_CLIENT_INFO_TAG_LENGTH
+    assert tags["mcp_client_title"] == "t" * MAX_CLIENT_INFO_TAG_LENGTH
+    assert tags["mcp_client_version"] == "1.2.3"
+
+
+def test_client_info_tags_empty_without_client_info():
+    """mcp 1.x stateless HTTP sessions have no client_params, and tool calls do not carry clientInfo."""
+    from ddtrace.llmobs._integrations.mcp import get_client_info
+    from ddtrace.llmobs._integrations.mcp import get_client_info_tags
+
+    session = mock.Mock(client_params=None)
+    assert get_client_info_tags(get_client_info({"name": "calculator", "arguments": {}}, session)) == {}
 
 
 def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
