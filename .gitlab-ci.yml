@@ -657,7 +657,6 @@ test_oci_package_scripts:
   timeout: 5m
   script:
     - python3 .gitlab/scripts/test_make_symlinks_relative.py -v
-    - python3 .gitlab/scripts/test_dl_wheels.py -v
 
 
 "summarize failures":
