@@ -230,9 +230,12 @@ def test_client_library_services_wait_in_the_client_environment(gen_gitlab_confi
 
 def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatch, tmp_path):
     """The prechecks job must feed every selected check to the parallel runner."""
-    import needs_testrun
+    # Stub needs_testrun: its real module needs uv-script dependencies (lxml,
+    # vcrpy, ...) that are not installed in the test environment.
+    fake_needs_testrun = types.ModuleType("needs_testrun")
+    fake_needs_testrun.pr_matches_patterns = lambda patterns: True
+    monkeypatch.setitem(sys.modules, "needs_testrun", fake_needs_testrun)
 
-    monkeypatch.setattr(needs_testrun, "_changed_files_override", {"ddtrace/foo.py", "pyproject.toml"})
     tests_gen = tmp_path / "tests-gen.yml"
     monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tests_gen)
 
