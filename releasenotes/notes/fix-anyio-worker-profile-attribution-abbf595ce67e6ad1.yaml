@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where CPU and wall-time samples from synchronous work offloaded
+    through AnyIO are not correlated with the originating trace endpoint and span.
