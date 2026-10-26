@@ -26,6 +26,7 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
 
     endpoint_a = "async-endpoint-a"
     endpoint_b = "async-endpoint-b"
+    span_ids = {}
 
     def task_a_work():
         deadline = time.thread_time_ns() + 500_000_000
@@ -33,7 +34,8 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
             pass
 
     async def task_a(a_active, b_active):
-        with tracer.trace("async.request.a", resource=endpoint_a, span_type=ext.SpanTypes.WEB):
+        with tracer.trace("async.request.a", resource=endpoint_a, span_type=ext.SpanTypes.WEB) as span:
+            span_ids["a"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             a_active.set()
             await b_active.wait()
             task_a_work()
@@ -43,7 +45,8 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
 
     async def task_b(a_active, b_active):
         await a_active.wait()
-        with tracer.trace("async.request.b", resource=endpoint_b, span_type=ext.SpanTypes.WEB):
+        with tracer.trace("async.request.b", resource=endpoint_b, span_type=ext.SpanTypes.WEB) as span:
+            span_ids["b"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             b_active.set()
             await task_b_wait()
 
@@ -66,10 +69,14 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
     task_a_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "task_a_work")
     task_b_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "task_b_wait")
 
-    assert task_a_samples
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint_a for sample in task_a_samples)
-    assert task_b_samples
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint_b for sample in task_b_samples)
+    for samples, endpoint, span_id in (
+        (task_a_samples, endpoint_a, span_ids["a"]),
+        (task_b_samples, endpoint_b, span_ids["b"]),
+    ):
+        assert samples
+        assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "span id") == span_id for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "local root span id") == span_id for sample in samples)
 
 
 @pytest.mark.xfail(
@@ -257,13 +264,14 @@ def test_stack_omits_unverifiable_pre312_custom_factory_context():
 @pytest.mark.xfail(strict=True, reason="eager task with an explicit empty Context gets the parent task's endpoint")
 @pytest.mark.subprocess(
     env={
-        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_eager_inherited_span",
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_eager_empty_task_context",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
     },
-    parametrize={"EMPTY_CONTEXT": ["1"], "SUSPEND": ["0", "1"]},
+    parametrize={"SUSPEND": ["0", "1"]},
     err=None,
 )
-def test_stack_attributes_eager_first_step_to_inherited_span():
+def test_stack_respects_explicit_empty_context_for_eager_task():
+    """Honor an eager task's explicit empty Context in its eager first step and after it resumes."""
     import asyncio
     import contextvars
     import os
@@ -273,46 +281,54 @@ def test_stack_attributes_eager_first_step_to_inherited_span():
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.test_utils import async_run
 
-    empty_context = os.environ["EMPTY_CONTEXT"] == "1"
     suspend = os.environ["SUSPEND"] == "1"
     child_ids = []
 
-    def eager_inherited_work():
+    def busy_cpu():
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
+    # Separate names so each phase is checked on its own samples.
+    def eager_first_step_work():
+        busy_cpu()
+
+    def resumed_step_work():
+        busy_cpu()
+
     async def child():
         child_ids.append(id(asyncio.current_task()))
-        eager_inherited_work()
+        eager_first_step_work()
         if suspend:
             await asyncio.sleep(0)
-            eager_inherited_work()
+            resumed_step_work()
 
     async def main():
         loop = asyncio.get_running_loop()
         loop.set_task_factory(asyncio.eager_task_factory)
         try:
             with tracer.trace("eager.parent", resource="eager-endpoint", span_type=ext.SpanTypes.WEB):
-                await asyncio.create_task(
-                    child(), name="eager-child", context=contextvars.Context() if empty_context else None
-                )
+                await asyncio.create_task(child(), name="eager-child", context=contextvars.Context())
         finally:
             loop.set_task_factory(None)
 
     tracer._endpoint_call_counter_span_processor.enable()
     p = profiler.Profiler(tracer=tracer)
     p.start()
-    async_run(main())
+    asyncio.run(main())
     p.stop()
 
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
-    samples = pprof_utils.get_samples_with_function(
-        profile, pprof_utils.get_samples_with_value_type(profile, "wall-time"), "eager_inherited_work"
-    )
-    samples = [sample for sample in samples if pprof_utils.get_num_label(profile, sample, "task id") == child_ids[0]]
-    assert samples
-    expected_endpoint = None if empty_context else "eager-endpoint"
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == expected_endpoint for sample in samples)
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    phases = ["eager_first_step_work", "resumed_step_work"] if suspend else ["eager_first_step_work"]
+    for function_name in phases:
+        samples = [
+            sample
+            for sample in pprof_utils.get_samples_with_function(profile, wall_samples, function_name)
+            if pprof_utils.get_num_label(profile, sample, "task id") == child_ids[0]
+        ]
+        assert samples, function_name
+        assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)
