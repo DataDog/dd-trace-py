@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 import typing as t
 
+from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
@@ -48,42 +49,48 @@ def uninstall_coverage() -> None:
 def _coverage_path_aliases() -> t.Optional[t.Any]:
     """The [paths] aliases of the active coverage configuration, or None if
     coverage.py is unavailable or no aliases are configured.
+
+    Aliases come from the active coverage instance when one is running (e.g. a
+    pytest-cov session with a custom --cov-config), and from the default
+    configuration discovery otherwise.
     """
     try:
-        return _build_path_aliases()
+        return _build_path_aliases(get_coverage_instance())
     except Exception:
         log.debug("Could not build coverage [paths] aliases", exc_info=True)
         return None
 
 
-def _remap_with_aliases(absolute_path: str) -> t.Optional[str]:
-    """Remap an executed file to its repository location via coverage [paths] aliases.
+def clear_coverage_path_caches() -> None:
+    """Reset the coverage path remapping caches for a new coverage session.
 
-    Test jobs may import the library under test from an installed copy (e.g. a
-    wheel-installed ddtrace in a uv test environment) rather than the checkout,
-    so executed files live under site-packages. The [paths] section of the
-    coverage configuration maps those installed copies back to repository paths;
-    without it the backend cannot attribute the coverage to the repository.
+    The aliases (and the per-path results) depend on the active coverage
+    instance and the configuration discovered from the working directory, so
+    they must not be reused across sessions that may change either.
     """
-    aliases = _coverage_path_aliases()
-    if aliases is None:
-        return None
-    for _pattern, regex, result in aliases.aliases:
-        if match := regex.match(absolute_path):
-            mapped = absolute_path.replace(match[0], result, 1).removeprefix("./")
-            if mapped == absolute_path:
-                continue  # alias maps the path to itself; keep the default behaviour
-            return mapped
-    return None
+    _coverage_path_aliases.cache_clear()
+    _relative_coverage_path.cache_clear()
 
 
 @functools.lru_cache(maxsize=65536)
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
     # Aliases take precedence so installed copies of repository files are reported
     # at their repository paths, matching what coverage combine does for reports.
-    mapped = _remap_with_aliases(absolute_path)
-    if mapped is not None:
-        return f"/{mapped}"
+    # The first matching alias wins: an identity mapping keeps the default result,
+    # and an absolute destination is reported relative to the workspace, like the
+    # LCOV remapper does. A destination outside the workspace cannot be attributed
+    # to the repository, so the file is dropped.
+    aliases = _coverage_path_aliases()
+    if aliases is not None:
+        for _pattern, regex, result in aliases.aliases:
+            if match := regex.match(absolute_path):
+                mapped = absolute_path.replace(match[0], result, 1).removeprefix("./")
+                if Path(mapped).is_absolute():
+                    relative = relative_path(Path(mapped), Path(relative_to))
+                    if relative is None:
+                        return None  # mapped outside the current repository
+                    mapped = relative
+                return f"/{mapped}"
     relative = relative_path(Path(absolute_path), Path(relative_to))
     if relative is None:
         return None  # covered file does not belong to current repo

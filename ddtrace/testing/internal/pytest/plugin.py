@@ -76,6 +76,7 @@ from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integ
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import CoverageData
+from ddtrace.testing.internal.tracer_api.coverage import clear_coverage_path_caches
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
@@ -1718,6 +1719,7 @@ def pytest_unconfigure() -> t.Generator[None, None, None]:
 
 
 def setup_coverage_collection() -> None:
+    clear_coverage_path_caches()
     workspace_path = get_workspace_path()
     install_coverage(workspace_path, file_level_coverage=is_file_level_coverage_enabled())
 
