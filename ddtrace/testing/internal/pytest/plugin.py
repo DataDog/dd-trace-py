@@ -25,12 +25,15 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.utils import deprecations as deprecation_utils
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.internal.utils.paths import relative_parts
+from ddtrace.internal.utils.paths import relative_path
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -217,10 +220,7 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
 @lru_cache(maxsize=512)
 def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[str]:
     """Return item_path relative to workspace_path as a string, or None if not under workspace."""
-    try:
-        return str(item_path.relative_to(workspace_path))
-    except ValueError:
-        return None
+    return relative_path(item_path, workspace_path)
 
 
 def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
@@ -480,19 +480,21 @@ class TestOptPlugin(TestOptPluginProtocol):
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        original_exitstatus = session.exitstatus
         # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
         # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
-        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+        if original_exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
             session.exitstatus = pytest.ExitCode.OK
 
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
-        # based on the exit status reported by pytest.
-        self.session.set_status(
-            TestStatus.FAIL
-            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
-            else TestStatus.PASS
-        )
+        # based on the exit status reported by pytest, before the ITR override above.
+        if original_exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
+            self.session.set_status(TestStatus.SKIP)
+        elif original_exitstatus == pytest.ExitCode.OK:
+            self.session.set_status(TestStatus.PASS)
+        else:
+            self.session.set_status(TestStatus.FAIL)
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
@@ -679,11 +681,10 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         ignored_by_module: dict[str, list[Path]] = defaultdict(list)
         for path in self._itr_ignored_suite_paths:
-            try:
-                relative = path.relative_to(root_path)
-            except ValueError:
+            relative = relative_parts(path, root_path)
+            if relative is None:
                 continue
-            module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
+            module_name = ".".join(relative[:-1])
             ignored_by_module[module_name].append(path)
 
         for module_name, paths in ignored_by_module.items():
@@ -696,8 +697,7 @@ class TestOptPlugin(TestOptPluginProtocol):
                 TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
 
             for path in paths:
-                relative = path.relative_to(root_path)
-                suite_name = relative.name
+                suite_name = path.name
                 test_suite, _ = test_module.get_or_create_child(suite_name)
                 if not test_suite.is_started():
                     test_suite.start()
@@ -1719,7 +1719,7 @@ def pytest_unconfigure() -> t.Generator[None, None, None]:
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
+    install_coverage(workspace_path, file_level_coverage=is_file_level_coverage_enabled())
 
 
 def pytest_configure(config: pytest.Config) -> None:

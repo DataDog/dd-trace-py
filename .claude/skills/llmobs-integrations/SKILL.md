@@ -3,7 +3,7 @@ name: llmobs-integrations
 description: |
   dd-trace-py LLMObs integration development guide. Use when creating, modifying,
   or debugging LLMObs integrations for LLM/AI libraries in the Python tracer.
-  Covers BaseLLMIntegration, stream handling, message extraction, token counting,
+  Covers BaseLLMIntegration, stream handling, message extraction, usage metrics,
   tool call parsing, and VCR-based testing patterns.
   Triggers: "llmobs", "LLMObs", "BaseLLMIntegration", "llmobs_set_tags",
   "_llmobs_set_tags", "BaseStreamHandler", "submit_to_llmobs", "integration.trace",
@@ -13,20 +13,22 @@ description: |
 
 # dd-trace-py LLMObs Integrations
 
-LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They extract model inputs, outputs, token usage, and tool calls from traced spans. This skill should be used in addition to the `apm-integrations` skill.
+LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They extract model inputs, outputs, usage metrics, and tool calls from traced spans. This skill should be used in addition to the `apm-integrations` skill.
 
 ## Two-Layer Architecture
 
 LLMObs integrations consist of two cooperating layers:
 
 1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle and LLMObs tag extraction.
-2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and token metrics.
+2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and usage metrics.
+3. **LLMObs Subscribers** (`ddtrace/llmobs/_contrib/{name}/`) -- subscribe to the `LlmEvents` span lifecycle events (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) that `LlmTracingSubscriber` dispatches, filter on `ctx.event.component`, and call the integration layer. The contrib's `patch()` registers them through the `ddtrace.integration_hooks` entry point declared in `pyproject.toml`.
 
-Both layers must work together. The patch layer identifies the operation and passes request/response data through the event; the integration layer controls what data is extracted.
+The layers must work together. The patch layer identifies the operation and passes request/response data through the event; the subscribers connect the event to the integration layer, which controls what data is extracted.
 
 ## Active Patch Patterns
 
-- **Event-based request spans**: Use `LlmRequestEvent` with `core.context_with_event()` for new standard request/response LLM integrations. Anthropic is the canonical reference. This is the preferred pattern.
+- **Event-based request spans with LLMObs subscribers**: Use `LlmRequestEvent` with `core.context_with_event()`, leave `llmobs_integration` unset, and add subscribers under `ddtrace/llmobs/_contrib/{name}/`. Anthropic is the canonical reference. This is the preferred pattern.
+- **Event-based request spans with `llmobs_integration`**: Older event-based integrations pass `llmobs_integration=integration` on the event, and `LlmTracingSubscriber` calls the integration directly. This makes the contrib import LLMObs code; do not use it for new work.
 - **Direct integration spans**: Some existing or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly, especially for child spans, agent/tool spans, or integrations not yet migrated. Google GenAI, OpenAI tool spans, and Claude Agent SDK are useful references.
 
 ## Key Files
@@ -72,7 +74,7 @@ Extract and annotate all LLMObs fields on the span:
 | `input_messages` | List of `Message` objects from request |
 | `output_messages` | List of `Message` objects from response |
 | `metadata` | Dict of sanitized request parameters (temperature, top_p, etc.), plus response-derived scalars such as `finish_reason` (see Response Metadata below) |
-| `metrics` | Token usage dict with `INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY` |
+| `metrics` | Usage dict: token counts (`INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY`) plus provider-billed server-side tool calls (`WEB_SEARCH_COUNT_METRIC_KEY`, `STORAGE_SEARCH_COUNT_METRIC_KEY`) when present |
 | `tool_definitions` | List of `ToolDefinition` objects if tools are passed |
 
 Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set_ctx_items(...)`.
@@ -80,7 +82,7 @@ Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set
 ### Response Metadata
 
 `metadata` is not request-only. Scalars the provider reports on the *response* belong there too, so
-long as they are not already covered by `metrics` (token counts) or `output_messages`.
+long as they are not already covered by `metrics` (usage counts) or `output_messages`.
 
 The stop reason is the established case. Record it under the key `finish_reason` for every provider,
 so one facet answers "why did generation stop" regardless of integration, and keep each provider's
@@ -116,7 +118,8 @@ Note two already-shipped integrations predate this key: bedrock and the claude-a
 - **Streaming** must use `BaseStreamHandler`/`AsyncStreamHandler` -- never consume streams directly
 - **Event-based patch wrappers** should not call `span.set_exc_info()`, `span.finish()`, or `integration.llmobs_set_tags()` directly; the tracing subscriber handles that when the event ends
 - **Direct integration spans** must keep `integration.llmobs_set_tags()` and span lifecycle handling aligned with the closest current reference
-- **Integration instance** must be stored on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
+- **Integration instance**: subscriber-based integrations build it lazily in the LLMObs subscriber (see `ddtrace/llmobs/_contrib/anthropic/subscribers.py`); older integrations store it on the module as `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
+- **Subscriber registration**: the contrib's `patch()`/`unpatch()` call `integration_hooks.on_patch("{name}")`/`on_unpatch("{name}")` (`ddtrace/internal/integration_hooks.py`), which load the module registered for `{name}` under the `ddtrace.integration_hooks` entry-point group and call its `listen()`/`unlisten()`. Subscribers stay registered while LLMObs is disabled, because they also set the APM shadow tags. This works for `ddtrace-run`, `import ddtrace.auto`, and direct `patch()` calls alike
 
 ## Message Types
 

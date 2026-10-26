@@ -96,6 +96,20 @@ class GlobalConfigTestCase(TestCase):
         self.config._add("requests", dict(split_by_domain=False))
         assert self.config.requests["split_by_domain"] is True
 
+    def test_settings_merge_keeps_http(self):
+        http = self.config.requests.http
+        http.trace_headers(["x-request-id"])
+        http.trace_query_string = True
+        self.config._add("requests", dict(split_by_domain=False))
+        assert self.config.requests.http is http
+        assert self.config.requests.header_is_traced("x-request-id")
+        assert self.config.requests.trace_query_string is True
+
+    def test_settings_overwrite_resets_http(self):
+        self.config.requests.http.trace_headers(["x-request-id"])
+        self.config._add("requests", dict(split_by_domain=False), merge=False)
+        assert not self.config.requests.http.header_is_traced("x-request-id")
+
     def test_settings_overwrite(self):
         """
         When calling `config._add(..., merge=False)`

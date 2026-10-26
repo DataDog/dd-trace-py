@@ -159,6 +159,20 @@ integrations:
       min: 6.105.0
       max: 8.128.0
 
+- integration_name: aws_sdk_bedrock_runtime
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - aws-sdk-bedrock-runtime
+  - aws_sdk_bedrock_runtime
+  tested_versions_by_dependency:
+    aws-sdk-bedrock-runtime:
+      min: 0.11.0
+      max: 0.11.0
+    aws_sdk_bedrock_runtime:
+      min: 0.11.0
+      max: 0.11.0
+
 - integration_name: azure_cosmos
   is_external_package: true
   is_tested: true
@@ -191,7 +205,7 @@ integrations:
   tested_versions_by_dependency:
     azure-eventhub:
       min: 5.12.2
-      max: 5.15.0
+      max: 5.15.1
 
 - integration_name: azure_functions
   is_external_package: true
@@ -387,6 +401,16 @@ integrations:
       min: 1.1.0
       max: 3.2.0
 
+- integration_name: elevenlabs
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - elevenlabs
+  tested_versions_by_dependency:
+    elevenlabs:
+      min: 2.70.0
+      max: 2.70.0
+
 - integration_name: falcon
   is_external_package: true
   is_tested: true
@@ -453,7 +477,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 2.11.0
+      max: 2.12.0
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
@@ -527,7 +551,7 @@ integrations:
   tested_versions_by_dependency:
     httpx2:
       min: 2.0.0
-      max: 2.12.0
+      max: 2.16.0
 
 - integration_name: jinja2
   is_external_package: true
@@ -689,13 +713,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.5
-      max: 3.17.0
+      max: 3.17.2
     mlflow-skinny:
-      min: 3.17.0
-      max: 3.17.0
+      min: 3.17.2
+      max: 3.17.2
     mlflow-tracing:
-      min: 3.17.0
-      max: 3.17.0
+      min: 3.17.2
+      max: 3.17.2
 
 - integration_name: molten
   is_external_package: true
@@ -995,7 +1019,7 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
-      max: 1.7.0
+      max: 1.8.0
 
 - integration_name: structlog
   is_external_package: true
@@ -1031,6 +1055,16 @@ integrations:
       min: 0.21.0
       max: 0.34.0
 
+- integration_name: typesafe
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - typesafe-sdk
+  tested_versions_by_dependency:
+    typesafe-sdk:
+      min: 0.6.0
+      max: 0.7.5
+
 - integration_name: unittest
   is_external_package: false
   is_tested: true
@@ -1057,7 +1091,7 @@ integrations:
   tested_versions_by_dependency:
     valkey:
       min: 6.0.2
-      max: 6.1.1
+      max: 6.2.0
 
 - integration_name: vertexai
   is_external_package: true

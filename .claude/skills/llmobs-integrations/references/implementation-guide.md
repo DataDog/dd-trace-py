@@ -5,18 +5,21 @@ Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integra
 ## Design: Two-Layer Architecture
 
 LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
-- Patch code creates a subclass instance and stores it on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
-- Standard request/response patch code constructs `LlmRequestEvent` and uses `core.context_with_event()`; `LlmTracingSubscriber` manages span lifecycle and calls `integration.llmobs_set_tags()` when the event ends
-- The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, token, metadata, and tool extraction
-- Some existing or specialized integrations still call `integration.trace()` directly for direct child spans; follow the closest current reference before using that pattern
+- Patch code in `ddtrace/contrib/internal/{name}/` constructs an `LlmRequestEvent` and enters it with `core.context_with_event()`. It does not import LLMObs or create the integration.
+- `LlmTracingSubscriber` (`ddtrace/_trace/subscribers/llm.py`) manages the span lifecycle and dispatches `LlmEvents` (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) with the `ExecutionContext`
+- LLMObs subscribers in `ddtrace/llmobs/_contrib/{name}/` handle those events: they lazily build the `BaseLLMIntegration` subclass, set LLMObs base tags at span start, and call `integration.llmobs_set_tags()` at span finish (see Step 2 below)
+- The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles provider-specific message, usage, metadata, and tool extraction
 
-This separation keeps APM patching decoupled from LLMObs data extraction.
+This separation keeps contrib code from depending on LLMObs: the patch layer only emits events, and LLMObs decides what to do with them.
+
+Legacy integrations that predate this pattern still create the integration in patch code, store it on the module (`module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`), and pass it as `LlmRequestEvent(llmobs_integration=...)`; `LlmTracingSubscriber` then calls it directly. Some specialized integrations also call `integration.trace()` directly for child spans. Don't copy either pattern into a new integration, because both make contrib import LLMObs.
 
 ## Overview
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
 - **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
-- **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and token extraction (this guide)
+- **Step 2 (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers, with `listen()`/`unlisten()` in its `__init__.py`, and declare that module under the `ddtrace.integration_hooks` entry-point group in `pyproject.toml`
+- **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and usage extraction (this guide)
 - **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
 - **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
 
@@ -86,7 +89,7 @@ Common helpers (implement only what applies):
 
 - `_extract_input_messages(self, kwargs: dict[str, Any]) -> list[Message]` — convert `messages` array to `Message` list; handle system message, multi-part content blocks, tool results
 - `_extract_output_messages(self, response: Any) -> list[Message]` — convert response content blocks to `Message` list; handle text, tool_use, thinking blocks
-- `_extract_usage(self, response: Any) -> dict[str, int]` — map library token field names to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`
+- `_extract_usage(self, response: Any) -> dict[str, int]` — map library usage fields to metric keys: token counts to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`, and provider-billed server-side tool calls as described in Server-Side Tool Usage below
 - `_extract_tools(self, kwargs: dict[str, Any]) -> list[ToolDefinition]` — convert `tools` list to `ToolDefinition` list
 - `_extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]` — pick scalar request params: `temperature`, `top_p`, `max_tokens`, etc.
 - `_extract_response_metadata(self, response: Any) -> dict[str, Any]` — pick scalar params the provider reports on the *response* and that `metrics`/`output_messages` do not already cover. The stop reason is the established case: record it as `finish_reason`, omit the key when the provider reports none, and comma-join per-choice reasons in choice order when a request returns multiple choices so the value stays a single string. See the Response Metadata section of `SKILL.md` for the per-provider sources and `_openai_finish_reason_metadata()` in `_integrations/utils.py` for the comma-join helper.
@@ -95,15 +98,33 @@ Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__` entry
 
 ## Step 1 Expanded: Patch Layer (`LlmRequestEvent`)
 
-Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the current event-based pattern. The patch layer constructs the event, stores the response on `event.response`, and calls `ctx.dispatch_ended_event()`; `ddtrace/_trace/subscribers/llm.py` handles span creation, base tags, LLMObs extraction, errors, and span finish under the hood.
+Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the current event-based pattern. The patch layer constructs the event, stores the response on `event.response`, and calls `ctx.dispatch_ended_event()`; `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and span finish, and dispatches `LlmEvents` so LLMObs subscribers can add base tags and LLMObs data.
 
 Key points:
-- Construct `LlmRequestEvent(..., llmobs_integration=integration, submit_to_llmobs=True, request_kwargs=kwargs, ...)`
+- Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset
+- Set APM tags the contrib owns (for example `{name}.request.model`) through the event's `tags`, not in the `BaseLLMIntegration`
+- Shared stream helpers live in `ddtrace/contrib/internal/stream_handler.py`; pass `None` as the integration when the contrib has none
 - The event/subscriber path owns span creation and finishing; patch wrappers should not call `tracer.trace()`, `integration.trace()`, or create spans directly for standard request spans
 - Use `with core.context_with_event(event, dispatch_end_event=False) as ctx:` when streaming or when the wrapper needs to dispatch the ended event manually
 - For non-streaming success, set `event.response = resp` and call `ctx.dispatch_ended_event()`
 - For errors, call `ctx.dispatch_ended_event(*sys.exc_info())` and re-raise; do not call `span.set_exc_info()` or `span.finish()` directly in the patch wrapper
-- LLMObs tag setting is handled by `LlmTracingSubscriber`, not directly in the patch wrapper
+- LLMObs tag setting is handled by the LLMObs subscribers, not directly in the patch wrapper
+
+## Step 2 Expanded: LLMObs Subscribers
+
+Read `ddtrace/llmobs/_contrib/anthropic/` for the pattern. `LlmTracingSubscriber` dispatches three events with the `ExecutionContext`. They are shared by every LLM integration, so each handler returns early unless `ctx.event.component` matches:
+- `LlmEvents.SPAN_STARTING` runs before the span exists. This is the only point where `event.span_type` can still be set to `SpanTypes.LLM`, which `LLMObs._on_span_start` needs at creation.
+- `LlmEvents.SPAN_STARTED` runs after the span is created. Use it for `_set_base_span_tags()`, `_annotate_integration_tag()`, and `_stamp_llmobs_span_kind_at_start()`.
+- `LlmEvents.SPAN_FINISHING` runs before the span is finished. Call `integration.llmobs_set_tags()` here.
+
+Subscribers set `auto_register = False`. Register them from `listen()` in `ddtrace/llmobs/_contrib/{name}/__init__.py`, and unregister them from `unlisten()` -- except the `SPAN_FINISHING` subscriber, which stays registered so requests and deferred streams already in flight at unpatch time still get finalized. Declare the module in `pyproject.toml`:
+
+```toml
+[project.entry-points.'ddtrace.integration_hooks']
+{name} = "ddtrace.llmobs._contrib.{name}"
+```
+
+The contrib's `patch()` calls `integration_hooks.on_patch("{name}")` after wrapping, and `unpatch()` calls `integration_hooks.on_unpatch("{name}")` before unwrapping. The hook module is only imported when that integration is patched, so the contrib never imports LLMObs, and registration works for `ddtrace-run`, `import ddtrace.auto` and direct `patch()` calls alike. Do not add registration hooks to `ddtrace.patch()` or `ddtrace/_monkey.py`. Entry points are read from installed package metadata, so rebuild dev environments (`scripts/run-tests -r`) after adding one.
 - The async variant is identical but uses `async def` / `await`
 
 Some older or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly. Use that pattern when modifying an existing integration that already does so, when the closest current reference uses it (for example Google GenAI), or when the behavior requires direct child spans (for example OpenAI MCP tool spans or agent/tool child spans).
@@ -132,12 +153,12 @@ Different libraries structure messages differently — implement only the helper
 
 - `_extract_input_messages(kwargs)` — handle system message, multi-part content blocks, tool results
 - `_extract_output_messages(response)` — handle text blocks, tool use blocks, thinking blocks
-- `_extract_usage(response)` — map library-specific token field names to metric keys
+- `_extract_usage(response)` — map library-specific usage fields (tokens, server-side tool calls) to metric keys
 - `_extract_tools(kwargs)` — convert `tools` kwarg to `ToolDefinition` list
 - `_extract_audio_parts(...)` — for multimodal audio providers, populate `Message.audio_parts` with `AudioPart` entries containing `mime_type` plus either inline base64 `content` or an `attachment_key`
 - `_extract_<lib>_image_source(...)` — same, for `Message.image_parts`. See `anthropic.py`
 
-`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper — except where a payload format is shared with another integration, which belongs in `_integrations/utils.py` as above.
+`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and usage normalization in the integration subclass rather than in the patch wrapper — except where a payload format is shared with another integration, which belongs in `_integrations/utils.py` as above.
 
 ### Inline Media Size Guards
 
@@ -160,6 +181,25 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 | Google GenAI | `prompt_token_count` | `candidates_token_count` | `cached_content_token_count` |
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
+
+### Server-Side Tool Usage
+
+Some providers run tools themselves and bill per call on top of token costs. Record those billable calls as LLM-span metrics next to the token counts:
+
+| Metric key | Meaning |
+|------------|---------|
+| `WEB_SEARCH_COUNT_METRIC_KEY` (`web_search_count`) | Provider-executed web searches |
+| `STORAGE_SEARCH_COUNT_METRIC_KEY` (`storage_search_count`) | Provider-executed file / vector-store searches |
+
+- Count billable calls, not queries or results. One call can carry several queries.
+- Prefer a count the provider reports, and only count output items when nothing reports one:
+  - Anthropic: `usage.server_tool_use.web_search_requests`.
+  - OpenAI Responses web search: the untyped top-level `tool_usage.web_search.num_requests` (documented as the billing count by Azure OpenAI). When it is absent, count completed `web_search_call` items whose `action.type` is `search`; `open_page` / `find_in_page` steps are not billed.
+  - OpenAI file search: no counter exists, so count completed `file_search_call` items.
+  - See `get_openai_server_tool_usage_metrics()` in `_integrations/utils.py`.
+- Omit the metric when the count is absent or 0; never write 0.
+- Skip server tools with no per-call price (for example Anthropic `web_fetch_requests`).
+- For streams, read the count from the final usage event (Anthropic `message_delta`, OpenAI `response.completed`), not from content block events.
 
 ## Agent Integrations: Stamp Kind and Name at Span Start
 
@@ -217,7 +257,89 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 
 - [ ] `ddtrace/llmobs/_integrations/{name}.py` — `BaseLLMIntegration` subclass
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
-- [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans (see anthropic for pattern)
+- [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans, with no `ddtrace.llmobs` imports (see anthropic for pattern)
+- [ ] `ddtrace/llmobs/_contrib/{name}/` — `LlmEvents` subscribers, registered through the `ddtrace.integration_hooks` entry point in `pyproject.toml`
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
+
+## Hosted voice conversations: ElevenLabs Agents
+
+The ElevenLabs integration instruments the synchronous and asynchronous Agents
+WebSocket loops. Its conversation-local socket proxies observe successful sends
+and received messages without changing the audio interface or event subscriptions.
+Provider event IDs identify turns; text equality and optional completion events do
+not. A turn can contain multiple agent utterances around tools. Reconcile final
+text, streaming parts, resends, and corrections by response_id, preserving their
+first-observed order, and join their text for the turn. Ignore late parts after
+an identified response completes. Events without response_id retain the legacy
+single-response fallback. Retain at most 64 response IDs per turn and cap each
+response and the combined exported text at 100,000 characters.
+Keep a bounded window of open turns for late interrupted transcripts and flush it
+on worker exit. Unknown event IDs at or below the interruption boundary cannot
+open turns or consume pending input; known interrupted turns still accept late text.
+Capture APM and LLMObs parent contexts at startup, including explicit absence.
+Create spans under a scoped LLMObs context so both caller contexts remain unchanged;
+retain the captured LLMObs snapshot after its parent has finished. Audio payloads belong only to LLM messages, with a shared encoded
+budget for input and output. Direct sibling workflow phases retain approximate
+transport-based timing and explicitly annotate metadata.ttfa_eligible = false.
+Do not infer TTFA or token usage from these estimates. Client tool execution uses
+the SDK's actual handler, with explicit parenting and fail-open instrumentation.
+
+Regression fixtures preserve event order and shapes with synthetic audio and text.
+Cover default/custom audio interfaces, both SDK loops, ordinary event subscriptions,
+typed messages, interruption, errors, parent context, concurrent conversations,
+missing completion events, and audio limits.
+Cover failed or cancelled external shutdown before the SDK stop signal, plus end
+callback failures after that signal; only the former may restore observation.
+
+Optional ElevenLabs vad_score events produce user_speech_activity metadata only
+on the matching user speech phase. Version 1 carries source=elevenlabs_vad,
+timing=estimated, and at most 128 clip-relative integer-millisecond intervals_ms
+pairs. An empty list means observed silence; absent metadata keeps phase-based
+colors. Input WAV bytes and placement anchors remain unchanged. Scores enter speech
+at 0.5 and leave at 0.35. Low scores cover at most 500 ms of input samples, with
+stale delivery gaps and unobserved portions conservatively active. State follows
+input-buffer transfers and shutdown extension; overflow omits activity metadata.
+Never turn these observations into TTFA or alter customer event subscriptions.
+
+
+ElevenLabs protocol/audio state is product-owned in llmobs/_integrations/elevenlabs_agents.py.
+Contrib wrappers depend only on a neutral state Protocol and request state through
+core event elevenlabs.conversation.start. LLMObs registers/removes the factory with
+its service lifecycle. Client-tool handler bodies scope both APM and LLMObs contexts,
+restoring caller contexts on success, failure, and cancellation. Synthetic replay
+fixtures are stored as deterministic gzip JSON to preserve exact event/audio data
+within the added-file size limit.
+
+ElevenLabs captures explicit routing (including no routing) at conversation startup
+and scopes it around span creation and client-tool handlers. Raw SDK threads must
+not pick up another conversation's or worker's destination. Completion state is
+separate from retained turns: later failures affect only unfinished responses,
+and interruptions affect unfinished generation or audio still playing. A newer
+turn also retires older generation when optional completion events are absent.
+Pre-metadata audio overflow discards the whole buffered prefix and carries the
+omission flag into the next input buffer; it must not export a truncated WAV.
+
+Configured model hints belong only to their matching retained event ID; unknown
+or finalized context-usage events must not relabel other turns. Tool results share
+100,000 characters per turn across handler, outbound, and server observations.
+Truncation is reported in metadata while transcript and audio content are retained.
+
+ElevenLabs includes the standard PatchTestCase lifecycle matrix for every wrapped
+entry point and checks that the global WebSocket module is left untouched.
+Public-SDK smoke tests install fake transport before ordinary patching and use
+public session start/end/wait methods. Focused state-machine tests remain useful
+for malformed events, late delivery, and buffer limits. Accepted streamed text
+observations advance the response end-time fallback; ignored late parts do not.
+The provider conversation ID replaces the bootstrap UUID when metadata arrives.
+
+## Duplex audio streams
+
+Use a connection-local adapter to observe successful sends and consumed output
+without reading ahead. Preserve input half-close and finish once on output EOF,
+close, cancellation, or error. Snapshot caller context and activate it only while
+emitting turns. Keep audio retention limits separate from timing validity.
+
+See [Nova Sonic](nova-sonic.md) for its turn boundaries, context propagation,
+audio budgets, interruption handling, tool metadata, and cumulative usage rules.

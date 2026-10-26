@@ -102,7 +102,7 @@ def patch():
     if getattr(mysql.connector, "aio", None):
         _w("mysql.connector.aio", "connect", _connect_async)
 
-    core.dispatch("sql.patch")
+    core.dispatch("sql.patch", ())
 
 
 def unpatch():

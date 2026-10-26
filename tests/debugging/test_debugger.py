@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
+import time
 from unittest import mock
 
 from mock.mock import call
@@ -23,6 +24,8 @@ from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER as REDACTED
 from ddtrace.debugging._redaction import dd_compile_redacted as dd_compile
+from ddtrace.debugging._sampling import DebuggerSampler
+from ddtrace.debugging._sampling import TraceContext
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import _EMPTY_CAPTURED_CONTEXT
 from ddtrace.debugging._signal.tracing import SPAN_NAME
@@ -98,6 +101,269 @@ def test_debugger_line_probe_on_instance_method(stuff):
     assert snapshot["debugger"]["snapshot"]["duration"] is None
 
 
+def test_debugger_coordinated_sampling_caps_loop_probe_per_trace(stuff):
+    # A probe inside a high-iteration loop must not consume unbounded volume,
+    # and must not starve the probe on the enclosing function. Each call runs in
+    # its own trace, and each probe emits at most once per trace, so the first
+    # iteration fires and the rest of that trace's iterations are capped.
+    # Keep the global budget out of the way: the per-probe cap is what is under
+    # test here, not the ingestion ceiling. The function probe keeps its own
+    # unlimited rate since it only ever fires once per call either way.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="function-probe",
+                module="tests.submod.stuff",
+                func_qname="durationstuff",
+                rate=float("inf"),
+            ),
+            create_snapshot_line_probe(
+                probe_id="loop-probe",
+                source_file="tests/submod/stuff.py",
+                line=134,  # the loop body of durationstuff
+            ),
+        )
+
+        n_calls = 3
+        for _ in range(n_calls):
+            with ddtrace.tracer.trace("job"):
+                stuff.durationstuff(10_000_000)  # 10ms of looping
+
+        counts = Counter(s.probe.probe_id for s in d.test_queue)
+
+        # The loop runs many thousands of iterations per call, but the probe is
+        # capped at one snapshot per trace.
+        assert counts["loop-probe"] == n_calls, counts
+        # The function probe has its own headroom and is never in contention.
+        assert counts["function-probe"] == n_calls, counts
+
+
+def test_debugger_error_report_does_not_consume_sampling_budget(stuff):
+    # A snapshot sent purely to report an evaluation error captures no values, so
+    # it is cheap and must not be charged against the budget. With room for
+    # exactly one snapshot, a later firing must still be able to emit.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="broken-condition-probe",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                condition=DDExpression(dsl="nosuchvar", callable=dd_compile({"ref": "nosuchvar"})),
+            ),
+            create_snapshot_function_probe(
+                probe_id="capturing-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+            ),
+        )
+
+        stuff.Stuff().instancestuff(1)  # reports the error, captures nothing
+        stuff.modulestuff(42)  # a later call, with the budget still intact
+
+        emitted = Counter(s.probe.probe_id for s in d.test_queue)
+        assert emitted["broken-condition-probe"] == 1, emitted
+        assert emitted["capturing-probe"] == 1, emitted
+
+
+def test_debugger_coordinated_sampling_shares_one_decision_across_a_trace(stuff):
+    # The property the whole mechanism exists for: probes in the same trace agree.
+    # With room for a single snapshot, a sampler deciding per probe would let the
+    # first emit and then drop the second. Coordinated, the decision is taken once
+    # for the trace and the chain arrives whole.
+    #
+    # Contrast with test_debugger_captured_snapshot_consumes_sampling_budget, which
+    # is the same two probes and the same budget with no trace running, and which
+    # therefore emits only the first.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="first-probe",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+            ),
+            create_snapshot_function_probe(
+                probe_id="second-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+            ),
+        )
+
+        with ddtrace.tracer.trace("chain"):
+            stuff.Stuff().instancestuff(1)
+            stuff.modulestuff(42)
+
+        emitted = Counter(s.probe.probe_id for s in d.test_queue)
+        assert emitted["first-probe"] == 1, emitted
+        assert emitted["second-probe"] == 1, emitted
+
+
+def test_debugger_coordinated_sampling_caps_per_trace(stuff):
+    # The cap is scoped to the trace, not to the span the probe fired in, so the
+    # same probe emits once per trace however many spans it fires in.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="probe",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+            ),
+        )
+
+        instance = stuff.Stuff()
+
+        with ddtrace.tracer.trace("one-span"):
+            instance.instancestuff(1)
+            instance.instancestuff(2)
+
+        assert Counter(s.probe.probe_id for s in d.test_queue)["probe"] == 1
+
+        with ddtrace.tracer.trace("parent"):
+            with ddtrace.tracer.trace("child-1"):
+                instance.instancestuff(3)
+            with ddtrace.tracer.trace("child-2"):
+                instance.instancestuff(4)
+
+        # One from each trace.
+        assert Counter(s.probe.probe_id for s in d.test_queue)["probe"] == 2
+
+
+def test_debugger_coordinated_sampling_drops_a_whole_chain(stuff):
+    # The other half of the property: when the trace resolves to DROP, every probe
+    # in it drops. Budget that turns up after the decision has been taken must not
+    # let a later probe through, or the chain would arrive in pieces -- which is
+    # exactly the failure this mechanism exists to prevent.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="first-probe",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+            ),
+            create_snapshot_function_probe(
+                probe_id="second-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+            ),
+        )
+
+        with ddtrace.tracer.trace("chain"):
+            DebuggerSampler._limiter.budget = 0.0  # nothing to spend when the decision is taken
+            stuff.Stuff().instancestuff(1)
+            DebuggerSampler._limiter.budget = 100.0  # budget turns up, too late to matter
+            stuff.modulestuff(42)
+
+        assert Counter(s.probe.probe_id for s in d.test_queue) == Counter(), d.test_queue
+
+
+def test_debugger_starts_and_stops_the_sampler():
+    with debugger(global_rate_limit=42.0):
+        assert DebuggerSampler._limiter is not None
+        assert DebuggerSampler._limiter.limit_rate == 42.0
+
+    assert DebuggerSampler._limiter is None
+
+
+def test_debugger_inactive_session_probe_does_not_decide_for_the_trace(stuff):
+    # A probe whose session is not active is turned away by the signal before it
+    # reaches the sampler, so it must not stamp a decision on the trace, even
+    # with the budget spent.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="session-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+                tags={"session_id": "inactive-session"},
+            ),
+        )
+
+        limiter = DebuggerSampler._limiter
+        with ddtrace.tracer.trace("chain") as span:
+            limiter.budget, limiter.last_time = 0.0, time.monotonic()
+            stuff.modulestuff(42)
+
+            assert not TraceContext(span).decided
+
+        assert d.test_queue == []
+
+
+def test_debugger_exit_probe_is_gated_on_exit(stuff):
+    # A probe evaluated on exit captures nothing on entry, so it must not be
+    # turned away on entry: budget that turns up during the call still lets it
+    # capture on exit, and the trace is not stamped as dropped on entry.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="exit-probe",
+                module="tests.submod.stuff",
+                func_qname="caller",
+                evaluate_at=ProbeEvalTiming.EXIT,
+            ),
+        )
+
+        limiter = DebuggerSampler._limiter
+
+        def refill():
+            limiter.budget = 1.0
+
+        with ddtrace.tracer.trace("chain"):
+            limiter.budget, limiter.last_time = 0.0, time.monotonic()  # nothing on entry
+            stuff.caller(refill)
+
+        assert Counter(s.probe.probe_id for s in d.test_queue) == Counter({"exit-probe": 1}), d.test_queue
+
+
+def test_debugger_unsampled_probe_does_not_consume_sampling_budget(stuff):
+    # A log probe that takes no snapshot is cheap, so it is not sampled and must
+    # not spend the budget the snapshot probes are competing for.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_log_function_probe(
+                probe_id="log-probe",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                **compile_template("hello"),
+            ),
+            create_snapshot_function_probe(
+                probe_id="snapshot-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+            ),
+        )
+
+        stuff.Stuff().instancestuff(1)  # emits a log, spends nothing
+        stuff.modulestuff(42)  # a later call, with the budget still intact
+
+        emitted = Counter(s.probe.probe_id for s in d.test_queue)
+        assert emitted["log-probe"] == 1, emitted
+        assert emitted["snapshot-probe"] == 1, emitted
+
+
+def test_debugger_captured_snapshot_consumes_sampling_budget(stuff):
+    # The same shape, but the first probe captures. That spends the single
+    # snapshot the budget allows, so the later call drops.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=1.0) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="first-probe",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+            ),
+            create_snapshot_function_probe(
+                probe_id="second-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+            ),
+        )
+
+        stuff.Stuff().instancestuff(1)
+        stuff.modulestuff(42)
+
+        emitted = Counter(s.probe.probe_id for s in d.test_queue)
+        assert emitted["first-probe"] == 1, emitted
+        assert emitted["second-probe"] == 0, emitted
+
+
 def test_debugger_line_probe_on_imported_module_function(stuff):
     lineno = min(linenos(stuff.modulestuff))
     snapshots = simple_debugger_test(
@@ -169,6 +435,283 @@ def test_debugger_probe_new_delete(probe, stuff):
 
         (snapshot,) = d.uploader.wait_for_payloads()
         assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe_id
+
+
+@pytest.mark.parametrize(
+    "probe",
+    [
+        (
+            create_snapshot_function_probe(
+                probe_id="probe-instance-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                rate=1000,
+            )
+        ),
+        (
+            create_snapshot_line_probe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=1000,
+            )
+        ),
+    ],
+)
+def test_debugger_probe_survives_reload(probe, stuff):
+    from importlib import reload
+
+    with debugger() as d:
+        d.add_probes(probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+        OldStuff = stuff.Stuff
+
+        reload(stuff)
+
+        # The probe moves to the new code, so code retained from before the
+        # reload is no longer instrumented.
+        signals = sum(d.signal_state_counter.values())
+        OldStuff().instancestuff(42)
+        assert sum(d.signal_state_counter.values()) == signals
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+
+@pytest.mark.parametrize(
+    "probe",
+    [
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method",
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+            rate=1000,
+        ),
+        create_snapshot_line_probe(
+            probe_id="probe-instance-method",
+            source_file="tests/submod/stuff.py",
+            line=36,
+            rate=1000,
+        ),
+    ],
+)
+def test_debugger_probe_survives_get_code(probe, stuff):
+    from importlib import reload
+
+    with debugger() as d:
+        # Make sure that the module loader is chained by the watchdog
+        reload(stuff)
+
+        d.add_probes(probe)
+
+        # Compiling the module code without executing it must not affect the
+        # installed probes.
+        stuff.__spec__.loader.get_code(stuff.__name__)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+
+@pytest.mark.parametrize(
+    "probe",
+    [
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method",
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+            rate=1000,
+        ),
+        create_snapshot_line_probe(
+            probe_id="probe-instance-method",
+            source_file="tests/submod/stuff.py",
+            line=36,
+            rate=1000,
+        ),
+    ],
+)
+def test_debugger_probe_survives_reimport(probe, stuff):
+    from importlib import import_module
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    # Another subscriber, like symbol database uploads, keeps the collected
+    # code of the new module around after the debugger has used it.
+    ModuleCodeCollector.register("test")
+
+    with debugger() as d:
+        d.add_probes(probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+        # Importing the module again creates a new module object for the same
+        # source, which the probe must move to.
+        del sys.modules["tests.submod.stuff"]
+        new_stuff = import_module("tests.submod.stuff")
+        assert new_stuff is not stuff
+
+        try:
+            # The probe moves to the new code, so the code of the module that
+            # was replaced, and that is still referenced here, is no longer
+            # instrumented.
+            signals = sum(d.signal_state_counter.values())
+            stuff.Stuff().instancestuff(42)
+            assert sum(d.signal_state_counter.values()) == signals
+
+            new_stuff.Stuff().instancestuff(42)
+
+            (snapshot,) = d.uploader.wait_for_payloads()
+            assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+        finally:
+            ModuleCodeCollector._subscribers.discard("test")
+            ModuleCodeCollector.release(new_stuff, "test")
+
+
+def test_debugger_probe_added_during_reimport(stuff):
+    # A probe that arrives from another thread (e.g. remote configuration)
+    # while a module is being imported again must not be installed on the
+    # module being replaced, nor leave the replacement uninstrumented.
+    from importlib import import_module
+    from threading import Thread
+
+    instance_probe = create_snapshot_line_probe(
+        probe_id="probe-instance-method",
+        source_file="tests/submod/stuff.py",
+        line=36,
+        rate=float("inf"),
+    )
+    static_probe = create_snapshot_line_probe(
+        probe_id="probe-static-method",
+        source_file="tests/submod/stuff.py",
+        line=29,
+        rate=float("inf"),
+    )
+
+    with debugger() as d:
+        d.add_probes(instance_probe)
+
+        threads = []
+        on_module_import = d._on_module_import
+
+        def import_hook(module):
+            on_module_import(module)
+            if module.__name__ == "tests.submod.stuff":
+                # Give the other thread the chance to register the new probe
+                # while this import is still being processed.
+                thread = Thread(target=d.add_probes, args=(static_probe,))
+                thread.start()
+                thread.join(0.2)
+                threads.append(thread)
+
+        d.__watchdog__.unregister_import_hook(on_module_import)
+        d.__watchdog__.register_import_hook(import_hook)
+        try:
+            del sys.modules["tests.submod.stuff"]
+            new_stuff = import_module("tests.submod.stuff")
+        finally:
+            d.__watchdog__.unregister_import_hook(import_hook)
+            d.__watchdog__.register_import_hook(on_module_import)
+
+        (thread,) = threads
+        thread.join()
+
+        new_stuff.Stuff().instancestuff(42)
+        new_stuff.Stuff.staticstuff(42)
+
+        assert {s.probe.probe_id for s in d.test_queue} == {instance_probe.probe_id, static_probe.probe_id}
+
+
+def test_debugger_probe_survives_after_import_without_execution(stuff):
+    # Import hooks can run for a module without it having executed any new
+    # code, e.g. when a watchdog subclass collects a module and installs probes
+    # on it before handing it over to its parent class. Probes installed on the
+    # current code must be left alone, even on functions that can only be found
+    # via the code objects collected at compile time, like property getters.
+    from importlib import reload
+
+    with debugger() as d:
+        # Make sure that the module code is collected at compile time
+        reload(stuff)
+
+        probe = create_snapshot_function_probe(
+            probe_id="probe-property",
+            module="tests.submod.stuff",
+            func_qname="Stuff.propertystuff",
+            rate=float("inf"),
+        )
+        d.add_probes(probe)
+        assert d._probe_registry[probe.probe_id].installed
+
+        d.__watchdog__._instance.after_import(stuff)
+
+        entry = d._probe_registry[probe.probe_id]
+        assert entry.installed, entry.message
+
+        s = stuff.Stuff()
+        s.propertystuff = 42
+        s.propertystuff
+
+        assert sum(d.signal_state_counter.values()) >= 1
+
+
+@pytest.mark.parametrize(
+    "probe,other_probe",
+    [
+        (
+            create_snapshot_function_probe(
+                probe_id="probe-instance-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                rate=1000,
+            ),
+            create_snapshot_function_probe(
+                probe_id="probe-static-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.staticstuff",
+                rate=1000,
+            ),
+        ),
+        (
+            create_snapshot_line_probe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=1000,
+            ),
+            create_snapshot_line_probe(
+                probe_id="probe-static-method",
+                source_file="tests/submod/stuff.py",
+                line=29,
+                rate=1000,
+            ),
+        ),
+    ],
+)
+def test_debugger_probe_not_reinstalled_on_new_probe(probe, other_probe, stuff):
+    # Adding a probe to an already-loaded module re-runs the import hook for
+    # it, which must not install the probes already installed there again.
+    with debugger() as d:
+        d.add_probes(probe)
+        d.add_probes(other_probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        # Count every signal pushed, not just the emitted snapshots, since the
+        # probe rate limiter can drop a duplicate that fires in the same call.
+        assert sum(d.signal_state_counter.values()) == 1
+        (snapshot,) = d.test_queue
+        assert snapshot.probe.probe_id == probe.probe_id
 
 
 def test_debugger_function_probe_on_instance_method(stuff):
@@ -691,7 +1234,9 @@ def test_debugger_function_and_line_probse_on_lazy_wrapped_function(stuff):
         for n in range(10)
     ]
 
-    with debugger() as d:
+    # 10 rounds of 20 snapshots in a tight loop: the ingestion ceiling is not
+    # what this test is about.
+    with debugger(global_rate_limit=float("inf")) as d:
         for r in range(10):
             d.add_probes(*function_probes, *line_probes)
 
@@ -861,16 +1406,17 @@ def test_debugger_condition_eval_then_rate_limit(stuff):
             ),
         )
 
-        # If the condition is evaluated before the rate limit, all the calls
-        # before 42 won't use any of the probe quota. However, all the calls
-        # after 42 won't be snapshotted because of the rate limiter.
+        # The rate limit is only charged once a snapshot is captured, so all the
+        # calls before 42 won't use any of the probe quota. However, all the
+        # calls after 42 are dropped by the rate limiter before their condition
+        # is even evaluated.
         for i in range(100):
             stuff.Stuff().instancestuff(i)
 
         (snapshot,) = d.uploader.wait_for_payloads()
 
         # We expect to see just the snapshot generated by the 42 call.
-        assert d.signal_state_counter[SignalState.SKIP_COND] == 99
+        assert d.signal_state_counter[SignalState.SKIP_COND] == 42
         assert d.signal_state_counter[SignalState.DONE] == 1
 
         assert "42" == snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], (
@@ -977,6 +1523,8 @@ def test_debugger_lambda_fuction_access_locals(stuff):
                 probe_id="lambda-probe",
                 module="tests.submod.stuff",
                 func_qname="age_checker",
+                # Both calls must reach the condition, not the rate limiter.
+                rate=float("inf"),
                 condition=DDExpression(
                     dsl="any(people, @it.name == name)",
                     callable=dd_compile(
