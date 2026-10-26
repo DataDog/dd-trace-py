@@ -1,8 +1,11 @@
 from types import ModuleType
+from unittest import mock
 
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
+from ddtrace.internal.utils.inspection import collect_code_objects
 import tests.submod.stuff as stuff
 
 
@@ -118,11 +121,22 @@ def test_unresolved_nested_function_header():
     module = ModuleType("unresolved_nested_header")
     module.__file__ = "unresolved_nested_header.py"
     code = compile("def outer():\n    def inner():\n        return 42\n    return inner\n", module.__file__, "exec")
-    FunctionDiscovery.transformer(code, module)
     exec(code, vars(module))
 
-    (function,) = FunctionDiscovery(module).at_line(2)
+    with mock.patch.object(ModuleCodeCollector, "get_code_objects", return_value=list(collect_code_objects(code))):
+        (function,) = FunctionDiscovery(module).at_line(2)
     assert function is module.outer
+
+
+def test_one_line_function_header():
+    module = ModuleType("one_line_header")
+    module.__file__ = "one_line_header.py"
+    code = compile("def target(): return 42\n", module.__file__, "exec")
+    exec(code, vars(module))
+
+    with mock.patch.object(ModuleCodeCollector, "get_code_objects", return_value=list(collect_code_objects(code))):
+        (function,) = FunctionDiscovery(module).at_line(1)
+    assert function is module.target
 
 
 def test_function_decorated_method(stuff_discovery):

@@ -308,8 +308,9 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         # are no decorators) up to the first executable line have no bytecode
         # instructions of their own, so they are not included in linenos().
         # Index them too, so probes placed anywhere on the declaration can still
-        # find the function.
-        first_executable_line = min(executable_lines, default=code.co_firstlineno)
+        # find the function. A one-line function has no executable lines past
+        # its declaration, so its declaration line is all there is to index.
+        first_executable_line = min(executable_lines, default=code.co_firstlineno + 1)
         for lineno in range(code.co_firstlineno, first_executable_line):
             self[lineno].append(pair)
 

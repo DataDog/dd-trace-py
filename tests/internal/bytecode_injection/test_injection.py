@@ -113,6 +113,7 @@ def test_inject_hook_on_function_declaration():
     hook.assert_called_once_with(42)
 
 
+@pytest.mark.skipif(is_at_least_py(3, 15), reason="sys.monitoring emits no LINE event for the RESUME line")
 def test_inject_hook_on_one_line_function():
     namespace = {}
     exec("def target(): return 42\n", namespace)
@@ -127,6 +128,18 @@ def test_inject_hook_on_one_line_function():
     eject_hook(target, hook, line, 42)
     assert target() == 42
     hook.assert_called_once_with(42)
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 15), reason="the bytecode backend supports one-line functions")
+def test_inject_hook_on_one_line_function_unsupported():
+    # See ddtrace/internal/bytecode_injection/README.md for why this is rejected.
+    namespace = {}
+    exec("def target(): return 42\n", namespace)
+    target = namespace["target"]
+
+    with pytest.raises(InvalidLine):
+        inject_hook(target, mock.Mock(), target.__code__.co_firstlineno, 42)
+    assert target() == 42
 
 
 def test_inject_hooks():

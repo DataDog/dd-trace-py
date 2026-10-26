@@ -50,7 +50,13 @@ if is_at_least_py(3, 15):
         A function's declaration line (and, for a decorated function, the
         lines of its decorators) has no executable code of its own, so
         redirect it to the function's first real line. Returns None if the
-        line does not belong to the function at all.
+        line does not belong to the function at all, or if the function has
+        no line past its declaration (e.g. def f(): return 42).
+
+        One-line functions are rejected because CPython 3.13+ does not emit a
+        LINE event for the line of the RESUME instruction unless PY_START is
+        also monitored for the code object, so a hook there would never fire.
+        See README.md in this package.
         """
         if line < code.co_firstlineno:
             return None
@@ -63,6 +69,8 @@ if is_at_least_py(3, 15):
                 if line < lineno:
                     line = lineno
                 break
+        else:
+            return None
 
         return line if any(lineno == line for _, lineno in dis.findlinestarts(code)) else None
 
