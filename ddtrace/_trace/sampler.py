@@ -161,7 +161,7 @@ class DatadogSampler:
                 agent_sampler = self._agent_based_samplers.get(self._default_key)
             if agent_sampler is not None:
                 # Agent service based sampling
-                sampled = agent_sampler.sample(span)
+                sampled = agent_sampler.sample(span._trace_id_64bits)
                 sample_rate = agent_sampler.sample_rate
 
         if matched_rule or self._rate_limit_always_on:

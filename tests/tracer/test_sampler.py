@@ -120,7 +120,7 @@ class TestRateSampler:
 
             for _ in range(10):
                 rule_sample_decision = rule.sample(span)
-                rate_sample_decision = rate.sample(span)
+                rate_sample_decision = rate.sample(span._trace_id_64bits)
                 assert rule_sample_decision == rate_sample_decision == expected_decision, (
                     f"Trace ID {trace_id} should be {'kept' if expected_decision else 'dropped'} "
                     f"with sample rate {sample_rate}, but got SamplingRule:{rule_sample_decision} "

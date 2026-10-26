@@ -37,7 +37,7 @@ class OverheadControl:
         """Decide whether if IAST analysis will be done for this request.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if span and not self._sampler.sample(span):
+        if span and not self._sampler.sample(span._trace_id_64bits):
             if _is_iast_debug_enabled():
                 log.debug("iast::propagation::context::Skip request by sampling rate")
             return False
