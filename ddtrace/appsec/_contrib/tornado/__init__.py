@@ -118,4 +118,4 @@ def listen() -> None:
     core.on("tornado.start_request", tornado_call_waf_first, "tornado_future")
     core.on("tornado.block_request", tornado_block, "tornado_future")
     core.on("tornado.send_response", tornado_call_waf_response)
-    core.on("context.ended.request.tornado", _on_context_ended)
+    core.on("context.ended.web.request", _on_context_ended)
