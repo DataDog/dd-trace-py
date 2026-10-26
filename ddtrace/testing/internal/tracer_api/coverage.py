@@ -36,16 +36,38 @@ log = logging.getLogger(__name__)
 class _AliasMatcher:
     """Picklable admission predicate for installed copies of the library under test.
 
-    Instances are serialized to spawned child processes (multiprocessing
-    spawn/forkserver), where the [paths] aliases are rebuilt from the child's
-    active coverage configuration.
+    In the parent process the aliases are resolved from the active coverage
+    configuration on every call, so an instance started later (e.g. pytest-cov
+    with a custom --cov-config) is honored. When the matcher is pickled to a
+    spawned child process (multiprocessing spawn or forkserver), the resolved
+    aliases are snapshotted with it: the child has no parent coverage instance,
+    and default configuration discovery there may not find a custom
+    --cov-config's aliases.
     """
 
     def __init__(self, workspace_path: Path) -> None:
         self._workspace_path_str = str(workspace_path)
+        # Resolved (pattern, regex, result) alias specs; set when pickled to a
+        # child process and restored on unpickling.
+        self._alias_specs: t.Optional[tuple[tuple[str, t.Any, str], ...]] = None
+
+    def __getstate__(self) -> dict[str, t.Any]:
+        aliases = _coverage_path_aliases()
+        specs = tuple(aliases.aliases) if aliases is not None else ()
+        return {"workspace_path": self._workspace_path_str, "alias_specs": specs}
+
+    def __setstate__(self, state: dict[str, t.Any]) -> None:
+        self._workspace_path_str = state["workspace_path"]
+        self._alias_specs = state["alias_specs"] or None
 
     def __call__(self, code_path: Path) -> bool:
-        matched, mapped = _alias_mapped_path(str(code_path), self._workspace_path_str)
+        specs = self._alias_specs
+        if specs is None:
+            aliases = _coverage_path_aliases()
+            if aliases is None:
+                return False
+            specs = aliases.aliases
+        matched, mapped = _map_path_with_specs(specs, str(code_path), self._workspace_path_str)
         return matched and mapped is not None
 
 
@@ -68,20 +90,34 @@ def uninstall_coverage() -> None:
     ModuleCodeCollector.uninstall()
 
 
-@functools.lru_cache(maxsize=1)
+_UNSET = object()  # sentinel distinguishing "no aliases built yet" from "built from no instance"
+_alias_source: t.Any = _UNSET
+_path_aliases: t.Optional[t.Any] = None
+_alias_generation: int = 0  # bumped whenever the aliases are rebuilt
+
+
 def _coverage_path_aliases() -> t.Optional[t.Any]:
     """The [paths] aliases of the active coverage configuration, or None if
     coverage.py is unavailable or no aliases are configured.
 
     Aliases come from the active coverage instance when one is running (e.g. a
     pytest-cov session with a custom --cov-config), and from the default
-    configuration discovery otherwise.
+    configuration discovery otherwise. The aliases are rebuilt whenever the
+    active instance changes, so an instance started after an earlier lookup
+    (e.g. pytest-cov starting during pytest_configure, after a module was
+    imported during conftest loading) is honored for the rest of the session.
     """
-    try:
-        return _build_path_aliases(get_coverage_instance())
-    except Exception:
-        log.debug("Could not build coverage [paths] aliases", exc_info=True)
-        return None
+    global _alias_source, _path_aliases, _alias_generation
+    instance = get_coverage_instance()
+    if instance is not _alias_source:
+        try:
+            _path_aliases = _build_path_aliases(instance)
+        except Exception:
+            log.debug("Could not build coverage [paths] aliases", exc_info=True)
+            _path_aliases = None
+        _alias_source = instance
+        _alias_generation += 1
+    return _path_aliases
 
 
 def clear_coverage_path_caches() -> None:
@@ -91,22 +127,19 @@ def clear_coverage_path_caches() -> None:
     instance and the configuration discovered from the working directory, so
     they must not be reused across sessions that may change either.
     """
-    _coverage_path_aliases.cache_clear()
-    _relative_coverage_path.cache_clear()
+    global _alias_source, _path_aliases, _alias_generation
+    _alias_source = _UNSET
+    _path_aliases = None
+    # Monotonic: never reuse results cached by an earlier session.
+    _alias_generation += 1
+    _relative_coverage_path_cached.cache_clear()
 
 
-def _alias_mapped_path(absolute_path: str, relative_to: str) -> tuple[bool, t.Optional[str]]:
-    """Whether a [paths] alias matches the file, and its upload path.
-
-    The first matching alias wins. Relative destinations are resolved against
-    the working directory, and every destination is reported relative to the
-    workspace; a destination outside the workspace cannot be attributed to the
-    repository, so the file is dropped (matched with a None path).
-    """
-    aliases = _coverage_path_aliases()
-    if aliases is None:
-        return False, None
-    for _pattern, regex, result in aliases.aliases:
+def _map_path_with_specs(
+    specs: t.Iterable[tuple[str, t.Any, str]], absolute_path: str, relative_to: str
+) -> tuple[bool, t.Optional[str]]:
+    """Whether one of the given alias specs matches the file, and its upload path."""
+    for _pattern, regex, result in specs:
         if match := regex.match(absolute_path):
             mapped = absolute_path.replace(match[0], result, 1).removeprefix("./")
             if Path(mapped).is_absolute():
@@ -120,8 +153,30 @@ def _alias_mapped_path(absolute_path: str, relative_to: str) -> tuple[bool, t.Op
     return False, None
 
 
-@functools.lru_cache(maxsize=65536)
+def _alias_mapped_path(absolute_path: str, relative_to: str) -> tuple[bool, t.Optional[str]]:
+    """Whether a [paths] alias matches the file, and its upload path.
+
+    The first matching alias wins. Relative destinations are resolved against
+    the working directory, and every destination is reported relative to the
+    workspace; a destination outside the workspace cannot be attributed to the
+    repository, so the file is dropped (matched with a None path).
+    """
+    aliases = _coverage_path_aliases()
+    if aliases is None:
+        return False, None
+    return _map_path_with_specs(aliases.aliases, absolute_path, relative_to)
+
+
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
+    # Refreshing the alias generation first means results cached under an
+    # earlier active coverage instance (or none) are never reused after the
+    # instance changes.
+    _coverage_path_aliases()
+    return _relative_coverage_path_cached(absolute_path, relative_to, _alias_generation)
+
+
+@functools.lru_cache(maxsize=65536)
+def _relative_coverage_path_cached(absolute_path: str, relative_to: str, _generation: int) -> t.Optional[str]:
     # Aliases take precedence so installed copies of repository files are reported
     # at their repository paths, matching what coverage combine does for reports.
     matched, mapped = _alias_mapped_path(absolute_path, relative_to)

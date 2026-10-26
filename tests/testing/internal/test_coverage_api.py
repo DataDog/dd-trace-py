@@ -439,3 +439,119 @@ def test_get_coverage_bitmaps_dedupe_file_level_aliased_copies(tmp_path, monkeyp
             assert list(coverage_data.get_coverage_bitmaps(tmp_path)) == [("/covered_pkg/__init__.py", mock.ANY)]
     finally:
         clear_coverage_path_caches()
+
+
+@pytest.mark.subprocess
+def test_venv_installed_library_collected_and_remapped() -> None:
+    """A library installed in the interpreter's own site-packages is collected.
+
+    This is the normal wheel-under-test scenario: the wheel lives in the active
+    virtualenv, which the collector excludes as interpreter paths (purelib/
+    platlib). The alias match must be exempt from those exclusions, while plain
+    venv dependencies stay excluded.
+    """
+    import os
+    from pathlib import Path
+    import shutil
+    import sysconfig
+    import tempfile
+
+    repo = Path(tempfile.mkdtemp()) / "repo"
+    (repo / "tests").mkdir(parents=True)
+    (repo / ".coveragerc").write_text("[paths]\nvenvlib =\n    venvlib/\n    */site-packages/venvlib/\n")
+
+    # Install the library under test (and a dependency) in the interpreter's
+    # real site-packages, not a synthetic directory.
+    purelib = Path(sysconfig.get_paths()["purelib"])
+    lib_dir = purelib / "venvlib"
+    dep_dir = purelib / "venvdep"
+    lib_dir.mkdir(parents=True)
+    dep_dir.mkdir(parents=True)
+    (lib_dir / "__init__.py").write_text("def bump():\n    return 42\n")
+    (dep_dir / "__init__.py").write_text("def noop():\n    pass\n")
+
+    os.chdir(repo)
+
+    import ddtrace.testing.internal.tracer_api.coverage as tracer_api_coverage
+
+    tracer_api_coverage.install_coverage(repo)
+    try:
+        with tracer_api_coverage.coverage_collection() as coverage_data:
+            import venvdep
+            import venvlib
+
+            assert venvlib.bump() == 42
+            venvdep.noop()
+
+        bitmaps = dict(coverage_data.get_coverage_bitmaps(relative_to=repo))
+        # The aliased wheel copy is collected and remapped to its repository path.
+        assert "/venvlib/__init__.py" in bitmaps
+        # A plain dependency from the same site-packages is still excluded.
+        assert not any("venvdep" in path for path in bitmaps)
+    finally:
+        tracer_api_coverage.uninstall_coverage()
+        shutil.rmtree(lib_dir, ignore_errors=True)
+        shutil.rmtree(dep_dir, ignore_errors=True)
+
+
+def test_coverage_path_aliases_refresh_on_instance_start(tmp_path, monkeypatch) -> None:
+    """Aliases rebuild when the active coverage instance changes.
+
+    A module imported during early conftest loading resolves aliases before
+    pytest-cov starts its custom-configured instance; the later instance's
+    aliases must then be honored without an explicit cache clear.
+    """
+    site_packages = _make_site_packages(tmp_path)
+    covered_file = str(site_packages / "__init__.py")
+    # No .coveragerc in the workspace: default discovery finds no aliases.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: None)
+
+    custom_config = tmp_path / "custom-coverage.cfg"
+    custom_config.write_text("[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n")
+
+    clear_coverage_path_caches()
+    try:
+        # Before the instance starts there are no aliases: the file keeps the
+        # workspace-relative site-packages path.
+        assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) != ("/covered_pkg/__init__.py")
+
+        cov_instance = Coverage(config_file=str(custom_config))
+        with mock.patch.object(tracer_api_coverage, "get_coverage_instance", return_value=cov_instance):
+            # No explicit clear: the newly active instance's aliases apply.
+            assert tracer_api_coverage._relative_coverage_path(covered_file, str(tmp_path)) == (
+                "/covered_pkg/__init__.py"
+            )
+    finally:
+        clear_coverage_path_caches()
+
+
+def test_alias_matcher_carries_resolved_aliases_to_children(tmp_path, monkeypatch) -> None:
+    """Pickling snapshots the resolved aliases for spawned child processes.
+
+    A child process has no parent coverage instance, so configuration
+    discovery there cannot see a custom --cov-config's aliases.
+    """
+    import pickle
+
+    # cwd without a .coveragerc: default discovery in a child would find nothing.
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+
+    custom_config = tmp_path / "custom-coverage.cfg"
+    custom_config.write_text("[paths]\ncovered_pkg =\n    covered_pkg/\n    */site-packages/covered_pkg/\n")
+    site_packages = _make_site_packages(tmp_path)
+    cov_instance = Coverage(config_file=str(custom_config))
+    monkeypatch.setattr(tracer_api_coverage, "get_coverage_instance", lambda: cov_instance)
+
+    clear_coverage_path_caches()
+    try:
+        matcher = tracer_api_coverage._AliasMatcher(tmp_path)
+        child_matcher = pickle.loads(pickle.dumps(matcher))
+
+        # In the child there is no active instance and no default config.
+        with mock.patch.object(tracer_api_coverage, "get_coverage_instance", lambda: None):
+            assert child_matcher(site_packages / "__init__.py")
+    finally:
+        clear_coverage_path_caches()

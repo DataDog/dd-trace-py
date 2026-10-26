@@ -145,11 +145,16 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._include_paths: list[Path] = []
         self._alias_matcher: t.Optional[t.Callable[[Path], bool]] = None
         # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
-        # in the root directory of a repository)
-        self._exclude_paths: list[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
+        # in the root directory of a repository). An installed copy of the library under test that a coverage [paths]
+        # alias maps back to this repository is exempt from these exclusions: that is the normal wheel-under-test
+        # scenario, where the wheel is installed in the active interpreter's site-packages.
+        self._interpreter_exclude_paths: list[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
 
-        # Avoid instrumenting anything in the current module
-        self._exclude_paths.append(Path(__file__).resolve().parent)
+        # Avoid instrumenting anything in the current module, always, including alias-matched files:
+        # instrumenting the collector itself risks recursion.
+        self._self_exclude_paths: list[Path] = [Path(__file__).resolve().parent]
+
+        self._exclude_paths: list[Path] = [*self._interpreter_exclude_paths, *self._self_exclude_paths]
 
         self._coverage_enabled: bool = False
         self._file_level_coverage: bool = False
@@ -593,6 +598,7 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         code_path = resolved_code_origin(code)
 
+        aliased = False
         if _is_site_packages_path(code_path) or not any(
             is_contained(code_path, include_path) for include_path in self._include_paths
         ):
@@ -602,8 +608,13 @@ class ModuleCodeCollector(ModuleWatchdog):
             # e.g. a wheel in a virtual environment's site-packages).
             if self._alias_matcher is None or not self._alias_matcher(code_path):
                 return code
+            aliased = True
 
-        if any(is_contained(code_path, exclude_path) for exclude_path in self._exclude_paths):
+        # An aliased installed copy of the library under test is exempt from the
+        # interpreter's stdlib/venv exclusions, but never from the collector's own
+        # module exclusion.
+        exclude_paths = self._self_exclude_paths if aliased else self._exclude_paths
+        if any(is_contained(code_path, exclude_path) for exclude_path in exclude_paths):
             # Don't instrument code from standard library/site packages/etc.
             return code
 
