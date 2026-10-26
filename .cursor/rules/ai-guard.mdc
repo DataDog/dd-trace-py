@@ -54,7 +54,7 @@ ddtrace/aiguard/
 │                           #   ToolCall, Function, … (lazily via __getattr__)
 ├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport
 ├── _types.py               # Message / ToolCall / Function / ContentPart TypedDicts
-├── _constants.py           # AI_GUARD constants: env var names, tags, metrics
+├── _constants.py           # AI_GUARD constants: tags, metrics, telemetry values
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
 ├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks,
 │                           #   gated per integration by DD_AI_GUARD_<LLM>_ENABLED
@@ -202,7 +202,10 @@ response. A block closes the run with `on_llm_error`; a batch is evaluated in
 
 All configuration is via environment variables, parsed in
 `ddtrace/internal/settings/aiguard.py` (`AIGuardConfig`, exported as
-`aiguard_config`). Constants live in `ddtrace/aiguard/_constants.py` (`AI_GUARD`).
+`aiguard_config`). The environment variable names are module-level `ENV_*`
+constants in that same settings module, so `ddtrace.internal` never imports the
+AI Guard product. Span tags, metric names, and other product constants live in
+`ddtrace/aiguard/_constants.py` (`AI_GUARD`).
 
 | Environment Variable | Default | Description |
 |----------------------|---------|-------------|
