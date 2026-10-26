@@ -3,12 +3,16 @@
 Measures the cost of dependency reporting in the telemetry heartbeat path
 under different scenarios: first heartbeat, idle, CVE registration, SCA hits.
 
-Backward-compatible with both the new DependencyTracker API (this branch)
-and the old update_imported_dependencies API (main).
+Module discovery and distribution lookup are replaced by plain stubs installed
+outside the timed region, so only collect_report() itself is measured.
+
+Falls back to the older update_imported_dependencies API when the installed
+ddtrace (e.g. a baseline wheel) has no DependencyTracker.
 """
 
+import contextlib
+import sys
 import time
-from unittest.mock import patch
 
 from bm import Scenario
 
@@ -32,9 +36,8 @@ else:
         appsec_telemetry_config.SCA_ENABLED = True
 
 
-# --- Backward-compatible imports ---
-# New API (this branch): DependencyTracker with collect_report()
 try:
+    from ddtrace.internal.telemetry import dependency_tracker as _dependency_tracker
     from ddtrace.internal.telemetry.dependency import DependencyEntry
     from ddtrace.internal.telemetry.dependency import attach_reachability_metadata
     from ddtrace.internal.telemetry.dependency import register_cve_metadata
@@ -44,7 +47,6 @@ try:
 except ImportError:
     HAS_DEPENDENCY_TRACKER = False
 
-# Old API (main): update_imported_dependencies from data.py
 try:
     from ddtrace.internal.telemetry.data import update_imported_dependencies as _old_update
 
@@ -52,7 +54,6 @@ try:
 except ImportError:
     HAS_OLD_API = False
 
-# Fallback: standalone update_imported_dependencies from dependency_tracker.py
 if not HAS_OLD_API:
     try:
         from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies as _old_update
@@ -99,32 +100,39 @@ def _attach_hits(tracker, n_deps, pct, cves_per_dep):
             )
 
 
-def _collect_report_no_new_modules(tracker):
-    """Run collect_report with no new module discovery (mocked)."""
+class _StubModules:
+    def __init__(self, module_names=()):
+        self._module_names = module_names
+
+    def get_newly_imported_modules(self, already_imported):
+        return self._module_names
+
+
+@contextlib.contextmanager
+def _stubbed(target, **attrs):
+    """Temporarily replace attributes on target; cheaper and cycle-free compared to mock.patch."""
+    saved = {name: getattr(target, name) for name in attrs}
+    for name, value in attrs.items():
+        setattr(target, name, value)
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            setattr(target, name, value)
+
+
+@contextlib.contextmanager
+def _collect_report_stubs(module_names=(), dists=None):
+    dists = dists or {}
     with (
-        patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-        patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
-    ):
-        mock_modules.get_newly_imported_modules.return_value = set()
-        return tracker.collect_report()
-
-
-def _collect_report_new_modules(tracker, module_names, dists):
-    """Run collect_report simulating new module discovery."""
-
-    def fake_get_dist(module_name):
-        return dists.get(module_name)
-
-    with (
-        patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
-        patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True),
-        patch(
-            "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
-            side_effect=fake_get_dist,
+        _stubbed(telemetry_config, DEPENDENCY_COLLECTION=True),
+        _stubbed(
+            _dependency_tracker,
+            modules=_StubModules(module_names),
+            get_module_distribution_versions=dists.get,
         ),
     ):
-        mock_modules.get_newly_imported_modules.return_value = module_names
-        return tracker.collect_report()
+        yield
 
 
 class TelemetryDependencies(Scenario):
@@ -163,18 +171,18 @@ class TelemetryDependencies(Scenario):
     def _run_first_heartbeat(self, loops):
         """All N dependencies discovered as new."""
         n = self.num_deps
-        sca = self.sca_enabled
         module_names = {"mod-%d" % i for i in range(n)}
         dists = {"mod-%d" % i: ("package-%d" % i, "%d.0.0" % i) for i in range(n)}
+        if self.sca_enabled:
+            _enable_sca()
 
         total = 0.0
-        for _ in range(loops):
-            tracker = DependencyTracker()
-            if sca:
-                _enable_sca()
-            t0 = time.perf_counter()
-            _collect_report_new_modules(tracker, module_names, dists)
-            total += time.perf_counter() - t0
+        with _collect_report_stubs(module_names, dists):
+            for _ in range(loops):
+                tracker = DependencyTracker()
+                t0 = time.perf_counter()
+                tracker.collect_report()
+                total += time.perf_counter() - t0
         return total
 
     def _run_idle(self, loops):
@@ -183,81 +191,72 @@ class TelemetryDependencies(Scenario):
         _populate_tracker(tracker, self.num_deps, self.sca_enabled)
 
         total = 0.0
-        for _ in range(loops):
-            t0 = time.perf_counter()
-            _collect_report_no_new_modules(tracker)
-            total += time.perf_counter() - t0
+        with _collect_report_stubs():
+            for _ in range(loops):
+                t0 = time.perf_counter()
+                tracker.collect_report()
+                total += time.perf_counter() - t0
         return total
 
     def _run_cve_registration(self, loops):
         """Deps have CVEs registered with reached=[]."""
         total = 0.0
-        for _ in range(loops):
-            tracker = DependencyTracker()
-            _populate_tracker(tracker, self.num_deps, self.sca_enabled)
-            _register_cves(tracker, self.num_deps, self.pct_cve, self.cves_per_dep)
-            t0 = time.perf_counter()
-            _collect_report_no_new_modules(tracker)
-            total += time.perf_counter() - t0
+        with _collect_report_stubs():
+            for _ in range(loops):
+                tracker = DependencyTracker()
+                _populate_tracker(tracker, self.num_deps, self.sca_enabled)
+                _register_cves(tracker, self.num_deps, self.pct_cve, self.cves_per_dep)
+                t0 = time.perf_counter()
+                tracker.collect_report()
+                total += time.perf_counter() - t0
         return total
 
     def _run_sca_hits(self, loops):
         """Deps have reachability hits attached."""
         total = 0.0
-        for _ in range(loops):
-            tracker = DependencyTracker()
-            _populate_tracker(tracker, self.num_deps, self.sca_enabled)
-            _register_cves(tracker, self.num_deps, self.pct_cve, self.cves_per_dep)
-            # Mark CVE registrations as sent (simulates previous heartbeat)
-            for entry in tracker._imported_dependencies.values():
-                entry.mark_all_metadata_sent()
-            _attach_hits(tracker, self.num_deps, self.pct_cve, self.cves_per_dep)
-            t0 = time.perf_counter()
-            _collect_report_no_new_modules(tracker)
-            total += time.perf_counter() - t0
+        with _collect_report_stubs():
+            for _ in range(loops):
+                tracker = DependencyTracker()
+                _populate_tracker(tracker, self.num_deps, self.sca_enabled)
+                _register_cves(tracker, self.num_deps, self.pct_cve, self.cves_per_dep)
+                # Mark CVE registrations as sent (simulates previous heartbeat)
+                for entry in tracker._imported_dependencies.values():
+                    entry.mark_all_metadata_sent()
+                _attach_hits(tracker, self.num_deps, self.pct_cve, self.cves_per_dep)
+                t0 = time.perf_counter()
+                tracker.collect_report()
+                total += time.perf_counter() - t0
         return total
 
     def _run_old_api(self, loops):
-        """Fallback: benchmark using old update_imported_dependencies() (main).
+        """Fallback: benchmark the old update_imported_dependencies().
 
         Only supports first/idle phases since CVE/SCA features don't exist.
         """
         n = self.num_deps
-        phase = self.phase
+        old_module = sys.modules[_old_update.__module__]
 
-        if phase == "first":
+        if self.phase == "first":
             module_names = ["mod-%d" % i for i in range(n)]
-
-            def fake_get_dist(module_name):
-                idx = module_name.split("-")[1]
-                return ("package-%s" % idx, "%s.0.0" % idx)
+            dists = {"mod-%d" % i: ("package-%d" % i, "%d.0.0" % i) for i in range(n)}
 
             total = 0.0
-            for _ in range(loops):
-                already_imported = {}
-                with patch(
-                    "ddtrace.internal.telemetry.data.get_module_distribution_versions",
-                    side_effect=fake_get_dist,
-                ):
+            with _stubbed(old_module, get_module_distribution_versions=dists.get):
+                for _ in range(loops):
+                    already_imported = {}
                     t0 = time.perf_counter()
                     _old_update(already_imported, module_names)
                     total += time.perf_counter() - t0
             return total
         else:
             # idle / cve_registration / sca_hits all reduce to "nothing to do"
-            # on main since there's no re-report logic. On the old API,
+            # on the old API since there's no re-report logic. There,
             # `already_imported` maps name -> version string.
             already_imported = {"package-%d" % i: "%d.0.0" % i for i in range(n)}
 
-            def fake_get_dist(module_name):
-                return None
-
             total = 0.0
-            for _ in range(loops):
-                with patch(
-                    "ddtrace.internal.telemetry.data.get_module_distribution_versions",
-                    side_effect=fake_get_dist,
-                ):
+            with _stubbed(old_module, get_module_distribution_versions=lambda module_name: None):
+                for _ in range(loops):
                     t0 = time.perf_counter()
                     _old_update(already_imported, [])
                     total += time.perf_counter() - t0

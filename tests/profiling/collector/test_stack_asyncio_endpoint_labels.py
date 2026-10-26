@@ -25,14 +25,18 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
 
     endpoint_a = "async-endpoint-a"
     endpoint_b = "async-endpoint-b"
+    span_ids = {}
 
     def task_a_work():
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
+    # A enters its span, then B enters its span and sleeps, then A runs. B's span was activated on
+    # the thread last, so per-thread labels tag A's samples with B.
     async def task_a(a_active, b_active):
-        with tracer.trace("async.request.a", resource=endpoint_a, span_type=ext.SpanTypes.WEB):
+        with tracer.trace("async.request.a", resource=endpoint_a, span_type=ext.SpanTypes.WEB) as span:
+            span_ids["a"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             a_active.set()
             await b_active.wait()
             task_a_work()
@@ -42,7 +46,8 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
 
     async def task_b(a_active, b_active):
         await a_active.wait()
-        with tracer.trace("async.request.b", resource=endpoint_b, span_type=ext.SpanTypes.WEB):
+        with tracer.trace("async.request.b", resource=endpoint_b, span_type=ext.SpanTypes.WEB) as span:
+            span_ids["b"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             b_active.set()
             await task_b_wait()
 
@@ -65,10 +70,14 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
     task_a_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "task_a_work")
     task_b_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "task_b_wait")
 
-    assert task_a_samples
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint_a for sample in task_a_samples)
-    assert task_b_samples
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint_b for sample in task_b_samples)
+    for samples, endpoint, span_id in (
+        (task_a_samples, endpoint_a, span_ids["a"]),
+        (task_b_samples, endpoint_b, span_ids["b"]),
+    ):
+        assert samples
+        assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "span id") == span_id for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "local root span id") == span_id for sample in samples)
 
 
 @pytest.mark.subprocess(
@@ -91,6 +100,7 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
 
     endpoint = "traced-task-endpoint"
 
+    # The traced task keeps its span open until the untraced task has finished its work.
     async def traced_task(traced_task_active, untraced_task_finished):
         with tracer.trace("traced.task.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
             traced_task_active.set()
@@ -184,6 +194,143 @@ def test_stack_respects_explicit_empty_child_task_context():
     assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in child_samples)
     assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in child_samples)
     assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in child_samples)
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    reason="Task.get_context() is 3.12+; covers older versions where the task's Context can't be read",
+)
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_pre312_custom_task_context",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_omits_unverifiable_pre312_custom_factory_context():
+    """Omit pre-3.12 attribution when a custom factory's actual Context cannot be inspected."""
+    import asyncio
+    import contextvars
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    endpoint = "pre312-outer-endpoint"
+
+    def custom_factory_work():
+        deadline = time.thread_time_ns() + 400_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def child():
+        custom_factory_work()
+
+    async def main():
+        loop = asyncio.get_running_loop()
+
+        def empty_context_task_factory(loop, coro):
+            return contextvars.Context().run(asyncio.Task, coro, loop=loop)
+
+        loop.set_task_factory(empty_context_task_factory)
+        try:
+            await asyncio.create_task(child())
+        finally:
+            loop.set_task_factory(None)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    with tracer.trace("outer.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
+        asyncio.run(main())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "custom_factory_work")
+
+    assert samples
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_eager_empty_task_context",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    # finishes_eagerly: the child completes inside create_task and is never scheduled.
+    # suspends: the child also runs a normal step after its eager first step.
+    parametrize={"CHILD": ["finishes_eagerly", "suspends"]},
+    err=None,
+)
+def test_stack_respects_explicit_empty_context_for_eager_task():
+    """Honor an eager task's explicit empty Context in its eager first step and after it resumes."""
+    import asyncio
+    import contextvars
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    suspend = os.environ["CHILD"] == "suspends"
+    child_ids = []
+
+    def busy_cpu():
+        deadline = time.thread_time_ns() + 400_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    # Separate names so each phase is checked on its own samples.
+    def eager_first_step_work():
+        busy_cpu()
+
+    def resumed_step_work():
+        busy_cpu()
+
+    async def child():
+        child_ids.append(id(asyncio.current_task()))
+        eager_first_step_work()
+        if suspend:
+            await asyncio.sleep(0)
+            resumed_step_work()
+
+    async def main():
+        loop = asyncio.get_running_loop()
+        loop.set_task_factory(asyncio.eager_task_factory)
+        try:
+            with tracer.trace("eager.parent", resource="eager-endpoint", span_type=ext.SpanTypes.WEB):
+                await asyncio.create_task(child(), name="eager-child", context=contextvars.Context())
+        finally:
+            loop.set_task_factory(None)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    asyncio.run(main())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    phases = ["eager_first_step_work", "resumed_step_work"] if suspend else ["eager_first_step_work"]
+    for function_name in phases:
+        samples = [
+            sample
+            for sample in pprof_utils.get_samples_with_function(profile, wall_samples, function_name)
+            if pprof_utils.get_num_label(profile, sample, "task id") == child_ids[0]
+        ]
+        assert samples, function_name
+        assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)
+        assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)
 
 
 @pytest.mark.skipif(not test_utils.uvloop_available(), reason="uvloop is not installed in this environment")
@@ -334,77 +481,17 @@ def test_stack_rejects_finished_span_from_copied_task_context():
     assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 12), reason="covers task factories without Task.get_context()")
-@pytest.mark.subprocess(
-    env={
-        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_pre312_custom_task_context",
-        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
-    },
-    err=None,
-)
-def test_stack_omits_unverifiable_pre312_custom_factory_context():
-    """Omit pre-3.12 attribution when a custom factory's actual Context cannot be inspected."""
-    import asyncio
-    import contextvars
-    import os
-    import time
-
-    from ddtrace import ext
-    from ddtrace.profiling import profiler
-    from ddtrace.trace import tracer
-    from tests.profiling.collector import pprof_utils
-
-    endpoint = "pre312-outer-endpoint"
-
-    def custom_factory_work():
-        deadline = time.thread_time_ns() + 400_000_000
-        while time.thread_time_ns() < deadline:
-            pass
-
-    async def child():
-        custom_factory_work()
-
-    async def main():
-        loop = asyncio.get_running_loop()
-
-        def empty_context_task_factory(loop, coro):
-            return contextvars.Context().run(asyncio.Task, coro, loop=loop)
-
-        loop.set_task_factory(empty_context_task_factory)
-        try:
-            await asyncio.create_task(child())
-        finally:
-            loop.set_task_factory(None)
-
-    tracer._endpoint_call_counter_span_processor.enable()
-    p = profiler.Profiler(tracer=tracer)
-    p.start()
-    with tracer.trace("outer.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
-        asyncio.run(main())
-    p.stop()
-
-    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
-    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "custom_factory_work")
-
-    assert samples
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in samples)
-    assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)
-    assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)
-
-
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
 @pytest.mark.subprocess(
     env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_eager_inherited_span",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
     },
-    parametrize={"EMPTY_CONTEXT": ["0", "1"], "SUSPEND": ["0", "1"]},
+    parametrize={"SUSPEND": ["0", "1"]},
     err=None,
 )
 def test_stack_attributes_eager_first_step_to_inherited_span():
     import asyncio
-    import contextvars
     import os
     import time
 
@@ -414,7 +501,6 @@ def test_stack_attributes_eager_first_step_to_inherited_span():
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_utils import async_run
 
-    empty_context = os.environ["EMPTY_CONTEXT"] == "1"
     suspend = os.environ["SUSPEND"] == "1"
     child_ids = []
 
@@ -435,9 +521,7 @@ def test_stack_attributes_eager_first_step_to_inherited_span():
         loop.set_task_factory(asyncio.eager_task_factory)
         try:
             with tracer.trace("eager.parent", resource="eager-endpoint", span_type=ext.SpanTypes.WEB):
-                await asyncio.create_task(
-                    child(), name="eager-child", context=contextvars.Context() if empty_context else None
-                )
+                await asyncio.create_task(child(), name="eager-child")
         finally:
             loop.set_task_factory(None)
 
@@ -453,8 +537,7 @@ def test_stack_attributes_eager_first_step_to_inherited_span():
     )
     samples = [sample for sample in samples if pprof_utils.get_num_label(profile, sample, "task id") == child_ids[0]]
     assert samples
-    expected_endpoint = None if empty_context else "eager-endpoint"
-    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == expected_endpoint for sample in samples)
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == "eager-endpoint" for sample in samples)
 
 
 @pytest.mark.subprocess(

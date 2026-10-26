@@ -263,6 +263,77 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
 
+## Hosted voice conversations: ElevenLabs Agents
+
+The ElevenLabs integration instruments the synchronous and asynchronous Agents
+WebSocket loops. Its conversation-local socket proxies observe successful sends
+and received messages without changing the audio interface or event subscriptions.
+Provider event IDs identify turns; text equality and optional completion events do
+not. A turn can contain multiple agent utterances around tools. Reconcile final
+text, streaming parts, resends, and corrections by response_id, preserving their
+first-observed order, and join their text for the turn. Ignore late parts after
+an identified response completes. Events without response_id retain the legacy
+single-response fallback. Retain at most 64 response IDs per turn and cap each
+response and the combined exported text at 100,000 characters.
+Keep a bounded window of open turns for late interrupted transcripts and flush it
+on worker exit. Unknown event IDs at or below the interruption boundary cannot
+open turns or consume pending input; known interrupted turns still accept late text.
+Capture APM and LLMObs parent contexts at startup, including explicit absence.
+Create spans under a scoped LLMObs context so both caller contexts remain unchanged;
+retain the captured LLMObs snapshot after its parent has finished. Audio payloads belong only to LLM messages, with a shared encoded
+budget for input and output. Direct sibling workflow phases retain approximate
+transport-based timing and explicitly annotate metadata.ttfa_eligible = false.
+Do not infer TTFA or token usage from these estimates. Client tool execution uses
+the SDK's actual handler, with explicit parenting and fail-open instrumentation.
+
+Regression fixtures preserve event order and shapes with synthetic audio and text.
+Cover default/custom audio interfaces, both SDK loops, ordinary event subscriptions,
+typed messages, interruption, errors, parent context, concurrent conversations,
+missing completion events, and audio limits.
+Cover failed or cancelled external shutdown before the SDK stop signal, plus end
+callback failures after that signal; only the former may restore observation.
+
+Optional ElevenLabs vad_score events produce user_speech_activity metadata only
+on the matching user speech phase. Version 1 carries source=elevenlabs_vad,
+timing=estimated, and at most 128 clip-relative integer-millisecond intervals_ms
+pairs. An empty list means observed silence; absent metadata keeps phase-based
+colors. Input WAV bytes and placement anchors remain unchanged. Scores enter speech
+at 0.5 and leave at 0.35. Low scores cover at most 500 ms of input samples, with
+stale delivery gaps and unobserved portions conservatively active. State follows
+input-buffer transfers and shutdown extension; overflow omits activity metadata.
+Never turn these observations into TTFA or alter customer event subscriptions.
+
+
+ElevenLabs protocol/audio state is product-owned in llmobs/_integrations/elevenlabs_agents.py.
+Contrib wrappers depend only on a neutral state Protocol and request state through
+core event elevenlabs.conversation.start. LLMObs registers/removes the factory with
+its service lifecycle. Client-tool handler bodies scope both APM and LLMObs contexts,
+restoring caller contexts on success, failure, and cancellation. Synthetic replay
+fixtures are stored as deterministic gzip JSON to preserve exact event/audio data
+within the added-file size limit.
+
+ElevenLabs captures explicit routing (including no routing) at conversation startup
+and scopes it around span creation and client-tool handlers. Raw SDK threads must
+not pick up another conversation's or worker's destination. Completion state is
+separate from retained turns: later failures affect only unfinished responses,
+and interruptions affect unfinished generation or audio still playing. A newer
+turn also retires older generation when optional completion events are absent.
+Pre-metadata audio overflow discards the whole buffered prefix and carries the
+omission flag into the next input buffer; it must not export a truncated WAV.
+
+Configured model hints belong only to their matching retained event ID; unknown
+or finalized context-usage events must not relabel other turns. Tool results share
+100,000 characters per turn across handler, outbound, and server observations.
+Truncation is reported in metadata while transcript and audio content are retained.
+
+ElevenLabs includes the standard PatchTestCase lifecycle matrix for every wrapped
+entry point and checks that the global WebSocket module is left untouched.
+Public-SDK smoke tests install fake transport before ordinary patching and use
+public session start/end/wait methods. Focused state-machine tests remain useful
+for malformed events, late delivery, and buffer limits. Accepted streamed text
+observations advance the response end-time fallback; ignored late parts do not.
+The provider conversation ID replaces the bootstrap UUID when metadata arrives.
+
 ## Duplex audio streams
 
 Use a connection-local adapter to observe successful sends and consumed output

@@ -1,5 +1,7 @@
 ---
 components:
+  elevenlabs:
+    - ddtrace/contrib/internal/elevenlabs/*
   aws_sdk_bedrock_runtime:
     - ddtrace/contrib/internal/aws_sdk_bedrock_runtime/*
     - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime.py
@@ -43,6 +45,23 @@ components:
   vllm:
     - ddtrace/contrib/internal/vllm/*
 suites:
+  elevenlabs:
+    venvs_per_job: 2
+    services: [testagent]
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@elevenlabs'
+      - '@llmobs'
+      - tests/contrib/elevenlabs/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/elevenlabs
+      variants:
+        - name: elevenlabs
+          python: ['3.10', '3.12']
+          dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
   aws_sdk_bedrock_runtime:
     paths:
       - "@bootstrap"

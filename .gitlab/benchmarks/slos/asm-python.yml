@@ -294,7 +294,7 @@ experiments:
               - execution_time < 38.50 ms
           - name: telemetrydependencies-first-50-deps-sca-on
             thresholds:
-              - execution_time < 3.75 ms
+              - execution_time < 0.27 ms
 
           # appsec_iast_aspects_re_module (class IASTAspectsREModule)
           # Generous thresholds; tune to measured values.
