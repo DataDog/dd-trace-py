@@ -3,7 +3,6 @@
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.internal.settings._config import config
 
 
 # Renaming websocket handshakes would collapse every endpoint onto _OTHER.
@@ -53,19 +52,3 @@ def record_initial_instrumentation_resource(span: Span, resource: Optional[str])
         span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
     else:
         span._set_ctx_item(RESOURCE_SET_BY_USER, True)
-
-
-def set_instrumentation_resource(span: Span, resource: str) -> None:
-    """Set an instrumentation-owned resource without overriding a user replacement."""
-    if config._otel_trace_semantics_enabled:
-        if span._get_ctx_item(RESOURCE_SET_BY_USER):
-            return
-
-        previous_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
-        if previous_resource is not None and span.resource != previous_resource:
-            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
-            return
-
-    span.resource = resource
-    if config._otel_trace_semantics_enabled:
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
