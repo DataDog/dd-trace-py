@@ -347,6 +347,17 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable the stack profiler",
     )
 
+    max_frames = DDConfig.v(
+        t.Optional[int],
+        "max_frames",
+        default=None,
+        parser=_clamp_max_frames,
+        validator=validators.range(0, MAX_FRAMES),
+        help_type="Integer",
+        help="The maximum number of frames to capture in CPU and wall-time stack profiles. When unset, "
+        f"``DD_PROFILING_MAX_FRAMES`` applies. Values above {MAX_FRAMES} are clamped.",
+    )
+
     adaptive_sampling = DDConfig.v(
         bool,
         "adaptive_sampling.enabled",
@@ -486,6 +497,17 @@ class ProfilingConfigLock(DDConfig):
         default=True,
         help_type="Boolean",
         help="Whether to enable the lock profiler",
+    )
+
+    max_frames = DDConfig.v(
+        t.Optional[int],
+        "max_frames",
+        default=None,
+        parser=_clamp_max_frames,
+        validator=validators.range(0, MAX_FRAMES),
+        help_type="Integer",
+        help="The maximum number of frames to capture in lock acquire and release profiles. When unset, "
+        f"``DD_PROFILING_MAX_FRAMES`` applies. Values above {MAX_FRAMES} are clamped.",
     )
 
     name_inspect_dir = DDConfig.v(
@@ -801,19 +823,36 @@ if config.install:
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def memory_max_frames(config: ProfilingConfig) -> int:
-    """Return the max frames for the memory (alloc and heap) collector.
+def _resolve_collector_max_frames(config: ProfilingConfig, collector_value: t.Optional[int], collector_env: str) -> int:
+    """Resolve one collector's max frames against the global setting.
 
-    Precedence: a user-set memory value, then a user-set global value, then the
-    memory default, then the global default. A changed default never overrides
-    a value the user set.
+    Precedence: a user-set collector value, then a user-set global value, then
+    the collector default, then the global default. A changed default never
+    overrides a value the user set.
     """
-    memory_value: t.Optional[int] = config.memory.max_frames  # pyright: ignore[reportAttributeAccessIssue]
-    memory_is_explicit: bool = config.value_source("DD_PROFILING_MEMORY_MAX_FRAMES") != ValueSource.DEFAULT
+    collector_is_explicit: bool = config.value_source(collector_env) != ValueSource.DEFAULT
     global_is_explicit: bool = config.value_source("DD_PROFILING_MAX_FRAMES") != ValueSource.DEFAULT
-    if memory_value is not None and (memory_is_explicit or not global_is_explicit):
-        return memory_value
+    if collector_value is not None and (collector_is_explicit or not global_is_explicit):
+        return collector_value
     return t.cast(int, config.max_frames)
+
+
+def memory_max_frames(config: ProfilingConfig) -> int:
+    """Return the max frames for the memory (alloc and heap) collector."""
+    memory_value: t.Optional[int] = config.memory.max_frames  # pyright: ignore[reportAttributeAccessIssue]
+    return _resolve_collector_max_frames(config, memory_value, "DD_PROFILING_MEMORY_MAX_FRAMES")
+
+
+def stack_max_frames(config: ProfilingConfig) -> int:
+    """Return the max frames for the stack (CPU and wall-time) collector."""
+    stack_value: t.Optional[int] = config.stack.max_frames  # pyright: ignore[reportAttributeAccessIssue]
+    return _resolve_collector_max_frames(config, stack_value, "DD_PROFILING_STACK_MAX_FRAMES")
+
+
+def lock_max_frames(config: ProfilingConfig) -> int:
+    """Return the max frames for the lock collector."""
+    lock_value: t.Optional[int] = config.lock.max_frames  # pyright: ignore[reportAttributeAccessIssue]
+    return _resolve_collector_max_frames(config, lock_value, "DD_PROFILING_LOCK_MAX_FRAMES")
 
 
 def config_str(config: ProfilingConfig) -> str:
@@ -841,4 +880,10 @@ def config_str(config: ProfilingConfig) -> str:
     memory_frames: int = memory_max_frames(config)
     if memory_frames != config.max_frames:
         configured_features.append("MEMMAXF" + str(memory_frames))
+    stack_frames: int = stack_max_frames(config)
+    if stack_frames != config.max_frames:
+        configured_features.append("STACKMAXF" + str(stack_frames))
+    lock_frames: int = lock_max_frames(config)
+    if lock_frames != config.max_frames:
+        configured_features.append("LOCKMAXF" + str(lock_frames))
     return "_".join(configured_features)

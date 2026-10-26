@@ -6,9 +6,13 @@ import typing as t
 import pytest
 
 from ddtrace.internal.settings.profiling import ProfilingConfig
+from ddtrace.internal.settings.profiling import ProfilingConfigLock
 from ddtrace.internal.settings.profiling import ProfilingConfigMemory
+from ddtrace.internal.settings.profiling import ProfilingConfigStack
 from ddtrace.internal.settings.profiling import config_str
+from ddtrace.internal.settings.profiling import lock_max_frames
 from ddtrace.internal.settings.profiling import memory_max_frames
+from ddtrace.internal.settings.profiling import stack_max_frames
 
 
 class TestMaxFramesConfig:
@@ -114,6 +118,154 @@ class TestMemoryMaxFramesConfig:
         monkeypatch.setattr(memalloc, "config", ProfilingConfig())
 
         assert memalloc.MemoryCollector().max_nframe == expected
+
+
+class TestStackMaxFramesConfig:
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_MAX_FRAMES", raising=False)
+        monkeypatch.delenv("DD_PROFILING_STACK_MAX_FRAMES", raising=False)
+
+    @pytest.fixture
+    def stack_default_256(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(ProfilingConfigStack.max_frames, "default", 256)
+
+    def test_default_is_unset(self) -> None:
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert config.stack.max_frames is None
+        assert stack_max_frames(config) == 64
+
+    def test_explicit_stack_wins_over_explicit_global(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", "128")
+        monkeypatch.setenv("DD_PROFILING_STACK_MAX_FRAMES", "32")
+
+        assert stack_max_frames(ProfilingConfig()) == 32
+
+    @pytest.mark.usefixtures("stack_default_256")
+    def test_explicit_global_wins_over_stack_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", "128")
+
+        assert stack_max_frames(ProfilingConfig()) == 128
+
+    @pytest.mark.usefixtures("stack_default_256")
+    def test_stack_default_wins_over_global_default(self) -> None:
+        assert stack_max_frames(ProfilingConfig()) == 256
+
+    def test_global_default_when_nothing_set(self) -> None:
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert stack_max_frames(config) == config.max_frames == 64
+
+    @pytest.mark.parametrize("value", (600, 10_000))
+    def test_clamps_to_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_STACK_MAX_FRAMES", str(value))
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert config.stack.max_frames == 599
+        assert stack_max_frames(config) == 599
+
+    def test_config_str_omits_tag_when_values_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_STACK_MAX_FRAMES", "64")
+
+        assert "STACKMAXF" not in config_str(ProfilingConfig())
+
+    def test_config_str_omits_tag_by_default(self) -> None:
+        assert "STACKMAXF" not in config_str(ProfilingConfig())
+
+    def test_config_str_includes_tag_when_values_differ(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_STACK_MAX_FRAMES", "256")
+        features: list[str] = config_str(ProfilingConfig()).split("_")
+
+        assert "MAXF64" in features
+        assert "STACKMAXF256" in features
+
+    @pytest.mark.parametrize(
+        "global_env,stack_env,expected",
+        (
+            (None, None, 64),
+            ("128", None, 128),
+            (None, "256", 256),
+            ("128", "32", 32),
+        ),
+    )
+    def test_stack_collector_uses_resolved_value(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        global_env: t.Optional[str],
+        stack_env: t.Optional[str],
+        expected: int,
+    ) -> None:
+        from ddtrace.profiling.collector import stack as stack_collector
+
+        if global_env is not None:
+            monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", global_env)
+        if stack_env is not None:
+            monkeypatch.setenv("DD_PROFILING_STACK_MAX_FRAMES", stack_env)
+        monkeypatch.setattr(stack_collector, "config", ProfilingConfig())
+
+        assert stack_collector.StackCollector().nframes == expected
+
+
+class TestLockMaxFramesConfig:
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_MAX_FRAMES", raising=False)
+        monkeypatch.delenv("DD_PROFILING_LOCK_MAX_FRAMES", raising=False)
+
+    @pytest.fixture
+    def lock_default_256(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(ProfilingConfigLock.max_frames, "default", 256)
+
+    def test_default_is_unset(self) -> None:
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert config.lock.max_frames is None
+        assert lock_max_frames(config) == 64
+
+    def test_explicit_lock_wins_over_explicit_global(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", "128")
+        monkeypatch.setenv("DD_PROFILING_LOCK_MAX_FRAMES", "32")
+
+        assert lock_max_frames(ProfilingConfig()) == 32
+
+    @pytest.mark.usefixtures("lock_default_256")
+    def test_explicit_global_wins_over_lock_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", "128")
+
+        assert lock_max_frames(ProfilingConfig()) == 128
+
+    @pytest.mark.usefixtures("lock_default_256")
+    def test_lock_default_wins_over_global_default(self) -> None:
+        assert lock_max_frames(ProfilingConfig()) == 256
+
+    def test_global_default_when_nothing_set(self) -> None:
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert lock_max_frames(config) == config.max_frames == 64
+
+    @pytest.mark.parametrize("value", (600, 10_000))
+    def test_clamps_to_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_LOCK_MAX_FRAMES", str(value))
+        config: ProfilingConfig = ProfilingConfig()
+
+        assert config.lock.max_frames == 599
+        assert lock_max_frames(config) == 599
+
+    def test_config_str_omits_tag_when_values_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_LOCK_MAX_FRAMES", "64")
+
+        assert "LOCKMAXF" not in config_str(ProfilingConfig())
+
+    def test_config_str_omits_tag_by_default(self) -> None:
+        assert "LOCKMAXF" not in config_str(ProfilingConfig())
+
+    def test_config_str_includes_tag_when_values_differ(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_LOCK_MAX_FRAMES", "256")
+        features: list[str] = config_str(ProfilingConfig()).split("_")
+
+        assert "MAXF64" in features
+        assert "LOCKMAXF256" in features
 
 
 class TestAdaptiveSamplingConfig:
@@ -254,10 +406,17 @@ class TestDumpSettings:
             "stack.adaptive_sampling_max_interval",
             "stack.fast_copy",
             "stack.max_threads",
+            "stack.max_frames",
+            "lock.max_frames",
+            "memory.max_frames",
             "exception.enabled",
             "exception.sampling_interval",
         ):
             assert key in settings, f"missing {key!r} in dumped settings"
+
+        assert settings["stack.max_frames"] is None
+        assert settings["lock.max_frames"] is None
+        assert settings["memory.max_frames"] is None
 
     def test_keys_are_unprefixed_dotted_paths(self) -> None:
         settings = ProfilingConfig().dump_settings()
@@ -275,12 +434,18 @@ class TestDumpSettings:
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_TARGET_OVERHEAD", "5.0")
         monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "30.0")
+        monkeypatch.setenv("DD_PROFILING_STACK_MAX_FRAMES", "32")
+        monkeypatch.setenv("DD_PROFILING_LOCK_MAX_FRAMES", "48")
+        monkeypatch.setenv("DD_PROFILING_MEMORY_MAX_FRAMES", "16")
 
         settings = ProfilingConfig().dump_settings()
 
         assert settings["stack.adaptive_sampling"] is False
         assert settings["stack.adaptive_sampling_target_overhead"] == 5.0
         assert settings["upload_interval"] == 30.0
+        assert settings["stack.max_frames"] == 32
+        assert settings["lock.max_frames"] == 48
+        assert settings["memory.max_frames"] == 16
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: Adds ``DD_PROFILING_STACK_MAX_FRAMES`` and ``DD_PROFILING_LOCK_MAX_FRAMES`` to set stack depth for CPU/wall and lock profiles separately from ``DD_PROFILING_MAX_FRAMES``. When unset, both keep using ``DD_PROFILING_MAX_FRAMES``.

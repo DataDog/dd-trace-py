@@ -24,6 +24,7 @@ from typing import cast
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.settings.profiling import lock_max_frames
 from ddtrace.profiling import collector
 from ddtrace.trace import Tracer
 
@@ -327,6 +328,8 @@ class _ProfiledLock:
             # If we can't get the task frame, we use the caller frame.
             # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
             frame: FrameType = task_frame or sys._getframe(_CALLER_FRAME_INDEX)
+            max_frames: int = lock_max_frames(config)
+            handle.set_max_nframes(max_frames)
             handle.push_pyframes(frame)
 
             handle.flush_sample()
@@ -571,8 +574,10 @@ class LockCollector(collector.CaptureSamplerCollector):
         *args: Any,
         **kwargs: Any,
     ) -> None:
+        max_nframe: Optional[int] = kwargs.pop("max_nframe", None)
         super().__init__(*args, **kwargs)
         self.tracer: Optional[Tracer] = tracer
+        self.max_nframe: int = max_nframe if max_nframe is not None else lock_max_frames(config)
         self._original_lock: Optional[Callable[..., Any]] = None
         self._reimport_hook: Optional[Callable[[ModuleType], None]] = None
 

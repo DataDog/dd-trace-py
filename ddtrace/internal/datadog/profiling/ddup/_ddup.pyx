@@ -66,6 +66,7 @@ cdef extern from "sample.hpp" namespace "Datadog":
         bint push_absolute_ns(int64_t timestamp_ns)
         void push_frame(string_view _name, string_view _filename, uint64_t address, int64_t line)
         void push_pyframes(PyFrameObject* frame)
+        void set_max_nframes(unsigned int max_nframes)
         bint flush_sample()
 
 cdef extern from "sample_manager.hpp" namespace "Datadog":
@@ -555,6 +556,10 @@ cdef class SampleHandle:
             sanitized_filename = sanitize_string(filename)
             call_ddup_push_frame(self.ptr, sanitized_name, sanitized_filename,
                                  clamp_to_uint64_unsigned(address), clamp_to_int64_unsigned(line))
+
+    def set_max_nframes(self, max_nframes: int) -> None:
+        if self.ptr is not NULL:
+            self.ptr.set_max_nframes(<unsigned int>clamp_to_int64_unsigned(max_nframes))
 
     def push_pyframes(self, object frame) -> None:
         cdef PyObject* frame_obj

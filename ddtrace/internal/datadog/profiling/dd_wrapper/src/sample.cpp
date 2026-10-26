@@ -9,6 +9,7 @@
 
 #include "sample.hpp"
 
+#include "constants.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
 #include "pymacro.hpp"
@@ -109,6 +110,15 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 
     // Initialize other state
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
+}
+
+void
+Datadog::Sample::set_max_nframes(unsigned int _max_nframes)
+{
+    if (_max_nframes == 0) {
+        return;
+    }
+    max_nframes = _max_nframes > g_backend_max_nframes ? g_backend_max_nframes : _max_nframes;
 }
 
 void

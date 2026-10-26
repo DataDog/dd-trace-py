@@ -2959,6 +2959,13 @@
         "default": ""
       }
     ],
+    "DD_PROFILING_LOCK_MAX_FRAMES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null
+      }
+    ],
     "DD_PROFILING_LOCK_NAME_INSPECT_DIR": [
       {
         "implementation": "A",
@@ -3097,6 +3104,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_PROFILING_STACK_MAX_FRAMES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null
       }
     ],
     "DD_PROFILING_STACK_NATIVE_FRAMES": [

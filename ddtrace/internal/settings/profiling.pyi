@@ -43,6 +43,7 @@ class ProfilingConfigStack(DDConfig):
     parsed: ProfilingConfigStack
 
     enabled: bool
+    max_frames: Optional[int]
     adaptive_sampling: bool
     adaptive_sampling_target_overhead: float
     adaptive_sampling_max_interval: int
@@ -59,6 +60,7 @@ class ProfilingConfigLock(DDConfig):
     parsed: ProfilingConfigLock
 
     enabled: bool
+    max_frames: Optional[int]
     name_inspect_dir: bool
     exclude_modules: frozenset[str]
 
@@ -68,6 +70,7 @@ class ProfilingConfigMemory(DDConfig):
     enabled: bool
     events_buffer: int
     mem_domain_enabled: bool
+    max_frames: Optional[int]
 
 class ProfilingConfigHeap(DDConfig):
     parsed: ProfilingConfigHeap
@@ -103,6 +106,9 @@ stack_v2_is_available: bool
 exception_failure_msg: str
 exception_is_available: bool
 
+def memory_max_frames(config: ProfilingConfig) -> int: ...
+def stack_max_frames(config: ProfilingConfig) -> int: ...
+def lock_max_frames(config: ProfilingConfig) -> int: ...
 def config_str(config: ProfilingConfig) -> str: ...
 def _is_python_embedded() -> bool: ...
 def _is_platform_supported() -> tuple[str, bool]: ...

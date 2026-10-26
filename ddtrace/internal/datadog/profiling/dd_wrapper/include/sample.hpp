@@ -163,6 +163,10 @@ class Sample
     // released by this function.
     void push_pyframes(PyFrameObject* frame);
 
+    // Cap how many frames this sample will keep. Used when a collector has its
+    // own max (for example lock) that differs from the process-wide default.
+    void set_max_nframes(unsigned int _max_nframes);
+
     // Flushes the current buffer, clearing it
     bool flush_sample();
 

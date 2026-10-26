@@ -71,6 +71,7 @@ class LockCollector(collector.CaptureSamplerCollector):
     MODULE: types.ModuleType
     PATCHED_LOCK_NAME: str
     tracer: typing.Optional[Tracer]
+    max_nframe: int
     _original_lock: typing.Optional[typing.Callable[..., typing.Any]]
 
     def __init__(self, tracer: typing.Optional[Tracer] = ..., *args: typing.Any, **kwargs: typing.Any) -> None: ...
