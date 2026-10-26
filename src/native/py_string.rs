@@ -1,7 +1,6 @@
 use std::{borrow::Borrow, ops::Deref as _};
 
-use libdd_trace_model::{AttributeValue, TraceText, ValueTypes};
-use libdd_trace_utils::span::{v04::VecMap, SpanBytes, SpanText, TraceData};
+use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAnyMethods as _, PyBytesMethods as _, PyString, PyStringMethods as _},
@@ -324,26 +323,6 @@ impl std::fmt::Debug for PyBackedString {
     }
 }
 
-impl Clone for PyBackedString {
-    fn clone(&self) -> Self {
-        // Clone owns text without attaching to Python; None becomes empty text.
-        // Python-facing copies use clone_ref to preserve str/bytes/None representation.
-        Self::from_owned(self.deref().to_owned())
-    }
-}
-
-impl From<String> for PyBackedString {
-    fn from(value: String) -> Self {
-        Self::from_owned(value)
-    }
-}
-
-impl TraceText for PyBackedString {
-    fn from_static(value: &'static str) -> Self {
-        Self::from_static_str(value)
-    }
-}
-
 impl SpanText for PyBackedString {
     fn from_static_str(value: &'static str) -> Self {
         Self {
@@ -376,11 +355,7 @@ impl Borrow<[u8]> for Bytes {
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct PyTraceData;
-impl ValueTypes for PyTraceData {
+impl TraceData for PyTraceData {
     type Text = PyBackedString;
     type Bytes = Bytes;
-    type Array = Vec<AttributeValue<Self>>;
-    type Map = VecMap<PyBackedString, AttributeValue<Self>>;
 }
-
-impl TraceData for PyTraceData {}

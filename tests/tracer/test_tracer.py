@@ -1044,18 +1044,6 @@ def test_tracer_fork():
     assert len(t._span_aggregator.writer._encoder) == 1
 
 
-@pytest.mark.parametrize("otlp", [True, False])
-def test_global_tags_preserve_special_values(tracer, monkeypatch, otlp):
-    monkeypatch.setattr(tracer, "_uses_otlp_export", lambda: otlp)
-    tracer.set_tags({b"legacy": "value", "workers": 7, "manual.keep": "true", "service.name": "custom", "team": "core"})
-    with tracer.trace("test.span") as span:
-        assert span.get_tag("legacy") == "value"
-        assert span.get_metric("workers") == 7
-        assert span.context.sampling_priority == 2
-        assert span.service == "custom"
-        assert span.get_tag("team") == (None if otlp else "core")
-
-
 def test_tracer_with_version(tracer):
     # With global `config.version` defined
     with override_global_config(dict(version="1.2.3")):

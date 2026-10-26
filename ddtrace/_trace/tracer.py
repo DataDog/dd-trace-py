@@ -24,7 +24,6 @@ from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterPr
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.span import _OTLP_SPAN_TAG_KEYS
 from ddtrace._trace.span import Span
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
@@ -69,7 +68,6 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.internal.writer import NativeWriter
 from ddtrace.version import __version__
 
 
@@ -188,7 +186,6 @@ class Tracer:
             partial_flush_enabled=config._partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
-            get_tracer_tags=self._get_otlp_tracer_tags,
             tracer_tags=self._tags,
         )
 
@@ -248,20 +245,7 @@ class Tracer:
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
-        tags = self._get_otlp_tracer_tags()
-        if tags is None:
-            self._sampler.sample(span)
-        else:
-            self._sampler.sample(span, tracer_tags=tags)
-
-    def _get_otlp_tracer_tags(self) -> Optional[dict[str, str]]:
-        if self._uses_otlp_export():
-            return {k: v for k, v in self._tags.items() if isinstance(k, str) and isinstance(v, str)}
-        return None
-
-    def _uses_otlp_export(self) -> bool:
-        writer = self._span_aggregator.writer
-        return isinstance(writer, NativeWriter) and writer._otlp_endpoint is not None
+        self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
         span = self.current_root_span()
@@ -692,20 +676,7 @@ class Tracer:
 
         # Apply default global tags.
         if self._tags:
-            if not self._uses_otlp_export():
-                span.set_tags(self._tags)
-            else:
-                # Identity and control tags have effects beyond resource attributes.
-                span.set_tags(
-                    {
-                        k: v
-                        for k, v in self._tags.items()
-                        if not isinstance(k, str)
-                        or k in _OTLP_SPAN_TAG_KEYS
-                        or k.startswith("_dd.")
-                        or not isinstance(v, str)
-                    }
-                )
+            span.set_tags(self._tags)
 
         if service and service_source:
             span._set_attribute(_SERVICE_SOURCE, service_source)

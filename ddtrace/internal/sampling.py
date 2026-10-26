@@ -1,4 +1,3 @@
-from collections.abc import Mapping
 import json
 import math
 from typing import Any
@@ -317,14 +316,11 @@ def _inherit_sampling_tags(target: SpanData, source: SpanData):
     target._set_attribute(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
-def _get_highest_precedence_rule_matching(
-    span: SpanData, rules: list[SamplingRule], tracer_tags: Optional[Mapping[str, str]] = None
-) -> Optional[SamplingRule]:
+def _get_highest_precedence_rule_matching(span: SpanData, rules: list[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 
     for rule in rules:
-        matches = rule.matches(span, tracer_tags) if tracer_tags else rule.matches(span)
-        if matches:
+        if rule.matches(span):
             return rule
     return None

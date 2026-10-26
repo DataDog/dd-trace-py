@@ -2,11 +2,9 @@ import abc
 from collections import defaultdict
 from itertools import chain
 import logging
-from typing import Callable
 from typing import Optional
 
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.span import _OTLP_SPAN_TAG_KEYS
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY
@@ -17,6 +15,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import OTLP_RESERVED_SPAN_TAGS
 from ddtrace.internal.constants import PROCESS_TAGS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
@@ -135,14 +134,12 @@ class TraceSamplingProcessor(TraceProcessor):
         compute_stats_enabled: bool,
         single_span_rules: list[SpanSamplingRule],
         apm_opt_out: bool,
-        get_tracer_tags: Optional[Callable[[], Optional[dict[str, str]]]] = None,
     ):
         super().__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
         self.sampler = DatadogSampler()
         self.apm_opt_out = apm_opt_out
-        self._get_tracer_tags = get_tracer_tags
 
     @property
     def apm_opt_out(self):
@@ -171,11 +168,7 @@ class TraceSamplingProcessor(TraceProcessor):
                     span._set_attribute(_APM_ENABLED_METRIC_KEY, 0)
 
             if chunk_root.context.sampling_priority is None:
-                tags = self._get_tracer_tags() if self._get_tracer_tags is not None else None
-                if tags is None:
-                    _, discard = self.sampler.sample_or_discard(chunk_root._local_root)
-                else:
-                    _, discard = self.sampler.sample_or_discard(chunk_root._local_root, tracer_tags=tags)
+                _, discard = self.sampler.sample_or_discard(chunk_root._local_root)
                 if discard:
                     return None
                 if chunk_root.context.sampling_priority is None:
@@ -241,7 +234,10 @@ class TraceTagsProcessor(TraceProcessor):
         return {
             k: v
             for k, v in self.tracer_tags.items()
-            if isinstance(k, str) and isinstance(v, str) and k not in _OTLP_SPAN_TAG_KEYS and not k.startswith("_dd.")
+            if isinstance(k, str)
+            and isinstance(v, str)
+            and k not in OTLP_RESERVED_SPAN_TAGS
+            and not k.startswith("_dd.")
         }
 
     def _set_git_metadata(self, chunk_root):
@@ -356,7 +352,6 @@ class SpanAggregator(SpanProcessor):
         partial_flush_min_spans: int,
         dd_processors: Optional[list[TraceProcessor]] = None,
         user_processors: Optional[list[TraceProcessor]] = None,
-        get_tracer_tags: Optional[Callable[[], Optional[dict[str, str]]]] = None,
         tracer_tags: Optional[dict[str, str]] = None,
     ):
         # Set partial flushing
@@ -364,7 +359,7 @@ class SpanAggregator(SpanProcessor):
         self.partial_flush_min_spans = partial_flush_min_spans
         # Initialize trace processors
         self.sampling_processor = TraceSamplingProcessor(
-            config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out, get_tracer_tags
+            config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out
         )
         self.tags_processor = TraceTagsProcessor(tracer_tags)
         self.dd_processors = dd_processors or []

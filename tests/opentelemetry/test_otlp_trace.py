@@ -20,7 +20,8 @@ def test_otlp_resource_attributes_are_not_span_attributes():
     from tests.opentelemetry.utils import _capture_http_requests
 
     with _capture_http_requests(port=14318) as requests:
-        with tracer.trace("resource-root"):
+        with tracer.trace("resource-root") as root:
+            assert root.get_tag("team") == "core"
             with tracer.trace("resource-child") as child:
                 child.set_tag("team", "core")
                 child.set_tag("region", "eu1")
@@ -42,9 +43,10 @@ def test_otlp_resource_attributes_are_not_span_attributes():
     assert resource.get("workers") == {"stringValue": "7"}
     assert resource["long"] == {"stringValue": "x" * 25001}
     for attributes in spans.values():
-        assert "long" not in attributes
+        assert attributes["long"]["stringValue"].endswith("<truncated>...")
+        assert attributes["long"] != resource["long"]
     assert "team" not in spans["resource-root"]
-    assert spans["resource-child"]["team"] == {"stringValue": "core"}
+    assert "team" not in spans["resource-child"]
     assert "region" not in spans["resource-root"]
     assert "workers" not in spans["resource-root"]
     assert spans["resource-child"]["region"] == {"stringValue": "eu1"}
@@ -87,13 +89,13 @@ def test_otlp_resource_uses_current_tags_at_export():
 
     with _capture_http_requests(port=14318) as requests:
         with tracer.trace("buffered") as old:
-            assert old.get_tag("team") is None
+            assert old.get_tag("team") == "initial"
         with tracer.trace("open") as root:
             apm_tracing_rc({"tracing_tags": ["team:remote"]}, config)
             with tracer.trace("child") as child:
                 child.set_tag("team", "override")
-            assert root.get_tag("team") is None
-        tracer.set_tags({"team": "at-export"})
+            assert root.get_tag("team") == "initial"
+        tracer.set_tags({"team": "at-export", "added": "new"})
         tracer.flush()
         tracer.configure(trace_processors=[])
         apm_tracing_rc({}, config)
@@ -113,6 +115,7 @@ def test_otlp_resource_uses_current_tags_at_export():
         resources.append({a["key"]: a["value"] for a in resource_spans["resource"]["attributes"]})
     assert resources[0]["team"] == {"stringValue": "at-export"}
     assert "removed" not in resources[0]
+    assert resources[0]["added"] == {"stringValue": "new"}
     assert resources[1]["team"] == {"stringValue": "setter"}
     assert resources[1]["removed"] == {"stringValue": "yes"}
     assert "team" not in resources[2] and "removed" not in resources[2]
@@ -122,7 +125,10 @@ def test_otlp_resource_uses_current_tags_at_export():
         for span in scope["spans"]
     }
     assert set(spans) == {"buffered", "open", "child"}
-    assert "team" not in spans["buffered"] and "team" not in spans["open"]
+    for name in ("buffered", "open"):
+        assert spans[name]["team"] == {"stringValue": "initial"}
+        assert spans[name]["removed"] == {"stringValue": "yes"}
+    assert all("added" not in span for span in spans.values())
     assert spans["child"]["team"] == {"stringValue": "override"}
 
 

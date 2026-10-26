@@ -1276,8 +1276,10 @@ Agent
 
          If a tag value is not supplied the value will be an empty string.
 
-         For OTLP trace export, ordinary string tags are attached to the resource instead of each span. Each export reads the current tracer tags once and uses them for all spans in the payload.
-         Sampling reads both tracer tags and explicit span attributes, with explicit span attributes taking precedence. Ordinary resource tags are not returned by span tag accessors unless explicitly set on that span.
+         OTLP trace exports include ordinary string tags on one resource using the current tracer configuration.
+         A span string tag is omitted from the OTLP payload only when its key and value match the resource.
+         Differing values and numeric span attributes are preserved. Span tag accessors and sampling are unchanged.
+         After a tag update, buffered spans can retain older values while the resource reflects the current configuration.
 
      version_added:
        v0.38.0: Comma separated support added

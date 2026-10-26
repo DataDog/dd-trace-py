@@ -165,13 +165,13 @@ class DatadogSampler:
             )
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
-    def sample(self, span: Span, tracer_tags: Optional[Mapping[str, str]] = None) -> bool:
-        sampled, _ = self.sample_or_discard(span, tracer_tags)
+    def sample(self, span: Span) -> bool:
+        sampled, _ = self.sample_or_discard(span)
         return sampled
 
-    def sample_or_discard(self, span: Span, tracer_tags: Optional[Mapping[str, str]] = None) -> tuple[bool, bool]:
+    def sample_or_discard(self, span: Span) -> tuple[bool, bool]:
         span._update_tags_from_context()
-        matched_rule = _get_highest_precedence_rule_matching(span, self.rules, tracer_tags)
+        matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
         sampled = True
         sample_rate = 1.0

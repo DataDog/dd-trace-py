@@ -1,4 +1,3 @@
-from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
@@ -96,19 +95,18 @@ class SamplingRule:
                 return False
         return True
 
-    def matches(self, span: SpanData, tracer_tags: Optional[Mapping[str, str]] = None) -> bool:
+    def matches(self, span: SpanData) -> bool:
         """
         Return if this span matches this rule
 
         :param span: The span to match against
         :type span: :class:`ddtrace.internal.native._native.SpanData`
-        :param tracer_tags: Fallback tags used only when the span has no string or numeric value for a key.
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return self.tags_match(span, tracer_tags) and self.name_match((span.service, span.name, span.resource))
+        return self.tags_match(span) and self.name_match((span.service, span.name, span.resource))
 
-    def tags_match(self, span: SpanData, tracer_tags: Optional[Mapping[str, str]] = None) -> bool:
+    def tags_match(self, span: SpanData) -> bool:
         if not self.tags:
             return True
 
@@ -120,11 +118,11 @@ class SamplingRule:
             if value is None:
                 num_val = span._get_numeric_attribute(tag_key)
                 if num_val is None:
-                    value = tracer_tags.get(tag_key) if tracer_tags is not None else None
-                    if value is None:
-                        return False
+                    # If the tag is not present as a str or float value, we failed the match
+                    return False
+
                 # SamplingRules only support integers for matching or glob patterns.
-                elif isinstance(num_val, int) or num_val.is_integer():
+                if isinstance(num_val, int) or num_val.is_integer():
                     value = str(int(num_val))
                 elif not pattern.wildcards_only:
                     # Only match floats to patterns that only contain wildcards (ex: * or ?*)

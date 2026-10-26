@@ -245,3 +245,27 @@ class EXPERIMENTAL_FEATURES:
 # server.port is required whenever server.address is set, so a URL that omits the port falls
 # back to the port its scheme implies.
 DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+
+OTLP_RESERVED_SPAN_TAGS = frozenset(
+    (
+        "network.destination.port",
+        "manual.keep",
+        "manual.drop",
+        "_dd.measured",
+        "env",
+        "version",
+        "service.name",
+        "service.version",
+        "deployment.environment.name",
+        "telemetry.sdk.name",
+        "telemetry.sdk.language",
+        "telemetry.sdk.version",
+        "runtime-id",
+        "datadog.sdk.semantics",
+        "span.kind",
+        "error.msg",
+        "error.message",
+        "tracestate",
+    )
+)
