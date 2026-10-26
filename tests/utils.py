@@ -1260,12 +1260,8 @@ class TestAgentClient:
 
     def clear(self) -> None:
         status, body = self._request("GET", self._url("/test/session/clear"), retry=False)
-        assert status == 200, (
-            "Failed to clear test session traces:\n"
-            f"url: {self._url('/test/session/clear')}\n"
-            f"status: {status}\n"
-            f"body: {body.decode('utf-8')}"
-        )
+        if status != 200:
+            raise RuntimeError(f"Failed to clear test session {self._token}: {status} {body!r}")
 
 
 class SnapshotTest:
@@ -1281,7 +1277,7 @@ class SnapshotTest:
         return self._client.requests()
 
     def clear(self) -> None:
-        """Clear captured requests; legacy agents also clear intervening untagged traffic."""
+        """Clear this attempt's captured requests."""
         self._client.clear()
 
     def wait_for_traces(self, count: int, timeout: float) -> None:
@@ -1330,7 +1326,7 @@ def snapshot_context(
     timeout: float = 5.0,
     subprocess_mode: bool = False,
 ) -> Iterator[SnapshotTest]:
-    """Capture one attempt; the caller must finish background producers before leaving."""
+    """Capture one tagged attempt; async_mode is retained for compatibility."""
     if os.getenv("DD_SNAPSHOT_ENABLED", "1") != "1":
         pytest.skip("Snapshot verification is disabled by DD_SNAPSHOT_ENABLED")
     if timeout <= 0 or (wait_for_num_traces is not None and wait_for_num_traces < 0):
@@ -1374,15 +1370,14 @@ def snapshot_context(
         pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
     completed = False
     try:
-        if async_mode:
-            headers = parse_tags_str(old_headers or "")
-            headers[header] = session.token
-            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(f"{k}:{v}" for k, v in headers.items())
-            if not subprocess_mode:
-                if isinstance(writer, AgentWriterInterface):
-                    writer.set_test_session_token(session.token)
-                else:
-                    writer._headers[header] = session.token
+        headers = parse_tags_str(old_headers or "")
+        headers[header] = session.token
+        os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(f"{k}:{v}" for k, v in headers.items())
+        if not subprocess_mode:
+            if isinstance(writer, AgentWriterInterface):
+                writer.set_test_session_token(session.token)
+            else:
+                writer._headers[header] = session.token
         try:
             yield session
             completed = session.verify_on_exit
@@ -1400,7 +1395,14 @@ def snapshot_context(
             session.verify(ignores, timeout)
     finally:
         failed = sys.exc_info()[0] is not None or not session.verify_on_exit
-        if async_mode:
+        try:
+            session.clear()
+        except Exception:
+            if not failed:
+                failed = True
+                raise
+            logging.getLogger(__name__).warning("Snapshot %s cleanup failed", token, exc_info=True)
+        finally:
             if old_headers is None:
                 os.environ.pop("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", None)
             else:

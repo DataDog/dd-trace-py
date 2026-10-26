@@ -499,11 +499,16 @@ tracer.shutdown()
         _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
         assert status == 0, err
 
+    assert first.requests() == []
     with snapshot_context(token=name) as second:
         assert first.token != second.token
         _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
         assert status == 0, err
         _, err, status, _ = run_python_code_in_subprocess(code, env=os.environ.copy())
         assert status == 0, err
-        assert len([r for r in first.requests() if r["url"].endswith("/traces")]) == 2
+        assert len([r for r in first.requests() if r["url"].endswith("/traces")]) == 1
         assert len([r for r in second.requests() if r["url"].endswith("/traces")]) == 1
+    assert second.requests() == []
+    assert len([r for r in first.requests() if r["url"].endswith("/traces")]) == 1
+    first.clear()
+    assert first.requests() == []

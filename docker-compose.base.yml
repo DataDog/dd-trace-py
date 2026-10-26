@@ -86,7 +86,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.68.0
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent@sha256:ad9205d9c16e978ca1ae95fa62002537d174631afb93319e34d6a2f600b3db8a
         volumes:
             - ./tests/snapshots:/snapshots
             - ./tests/cassettes:/cassettes

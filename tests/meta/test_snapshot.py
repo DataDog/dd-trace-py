@@ -98,8 +98,9 @@ def snapshot_writer(agent: Agent, monkeypatch: pytest.MonkeyPatch) -> Iterator[N
         writer.shutdown_exporter()
 
 
-def test_snapshot_compares_once_and_propagates_token(agent, snapshot_writer):
-    with snapshot_context("example") as session:
+@pytest.mark.parametrize("async_mode", [True, False])
+def test_snapshot_compares_once_and_propagates_token(agent, snapshot_writer, async_mode):
+    with snapshot_context("example", async_mode=async_mode) as session:
         with ddtrace.tracer.trace("operation"):
             pass
         assert session.token != session.name
@@ -110,6 +111,9 @@ def test_snapshot_compares_once_and_propagates_token(agent, snapshot_writer):
     assert len(trace_requests) == 1
     assert trace_requests[0][2][HEADER.lower()] == session.token
     assert agent.calls[0][0] == "/test/session/start"
+    assert agent.calls[-1][0] == "/test/session/clear"
+    for path in ("start", "snapshot", "clear"):
+        assert agent.matching(f"/test/session/{path}")[0][1]["test_session_token"] == [session.token]
     assert snapshot_writer._test_session_token is None
 
 
@@ -162,7 +166,23 @@ def test_unsuccessful_snapshot_does_not_compare(agent, snapshot_writer, outcome)
                     pytest.skip("skip")
                 pytest.xfail("expected")
     assert not agent.matching("/test/session/snapshot")
+    assert len(agent.matching("/test/session/clear")) == 1
     assert snapshot_writer._test_session_token is None
+
+
+@pytest.mark.parametrize("body_fails", [False, True])
+def test_clear_failure_restores_state_and_preserves_test_failure(agent, snapshot_writer, monkeypatch, body_fails):
+    monkeypatch.setenv(HEADERS_ENV, "Other:value")
+    agent.responses["/test/session/clear"] = deque([(503, b"cleanup failed")])
+    error = AssertionError if body_fails else RuntimeError
+    message = "original failure" if body_fails else "Failed to clear test session"
+    with pytest.raises(error, match=message):
+        with snapshot_context("example"):
+            if body_fails:
+                raise AssertionError("original failure")
+    assert len(agent.matching("/test/session/clear")) == 1
+    assert snapshot_writer._test_session_token is None
+    assert os.environ[HEADERS_ENV] == "Other:value"
 
 
 def test_start_failure_does_not_mutate_state(agent, snapshot_writer, monkeypatch):
@@ -306,7 +326,7 @@ def test_cleanup_failure_preserves_test_failure(agent, snapshot_writer, monkeypa
     assert snapshot_writer._test_session_token is None
 
 
-@pytest.mark.parametrize("mode", ["sync", "asyncio", "threads", "gevent", "fork"])
+@pytest.mark.parametrize("mode", ["sync", "asyncio", "threads", "gevent", "fork", "otlp"])
 def test_subprocess_gets_token_without_rebuilding_parent(agent, snapshot_writer, mode):
     if mode == "gevent":
         pytest.importorskip("gevent")
@@ -342,6 +362,12 @@ assert os.waitpid(pid, 0)[1] == 0"""
         env = os.environ.copy()
         env["DD_TRACE_AGENT_URL"] = agent.url
         env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+        if mode == "otlp":
+            env.update(
+                OTEL_TRACES_EXPORTER="otlp",
+                OTEL_EXPORTER_OTLP_TRACES_PROTOCOL="http/protobuf",
+                OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=agent.url + "/v1/traces",
+            )
         child = subprocess.run(
             [sys.executable, "-c", code],
             env=env,
