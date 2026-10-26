@@ -4,6 +4,7 @@ from io import StringIO
 import re
 import sys
 import traceback
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -105,12 +106,16 @@ def _get_patching_candidates():
             ("graphql.validation.validation", "validate", _traced_validate),
             ("graphql.execution.executor", "execute", _traced_execute),
         ]
-    return [
+    candidates = [
         ("graphql.graphql", "graphql_impl", _traced_query),
         ("graphql.language.parser", "parse", _traced_parse),
         ("graphql.validation.validate", "validate", _traced_validate),
         ("graphql.execution.execute", "execute", _traced_execute),
     ]
+    if _graphql_version >= (3, 3):
+        # execute_sync no longer delegates to execute in graphql-core 3.3.
+        candidates.append(("graphql.execution.execute", "execute_sync", _traced_execute_sync))
+    return candidates
 
 
 def _update_patching(operation, module_str, func_name, wrapper):
@@ -159,13 +164,19 @@ def _traced_validate(func, args, kwargs):
         return errors
 
 
-def _traced_execute(func, args, kwargs):
+def _traced_execute_sync(func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    return _traced_execute(func, args, kwargs, is_sync=True)
+
+
+def _traced_execute(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any], is_sync: bool = False
+) -> Any:
     if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     if config.graphql.resolvers_enabled:
         # patch resolvers
-        args, kwargs = _inject_trace_middleware_to_args(_resolver_middleware, args, kwargs)
+        args, kwargs = _inject_trace_middleware_to_args(_resolver_middleware, args, kwargs, is_sync=is_sync)
 
     # set resource name
     if _graphql_version < (3, 0):
@@ -240,13 +251,20 @@ def _resolver_middleware(next_middleware, root, info, **args):
         return next_middleware(root, info, **args)
 
 
-def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kwargs: dict) -> tuple[tuple, dict]:
+def _inject_trace_middleware_to_args(
+    trace_middleware: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any], is_sync: bool = False
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
     middlewares_arg = 8
-    if _graphql_version >= (3, 2):
-        # middleware is the 10th argument graphql.execute(..) version 3.2+
+    if _graphql_version >= (3, 3):
+        # execute_sync omits subscribe_field_resolver and enable_early_execution.
+        middlewares_arg = 9 if is_sync else 11
+    elif _graphql_version >= (3, 2, 10):
+        # max_coercion_errors was inserted before middleware in 3.2.10.
+        middlewares_arg = 10
+    elif _graphql_version >= (3, 2):
         middlewares_arg = 9
 
     # get middlewares from args or kwargs
