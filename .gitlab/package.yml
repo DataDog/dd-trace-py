@@ -125,9 +125,8 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-  # TODO(py-315): Linux cp315 builds are required (allow_failure removed). macOS/
-  # Windows 3.15 wheels and PyPI prune (`prune-unsupported-wheels.sh`) still lag —
-  # parent #17809.
+  # TODO(py-315): Linux cp315 builds are required. Windows 3.15 wheels and PyPI
+  # prune (`prune-unsupported-wheels.sh`) still lag — parent #17809.
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -168,7 +167,7 @@ variables:
     matrix:
       - PYTHON_VERSIONS:
           - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
+          - "3.12 3.13 3.14 3.15"
   script: |
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
