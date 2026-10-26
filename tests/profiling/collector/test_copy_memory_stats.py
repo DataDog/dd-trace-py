@@ -503,6 +503,53 @@ def test_fast_copy_fork_after_takeover_without_syscall() -> None:
 @pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
 @pytest.mark.subprocess(
     env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_start_refuses_leftover_memcpy",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_fast_copy_start_refuses_leftover_memcpy_after_sticky_takeover() -> None:
+    """start() must refuse leftover memcpy under sticky takeover before failed_safe_copy.
+
+    The fork regression waits for failed_safe_copy, so start()'s existing latch
+    check can reject without exercising drop_fast_copy_after_foreign_takeover.
+    Mark sticky with safe_copy still on memcpy and force active==false (fork
+    mid-disable inconsistency), then assert start refuses and sampling stays stopped.
+    """
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    _stack._set_process_vm_readv_available(False)
+    _stack.set_adaptive_sampling(False)
+
+    assert _stack.start() is True
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
+    _stack.stop()
+
+    assert not _stack.is_safe_copy_failed(), "stop must not latch failed_safe_copy"
+    assert _stack.fast_copy_memory_active() is True, "stop must leave leftover safe_memcpy armed"
+
+    # Sticky without disable: failed_safe_copy stays clear so only the new guards refuse.
+    _stack._mark_fast_copy_foreign_takeover()
+    _stack._force_fast_copy_active(False)
+    assert not _stack.is_safe_copy_failed(), "hooks must not latch failed_safe_copy"
+    assert _stack.fast_copy_memory_active() is False
+
+    started: bool = _stack.start()
+    assert started is False, "start must refuse leftover memcpy under sticky takeover"
+    assert _stack.pause_sampling() is False, "sampling must remain stopped after refused start"
+    assert _stack.is_safe_copy_failed(), "refused drop must latch failed_safe_copy"
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
+@pytest.mark.subprocess(
+    env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_reenable_clears_failed_safe_copy",
         DD_PROFILING_UPLOAD_INTERVAL="1",
         _DD_PROFILING_STACK_FAST_COPY="1",

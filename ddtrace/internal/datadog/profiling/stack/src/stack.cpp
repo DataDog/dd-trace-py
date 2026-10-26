@@ -1216,6 +1216,31 @@ stack_set_process_vm_readv_available(PyObject* Py_UNUSED(self), PyObject* args)
 #endif
 }
 
+// Test-only: set sticky foreign takeover without changing the active copy method
+// or latching failed_safe_copy. Pins start()/sampling_thread() leftover-memcpy
+// guards independently of the failed-disable path.
+static PyObject*
+stack_mark_fast_copy_foreign_takeover(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    mark_fast_copy_foreign_takeover();
+    Py_RETURN_NONE;
+}
+
+// Test-only: set fast_copy_active without changing safe_copy. Reproduces the
+// inconsistent active==false / leftover-memcpy state a concurrent fork can leave.
+static PyObject*
+stack_force_fast_copy_active(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int active = 0;
+
+    if (!PyArg_ParseTuple(args, "p", &active)) {
+        return nullptr;
+    }
+
+    fast_copy_active = static_cast<bool>(active);
+    Py_RETURN_NONE;
+}
+
 static PyObject*
 stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
@@ -1329,6 +1354,14 @@ static PyMethodDef stack_methods[] = {
       stack_set_process_vm_readv_available,
       METH_VARARGS,
       "Test-only: override process_vm_readv_available before sampler start (Linux)" },
+    { "_mark_fast_copy_foreign_takeover",
+      stack_mark_fast_copy_foreign_takeover,
+      METH_NOARGS,
+      "Test-only: set sticky foreign takeover without changing the copy method" },
+    { "_force_fast_copy_active",
+      stack_force_fast_copy_active,
+      METH_VARARGS,
+      "Test-only: set fast_copy_active without changing safe_copy" },
     { "take_sampling_thread_error",
       stack_take_sampling_thread_error,
       METH_NOARGS,
