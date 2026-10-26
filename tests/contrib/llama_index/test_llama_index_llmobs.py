@@ -1,6 +1,7 @@
 from unittest import mock
 
 from llama_index.core.llms import ChatMessage
+from llama_index.core.llms import ChatResponse
 from llama_index.llms.openai import OpenAI
 import pytest
 
@@ -416,3 +417,39 @@ def test_shadow_tags_llm_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.input_tokens") == 14
     assert span.get_metric("_dd.llmobs.output_tokens") == 15
     assert span.get_metric("_dd.llmobs.total_tokens") == 29
+
+
+@pytest.mark.parametrize("repatch", [False, True])
+def test_stream_finalizes_after_unpatch(llama_index, llama_index_llmobs, test_spans, repatch):
+    from ddtrace.contrib.internal.llama_index.patch import patch
+    from ddtrace.contrib.internal.llama_index.patch import unpatch
+    from ddtrace.llmobs._contrib.llama_index.subscribers import LLMObsLlamaIndexSpanStartingSubscriber
+
+    llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
+    integration = LLMObsLlamaIndexSpanStartingSubscriber.integration()
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content="Hello"),
+        delta="Hello",
+        raw={"usage": {"prompt_tokens": 8, "completion_tokens": 1, "total_tokens": 9}},
+    )
+    with mock.patch.object(OpenAI, "_stream_chat", return_value=(chunk for chunk in [response])):
+        stream = llm.stream_chat(messages=[ChatMessage(role="user", content="Hi")])
+        unpatch()
+        if repatch:
+            patch()
+        assert LLMObsLlamaIndexSpanStartingSubscriber.integration() is integration
+        list(stream)
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="llm",
+        model_name="gpt-4o-mini",
+        model_provider="openai",
+        input_messages=[{"content": "Hi", "role": "user"}],
+        output_messages=[{"content": "Hello", "role": "assistant"}],
+        metadata={"max_tokens": 100},
+        metrics={"input_tokens": 8, "output_tokens": 1, "total_tokens": 9},
+        tags=EXPECTED_TAGS,
+    )

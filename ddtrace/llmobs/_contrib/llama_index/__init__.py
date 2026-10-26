@@ -12,5 +12,4 @@ def listen() -> None:
 def unlisten() -> None:
     LLMObsLlamaIndexSpanStartingSubscriber.unregister()
     LLMObsLlamaIndexSpanStartedSubscriber.unregister()
-    LLMObsLlamaIndexSpanFinishingSubscriber.unregister()
-    LLMObsLlamaIndexSpanStartingSubscriber.forget_integration()
+    # Keep the finishing subscriber and cached integration for in-flight requests and streams.
