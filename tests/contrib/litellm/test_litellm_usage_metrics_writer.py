@@ -1219,3 +1219,128 @@ def test_dogstatsd_warns_when_the_socket_stays_full(monkeypatch):
     sender.send(["a:1|c", "b:1|c"])
     assert sock.attempts == _usage_metrics_writer._SEND_ATTEMPTS
     assert warnings == [(warnings[0][0], "/var/run/dsd.sock", "ENOBUFS", 2)]
+
+
+def _series_points(body):
+    """Each data point of an export by its series, as its serialized protobuf: a series is its resource, scope,
+    metric and attributes.
+    """
+    metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
+    request = metrics_service_pb2.ExportMetricsServiceRequest()
+    request.ParseFromString(body)
+    points = {}
+    for resource_metrics in request.resource_metrics:
+        resource = resource_metrics.resource.SerializeToString()
+        for scope_metrics in resource_metrics.scope_metrics:
+            scope = scope_metrics.scope.SerializeToString()
+            for metric in scope_metrics.metrics:
+                kind = metric.WhichOneof("data")
+                for point in getattr(metric, kind).data_points:
+                    attributes = tuple(sorted((a.key, a.value.SerializeToString()) for a in point.attributes))
+                    key = (resource, scope, metric.name, metric.unit, kind, attributes)
+                    assert key not in points, key
+                    points[key] = point.SerializeToString()
+    return points
+
+
+def _usage_with(series, repeat=2):
+    """Two UsageMetrics that recorded the same observations: each series more than once, so that counters add up and
+    histograms have several samples.
+    """
+    usages = [ai_usage.UsageMetrics(), ai_usage.UsageMetrics()]
+    for i in range(series):
+        for r in range(repeat):
+            obs, attributes = observation(user=f"user-{i:05d}", input_tokens=10 + r)
+            obs["duration_seconds"] = 0.5 + r + i % 7
+            obs["cost_usd"] = 1e-6 * (r + 1)
+            for usage in usages:
+                usage.record(PROVIDER_ATTEMPT, obs, dict(attributes, **{"service.name": f"svc-{i % 3}"}))
+    return usages
+
+
+@pytest.mark.parametrize("datadog", [False, True])
+def test_a_large_otlp_export_splits_by_series(datadog):
+    whole_usage, parts_usage = _usage_with(10_000)
+    whole = whole_usage.take_otlp("scope", "1", 1, 2, datadog=datadog)
+    max_bytes = _usage_metrics_writer._MAX_REQUEST_BYTES
+    parts = parts_usage.take_otlp_parts("scope", "1", 1, 2, max_bytes, datadog=datadog)
+    assert len(whole) > 4 * max_bytes
+    assert len(parts) > 4
+    assert all(len(part) <= max_bytes for part in parts), [len(part) for part in parts]
+    # The parts together hold every point of the export, exactly as it encodes them: each series, its histogram
+    # samples included, is in one part only.
+    union = {}
+    for part in parts:
+        for key, point in _series_points(part).items():
+            assert key not in union, key
+            union[key] = point
+    assert union == _series_points(whole)
+    assert parts_usage.take_otlp_parts("scope", "1", 2, 3, max_bytes) == []
+
+
+def test_an_otlp_export_that_fits_is_one_identical_request():
+    whole_usage, parts_usage = _usage_with(50)
+    whole = whole_usage.take_otlp("scope", "1", 1, 2)
+    assert parts_usage.take_otlp_parts("scope", "1", 1, 2, len(whole)) == [whole]
+
+
+def test_a_series_is_never_split_across_requests():
+    whole_usage, parts_usage = _usage_with(5, repeat=3)
+    whole = _series_points(whole_usage.take_otlp("scope", "1", 1, 2))
+    # Too small for any series: one request per series, each with all its samples.
+    parts = parts_usage.take_otlp_parts("scope", "1", 1, 2, 1)
+    assert len(parts) == len(whole)
+    union = {}
+    for part in parts:
+        [(key, point)] = _series_points(part).items()
+        union[key] = point
+    assert union == whole
+
+
+def test_the_requests_of_a_flush_wait_in_order_for_a_failing_endpoint(otlp_endpoint, monkeypatch, sleeps):
+    monkeypatch.setattr(_usage_metrics_writer, "_MAX_REQUEST_BYTES", 4000)
+    writer = UsageMetricsWriter("otlp", interval=60)
+    users = [f"user-{i:03d}" for i in range(60)]
+    for user in users:
+        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+    Collector.status = 503
+    writer.flush()
+    queued = [gzip.decompress(body) for body in writer._pending]
+    parts = len(queued)
+    assert parts > 5
+    # Only the first request was tried (and retried); the others wait behind it.
+    assert len(Collector.requests) == 1 + len(_usage_metrics_writer._RETRY_DELAYS_SECONDS)
+    # The endpoint takes two requests, then fails again: the rest keep waiting, in order.
+    Collector.statuses = [200, 200]
+    writer.flush()
+    assert len(writer._pending) == parts - 2
+    Collector.status = 200
+    writer.flush()
+    assert not writer._pending
+    # A retried request is sent again as it was: in order of first sending, the requests are the queued ones, in
+    # their order, and hold every point of the flush once.
+    delivered = list(dict.fromkeys(body for _, _, body in Collector.requests))
+    assert delivered == queued
+    keys = [key for body in delivered for key in _series_points(body)]
+    assert len(keys) == len(set(keys))
+    assert all(any(user.encode() in body for body in delivered) for user in users)
+
+
+def test_pending_requests_of_one_flush_are_kept_while_they_fit(otlp_endpoint, monkeypatch, sleeps):
+    monkeypatch.setattr(_usage_metrics_writer, "_MAX_REQUEST_BYTES", 4000)
+    Collector.status = 503
+    writer = UsageMetricsWriter("otlp", interval=60)
+    for i in range(60):
+        writer.record(PROVIDER_ATTEMPT, *observation(user=f"old-{i:03d}"))
+    writer.flush()
+    first = list(writer._pending)
+    # Room for the newer flush's requests and part of the older one's: the older requests go first.
+    monkeypatch.setattr(_usage_metrics_writer, "_MAX_PENDING_BYTES", sum(map(len, first)) + len(first[0]) // 2)
+    for i in range(60):
+        writer.record(PROVIDER_ATTEMPT, *observation(user=f"new-{i:03d}"))
+    writer.flush()
+    pending = list(writer._pending)
+    newer = pending[-len(first) :]
+    assert all(b"new-" in gzip.decompress(body) for body in newer)
+    assert sum(b"old-" in gzip.decompress(body) for body in pending) < len(first)
+    assert sum(map(len, pending)) <= _usage_metrics_writer._MAX_PENDING_BYTES

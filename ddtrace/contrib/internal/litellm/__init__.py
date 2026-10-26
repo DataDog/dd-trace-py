@@ -79,7 +79,8 @@ against its budgets. The two cost metrics describe the same spend and are never 
    ``OTEL_EXPORTER_OTLP_PROTOCOL``, set to ``grpc``) is not supported: set ``OTEL_EXPORTER_OTLP_METRICS_PROTOCOL`` to
    ``http/protobuf`` with an OTLP/HTTP ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``, or the metrics are not enabled. An export
    that fails with status 429, 502, 503 or 504, a refused connection or a timeout is retried, and kept for later exports
-   while the endpoint stays unavailable, up to 8 exports and 64 MiB in all; the oldest is dropped first.
+   while the endpoint stays unavailable, up to 64 MiB in all; the oldest is dropped first. An export with many series is
+   sent as several requests of at most 2 MiB each before compression.
 
    Exports are compressed with gzip (``Content-Encoding: gzip``), which the OTLP specification requires every
    receiver to accept. Set ``OTEL_EXPORTER_OTLP_METRICS_COMPRESSION``, or else

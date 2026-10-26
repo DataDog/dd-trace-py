@@ -59,10 +59,13 @@ _RETRYABLE_STATUSES = frozenset((429, 502, 503, 504))
 # Backoff before each retry within one flush, before jitter. An export that still fails waits for the next flush.
 _RETRY_DELAYS_SECONDS = (0.5, 1.0)
 _MAX_RETRY_DELAY_SECONDS = 5.0
-# Exports kept for a later flush while the endpoint is unavailable, by count and by total encoded size; the oldest is
-# dropped first. A high-cardinality export can take tens of megabytes before compression.
-_MAX_PENDING_EXPORTS = 8
+# The largest OTLP request before compression. A flush with more is sent as several requests, split by series: about
+# 120 KB each with gzip, well under the 512 KiB (compressed) that Datadog's OTLP intake accepts.
+_MAX_REQUEST_BYTES = 2 * 1024 * 1024
+# Requests kept for a later flush while the endpoint is unavailable, by total size as sent; the oldest is dropped
+# first. The count is only a backstop: one high-cardinality flush can be many requests.
 _MAX_PENDING_BYTES = 64 * 1024 * 1024
+_MAX_PENDING_EXPORTS = 1024
 # A fast level: the payload is highly repetitive, so most of the gain comes at the lowest level.
 _GZIP_LEVEL = 1
 # How long the last flush at exit may spend sending what is left.
@@ -598,11 +601,11 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             end_ns = max(time.time_ns(), self._window_start_ns)
             start_ns, self._window_start_ns = self._window_start_ns, end_ns
             if self._otlp is not None:
-                payload = self._usage.take_otlp(
-                    SCOPE_NAME, __version__, start_ns, end_ns, datadog=self._otlp.to_datadog
+                parts = self._usage.take_otlp_parts(
+                    SCOPE_NAME, __version__, start_ns, end_ns, _MAX_REQUEST_BYTES, datadog=self._otlp.to_datadog
                 )
-                if payload:
-                    self._enqueue(self._otlp.encode(payload))
+                if parts:
+                    self._enqueue([self._otlp.encode(part) for part in parts])
                 self._send_pending(self._otlp, deadline)
             elif self._dogstatsd is not None:
                 lines = self._usage.take_dogstatsd()
@@ -613,14 +616,22 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         finally:
             self._flush_lock.release()
 
-    def _enqueue(self, body: bytes) -> None:
-        """Queue an export, dropping the oldest ones beyond the count and size bounds. The newest is always kept."""
-        self._pending.append(body)
+    def _enqueue(self, bodies: list[bytes]) -> None:
+        """Queue the requests of one flush, in order, dropping the oldest requests beyond the size and count bounds:
+        earlier flushes' go first. The newest request is always kept.
+        """
+        self._pending.extend(bodies)
         size = sum(len(pending) for pending in self._pending)
+        dropped = dropped_bytes = 0
         while len(self._pending) > 1 and (len(self._pending) > _MAX_PENDING_EXPORTS or size > _MAX_PENDING_BYTES):
-            dropped = self._pending.popleft()
-            size -= len(dropped)
-            log.debug("LiteLLM usage metrics: dropping the oldest unsent OTLP export (%d bytes)", len(dropped))
+            body = self._pending.popleft()
+            size -= len(body)
+            dropped += 1
+            dropped_bytes += len(body)
+        if dropped:
+            log.debug(
+                "LiteLLM usage metrics: dropping the %d oldest unsent OTLP requests (%d bytes)", dropped, dropped_bytes
+            )
 
     def _send_pending(self, sender: _OtlpSender, deadline: Optional[float]) -> None:
         """Send the pending exports in order. Normally stop at the first that has to wait for a later flush; at

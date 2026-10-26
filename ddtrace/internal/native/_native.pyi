@@ -1049,6 +1049,22 @@ class ai_usage:
             versioned values with "/", as over DogStatsD.
             """
             ...
+        def take_otlp_parts(
+            self,
+            scope_name: str,
+            scope_version: str,
+            start_time_unix_nano: int,
+            time_unix_nano: int,
+            max_bytes: int,
+            datadog: bool = False,
+        ) -> list[bytes]:
+            """
+            Take the points recorded so far as OTLP ExportMetricsServiceRequests of at most max_bytes each, or [].
+
+            The points are split by series; the points of one series always go in the same request, which can then
+            exceed max_bytes. A batch that fits gives one request, the same bytes take_otlp returns.
+            """
+            ...
         def take_dogstatsd(self) -> list[str]:
             """
             Take the points recorded so far as DogStatsD lines, without newlines.
