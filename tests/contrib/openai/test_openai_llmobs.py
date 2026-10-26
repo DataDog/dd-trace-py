@@ -3678,6 +3678,72 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 34
 
 
+# Usage example from https://developers.openai.com/api/docs/guides/prompt-caching for models that support
+# prompt_cache_options: cache writes are split by TTL, and the two counts sum to cache_write_tokens.
+_RESPONSES_USAGE_WITH_CACHE_WRITE_TTL = {
+    "input_tokens": 12000,
+    "input_tokens_details": {
+        "cached_tokens": 4000,
+        "cache_write_tokens": 7000,
+        "cache_write_tokens_details": {"ttl_30m_tokens": 3000, "ttl_12h_tokens": 4000},
+    },
+    "output_tokens": 100,
+    "output_tokens_details": {"reasoning_tokens": 0},
+    "total_tokens": 12100,
+}
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.parametrize("as_sdk_object", [True, False])
+def test_responses_cache_write_ttl_metrics(as_sdk_object):
+    """Cache write tokens split by TTL are reported as separate metrics.
+
+    The SDK object case checks that the untyped cache_write_tokens_details field is still read.
+    """
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from openai.types.responses.response_usage import ResponseUsage
+
+    from ddtrace.llmobs._integrations.openai import OpenAIIntegration
+
+    usage = _RESPONSES_USAGE_WITH_CACHE_WRITE_TTL
+    if as_sdk_object:
+        usage = ResponseUsage.model_validate(usage)
+    response = SimpleNamespace(usage=usage)
+
+    metrics = OpenAIIntegration._extract_llmobs_metrics_tags(MagicMock(), response, "llm", {})
+
+    assert metrics["input_tokens"] == 12000
+    assert metrics["cache_read_input_tokens"] == 4000
+    assert metrics["cache_write_input_tokens"] == 7000
+    assert metrics["ttl_30m_input_tokens"] == 3000
+    assert metrics["ttl_12h_input_tokens"] == 4000
+
+
+def test_responses_cache_write_without_ttl_details():
+    """Models without TTL-specific caching report cache_write_tokens only, so no TTL metrics are set."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.openai import OpenAIIntegration
+
+    usage = {
+        "input_tokens": 1220,
+        "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 1217},
+        "output_tokens": 100,
+        "output_tokens_details": {"reasoning_tokens": 54},
+        "total_tokens": 1320,
+    }
+    metrics = OpenAIIntegration._extract_llmobs_metrics_tags(MagicMock(), SimpleNamespace(usage=usage), "llm", {})
+
+    assert metrics["cache_write_input_tokens"] == 1217
+    assert "ttl_30m_input_tokens" not in metrics
+    assert "ttl_12h_input_tokens" not in metrics
+
+
 class TestLLMObsOpenAIOpenRouter:
     """OpenRouter cost capture through the OpenAI-compatible client.
 
