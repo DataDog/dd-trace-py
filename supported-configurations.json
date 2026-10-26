@@ -2918,7 +2918,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_PROFILING_HEAP_ENABLED": [

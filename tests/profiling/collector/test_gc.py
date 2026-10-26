@@ -220,8 +220,8 @@ def test_gc_pause_samples_appear_in_profile() -> None:
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.gc import GCCollector
-    from tests.profiling.collector import pprof_pb2
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.pprof_utils import pprof_pb2
 
     pprof_prefix: str = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename: str = pprof_prefix + "." + str(os.getpid())
