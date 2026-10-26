@@ -3,16 +3,20 @@ from __future__ import annotations
 from collections.abc import Sequence
 import gc
 import inspect
+import json
 import os
 from pathlib import Path
+import re
 import struct
 import sys
 import threading
 from tracemalloc import Statistic
 from types import CodeType
+from types import FrameType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
+from typing import Optional
 from typing import Union
 from typing import cast
 
@@ -1352,6 +1356,69 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
             f"Sample {sample_idx} has {omitted_frame_count} dropped frames indicators "
             f"(expected at most 1). Found: {omitted_frame_locations}"
         )
+
+
+def _allocate_at_depth(depth: int, held: list[bytearray]) -> int:
+    """Recurse `depth` times, allocate, and return how many Python frames were on the stack at the leaf."""
+    if depth > 0:
+        return _allocate_at_depth(depth - 1, held)
+    for _ in range(200):
+        held.append(bytearray(512))
+    frame_count: int = 0
+    frame: Optional[FrameType] = sys._getframe()
+    while frame is not None:
+        frame_count += 1
+        frame = frame.f_back
+    return frame_count
+
+
+def test_memory_collector_reports_true_omitted_frame_count(tmp_path: Path) -> None:
+    """Truncated memory samples report how many frames were cut, not just "1 frame omitted"."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_memory_collector_reports_true_omitted_frame_count")
+    max_frames: int = 64
+    depth: int = 100
+
+    held: list[bytearray] = []
+    with memalloc.MemoryCollector(max_nframe=max_frames, heap_sample_size=64) as mc:
+        stack_depth: int = _allocate_at_depth(depth, held)
+        profile: "pprof_pb2.Profile" = mc.snapshot_and_parse_pprof(output_filename)
+    expected_omitted: int = stack_depth - max_frames
+    assert expected_omitted > depth - max_frames
+
+    omitted_counts: set[int] = set()
+    for sample in profile.sample:
+        names: list[str] = [
+            profile.string_table[
+                pprof_utils.get_function_with_id(
+                    profile, pprof_utils.get_location_with_id(profile, location_id).line[0].function_id
+                ).name
+            ]
+            for location_id in sample.location_id
+        ]
+        if "_allocate_at_depth" not in names:
+            continue
+        match: Optional[re.Match[str]] = re.fullmatch(r"<(\d+) frames? omitted>", names[-1])
+        assert match is not None, f"Expected an omitted-frames marker at the root of {names}"
+        omitted_counts.add(int(match.group(1)))
+
+    assert omitted_counts == {expected_omitted}
+
+    # pytest's own frames sit above the recursion, so pick the bucket from the measured depth
+    bucket_edges: tuple[int, ...] = (64, 128, 256, 599)
+    expected_bucket: int = next((i for i, edge in enumerate(bucket_edges) if stack_depth <= edge), len(bucket_edges))
+
+    metadata_files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
+    with open(metadata_files[-1]) as fp:
+        metadata: dict[str, Any] = json.load(fp)
+    for collector in ("alloc", "heap"):
+        stats: dict[str, Any] = metadata["frame_truncation"][collector]
+        assert stats["max_frames"] == max_frames
+        assert stats["samples_truncated"] > 0
+        assert stats["max_depth"] == stack_depth
+        assert stats["depth_buckets"][expected_bucket] > 0
+    assert metadata["memalloc_walk_ns"] > 0
+
+    del held
 
 
 def test_memory_collector_stack_order(tmp_path: Path) -> None:

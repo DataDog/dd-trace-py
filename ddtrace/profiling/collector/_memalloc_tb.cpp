@@ -2,6 +2,7 @@
 #include "_memalloc_frame.h"
 
 #include "_memalloc_tb.h"
+#include "clock.hpp"
 
 #include <string_view>
 
@@ -81,24 +82,26 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
     }
 
     uint16_t pushed_frames = 0;
+    size_t omitted_frames = 0;
     size_t walked_frames = 0;
     for (DataDog::py_frame_t* frame = current_frame; frame != NULL; frame = DataDog::get_previous_frame(frame)) {
         // Safety cap on raw frame-chain traversal, independent of emitted
-        // frames, so allocator-hook walking always stays finite.
+        // frames, so allocator-hook walking always stays finite. Count one
+        // more omitted frame to show the stack went deeper than we looked.
         if (++walked_frames > TRACEBACK_MAX_WALKED_NFRAME) {
-            sample.incr_dropped_frames();
-            break;
-        }
-
-        // Once we've reached the frame cap, record that deeper frames were
-        // omitted and stop before doing more line-number or filename work.
-        if (pushed_frames >= max_nframe) {
-            sample.incr_dropped_frames();
+            ++omitted_frames;
             break;
         }
 
         PyCodeObject* code = DataDog::get_code_if_not_skip(frame);
         if (code == NULL) {
+            continue;
+        }
+
+        // Past the frame cap, only count the frame so the omitted-frames label
+        // is accurate. Skip the name and line-number work.
+        if (pushed_frames >= max_nframe) {
+            ++omitted_frames;
             continue;
         }
 
@@ -108,6 +111,10 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
 
         sample.push_frame(name_sv, filename_sv, 0, line);
         ++pushed_frames;
+    }
+
+    if (omitted_frames > 0) {
+        sample.incr_dropped_frames(omitted_frames);
     }
 }
 
@@ -140,7 +147,10 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe,
     sample.push_allocator_domain(to_allocator_domain(domain));
 
     push_threadinfo_to_sample(sample);
+
+    const int64_t walk_start_ns = Datadog::get_monotonic_ns();
     push_stacktrace_to_sample_no_refcount(sample, max_nframe);
+    sample.set_walk_ns(static_cast<uint64_t>(Datadog::get_monotonic_ns() - walk_start_ns));
 }
 
 // Constructor calls init_sample() which reads CPython structs directly

@@ -25,7 +25,95 @@ append_optional_bool(std::string& s, const char* key, const std::optional<bool>&
     s += ',';
 }
 
+void
+append_size_field(std::string& s, const char* key, size_t value)
+{
+    s += '"';
+    s += key;
+    s += "\": ";
+    append_to_string(s, value);
+}
+
+void
+append_frame_truncation_json(std::string& s, const Datadog::FrameStats& frame_stats)
+{
+    s += R"("frame_truncation": {)";
+    bool first = true;
+    for (size_t i = 0; i < Datadog::kFrameCollectorCount; ++i) {
+        const auto& stats = frame_stats.collectors[i];
+        if (stats.samples == 0) {
+            continue;
+        }
+        if (!first) {
+            s += ',';
+        }
+        first = false;
+
+        s += '"';
+        s += Datadog::frame_collector_name(static_cast<Datadog::FrameCollector>(i));
+        s += "\": {";
+        append_size_field(s, "max_frames", stats.max_frames);
+        s += ',';
+        append_size_field(s, "samples", stats.samples);
+        s += ',';
+        append_size_field(s, "samples_truncated", stats.samples_truncated);
+        s += ',';
+        append_size_field(s, "frames_dropped", stats.frames_dropped);
+        s += ',';
+        append_size_field(s, "max_depth", stats.max_depth);
+        s += R"(,"depth_buckets": [)";
+        for (size_t b = 0; b < Datadog::kFrameDepthBucketCount; ++b) {
+            if (b > 0) {
+                s += ',';
+            }
+            append_to_string(s, stats.depth_buckets[b]);
+        }
+        s += "]}";
+    }
+    s += '}';
+}
+
 } // namespace
+
+const char*
+Datadog::frame_collector_name(FrameCollector collector)
+{
+    switch (collector) {
+        case FrameCollector::stack:
+            return "stack";
+        case FrameCollector::lock:
+            return "lock";
+        case FrameCollector::alloc:
+            return "alloc";
+        case FrameCollector::heap:
+            return "heap";
+        default:
+            return "unknown";
+    }
+}
+
+void
+Datadog::FrameTruncationStats::record(size_t kept_frames, size_t dropped_frames, unsigned int sample_max_frames)
+{
+    max_frames = sample_max_frames;
+    ++samples;
+
+    if (dropped_frames > 0) {
+        ++samples_truncated;
+        frames_dropped += dropped_frames;
+    }
+
+    const size_t depth = kept_frames + dropped_frames;
+    if (depth > max_depth) {
+        max_depth = depth;
+    }
+
+    size_t bucket = 0;
+    while (bucket < kFrameDepthBucketCount - 1 && depth > kFrameDepthBucketEdges[bucket]) {
+        ++bucket;
+    }
+    ++depth_buckets[bucket];
+}
 
 void
 Datadog::ProfilerStats::increment_sampling_event_count(size_t k_sampling_event_count)
@@ -64,6 +152,7 @@ Datadog::ProfilerStats::reset_state()
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
+    frame_stats = FrameStats{};
     // fast_copy_memory_* static fields are intentionally not reset (see setters).
 }
 
@@ -232,6 +321,31 @@ Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
     return sample_capture_cpu_time_us;
 }
 
+void
+Datadog::ProfilerStats::record_frame_truncation(FrameCollector collector,
+                                                size_t kept_frames,
+                                                size_t dropped_frames,
+                                                unsigned int max_frames)
+{
+    const auto idx = static_cast<size_t>(collector);
+    if (idx >= kFrameCollectorCount) {
+        return;
+    }
+    frame_stats.collectors[idx].record(kept_frames, dropped_frames, max_frames);
+}
+
+void
+Datadog::ProfilerStats::add_memalloc_walk_ns(uint64_t walk_ns)
+{
+    frame_stats.memalloc_walk_ns += walk_ns;
+}
+
+const Datadog::FrameStats&
+Datadog::ProfilerStats::get_frame_stats() const
+{
+    return frame_stats;
+}
+
 std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
@@ -308,6 +422,13 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("sample_capture_cpu_time_us": )";
     append_to_string(internal_metadata_json, sample_capture_cpu_time_us);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("memalloc_walk_ns": )";
+    append_to_string(internal_metadata_json, frame_stats.memalloc_walk_ns);
+    internal_metadata_json += ",";
+
+    append_frame_truncation_json(internal_metadata_json, frame_stats);
 
     internal_metadata_json += "}";
 

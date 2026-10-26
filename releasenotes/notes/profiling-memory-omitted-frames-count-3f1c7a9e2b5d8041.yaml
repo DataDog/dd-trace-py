@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Memory profiles now show how many frames were cut from stacks deeper than the frame limit.
+    Previously these stacks always showed "1 frame omitted".

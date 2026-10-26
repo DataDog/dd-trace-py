@@ -123,6 +123,22 @@ ddup_reset() // cppcheck-suppress unusedFunction
     return true;
 }
 
+void
+ddup_take_frame_stats(Datadog::FrameStats* out) // cppcheck-suppress unusedFunction
+{
+    if (out == nullptr) {
+        return;
+    }
+    Datadog::Uploader::lock();
+    defer
+    {
+        Datadog::Uploader::unlock();
+    };
+    auto& last = Datadog::ProfilerState::get().last_upload_frame_stats;
+    *out = last;
+    last = Datadog::FrameStats{};
+}
+
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
 void

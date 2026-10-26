@@ -335,6 +335,8 @@ Datadog::Sample::clear()
     locations.clear();
     dropped_frames = 0;
     has_dropped_frames_indicator = false;
+    pushed_types = 0;
+    walk_ns = 0;
     endtime_ns = 0;
     string_storage.reset();
 }
@@ -350,9 +352,31 @@ Datadog::Sample::flush_sample()
     return ret;
 }
 
+std::optional<Datadog::FrameCollector>
+Datadog::Sample::frame_collector() const
+{
+    // A memalloc sample carries allocation values on its first export; reset_alloc()
+    // then clears them and later exports only carry heap values.
+    if (0U != (pushed_types & SampleType::Allocation)) {
+        return FrameCollector::alloc;
+    }
+    if (0U != (pushed_types & SampleType::Heap)) {
+        return FrameCollector::heap;
+    }
+    if (0U != (pushed_types & (SampleType::LockAcquire | SampleType::LockRelease))) {
+        return FrameCollector::lock;
+    }
+    if (0U != (pushed_types & (SampleType::CPU | SampleType::Wall))) {
+        return FrameCollector::stack;
+    }
+    return std::nullopt;
+}
+
 bool
 Datadog::Sample::export_sample()
 {
+    const size_t kept_frames = locations.size() - (has_dropped_frames_indicator ? 1 : 0);
+
     // Handle dropped frames by adding them to locations if needed
     if (dropped_frames > 0 && !has_dropped_frames_indicator) {
         const std::string name =
@@ -367,8 +391,19 @@ Datadog::Sample::export_sample()
         .labels = { labels.data(), labels.size() },
     };
 
+    std::optional<Profile::FrameRecord> frames;
+    if (auto collector = frame_collector()) {
+        frames = Profile::FrameRecord{
+            .collector = *collector,
+            .kept_frames = kept_frames,
+            .dropped_frames = dropped_frames,
+            .max_frames = max_nframes,
+            .memalloc_walk_ns = *collector == FrameCollector::alloc ? walk_ns : 0,
+        };
+    }
+
     // Export to profile without clearing buffers
-    return ProfilerState::get().profile_state.collect(sample, endtime_ns);
+    return ProfilerState::get().profile_state.collect(sample, endtime_ns, frames);
 }
 
 bool
@@ -380,6 +415,7 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
     if (0U != (type_mask & SampleType::CPU)) {
         values[ProfilerState::get().profile_state.val().cpu_time] += cputime * count;
         values[ProfilerState::get().profile_state.val().cpu_count] += count;
+        pushed_types |= SampleType::CPU;
         return true;
     }
     if (!already_warned) {
@@ -396,6 +432,7 @@ Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
     if (0U != (type_mask & SampleType::Wall)) {
         values[ProfilerState::get().profile_state.val().wall_time] += walltime * count;
         values[ProfilerState::get().profile_state.val().wall_count] += count;
+        pushed_types |= SampleType::Wall;
         return true;
     }
     if (!already_warned) {
@@ -428,6 +465,7 @@ Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bu
     if (0U != (type_mask & SampleType::LockAcquire)) {
         values[ProfilerState::get().profile_state.val().lock_acquire_time] += acquire_time;
         values[ProfilerState::get().profile_state.val().lock_acquire_count] += count;
+        pushed_types |= SampleType::LockAcquire;
         return true;
     }
     if (!already_warned) {
@@ -444,6 +482,7 @@ Datadog::Sample::push_release(int64_t lock_time, int64_t count) // NOLINT (bugpr
     if (0U != (type_mask & SampleType::LockRelease)) {
         values[ProfilerState::get().profile_state.val().lock_release_time] += lock_time;
         values[ProfilerState::get().profile_state.val().lock_release_count] += count;
+        pushed_types |= SampleType::LockRelease;
         return true;
     }
     if (!already_warned) {
@@ -470,6 +509,7 @@ Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-eas
     if (0U != (type_mask & SampleType::Allocation)) {
         values[ProfilerState::get().profile_state.val().alloc_space] += size;
         values[ProfilerState::get().profile_state.val().alloc_count] += count;
+        pushed_types |= SampleType::Allocation;
         return true;
     }
     if (!already_warned) {
@@ -496,6 +536,7 @@ Datadog::Sample::push_heap(int64_t size, int64_t count)
     if (0U != (type_mask & SampleType::Heap)) {
         values[ProfilerState::get().profile_state.val().heap_space] += size;
         values[ProfilerState::get().profile_state.val().heap_count] += count;
+        pushed_types |= SampleType::Heap;
         return true;
     }
     if (!already_warned) {
@@ -515,6 +556,7 @@ Datadog::Sample::reset_alloc()
             values[alloc_space_idx] = 0;
             values[alloc_count_idx] = 0;
         }
+        pushed_types &= static_cast<std::uint16_t>(~SampleType::Allocation);
     }
 }
 

@@ -196,6 +196,7 @@ ProfilerState::postfork_child()
 
     // Re-init the mutex (placement-new to avoid UB with mutex in undefined state after fork)
     new (&upload_lock) std::mutex();
+    last_upload_frame_stats = FrameStats{};
 
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)

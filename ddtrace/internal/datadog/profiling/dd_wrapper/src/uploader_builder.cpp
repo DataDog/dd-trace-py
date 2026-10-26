@@ -206,6 +206,7 @@ Datadog::UploaderBuilder::build()
         // We do this first as we still want to reset ProfilerStats if the serialization fails.
         std::swap(stats, borrowed.stats());
         borrowed.stats().copy_fast_copy_metadata_from(stats);
+        state.last_upload_frame_stats = stats.get_frame_stats();
 
         // Try to encode the Profile (which will also reset it)
         encoded = ddog_prof_Profile_serialize(&borrowed.profile(), nullptr, nullptr);

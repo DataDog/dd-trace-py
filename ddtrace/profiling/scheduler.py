@@ -10,9 +10,38 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 LOG = get_logger(__name__)
+
+
+def _report_frame_stats(frame_stats: dict[str, Any]) -> None:
+    """Send per-collector stack truncation counts for one uploaded profile to telemetry."""
+    collectors: dict[str, dict[str, Any]] = frame_stats["collectors"]
+    for collector, stats in collectors.items():
+        tags: tuple[tuple[str, str], ...] = (("collector", collector), ("max_frames", str(stats["max_frames"])))
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.PROFILER, "frames.samples", stats["samples"], tags)
+        telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE.PROFILER, "frames.samples_truncated", stats["samples_truncated"], tags
+        )
+        telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.PROFILER, "frames.max_depth", stats["max_depth"], tags
+        )
+        depth_buckets: dict[str, int] = stats["depth_buckets"]
+        for bucket, count in depth_buckets.items():
+            if count:
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.PROFILER, "frames.stack_depth", count, tags + (("depth", bucket),)
+                )
+
+    walk_ns: int = frame_stats["memalloc_walk_ns"]
+    if walk_ns and "alloc" in collectors:
+        memalloc_tags: tuple[tuple[str, str], ...] = (("max_frames", str(collectors["alloc"]["max_frames"])),)
+        telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.PROFILER, "memalloc.walk_ns", walk_ns, memalloc_tags
+        )
 
 
 class Scheduler(periodic.PeriodicService):
@@ -59,6 +88,11 @@ class Scheduler(periodic.PeriodicService):
             LOG.error("[profiling] Failed to upload profile", exc_info=True)
         finally:
             self._last_export = time.time_ns()
+
+        try:
+            _report_frame_stats(ddup.take_frame_stats())
+        except Exception:
+            LOG.debug("[profiling] Failed to report frame stats", exc_info=True)
 
     def periodic(self) -> None:
         start_time = time.monotonic()

@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from types import FrameType
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -27,6 +28,7 @@ def upload(
     tracer: Optional[ProfilerTracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None
 ) -> None: ...
 def reset(tracer: Optional[ProfilerTracer] = ddtrace.tracer) -> None: ...
+def take_frame_stats() -> dict[str, Any]: ...
 
 class SampleHandle:
     def flush_sample(self) -> None: ...

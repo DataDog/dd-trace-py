@@ -186,7 +186,7 @@ Datadog::Profile::val()
 }
 
 bool
-Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
+Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns, const std::optional<FrameRecord>& frames)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
@@ -198,6 +198,13 @@ Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
             std::cerr << errmsg << std::endl;
         }
         return false;
+    }
+    if (frames) {
+        cur_profiler_stats.record_frame_truncation(
+          frames->collector, frames->kept_frames, frames->dropped_frames, frames->max_frames);
+        if (frames->memalloc_walk_ns > 0) {
+            cur_profiler_stats.add_memalloc_walk_ns(frames->memalloc_walk_ns);
+        }
     }
     return true;
 }

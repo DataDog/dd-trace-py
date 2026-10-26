@@ -126,6 +126,23 @@ cdef extern from "uploader_builder.hpp" namespace "Datadog":
         @staticmethod
         void set_max_timeout_ms(uint64_t max_timeout_ms)
 
+cdef extern from "profiler_stats.hpp" namespace "Datadog":
+    const size_t kFrameCollectorCount
+    const size_t kFrameDepthBucketCount
+    const size_t* kFrameDepthBucketEdges
+
+    cdef cppclass FrameTruncationStats:
+        unsigned int max_frames
+        size_t samples
+        size_t samples_truncated
+        size_t frames_dropped
+        size_t max_depth
+        size_t* depth_buckets
+
+    cdef cppclass FrameStats:
+        FrameTruncationStats* collectors
+        uint64_t memalloc_walk_ns
+
 cdef extern from "ddup_interface.hpp":
     void ddup_set_profiler_settings_json(string_view settings_json)
 
@@ -135,6 +152,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
     bint ddup_reset() nogil
+    void ddup_take_frame_stats(FrameStats* out) nogil
 
 
 cdef extern from "code_provenance.hpp" namespace "Datadog":
@@ -491,6 +509,42 @@ def reset(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
 
     with nogil:
         ddup_reset()
+
+
+# Same order as Datadog::FrameCollector
+_FRAME_COLLECTOR_NAMES: tuple[str, ...] = ("stack", "lock", "alloc", "heap")
+
+
+def take_frame_stats() -> dict:
+    """Stack truncation stats of the last uploaded profile, keyed by collector.
+
+    Returns each collector's stats once; a second call before the next upload returns no collectors.
+    """
+    cdef FrameStats stats
+    with nogil:
+        ddup_take_frame_stats(&stats)
+
+    bucket_names: list[str] = [f"le_{kFrameDepthBucketEdges[b]}" for b in range(kFrameDepthBucketCount - 1)]
+    bucket_names.append(f"gt_{kFrameDepthBucketEdges[kFrameDepthBucketCount - 2]}")
+
+    collectors: dict[str, dict] = {}
+    cdef FrameTruncationStats* c
+    for i in range(kFrameCollectorCount):
+        c = &stats.collectors[i]
+        if c.samples == 0:
+            continue
+        depth_buckets: dict[str, int] = {}
+        for b in range(kFrameDepthBucketCount):
+            depth_buckets[bucket_names[b]] = c.depth_buckets[b]
+        collectors[_FRAME_COLLECTOR_NAMES[i]] = {
+            "max_frames": c.max_frames,
+            "samples": c.samples,
+            "samples_truncated": c.samples_truncated,
+            "frames_dropped": c.frames_dropped,
+            "max_depth": c.max_depth,
+            "depth_buckets": depth_buckets,
+        }
+    return {"collectors": collectors, "memalloc_walk_ns": stats.memalloc_walk_ns}
 
 
 cdef class SampleHandle:

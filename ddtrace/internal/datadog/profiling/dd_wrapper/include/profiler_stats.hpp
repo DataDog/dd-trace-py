@@ -1,10 +1,57 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 
 namespace Datadog {
+
+// Collectors whose stack truncation we track. The order matches the names
+// returned by frame_collector_name() and the Python telemetry code.
+enum class FrameCollector : std::uint8_t
+{
+    stack = 0,
+    lock,
+    alloc,
+    heap,
+    count_,
+};
+
+inline constexpr std::size_t kFrameCollectorCount = static_cast<std::size_t>(FrameCollector::count_);
+
+const char*
+frame_collector_name(FrameCollector collector);
+
+// Upper edges (inclusive) of the stack depth buckets. A last bucket holds
+// everything deeper than the final edge. 599 is the deepest stack the
+// backend accepts, so the buckets show what share each candidate limit covers.
+inline constexpr std::size_t kFrameDepthBucketEdges[] = { 64, 128, 256, 599 };
+inline constexpr std::size_t kFrameDepthBucketCount =
+  sizeof(kFrameDepthBucketEdges) / sizeof(kFrameDepthBucketEdges[0]) + 1;
+
+// Per-collector stack truncation counters for one profile.
+// "Depth" is kept frames plus omitted frames. Only memalloc counts every
+// omitted frame; the stack and lock collectors stop at the limit and report
+// one omitted frame, so for them depth past the limit is a lower bound.
+struct FrameTruncationStats
+{
+    unsigned int max_frames = 0;
+    std::size_t samples = 0;
+    std::size_t samples_truncated = 0;
+    std::size_t frames_dropped = 0;
+    std::size_t max_depth = 0;
+    std::size_t depth_buckets[kFrameDepthBucketCount] = {};
+
+    void record(std::size_t kept_frames, std::size_t dropped_frames, unsigned int sample_max_frames);
+};
+
+// What Python reads after each upload to emit telemetry.
+struct FrameStats
+{
+    FrameTruncationStats collectors[kFrameCollectorCount] = {};
+    std::uint64_t memalloc_walk_ns = 0;
+};
 
 /*
 ProfilerStats holds statistics around Profiling to be sent along
@@ -59,6 +106,9 @@ class ProfilerStats
     // Total CPU time (in microseconds) spent by the sampler thread capturing samples
     size_t sample_capture_cpu_time_us = 0;
 
+    // Stack truncation counters per collector, plus the time memalloc spent walking stacks
+    FrameStats frame_stats{};
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -107,6 +157,13 @@ class ProfilerStats
 
     void add_sample_capture_cpu_time_us(size_t cpu_time_us);
     size_t get_sample_capture_cpu_time_us() const;
+
+    void record_frame_truncation(FrameCollector collector,
+                                 size_t kept_frames,
+                                 size_t dropped_frames,
+                                 unsigned int max_frames);
+    void add_memalloc_walk_ns(uint64_t walk_ns);
+    const FrameStats& get_frame_stats() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.

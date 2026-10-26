@@ -1,5 +1,7 @@
 #pragma once
 
+#include "profiler_stats.hpp"
+
 #include <cstdint>
 #include <string_view>
 #include <unordered_map>
@@ -31,6 +33,10 @@ extern "C"
 
     // Discards the samples and stats collected so far and restarts the profile window at the current time.
     bool ddup_reset();
+
+    // Copies the frame stats of the last uploaded profile into `out`, then
+    // clears them so each upload is reported once.
+    void ddup_take_frame_stats(Datadog::FrameStats* out);
 #ifdef __cplusplus
 } // extern "C"
 #endif

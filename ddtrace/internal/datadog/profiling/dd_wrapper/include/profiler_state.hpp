@@ -95,6 +95,9 @@ class ProfilerState
     // Upload state
     // ========================================================================
     std::mutex upload_lock{};
+    // Frame stats of the profile most recently handed to the uploader, kept
+    // until Python takes them for telemetry. Guarded by upload_lock.
+    FrameStats last_upload_frame_stats{};
     // ddog_CancellationToken is documented as an opaque type, but we access .inner directly to
     // zero-initialize it: the C API provides no constructor, and the default value of .inner
     // is undefined. We check .inner != nullptr as a sentinel for "a token is in flight".

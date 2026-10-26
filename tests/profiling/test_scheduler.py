@@ -8,6 +8,7 @@ import pytest
 from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config as profiling_config
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.profiling import scheduler
 
 
@@ -108,6 +109,39 @@ def test_serverless_periodic(mock_time_ns: mock.MagicMock, mock_periodic: mock.M
     assert s._profiled_intervals == 0
     assert s.interval == 1
     mock_periodic.assert_called_once_with()
+
+
+def test_flush_reports_frame_stats_to_telemetry() -> None:
+    frame_stats: dict[str, t.Any] = {
+        "collectors": {
+            "alloc": {
+                "max_frames": 64,
+                "samples": 10,
+                "samples_truncated": 4,
+                "frames_dropped": 144,
+                "max_depth": 100,
+                "depth_buckets": {"le_64": 6, "le_128": 4, "le_256": 0, "le_599": 0, "gt_599": 0},
+            },
+        },
+        "memalloc_walk_ns": 5000,
+    }
+
+    with mock.patch.object(ddup, "upload"), mock.patch.object(ddup, "take_frame_stats", return_value=frame_stats):
+        with mock.patch.object(scheduler, "telemetry_writer") as writer:
+            scheduler.Scheduler().flush()
+
+    namespace: TELEMETRY_NAMESPACE = TELEMETRY_NAMESPACE.PROFILER
+    tags: tuple[tuple[str, str], ...] = (("collector", "alloc"), ("max_frames", "64"))
+    assert writer.add_count_metric.call_args_list == [
+        mock.call(namespace, "frames.samples", 10, tags),
+        mock.call(namespace, "frames.samples_truncated", 4, tags),
+        mock.call(namespace, "frames.stack_depth", 6, tags + (("depth", "le_64"),)),
+        mock.call(namespace, "frames.stack_depth", 4, tags + (("depth", "le_128"),)),
+    ]
+    assert writer.add_distribution_metric.call_args_list == [
+        mock.call(namespace, "frames.max_depth", 100, tags),
+        mock.call(namespace, "memalloc.walk_ns", 5000, (("max_frames", "64"),)),
+    ]
 
 
 def test_rollback_start_stops_started_worker() -> None:

@@ -88,6 +88,15 @@ class Sample
     bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
+    // Value types pushed since the last clear(). Samples from SampleManager all
+    // carry the full profile type mask, so this is how we tell collectors apart.
+    std::uint16_t pushed_types = 0;
+
+    // Time spent walking the stack, reported once when an allocation sample is exported
+    uint64_t walk_ns = 0;
+
+    std::optional<FrameCollector> frame_collector() const;
+
     // Storage for labels
     std::vector<ddog_prof_Label2> labels{};
 
@@ -154,6 +163,8 @@ class Sample
     // This is useful for callers that perform their own frame-limit checks and want to
     // record dropped frames without going through push_frame().
     void incr_dropped_frames(size_t count = 1);
+
+    void set_walk_ns(uint64_t ns) { walk_ns = ns; }
 
     // Push an entire PyFrameObject chain to the sample.
     // This walks the frame chain and pushes each frame in leaf-to-root order.

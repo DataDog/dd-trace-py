@@ -5,6 +5,7 @@
 #include "types.hpp"
 
 #include <mutex>
+#include <optional>
 #include <vector>
 
 extern "C"
@@ -69,7 +70,17 @@ class Profile
     // constref getters
     const ValueIndex& val();
 
+    // What a sample contributes to the frame truncation stats
+    struct FrameRecord
+    {
+        FrameCollector collector;
+        size_t kept_frames;
+        size_t dropped_frames;
+        unsigned int max_frames;
+        uint64_t memalloc_walk_ns;
+    };
+
     // collect
-    bool collect(const ddog_prof_Sample2& sample, int64_t endtime_ns);
+    bool collect(const ddog_prof_Sample2& sample, int64_t endtime_ns, const std::optional<FrameRecord>& frames);
 };
 } // namespace Datadog
