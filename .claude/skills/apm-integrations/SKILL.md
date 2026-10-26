@@ -3,7 +3,7 @@ name: apm-integrations
 description: |
   dd-trace-py integration development guide. Use when creating, modifying, or
   debugging contrib integrations in the Python tracer. Covers the patch module
-  system, context_with_data, context_with_event (new), registration, testing
+  system, typed events and subscribers (the default for new instrumentation), registration, testing
   through the repository test runner, and common anti-patterns. LLM/AI integrations should use this
   skill for APM-side workflow only; use llmobs-integrations for LLMObs-specific
   lifecycle, extraction, streaming, and VCR guidance. Pin is DEPRECATED.
@@ -16,26 +16,47 @@ description: |
 
 # dd-trace-py APM Integrations
 
-dd-trace-py provides automatic tracing for 90+ third-party libraries. Each integration uses monkey-patching via `wrapt` to intercept library calls and create spans.
+dd-trace-py integrations use monkey-patching via `wrapt` to intercept library calls
+and expose operations through typed events. Product subscribers implement tracing
+and other product behavior.
+
+**Use the events API for new integrations and new instrumentation.** Read
+[events-api](../events-api/SKILL.md) before designing the event contract or
+implementing handlers. Search for reusable events and subscribers first.
 
 ## Architecture
 
 ```
-Patch Module (ddtrace/contrib/internal/)  -->  Spans + Tags
-  Wraps library methods, creates events or spans through the integration's current pattern
+Patch Module (ddtrace/contrib/internal/)
+  Wraps library methods, extracts inputs, dispatches typed events, populates results
+    --> Events (ddtrace/contrib/, close to their source)
+      --> Subscribers (in the owning product)
+        Create spans, set tags, or perform other product behavior
 ```
 
-**Standard integrations** use one of these patterns:
-- **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers emit events via `core.context_with_data()`, listeners in `trace_handlers.py` create spans (e.g., botocore, flask, django).
-- **`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations): Typed event-driven pattern using `core.context_with_event()` with `TracingEvent` subclasses and `TracingSubscriber`. Read concrete examples such as `ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`, plus infrastructure in `ddtrace/_trace/events.py` and `ddtrace/_trace/subscribers/`.
-- **`Pin` + `tracer.trace()`** (DEPRECATED — do not use in new integrations): Many existing integrations use `Pin.get_from()` + `tracer.trace()` (e.g., redis, kafka, grpc). Do NOT use Pin in new code.
+**The target architecture is product-agnostic integrations with no tracing code.**
+Use `core.context_with_event()` for operation lifecycles and
+`core.dispatch_event()` for point-in-time notifications. Events are typed
+transports with minimal data preparation; subscribers own product behavior.
+Reuse or compose existing contracts and subscribers before creating new ones.
+For tracing, use `TracingEvent` and `TracingSubscriber` where their contracts fit.
+
+Existing integrations also contain **legacy patterns**:
+- **`context_with_data()` + `trace_handlers.py`**: Untyped context payloads and centralized handlers remain in existing code. Do not choose this pattern for new instrumentation or add duplicate handlers when a shared subscriber can own the behavior.
+- **`Pin` + `tracer.trace()`** (DEPRECATED): Direct tracing remains in existing integrations. Do not introduce it in new code.
+
+When fixing existing integrations, preserve observable behavior and keep migration
+scope appropriate to the task. A focused fix does not require migrating the whole
+integration. Existing code and reference examples may contain transitional
+patterns; use the events-api skill as the architectural guidance for new work.
 
 **LLM integrations** still use the APM integration workflow for contrib module layout, patch registration, and APM span tests, but LLMObs-specific span lifecycle and extraction belong in the `llmobs-integrations` skill.
 
 ## Key Concepts
 
 - **`_datadog_patch` guard** -- prevents double-patching on repeated `patch()` calls
-- **Pin is DEPRECATED** -- many existing integrations still use `Pin.get_from()` and `Pin().onto()`, but do NOT use Pin in new integrations. Prefer `context_with_event` (new) or `context_with_data` (existing)
+- **Events and subscribers** -- integrations supply typed operation data; product subscribers own behavior. Subscribers register when imported, so wire their modules through the owning product's initialization. Inherited hooks run automatically; do not duplicate them with `super()` calls. See [events-api](../events-api/SKILL.md) for the full contract and lifecycle rules.
+- **Pin is DEPRECATED** -- existing uses are legacy; use the events API for new instrumentation.
 - **`config._add()`** -- registers integration config at module level, before `patch()` runs
 - **`get_version()` / `_supported_versions()`** -- required exports for version detection
 - **`PATCH_MODULES`** -- registration dict in `ddtrace/_monkey.py` for `patch_all()` discovery
@@ -82,7 +103,7 @@ sanitization, LLMObs assertions, and VCR cassette setup.
 
 ## Implementation Workflow
 
-1. **Investigate** -- Read 1-2 reference integrations of the same type (see tables above)
+1. **Investigate and design the contract** -- Read the [events-api skill](../events-api/SKILL.md) and 1-2 reference integrations of the same type. Find shared events/subscribers to reuse or compose, identify the owning product for behavior, and define start/result/completion data before implementing wrappers. Do not copy legacy tracing patterns from the references.
 2. **Create patch module** -- `ddtrace/contrib/internal/{name}/patch.py` with `patch()`, `unpatch()`, `get_version()`
 3. **Register** -- Add to `PATCH_MODULES`, `scripts/integration_registry/registry.yaml`, and `INTEGRATION_CONFIGS`, and add `{name}.manifest.yaml`
 4. **LLM only: Create integration class** -- Subclass `BaseLLMIntegration` in `ddtrace/llmobs/_integrations/`. See the **llmobs-integrations** skill's [Implementation Guide](../llmobs-integrations/references/implementation-guide.md) for full patterns.
@@ -96,6 +117,7 @@ See [Implementation Guide](references/implementation-guide.md) for detailed step
 
 - `DD_TRACE_DEBUG=true` to see patching activity and span creation
 - Missing spans -- verify `_datadog_patch` guard, check `PATCH_MODULES` entry exists
+- Missing event behavior -- verify the subscriber module is imported by its owning product and listens to the dispatched event name
 - Wrong service name -- verify `config._add()` at module level
 - **LLM-specific**: see the **llmobs-integrations** skill for failure modes and debugging
 
@@ -108,6 +130,7 @@ This clears the Rust target directory and pip's download/build caches. Run this 
 
 ## Reference Files
 
+- [Events API](../events-api/SKILL.md) -- Required guidance for typed contracts, product ownership, reuse, composition, registration, and lifecycle
 - [Implementation Guide](references/implementation-guide.md) -- Step-by-step new integration (all types)
 - [Reference Integrations](references/reference-integrations.md) -- All 13 categories with canonical examples
 - [Contributing Integrations](../../../docs/contributing-integrations.rst) -- "What is an integration manifest?": `{name}.manifest.yaml` fields and when to update it
