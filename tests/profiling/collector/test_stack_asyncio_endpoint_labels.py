@@ -12,7 +12,7 @@ from tests.profiling.collector import test_utils
     },
     err=None,
 )
-def test_stack_keeps_asyncio_task_endpoints_separate():
+def test_stack_keeps_asyncio_task_endpoints_separate() -> None:
     """Keep concurrent tasks associated with their own trace endpoints."""
     import asyncio
     import os
@@ -25,33 +25,33 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
 
     endpoint_a = "async-endpoint-a"
     endpoint_b = "async-endpoint-b"
-    span_ids = {}
+    span_ids: dict[str, int] = {}
 
-    def task_a_work():
+    def task_a_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
     # A enters its span, then B enters its span and sleeps, then A runs. B's span was activated on
     # the thread last, so per-thread labels tag A's samples with B.
-    async def task_a(a_active, b_active):
+    async def task_a(a_active: asyncio.Event, b_active: asyncio.Event) -> None:
         with tracer.trace("async.request.a", resource=endpoint_a, span_type=ext.SpanTypes.WEB) as span:
             span_ids["a"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             a_active.set()
             await b_active.wait()
             task_a_work()
 
-    async def task_b_wait():
+    async def task_b_wait() -> None:
         await asyncio.sleep(0.6)
 
-    async def task_b(a_active, b_active):
+    async def task_b(a_active: asyncio.Event, b_active: asyncio.Event) -> None:
         await a_active.wait()
         with tracer.trace("async.request.b", resource=endpoint_b, span_type=ext.SpanTypes.WEB) as span:
             span_ids["b"] = pprof_utils.reinterpret_int_as_int64(span.span_id)
             b_active.set()
             await task_b_wait()
 
-    async def main():
+    async def main() -> None:
         a_active = asyncio.Event()
         b_active = asyncio.Event()
         await asyncio.gather(
@@ -87,7 +87,7 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
     },
     err=None,
 )
-def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
+def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task() -> None:
     """Never borrow a traced task's endpoint for an untraced task on the same thread."""
     import asyncio
     import os
@@ -101,22 +101,22 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
     endpoint = "traced-task-endpoint"
 
     # The traced task keeps its span open until the untraced task has finished its work.
-    async def traced_task(traced_task_active, untraced_task_finished):
+    async def traced_task(traced_task_active: asyncio.Event, untraced_task_finished: asyncio.Event) -> None:
         with tracer.trace("traced.task.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
             traced_task_active.set()
             await untraced_task_finished.wait()
 
-    def untraced_task_work():
+    def untraced_task_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def untraced_task(traced_task_active, untraced_task_finished):
+    async def untraced_task(traced_task_active: asyncio.Event, untraced_task_finished: asyncio.Event) -> None:
         await traced_task_active.wait()
         untraced_task_work()
         untraced_task_finished.set()
 
-    async def main():
+    async def main() -> None:
         traced_task_active = asyncio.Event()
         untraced_task_finished = asyncio.Event()
         await asyncio.gather(
@@ -152,7 +152,7 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
     },
     err=None,
 )
-def test_stack_respects_explicit_empty_child_task_context():
+def test_stack_respects_explicit_empty_child_task_context() -> None:
     """Honor an explicit empty child Context instead of inheriting the creator's endpoint."""
     import asyncio
     import contextvars
@@ -166,17 +166,19 @@ def test_stack_respects_explicit_empty_child_task_context():
 
     endpoint = "outer-thread-endpoint"
 
-    def explicit_empty_context_work():
+    def explicit_empty_context_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def explicit_context_child():
+    async def explicit_context_child() -> None:
         explicit_empty_context_work()
 
-    async def main():
+    async def main() -> None:
         await asyncio.create_task(
-            explicit_context_child(), name="explicit-empty-context-child", context=contextvars.Context()
+            explicit_context_child(),
+            name="explicit-empty-context-child",
+            context=contextvars.Context(),  # type: ignore[call-arg]
         )
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -207,12 +209,13 @@ def test_stack_respects_explicit_empty_child_task_context():
     },
     err=None,
 )
-def test_stack_omits_unverifiable_pre312_custom_factory_context():
+def test_stack_omits_unverifiable_pre312_custom_factory_context() -> None:
     """Omit pre-3.12 attribution when a custom factory's actual Context cannot be inspected."""
     import asyncio
     import contextvars
     import os
     import time
+    from typing import Any
 
     from ddtrace import ext
     from ddtrace.profiling import profiler
@@ -221,18 +224,18 @@ def test_stack_omits_unverifiable_pre312_custom_factory_context():
 
     endpoint = "pre312-outer-endpoint"
 
-    def custom_factory_work():
+    def custom_factory_work() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def child():
+    async def child() -> None:
         custom_factory_work()
 
-    async def main():
+    async def main() -> None:
         loop = asyncio.get_running_loop()
 
-        def empty_context_task_factory(loop, coro):
+        def empty_context_task_factory(loop: asyncio.AbstractEventLoop, coro: Any) -> asyncio.Task[Any]:
             return contextvars.Context().run(asyncio.Task, coro, loop=loop)
 
         loop.set_task_factory(empty_context_task_factory)
@@ -269,7 +272,7 @@ def test_stack_omits_unverifiable_pre312_custom_factory_context():
     parametrize={"CHILD": ["finishes_eagerly", "suspends"]},
     err=None,
 )
-def test_stack_respects_explicit_empty_context_for_eager_task():
+def test_stack_respects_explicit_empty_context_for_eager_task() -> None:
     """Honor an eager task's explicit empty Context in its eager first step and after it resumes."""
     import asyncio
     import contextvars
@@ -282,33 +285,37 @@ def test_stack_respects_explicit_empty_context_for_eager_task():
     from tests.profiling.collector import pprof_utils
 
     suspend = os.environ["CHILD"] == "suspends"
-    child_ids = []
+    child_ids: list[int] = []
 
-    def busy_cpu():
+    def busy_cpu() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
     # Separate names so each phase is checked on its own samples.
-    def eager_first_step_work():
+    def eager_first_step_work() -> None:
         busy_cpu()
 
-    def resumed_step_work():
+    def resumed_step_work() -> None:
         busy_cpu()
 
-    async def child():
+    async def child() -> None:
         child_ids.append(id(asyncio.current_task()))
         eager_first_step_work()
         if suspend:
             await asyncio.sleep(0)
             resumed_step_work()
 
-    async def main():
+    async def main() -> None:
         loop = asyncio.get_running_loop()
-        loop.set_task_factory(asyncio.eager_task_factory)
+        loop.set_task_factory(asyncio.eager_task_factory)  # type: ignore[attr-defined]
         try:
             with tracer.trace("eager.parent", resource="eager-endpoint", span_type=ext.SpanTypes.WEB):
-                await asyncio.create_task(child(), name="eager-child", context=contextvars.Context())
+                await asyncio.create_task(
+                    child(),
+                    name="eager-child",
+                    context=contextvars.Context(),  # type: ignore[call-arg]
+                )
         finally:
             loop.set_task_factory(None)
 
@@ -341,7 +348,7 @@ def test_stack_respects_explicit_empty_context_for_eager_task():
     },
     err=None,
 )
-def test_stack_publishes_inherited_span_to_uvloop_raw_gather_task():
+def test_stack_publishes_inherited_span_to_uvloop_raw_gather_task() -> None:
     """Seed uvloop tasks created by gather from their inherited span context."""
     import asyncio
     import os
@@ -356,18 +363,18 @@ def test_stack_publishes_inherited_span_to_uvloop_raw_gather_task():
 
     endpoint = "uvloop-gather-endpoint"
 
-    def uvloop_raw_gather_work():
+    def uvloop_raw_gather_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def cpu_child():
+    async def cpu_child() -> None:
         uvloop_raw_gather_work()
 
-    async def sleeping_child():
+    async def sleeping_child() -> None:
         await asyncio.sleep(0.6)
 
-    async def parent_task():
+    async def parent_task() -> None:
         with tracer.trace("uvloop.parent.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
             await asyncio.gather(cpu_child(), sleeping_child())
 
@@ -392,7 +399,7 @@ def test_stack_publishes_inherited_span_to_uvloop_raw_gather_task():
     },
     err=None,
 )
-def test_stack_tracks_asyncio_loop_without_set_event_loop():
+def test_stack_tracks_asyncio_loop_without_set_event_loop() -> None:
     """Register loops started directly through run_until_complete for task attribution."""
     import asyncio
     import os
@@ -405,12 +412,12 @@ def test_stack_tracks_asyncio_loop_without_set_event_loop():
 
     endpoint = "unregistered-loop-endpoint"
 
-    def unregistered_loop_task_work():
+    def unregistered_loop_task_work() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def main():
+    async def main() -> None:
         with tracer.trace("unregistered.loop.request", resource=endpoint, span_type=ext.SpanTypes.WEB):
             unregistered_loop_task_work()
 
@@ -440,7 +447,7 @@ def test_stack_tracks_asyncio_loop_without_set_event_loop():
     },
     err=None,
 )
-def test_stack_rejects_finished_span_from_copied_task_context():
+def test_stack_rejects_finished_span_from_copied_task_context() -> None:
     """Reject copied task context after its source span has finished."""
     import asyncio
     import contextvars
@@ -452,16 +459,20 @@ def test_stack_rejects_finished_span_from_copied_task_context():
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    def work_from_finished_context():
+    def work_from_finished_context() -> None:
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def child():
+    async def child() -> None:
         work_from_finished_context()
 
-    async def main(copied_context):
-        await asyncio.create_task(child(), name="finished-copied-context", context=copied_context)
+    async def main(copied_context: contextvars.Context) -> None:
+        await asyncio.create_task(
+            child(),
+            name="finished-copied-context",
+            context=copied_context,  # type: ignore[call-arg]
+        )
 
     tracer._endpoint_call_counter_span_processor.enable()
     p = profiler.Profiler(tracer=tracer)
@@ -490,7 +501,7 @@ def test_stack_rejects_finished_span_from_copied_task_context():
     parametrize={"SUSPEND": ["0", "1"]},
     err=None,
 )
-def test_stack_attributes_eager_first_step_to_inherited_span():
+def test_stack_attributes_eager_first_step_to_inherited_span() -> None:
     import asyncio
     import os
     import time
@@ -502,23 +513,23 @@ def test_stack_attributes_eager_first_step_to_inherited_span():
     from tests.profiling.collector.test_utils import async_run
 
     suspend = os.environ["SUSPEND"] == "1"
-    child_ids = []
+    child_ids: list[int] = []
 
-    def eager_inherited_work():
+    def eager_inherited_work() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def child():
+    async def child() -> None:
         child_ids.append(id(asyncio.current_task()))
         eager_inherited_work()
         if suspend:
             await asyncio.sleep(0)
             eager_inherited_work()
 
-    async def main():
+    async def main() -> None:
         loop = asyncio.get_running_loop()
-        loop.set_task_factory(asyncio.eager_task_factory)
+        loop.set_task_factory(asyncio.eager_task_factory)  # type: ignore[attr-defined]
         try:
             with tracer.trace("eager.parent", resource="eager-endpoint", span_type=ext.SpanTypes.WEB):
                 await asyncio.create_task(child(), name="eager-child")
@@ -547,11 +558,12 @@ def test_stack_attributes_eager_first_step_to_inherited_span():
     },
     err=None,
 )
-def test_stack_does_not_resurrect_span_finished_during_task_publication():
+def test_stack_does_not_resurrect_span_finished_during_task_publication() -> None:
     import asyncio
     import os
     import threading
     import time
+    from typing import Optional
     from unittest import mock
 
     from ddtrace.profiling import _span_links
@@ -559,19 +571,19 @@ def test_stack_does_not_resurrect_span_finished_during_task_publication():
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    def work_after_concurrent_finish():
+    def work_after_concurrent_finish() -> None:
         deadline = time.thread_time_ns() + 400_000_000
         while time.thread_time_ns() < deadline:
             pass
 
-    async def child():
+    async def child() -> None:
         work_after_concurrent_finish()
 
-    async def main():
+    async def main() -> None:
         span = tracer.trace("concurrent.finish")
         publish = _span_links._publish_span
 
-        def finish_before_publish(span_info, task_id=None):
+        def finish_before_publish(span_info: _span_links._SpanInfo, task_id: Optional[int] = None) -> None:
             # Force a real finish on another thread between inherited validation and native publication.
             finisher = threading.Thread(target=span.finish)
             finisher.start()

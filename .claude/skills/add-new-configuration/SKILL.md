@@ -40,8 +40,8 @@ module and need to make CI / docs happy.
    object (the generator sorts the Python module, but keep the JSON tidy too).
 4. **Document user-facing variables** in `docs/configuration.rst` under the
    correct product section.
-5. **Hand off to the human** to add the variable to the feature-parity registry —
-   this is an external web app the agent cannot edit.
+5. **Check the central registry** using available tools. Prepare any required registration or
+   implementation-version change for an internal contributor or maintainer (step 6).
 
 ---
 
@@ -125,15 +125,17 @@ Include `version_added:` if the option is gated to a specific release.
 New public configuration is user-facing, so add a Reno fragment (use the
 `releasenote` skill). Skip only for purely internal/private vars.
 
-### 6. Hand off: add it to the feature-parity registry
+### 6. Check the central Configuration Registry
 
-The agent CANNOT do this — it is an external web application. Tell the user:
+Follow the Configuration Registry section of `docs/contributing.rst`. If the key already exists
+with matching type/default, reuse its implementation. A different contract needs a new
+implementation version; a new key needs registration by an authorized internal contributor.
 
-> ⚠️ **Action required:** Add this configuration to the cross-language
-> feature-parity registry so it is tracked across tracer languages:
-> https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations
-
----
+Use available tools to verify existing entries. For a new key or implementation version,
+provide the internal contributor or maintainer with the name, type, default, and required change.
+Perform registry writes only when the task explicitly authorizes that update; otherwise report
+the handoff and link to the [Configuration Registry](https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations).
+Do not claim registration succeeded without checking the result.
 
 ## Validation Checklist
 
@@ -142,7 +144,7 @@ The agent CANNOT do this — it is an external web application. Tell the user:
 - [ ] `python scripts/supported_configurations.py --check` passes.
 - [ ] Documented in `docs/configuration.rst` under the right section.
 - [ ] Release note added (if user-impacting).
-- [ ] User reminded to register it at the feature-parity dashboard.
+- [ ] Central registry verified/updated, or the remaining handoff explicitly reported.
 
 ---
 
