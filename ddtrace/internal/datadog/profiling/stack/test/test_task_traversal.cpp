@@ -74,10 +74,10 @@ loop.close()
 
     // Keep the production visitor private while allowing deterministic linked-list topologies in this test.
     static Result<void> visit_thread_tasks(ThreadInfo& thread,
-                                           size_t tasks_head_offset,
+                                           EchionSampler& echion,
                                            std::vector<TaskObj*>& task_addresses)
     {
-        return thread.for_each_task_address_from_thread_list(tasks_head_offset,
+        return thread.for_each_task_address_from_thread_list(echion,
                                                              [&task_addresses](TaskObj* task_address) -> Result<void> {
                                                                  task_addresses.push_back(task_address);
                                                                  return Result<void>::ok();
@@ -141,7 +141,12 @@ TEST_F(ThreadInfoTaskTraversalTest, SkipsTaskMovedToAnotherListWithoutPublishing
     task->task_node.next = task->task_node.prev = &moved_head;
     thread->tstate_addr = reinterpret_cast<uintptr_t>(&remote_tstate);
 
-    auto traversal = visit_thread_tasks(*thread, offsetof(RemoteThreadState, tasks_head), task_addresses);
+    // The synthetic layout proves the walker uses the sampler's offset rather than the compile-time one.
+    echion.set_asyncio_offsets(
+      AsyncioOffsets{ .interpreter_tasks_head = offsetof(PyInterpreterState, asyncio_tasks_head),
+                      .thread_tasks_head = offsetof(RemoteThreadState, tasks_head) });
+
+    auto traversal = visit_thread_tasks(*thread, echion, task_addresses);
 
     // Restore CPython's real links before assertions or object destruction can inspect them.
     valid_task->task_node = original_valid_task_node;
