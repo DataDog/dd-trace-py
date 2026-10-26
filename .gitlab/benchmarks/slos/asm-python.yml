@@ -358,3 +358,24 @@ experiments:
           - name: iastaspectsremodule-re_subn_noaspect
             thresholds:
               - execution_time < 5.00 ms
+
+          # appsecwaf
+          - name: appsecwaf-request
+            thresholds:
+              - execution_time < 1.20 ms
+          - name: appsecwaf-request-rasp
+            thresholds:
+              - execution_time < 1.65 ms
+          - name: appsecwaf-headers-only
+            thresholds:
+              - execution_time < 0.25 ms
+          - name: appsecwaf-wide-body
+            thresholds:
+              - execution_time < 5.00 ms
+          - name: appsecwaf-unicode-body
+            thresholds:
+              - execution_time < 1.15 ms
+          - name: appsecwaf-attack
+            thresholds:
+              - execution_time < 0.25 ms
+

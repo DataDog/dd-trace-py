@@ -19,7 +19,7 @@ FILE_EXTENSIONS = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}
 
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
 
-# The ctypes bindings in ddtrace.appsec._ddwaf follow the libddwaf 2.x C ABI.
+# Both libddwaf backends in ddtrace.appsec._ddwaf follow the libddwaf 2.x C ABI.
 ABI_MAJOR = 2
 
 # Names to ask the dynamic linker for when no library is bundled, in order.

@@ -250,6 +250,17 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  appsec_waf:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - ddtrace/appsec/_ddwaf/*
+      - src/native/appsec/*
+      - benchmarks/appsec_waf/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   appsec_iast_aspects:
     paths:
       - '@bootstrap'
