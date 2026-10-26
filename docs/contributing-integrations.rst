@@ -89,63 +89,75 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
-Bottle request hooks
-~~~~~~~~~~~~~~~~~~~~
+Synchronous web request execution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Bottle's supported plugin callback uses the private
-``ddtrace.contrib.internal.bottle.trace._run_request`` helper to bracket route
-execution with metadata hooks. This helper is specific to Bottle's synchronous
-callback lifetime; it is not a shared integration API.
-
-The integration owns framework hooks, metadata extraction, and context entry/exit.
+``ddtrace.contrib.internal.web_framework.run_web_framework_request`` brackets a
+synchronous callback with metadata hooks and a typed request context. It does not
+import a web framework, inspect responses, make blocking decisions, or manage spans.
 ``TracingSubscriber`` and ``WebFrameworkRequestSubscriber`` own propagation, span
-creation, HTTP tagging, error recording, and span completion through
-``core.context_with_event``.
+creation, HTTP tagging, error recording, and span completion.
 
-``prepare()`` returns a new ``WebFrameworkRequestEvent`` for each invocation,
-before span creation. It supplies request fields and integration-specific tracing
-inputs such as the operation, service, and route. ``complete(event, result, error)``
-runs inside the context after the callback returns or raises, before HTTP tags are
-applied. The error is the original exception, or ``None`` on success; the result is
-``None`` when the callback raised. Hooks update event fields without accessing spans.
+``prepare()`` returns a new ``WebFrameworkRequestEvent`` before context entry. It
+supplies request fields and integration-specific tracing inputs such as the
+operation, service, and route. ``complete(event, result, error)`` runs inside the
+context after the callback returns or raises, before HTTP tags are applied. The
+error is the original exception, or ``None`` on success; the result is ``None``
+when the callback raised. Hooks update event fields without accessing spans.
 They must not consume response bodies or retain exceptions and tracebacks.
 
-Request hooks and context events run regardless of tracing enablement. The tracing
-subscriber still manages spans; the tracer controls span processing and export.
-An ordinary preparation error skips context creation and invokes the callback once.
-An ordinary completion error leaves the callback's result or exception intact,
-and the existing subscriber still completes tracing.
-Process-control exceptions from hooks are not suppressed. These hooks provide
-metadata. Enforcement uses separate Bottle hooks inside the active context.
+For an integration that needs response inspection or replacement, the optional
+``execute(event, invoke)`` adapter runs inside the context. Calling ``invoke()``
+executes the application callback with its original arguments and completes its
+metadata before returning or re-raising. The adapter can then inspect the metadata
+and preserve or replace the outcome. If it skips the callback or replaces its
+outcome, the adapter must update the final metadata before returning; it can use
+``complete_request_safely(complete, event, result, error)``. The adapter must not
+invoke the application more than once or manage context or span completion.
+Without an adapter, the runner calls ``invoke()`` directly.
 
-For Bottle, completion remains at the matched route callback boundary, before
-response iteration and later response hooks. Returned iterables are passed through
-unchanged. Bottle continues to manage plugin ordering, skip settings, installation,
-and callback-cache resets. This helper is synchronous; asynchronous handlers and
-request lifetimes spanning multiple framework callbacks need a separate adapter.
+Request hooks and context events run regardless of tracing enablement. An ordinary
+preparation error bypasses the context and adapter and invokes the application once.
+An ordinary completion error preserves the application's result or exception.
+Process-control exceptions from metadata hooks are not suppressed.
 
-Bottle blocking hooks
-^^^^^^^^^^^^^^^^^^^^^
+The default context route is ``web.request``. An integration can provide
+``context_name_override`` when its subscribers use a specialized route; the tracing
+subscriber must also listen to that route. Completion is at the synchronous callback
+boundary. Returned iterables are passed through unchanged. Asynchronous handlers
+and deferred completion require a different lifecycle runner.
 
-The plugin dispatches ``bottle.request.start`` before invoking the route callback and
-``bottle.request.response`` after response metadata extraction, while the response can
-still be replaced. AppSec listeners own request evaluation, blocking configuration,
-and registration of the public ``block_request()`` capability. They inspect request
-headers, URI, query parameters, cookies, path parameters, and callback response
-status and headers without consuming request or response bodies.
+Bottle request adapter
+^^^^^^^^^^^^^^^^^^^^^^
 
-A ``BlockingException`` raised during either hook or callback execution is caught
-inside the request context. The ``bottle.request.block`` listener supplies the
-selected status, headers, and body; the plugin constructs the Bottle response and
-updates completion metadata before the tracing subscriber finishes the span.
-Discarded response iterables are closed without iteration. A pending block is
-checked again at response inspection, including when application code catches the
-blocking exception. ``bottle.request.end`` finalizes AppSec state before context exit.
+Bottle's plugin supplies ``prepare`` and ``complete`` hooks and an execution adapter
+to the shared runner, using ``context_name_override="bottle.request"``. Bottle
+continues to manage plugin ordering, skip settings, installation, and callback-cache
+resets. The adapter interprets Bottle responses and closes discarded response bodies;
+these details stay outside the shared runner.
 
-These hooks run independently of APM tracing enablement. AppSec listeners check
-their own enablement. Blocking is limited to callbacks covered by the plugin;
+The adapter dispatches ``BottleRequestStartEvent`` before invoking the route callback
+and ``BottleResponseEvent`` after metadata completion, while the response can still
+be replaced. These notifications use ``core.dispatch_event``. AppSec subscribers own
+request evaluation, blocking configuration, and registration of the public
+``block_request()`` capability. They inspect request headers, URI, query parameters,
+cookies, path parameters, and callback response status and headers without consuming
+request or response bodies.
+
+The adapter catches ``BlockingException`` inside the request context, including
+blocks raised before the callback and blocks nested in exception groups. A
+``BottleBlockResponseEvent`` subscriber supplies the selected status, headers, and
+body on the event. Bottle constructs an ``HTTPResponse`` and completes the replacement
+metadata before returning to the shared runner. Discarded response iterables are
+closed without iteration. A pending block is checked again at response inspection,
+including when application code catches the blocking exception. AppSec cleanup uses
+a ``ContextSubscriber`` for ``bottle.request``.
+
+These notifications run independently of APM tracing enablement. AppSec subscribers
+check their own enablement. Blocking is limited to callbacks covered by the plugin;
 unmatched routes, skipped routes, earlier framework hooks, later response hooks,
 and streaming after callback return remain outside this boundary.
+
 
 
 Are there norms for integrating with database libraries?

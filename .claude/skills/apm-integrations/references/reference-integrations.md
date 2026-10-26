@@ -29,46 +29,47 @@ This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
+## Shared synchronous web request runner
+
+contrib.internal.web_framework.run_web_framework_request owns request preparation,
+context entry/exit, callback invocation, and safe metadata completion. It imports
+no framework and knows nothing about HTTPResponse, body cleanup, or blocking.
+The prepare and complete hooks extract metadata; subscribers own span behavior.
+Ordinary metadata errors must not replace the application's outcome. Preparation
+failure bypasses context creation and the execution adapter, calling the application
+once. Disabled tracing must not skip metadata hooks or context events.
+
+An optional execute(event, invoke) adapter runs inside the context. invoke calls
+the application with its original arguments, completes metadata, then returns or
+re-raises. Adapters may inspect that metadata and replace the outcome. If they skip
+or replace the callback, they own final metadata completion using
+complete_request_safely. Never invoke the application twice or manage spans in an
+adapter. Completion remains at callback return/raise; async and deferred response
+lifetimes need a different runner. Returned iterables are not consumed or wrapped.
+
 ## Bottle plugin boundary
 
-Bottle's TracePlugin.apply wraps only the route callback using
-the private bottle.trace._run_request helper. The integration supplies a prepare
-hook that creates WebFrameworkRequestEvent and a complete hook that interprets
-Bottle's result or exception and updates response fields. The Bottle helper owns
-context entry/exit regardless of tracing enablement. The existing tracing
-subscribers own propagation, span creation, HTTP tagging, error recording, and
-span completion; the tracer controls span processing and export.
-
-Prepare runs before span creation. Complete runs inside the context before HTTP
-metadata is applied: do not move metadata extraction to a subclass's on_ended
-handler, because base handlers run first. Ordinary hook exceptions must not replace
-the application's result or exception. Disabled tracing must not skip metadata
-hooks or context events.
-
-Read request metadata from Bottle's request at callback entry. The span ends when
-the callback returns or raises, including when it returns an unconsumed iterable.
-Later response hooks, streaming failures, and transport delivery are outside this
-boundary. Do not wrap router.match, _cast, or _make_callback to extend it. Bottle
-manages plugin ordering, skip settings, installation, removal, and callback-cache
-resets. The helper is specific to Bottle's synchronous callback lifetime and is
-not a shared integration API.
+Bottle's TracePlugin.apply delegates through a small _run_request wiring helper to
+the shared runner. _execute_request is its framework-specific execution adapter:
+it dispatches typed request/response notifications, catches BlockingException
+(including exception groups), closes discarded bodies, builds HTTPResponse, and
+completes replacement metadata. AppSec subscribers own WAF evaluation, the
+block_request callable, response selection, and security-context cleanup.
 
 Bottle uses context_name_override="bottle.request" with WebFrameworkRequestEvent;
 the shared tracing subscriber listens to both web.request and bottle.request.
-AppSec cleanup uses a ContextSubscriber for bottle.request. Bottle dispatches
+AppSec cleanup uses a ContextSubscriber for bottle.request. Notifications use
 BottleRequestStartEvent, BottleResponseEvent, and BottleBlockResponseEvent through
-core.dispatch_event inside its request context. AppSec owns their Subscriber
-implementations, registered through listen(). The block event carries the selected
-response back to the integration; do not use string-keyed context items for it.
-Request WAF evaluation stays inside the blocking handler because a block raised during
-context entry would skip context exit. AppSec listeners own WAF evaluation, the
-block_request callable, response selection, and security-context cleanup. The
-plugin catches BlockingException (including exception groups), converts the chosen response to HTTPResponse, and
-updates event metadata before tracing finishes. Never catch blocking exceptions
-as ordinary metadata failures or let them escape past the request context.
+core.dispatch_event. The block event carries the selected response back to the
+adapter; do not use string-keyed context items for it. Request WAF evaluation stays
+inside the blocking handler because raising during context entry skips context exit.
+
 Response inspection uses headers from a returned or raised HTTPResponse when
-present. Replaced iterables must be closed without being consumed. Request and
-response bodies and work outside the plugin callback boundary are not inspected.
+present. Replaced iterables are closed without being consumed. Later response hooks,
+streaming failures, transport delivery, and request/response body inspection are
+outside this boundary. Do not wrap router.match, _cast, or _make_callback to extend
+it. Bottle manages plugin ordering, skip settings, installation, removal, and
+callback-cache resets.
 
 ## Specialized duplex SDKs
 

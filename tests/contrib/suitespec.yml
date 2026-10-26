@@ -65,6 +65,7 @@ components:
     - ddtrace/contrib/internal/trace_utils.py
     - ddtrace/contrib/internal/trace_utils_async.py
     - ddtrace/contrib/internal/trace_utils_base.py
+    - ddtrace/contrib/internal/web_framework.py
     # Shared ext files used broadly across many integrations
     - ddtrace/ext/__init__.py
     - ddtrace/ext/http.py

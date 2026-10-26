@@ -14,6 +14,8 @@ from ddtrace.contrib._events.bottle import BottleBlockResponseEvent
 from ddtrace.contrib._events.bottle import BottleRequestStartEvent
 from ddtrace.contrib._events.bottle import BottleResponseEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib.internal.web_framework import complete_request_safely
+from ddtrace.contrib.internal.web_framework import run_web_framework_request
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
@@ -70,73 +72,67 @@ def _run_request(
     prepare: Callable[[], WebFrameworkRequestEvent],
     complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
 ) -> Any:
-    """Run a Bottle route callback through the core context lifecycle.
+    return run_web_framework_request(
+        callback,
+        args,
+        kwargs,
+        prepare=prepare,
+        complete=complete,
+        context_name_override="bottle.request",
+        execute=partial(_execute_request, path_params=kwargs, complete=complete),
+    )
 
-    prepare supplies metadata before context entry; complete updates it before
-    the tracing subscriber applies HTTP tags and finishes the span. Hooks must
-    only extract metadata: they neither manage spans nor consume response bodies.
-    Ordinary hook errors are isolated from the application's result or exception.
-    """
-    event: Optional[WebFrameworkRequestEvent]
+
+def _execute_request(
+    event: WebFrameworkRequestEvent,
+    invoke: Callable[[], Any],
+    *,
+    path_params: dict[str, Any],
+    complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
+) -> Any:
+    """Inspect and replace Bottle outcomes while the shared request context is active."""
+    result = None
+    error: Optional[BaseException] = None
+    blocking: Optional[BlockingException] = None
     try:
-        event = prepare()
-    except Exception:
-        log.debug("Failed to prepare web framework request metadata", exc_info=True)
-        event = None
-    if event is None:
-        return callback(*args, **kwargs)
-
-    with core.context_with_event(event, context_name_override="bottle.request"):
-        result = None
-        error: Optional[BaseException] = None
-        blocking: Optional[BlockingException] = None
         try:
             try:
                 # WAF evaluation can block, so it must run inside the handler rather than context entry.
-                core.dispatch_event(BottleRequestStartEvent(event, request, kwargs))
-                result = callback(*args, **kwargs)
-                return result
+                core.dispatch_event(BottleRequestStartEvent(event, request, path_params))
             except BaseException as exc:
-                error = exc
+                # The shared invocation was skipped, so it cannot complete this outcome.
+                complete_request_safely(complete, event, None, exc)
                 raise
-            finally:
-                _complete_request_safely(complete, event, result, error)
-                core.dispatch_event(BottleResponseEvent(event))
-        except BaseException as exc:
-            blocking = find_exception(exc, BlockingException)
-            if blocking is None:
-                raise
-            if isinstance(result, HTTPResponse):
-                discarded_body = result.body
-            elif isinstance(error, HTTPResponse):
-                discarded_body = error.body
-            else:
-                discarded_body = result
-            close = getattr(discarded_body, "close", None)
-            if callable(close):
-                try:
-                    close()
-                except Exception:
-                    log.debug("Failed to close blocked Bottle response", exc_info=True)
-            result = _blocked_response(blocking.args[0])
-            _complete_request_safely(complete, event, result, None)
+            result = invoke()
             return result
+        except BaseException as exc:
+            error = exc
+            raise
         finally:
-            # Do not retain the application's traceback through this frame.
-            error = None
-            blocking = None
-
-
-def _complete_request_safely(
-    complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
-    event: WebFrameworkRequestEvent,
-    result: Any,
-    error: Optional[BaseException],
-) -> None:
-    try:
-        complete(event, result, error)
-    except Exception:
-        log.debug("Failed to complete web framework request metadata", exc_info=True)
+            core.dispatch_event(BottleResponseEvent(event))
+    except BaseException as exc:
+        blocking = find_exception(exc, BlockingException)
+        if blocking is None:
+            raise
+        if isinstance(result, HTTPResponse):
+            discarded_body = result.body
+        elif isinstance(error, HTTPResponse):
+            discarded_body = error.body
+        else:
+            discarded_body = result
+        close = getattr(discarded_body, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                log.debug("Failed to close blocked Bottle response", exc_info=True)
+        result = _blocked_response(blocking.args[0])
+        complete_request_safely(complete, event, result, None)
+        return result
+    finally:
+        # Do not retain the application's traceback through this frame.
+        error = None
+        blocking = None
 
 
 def _blocked_response(block: Block_config) -> HTTPResponse:
