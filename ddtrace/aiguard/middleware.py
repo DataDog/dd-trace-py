@@ -4,6 +4,10 @@ from enum import Enum
 from typing import Any
 from typing import Optional
 
+from ddtrace._trace.span import Span
+from ddtrace.aiguard._types import Evaluation
+from ddtrace.aiguard._types import Message
+
 
 __all__ = [
     "AIGuardContext",
@@ -46,7 +50,7 @@ class AIGuardRequest:
         integration: str,
         direction: EvaluationDirection,
         target: EvaluationTarget,
-        messages: list[Any],
+        messages: list[Message],
     ):
         self.source = source
         self.integration = integration
@@ -64,14 +68,16 @@ class AIGuardContext:
     :ivar request: The AIGuardRequest being evaluated.
     :ivar result: The Evaluation once the service answered, including when blocked.
     :ivar error: The exception evaluate is about to raise, if any.
+    :ivar state: Free-form values a middleware keeps between the hooks of one evaluation.
     """
 
-    def __init__(self, request: AIGuardRequest, local_root_span: Optional[Any] = None):
+    def __init__(self, request: AIGuardRequest, local_root_span: Optional[Span] = None):
         self.local_root_span = local_root_span
-        self.ai_guard_span: Optional[Any] = None
+        self.ai_guard_span: Optional[Span] = None
         self.request = request
-        self.result: Optional[Any] = None
+        self.result: Optional[Evaluation] = None
         self.error: Optional[BaseException] = None
+        self.state: dict[str, Any] = {}
 
 
 class AIGuardMiddleware:

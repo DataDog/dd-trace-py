@@ -4,7 +4,6 @@ from copy import deepcopy
 import json
 import re
 from typing import Any
-from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 from urllib.parse import urlparse
@@ -14,6 +13,7 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.aiguard._types import ContentPart  # noqa:F401
+from ddtrace.aiguard._types import Evaluation
 from ddtrace.aiguard._types import Function  # noqa:F401
 from ddtrace.aiguard._types import ImageURL  # noqa:F401
 from ddtrace.aiguard._types import Message
@@ -53,7 +53,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
 
 
-__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL"]
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -109,17 +109,6 @@ def _call_hook(hook: Any, context: AIGuardContext) -> Any:
 def _get_direction(message: Message) -> EvaluationDirection:
     """An assistant message is what the LLM produced; anything else is fed into it."""
     return EvaluationDirection.OUTPUT if message.get("role") == "assistant" else EvaluationDirection.INPUT
-
-
-class Evaluation(TypedDict):
-    action: Literal["ALLOW", "DENY", "ABORT"]
-    reason: str
-    tags: list[str]
-    sds: list[Any]
-    tag_probs: dict[str, float]
-    # The evaluated conversation, redacted when the AI Guard service asked for it and otherwise
-    # the very same list passed to evaluate. It can carry sensitive data: never log it.
-    messages: list[Message]
 
 
 class Options(TypedDict, total=False):
@@ -437,14 +426,14 @@ class AIGuardClient:
         call_path_tags = self._call_path_tags(source, integration)
         (_, clamped_source), (_, clamped_integration) = call_path_tags
 
+        last = messages[-1]
+        target = (
+            EvaluationTarget.TOOL
+            if self._has_tool_calls(last) or self._has_tool_call_id(last)
+            else EvaluationTarget.PROMPT
+        )
         context = None
         if _MIDDLEWARES:
-            last = messages[-1]
-            target = (
-                EvaluationTarget.TOOL
-                if self._has_tool_calls(last) or self._has_tool_call_id(last)
-                else EvaluationTarget.PROMPT
-            )
             request = AIGuardRequest(clamped_source, clamped_integration, _get_direction(last), target, messages)
             context = AIGuardContext(request, span_bus.get_root_span())
             for middleware in _MIDDLEWARES:
@@ -469,13 +458,13 @@ class AIGuardClient:
                         span.set_tag(key, value)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
-                last = messages[-1]
-                tool_name = self._get_tool_name(last, messages)
-                if tool_name:
-                    span.set_tag(AI_GUARD.TARGET_TAG, "tool")
-                    span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
-                else:
-                    span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
+                span.set_tag(AI_GUARD.TARGET_TAG, target.value)
+                if target is EvaluationTarget.TOOL:
+                    # The tool name is best effort: a tool result whose call is not in the
+                    # conversation is still a tool target, it just has no name to report.
+                    tool_name = self._get_tool_name(last, messages)
+                    if tool_name:
+                        span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
                 span.set_tag(AI_GUARD.DIRECTION_TAG, _get_direction(last).value)
                 span.set_tag(AI_GUARD.SOURCE_TAG, clamped_source)
                 span.set_tag(AI_GUARD.INTEGRATION_TAG, clamped_integration)

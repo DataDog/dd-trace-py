@@ -157,6 +157,36 @@ def test_request_direction_and_target_for_tool_call(ai_guard_client, execute_req
     assert request.target is EvaluationTarget.TOOL
 
 
+def test_unresolved_tool_result_is_a_tool_target_for_context_and_span(ai_guard_client, test_spans, execute_request):
+    recorder = Recorder()
+    register_middleware(recorder)
+
+    ai_guard_client.evaluate([Message(role="tool", tool_call_id="call_unknown", content="sunny")])
+
+    assert recorder.contexts[0].request.target is EvaluationTarget.TOOL
+    span = find_ai_guard_span(test_spans)
+    assert span.get_tag(AI_GUARD.TARGET_TAG) == "tool"
+    assert span.get_tag(AI_GUARD.TOOL_NAME_TAG) is None
+
+
+def test_state_is_shared_between_hooks_of_one_evaluation(ai_guard_client, execute_request):
+    seen = []
+
+    class Timer(AIGuardMiddleware):
+        def pre_evaluate(self, context):
+            context.state["started"] = "yes"
+
+        def post_evaluate(self, context):
+            seen.append(context.state.get("started"))
+
+    register_middleware(Timer())
+
+    ai_guard_client.evaluate(MESSAGES)
+    ai_guard_client.evaluate(MESSAGES)
+
+    assert seen == ["yes", "yes"]
+
+
 def test_pre_evaluate_sees_core_tagged_span(ai_guard_client, test_spans, execute_request):
     core_tags = {}
 
