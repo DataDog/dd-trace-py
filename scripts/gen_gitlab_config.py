@@ -757,7 +757,7 @@ prechecks:
       # Run the selected checks in parallel. The runner buffers each check's
       # output and prints it as a collapsible section (failed checks stay
       # expanded), followed by a summary; it exits non-zero if any check fails.
-      scripts/run-parallel-prechecks.sh - <<'EOF'
+      scripts/run-parallel-prechecks.py - <<'EOF'
 """
         )
         for name, command in checks:

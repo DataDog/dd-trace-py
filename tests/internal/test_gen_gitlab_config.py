@@ -243,7 +243,7 @@ def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatc
 
     out = tests_gen.read_text()
     assert "scripts/lint prepare" in out
-    assert "scripts/run-parallel-prechecks.sh - <<'EOF'" in out
+    assert "scripts/run-parallel-prechecks.py - <<'EOF'" in out
     for check in (
         "Style\tscripts/lint style",
         "Typing\tscripts/lint typing",
@@ -256,11 +256,11 @@ def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatc
 
 
 def test_run_parallel_prechecks_reports_each_result(tmp_path):
-    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.sh"
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
     checks = tmp_path / "checks.tsv"
     checks.write_text("Passing\techo ok\nFailing\techo oops >&2; exit 3\n")
 
-    proc = subprocess.run(["bash", str(script), str(checks)], capture_output=True, text=True, timeout=60)
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
 
     assert proc.returncode == 1
     assert "Passing: PASS" in proc.stdout
@@ -272,11 +272,11 @@ def test_run_parallel_prechecks_reports_each_result(tmp_path):
 
 
 def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path):
-    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.sh"
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
     checks = tmp_path / "checks.tsv"
     checks.write_text("No tab in this line\n")
 
-    proc = subprocess.run(["bash", str(script), str(checks)], capture_output=True, text=True, timeout=60)
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
 
     assert proc.returncode == 2
     assert "malformed check line" in proc.stderr
@@ -284,7 +284,7 @@ def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path):
 
 def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
     """Two checks that wait for each other's sentinel file can only pass in parallel."""
-    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.sh"
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
     wait_for = 'touch "{d}/{name}"; for _ in $(seq 50); do [ -e "{d}/{other}" ] && exit 0; sleep 0.1; done; exit 1'
     checks = tmp_path / "checks.tsv"
     checks.write_text(
@@ -294,7 +294,7 @@ def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
         + "\n"
     )
 
-    proc = subprocess.run(["bash", str(script), str(checks)], capture_output=True, text=True, timeout=60)
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
 
     assert proc.returncode == 0
     assert "First: PASS" in proc.stdout
