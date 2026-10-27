@@ -640,3 +640,73 @@ def test_events_rearmed_when_other_tool_registers_after_early_execution():
     # lib.py line 2 (function body) must be in the per-test bitmap
     expected = {"tests/coverage/included_path/lib.py": {2}}
     assert_coverage_matches(covered, expected, file_level_mode, "Context after early-window DISABLE")
+
+
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
+def test_consecutive_tests_isolation_and_tracking():
+    """
+    Consecutive coverage contexts (tests) must be fully isolated and fully tracked:
+
+    - nothing recorded by one test leaks into the next one;
+    - every file a later test executes is still attributed to it, even when the
+      same file was already covered by a previous test (no under-collection from
+      self-disabled events/probes staying dead across contexts).
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+
+    install(include_paths=[include_path])
+
+    from tests.coverage.included_path.callee import called_in_context_main
+    from tests.coverage.included_path.callee import called_in_session_main
+
+    # Test 1: only the session function (callee.py + lib.py)
+    with ModuleCodeCollector.CollectInContext() as context1:
+        called_in_session_main(1, 2)
+        context1_covered = _get_relpath_dict(cwd_path, context1.get_covered_lines())
+
+    # Test 2: both functions — must re-detect the files from test 1 (callee.py,
+    # lib.py are already covered) AND add the context function's files.
+    with ModuleCodeCollector.CollectInContext() as context2:
+        called_in_session_main(3, 4)
+        called_in_context_main(5, 6)
+        context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
+
+    # Test 3: only the context function — must see exactly its own files, with
+    # nothing from tests 1/2 leaking in.
+    with ModuleCodeCollector.CollectInContext() as context3:
+        called_in_context_main(7, 8)
+        context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
+
+    expected_1 = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+    }
+    # lib.py was already imported inside test 1, so test 2 only re-executes its body line;
+    # in_context_lib.py is imported for the first time inside test 2 (all its lines).
+    expected_2 = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6, 10, 11, 13, 14},
+        "tests/coverage/included_path/lib.py": {2},
+        "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+    }
+    expected_3 = {
+        "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+        "tests/coverage/included_path/in_context_lib.py": {2},
+    }
+
+    assert_coverage_matches(context1_covered, expected_1, file_level_mode, "Test 1")
+    assert_coverage_matches(context2_covered, expected_2, file_level_mode, "Test 2")
+    assert_coverage_matches(context3_covered, expected_3, file_level_mode, "Test 3")
+
+    # Test 1's captured data must not have mutated after tests 2/3 ran (leak check
+    # on the captured dicts, not just on the assertions above).
+    assert context1_covered == _get_relpath_dict(cwd_path, context1.get_covered_lines())
