@@ -62,7 +62,7 @@ class Probe(t.Protocol):
 
     path: str
     deps: list[tuple[str, tuple[str, ...]]]
-    dead: bool
+    dead_generation: int
 
 
 class CoverageEngine:
@@ -84,7 +84,7 @@ class CoverageEngine:
 
         This is the sys.monitoring ``restart_events()`` equivalent for engines whose events
         self-disable after first fire. ``import_context`` marks per-module-import contexts,
-        whose module bodies execute exactly once; engines may skip re-arming for them.
+        whose module bodies execute exactly once.
         """
         return None
 
@@ -142,6 +142,9 @@ class BytecodeInjectionEngine(CoverageEngine):
     def __init__(self, collector: "CoverageCollector") -> None:
         super().__init__(collector)
         self._probes: list[Probe] = []
+        # Bumped at every coverage-context entry; a probe is alive if it died in an older
+        # generation. This keeps re-arming O(1) in the number of probes.
+        self._generation = 0
 
     def instrument(self, code: CodeType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
         if USE_FILE_LEVEL_COVERAGE:
@@ -153,11 +156,11 @@ class BytecodeInjectionEngine(CoverageEngine):
         return new_code, lines
 
     def _fire_probe(self, probe: Probe) -> None:
-        # First fire per coverage context records the file and its import dependencies;
-        # subsequent fires are a cheap dead-flag check. Re-armed by arm().
-        if probe.dead:
+        # First fire per coverage generation records the file and its import dependencies;
+        # subsequent fires are a cheap generation check. Re-armed by arm().
+        if probe.dead_generation == self._generation:
             return
-        probe.dead = True
+        probe.dead_generation = self._generation
         collector = self._collector
         collector.hook_file(probe.path)
         for dep in probe.deps:
@@ -176,12 +179,10 @@ class BytecodeInjectionEngine(CoverageEngine):
                 self._register_probes(const)
 
     def arm(self, import_context: bool = False) -> None:
-        if import_context:
-            # Module bodies execute exactly once, so arming per module import would be pure
-            # overhead: an import-coverage context has nothing that can re-fire.
-            return
-        for probe in self._probes:
-            probe.dead = False
+        # O(1): a probe re-fires in this context if it executes, regardless of whether it
+        # fired in previous contexts. Import-coverage contexts can safely arm too: their
+        # module bodies execute exactly once, so arming there never causes extra fires.
+        self._generation += 1
 
     def on_empty_module(self, code: CodeType, package: str) -> None:
         # The file-level selector injects a trap at the RESUME pseudo line start for empty

@@ -58,15 +58,19 @@ class Probe:
     ``deps`` accumulates import dependencies instead of overwriting a single import slot, so the
     module's package self-dependency survives even when the first instrumented line is an import
     statement (parity with the sys.monitoring implementation).
+
+    ``dead_generation`` is the coverage-generation number in which this probe last fired: the
+    engine bumps the generation at every context entry, making re-arming O(1) regardless of how
+    many probes exist (a boolean dead flag would require iterating every probe per context).
     """
 
-    __slots__ = ("line", "path", "deps", "dead")
+    __slots__ = ("line", "path", "deps", "dead_generation")
 
     def __init__(self, line: int, path: str, deps: t.Optional[list[tuple[str, tuple[str, ...]]]] = None) -> None:
         self.line = line
         self.path = path
         self.deps: list[tuple[str, tuple[str, ...]]] = deps if deps is not None else []
-        self.dead = False
+        self.dead_generation = -1
 
 
 def inject_invocation(injection_context: InjectionContext, path: str, package: str) -> tuple[CodeType, list[int]]:
