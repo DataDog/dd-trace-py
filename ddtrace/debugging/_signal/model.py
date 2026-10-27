@@ -108,6 +108,7 @@ class Signal(abc.ABC):
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
     _eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
+    error_kind: str = field(default="condition", init=False, repr=False)
 
     def __post_init__(self) -> None:
         probe = self.probe
@@ -124,25 +125,20 @@ class Signal(abc.ABC):
             # The probe has no condition, so it should always trigger.
             return True
 
-        condition = probe.condition
-        if condition is None:
-            return True
-
         # RFC: skip at probe entry when error rate has been exceeded previously
         if Time.monotonic() < probe._error_throttled_until:
             self.state = SignalState.SKIP_COND_ERROR
             return False
 
+        condition = probe.condition
+        if condition is None:
+            return True
+
         t_start = Time.monotonic()
         try:
             result = bool(condition.eval(scope))
         except DDExpressionEvaluationError as e:
-            self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
-            if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
-                self.state = SignalState.SKIP_COND_ERROR
-            else:
-                self.state = SignalState.COND_ERROR
+            self._record_evaluation_error(e.dsl, e.error)
             return False
         finally:
             self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
@@ -150,19 +146,10 @@ class Signal(abc.ABC):
         # RFC: treat evaluation overruns as guardrail input — feed into the error throttle
         eval_timeout_ms = di_config.evaluation_timeout_ms
         if self._eval_duration_ms > eval_timeout_ms:
-            self.errors.append(
-                EvaluationError(
-                    expr=condition.dsl,
-                    message=(
-                        f"Condition evaluation exceeded budget: {self._eval_duration_ms:.1f}ms > {eval_timeout_ms}ms"
-                    ),
-                )
+            self._record_evaluation_error(
+                condition.dsl,
+                f"Condition evaluation exceeded budget: {self._eval_duration_ms:.1f}ms > {eval_timeout_ms}ms",
             )
-            if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
-                self.state = SignalState.SKIP_COND_ERROR
-                return False
-            self.state = SignalState.COND_ERROR
             return False
 
         if result:
@@ -170,6 +157,16 @@ class Signal(abc.ABC):
 
         self.state = SignalState.SKIP_COND
         return False
+
+    def _record_evaluation_error(self, expr: str, message: str, kind: str = "condition") -> None:
+        probe = cast(ProbeConditionMixin, self.probe)
+        self.errors.append(EvaluationError(expr=expr, message=message))
+        self.error_kind = kind
+        if probe.condition_error_limiter.limit() is RateLimitExceeded:
+            probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
+            self.state = SignalState.SKIP_COND_ERROR
+        else:
+            self.state = SignalState.COND_ERROR
 
     def _session_check(self) -> bool:
         # Check that we emit signals from probes with a session ID only if the

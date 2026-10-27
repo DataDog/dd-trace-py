@@ -12,15 +12,12 @@ from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
-from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
+from ddtrace.debugging._safety import safe_qualname
 from ddtrace.debugging._signal.log import LogSignal
-from ddtrace.debugging._signal.model import EvaluationError
-from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
 @dataclass
@@ -54,13 +51,15 @@ class MetricSample(LogSignal):
             try:
                 raw = probe.value(scope)
             except DDExpressionEvaluationError as e:
-                self._value_error(e.dsl, e.error)
+                self._record_evaluation_error(e.dsl, e.error, kind="value")
                 return
             try:
                 value = float(raw)
-            except (TypeError, ValueError, OverflowError):
+            except Exception:
                 # Name only the type: the value itself may be sensitive and has not been redacted.
-                self._value_error(probe.value.dsl, f"Value is not a number: {type(raw).__name__}")
+                self._record_evaluation_error(
+                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", kind="value"
+                )
                 return
 
         # TODO[perf]: We know the tags in advance so we can avoid the
@@ -73,14 +72,6 @@ class MetricSample(LogSignal):
             self.meter.histogram(probe.name, value, tags)
         elif probe.kind == MetricProbeKind.DISTRIBUTION:
             self.meter.distribution(probe.name, value, tags)
-
-    def _value_error(self, expr: str, message: str) -> None:
-        # Report like a condition error: escaping the signal drops the failure silently.
-        self.errors.append(EvaluationError(expr=expr, message=message))
-        if cast(ProbeConditionMixin, self.probe).condition_error_limiter.limit() is RateLimitExceeded:
-            self.state = SignalState.SKIP_COND_ERROR
-        else:
-            self.state = SignalState.COND_ERROR
 
     @property
     def message(self) -> Optional[str]:

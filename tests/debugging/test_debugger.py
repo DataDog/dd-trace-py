@@ -761,6 +761,11 @@ def test_debugger_metric_function_probe_fires_once_not_twice(mock_metrics, stuff
             )
 
 
+class _FloatRaises:
+    def __float__(self):
+        raise RuntimeError("customer-secret")
+
+
 @pytest.mark.parametrize(
     "value,arg,message",
     [
@@ -768,6 +773,7 @@ def test_debugger_metric_function_probe_fires_once_not_twice(mock_metrics, stuff
         ({"ref": "bar"}, {"x": 420}, "Value is not a number: dict"),
         ({"ref": "bar"}, "customer-secret", "Value is not a number: str"),
         ({"ref": "bar"}, 10**400, "Value is not a number: int"),
+        ({"ref": "bar"}, _FloatRaises(), "Value is not a number: _FloatRaises"),
     ],
 )
 def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, arg, message):
@@ -785,11 +791,12 @@ def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, 
         assert SignalState.DONE not in d.signal_state_counter
         (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
         assert error["expr"] == "test"
-        assert error["message"] == message or message in error["message"]
+        assert message in error["message"]
         assert "customer-secret" not in error["message"]
 
 
-def test_debugger_metric_function_probe_exit_value_error_reported(mock_metrics, stuff):
+@pytest.mark.parametrize("evaluate_at", [ProbeEvalTiming.ENTRY, ProbeEvalTiming.EXIT, ProbeEvalTiming.DEFAULT])
+def test_debugger_metric_function_probe_value_error_reported(mock_metrics, stuff, evaluate_at):
     probe = create_metric_function_probe(
         probe_id="metric-function-probe-test",
         module="tests.submod.stuff",
@@ -797,7 +804,7 @@ def test_debugger_metric_function_probe_exit_value_error_reported(mock_metrics, 
         kind=MetricProbeKind.GAUGE,
         name="test.gauge",
         tags={"debugger.probeid": "metric-function-probe-test"},
-        evaluate_at=ProbeEvalTiming.EXIT,
+        evaluate_at=evaluate_at,
         value=DDExpression(dsl="arg.x", callable=dd_compile({"getmember": [{"ref": "arg"}, "x"]})),
     )
     with debugger() as d:

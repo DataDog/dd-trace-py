@@ -62,7 +62,7 @@ class SignalCollector:
         elif signal.state is SignalState.COND_ERROR:
             meter.increment(
                 "dynamic_instrumentation.guardrails.evaluation.errors",
-                tags={"probe_type": type(signal.probe).__name__, "error_kind": "condition"},
+                tags={"probe_type": type(signal.probe).__name__, "error_kind": signal.error_kind},
             )
         elif signal.state is SignalState.SKIP_RATE_GLOBAL:
             meter.increment(
