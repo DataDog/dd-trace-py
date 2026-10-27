@@ -125,15 +125,12 @@ def test_environment_announcement_is_flushed_before_the_environment_runs(runner,
     assert "Running test environment: aaa" in flushed_at_run[0]
 
 
-@pytest.mark.parametrize("update", [None, "1"])
-def test_snapshot_settings_reach_test_environment(runner, monkeypatch, update):
+def test_snapshot_settings_reach_test_environment(runner, monkeypatch):
     runner.suites = {"snapshot": {"snapshot": True}}
     environment = _environment("snapshot-env")
     environment.suite = "snapshot"
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://testagent:9126")
     monkeypatch.setenv("DD_TEST_AGENT_SNAPSHOT_DIR", "/custom/snapshots")
-    if update is not None:
-        monkeypatch.setenv("DD_SNAPSHOT_UPDATE", update)
     captured = {}
 
     def run(environments, forwarded_env, test_args, rebuild):
@@ -144,7 +141,6 @@ def test_snapshot_settings_reach_test_environment(runner, monkeypatch, update):
     assert runner.run_tests([environment])
     assert captured["DD_TRACE_AGENT_URL"] == "http://testagent:9126"
     assert captured["DD_TEST_AGENT_SNAPSHOT_DIR"] == "/custom/snapshots"
-    assert captured.get("DD_SNAPSHOT_UPDATE") == update
 
 
 @pytest.mark.parametrize("port", [8126, 4318])
@@ -158,25 +154,3 @@ def test_discovers_each_agent_protocol_port(runner, run_tests_mod, monkeypatch, 
     monkeypatch.setattr(run_tests_mod.subprocess, "run", run)
     assert runner.get_testagent_url(port=port) == "http://localhost:34567"
     assert commands[0][-3:] == ["port", "testagent", str(port)]
-
-
-@pytest.mark.parametrize("update, expected", [(None, "1"), ("0", "1"), ("1", "0")])
-def test_local_agent_only_creates_baselines_when_requested(runner, monkeypatch, update, expected):
-    runner.in_ci = False
-    runner.suites = {"snapshot": {"snapshot": True}}
-    environment = _environment("snapshot-env")
-    environment.suite = "snapshot"
-    if update is not None:
-        monkeypatch.setenv("DD_SNAPSHOT_UPDATE", update)
-    modes = []
-
-    def start(services):
-        modes.append(os.environ["TESTAGENT_SNAPSHOT_CI"])
-        return True
-
-    monkeypatch.setattr(runner, "start_services", start)
-    monkeypatch.setattr(runner, "stop_services", lambda services: None)
-    monkeypatch.setattr(runner, "get_testagent_url", lambda port=8126: "http://testagent:9126")
-    monkeypatch.setattr(runner, "_run_environments", lambda *args: True)
-    assert runner.run_tests([environment])
-    assert modes == [expected]

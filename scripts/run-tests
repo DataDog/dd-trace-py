@@ -683,8 +683,6 @@ class TestRunner:
 
             # Start services for this suite
             if suite_services and not self.in_ci:
-                if needs_testagent:
-                    os.environ["TESTAGENT_SNAPSHOT_CI"] = "0" if os.getenv("DD_SNAPSHOT_UPDATE") == "1" else "1"
                 if not self.start_services(suite_services):
                     print(f"❌ Failed to start services for suite '{suite_name}'")
                     return False
@@ -722,9 +720,8 @@ class TestRunner:
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
 
             forwarded_env = {key: env[key] for key in suite_env}
-            for key in ("DD_SNAPSHOT_UPDATE", "DD_TEST_AGENT_SNAPSHOT_DIR"):
-                if key in os.environ:
-                    forwarded_env[key] = os.environ[key]
+            if "DD_TEST_AGENT_SNAPSHOT_DIR" in os.environ:
+                forwarded_env["DD_TEST_AGENT_SNAPSHOT_DIR"] = os.environ["DD_TEST_AGENT_SNAPSHOT_DIR"]
             if needs_testagent:
                 forwarded_env["DD_TRACE_AGENT_URL"] = env["DD_TRACE_AGENT_URL"]
                 if not self.in_ci:

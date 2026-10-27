@@ -1298,11 +1298,6 @@ class SnapshotTest:
             time.sleep(min(0.1, max(0, deadline - time.monotonic())))
 
     def verify(self, ignores: list[str], timeout: float) -> None:
-        snapshot_dir = FILE_PATH / "snapshots"
-        if os.getenv("DD_SNAPSHOT_UPDATE") != "1" and not any(
-            (snapshot_dir / f"{self.name}{suffix}.json").is_file() for suffix in ("", "_tracestats", "_otlp_traces")
-        ):
-            pytest.fail(f"Missing snapshot baseline for {self.name}. Use DD_SNAPSHOT_UPDATE=1 to create it.")
         agent_dir = os.getenv("DD_TEST_AGENT_SNAPSHOT_DIR")
         if agent_dir is None:
             project_dir = os.getenv("CI_PROJECT_DIR")

@@ -92,7 +92,6 @@ def agent() -> Iterator[Agent]:
 def snapshot_writer(agent: Agent, monkeypatch: pytest.MonkeyPatch) -> Iterator[NativeWriter]:
     writer = NativeWriter(agent.url, sync_mode=True)
     monkeypatch.setattr(ddtrace.tracer._span_aggregator, "writer", writer)
-    monkeypatch.setenv("DD_SNAPSHOT_UPDATE", "1")
     try:
         yield writer
     finally:
@@ -303,27 +302,6 @@ def test_invalid_wait_configuration(agent, snapshot_writer, options):
     assert not agent.calls
 
 
-def test_missing_baseline_fails_with_no_output(agent, snapshot_writer, monkeypatch):
-    monkeypatch.delenv("DD_SNAPSHOT_UPDATE")
-    with pytest.raises(pytest.fail.Exception, match="Missing snapshot baseline"):
-        with snapshot_context("missing-baseline"):
-            pass
-    assert not agent.matching("/test/session/snapshot")
-
-
-@pytest.mark.parametrize("suffix", ["", "_tracestats", "_otlp_traces"])
-def test_explicit_empty_baseline(agent, snapshot_writer, monkeypatch, tmp_path, suffix):
-    from tests import utils
-
-    monkeypatch.delenv("DD_SNAPSHOT_UPDATE")
-    monkeypatch.setattr(utils, "FILE_PATH", tmp_path)
-    (tmp_path / "snapshots").mkdir()
-    (tmp_path / "snapshots" / f"example{suffix}.json").write_text("[]")
-    with snapshot_context("example"):
-        pass
-    assert len(agent.matching("/test/session/snapshot")) == 1
-
-
 def test_flush_failure_restores_state(agent, snapshot_writer, monkeypatch):
     with pytest.raises(RuntimeError, match="delivery failed"):
         with snapshot_context("example"):
@@ -417,7 +395,6 @@ def test_explicit_snapshot_directory(agent, snapshot_writer, monkeypatch):
 def test_snapshot_fixture_outcomes(agent, monkeypatch, testdir, outcome):
     monkeypatch.setenv("DD_TRACE_AGENT_URL", agent.url)
     monkeypatch.setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "false")
-    monkeypatch.setenv("DD_SNAPSHOT_UPDATE", "1")
     monkeypatch.setenv("PYTHONPATH", str(Path(__file__).parents[2]))
     monkeypatch.delenv(HEADERS_ENV, raising=False)
     testdir.makeconftest(
@@ -506,7 +483,6 @@ def test_subprocess_capture_drains_parent_before_start(agent, snapshot_writer):
 def test_legacy_snapshot_decorator_with_subprocess(agent, monkeypatch, testdir, snapshot_first):
     monkeypatch.setenv("DD_TRACE_AGENT_URL", agent.url)
     monkeypatch.setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "false")
-    monkeypatch.setenv("DD_SNAPSHOT_UPDATE", "1")
     monkeypatch.setenv("PYTHONPATH", str(Path(__file__).parents[2]))
     testdir.makeconftest(
         """
@@ -569,7 +545,6 @@ class SnapshotHTTPWriter(HTTPWriter):
 def test_http_writer_restores_headers_and_surfaces_flush_errors(agent, monkeypatch, flush_fails):
     writer = SnapshotHTTPWriter(agent.url, clients=[], headers={"Other": "value"})
     monkeypatch.setattr(ddtrace.tracer._span_aggregator, "writer", writer)
-    monkeypatch.setenv("DD_SNAPSHOT_UPDATE", "1")
 
     def fail_flush(raise_exc=False):
         if raise_exc:

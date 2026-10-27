@@ -374,6 +374,6 @@ runs once after successful execution, and mismatches fail the test. Concurrent
 contexts sharing a global writer remain unsupported; the agent also retains its
 legacy timing-based handling of untagged requests.
 
-Baselines must exist for normal verification. To create a missing baseline locally,
-run with ``DD_SNAPSHOT_UPDATE=1`` and review the JSON. For custom agent mounts,
-set ``DD_TEST_AGENT_SNAPSHOT_DIR`` to the snapshot directory inside the agent.
+Local runs create missing baselines; review the generated JSON. CI requires existing
+baselines. For custom agent mounts, set ``DD_TEST_AGENT_SNAPSHOT_DIR`` to the snapshot
+directory inside the agent.
