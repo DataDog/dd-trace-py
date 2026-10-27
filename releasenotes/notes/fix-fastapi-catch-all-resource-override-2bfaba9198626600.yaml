@@ -1,0 +1,5 @@
+fixes:
+  - |
+    fastapi: Fixes an issue where request span resource names and ``http.route``
+    tags are overwritten by a top-level catch-all route when using included routers
+    with FastAPI 0.137 or later.

@@ -537,6 +537,41 @@ def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
     )
 
 
+@pytest.mark.parametrize("catch_all_location", ["none", "app", "router"])
+def test_included_router_resource_with_catch_all(fastapi_tracer, test_spans, catch_all_location):
+    """A fallback route must not replace the route that actually handled the request."""
+    app = fastapi.FastAPI()
+    api = fastapi.APIRouter()
+
+    @api.get("/items/{item_id}")
+    async def get_item(item_id: int):
+        return {"id": item_id}
+
+    async def catch_all(full_path: str):
+        raise fastapi.HTTPException(status_code=404)
+
+    app.include_router(api)
+    if catch_all_location == "app":
+        app.add_api_route("/{full_path:path}", catch_all, methods=["GET"], include_in_schema=False)
+    elif catch_all_location == "router":
+        fallback = fastapi.APIRouter()
+        fallback.add_api_route("/{full_path:path}", catch_all, methods=["GET"], include_in_schema=False)
+        app.include_router(fallback)
+
+    with TestClient(app) as client:
+        response = client.get("/items/1")
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 1}
+    request_spans = list(test_spans.filter_spans(name="fastapi.request"))
+    assert len(request_spans) == 1
+    request_span = request_spans[0]
+    assert (request_span.resource, request_span.get_tag("http.route")) == (
+        "GET /items/{item_id}",
+        "/items/{item_id}",
+    )
+
+
 def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
     """Regression test for FastAPI >= 0.137 lazy _IncludedRouter breaking resource names."""
     from fastapi import APIRouter
