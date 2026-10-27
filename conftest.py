@@ -30,11 +30,12 @@ _NO_STABLE_CONFIG: str = os.path.join(os.path.dirname(os.path.abspath(__file__))
 _settings_core = sys.modules.get("ddtrace.internal.settings._core")
 _host_stable_config_loaded: bool = False
 
-if "_DD_SC_LOCAL_FILE_OVERRIDE" not in os.environ:
+# The native loader ignores empty overrides, so treat them as unset.
+if not os.environ.get("_DD_SC_LOCAL_FILE_OVERRIDE"):
     os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = _NO_STABLE_CONFIG
     _host_stable_config_loaded |= _settings_core is not None and bool(_settings_core.LOCAL_CONFIG)
 
-if "_DD_SC_MANAGED_FILE_OVERRIDE" not in os.environ:
+if not os.environ.get("_DD_SC_MANAGED_FILE_OVERRIDE"):
     os.environ["_DD_SC_MANAGED_FILE_OVERRIDE"] = _NO_STABLE_CONFIG
     _host_stable_config_loaded |= _settings_core is not None and bool(_settings_core.FLEET_CONFIG)
 
@@ -48,14 +49,22 @@ else:
 def _restart_without_host_stable_config(config: PytestConfig) -> None:
     if not _host_stable_config_loaded:
         return
+    # sys.argv alone loses wrappers (e.g. coverage run) and interpreter flags, so do not restart
+    # without sys.orig_argv (Python 3.10+).
+    orig_argv: Optional[list[str]] = getattr(sys, "orig_argv", None)
+    if not orig_argv:
+        pytest.exit(
+            "A host stable config file was loaded. Set _DD_SC_LOCAL_FILE_OVERRIDE and "
+            "_DD_SC_MANAGED_FILE_OVERRIDE to %s and run pytest again." % _NO_STABLE_CONFIG,
+            returncode=1,
+        )
     # The new process inherits the file descriptors, so restore them from global capture first.
     capture_manager = config.pluginmanager.getplugin("capturemanager")
     if capture_manager is not None:
         capture_manager.stop_global_capturing()
     sys.stdout.flush()
     sys.stderr.flush()
-    argv: list[str] = getattr(sys, "orig_argv", None) or [sys.executable, *sys.argv]
-    os.execv(sys.executable, [sys.executable, *argv[1:]])
+    os.execv(sys.executable, [sys.executable, *orig_argv[1:]])
 
 
 # Disable the "too slow" health checks. We are ok if data generation is slow
