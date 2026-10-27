@@ -83,8 +83,6 @@ libc = "0.2"
 libc = "0.2"
 
 [build-dependencies]
-# The crashtracker build script needs std in libdd-common.
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.0", default-features = false, features = ["std"] }
 pyo3-build-config = "0.29"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.0", features = [
     "cbindgen",
