@@ -24,8 +24,45 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _get_blocked_template
+
+
+log = get_logger(__name__)
+
+
+def _normalized_request_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    """Lowercase the request headers for the WAF, dropping cookies.
+
+    Frameworks may decode header values lazily, so one malformed value can raise while the
+    mapping is being consumed. That would abort request inspection for the whole request,
+    so fall back to reading each header on its own and keep the rest of the payload.
+    """
+    try:
+        return {key.lower(): value for key, value in headers.items() if key.lower() != "cookie"}
+    except Exception:
+        log.debug("error normalizing request headers, falling back to per-header reads", exc_info=True)
+
+    normalized: dict[str, str] = {}
+    try:
+        keys = list(headers)
+    except Exception:
+        log.debug("error enumerating request headers", exc_info=True)
+        return normalized
+
+    for key in keys:
+        lowered = key.lower()
+        if lowered == "cookie":
+            continue
+        try:
+            normalized[lowered] = headers[key]
+        except UnicodeDecodeError as exc:
+            # Keep the undecodable bytes visible to the WAF instead of dropping the header.
+            normalized[lowered] = bytes(exc.object).decode(exc.encoding, "replace")
+        except Exception:
+            log.debug("error reading request header %r", key, exc_info=True)
+    return normalized
 
 
 def _check_blocked() -> None:
@@ -48,7 +85,7 @@ class WebFrameworkRequestInspectSubscriber(Subscriber):
         if not asm_config._asm_enabled or get_active_asm_context() is None:
             return
         event = notification.request_event
-        headers = {key.lower(): value for key, value in event.request_headers.items() if key.lower() != "cookie"}
+        headers = _normalized_request_headers(event.request_headers)
         asm_request_context_set(
             remote_ip=notification.peer_ip,
             headers=headers,

@@ -280,3 +280,36 @@ def test_shared_appsec_events_without_framework_objects(appsec, phase, context_n
     assert get_active_asm_context() is parent
     cleanup.assert_called_once_with(ctx, (None, None, None))
     assert ctx.identifier == context_name
+
+
+def test_malformed_header_does_not_skip_request_inspection(app, request_spans):
+    """A header value Bottle cannot decode must not hide the request from the WAF."""
+    app.catchall = False
+    calls = []
+
+    @app.route("/<path:path>")
+    def handler(path):
+        calls.append(path)
+        return "allowed"
+
+    webtest.TestApp(app).get("/.git", extra_environ={"HTTP_X_INVALID": "\xff"}, status=403)
+
+    assert calls == []
+    assert_span_http_status_code(request_spans[0], 403)
+
+
+def test_malformed_header_value_is_still_inspected():
+    class Headers(dict):
+        def __getitem__(self, key):
+            if key == "X-Invalid":
+                b"payload\xff".decode("utf8")
+            return super().__getitem__(key)
+
+        def items(self):
+            return [(key, self[key]) for key in self]
+
+    headers = Headers({"X-Invalid": "ignored", "Cookie": "a=b", "X-Other": "kept"})
+
+    normalized = web_framework_subscribers._normalized_request_headers(headers)
+
+    assert normalized == {"x-invalid": "payload\ufffd", "x-other": "kept"}
