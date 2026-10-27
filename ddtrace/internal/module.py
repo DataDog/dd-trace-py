@@ -12,7 +12,8 @@ import typing as t
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal import forksafe
-from ddtrace.internal._unpatched import threading_Lock
+from ddtrace.internal._unpatched import _threading
+from ddtrace.internal._unpatched import threading_RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 
@@ -34,23 +35,27 @@ log = get_logger(__name__)
 
 
 # Hooks registered for a module while a watchdog's after_import is calling the hooks for that module, by watchdog id
-# and module name. after_import calls them next, rather than register_module_hook calling them on a module that is
-# still being imported, possibly before the code that imports it has finished.
-_deferred_hooks: dict[tuple[int, str], list[ModuleHookType]] = {}
+# and module name, with the thread calling them. after_import calls them next, rather than register_module_hook calling
+# them on a module that is still being imported, possibly before the code that imports it has finished.
+_deferred_hooks: dict[tuple[int, str], tuple[int, list[ModuleHookType]]] = {}
 # Makes registering a module hook atomic with after_import collecting the hooks to call for that module, so that a hook
-# registered from another thread is either collected or deferred, never lost or called twice. No code outside this
-# module runs while it is held.
-# A plain lock, reset after fork by hand, as after_import takes it on every import and a forksafe.Lock proxy is slower.
-_module_hooks_lock = threading_Lock()
+# registered from another thread is either collected or deferred, never lost. No code outside this module runs while it
+# is held, but a signal handler or a finalizer can, and can import a module, hence a reentrant lock.
+# Reset after fork by hand, as after_import takes it on every import and a forksafe.RLock proxy is slower.
+_module_hooks_lock = threading_RLock()
 
 
 @forksafe.register
 def _reset_module_hooks() -> None:
     global _module_hooks_lock
 
-    _module_hooks_lock = threading_Lock()
-    # The threads calling these hooks are gone in the child, so registrations there call their hooks at once again.
-    _deferred_hooks.clear()
+    _module_hooks_lock = threading_RLock()
+    # Only the forking thread survives in the child. Registrations for modules whose hooks other threads were calling
+    # call their hooks at once again, as nothing would call them otherwise.
+    thread = _threading.get_ident()
+    for key, (owner, _) in list(_deferred_hooks.items()):
+        if owner != thread:
+            del _deferred_hooks[key]
 
 
 _run_code = None
@@ -620,47 +625,56 @@ class ModuleWatchdog(BaseModuleWatchdog):
             self._origin_map[path] = module
 
         name = module.__name__
-        key = (id(self), name)
-
-        # Collect all hooks by module origin and name
-        hooks = []
-        with _module_hooks_lock:
-            if path is not None and path in self._hook_map:
-                hooks.extend(self._hook_map[path])
-            if name in self._hook_map:
-                hooks.extend(self._hook_map[name])
+        if name not in self._hook_map and (path is None or path not in self._hook_map):
             # With no hooks to call, only another thread can register one for this module while this call runs, and
-            # that registration then calls its hook itself, as it would just after this call. A nested import of the
-            # same module leaves deferring to the outer call.
-            defers = bool(hooks) and key not in _deferred_hooks
-            if defers:
-                _deferred_hooks[key] = []
-
-        if not hooks:
+            # that registration then calls its hook itself, as it would just after this call.
             return
 
+        key = (id(self), name)
+        hooks: list[ModuleHookType] = []
+        defers = False
         try:
-            while True:
+            # Collect all hooks by module origin and name
+            with _module_hooks_lock:
+                if path is not None and path in self._hook_map:
+                    hooks.extend(self._hook_map[path])
+                if name in self._hook_map:
+                    hooks.extend(self._hook_map[name])
+                # A nested import of the same module leaves deferring to the outer call.
+                defers = bool(hooks) and key not in _deferred_hooks
+                if defers:
+                    _deferred_hooks[key] = (_threading.get_ident(), [])
+
+            while hooks:
                 log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), name)
                 for hook in hooks:
                     hook(module)
                 if not defers:
                     break
                 with _module_hooks_lock:
-                    # Missing if a hook forked and this is the child.
-                    deferred = _deferred_hooks.pop(key, None) or ()
-                    # Skip deferred hooks that were unregistered since. Compared by identity, as equality could run
-                    # code that registers a hook while the lock is held.
-                    registered = self._hook_map.get(name, ())
-                    hooks = [hook for hook in deferred if any(hook is r for r in registered)]
+                    hooks = self._pop_deferred_hooks(key, name)
                     if not hooks:
                         defers = False
-                        break
-                    _deferred_hooks[key] = []
+                    else:
+                        _deferred_hooks[key] = (_threading.get_ident(), [])
         finally:
             if defers:
+                # A hook raised. The hooks after it are not called, as before, but the deferred ones are, as they
+                # would have been called at registration otherwise, possibly from another thread.
                 with _module_hooks_lock:
-                    _deferred_hooks.pop(key, None)
+                    hooks = self._pop_deferred_hooks(key, name)
+                for hook in hooks:
+                    try:
+                        hook(module)
+                    except Exception:
+                        log.exception("Exception ignored in deferred hook %r for module %s", hook, name)
+
+    def _pop_deferred_hooks(self, key: tuple[int, str], name: str) -> list[ModuleHookType]:
+        """Remove and return the hooks deferred for key that are still registered for name. Call with the lock held."""
+        _, deferred = _deferred_hooks.pop(key)
+        # Compared by identity, as equality could run arbitrary code while the lock is held.
+        registered = self._hook_map.get(name, ())
+        return [hook for hook in deferred if any(hook is r for r in registered)]
 
     @classmethod
     def get_by_origin(cls, _origin: Path) -> t.Optional[ModuleType]:
@@ -775,7 +789,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
             instance._hook_map[module].append(hook)
             deferred = _deferred_hooks.get((id(instance), module))
             if deferred is not None:
-                deferred.append(hook)
+                deferred[1].append(hook)
         if deferred is not None:
             # after_import is calling the hooks for this module and calls this one next.
             log.debug("Deferring hook '%r' until the import of module '%s' has called its hooks", hook, module)

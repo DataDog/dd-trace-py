@@ -291,7 +291,7 @@ def test_module_hook_registered_during_import_hooks_not_called_if_unregistered()
 
 
 @pytest.mark.subprocess(err=lambda err: "RuntimeError: hook failed" in err)
-def test_module_hook_registered_after_import_hook_raised_called_at_once():
+def test_module_hook_registered_during_import_hooks_called_when_a_hook_raises():
     import sys
     from unittest import mock
 
@@ -299,17 +299,21 @@ def test_module_hook_registered_after_import_hook_raised_called_at_once():
 
     name = "tests.test_module"
     late_hook = mock.Mock()
+    next_hook = mock.Mock()
 
     def hook(module):
         ModuleWatchdog.register_module_hook(name, late_hook)
         raise RuntimeError("hook failed")
 
     ModuleWatchdog.register_module_hook(name, hook)
+    ModuleWatchdog.register_module_hook(name, next_hook)
 
     __import__(name)
 
-    # The failing hook stops the import from calling the hooks after it, as it stops hooks registered earlier.
-    late_hook.assert_not_called()
+    # The failing hook stops the import from calling the hooks registered after it, as before, but a deferred hook is
+    # still called, as registration would have called it.
+    next_hook.assert_not_called()
+    late_hook.assert_called_once_with(sys.modules[name])
 
     # Once the import is over, a new hook for the module is called at once rather than deferred to it.
     after_hook = mock.Mock()
@@ -388,6 +392,76 @@ def test_module_hook_registered_in_fork_child_during_import_hooks_of_another_thr
 
     _, status = os.waitpid(pid, 0)
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_module_hook_registered_in_fork_child_during_import_hooks_of_forking_thread_called_after_them():
+    import os
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    calls = []
+
+    def fork(module):
+        calls.append("fork")
+        if os.fork() == 0:
+            # This thread survives in the child and calls the hook after the ones it has.
+            ModuleWatchdog.register_module_hook(name, late)
+            calls.append("registered")
+
+    def check(module):
+        calls.append("check")
+
+    def late(module):
+        os._exit(0 if calls == ["fork", "registered", "check"] else 1)
+
+    ModuleWatchdog.register_module_hook(name, fork)
+    ModuleWatchdog.register_module_hook(name, check)
+
+    __import__(name)
+
+    assert calls == ["fork", "check"], calls
+    _, status = os.wait()
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_module_import_from_inside_after_import_lock_does_not_deadlock():
+    # A signal handler or a finalizer can run, and import a module, while after_import holds its lock. A line trace
+    # function does that deterministically here.
+    import sys
+
+    from ddtrace.internal import module
+    from ddtrace.internal.module import ModuleWatchdog
+
+    ModuleWatchdog.register_module_hook("tests.test_module", lambda module: None)
+    imported = []
+    after_import = ModuleWatchdog.after_import.__code__
+
+    def trace(frame, event, arg):
+        return trace_after_import if frame.f_code is after_import else None
+
+    def trace_after_import(frame, event, arg):
+        if event == "line" and module._module_hooks_lock._is_owned() and not imported:
+            sys.settrace(None)
+            import tests.submod.stuff  # noqa: F401
+
+            imported.append(frame.f_lineno)
+        return trace_after_import
+
+    sys.settrace(trace)
+    try:
+        import tests.test_module  # noqa: F401
+    finally:
+        sys.settrace(None)
+
+    assert imported, "the lock was never seen held"
+    assert "tests.submod.stuff" in sys.modules
 
     ModuleWatchdog.uninstall()
 
