@@ -196,3 +196,33 @@ def test_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
 
     assert extends == ".test_base_snapshot"
     assert f"{extends}:" in test_templates
+
+
+def _wait_command(gen_gitlab_config_mod, services, snapshot=True):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="tests/requirements_locks/wait.txt"):
+        config = str(
+            gen_gitlab_config_mod.JobSpec(
+                name="example", stage="contrib", suite="contrib::example", snapshot=snapshot, services=services
+            )
+        )
+    return next(line for line in config.splitlines() if "tests/wait-for-services.py" in line)
+
+
+@pytest.mark.parametrize("services", [[], ["elasticsearch", "httpbin"], ["memcached", "kafka"]])
+def test_http_only_services_wait_without_a_client_environment(gen_gitlab_config_mod, services):
+    command = _wait_command(gen_gitlab_config_mod, services)
+
+    assert "uv run" not in command
+    assert command.endswith(f"python tests/wait-for-services.py {' '.join([*services, 'testagent'])}")
+    assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" ' in command
+
+
+@pytest.mark.parametrize("services", [["postgres"], ["memcached", "redis"], ["azurite", "azureeventhubsemulator"]])
+def test_client_library_services_wait_in_the_client_environment(gen_gitlab_config_mod, services):
+    command = _wait_command(gen_gitlab_config_mod, services, snapshot=False)
+
+    assert (
+        "uv run --no-project --python 3.9 --no-python-downloads "
+        "--with-requirements tests/requirements_locks/wait.txt --no-progress "
+        f"python tests/wait-for-services.py {' '.join(services)}"
+    ) in command

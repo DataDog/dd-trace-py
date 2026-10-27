@@ -14,13 +14,14 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 **Causes:**
 1. `submit_to_llmobs=True` not set on `LlmRequestEvent` for event-based patch code
 2. `ctx.dispatch_ended_event()` not called, so `LlmTracingSubscriber` never calls `integration.llmobs_set_tags()`
-3. Integration not instantiated -- `module._datadog_integration` is `None`
+3. Integration not instantiated -- `module._datadog_integration` is `None`, or (for subscriber-based integrations) the `ddtrace/llmobs/_contrib/{name}` subscribers were never registered because the `ddtrace.integration_hooks` entry point for `{name}` is missing from `pyproject.toml`, the contrib's `patch()` doesn't call `integration_hooks.on_patch("{name}")`, or the dev install predates the entry point (reinstall with `scripts/run-tests -r`)
 4. `llmobs_enabled` returns `False` -- LLMObs not configured in tracer config
 
 **Fix:**
-- Verify `LlmRequestEvent(..., submit_to_llmobs=True, llmobs_integration=integration, request_kwargs=kwargs, ...)` in event-based patch wrappers
+- Verify `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` in event-based patch wrappers, plus either registered LLMObs subscribers or `llmobs_integration=integration` for older integrations
 - Verify success and error paths call `ctx.dispatch_ended_event(...)`
-- Verify `patch()` stores integration: `module._datadog_integration = MyIntegration(integration_config=config.mylib)`
+- Legacy integrations only: verify `patch()` stores integration: `module._datadog_integration = MyIntegration(integration_config=config.mylib)`
+- Subscriber-based integrations: do not store the integration on the module (that re-couples the patch layer to LLMObs). Instead verify the subscriber's lazy `integration()` classmethod builds and caches the instance (e.g. `LLMObsAnthropicSubscriber.integration()` in `ddtrace/llmobs/_contrib/anthropic/subscribers.py`)
 - Check `DD_LLMOBS_ENABLED=1` is set
 
 ---
@@ -122,7 +123,6 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 **Symptoms:**
 - Long-running web worker RSS grows linearly with traffic
 - One gunicorn/uvicorn worker is much larger than siblings
-- Later requests nest under an old LLM span (one worker's traces all share a parent)
 
 **Causes:**
 1. `LLMObs.llm()` or an integration stream span is finished only from a generator `finally` that never runs on client disconnect or an abandoned pump task
@@ -130,7 +130,7 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 3. Unfinished LLM spans keep the whole trace in the SpanAggregator until every span in the trace has finished
 
 **Fix:**
-- ASGI `TraceMiddleware` finishes leftover descendant `SpanTypes.LLM` spans after `await self.app()` returns (`_finish_unfinished_llm_spans`). Do not attach this to request-span finish: the last `http.response.body` can precede more annotation. Do not finish enclosing LLM ancestors or non-LLM children
+- Reclaim the span from the object that owns it, never from request teardown. An ASGI sweep of unfinished `SpanTypes.LLM` descendants cannot tell an abandoned stream from an agent that intentionally outlives the request, and every LLMObs kind (`agent`, `workflow`, `tool`, ...) carries `span_type=llm` -- so a sweep truncates live background spans and detaches their later children into new root traces
 - `TracedStream` / `TracedAsyncStream` `__exit__`/`__aexit__` close the wrapped stream first, then `close_stream()` (including `BaseException` from wrapped cleanup). `__del__` is last-resort for dropped `next()`. Stream-manager `__enter__` retains the child wrapper for the `with` body; `on_stream_created` runs before retain and finalizes on callback failure because `__exit__` will not run
 - `close_stream()` is idempotent with `__iter__`/`__next__`
 - Happy path should still annotate and finish the LLM span from the generator `finally` so teardown is a no-op

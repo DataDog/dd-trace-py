@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    google-adk: Fixes an issue where applications using ``google-adk`` 2.10.0 and later fail to
+    start when tracing is enabled, or start normally but report no tool call or code execution
+    spans. Tool calls and code execution are now traced on all supported ``google-adk`` versions.

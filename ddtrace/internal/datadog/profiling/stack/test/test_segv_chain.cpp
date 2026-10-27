@@ -382,6 +382,9 @@ TEST_F(SegvChain, ResetHandPreviousHandlerRunsAtMostOnceAcrossThreads)
 #if defined PL_DARWIN
     GTEST_SKIP() << "macOS does not report SA_RESETHAND through sigaction, so it cannot be emulated";
 #endif
+#if defined(DD_VALGRIND)
+    GTEST_SKIP() << "Valgrind serializes threads and emulates signal delivery, so the child hangs until the alarm";
+#endif
     std::atomic<int>* shared_calls = map_shared_counter();
     ASSERT_NE(shared_calls, nullptr);
 

@@ -22,6 +22,36 @@ pytest_plugins = ("pytester",)
 
 PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 
+# Keep the host's stable config files (e.g. /etc/datadog-agent/application_monitoring.yaml) out of
+# the tests. Subprocesses inherit these variables. The ddtrace pytest plugin imports ddtrace before
+# any conftest, and the configuration objects created then already hold the host values, so restart
+# pytest when the host config was read.
+_NO_STABLE_CONFIG: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".no-stable-config.yaml")
+_settings_core = sys.modules.get("ddtrace.internal.settings._core")
+_host_stable_config_loaded: bool = False
+
+if "_DD_SC_LOCAL_FILE_OVERRIDE" not in os.environ:
+    os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = _NO_STABLE_CONFIG
+    _host_stable_config_loaded |= _settings_core is not None and bool(_settings_core.LOCAL_CONFIG)
+
+if "_DD_SC_MANAGED_FILE_OVERRIDE" not in os.environ:
+    os.environ["_DD_SC_MANAGED_FILE_OVERRIDE"] = _NO_STABLE_CONFIG
+    _host_stable_config_loaded |= _settings_core is not None and bool(_settings_core.FLEET_CONFIG)
+
+
+def _restart_without_host_stable_config(config: pytest.Config) -> None:
+    if not _host_stable_config_loaded:
+        return
+    # The new process inherits the file descriptors, so restore them from global capture first.
+    capture_manager = config.pluginmanager.getplugin("capturemanager")
+    if capture_manager is not None:
+        capture_manager.stop_global_capturing()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    argv: list[str] = getattr(sys, "orig_argv", None) or [sys.executable, *sys.argv]
+    os.execv(sys.executable, [sys.executable, *argv[1:]])
+
+
 # Disable the "too slow" health checks. We are ok if data generation is slow
 # https://hypothesis.readthedocs.io/en/latest/healthchecks.html#hypothesis.HealthCheck.too_slow
 hypothesis.settings.register_profile("default", suppress_health_check=(hypothesis.HealthCheck.too_slow,))
@@ -194,15 +224,21 @@ def _probe(config, label: str, benchmarks_first: bool) -> None:
 
 
 def _probe_enabled(config) -> bool:
-    """Probe once per session on the xdist controller only, in CI or when explicitly asked."""
-    if hasattr(config, "workerinput") or os.getenv("DD_TEST_RUNTIME_PROBE") == "0":
-        return False
-    return os.getenv("CI") == "true" or os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
+    """Probe only when DD_TEST_RUNTIME_PROBE is "1", and only on the xdist controller.
+
+    The benchmarks cost a fraction of a second per session, and CI runs thousands of sessions per
+    pipeline. Set the variable when a job needs investigation, not on every run. Any other value is
+    off. GitLab can pass an unset variable to a child pipeline as an empty string or as the literal
+    "$DD_TEST_RUNTIME_PROBE".
+    """
+    return not hasattr(config, "workerinput") and os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
 
 
 # Hook for dynamic configuration of pytest in CI
 # https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
 def pytest_configure(config):
+    _restart_without_host_stable_config(config)
+
     config.addinivalue_line(
         "markers",
         """subprocess(status, out, err, args, env, parametrize, ddtrace_run):

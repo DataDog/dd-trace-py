@@ -6,6 +6,7 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.utils import set_http_exporter_marker
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
@@ -80,12 +81,14 @@ def _build_resource() -> Optional[Any]:
     try:
         from opentelemetry.sdk.resources import Resource
 
-        resource_attributes = {
-            **config.tags,
-            "service.name": config.service,
-            "service.version": config.version,
-            "deployment.environment.name": config.env,
-        }
+        resource_attributes = {k: v for k, v in config.tags.items() if k not in ("service", "version", "env")}
+        resource_attributes.update(
+            {
+                "service.name": config.service,
+                "service.version": config.version,
+                "deployment.environment.name": config.env,
+            }
+        )
 
         if config._report_hostname and "host.name" not in resource_attributes:
             resource_attributes["host.name"] = get_hostname()
@@ -95,8 +98,8 @@ def _build_resource() -> Optional[Any]:
         return Resource.create(resource_attributes)
     except ImportError:
         log.warning(
-            "OpenTelemetry SDK is not installed, opentelemetry metrics will not be enabled. "
-            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Metrics support."
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP metrics export."
         )
         return None
 
@@ -106,6 +109,11 @@ def _dd_metrics_exporter(otel_exporter: type[Any], protocol: str, encoding: str)
 
     class DDMetricsExporter(otel_exporter):
         """A custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            if protocol == "http":
+                set_http_exporter_marker(self)
 
         def export(self, metrics_data: Any, timeout_millis: Any, *args: Any, **kwargs: Any) -> Any:
             """Export metrics and queues telemetry metrics."""
@@ -167,13 +175,10 @@ def _import_exporter(protocol):
         protocol_name = "grpc" if protocol == "grpc" else "http"
         return _dd_metrics_exporter(OTLPMetricExporter, protocol_name, "protobuf")
 
-    except ImportError as e:
+    except ImportError:
         log.warning(
-            "OpenTelemetry Metrics exporter for %s is not available. "
-            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
-            protocol,
-            "grpc" if protocol == "grpc" else "http",
-            str(e),
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP metrics export."
         )
         return None
 

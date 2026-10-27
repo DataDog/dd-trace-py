@@ -18,7 +18,16 @@ from ddtrace.aiguard._types import Function  # noqa:F401
 from ddtrace.aiguard._types import ImageURL  # noqa:F401
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
+from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.constants import ENV_KEY
+from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import SERVICE_KEY
+from ddtrace.constants import SERVICE_VERSION_KEY
+from ddtrace.constants import VERSION_KEY
+from ddtrace.contrib.internal.trace_utils_base import set_client_address_tags
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
@@ -30,6 +39,8 @@ from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
+from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -47,6 +58,34 @@ DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 _RESERVED_TAG_PREFIX = AI_GUARD.TAG + "."
+# Backend extra tags never override what the tracer computes itself, nor span control keys
+# (sampling, service, version, env).
+_RESERVED_EXTRA_TAGS = frozenset(
+    (
+        AI_GUARD.ACTION_TAG,
+        AI_GUARD.REASON_TAG,
+        AI_GUARD.TARGET_TAG,
+        AI_GUARD.TOOL_NAME_TAG,
+        AI_GUARD.BLOCKED_TAG,
+        AI_GUARD.REDACTED_TAG,
+        AI_GUARD.EVENT_TAG,
+        *(f"{AI_GUARD.TAG}.{tag}" for tag in AI_GUARD.ANOMALY_DETECTION_TAGS),
+        MANUAL_KEEP_KEY,
+        MANUAL_DROP_KEY,
+        SERVICE_KEY,
+        SERVICE_VERSION_KEY,
+        VERSION_KEY,
+        ENV_KEY,
+        _SPAN_MEASURED_KEY,
+    )
+)
+_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "attack_categories", "sds", "tag_probs"))
+# Root span tags that anomaly detection reads under their OTel names when OTel semantics are enabled.
+_OTEL_ANOMALY_SOURCE_TAGS = {
+    http.USER_AGENT: otel_http.USER_AGENT_ORIGINAL,
+    http.CLIENT_IP: otel_http.CLIENT_ADDRESS,
+    net.CLIENT_IP: otel_http.NETWORK_PEER_ADDRESS,
+}
 
 
 class Evaluation(TypedDict):
@@ -294,6 +333,36 @@ class AIGuardClient:
         return None
 
     @staticmethod
+    def _apply_extra_tags(span: SpanData, meta_struct: dict[str, Any], extra_tags: object) -> None:
+        """Copy backend-provided tags to the span, scalars as tags and structured values to meta_struct.
+
+        Best effort: a malformed payload is skipped and must never change the evaluation outcome.
+        """
+        if extra_tags is None:
+            return
+        try:
+            if not isinstance(extra_tags, dict):
+                logger.debug("Ignoring AI Guard extra_tags of type %s", type(extra_tags).__name__)
+                return
+            for key, value in extra_tags.items():
+                if not isinstance(key, str) or not key:
+                    continue
+                if isinstance(value, bool):
+                    # Lowercase like every other boolean AI Guard tag, not Python's str(True).
+                    if key not in _RESERVED_EXTRA_TAGS:
+                        span._set_attribute(key, "true" if value else "false")
+                elif isinstance(value, (str, int, float)):
+                    if key not in _RESERVED_EXTRA_TAGS:
+                        span._set_attribute(key, value)
+                elif isinstance(value, (dict, list)):
+                    if key not in _RESERVED_EXTRA_STRUCT_KEYS:
+                        meta_struct[key] = value
+                else:
+                    logger.debug("Ignoring AI Guard extra tag %s of type %s", key, type(value).__name__)
+        except Exception:
+            logger.debug("Could not apply AI Guard extra_tags", exc_info=True)
+
+    @staticmethod
     def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
         if not remote_enabled:
             return False
@@ -401,6 +470,7 @@ class AIGuardClient:
                         # Presence of the field is the signal to redact; sds_findings are detection
                         # metadata only and never drive redaction.
                         redaction_replacements = attributes.get("redaction_replacements")
+                        extra_tags = attributes.get("extra_tags")
                     except Exception as e:
                         error_type = AI_GUARD.ERROR_BAD_RESPONSE
                         value = json.dumps(result, indent=2)[:500]
@@ -442,6 +512,7 @@ class AIGuardClient:
                         meta_struct.update({"sds": sds_findings})
                     if tag_probs is not None:
                         meta_struct.update({"tag_probs": tag_probs})
+                    self._apply_extra_tags(span, meta_struct, extra_tags)
                 else:
                     error_type = AI_GUARD.ERROR_BAD_STATUS
                     error_status = response.status
@@ -475,14 +546,16 @@ class AIGuardClient:
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     if client_ips:
                         client_ip, peer_ip = client_ips
-                        root_span._set_attribute(http.CLIENT_IP, client_ip)
-                        if peer_ip:
-                            root_span._set_attribute("network.client.ip", peer_ip)
+                        set_client_address_tags(root_span, client_ip, peer_ip)
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
                     # even when the root span arrives in a later trace chunk.
+                    source_tags = _OTEL_ANOMALY_SOURCE_TAGS if config._otel_trace_semantics_enabled else {}
                     for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
-                        tag_value = root_span.get_tag(tag_name)
+                        tag_value = root_span.get_tag(source_tags.get(tag_name, tag_name))
+                        if tag_value is None:
+                            # Inferred proxy roots keep the Datadog attribute names under OTel semantics.
+                            tag_value = root_span.get_tag(tag_name)
                         if tag_value is not None:
                             span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
                 if should_block:

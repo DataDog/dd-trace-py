@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload generated changes
         if: steps.patch.outputs.changed == 'true'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: ./.github/actions/upload-artifact
         with:
           name: generated-package-version
           path: generated.patch
