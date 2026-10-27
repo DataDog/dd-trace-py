@@ -1,8 +1,8 @@
 from typing import Any
 from typing import Callable
+from typing import Generator
 from typing import Optional
 
-from aiopg import __version__
 import wrapt
 
 from ddtrace import config
@@ -19,22 +19,46 @@ from ddtrace.ext import db
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
 
 
-AIOPG_VERSION = parse_version(__version__)
+class _TracedAwaitable(wrapt.ObjectProxy):
+    def __init__(self, original: Any, wrap_result: Callable[[Any], Any]) -> None:
+        super().__init__(original)
+
+        async def traced_result() -> Any:
+            return wrap_result(await original)
+
+        self._self_coro = traced_result()
+
+    def __await__(self) -> Generator[Any, None, Any]:
+        return self._self_coro.__await__()
+
+    def __iter__(self) -> Generator[Any, None, Any]:
+        # aiopg 0.16 uses yield from rather than await.
+        return self.__await__()
+
+    def send(self, value: Any) -> Any:
+        return self._self_coro.send(value)
+
+    def throw(self, *args: Any) -> Any:
+        try:
+            return self._self_coro.throw(*args)
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self) -> Any:
+        try:
+            self._self_coro.close()
+        finally:
+            # For aiopg connections, closing the original also closes the socket.
+            result = self.__wrapped__.close()
+        return result
 
 
 def _wrap_context_manager(context: Any, wrap_result: Callable[[Any], Any]) -> Any:
-    original = context._coro
-
-    async def traced_result() -> Any:
-        return wrap_result(await original)
-
-    coro = traced_result()
-    # aiopg 0.16 drives its coroutine with yield from; newer versions use await.
-    context._coro = coro.__await__() if AIOPG_VERSION < (1, 0) else coro
+    context._coro = _TracedAwaitable(context._coro, wrap_result)
     return context
 
 
@@ -45,6 +69,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         super().__init__(cursor)
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
+
+    async def __aenter__(self) -> Any:
+        result = await self.__wrapped__.__aenter__()
+        return self if result is self.__wrapped__ else result
 
     def _dbapi_query_encoding(self) -> str:
         return psycopg2_python_encoding(self.__wrapped__.connection)
@@ -121,6 +149,10 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
+
+    async def __aenter__(self) -> Any:
+        result = await self.__wrapped__.__aenter__()
+        return self if result is self.__wrapped__ else result
 
     def cursor(self, *args: Any, **kwargs: Any) -> Any:
         return _wrap_context_manager(self.__wrapped__.cursor(*args, **kwargs), self._trace_cursor)

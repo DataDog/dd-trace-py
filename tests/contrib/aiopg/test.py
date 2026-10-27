@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib import shared_tests_async
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
@@ -207,6 +208,83 @@ class AiopgTestCase(AsyncioTestCase):
                 assert cursor.closed
             assert conn.closed
             assert len(self.pop_spans()) == 1
+
+    @mark_asyncio
+    async def test_awaited_context_managers(self):
+        conn = await self._get_conn()
+        with pytest.raises(ValueError, match="close connection"):
+            async with conn as entered_conn:
+                assert entered_conn is conn
+                cursor = await conn.cursor()
+                async with cursor as entered_cursor:
+                    assert entered_cursor is cursor
+                    await entered_cursor.execute("SELECT 1")
+                    raise ValueError("close connection")
+        assert cursor.closed
+        assert conn.closed
+        assert len(self.pop_spans()) == 1
+
+    @mark_asyncio
+    async def test_connection_context_close(self):
+        closed = []
+        for connect in (aiopg.connect.__wrapped__, aiopg.connect):
+            context = connect(**POSTGRES_CONFIG)
+            conn = await context
+            try:
+                context.close()
+                closed.append(conn.closed)
+            finally:
+                conn.close()
+        assert closed[0] == closed[1]
+
+    @mark_asyncio
+    async def test_connection_context_abandoned(self):
+        connections = []
+        original_connect = aiopg.connection.psycopg2.connect
+
+        def connect(*args, **kwargs):
+            conn = original_connect(*args, **kwargs)
+            connections.append(conn)
+            return conn
+
+        with mock.patch("aiopg.connection.psycopg2.connect", side_effect=connect):
+            try:
+                context = aiopg.connect(**POSTGRES_CONFIG)
+                context.close()
+                assert all(conn.closed for conn in connections)
+                task = asyncio.ensure_future(aiopg.connect(**POSTGRES_CONFIG))
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+                assert all(conn.closed for conn in connections)
+            finally:
+                for conn in connections:
+                    conn.close()
+
+    @pytest.mark.skipif(
+        parse_version(aiopg.__version__) < (1, 0),
+        reason="aiopg 0.16 pools use the asyncio.Condition protocol removed in Python 3.9",
+    )
+    @mark_asyncio
+    async def test_pool_context_manager(self):
+        async with aiopg.create_pool(minsize=1, maxsize=1, **POSTGRES_CONFIG) as pool:
+            with pytest.raises(ValueError, match="release connection"):
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute("SELECT 1")
+                    raise ValueError("release connection")
+            assert cursor.closed
+            assert not conn.closed
+            assert pool.freesize == 1
+            async with pool.acquire() as reused_conn:
+                assert reused_conn is conn
+                async with reused_conn.cursor() as cursor:
+                    await cursor.execute("SELECT 2")
+                    assert await cursor.fetchone() == (2,)
+            assert pool.freesize == 1
+            assert [span.resource for span in self.pop_spans()] == ["SELECT 1", "SELECT 2"]
+        assert pool.closed
+        assert conn.closed
 
     @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
