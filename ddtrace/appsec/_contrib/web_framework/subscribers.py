@@ -122,6 +122,8 @@ class WebFrameworkBlockResponseSubscriber(Subscriber):
 
 class WebFrameworkRequestContextSubscriber(ContextSubscriber[WebFrameworkRequestEvent]):
     auto_register = False
+    # Integrations that override the context name need their route here; cleanup is identical
+    # for all of them, and a separate subclass would register a second listener name and run twice.
     event_names = (WebFrameworkEvents.WEB_REQUEST.value, "bottle.request")
 
     @classmethod

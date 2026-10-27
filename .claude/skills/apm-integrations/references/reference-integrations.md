@@ -39,21 +39,34 @@ Ordinary metadata errors must not replace the application's outcome. Preparation
 failure bypasses context creation and the execution adapter, calling the application
 once. Disabled tracing must not skip metadata hooks or context events.
 
-An optional execute(event, invoke) adapter runs inside the context. invoke calls
-the application with its original arguments, completes metadata, then returns or
-re-raises. Adapters may inspect that metadata and replace the outcome. If they skip
-or replace the callback, they own final metadata completion using
-complete_request_safely. Never invoke the application twice or manage spans in an
-adapter. Completion remains at callback return/raise; async and deferred response
-lifetimes need a different runner. Returned iterables are not consumed or wrapped.
+An optional execute(event, invoke, kwargs, complete) adapter runs inside the context.
+invoke calls the application with its original arguments, completes metadata, then
+returns or re-raises. Adapters may inspect that metadata and replace the outcome. If
+they skip or replace the callback, they own final metadata completion using
+complete_request_safely. The runner passes kwargs and complete per request, so adapters
+stay stateless and are built once at import. Never invoke the application twice or
+manage spans in an adapter. Completion remains at callback return/raise; async and
+deferred response lifetimes need a different runner. Returned iterables are not
+consumed or wrapped.
+
+blocking_execute_adapter builds the shared blocking adapter: it dispatches the
+inspection events, catches BlockingException (including exception groups), closes the
+discarded outcome, resolves the blocked response, and completes replacement metadata.
+Integrations supply only four framework callbacks -- request_details(kwargs) returning
+RequestInspectionDetails, is_response_object(outcome), extract_body(outcome), and
+build_response(status, headers, body) -- and no blocking logic. Without a block-response
+subscriber it falls back to a default JSON 403. Reuse this factory for new synchronous
+frameworks; write a custom execute only for a different inspection sequence.
 
 ## Bottle plugin boundary
 
 Bottle's TracePlugin.apply delegates through a small _run_request wiring helper to
-the shared runner. _execute_request is its framework-specific execution adapter:
-it dispatches typed request/response notifications, catches BlockingException
-(including exception groups), closes discarded bodies, builds HTTPResponse, and
-completes replacement metadata. AppSec subscribers own WAF evaluation, the
+the shared runner. _execute_request is a module-scope blocking_execute_adapter built
+from four Bottle callbacks: _request_details reads peer IP, cookies, and path params
+from Bottle's request proxy; _is_http_response recognizes HTTPResponse; _response_body
+reads its body; _build_blocked_response constructs the replacement and applies it over
+the pending response so completion hooks skip application headers and cookies. Bottle
+contributes no blocking control flow. AppSec subscribers own WAF evaluation, the
 block_request callable, response selection, and security-context cleanup.
 
 Bottle uses context_name_override="bottle.request" with WebFrameworkRequestEvent;
@@ -61,11 +74,12 @@ the shared tracing subscriber listens to both web.request and bottle.request.
 AppSec inspection and block-response subscribers live in appsec/_contrib/web_framework;
 they consume explicit peer IP, cookies, and path parameters rather than library request
 objects. The shared cleanup subscriber listens to both web.request and bottle.request.
-Reuse its event-name list for identical cleanup; specialize only for different behavior. Notifications use
-WebFrameworkRequestInspectEvent, WebFrameworkResponseInspectEvent, and WebFrameworkBlockResponseEvent through
+Reuse its event-name list for identical cleanup; specialize only for different
+behavior. Notifications use WebFrameworkRequestInspectEvent,
+WebFrameworkResponseInspectEvent, and WebFrameworkBlockResponseEvent through
 core.dispatch_event. The block event carries the selected response back to the
-adapter; do not use string-keyed context items for it. Request WAF evaluation stays
-inside the blocking handler because raising during context entry skips context exit.
+shared adapter; do not use string-keyed context items for it. Request WAF evaluation
+stays inside the blocking handler because raising during context entry skips context exit.
 
 Bottle marks response_from_exception when HTTPResponse is raised so the tracing
 subscriber can apply OTel status-based error semantics without suppressing the

@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from collections.abc import Mapping
 from collections.abc import MutableMapping
 from functools import partial
 from typing import Any
@@ -10,25 +11,14 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace.contrib._events.web_framework import WebFrameworkBlockResponseEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestInspectEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkResponseInspectEvent
-from ddtrace.contrib.internal.web_framework import complete_request_safely
+from ddtrace.contrib.internal.web_framework import CompleteCallback
+from ddtrace.contrib.internal.web_framework import RequestInspectionDetails
+from ddtrace.contrib.internal.web_framework import blocking_execute_adapter
 from ddtrace.contrib.internal.web_framework import run_web_framework_request
-from ddtrace.internal import core
-from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import Block_config
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.http import _format_template
-
-
-log = get_logger(__name__)
 
 
 class TracePlugin:
@@ -70,7 +60,7 @@ def _run_request(
     kwargs: dict[str, Any],
     *,
     prepare: Callable[[], WebFrameworkRequestEvent],
-    complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
+    complete: CompleteCallback,
 ) -> Any:
     return run_web_framework_request(
         callback,
@@ -79,81 +69,40 @@ def _run_request(
         prepare=prepare,
         complete=complete,
         context_name_override="bottle.request",
-        execute=partial(_execute_request, path_params=kwargs, complete=complete),
+        execute=_execute_request,
     )
 
 
-def _execute_request(
-    event: WebFrameworkRequestEvent,
-    invoke: Callable[[], Any],
-    *,
-    path_params: dict[str, Any],
-    complete: Callable[[WebFrameworkRequestEvent, Any, Optional[BaseException]], None],
-) -> Any:
-    """Inspect and replace Bottle outcomes while the shared request context is active."""
-    result = None
-    error: Optional[BaseException] = None
-    blocking: Optional[BlockingException] = None
-    try:
-        try:
-            try:
-                # WAF evaluation can block, so it must run inside the handler rather than context entry.
-                core.dispatch_event(
-                    WebFrameworkRequestInspectEvent(
-                        request_event=event,
-                        peer_ip=request.environ.get("REMOTE_ADDR"),
-                        cookies=dict(request.cookies),
-                        path_params=path_params,
-                    )
-                )
-            except BaseException as exc:
-                # The shared invocation was skipped, so it cannot complete this outcome.
-                complete_request_safely(complete, event, None, exc)
-                raise
-            result = invoke()
-            return result
-        except BaseException as exc:
-            error = exc
-            raise
-        finally:
-            core.dispatch_event(WebFrameworkResponseInspectEvent(event))
-    except BaseException as exc:
-        blocking = find_exception(exc, BlockingException)
-        if blocking is None:
-            raise
-        if isinstance(result, HTTPResponse):
-            discarded_body = result.body
-        elif isinstance(error, HTTPResponse):
-            discarded_body = error.body
-        else:
-            discarded_body = result
-        close = getattr(discarded_body, "close", None)
-        if callable(close):
-            try:
-                close()
-            except Exception:
-                log.debug("Failed to close blocked Bottle response", exc_info=True)
-        result = _blocked_response(blocking.args[0])
-        complete_request_safely(complete, event, result, None)
-        return result
-    finally:
-        # Do not retain the application's traceback through this frame.
-        error = None
-        blocking = None
+def _request_details(path_params: Mapping[str, Any]) -> RequestInspectionDetails:
+    """Collect the request data subscribers receive in place of Bottle's request object."""
+    return RequestInspectionDetails(
+        peer_ip=request.environ.get("REMOTE_ADDR"),
+        cookies=dict(request.cookies),
+        path_params=path_params,
+    )
 
 
-def _blocked_response(block: Block_config) -> HTTPResponse:
-    event = WebFrameworkBlockResponseEvent(block)
-    core.dispatch_event(event)
-    block_response = event.response
-    if block_response is None:
-        body = _format_template(BLOCKED_RESPONSE_JSON, "default").encode("utf-8")
-        block_response = (403, {"Content-Type": "application/json", "Content-Length": str(len(body))}, body)
-    status, headers, body = block_response
+def _is_http_response(outcome: Any) -> bool:
+    return isinstance(outcome, HTTPResponse)
+
+
+def _response_body(outcome: HTTPResponse) -> Any:
+    return outcome.body
+
+
+def _build_blocked_response(status: int, headers: Mapping[str, str], body: bytes) -> HTTPResponse:
     blocked = HTTPResponse(body=body, status=status, headers=headers)
     # Completion hooks must see the replacement headers, without the application's headers or cookies.
     blocked.apply(response)
     return blocked
+
+
+_execute_request = blocking_execute_adapter(
+    request_details=_request_details,
+    is_response_object=_is_http_response,
+    extract_body=_response_body,
+    build_response=_build_blocked_response,
+)
 
 
 def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEvent:
