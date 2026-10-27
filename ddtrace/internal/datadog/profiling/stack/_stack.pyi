@@ -63,6 +63,41 @@ def unlink_span(expected_span_id: int) -> None: ...
 def clear_span() -> None: ...
 def unlink_finished_span(span_id: int) -> None: ...
 
+# Keyed span links, per thread, asyncio task and greenlet. A link entry is None ("no span") or
+# (span_id, local_root_span_id, span_type, kind), where kind is SPAN_LINK_KIND_SPAN or SPAN_LINK_KIND_CONTEXT.
+SpanLinkEntry = Optional[tuple[int, int, Optional[str], int]]
+
+SPAN_LINK_KIND_SPAN: int
+SPAN_LINK_KIND_CONTEXT: int
+SPAN_LINK_DOMAIN_THREAD: int
+SPAN_LINK_DOMAIN_ASYNCIO_TASK: int
+SPAN_LINK_DOMAIN_GREENLET: int
+
+def lifecycle() -> int:
+    """Return the span links lifecycle token. It is odd while span links are open and even while they are closed."""
+    ...
+
+def link(token: int, thread: bool, task_id: int, greenlet_id: int, entry: SpanLinkEntry) -> None:
+    """Write entry to the current thread's key if thread is true, and to the task and greenlet keys whose id is not 0.
+
+    Ignored unless token is the current lifecycle token and is odd. None erases the thread key, leaves a tombstone on
+    an existing task or greenlet key, and creates nothing for a missing one.
+    """
+    ...
+
+def retarget(token: int, span_id: int, entry: SpanLinkEntry) -> None:
+    """Point every SPAN-kind link that holds span_id at entry, with the same token and None rules as link()."""
+    ...
+
+def holds_span(span_id: int) -> bool: ...
+def clear_task(task_id: int) -> None: ...
+def clear_greenlet(greenlet_id: int) -> None: ...
+def links_open() -> None: ...
+def links_close() -> None: ...
+def _span_link_entry(domain: int, identifier: int) -> Optional[tuple[SpanLinkEntry, int]]:
+    """Test-only: return None for a missing key, otherwise (entry, birth)."""
+    ...
+
 # executor worker thread <-> originating asyncio task association
 def link_origin_task(
     task_id: int,

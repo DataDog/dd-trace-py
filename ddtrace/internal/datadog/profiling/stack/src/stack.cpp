@@ -17,6 +17,10 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <exception>
+#include <new>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -281,6 +285,243 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
     }
 
     Py_RETURN_NONE;
+}
+
+// Keyed span link operations. They are called with the GIL held, and keep holding it while SpanLinks' mutex is free.
+// Only when the mutex is contended, by the sampling thread or by another writer that already released the GIL, do
+// they release the GIL, block on the mutex, do the work and release the mutex before re-acquiring the GIL. Neither
+// kind of holder needs the GIL while it holds the mutex, so this cannot deadlock.
+namespace {
+
+struct ReleaseGilOnContention
+{
+    template<typename Fn>
+    void operator()(Fn&& fn) const
+    {
+        // An exception must not leave this scope with the GIL released.
+        std::exception_ptr error;
+        Py_BEGIN_ALLOW_THREADS;
+        try {
+            fn();
+        } catch (...) {
+            error = std::current_exception();
+        }
+        Py_END_ALLOW_THREADS;
+        if (error) {
+            std::rethrow_exception(error);
+        }
+    }
+};
+
+// Runs fn and turns a native exception into a Python one. Returns false when an exception is set.
+template<typename Fn>
+bool
+run_span_links_op(Fn&& fn)
+{
+    try {
+        fn();
+        return true;
+    } catch (const std::bad_alloc&) {
+        PyErr_NoMemory();
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+    }
+    return false;
+}
+
+// Converts None or (span_id, local_root_span_id, span_type, kind) into a native value, before any lock is taken.
+bool
+parse_span_link_entry(PyObject* entry, std::optional<Span>& out)
+{
+    if (entry == Py_None) {
+        out.reset();
+        return true;
+    }
+    if (!PyTuple_Check(entry)) {
+        PyErr_SetString(PyExc_TypeError, "span link entry must be None or a tuple");
+        return false;
+    }
+
+    unsigned long long span_id = 0;
+    unsigned long long local_root_span_id = 0;
+    const char* span_type = nullptr;
+    int kind = 0;
+    if (!PyArg_ParseTuple(entry, "KKzi", &span_id, &local_root_span_id, &span_type, &kind)) {
+        return false;
+    }
+    if (kind != static_cast<int>(SpanLinkKind::Span) && kind != static_cast<int>(SpanLinkKind::Context)) {
+        PyErr_Format(PyExc_ValueError, "invalid span link kind %d", kind);
+        return false;
+    }
+    out.emplace(
+      span_id, local_root_span_id, std::string(span_type != nullptr ? span_type : ""), static_cast<SpanLinkKind>(kind));
+    return true;
+}
+
+PyObject*
+span_link_entry_to_python(const std::optional<Span>& span)
+{
+    if (!span) {
+        Py_RETURN_NONE;
+    }
+    return Py_BuildValue("(KKsi)",
+                         static_cast<unsigned long long>(span->span_id),
+                         static_cast<unsigned long long>(span->local_root_span_id),
+                         span->span_type.c_str(),
+                         static_cast<int>(span->kind));
+}
+
+} // namespace
+
+static PyObject*
+stack_span_links_lifecycle(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromUnsignedLongLong(SpanLinks::get_instance().lifecycle());
+}
+
+static PyObject*
+stack_span_links_link(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long long token = 0;
+    int thread = 0;
+    unsigned long long task_id = 0;
+    unsigned long long greenlet_id = 0;
+    PyObject* entry = nullptr;
+    if (!PyArg_ParseTuple(args, "KpKKO", &token, &thread, &task_id, &greenlet_id, &entry)) {
+        return nullptr;
+    }
+
+    std::optional<Span> span;
+    if (!parse_span_link_entry(entry, span)) {
+        return nullptr;
+    }
+
+    std::optional<uint64_t> thread_id;
+    if (thread) {
+        thread_id = PyThreadState_Get()->thread_id;
+    }
+
+    if (!run_span_links_op([&] {
+            SpanLinks::get_instance().link(token, thread_id, task_id, greenlet_id, span, ReleaseGilOnContention{});
+        })) {
+        return nullptr;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_span_links_retarget(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long long token = 0;
+    unsigned long long span_id = 0;
+    PyObject* entry = nullptr;
+    if (!PyArg_ParseTuple(args, "KKO", &token, &span_id, &entry)) {
+        return nullptr;
+    }
+
+    std::optional<Span> replacement;
+    if (!parse_span_link_entry(entry, replacement)) {
+        return nullptr;
+    }
+
+    if (!run_span_links_op(
+          [&] { SpanLinks::get_instance().retarget(token, span_id, replacement, ReleaseGilOnContention{}); })) {
+        return nullptr;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_span_links_holds_span(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long long span_id = 0;
+    if (!PyArg_ParseTuple(args, "K", &span_id)) {
+        return nullptr;
+    }
+
+    bool held = false;
+    if (!run_span_links_op([&] { held = SpanLinks::get_instance().holds_span(span_id, ReleaseGilOnContention{}); })) {
+        return nullptr;
+    }
+    return PyBool_FromLong(held);
+}
+
+static PyObject*
+stack_span_links_clear_key(SpanLinkDomain domain, PyObject* args)
+{
+    unsigned long long key_id = 0;
+    if (!PyArg_ParseTuple(args, "K", &key_id)) {
+        return nullptr;
+    }
+
+    if (!run_span_links_op([&] { SpanLinks::get_instance().clear({ domain, key_id }, ReleaseGilOnContention{}); })) {
+        return nullptr;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_span_links_clear_task(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    return stack_span_links_clear_key(SpanLinkDomain::AsyncioTask, args);
+}
+
+static PyObject*
+stack_span_links_clear_greenlet(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    return stack_span_links_clear_key(SpanLinkDomain::Greenlet, args);
+}
+
+static PyObject*
+stack_span_links_open(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (!run_span_links_op([] { SpanLinks::get_instance().open(ReleaseGilOnContention{}); })) {
+        return nullptr;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_span_links_close(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (!run_span_links_op([] { SpanLinks::get_instance().close(ReleaseGilOnContention{}); })) {
+        return nullptr;
+    }
+    Py_RETURN_NONE;
+}
+
+// Test-only. Returns None for a missing key, otherwise (entry_or_none, birth). The thread domain uses the
+// PyThreadState thread id, which is threading.get_ident().
+static PyObject*
+stack_span_link_entry(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int domain = 0;
+    unsigned long long key_id = 0;
+    if (!PyArg_ParseTuple(args, "iK", &domain, &key_id)) {
+        return nullptr;
+    }
+    if (domain != static_cast<int>(SpanLinkDomain::Thread) && domain != static_cast<int>(SpanLinkDomain::AsyncioTask) &&
+        domain != static_cast<int>(SpanLinkDomain::Greenlet)) {
+        PyErr_Format(PyExc_ValueError, "invalid span link domain %d", domain);
+        return nullptr;
+    }
+
+    std::optional<SpanLinkEntry> entry;
+    if (!run_span_links_op([&] {
+            entry = SpanLinks::get_instance().get_entry({ static_cast<SpanLinkDomain>(domain), key_id },
+                                                        ReleaseGilOnContention{});
+        })) {
+        return nullptr;
+    }
+    if (!entry) {
+        Py_RETURN_NONE;
+    }
+
+    PyObject* span = span_link_entry_to_python(entry->span);
+    if (span == nullptr) {
+        return nullptr;
+    }
+    return Py_BuildValue("(NK)", span, static_cast<unsigned long long>(entry->birth));
 }
 
 // Records the asyncio task that offloaded work to the current (worker) thread.
@@ -1168,6 +1409,16 @@ static PyMethodDef stack_methods[] = {
       stack_unlink_finished_span,
       METH_VARARGS,
       "Clear every physical-thread link derived from a finished span" },
+    // Keyed span links, per thread, asyncio task and greenlet
+    { "lifecycle", stack_span_links_lifecycle, METH_NOARGS, "Return the span links lifecycle token" },
+    { "link", stack_span_links_link, METH_VARARGS, "Link a span to the given execution units" },
+    { "retarget", stack_span_links_retarget, METH_VARARGS, "Repoint every span link that holds a span" },
+    { "holds_span", stack_span_links_holds_span, METH_VARARGS, "Return whether any span link holds a span" },
+    { "clear_task", stack_span_links_clear_task, METH_VARARGS, "Remove the span link key of an asyncio task" },
+    { "clear_greenlet", stack_span_links_clear_greenlet, METH_VARARGS, "Remove the span link key of a greenlet" },
+    { "links_open", stack_span_links_open, METH_NOARGS, "Clear span links and advance to an odd lifecycle token" },
+    { "links_close", stack_span_links_close, METH_NOARGS, "Clear span links and advance to an even lifecycle token" },
+    { "_span_link_entry", stack_span_link_entry, METH_VARARGS, "Test-only: return one span link key's entry" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
@@ -1283,6 +1534,16 @@ PyInit__stack(void) // NOLINT(bugprone-reserved-identifier)
     m = PyModule_Create(&moduledef);
     if (!m)
         return nullptr;
+
+    if (PyModule_AddIntConstant(m, "SPAN_LINK_KIND_SPAN", static_cast<long>(SpanLinkKind::Span)) < 0 ||
+        PyModule_AddIntConstant(m, "SPAN_LINK_KIND_CONTEXT", static_cast<long>(SpanLinkKind::Context)) < 0 ||
+        PyModule_AddIntConstant(m, "SPAN_LINK_DOMAIN_THREAD", static_cast<long>(SpanLinkDomain::Thread)) < 0 ||
+        PyModule_AddIntConstant(m, "SPAN_LINK_DOMAIN_ASYNCIO_TASK", static_cast<long>(SpanLinkDomain::AsyncioTask)) <
+          0 ||
+        PyModule_AddIntConstant(m, "SPAN_LINK_DOMAIN_GREENLET", static_cast<long>(SpanLinkDomain::Greenlet)) < 0) {
+        Py_DECREF(m);
+        return nullptr;
+    }
 
     return m;
 }
