@@ -37,7 +37,8 @@ class RemoteConfigPoller(periodic.AwakeablePeriodicService):
     _MAX_CONSECUTIVE_FAILURES = 3
     # Products are usually enabled in bursts, e.g. while the product manager
     # starts them on boot. A request waits until no new product has been
-    # enabled for this long, so that a single one advertises all of them.
+    # enabled for this long, so that a single one advertises the whole burst.
+    # Products enabled later wake the poller up again and open a new window.
     _PRODUCT_COLLECTION_WINDOW = 0.1
 
     def __init__(self) -> None:

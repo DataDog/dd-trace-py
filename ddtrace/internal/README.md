@@ -205,10 +205,15 @@ dispatched to a handler.
 
 The poller sends no requests while no product is enabled. Enabling a new product
 wakes the poller up, which then waits until no new product has been enabled for
-a short while (`RemoteConfigPoller._PRODUCT_COLLECTION_WINDOW`) before sending a
-request, so that it advertises all of them. This way the first request on boot
-carries all the products started by the product manager, and products enabled
-later get their configuration without waiting for the next poll.
+`RemoteConfigPoller._PRODUCT_COLLECTION_WINDOW` before sending a request. Each
+enablement restarts that wait, so products enabled in quick succession, like
+those the product manager starts on boot, are batched into a single request.
+
+The window is a debounce, not a barrier: it does not guarantee that the first
+request includes every product the product manager starts. A product enabled
+after the window has expired, including while a request is in flight, wakes the
+poller up again and opens a new window. Once that window expires, the poller
+sends another request without waiting for the regular poll interval.
 
 ```python
 remoteconfig_poller.enable_product("MY_PRODUCT")
