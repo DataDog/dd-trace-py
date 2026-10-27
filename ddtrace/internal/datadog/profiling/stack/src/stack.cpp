@@ -71,6 +71,13 @@ stack_is_origin_task_linking_enabled(PyObject* Py_UNUSED(self), PyObject* Py_UNU
 }
 
 static PyObject*
+stack_register_fork_cleanup(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    Sampler::get().register_fork_cleanup();
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     Py_BEGIN_ALLOW_THREADS; // Release GIL
@@ -362,6 +369,17 @@ stack_init_asyncio(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    // AsyncioOffsets uses 0 to mean unavailable, so a real offset must never be 0.
+    static_assert(offsetof(PyInterpreterState, asyncio_tasks_head) != 0,
+                  "PyInterpreterState.asyncio_tasks_head must not be at offset 0");
+    static_assert(offsetof(_PyThreadStateImpl, asyncio_tasks_head) != 0,
+                  "_PyThreadStateImpl.asyncio_tasks_head must not be at offset 0");
+    Sampler::get().get_echion().set_asyncio_offsets(AsyncioOffsets{
+      .interpreter_tasks_head = offsetof(PyInterpreterState, asyncio_tasks_head),
+      .thread_tasks_head = offsetof(_PyThreadStateImpl, asyncio_tasks_head),
+    });
+#endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
     Py_RETURN_NONE;
@@ -1130,6 +1148,10 @@ static PyMethodDef stack_methods[] = {
       stack_is_origin_task_linking_enabled,
       METH_NOARGS,
       "Return whether OriginTaskLinks is enabled (stack sampler has been started)" },
+    { "register_fork_cleanup",
+      stack_register_fork_cleanup,
+      METH_NOARGS,
+      "Reset the sampler state in fork children, even if the sampler was never started" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },

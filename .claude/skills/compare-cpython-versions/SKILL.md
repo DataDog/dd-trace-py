@@ -12,160 +12,44 @@ allowed-tools:
   - TodoWrite
 ---
 
-# Compare CPython Versions Skill
+# Compare CPython versions
 
-This skill helps compare CPython source code between two Python versions to identify
-changes in headers, structs, and APIs that affect our codebase.
+Use the [CPython dependency inventory](../find-cpython-usage/SKILL.md) to scope this work.
+Resolve exact old/new tags or commits; distinguish a release tag from a moving development branch.
+Use an existing CPython checkout when available, or a separate checkout of
+`https://github.com/python/cpython`. Do not switch the user's working checkout to inspect another ref.
 
-## When to Use This Skill
-
-Use this skill when:
-- Adding support for a new Python version
-- Need to understand what changed between versions
-- Investigating compatibility issues
-- Have a list of headers/structs from `find-cpython-usage` skill
-
-## Key Principles
-
-1. **Compare systematically** - Focus on headers and structs identified in Step 1
-2. **Use multiple methods** - Git diff, manual diff, or AI-assisted comparison
-3. **Document changes** - Note all breaking changes and API modifications
-4. **Check context** - Understand why changes were made (PEPs, GitHub issues)
-
-## How This Skill Works
-
-### Step 1: Prepare CPython Repository
+Run in the CPython checkout, substituting verified refs and paths:
 
 ```bash
-# Create ~/dd directory if it doesn't exist
-mkdir -p ~/dd
-
-# Clone CPython repository if needed (to ~/dd/cpython)
-if [ ! -d ~/dd/cpython ]; then
-    git clone https://github.com/python/cpython.git ~/dd/cpython
-    cd ~/dd/cpython
-    git fetch --tags
-else
-    cd ~/dd/cpython
-    # Update existing repository
-    git fetch --tags
-    git fetch origin
-fi
+git diff <old-ref> <new-ref> -- <relevant-header-or-source>
+git log <old-ref>..<new-ref> -- <relevant-header-or-source>
+git log -p <old-ref>..<new-ref> -S '<changed-symbol>' -- Include Python Objects Modules
 ```
 
-### Step 2: Compare Specific Headers
+Use the inventory to check these change categories; this is not an exhaustive compatibility checklist:
 
-Using the list of headers from `find-cpython-usage`, compare each header between
-the old version and new version. Replace `OLD_VERSION` and `NEW_VERSION` with the
-actual version tags (e.g., `v3.13.0`, `v3.14.0`):
+- Struct fields added, removed, renamed, reordered, or retyped, including pointer-to-tagged-reference
+  changes, bitfields, alignment, and offsets used by copied layouts.
+- Headers or declarations moved, split, or merged; changed include order, guards, and build macros.
+- Functions or macros added, removed, or deprecated; changed signatures, replacements, and contracts.
 
-```bash
-# Compare specific headers between versions
-git diff OLD_VERSION NEW_VERSION -- Include/internal/pycore_frame.h
-git diff OLD_VERSION NEW_VERSION -- Include/frameobject.h
+For local examples, inspect `ddtrace/internal/datadog/profiling/profiling_helpers/version_compat.h`
+and `frame_accessors.h` in that directory: they handle moved interpreter-frame headers and different
+representations of the frame's executable field. Verify each comparison against the selected versions.
 
-# Compare all internal headers
-git diff OLD_VERSION NEW_VERSION -- 'Include/internal/pycore*.h'
+Inspect implementations as well as declarations: layouts, ownership, GIL requirements,
+finalization, and error behavior can change without a signature change. Use the exact revision's
+source, What's New notes, and linked upstream issues to explain each relevant difference.
 
-# Compare specific struct definitions
-git diff OLD_VERSION NEW_VERSION -- Include/internal/pycore_frame.h | grep -A 20 "struct _PyInterpreterFrame"
-```
+Follow `gh-<number>` or issue references in introducing commits to the CPython issue/PR and any
+linked PEP. `ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h` cites `gh-123923`
+for stack references; a proposal or release-note summary does not replace source verification.
 
+Connect each changed field or API to ddtrace's reads, macros, offsets, copies, and callers. Record
+the old/new contract, replacement or adaptation, required version guard, and affected files;
+include caller and upstream source links so the proposed changes can be checked.
 
-### Step 3: Identify Changes
-
-For each header/struct, look for:
-
-**Struct Changes:**
-- Field additions
-- Field removals
-- Field type changes
-- Field reordering
-- Struct moves to different headers
-
-**API Changes:**
-- Removed functions/structures
-- New functions/structures
-- Changed function signatures
-- Deprecated APIs
-
-**Header Changes:**
-- Headers moved to different locations
-- Headers split or merged
-- New headers introduced
-
-### Step 4: Analyze Impact
-
-For each change identified:
-
-1. **Understand the change:**
-   - Why was it changed? (Check Python's What's New, PEPs, or GitHub issues)
-   - Is it a breaking change or backward compatible?
-   - What's the replacement API?
-   - **Find the specific commit(s) that introduced the change:**
-
-     ```bash
-     # Find commits that modified a specific file between versions
-     git log OLD_VERSION..NEW_VERSION -- Include/internal/pycore_frame.h
-
-     # Find commits that mention a specific struct or function
-     git log OLD_VERSION..NEW_VERSION --all --grep="_PyInterpreterFrame" -- Include/
-
-     # Show the commit that introduced a specific change
-     git log -p OLD_VERSION..NEW_VERSION -S "struct _PyInterpreterFrame" -- Include/
-     ```
-
-   - **Find related GitHub issues:**
-     - Check commit messages for issue references (e.g., `gh-123923`, `#123923`)
-     - Search CPython GitHub issues: `https://github.com/python/cpython/issues`
-     - Look for "What's New" documentation: `https://docs.python.org/3/whatsnew/`
-     - Check PEPs if the change is part of a larger feature
-
-2. **Assess impact:**
-   - Which files in our codebase are affected?
-   - What functionality might break?
-   - Are there alternative approaches?
-
-3. **Document findings:**
-   - Create a summary document of key changes
-   - Note any breaking changes
-   - List files that need updates
-
-### Step 5: Use AI Tools (Optional)
-
-You can use AI coding assistants to help analyze differences by:
-- Providing header file contents from both versions
-- Asking about specific struct changes
-- Understanding migration paths
-
-## Common Change Patterns
-
-When comparing versions, look for these types of changes (examples):
-
-**Struct Field Changes:**
-- Field type changes (e.g., pointer types → tagged pointer types)
-- Field renamed
-- Field removed and replaced with different mechanism
-- Field reordering
-
-**Header Moves:**
-- Internal headers moved to new locations
-- Structs moved between headers
-- Headers split or merged
-
-**API Deprecations:**
-- Internal functions removed
-- Public API replacements available
-- Function signature changes
-
-## Output Format
-
-After running this skill, you should have:
-1. A list of all changed headers
-2. A list of all changed structs with details
-3. Impact assessment for each change
-4. Files in our codebase that need updates
-
-## Related
-
-- **find-cpython-usage skill**: Use to identify what to compare
+Report affected ddtrace callers, the changed contract, required adaptation, and validation across
+the supported versions/platforms. Treat pre-release behavior as version-specific; do not turn a
+snapshot into an undated universal rule.
