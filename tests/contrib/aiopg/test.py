@@ -294,7 +294,7 @@ class AiopgTestCase(AsyncioTestCase):
     async def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
-            The aiopg integration uses its default database service.
+            The aiopg integration uses it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -308,7 +308,7 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].service == "postgres"
+        assert spans[0].service == "mysvc"
 
     @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -374,7 +374,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+        env_overrides=dict(DD_SERVICE="appsvc", DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     async def test_user_specified_service_integration_v0(self):
         conn = await self._get_conn()
@@ -388,7 +388,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+        env_overrides=dict(DD_SERVICE="appsvc", DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
     )
     async def test_user_specified_service_integration_v1(self):
         conn = await self._get_conn()
@@ -410,7 +410,7 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "postgres"
+        assert span.service == "mysvc"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
