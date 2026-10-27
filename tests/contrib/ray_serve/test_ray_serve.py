@@ -186,6 +186,7 @@ class TestGrpcServeApp:
         serve.shutdown()
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+    @pytest.mark.no_getattr_patch()
     def test_grpc_context_propagation(self, grpc_serve_app):
         with tracer.trace("test.grpc_parent") as _:
             channel = grpc.insecure_channel(grpc_serve_app)
