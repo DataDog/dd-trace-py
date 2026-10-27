@@ -239,11 +239,6 @@ class ExposureWriter(PeriodicService):
         if self._route_selector.configuration_source != REMOTE_CONFIG:
             return self._send_payload(payload, num_events, route)
 
-        def wait_before_retry(delay):
-            if delay:
-                logger.debug("Feature Flags: exposure request failed before sending; retrying in %.3fs", delay)
-            (self._retry_wait or time.sleep)(delay)
-
         # AIDEV-NOTE: Keep Remote Config's bounded retries only when no bytes were
         # sent. A later ambiguous failure must stop retries even after a refusal;
         # Agentless batches retain the selector's separate fallback policy.
@@ -251,13 +246,18 @@ class ExposureWriter(PeriodicService):
             attempts=self.RETRY_ATTEMPTS,
             initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             until=lambda result: not (isinstance(result, Exception) and _is_definitive_pre_send_failure(result)),
-            sleep_func=wait_before_retry,
+            sleep_func=self._wait_before_retry,
         )(self._send_payload)
         response: Union[Response, Exception] = send(payload, num_events, route)
         # The retry helper returns terminal exceptions accepted by until.
         if isinstance(response, Exception):
             raise response
         return response
+
+    def _wait_before_retry(self, delay: float) -> None:
+        if delay:
+            logger.debug("Feature Flags: exposure request failed before sending; retrying in %.3fs", delay)
+        (self._retry_wait or time.sleep)(delay)
 
     def _encode(self, events: list[ExposureEvent]) -> bytes:
         """
