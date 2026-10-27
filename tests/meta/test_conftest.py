@@ -1,10 +1,48 @@
 import os
 from pathlib import Path
+import signal
+import subprocess
+import sys
 
 import pytest
 
 from tests.utils import TracerTestCase
 from tests.utils import override_env
+from tests.utils import terminate_process_group
+
+
+@pytest.mark.parametrize("mode", ["graceful", "stubborn", "child"])
+def test_terminate_process_group(mode):
+    code = """
+import signal
+import subprocess
+import sys
+import time
+
+if sys.argv[1] == "child":
+    subprocess.Popen([sys.executable, "-u", "-c", (
+        "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "print('ready', flush=True); time.sleep(60)"
+    )])
+else:
+    if sys.argv[1] == "stubborn":
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    print("ready", flush=True)
+time.sleep(60)
+"""
+    proc = subprocess.Popen(
+        [sys.executable, "-u", "-c", code, mode],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        assert proc.stdout.readline() == b"ready\n"
+        terminate_process_group(proc, timeout=0.2)
+        assert proc.returncode in (-signal.SIGTERM, -signal.SIGKILL)
+        assert proc.stdout.closed
+    finally:
+        terminate_process_group(proc, timeout=1)
 
 
 class ConftestTestCase(TracerTestCase):
