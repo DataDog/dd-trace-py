@@ -1327,8 +1327,6 @@ def snapshot_context(
     subprocess_mode: bool = False,
 ) -> Iterator[SnapshotTest]:
     """Capture one tagged attempt; async_mode is retained for compatibility."""
-    if os.getenv("DD_SNAPSHOT_ENABLED", "1") != "1":
-        pytest.skip("Snapshot verification is disabled by DD_SNAPSHOT_ENABLED")
     if timeout <= 0 or (wait_for_num_traces is not None and wait_for_num_traces < 0):
         raise ValueError("Snapshot timeout must be positive and trace count must be nonnegative")
     if variants:

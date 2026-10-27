@@ -722,7 +722,7 @@ class TestRunner:
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
 
             forwarded_env = {key: env[key] for key in suite_env}
-            for key in ("DD_SNAPSHOT_UPDATE", "DD_SNAPSHOT_ENABLED", "DD_TEST_AGENT_SNAPSHOT_DIR"):
+            for key in ("DD_SNAPSHOT_UPDATE", "DD_TEST_AGENT_SNAPSHOT_DIR"):
                 if key in os.environ:
                     forwarded_env[key] = os.environ[key]
             if needs_testagent:

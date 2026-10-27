@@ -131,7 +131,6 @@ def test_snapshot_settings_reach_test_environment(runner, monkeypatch, update):
     environment = _environment("snapshot-env")
     environment.suite = "snapshot"
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://testagent:9126")
-    monkeypatch.setenv("DD_SNAPSHOT_ENABLED", "1")
     monkeypatch.setenv("DD_TEST_AGENT_SNAPSHOT_DIR", "/custom/snapshots")
     if update is not None:
         monkeypatch.setenv("DD_SNAPSHOT_UPDATE", update)
@@ -144,7 +143,6 @@ def test_snapshot_settings_reach_test_environment(runner, monkeypatch, update):
     monkeypatch.setattr(runner, "_run_environments", run)
     assert runner.run_tests([environment])
     assert captured["DD_TRACE_AGENT_URL"] == "http://testagent:9126"
-    assert captured["DD_SNAPSHOT_ENABLED"] == "1"
     assert captured["DD_TEST_AGENT_SNAPSHOT_DIR"] == "/custom/snapshots"
     assert captured.get("DD_SNAPSHOT_UPDATE") == update
 

@@ -489,14 +489,6 @@ def test_writer_restore_failure_preserves_primary_error(agent, snapshot_writer, 
                 raise AssertionError("original failure")
 
 
-def test_disabled_snapshots_are_skipped(agent, snapshot_writer, monkeypatch):
-    monkeypatch.setenv("DD_SNAPSHOT_ENABLED", "0")
-    with pytest.raises(pytest.skip.Exception, match="Snapshot verification is disabled"):
-        with snapshot_context("example"):
-            pytest.fail("body must not execute")
-    assert not agent.matching("/test/session/start")
-
-
 def test_subprocess_capture_drains_parent_before_start(agent, snapshot_writer):
     snapshot_writer._sync_mode = False
     with ddtrace.tracer.trace("previous-test"):
