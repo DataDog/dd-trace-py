@@ -34,8 +34,9 @@ RAY_SERVE_SNAPSHOT_VARIANTS = {
 }
 
 
-@pytest.fixture(scope="module", autouse=True)
-def ray_runtime():
+# Start fresh workers inside each snapshot so they inherit its token.
+@pytest.fixture(autouse=True)
+def ray_runtime(snapshot):
     ray.init(
         ignore_reinit_error=True,
         _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
@@ -52,7 +53,7 @@ def ray_runtime():
 
 
 class TestRawServeApp:
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def raw_serve_app(self):
         @serve.deployment
         class ClassDeployment:
@@ -119,7 +120,7 @@ class TestRawServeApp:
 
 
 class TestFastAPIServeApp:
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def fastapi_serve_app(self):
         app = FastAPI()
 
@@ -148,6 +149,7 @@ class TestFastAPIServeApp:
         serve.shutdown()
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES, variants=RAY_SERVE_SNAPSHOT_VARIANTS)
+    @pytest.mark.no_getattr_patch()
     def test_fastapi_name_path(self, fastapi_serve_app):
         """This test needs a variant because resource name for proxy_request span
         is different between ray versions
@@ -161,7 +163,7 @@ class TestFastAPIServeApp:
 
 
 class TestGrpcServeApp:
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def grpc_serve_app(self):
         @serve.deployment
         class TraceIDDeployment:
