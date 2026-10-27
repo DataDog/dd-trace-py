@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from collections import defaultdict
+from functools import lru_cache
 from functools import partial
 import gzip
 import struct
@@ -399,6 +400,16 @@ class DataStreamsProcessor(PeriodicService):
         return SchemaBuilder.get_schema(schema_name, iterator)
 
 
+@lru_cache(maxsize=256)
+def _compute_pathway_hash(
+    service: str, env: str, base_hash_bytes: bytes, tags: tuple[str, ...], parent_hash: int
+) -> int:
+    """Pathway hash of a checkpoint. Memoized: a steady-state pathway repeats the same inputs for every message."""
+    b = service.encode("utf-8") + env.encode("utf-8") + base_hash_bytes + b"".join(t.encode("utf-8") for t in tags)
+    node_hash = fnv1_64(b)
+    return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+
+
 class DataStreamsCtx:
     def __init__(
         self, processor: DataStreamsProcessor, hash_value: int, pathway_start_sec: float, current_edge_start_sec: float
@@ -428,15 +439,7 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        def get_bytes(s):
-            return bytes(s, encoding="utf-8")
-
-        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
-
-        for t in tags:
-            b += get_bytes(t)
-        node_hash = fnv1_64(b)
-        return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+        return _compute_pathway_hash(self.service, self.env, process_tags.base_hash_bytes, tuple(tags), parent_hash)
 
     def set_checkpoint(
         self,
