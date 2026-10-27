@@ -9,10 +9,14 @@ from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 
 
+# The bytecode-injection framework (ddtrace.internal.bytecode_injection.core) supports Python 3.10
+# and 3.11, so this module serves both versions for both coverage modes. Line-level coverage on
+# 3.11 was historically served by a separate hand-rolled implementation (instrumentation_py3_11,
+# since removed); its RESUME-handling rules live on in _valid_line_start_offsets() below.
 assert (3, 10) <= sys.version_info < (3, 12)  # nosec
 
 
-# POC: file-level coverage via bytecode injection, mirroring _DD_COVERAGE_FILE_LEVEL on 3.12+.
+# File-level coverage via bytecode injection, mirroring _DD_COVERAGE_FILE_LEVEL on 3.12+.
 # Instead of injecting a trap at every line start, only inject at:
 #   1. the first line start of each code object (module first line / function first line)
 #   2. the line starts containing import statements (import-dependency tracking)
@@ -23,8 +27,26 @@ _USE_FILE_LEVEL_COVERAGE = is_file_level_coverage_enabled()
 _IMPORT_OPCODES = (dis.opmap["IMPORT_NAME"], dis.opmap["IMPORT_FROM"])
 
 
+def _valid_line_start_offsets(code: CodeType) -> list[int]:
+    """Line-start offsets that are valid trap injection points.
+
+    On Python 3.11, ``dis.findlinestarts`` reports the RESUME opcode at offset 0 as a pseudo
+    "line 0" start, and no instrumentation should be placed before the first real line start —
+    except when the code object has no other line start: one-line code objects (lambdas,
+    comprehensions, generator expressions) and empty modules then fall back to offset 0 so their
+    execution is still reported. This keeps parity with the sys.monitoring PY_START events used
+    on 3.12+, which fire for every code object start. On Python 3.10 there is no RESUME opcode
+    and every line start is a valid injection point.
+    """
+    starts = [offset for offset, _ in dis.findlinestarts(code)]
+    if sys.version_info >= (3, 11) and starts and code.co_code[0] == dis.opmap["RESUME"]:
+        valid = [offset for offset in starts if offset > 0]
+        return valid or [0]
+    return starts
+
+
 def _line_level_offsets(context: "InjectionContext") -> list[int]:
-    return [offset for offset, _ in dis.findlinestarts(context.original_code)]
+    return _valid_line_start_offsets(context.original_code)
 
 
 def _file_level_offsets(context: "InjectionContext") -> list[int]:
@@ -32,26 +54,12 @@ def _file_level_offsets(context: "InjectionContext") -> list[int]:
     the line starts of every line containing an import statement.
     """
     code = context.original_code
-    starts = dict(dis.findlinestarts(code))
-    if not starts:
+    candidates = _valid_line_start_offsets(code)
+    if not candidates:
         return []
-    # On 3.11, offset 0 is the RESUME opcode (reported by findlinestarts as a pseudo "line 0"
-    # start) and no instrumentation may be injected before it (see instrumentation_py3_11.py).
-    if sys.version_info >= (3, 11) and code.co_code[0] == dis.opmap["RESUME"]:
-        candidate_starts = [offset for offset in starts if offset > 0]
-        if not candidate_starts:
-            # POC (3.11 accuracy): one-line code objects (lambdas, comprehensions, generator
-            # expressions) and empty modules have no line start after the RESUME opcode, so the
-            # usual rule would leave them un-instrumented and their execution unreported — a
-            # coverage gap vs the sys.monitoring PY_START implementation on 3.12+, which fires
-            # for every code object start. Fall back to the RESUME pseudo-line start at offset 0.
-            # NOTE: this injects *before* RESUME, which instrumentation_py3_11.py deliberately
-            # avoids; validate against generators/async before adopting (see the POC harness).
-            candidate_starts = [0]
-    else:
-        candidate_starts = list(starts)
-    first_line_offset = min(candidate_starts)
+    first_line_offset = min(candidates)
 
+    starts = dict(dis.findlinestarts(code))
     import_line_offsets: set[int] = set()
     current_line_offset = first_line_offset
     co_code = code.co_code
