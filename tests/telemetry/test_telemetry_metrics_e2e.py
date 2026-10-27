@@ -342,6 +342,9 @@ os._exit(0)
 """
     env = _local_agent_telemetry_env()
     env["DD_TRACE_ENABLED"] = "true"
+    # The test exercises the agent exporter, not an inherited OTLP endpoint.
+    env.pop("OTEL_TRACES_EXPORTER", None)
+    env["DD_TRACE_OTEL_SEMANTICS_ENABLED"] = "false"
     env["_DD_NATIVE_LOGGING_BACKEND"] = "stderr"
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = "error"
     trace_request_received = threading.Event()
