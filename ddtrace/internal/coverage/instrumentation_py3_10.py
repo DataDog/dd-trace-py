@@ -39,10 +39,17 @@ def _file_level_offsets(context: "InjectionContext") -> list[int]:
     # start) and no instrumentation may be injected before it (see instrumentation_py3_11.py).
     if sys.version_info >= (3, 11) and code.co_code[0] == dis.opmap["RESUME"]:
         candidate_starts = [offset for offset in starts if offset > 0]
+        if not candidate_starts:
+            # POC (3.11 accuracy): one-line code objects (lambdas, comprehensions, generator
+            # expressions) and empty modules have no line start after the RESUME opcode, so the
+            # usual rule would leave them un-instrumented and their execution unreported — a
+            # coverage gap vs the sys.monitoring PY_START implementation on 3.12+, which fires
+            # for every code object start. Fall back to the RESUME pseudo-line start at offset 0.
+            # NOTE: this injects *before* RESUME, which instrumentation_py3_11.py deliberately
+            # avoids; validate against generators/async before adopting (see the POC harness).
+            candidate_starts = [0]
     else:
         candidate_starts = list(starts)
-    if not candidate_starts:
-        return []
     first_line_offset = min(candidate_starts)
 
     import_line_offsets: set[int] = set()

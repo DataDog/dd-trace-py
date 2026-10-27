@@ -38,12 +38,35 @@ class InjectionContext:
     # (see ModuleCodeCollector.hook()).
     file_level: bool = False
 
-    def transfer(self, code: CodeType) -> "InjectionContext":
-        return InjectionContext(code, self.hook, self.offsets_callback, self.file_level)
-
     @property
     def injection_offsets(self) -> list[int]:
         return self.offsets_callback(self)
+
+    def transfer(self, code: CodeType) -> "InjectionContext":
+        return InjectionContext(code, self.hook, self.offsets_callback, self.file_level)
+
+
+class Probe:
+    """POC (option C): mutable per-site record carried in the code object constants of file-level
+    traps, replacing the immutable ``(line, path, import_name)`` tuple of line-level instrumentation.
+
+    Being mutable lets the hook suppress subsequent fires of a trap with a cheap attribute check
+    (``probe.dead``) and re-arm it between coverage contexts, without any bytecode re-writing or
+    re-instrumentation. ``line`` is always the line-0 sentinel, mirroring the PY_START file-level
+    semantics of sys.monitoring on 3.12+ (see instrumentation_py3_12.py).
+
+    ``deps`` accumulates import dependencies instead of overwriting a single import slot, so the
+    module's package self-dependency survives even when the first instrumented line is an import
+    statement (parity with the sys.monitoring implementation).
+    """
+
+    __slots__ = ("line", "path", "deps", "dead")
+
+    def __init__(self, line: int, path: str, deps: t.Optional[list[tuple[str, tuple[str, ...]]]] = None) -> None:
+        self.line = line
+        self.path = path
+        self.deps: list[tuple[str, tuple[str, ...]]] = deps if deps is not None else []
+        self.dead = False
 
 
 def inject_invocation(injection_context: InjectionContext, path: str, package: str) -> tuple[CodeType, list[int]]:
@@ -281,7 +304,11 @@ def _inject_invocation_nonrecursive(
                     package_dep = (package, ("",))
                     is_first_instrumented_module_line = False
 
-                new_consts.append((0 if injection_context.file_level else line, path, package_dep))
+                if injection_context.file_level:
+                    # POC (option C): see Probe.
+                    new_consts.append(Probe(0, path, [package_dep] if package_dep is not None else []))
+                else:
+                    new_consts.append((line, path, package_dep))
 
         if opcode == EXTENDED_ARG:
             extended_arg = arg << 8
@@ -319,6 +346,7 @@ def _inject_invocation_nonrecursive(
             append_instruction(opcode, arg)
 
             if injection_occurred:
+                _const = new_consts[-1]
                 # Track imports names
                 if opcode == IMPORT_NAME:
                     import_depth = code.co_consts[previous_previous_arg]
@@ -327,22 +355,36 @@ def _inject_invocation_nonrecursive(
                     current_import_package = (
                         ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                     )
-                    new_consts[-1] = (
-                        new_consts[-1][0],
-                        new_consts[-1][1],
-                        (current_import_package, (current_import_name,)),
-                    )
+                    if isinstance(_const, Probe):
+                        # POC (option C): accumulate on the probe instead of overwriting it, so
+                        # package self-dependencies are preserved.
+                        _const.deps.append((current_import_package, (current_import_name,)))
+                    else:
+                        new_consts[-1] = (
+                            _const[0],
+                            _const[1],
+                            (current_import_package, (current_import_name,)),
+                        )
 
                 # Also track import from statements since it's possible that the "from" target is a module, eg:
                 # from my_package import my_module
                 # Since the package has not changed, we simply extend the previous import names with the new value
                 if opcode == IMPORT_FROM:
                     import_from_name = f"{current_import_name}.{code.co_names[arg]}"
-                    new_consts[-1] = (
-                        new_consts[-1][0],
-                        new_consts[-1][1],
-                        (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
-                    )
+                    if isinstance(_const, Probe):
+                        if _const.deps and _const.deps[-1][1]:
+                            _const.deps[-1] = (
+                                _const.deps[-1][0],
+                                tuple(list(_const.deps[-1][1]) + [import_from_name]),
+                            )
+                        else:
+                            _const.deps.append((package, (import_from_name,)))
+                    else:
+                        new_consts[-1] = (
+                            _const[0],
+                            _const[1],
+                            (_const[2][0], tuple(list(_const[2][1]) + [import_from_name])),
+                        )
 
         original_extended_arg_count = 0
         previous_previous_arg = previous_arg
