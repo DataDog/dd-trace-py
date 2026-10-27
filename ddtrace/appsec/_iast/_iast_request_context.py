@@ -41,10 +41,12 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
     return None
 
 
-def _create_and_attach_iast_report_to_span(req_span: SpanData, environment: IASTEnvironment) -> None:
-    report_span = environment.report_span or req_span
+def _create_and_attach_iast_report_to_span(
+    req_span: SpanData, environment: IASTEnvironment, report_span: SpanData
+) -> None:
     report_data = environment.iast_reporter
     if report_data is not None:
+        report_data.attach_stacks(report_span)
         if report_span is not req_span:
             report_span._set_attributes(
                 {
@@ -129,7 +131,7 @@ def _iast_end_request(
 
         environment.completed = True
         try:
-            _create_and_attach_iast_report_to_span(req_span, environment)
+            _create_and_attach_iast_report_to_span(req_span, environment, report_span)
         finally:
             base._iast_finish_request(req_span, context=context)
             reset_request_vulnerabilities(environment)

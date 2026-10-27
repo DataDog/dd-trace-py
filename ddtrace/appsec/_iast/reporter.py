@@ -157,7 +157,16 @@ class IastSpanReporter(NotNoneDictable):
     stacktrace_id: int = 0
     sources: list[Source] = dataclasses.field(default_factory=list)
     vulnerabilities: set[Vulnerability] = dataclasses.field(default_factory=set)
-    span: Optional[SpanData] = dataclasses.field(default=None, repr=False, compare=False)
+    stack_traces: Optional[dict[str, Any]] = dataclasses.field(default=None, repr=False, compare=False)
+
+    def attach_stacks(self, span: SpanData) -> None:
+        """Publish captured stacks and bind findings to the final reporting span."""
+        for vulnerability in self.vulnerabilities:
+            vulnerability.location.spanId = span.span_id
+        if self.stack_traces:
+            stacks = span._get_struct_tag(STACK_TRACE.TAG) or {}
+            stacks.update(self.stack_traces)
+            span._set_struct_tag(STACK_TRACE.TAG, stacks)
 
     def __hash__(self) -> int:
         """
@@ -192,7 +201,7 @@ class IastSpanReporter(NotNoneDictable):
         self.stacktrace_id += 1
 
         if not report_stack(
-            span=self.span,
+            stack_traces=self.stack_traces,
             stack_id=str(self.stacktrace_id),
             namespace=STACK_TRACE.IAST,
         ):

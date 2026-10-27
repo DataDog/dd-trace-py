@@ -98,7 +98,7 @@ class VulnerabilityBase:
         if report:
             report._append_vulnerability(vulnerability)
         else:
-            report = IastSpanReporter(vulnerabilities={vulnerability}, span=span)
+            report = IastSpanReporter(vulnerabilities={vulnerability}, stack_traces={})
         report.add_ranges_to_evidence_and_extract_sources(vulnerability)
 
         set_iast_reporter(report)

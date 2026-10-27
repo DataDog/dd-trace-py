@@ -1397,8 +1397,19 @@ async def _invoke_asgi(application, path, query_string=b"", spec="2.4", headers=
 
 
 @pytest.mark.parametrize("sampled", [False, True])
-@pytest.mark.parametrize("layout", ["request", "parent", "other_service", "proxy", "nested_service"])
-def test_fastapi_reporting_service_entry(iast_fastapi, tracer, test_spans, layout, sampled):
+@pytest.mark.parametrize(
+    "layout",
+    [
+        "request",
+        "parent",
+        "parent_finishes_before",
+        "parent_finishes_after",
+        "other_service",
+        "proxy",
+        "nested_service",
+    ],
+)
+def test_fastapi_reporting_service_entry(iast_fastapi, tracer, test_spans, monkeypatch, layout, sampled):
     import sqlite3
 
     application = iast_fastapi
@@ -1409,10 +1420,15 @@ def test_fastapi_reporting_service_entry(iast_fastapi, tracer, test_spans, layou
 
     @application.get("/report")
     async def endpoint(request: Request):
+        entry = tracer.current_span()._service_entry_span
+        if layout == "parent_finishes_before":
+            entry.finish()
         value = request.query_params["value"]
         assert bool(get_tainted_ranges(value)) is sampled
         with closing(sqlite3.connect(":memory:")) as connection:
             connection.execute(add_aspect("SELECT 1 FROM ", value))
+        if layout == "parent_finishes_after":
+            entry.finish()
         return PlainTextResponse("ok")
 
     headers = (
@@ -1433,9 +1449,11 @@ def test_fastapi_reporting_service_entry(iast_fastapi, tracer, test_spans, layou
             override_config("asgi", dict(service_name="outer-service")),
         ):
             oce.reconfigure()
+            monkeypatch.setattr(tracer._span_aggregator, "partial_flush_enabled", True)
+            monkeypatch.setattr(tracer._span_aggregator, "partial_flush_min_spans", 1)
             parent = (
-                tracer.trace("custom.parent", service="fastapi" if layout == "parent" else "other-service")
-                if layout in ("parent", "other_service")
+                tracer.trace("custom.parent", service="fastapi" if layout.startswith("parent") else "other-service")
+                if layout.startswith("parent") or layout == "other_service"
                 else nullcontext()
             )
             with parent:
@@ -1444,6 +1462,10 @@ def test_fastapi_reporting_service_entry(iast_fastapi, tracer, test_spans, layou
                 asyncio.run(_invoke_asgi(application, "/report", b"value=sqlite_master", headers=headers))
                 request_span = next(span for span in requests if span.name == "fastapi.request")
                 entry = request_span._service_entry_span
+                if layout.startswith("parent_finishes"):
+                    assert entry.finished
+                    assert entry.get_metric(IAST.ENABLED) is None
+                    entry = request_span
                 assert entry.get_metric(IAST.ENABLED) == float(sampled)
                 report = load_iast_report(entry)
                 assert bool(report) is sampled
@@ -1585,9 +1607,10 @@ def test_fastapi_analysis_with_manual_spans_and_nested_legacy_request(
         ("error", "2.4"),
         ("cancel", "2.3"),
         ("setup_error", "2.3"),
+        ("early_finish", "2.4"),
     ],
 )
-def test_fastapi_request_lifecycle(iast_fastapi, spec, mode):
+def test_fastapi_request_lifecycle(iast_fastapi, tracer, spec, mode):
     import sqlite3
 
     notifications = []
@@ -1595,7 +1618,7 @@ def test_fastapi_request_lifecycle(iast_fastapi, spec, mode):
     def observe(event):
         if event.ctx.get_item("integration_config").integration_name != "fastapi":
             return
-        assert not event.span.finished
+        assert not event.span.finished or mode == "early_finish"
         if isinstance(event, WebRequestReady):
             assert IAST_CONTEXT.get() is not None
         else:
@@ -1617,6 +1640,10 @@ def test_fastapi_request_lifecycle(iast_fastapi, spec, mode):
         if mode == "cancel":
             query()
             raise asyncio.CancelledError
+        if mode == "early_finish":
+            tracer.current_span().finish()
+            query()
+            return PlainTextResponse("ok")
 
         async def chunks():
             query()

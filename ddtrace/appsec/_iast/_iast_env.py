@@ -17,7 +17,7 @@ def _report_span_for_request(span: Optional[SpanData]) -> Optional[SpanData]:
     if not isinstance(span, SpanData):
         return None
     entry = span._service_entry_span
-    # Background requests can start under an already finished request span.
+    # A request can outlive its service-entry parent.
     return span if entry.finished else entry
 
 
@@ -34,7 +34,6 @@ class IASTEnvironment:
     def __init__(self, span: Optional[SpanData] = None, context_id: Optional[int] = None) -> None:
         # The request span owns completion; its service-entry span receives the results.
         self.span = span or span_bus.get_span()
-        self.report_span = _report_span_for_request(self.span)
         self.context_id = context_id
         self.owns_taint_context = True
         self.completed = False
@@ -50,6 +49,10 @@ class IASTEnvironment:
         self.is_first_vulnerability: bool = True
         self.endpoint_method: str = ""
         self.endpoint_route: str = ""
+
+    @property
+    def report_span(self) -> Optional[SpanData]:
+        return _report_span_for_request(self.span)
 
     @property
     def endpoint_key(self) -> str:

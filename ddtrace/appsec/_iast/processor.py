@@ -53,6 +53,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
         """Report requests that have not migrated to lifecycle events."""
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
-        if _SPAN_ROUTES and _SPAN_ROUTES.pop(span, False):
+        if _SPAN_ROUTES and span in _SPAN_ROUTES:
             return
         _iast_end_request(span)
