@@ -478,7 +478,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "lxml",
-        "7.0.0b1" if PYTHON_VERSION >= (3, 15) else "6.0.2",
+        "6.1.3" if PYTHON_VERSION >= (3, 15) else "6.0.2",
         "<root><element>foobar</element></root>",
         "Element text: foobar",
         "",
