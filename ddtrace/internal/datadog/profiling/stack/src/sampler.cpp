@@ -413,7 +413,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto interval_adjust_time_prev = sample_time_prev;
 
     // Warm up on syscall copy; upgrade only if we still own both handlers.
-    // Fork mid-warmup must re-decide from fast_copy_desired.
+    // Keep fast_copy_desired set so faulthandler reclaim can reinstall during warmup.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else

@@ -56,7 +56,7 @@ inline bool fast_copy_active = false;
 
 // Persistent intent (!= fast_copy_active): true when handlers installed at init
 // (safe_memcpy_initialized) and the user has not opted out. Warmup clears
-// active but keeps this set; fork child re-runs warmup from it.
+// active but keeps this set so faulthandler reclaim can reinstall during warmup.
 inline bool fast_copy_desired = false;
 
 // User opted out via _DD_PROFILING_STACK_FAST_COPY, embedded Python, or
