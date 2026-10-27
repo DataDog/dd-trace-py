@@ -50,13 +50,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         _iast_start_request(span)
 
     def on_span_finish(self, span: SpanData) -> None:
-        """Report reported vulnerabilities.
-
-        Span Tags:
-            - `_dd.iast.json`: Only when one or more vulnerabilities have been detected will we include the custom tag.
-            - `_dd.iast.enabled`: Set to 1 when IAST is enabled in a request. If a request is disabled
-              (e.g. by sampling), then it is not set.
-        """
+        """Report requests that have not migrated to lifecycle events."""
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
         if _SPAN_ROUTES and _SPAN_ROUTES.pop(span, False):

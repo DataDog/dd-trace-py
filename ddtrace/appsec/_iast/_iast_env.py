@@ -5,11 +5,20 @@ from typing import Union
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import SpanData
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from ddtrace.appsec._iast.reporter import IastSpanReporter
+
+
+def _report_span_for_request(span: Optional[SpanData]) -> Optional[SpanData]:
+    if not isinstance(span, SpanData):
+        return None
+    entry = span._service_entry_span
+    # Background requests can start under an already finished request span.
+    return span if entry.finished else entry
 
 
 class IASTEnvironment:
@@ -23,8 +32,12 @@ class IASTEnvironment:
     """
 
     def __init__(self, span: Optional[SpanData] = None, context_id: Optional[int] = None) -> None:
+        # The request span owns completion; its service-entry span receives the results.
         self.span = span or span_bus.get_span()
+        self.report_span = _report_span_for_request(self.span)
         self.context_id = context_id
+        self.owns_taint_context = True
+        self.completed = False
 
         self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: dict[str, int] = {}
@@ -49,9 +62,10 @@ class IASTEnvironment:
         return f"{self.endpoint_method}:{self.endpoint_route}"
 
 
-def _get_iast_env() -> Optional[IASTEnvironment]:
-    return core.find_item(IAST.REQUEST_CONTEXT_KEY)
+def _get_iast_env(context: Optional[core.ExecutionContext[Event]] = None) -> Optional[IASTEnvironment]:
+    return (context or core.current).find_item(IAST.REQUEST_CONTEXT_KEY)
 
 
 def in_iast_env() -> bool:
-    return core.find_item(IAST.REQUEST_CONTEXT_KEY) is not None
+    environment = _get_iast_env()
+    return environment is not None and not environment.completed

@@ -81,7 +81,7 @@ def test_request_route_survives_context_exit_and_processor_replacement(
         expected_legacy_calls = [] if migrated else [mock.call(span)]
         assert start.call_args_list == expected_legacy_calls + [mock.call(child)]
         assert end.call_args_list == [mock.call(child)] + expected_legacy_calls
-        expected_event_calls = [mock.call(span)] if migrated else []
+        expected_event_calls = [mock.call(span, context=ctx)] if migrated else []
         assert event_start.call_args_list == event_end.call_args_list == expected_event_calls
         span.finish()
 

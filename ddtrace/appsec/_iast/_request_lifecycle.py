@@ -42,7 +42,7 @@ class IastRequestReadySubscriber(Subscriber):
     @classmethod
     def on_event(cls, event: WebRequestReady) -> None:
         if event.span in _SPAN_ROUTES:
-            _iast_start_request(event.span)
+            _iast_start_request(event.span, context=event.ctx)
 
 
 class IastRequestCompletingSubscriber(Subscriber):
@@ -52,4 +52,4 @@ class IastRequestCompletingSubscriber(Subscriber):
     @classmethod
     def on_event(cls, event: WebRequestCompleting) -> None:
         if event.span in _SPAN_ROUTES:
-            _iast_end_request(event.span)
+            _iast_end_request(event.span, context=event.ctx)

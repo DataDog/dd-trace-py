@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import closing
+from contextlib import nullcontext
 import io
 import json
 import logging
@@ -57,6 +58,7 @@ from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
+from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -1304,8 +1306,14 @@ def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted,
         assert len(findings) == 1
         span, report = findings[0]
         assert span.span_id == owners[0].span_id
+        assert span is owners[0]._service_entry_span
+        assert span.get_metric(IAST.ENABLED) == 1.0
         assert span.get_tag("component") == "fastapi"
         assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+        assert report["vulnerabilities"][0]["location"]["spanId"] == span.span_id
+        assert report["vulnerabilities"][0]["location"]["stackId"] in {
+            str(stack["id"]) for stack in span._get_struct_tag("_dd.stack")["vulnerability"]
+        }
         assert debug_context_array_free_slots_number() == baseline
 
 
@@ -1365,7 +1373,7 @@ def iast_fastapi(tracer):
         assert debug_context_array_free_slots_number() == baseline
 
 
-async def _invoke_asgi(application, path, query_string=b"", spec="2.4"):
+async def _invoke_asgi(application, path, query_string=b"", spec="2.4", headers=None):
     async def receive():
         await asyncio.Event().wait()
 
@@ -1381,25 +1389,115 @@ async def _invoke_asgi(application, path, query_string=b"", spec="2.4"):
         path=path,
         root_path="",
         query_string=query_string,
-        headers=[],
+        headers=headers or [],
         server=("localhost", 80),
         client=("127.0.0.1", 1234),
     )
     await application(scope, receive, send)
 
 
-@pytest.mark.parametrize("protocol", ["asgi", "wsgi", "span"])
+@pytest.mark.parametrize("sampled", [False, True])
+@pytest.mark.parametrize("layout", ["request", "parent", "other_service", "proxy", "nested_service"])
+def test_fastapi_reporting_service_entry(iast_fastapi, tracer, test_spans, layout, sampled):
+    import sqlite3
+
+    application = iast_fastapi
+    requests = []
+
+    def ready(event):
+        requests.append(event.span)
+
+    @application.get("/report")
+    async def endpoint(request: Request):
+        value = request.query_params["value"]
+        assert bool(get_tainted_ranges(value)) is sampled
+        with closing(sqlite3.connect(":memory:")) as connection:
+            connection.execute(add_aspect("SELECT 1 FROM ", value))
+        return PlainTextResponse("ok")
+
+    headers = (
+        [
+            (b"x-dd-proxy", b"aws-apigateway"),
+            (b"x-dd-proxy-request-time-ms", b"1736973768000"),
+            (b"x-dd-proxy-domain-name", b"gateway.example"),
+        ]
+        if layout == "proxy"
+        else []
+    )
+    core.on(WebRequestReady.event_name, ready)
+    try:
+        with (
+            override_global_config(
+                dict(_iast_request_sampling=100 if sampled else 0, _inferred_proxy_services_enabled=layout == "proxy")
+            ),
+            override_config("asgi", dict(service_name="outer-service")),
+        ):
+            oce.reconfigure()
+            parent = (
+                tracer.trace("custom.parent", service="fastapi" if layout == "parent" else "other-service")
+                if layout in ("parent", "other_service")
+                else nullcontext()
+            )
+            with parent:
+                if layout == "nested_service":
+                    application = TraceMiddleware(application)
+                asyncio.run(_invoke_asgi(application, "/report", b"value=sqlite_master", headers=headers))
+                request_span = next(span for span in requests if span.name == "fastapi.request")
+                entry = request_span._service_entry_span
+                assert entry.get_metric(IAST.ENABLED) == float(sampled)
+                report = load_iast_report(entry)
+                assert bool(report) is sampled
+                if sampled:
+                    assert entry.service == "fastapi"
+                    assert entry.get_tag("http.method") == "GET"
+                    assert entry.get_tag("http.route") == "/report"
+                    assert entry.get_tag("http.status_code") == "200"
+                    assert entry.get_tag("http.url").startswith("http://localhost/report")
+                    stacks = entry._get_struct_tag("_dd.stack")["vulnerability"]
+                    assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+                    assert {v["location"]["spanId"] for v in report["vulnerabilities"]} == {entry.span_id}
+                    assert {v["location"]["stackId"] for v in report["vulnerabilities"]} <= {
+                        str(stack["id"]) for stack in stacks
+                    }
+    finally:
+        core.reset_listeners(WebRequestReady.event_name, ready)
+        oce.reconfigure()
+    reports = [span for trace in test_spans.pop_traces() for span in trace if load_iast_report(span)]
+    assert reports == ([entry] if sampled else [])
+
+
+@pytest.mark.parametrize("protocol", ["asgi", "mounted_asgi", "rejected_asgi", "wsgi", "span"])
 def test_new_request_inside_background_task(iast_fastapi, tracer, test_spans, protocol):
     import sqlite3
 
     outer = iast_fastapi
     inner = FastAPI()
+    inner_spans = []
+    sampled = protocol != "rejected_asgi"
 
     @inner.get("/second")
     async def second(request: Request):
-        assert IAST_CONTEXT.get() is not None
-        assert get_tainted_ranges(request.query_params["value"])
+        inner_spans.append(tracer.current_span())
+        assert (IAST_CONTEXT.get() is not None) is sampled
+        value = request.query_params["value"]
+        assert bool(get_tainted_ranges(value)) is sampled
+        if protocol == "mounted_asgi":
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(add_aspect("SELECT 1 FROM ", value))
         return PlainTextResponse("second")
+
+    async def invoke_asgi():
+        application, path = inner, "/second"
+        if protocol == "mounted_asgi":
+            application = FastAPI()
+            application.mount("/mounted", inner)
+            path = "/mounted/second"
+        try:
+            with override_global_config(dict(_iast_request_sampling=100 if sampled else 0)):
+                oce.reconfigure()
+                await _invoke_asgi(application, path, b"value=sqlite_master")
+        finally:
+            oce.reconfigure()
 
     def wsgi_app(environ, start_response):
         context_id = IAST_CONTEXT.get()
@@ -1423,14 +1521,20 @@ def test_new_request_inside_background_task(iast_fastapi, tracer, test_spans, pr
 
     @outer.get("/first")
     async def first():
-        if protocol == "asgi":
-            background = BackgroundTask(_invoke_asgi, inner, "/second", b"value=unsafe")
+        if protocol.endswith("asgi"):
+            background = BackgroundTask(invoke_asgi)
         else:
             background = BackgroundTask(invoke_wsgi if protocol == "wsgi" else invoke_span)
         return PlainTextResponse("first", background=background)
 
     asyncio.run(_invoke_asgi(outer, "/first"))
-    if protocol != "asgi":
+    if protocol == "mounted_asgi":
+        findings = [span for trace in test_spans.pop_traces() for span in trace if load_iast_report(span)]
+        assert len(findings) == 1
+        assert findings[0] is not inner_spans[0]
+    elif protocol.endswith("asgi"):
+        assert inner_spans[0].get_metric(IAST.ENABLED) == float(sampled)
+    else:
         reports = [
             load_iast_report(span)
             for trace in test_spans.pop_traces()

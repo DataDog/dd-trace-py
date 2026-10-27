@@ -5,9 +5,11 @@ import gc
 import pytest
 
 from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._iast_env import in_iast_env
+from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
@@ -17,12 +19,14 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
 from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
 from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject as native_taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
+from ddtrace.appsec._iast._taint_tracking._context import get_tainted_object_map_by_ctx_id
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_string
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -32,9 +36,54 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.internal import core
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.trace import Span
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
+
+
+@pytest.mark.parametrize("other_request", [False, True])
+@pytest.mark.parametrize("admitted", [False, True])
+def test_explicit_completion_preserves_callers_native_context(monkeypatch, other_request, admitted):
+    initialize_native_state()
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+    monkeypatch.setattr(asm_config, "_iast_enabled", True)
+    monkeypatch.setattr(oce, "acquire_request", lambda span: admitted)
+    span = Span("request", service="app", span_type="web")
+    try:
+        with core.context_with_data("iast.explicit-completion") as context:
+            request_id = _iast_start_request(span, context=context)
+            assert (request_id is not None) is admitted
+            owner_value = taint_pyobject("owner value", "value", "owner value")
+            assert bool(get_tainted_ranges(owner_value)) is admitted
+
+            def complete():
+                caller_id = start_request_context() if other_request else None
+                IAST_CONTEXT.set(caller_id)
+                try:
+                    caller_values = (
+                        [taint_pyobject(value, "value", value) for value in ("caller one", "caller two")]
+                        if other_request
+                        else []
+                    )
+                    _iast_end_request(span, context=context)
+                    assert IAST_CONTEXT.get() == caller_id
+                    if request_id is not None:
+                        assert not get_tainted_object_map_by_ctx_id(request_id)
+                    if caller_id is not None:
+                        assert get_tainted_object_map_by_ctx_id(caller_id)
+                        assert debug_num_tainted_objects(caller_id) == len(caller_values)
+                finally:
+                    if caller_id is not None:
+                        finish_request_context(caller_id)
+
+            contextvars.Context().run(complete)
+            assert span.get_metric(IAST.ENABLED) == float(admitted)
+            assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) == (1 if admitted else None)
+    finally:
+        _iast_finish_request()
+        span.finish()
 
 
 def test_create_two_contexts_and_they_are_distinct():
