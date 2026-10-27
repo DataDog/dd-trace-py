@@ -1,3 +1,4 @@
+import inspect
 from typing import Any
 from typing import Callable
 from typing import Generator
@@ -49,12 +50,10 @@ class _TracedAwaitable(wrapt.ObjectProxy):
             raise
 
     def close(self) -> Any:
-        try:
+        # Keep active awaiters attached so aiopg can notify them of connection closure.
+        if inspect.getcoroutinestate(self._self_coro) == inspect.CORO_CREATED:
             self._self_coro.close()
-        finally:
-            # For aiopg connections, closing the original also closes the socket.
-            result = self.__wrapped__.close()
-        return result
+        return self.__wrapped__.close()
 
 
 def _wrap_context_manager(context: Any, wrap_result: Callable[[Any], Any]) -> Any:

@@ -3,6 +3,7 @@ import time
 from unittest import mock
 
 import aiopg
+from psycopg2 import OperationalError
 from psycopg2 import extras
 import pytest
 
@@ -236,6 +237,33 @@ class AiopgTestCase(AsyncioTestCase):
             finally:
                 conn.close()
         assert closed[0] == closed[1]
+
+    @pytest.mark.skipif(
+        parse_version(aiopg.__version__) < (1, 0),
+        reason="aiopg 1.x connection contexts close the connection during initialization",
+    )
+    @mark_asyncio
+    async def test_connection_context_close_during_initialization(self):
+        async def initialize(context):
+            return await context
+
+        for connect in (aiopg.connect.__wrapped__, aiopg.connect):
+            # Hold initialization at its real I/O waiter until the context is closed.
+            with mock.patch.object(aiopg.connection.Connection, "_ready"):
+                context = connect(**POSTGRES_CONFIG)
+                task = asyncio.create_task(initialize(context))
+                try:
+                    await asyncio.sleep(0)
+                    assert not task.done()
+                    context.close()
+                    done, _ = await asyncio.wait((task,), timeout=1)
+                    assert task in done, "Closing the connection did not wake its awaiting task"
+                    with pytest.raises(OperationalError, match="Connection closed"):
+                        task.result()
+                finally:
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+                    context.close()
 
     @mark_asyncio
     async def test_connection_context_abandoned(self):
