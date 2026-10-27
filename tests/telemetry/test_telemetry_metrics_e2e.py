@@ -197,6 +197,22 @@ def agent_that_never_answers_telemetry(trace_request_received=None):
         server.server_close()
 
 
+def _local_agent_telemetry_env():
+    env = os.environ.copy()
+    # Keep the subprocess on the local agent, even if the parent uses agentless mode.
+    for name in (
+        "DD_API_KEY",
+        "DD_AGENTLESS_ENABLED",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED",
+        "DD_CIVISIBILITY_AGENTLESS_ENABLED",
+        "DD_LLMOBS_AGENTLESS_ENABLED",
+    ):
+        env.pop(name, None)
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    return env
+
+
 def test_metric_points_do_not_wait_for_a_slow_agent():
     """Recording a telemetry metric must never wait for the telemetry worker.
 
@@ -220,11 +236,7 @@ for _ in range(5000):
 print(time.monotonic() - start, flush=True)
 os._exit(0)
 """
-    env = os.environ.copy()
-    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
-    env.pop("DD_API_KEY", None)
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    env = _local_agent_telemetry_env()
     with agent_that_never_answers_telemetry() as (agent_url, request_received):
         env["DD_TRACE_AGENT_URL"] = agent_url
         process = subprocess.Popen(
@@ -268,10 +280,7 @@ while time.monotonic() < deadline:
     time.sleep(0.05)
 os._exit(0)
 """
-    env = os.environ.copy()
-    env.pop("DD_API_KEY", None)
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    env = _local_agent_telemetry_env()
     env["_DD_NATIVE_LOGGING_BACKEND"] = "stderr"
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = "warning"
     with agent_that_never_answers_telemetry() as (agent_url, request_received):
@@ -329,10 +338,7 @@ with tracer.trace("test"):
     pass
 os._exit(0)
 """
-    env = os.environ.copy()
-    env.pop("DD_API_KEY", None)
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    env = _local_agent_telemetry_env()
     env["_DD_NATIVE_LOGGING_BACKEND"] = "stderr"
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = "error"
     trace_request_received = threading.Event()
