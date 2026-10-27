@@ -1,7 +1,7 @@
 """Coverage instrumentation engines.
 
 Each supported Python version family implements the same :class:`CoverageEngine` interface,
-so ``ModuleCodeCollector`` (code.py) stays instrumentation-agnostic: version and mode
+so the coverage collector (code.py) stays instrumentation-agnostic: version and mode
 quirks — sys.monitoring vs bytecode traps, file-level probes, empty-module handling, event
 re-arming — all live here instead of as conditionals in the collector.
 
@@ -19,8 +19,38 @@ from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 
 
-if t.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
+class CoverageCollector(t.Protocol):
+    """Structural interface of the coverage collector, as used by the engines.
+
+    This decouples engine.py from the concrete collector (ddtrace.internal.coverage.code),
+    which imports engine.py — a one-way dependency: code -> engine. Implemented by
+    ``ModuleCodeCollector``.
+    """
+
+    def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]) -> None: ...
+
+    def hook_file(self, path: str) -> None: ...
+
+    def hook_import(self, path: str, import_name: tuple[str, tuple[str, ...]]) -> None: ...
+
+
+# The version-specific instrumentation modules assert their Python version at import time, so
+# exactly one implementation is imported for the running interpreter — the same ladder the old
+# instrumentation dispatch used. Importing them here keeps per-call imports out of the
+# instrument()/arm() paths, which run for every code object.
+if sys.version_info >= (3, 12):
+    from ddtrace.internal.coverage.instrumentation_py3_12 import update_disable_optimization
+
+    if sys.version_info >= (3, 16):
+        from ddtrace.internal.coverage.instrumentation_py3_16 import instrument_all_lines
+    else:
+        from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
+elif sys.version_info >= (3, 10):
+    from ddtrace.internal.bytecode_injection.core import Probe as _Probe
+    from ddtrace.internal.coverage.instrumentation_py3_10 import USE_FILE_LEVEL_COVERAGE
+    from ddtrace.internal.coverage.instrumentation_py3_10 import instrument_all_lines
+else:
+    from ddtrace.internal.coverage.instrumentation_py3_9 import instrument_all_lines
 
 
 class Probe(t.Protocol):
@@ -38,7 +68,7 @@ class Probe(t.Protocol):
 class CoverageEngine:
     """Uniform instrumentation interface implemented for every supported Python version."""
 
-    def __init__(self, collector: "ModuleCodeCollector") -> None:
+    def __init__(self, collector: "CoverageCollector") -> None:
         self._collector = collector
 
     def instrument(self, code: CodeType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
@@ -72,17 +102,7 @@ class SysMonitoringEngine(CoverageEngine):
     """Python 3.12+: sys.monitoring (PY_START/LINE) events, no bytecode rewriting."""
 
     def instrument(self, code: CodeType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
-        if is_at_least_py(3, 16):
-            # Version-asserted modules are unreachable for mypy under the lint interpreter.
-            from ddtrace.internal.coverage.instrumentation_py3_16 import (  # type: ignore[attr-defined]
-                instrument_all_lines,
-            )
-        else:
-            from ddtrace.internal.coverage.instrumentation_py3_12 import (  # type: ignore[attr-defined]
-                instrument_all_lines,
-            )
-
-        return instrument_all_lines(code, self._collector.hook, path, package)  # type: ignore[no-any-return]
+        return instrument_all_lines(code, self._collector.hook, path, package)
 
     def arm(self, import_context: bool = False) -> None:
         # Dynamically detect whether other sys.monitoring tools are active and update the
@@ -96,11 +116,9 @@ class SysMonitoringEngine(CoverageEngine):
         # This is deliberately different from the tool-scoped set_local_events() toggle in
         # instrumentation_py3_12._rearm_all_events(), which handles the one case where a
         # *known* other tool is present and must be left untouched.
-        from ddtrace.internal.coverage.instrumentation_py3_12 import (  # type: ignore[attr-defined]
-            update_disable_optimization,
-        )
-
-        if update_disable_optimization():
+        # update_disable_optimization is imported for 3.12+ only (version-gated ladder above);
+        # mypy lints under a 3.10 interpreter, where that import branch is unreachable.
+        if update_disable_optimization():  # type: ignore[name-defined]
             sys.monitoring.restart_events()  # type: ignore[attr-defined]
 
     def on_empty_module(self, code: CodeType, package: str) -> None:
@@ -121,14 +139,11 @@ class BytecodeInjectionEngine(CoverageEngine):
     their re-arming, so probes never reach the collector directly.
     """
 
-    def __init__(self, collector: "ModuleCodeCollector") -> None:
+    def __init__(self, collector: "CoverageCollector") -> None:
         super().__init__(collector)
         self._probes: list[Probe] = []
 
     def instrument(self, code: CodeType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
-        from ddtrace.internal.coverage.instrumentation_py3_10 import USE_FILE_LEVEL_COVERAGE
-        from ddtrace.internal.coverage.instrumentation_py3_10 import instrument_all_lines
-
         if USE_FILE_LEVEL_COVERAGE:
             new_code, lines = instrument_all_lines(code, self._fire_probe, path, package)
             self._register_probes(new_code)
@@ -154,8 +169,6 @@ class BytecodeInjectionEngine(CoverageEngine):
         Probes live inside code object constants, so this walk is the only way to enumerate
         them for the re-arm registry. Runs once per newly instrumented code object.
         """
-        from ddtrace.internal.bytecode_injection.core import Probe as _Probe
-
         for const in code.co_consts:
             if isinstance(const, _Probe):
                 self._probes.append(const)
@@ -181,12 +194,10 @@ class LegacyBytecodeEngine(CoverageEngine):
     """Python 3.9: hand-rolled line-level bytecode instrumentation (no self-disabling traps)."""
 
     def instrument(self, code: CodeType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
-        from ddtrace.internal.coverage.instrumentation_py3_9 import instrument_all_lines  # type: ignore[attr-defined]
-
-        return instrument_all_lines(code, self._collector.hook, path, package)  # type: ignore[no-any-return]
+        return instrument_all_lines(code, self._collector.hook, path, package)
 
 
-def create_engine(collector: "ModuleCodeCollector") -> CoverageEngine:
+def create_engine(collector: "CoverageCollector") -> CoverageEngine:
     # is_at_least_py (vs raw sys.version_info comparisons) keeps the branches opaque to
     # mypy's version narrowing, so every engine stays reachable under the lint interpreter.
     if is_at_least_py(3, 12):
