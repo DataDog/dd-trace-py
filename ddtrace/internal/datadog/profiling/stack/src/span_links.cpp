@@ -55,6 +55,8 @@ SpanLinks::remove_locked(const SpanLinkKey& key)
     key_to_entry.erase(it);
 }
 
+// Writes span to one key and keeps span_to_keys in sync with it. If an allocation throws, both maps are left as they
+// were.
 void
 SpanLinks::assign_locked(const SpanLinkKey& key, std::optional<Span> span)
 {
@@ -217,7 +219,8 @@ SpanLinks::advance_lifecycle_locked(bool open)
 
     const uint64_t token = lifecycle_token.load(std::memory_order_relaxed);
     const bool is_open = (token & 1U) != 0;
-    // Always advance, so a token read before a close then open sequence never matches again.
+    // Always advance, even when already in the requested state (open() while open moves 3 to 5), so that no token
+    // handed out before this call matches again.
     const uint64_t next = token + (is_open == open ? 2 : 1);
     lifecycle_token.store(next, std::memory_order_release);
 }
