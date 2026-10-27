@@ -1,5 +1,7 @@
 ---
 components:
+  elevenlabs:
+    - ddtrace/contrib/internal/elevenlabs/*
   aws_sdk_bedrock_runtime:
     - ddtrace/contrib/internal/aws_sdk_bedrock_runtime/*
     - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime.py
@@ -28,6 +30,8 @@ components:
     - ddtrace/contrib/internal/mcp/*
   mistralai:
     - ddtrace/contrib/internal/mistralai/*
+  typesafe:
+    - ddtrace/contrib/internal/typesafe/*
   openai:
     - ddtrace/contrib/internal/openai/*
   langgraph:
@@ -41,6 +45,23 @@ components:
   vllm:
     - ddtrace/contrib/internal/vllm/*
 suites:
+  elevenlabs:
+    venvs_per_job: 2
+    services: [testagent]
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@elevenlabs'
+      - '@llmobs'
+      - tests/contrib/elevenlabs/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/elevenlabs
+      variants:
+        - name: elevenlabs
+          python: ['3.10', '3.12']
+          dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
   aws_sdk_bedrock_runtime:
     paths:
       - "@bootstrap"
@@ -54,15 +75,12 @@ suites:
       command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
       variants:
         - name: aws_sdk_bedrock_runtime
-          python: ["3.12", "3.13"]
+          python: ["3.12", "3.13", '3.14']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@anthropic'
       - '@requests'
       - '@llmobs'
@@ -82,9 +100,6 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@claude_agent_sdk'
       - '@llmobs'
       - tests/contrib/claude_agent_sdk/*
@@ -117,9 +132,6 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@google_adk'
       - '@llmobs'
       - tests/contrib/google_adk/*
@@ -134,9 +146,6 @@ suites:
   google_genai:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@google_genai'
       - '@llmobs'
       - tests/contrib/google_genai/*
@@ -150,9 +159,6 @@ suites:
   vertexai:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@vertexai'
       - '@llmobs'
       - tests/contrib/vertexai/*
@@ -168,9 +174,6 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@llama_index'
       - '@llmobs'
       - tests/contrib/llama_index/*
@@ -194,9 +197,6 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@langchain'
       - '@requests'
       - '@llmobs'
@@ -219,9 +219,6 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@litellm'
       - '@llmobs'
       - tests/contrib/litellm/*
@@ -243,8 +240,6 @@ suites:
   llmobs:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
       - tests/cassettes/anthropic/*
@@ -268,15 +263,12 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1', deepeval, 'pydantic-evals>=1.31']
         - name: llmobs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@mcp'
       - '@llmobs'
       - tests/contrib/mcp/*
@@ -294,9 +286,6 @@ suites:
   mistralai:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@mistralai'
       - '@llmobs'
       - tests/contrib/mistralai/*
@@ -312,13 +301,31 @@ suites:
         - name: mistralai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, mistralai]
-  openai:
-    venvs_per_job: 5
+  typesafe:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@contrib'
+      - '@typesafe'
+      - '@llmobs'
+      - tests/contrib/typesafe/*
+      - tests/cassettes/typesafe/*
+      - tests/snapshots/tests.contrib.typesafe.*
+    snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/contrib/typesafe
+      variants:
+        - name: typesafe
+          python: ['3.10']
+          dependencies: [pytest-asyncio, 'typesafe-sdk~=0.6.0']
+        - name: typesafe
+          python: ['3.10', '3.13', '3.14']
+          dependencies: [pytest-asyncio, typesafe-sdk]
+  openai:
+    venvs_per_job: 5
+    paths:
+      - '@bootstrap'
       - '@openai'
       - '@requests'
       - '@llmobs'
@@ -339,7 +346,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
         - name: openai
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
         - name: openai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -354,9 +361,6 @@ suites:
     venvs_per_job: 8
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@langgraph'
       - '@requests'
       - '@llmobs'
@@ -394,9 +398,6 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@crewai'
       - '@requests'
       - '@llmobs'
@@ -416,9 +417,6 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@openai_agents'
       - '@llmobs'
       - tests/contrib/openai_agents/*
@@ -450,9 +448,6 @@ suites:
     venvs_per_job: 8
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@pydantic_ai'
       - '@llmobs'
       - tests/contrib/pydantic_ai/*
@@ -477,10 +472,6 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
-      - '@vllm'
       - '@llmobs'
       - tests/contrib/vllm/*
       - tests/snapshots/tests.contrib.vllm.*
