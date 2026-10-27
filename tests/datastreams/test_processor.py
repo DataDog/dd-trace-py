@@ -16,6 +16,7 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
+from ddtrace.internal.datastreams.processor import _compute_pathway_hash
 from ddtrace.internal.utils.fnv import fnv1_64
 
 
@@ -166,7 +167,23 @@ def _reference_pathway_hash(service, env, base_hash_bytes, tags, parent_hash):
     return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
 
+def _cache_counts():
+    info = _compute_pathway_hash.cache_info()
+    return info.hits, info.misses
+
+
+def _assert_miss(before):
+    hits, misses = before
+    assert _cache_counts() == (hits, misses + 1)
+
+
+def _assert_hit(before):
+    hits, misses = before
+    assert _cache_counts() == (hits + 1, misses)
+
+
 def test_compute_hash_matches_uncached_reference():
+    _compute_pathway_hash.cache_clear()
     rng = random.Random(1234)
     alphabet = "abcXYZ019:_-é漢🙂"
 
@@ -182,22 +199,33 @@ def test_compute_hash_matches_uncached_reference():
                 tags = [random_text() for _ in range(rng.randint(0, 6))]
                 parent_hash = rng.randrange(2**64)
                 expected = _reference_pathway_hash(ctx.service, ctx.env, base_hash_bytes, tags, parent_hash)
-                # Twice: the second call is served from the cache.
+                # First call computes the hash, second call is served from the cache.
+                before = _cache_counts()
                 assert ctx._compute_hash(tags, parent_hash) == expected
+                _assert_miss(before)
+                before = _cache_counts()
                 assert ctx._compute_hash(tags, parent_hash) == expected
+                _assert_hit(before)
 
 
 def test_compute_hash_cache_tracks_every_input():
+    _compute_pathway_hash.cache_clear()
     ctx = processor.new_pathway()
     tags = ["direction:out", "topic:topicA", "type:kafka"]
+    before = _cache_counts()
     base = ctx._compute_hash(tags, 7)
+    _assert_miss(before)
 
+    before = _cache_counts()
     assert ctx._compute_hash(list(tags), 7) == base
+    _assert_hit(before)
     assert ctx._compute_hash(tags, 8) != base
     assert ctx._compute_hash(list(reversed(tags)), 7) != base
     with mock.patch.object(process_tags, "base_hash_bytes", struct.pack("<Q", 42)):
         assert ctx._compute_hash(tags, 7) != base
+    before = _cache_counts()
     assert ctx._compute_hash(tags, 7) == base
+    _assert_hit(before)
 
     ctx.service = "other-service"
     assert ctx._compute_hash(tags, 7) != base
