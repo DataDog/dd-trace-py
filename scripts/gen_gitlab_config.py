@@ -19,6 +19,7 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import importlib
+import json
 import os
 import re
 import shlex
@@ -760,8 +761,13 @@ prechecks:
       scripts/run-parallel-prechecks.py - <<'EOF'
 """
         )
+        # The check list is passed to the runner on stdin, one JSON
+        # object per line: {"name": ..., "command": ...}. The six-space
+        # indent matches the YAML block above so the heredoc body starts
+        # at column zero; the runner strips each line before parsing as
+        # defense against indentation drift.
         for name, command in checks:
-            f.write("      " + name + "\t" + command + "\n")
+            f.write("      " + json.dumps({"name": name, "command": command}) + "\n")
         f.write(
             """      EOF
 """

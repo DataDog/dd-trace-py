@@ -2,6 +2,7 @@
 
 import importlib.util
 import io
+import json
 import pathlib
 import subprocess
 import sys
@@ -244,21 +245,27 @@ def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatc
     out = tests_gen.read_text()
     assert "scripts/lint prepare" in out
     assert "scripts/run-parallel-prechecks.py - <<'EOF'" in out
-    for check in (
-        "Style\tscripts/lint style",
-        "Typing\tscripts/lint typing",
-        "Spelling\tscripts/lint spelling",
-        "Security\tscripts/lint security",
+    for name, command in (
+        ("Style", "scripts/lint style"),
+        ("Typing", "scripts/lint typing"),
+        ("Spelling", "scripts/lint spelling"),
+        ("Security", "scripts/lint security"),
     ):
-        assert f"      {check}\n" in out
+        expected = json.dumps({"name": name, "command": command})
+        assert f"      {expected}\n" in out
     # Checks must not be emitted as sequential script steps anymore.
     assert "section_0" not in out
 
 
 def test_run_parallel_prechecks_reports_each_result(tmp_path):
     script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
-    checks = tmp_path / "checks.tsv"
-    checks.write_text("Passing\techo ok\nFailing\techo oops >&2; exit 3\n")
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(
+        json.dumps({"name": "Passing", "command": "echo ok"})
+        + "\n"
+        + json.dumps({"name": "Failing", "command": "echo oops >&2; exit 3"})
+        + "\n"
+    )
 
     proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
 
@@ -271,10 +278,20 @@ def test_run_parallel_prechecks_reports_each_result(tmp_path):
     assert "  FAIL" in proc.stdout
 
 
-def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path):
+@pytest.mark.parametrize(
+    "line",
+    [
+        "not json",
+        '"just a string"',
+        '{"name": "Missing command"}',
+        '{"name": "", "command": "true"}',
+        '{"name": "Extra key", "command": "true", "timeout": 60}',
+    ],
+)
+def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path, line):
     script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
-    checks = tmp_path / "checks.tsv"
-    checks.write_text("No tab in this line\n")
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(line + "\n")
 
     proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
 
@@ -286,11 +303,11 @@ def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
     """Two checks that wait for each other's sentinel file can only pass in parallel."""
     script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
     wait_for = 'touch "{d}/{name}"; for _ in $(seq 50); do [ -e "{d}/{other}" ] && exit 0; sleep 0.1; done; exit 1'
-    checks = tmp_path / "checks.tsv"
+    checks = tmp_path / "checks.jsonl"
     checks.write_text(
-        "\t".join(["First", wait_for.format(d=tmp_path, name="a", other="b")])
+        json.dumps({"name": "First", "command": wait_for.format(d=tmp_path, name="a", other="b")})
         + "\n"
-        + "\t".join(["Second", wait_for.format(d=tmp_path, name="b", other="a")])
+        + json.dumps({"name": "Second", "command": wait_for.format(d=tmp_path, name="b", other="a")})
         + "\n"
     )
 

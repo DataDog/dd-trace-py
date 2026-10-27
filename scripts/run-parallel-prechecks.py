@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Run the CI prechecks in parallel.
 
-Reads a check list where each non-comment line is "name<TAB>command".
-Every check runs in its own subprocess with its output captured. Once all
-checks have finished, the logs are printed in the original list order as
-collapsible GitLab sections (failed checks are left expanded), followed by a
-summary table. All checks always run to completion before exiting, so one
-failure does not hide the others; the script exits non-zero if any check
-failed.
+Reads a check list where each non-blank line is a JSON object:
+{"name": "...", "command": "..."}. Every check runs in its own subprocess with
+its output captured. Once all checks have finished, the logs are printed in
+the original list order as collapsible GitLab sections (failed checks are
+left expanded), followed by a summary table. All checks always run to
+completion before exiting, so one failure does not hide the others; the
+script exits non-zero if any check failed.
 
 Usage:
   scripts/run-parallel-prechecks.py [CHECKS_FILE]
@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 from dataclasses import dataclass
+import json
 import subprocess  # nosec B404
 import sys
 import time
@@ -35,16 +36,23 @@ class CheckResult:
 
 
 def parse_checks(stream: IO[str]) -> list[tuple[str, str]]:
-    """Read "name<TAB>command" lines, skipping blanks and #-comments."""
+    """Read one JSON check object per line: {"name": ..., "command": ...}."""
     checks: list[tuple[str, str]] = []
     for line in stream:
-        line = line.rstrip("\n")
-        if not line or line.startswith("#"):
+        line = line.strip()
+        if not line:
             continue
-        name, sep, command = line.partition("\t")
-        if not sep or not command:
-            raise ValueError(f"malformed check line (expected name<TAB>command): {name}")
-        checks.append((name, command))
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"malformed check line (invalid JSON): {line!r}") from e
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != {"name", "command"}
+            or not all(isinstance(entry[key], str) and entry[key] for key in ("name", "command"))
+        ):
+            raise ValueError(f'malformed check line (expected {{"name": ..., "command": ...}}): {line!r}')
+        checks.append((entry["name"], entry["command"]))
     return checks
 
 
