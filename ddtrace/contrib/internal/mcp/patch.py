@@ -276,6 +276,8 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
         return await func(*args, **kwargs)
     finally:
         if span:
+            if not args:
+                response = getattr(kwargs.get("response"), "root", None)
             if isinstance(response, CallToolResult) and response.isError:
                 span.error = 1
                 span.set_tag(ERROR_TYPE, "ToolError")
