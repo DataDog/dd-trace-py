@@ -325,8 +325,9 @@ def test_asyncio_task_lists_failure_with_a_module_is_logged() -> None:
 
 @pytest.mark.subprocess(err=None)
 def test_asyncio_task_lists_recovered_after_registration_inside_asyncio_c_hook() -> None:
-    # ddtrace's hooks registered while _asyncio is still initializing must not read it then, and a later
-    # _call_init_asyncio call must pick it up.
+    # ddtrace's hooks registered while _asyncio is still initializing must not read it then. Here the profiler starts
+    # and the event loop is set while _asyncio is still initializing, and the loop then runs without being set again,
+    # so only running it can pick up _asyncio.
     import sys
 
     from ddtrace.internal.module import ModuleWatchdog
@@ -338,35 +339,42 @@ def test_asyncio_task_lists_recovered_after_registration_inside_asyncio_c_hook()
     messages = capture_asyncio_log()
     purge_asyncio()
 
-    def import_profiling(_module: object) -> None:
-        from ddtrace.profiling import profiler  # noqa: F401
+    started = []
 
-    ModuleWatchdog.register_module_hook("_asyncio", import_profiling)
-    import _asyncio  # noqa: F401
-    import asyncio
+    def start_profiling(_module: object) -> None:
+        import asyncio
 
-    from ddtrace.internal.datadog.profiling.stack import _stack
-    from ddtrace.profiling import profiler
+        from ddtrace.profiling import profiler
 
-    assert _stack._asyncio_task_lists()[2] == "none"
-    assert no_task_lists_logs(messages) == 0, messages
-
-    async def main() -> None:
-        # Starting the profiler inside a running loop links that loop, which initializes asyncio again.
         p = profiler.Profiler()
         p.start()
-        try:
-            assert _stack._asyncio_task_lists()[2] == "runtime-table"
-        finally:
-            p.stop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        started.append((p, loop))
 
-    asyncio.run(main())
+    ModuleWatchdog.register_module_hook("_asyncio", start_profiling)
+    import _asyncio  # noqa: F401
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    [(p, loop)] = started
+    try:
+        assert _stack._asyncio_task_lists()[2] == "none"
+
+        async def main() -> str:
+            return _stack._asyncio_task_lists()[2]
+
+        assert loop.run_until_complete(main()) == "runtime-table"
+        assert no_task_lists_logs(messages) == 0, messages
+    finally:
+        loop.close()
+        p.stop()
 
 
 @pytest.mark.subprocess(err=None)
 def test_asyncio_task_lists_recovered_on_loop_start_after_registration_inside_asyncio_c_hook() -> None:
-    # Same import order as the previous test, but the profiler starts before any loop runs, so only setting the event
-    # loop can pick up _asyncio.
+    # Same import order as the previous test, with the profiler started after _asyncio has finished initializing but
+    # before asyncio.run.
     import sys
 
     from ddtrace.internal.module import ModuleWatchdog

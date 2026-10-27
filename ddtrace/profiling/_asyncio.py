@@ -38,7 +38,7 @@ _NATIVE_ASYNCIO_INIT: bool = False
 # True only while the _asyncio hook is being registered. Registration calls the hook at once if _asyncio is in
 # sys.modules, possibly while another thread is still executing it.
 _REGISTERING_C_ASYNCIO_HOOK: bool = False
-# True once _call_init_asyncio has passed a finished _asyncio module to native code. Until then, setting an event loop
+# True once _call_init_asyncio has passed a finished _asyncio module to native code. Until then, running an event loop
 # retries, for an _asyncio that finished executing when no hook could pass it on.
 _PASSED_C_ASYNCIO: bool = False
 _LOGGED_NO_TASK_LISTS: bool = False
@@ -242,10 +242,19 @@ def _(asyncio: ModuleType) -> None:
             loop: typing.Optional[aio.AbstractEventLoop] = get_argument_value(args, kwargs, 1, "loop")
             if init_stack:
                 stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
-                if not _PASSED_C_ASYNCIO and _completed_c_asyncio() is not None:
-                    # The _asyncio hook skipped the module because it was still executing when the hook was
-                    # registered, and that import did not call the new hook afterwards.
-                    _call_init_asyncio(asyncio)
+            return f(*args, **kwargs)
+
+    if init_stack and sys.hexversion >= 0x030E0000:
+
+        @partial(wrap, sys.modules["asyncio"].base_events.BaseEventLoop.run_forever)
+        def _retry_c_asyncio(
+            f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+        ) -> None:
+            if not _PASSED_C_ASYNCIO and _completed_c_asyncio() is not None:
+                # The _asyncio hook skipped the module because it was still executing when the hook was registered,
+                # and that import did not call the new hook afterwards. asyncio.run, Runner and run_until_complete all
+                # reach run_forever, whichever loop factory they use and whenever the loop was set.
+                _call_init_asyncio(asyncio)
             return f(*args, **kwargs)
 
     if init_stack:
