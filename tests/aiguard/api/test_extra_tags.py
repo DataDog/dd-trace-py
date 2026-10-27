@@ -63,18 +63,25 @@ def test_extra_metastruct_values_in_meta_struct(mock_execute_request, ai_guard_c
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_evaluate_id_in_tags_and_meta_struct(mock_execute_request, ai_guard_client, test_spans):
+def test_evaluate_id_from_backend_response_document(mock_execute_request, ai_guard_client, test_spans):
+    # The JSON:API document the backend returns today: the evaluate ID only in extra_tags, equal to
+    # data.id, no extra_metastruct, and attributes the tracer does not read (global_prob).
     evaluate_id = "8f1c6a52-0a43-4c3e-9b8e-2d6f4f1e7a90"
-    mock_execute_request.return_value = mock_evaluate_response(
-        "ALLOW",
-        extra_tags=[{"key": "ai_guard.evaluate_id", "value": evaluate_id}],
-        extra_metastruct=[{"key": "evaluate_id", "value": evaluate_id}],
+    response = mock_evaluate_response("ALLOW", reason="No rule match.", tag_probs={"jailbreak": 0.01})
+    document = response.get_json.return_value
+    document["data"].update({"id": evaluate_id, "type": "evaluations"})
+    document["data"]["attributes"].update(
+        {"global_prob": 0.01, "extra_tags": [{"key": "ai_guard.evaluate_id", "value": evaluate_id}]}
     )
+    mock_execute_request.return_value = response
 
-    ai_guard_client.evaluate(PROMPT)
+    result = ai_guard_client.evaluate(PROMPT)
 
-    assert find_ai_guard_span(test_spans).get_tag("ai_guard.evaluate_id") == evaluate_id
-    assert _get_meta_struct(test_spans)["evaluate_id"] == evaluate_id
+    assert result["action"] == "ALLOW"
+    span = find_ai_guard_span(test_spans)
+    assert span.get_tag("ai_guard.evaluate_id") == evaluate_id
+    assert span.get_tag("global_prob") is None
+    assert set(_get_meta_struct(test_spans)) == {"messages", "tag_probs"}
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
