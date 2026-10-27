@@ -77,6 +77,10 @@ DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 ITR_UNSKIPPABLE_DDTRACE_MARKERS = ("subprocess", "snapshot")
 
+# Prefer the wrapper installed with the running interpreter: the first ddtrace-run found on PATH may
+# belong to another environment and import a ddtrace build that does not match sys.executable.
+DDTRACE_RUN: str = shutil.which("ddtrace-run", path=os.path.dirname(sys.executable)) or "ddtrace-run"
+
 # Stash keys for storing original test name and nodeid before Python version suffix is added
 # For pytest >= 7.1.0, use StashKey; for older versions, use attribute names
 if StashKey:
@@ -309,7 +313,7 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
         pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
-        return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
+        return call_program(DDTRACE_RUN, sys.executable, str(pyfile), **kwargs)
 
     yield _run
 
@@ -427,7 +431,7 @@ def run_function_from_file(item, params=None):
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
-        args.insert(0, "ddtrace-run")
+        args.insert(0, DDTRACE_RUN)
 
     # Add -m if running script as a module
     if run_module:
@@ -462,7 +466,8 @@ def run_function_from_file(item, params=None):
 
     try:
         with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
-            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+            # Keep test assertions active while imported application code retains its optimization level.
+            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec", optimize=0), fp.file)
 
             # If running a module with -m, we change directory to the module's
             # folder and run the module directly.

@@ -83,9 +83,12 @@
     ],
     "forbid_from_zones_into_products": ["internal-core", "contrib"],
     "exceptions": [
-      {"from_zone": "contrib", "to_zone": "product:tracing", "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"},
-      {"from_zone": "contrib", "to_zone": "product:llmobs", "//": "LLMObs-backed contrib integrations construct and call their BaseLLMIntegration subclass from ddtrace.llmobs._integrations by design"},
-      {"from_zone": "product:llmobs", "to_zone": "product:tracing", "//": "LLMObs is built on tracer spans; its integrations annotate the Span created by the tracer"}
+      {"from_zone": "product:ci_visibility", "to_zone": "product:tracing", "//": "CI Visibility is built on the tracer; it subclasses Tracer, TraceFilter and DefaultContextProvider and exposes Span/Tracer through its API"},
+      {
+        "from_zone": "contrib",
+        "to_zone": "product:tracing",
+        "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"
+      }
     ]
   }
 }

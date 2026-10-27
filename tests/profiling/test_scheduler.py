@@ -7,7 +7,21 @@ import pytest
 
 from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.profiling import scheduler
+
+
+def test_interval_is_read_when_built(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Remote config changes the upload interval after the scheduler module is imported.
+    monkeypatch.setattr(profiling_config, "upload_interval", 12.0)
+
+    assert scheduler.Scheduler().interval == 12.0
+
+
+def test_serverless_scheduler_interval_none_uses_forced_interval() -> None:
+    s = scheduler.ServerlessScheduler(interval=None)
+
+    assert s.interval == scheduler.ServerlessScheduler.FORCED_INTERVAL
 
 
 def test_exporter_failure(caplog: pytest.LogCaptureFixture) -> None:

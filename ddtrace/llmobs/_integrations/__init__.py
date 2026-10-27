@@ -22,6 +22,7 @@ _INTEGRATION_MODULES = {
     "LlamaIndexIntegration": ".llama_index",
     "MistralAIIntegration": ".mistralai",
     "OpenAIIntegration": ".openai",
+    "ElevenLabsIntegration": ".elevenlabs",
     "PydanticAIIntegration": ".pydantic_ai",
     "TypeSafeIntegration": ".typesafe",
     "VertexAIIntegration": ".vertexai",

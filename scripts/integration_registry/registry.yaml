@@ -401,6 +401,16 @@ integrations:
       min: 1.1.0
       max: 3.2.0
 
+- integration_name: elevenlabs
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - elevenlabs
+  tested_versions_by_dependency:
+    elevenlabs:
+      min: 2.70.0
+      max: 2.70.0
+
 - integration_name: falcon
   is_external_package: true
   is_tested: true
@@ -541,7 +551,7 @@ integrations:
   tested_versions_by_dependency:
     httpx2:
       min: 2.0.0
-      max: 2.13.1
+      max: 2.16.0
 
 - integration_name: jinja2
   is_external_package: true
@@ -593,13 +603,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.2.11
+      max: 1.2.17
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.2.0
+      max: 4.3.0
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.1.0
+      max: 1.1.1
 
 - integration_name: litellm
   is_external_package: true
@@ -703,13 +713,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.5
-      max: 3.17.0
+      max: 3.17.2
     mlflow-skinny:
-      min: 3.17.0
-      max: 3.17.0
+      min: 3.17.2
+      max: 3.17.2
     mlflow-tracing:
-      min: 3.17.0
-      max: 3.17.0
+      min: 3.17.2
+      max: 3.17.2
 
 - integration_name: molten
   is_external_package: true
@@ -1081,7 +1091,7 @@ integrations:
   tested_versions_by_dependency:
     valkey:
       min: 6.0.2
-      max: 6.1.1
+      max: 6.2.0
 
 - integration_name: vertexai
   is_external_package: true
