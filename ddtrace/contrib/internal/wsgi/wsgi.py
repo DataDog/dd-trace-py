@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import ExitStack
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -21,6 +22,8 @@ from urllib.parse import unquote_to_bytes
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.web_request import WebRequestCompleting
+from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -108,22 +111,31 @@ class _DDWSGIMiddlewareBase:
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
-        with core.context_with_data(
-            "wsgi.__call__",
-            remote_addr=environ.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            service=trace_utils.int_service(None, self._config),
-            span_type=SpanTypes.WEB,
-            span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
-            middleware_config=self._config,
-            integration_config=self._config,
-            distributed_headers=environ,
-            environ=environ,
-            middleware=self,
-            span_key="req_span",
-            activate_distributed_headers=True,
-        ) as ctx:
+        with (
+            core.context_with_data(
+                "wsgi.__call__",
+                remote_addr=environ.get("REMOTE_ADDR"),
+                headers=headers,
+                headers_case_sensitive=True,
+                service=trace_utils.int_service(None, self._config),
+                span_type=SpanTypes.WEB,
+                span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
+                middleware_config=self._config,
+                integration_config=self._config,
+                distributed_headers=environ,
+                environ=environ,
+                middleware=self,
+                span_key="req_span",
+                activate_distributed_headers=True,
+            ) as ctx,
+            ExitStack() as cleanup,
+        ):
+            # Response iteration can outlive this request scope.
+            if core.has_listeners(WebRequestCompleting.event_name):
+                cleanup.callback(core.dispatch_event, WebRequestCompleting(ctx, span_from_context(ctx)))
+            if core.has_listeners(WebRequestReady.event_name):
+                core.dispatch_event(WebRequestReady(ctx, span_from_context(ctx)))
+
             ctx.set_item("wsgi.construct_url", construct_url)
 
             def blocked_view():
@@ -154,6 +166,7 @@ class _DDWSGIMiddlewareBase:
                     content, status, headers = blocked_view()
                     start_response(str(status), headers)
                     closing_iterable = [content]
+                    cleanup.close()
                     core.dispatch("wsgi.app.exception", (ctx,))
                 except StopIteration as e:
                     """
@@ -173,8 +186,10 @@ class _DDWSGIMiddlewareBase:
                         content, status, headers = blocked_view()
                         start_response(str(status), headers)
                         closing_iterable = [content]
+                        cleanup.close()
                         core.dispatch("wsgi.app.exception", (ctx,))
                     else:
+                        cleanup.close()
                         core.dispatch("wsgi.app.exception", (ctx,))
                         raise
                 else:
@@ -192,6 +207,7 @@ class _DDWSGIMiddlewareBase:
             if stop_iteration_exception:
                 if result.value:
                     # Close the request and app spans
+                    cleanup.close()
                     result.value._finish_spans()
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
                 raise stop_iteration_exception
