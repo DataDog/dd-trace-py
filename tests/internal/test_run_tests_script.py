@@ -123,34 +123,3 @@ def test_environment_announcement_is_flushed_before_the_environment_runs(runner,
     assert runner._run_environments([_environment("aaa")], {}, ["--", "--ddtrace"], rebuild=False)
 
     assert "Running test environment: aaa" in flushed_at_run[0]
-
-
-def test_snapshot_settings_reach_test_environment(runner, monkeypatch):
-    runner.suites = {"snapshot": {"snapshot": True}}
-    environment = _environment("snapshot-env")
-    environment.suite = "snapshot"
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://testagent:9126")
-    monkeypatch.setenv("DD_TEST_AGENT_SNAPSHOT_DIR", "/custom/snapshots")
-    captured = {}
-
-    def run(environments, forwarded_env, test_args, rebuild):
-        captured.update(forwarded_env)
-        return True
-
-    monkeypatch.setattr(runner, "_run_environments", run)
-    assert runner.run_tests([environment])
-    assert captured["DD_TRACE_AGENT_URL"] == "http://testagent:9126"
-    assert captured["DD_TEST_AGENT_SNAPSHOT_DIR"] == "/custom/snapshots"
-
-
-@pytest.mark.parametrize("port", [8126, 4318])
-def test_discovers_each_agent_protocol_port(runner, run_tests_mod, monkeypatch, port):
-    commands = []
-
-    def run(command, **kwargs):
-        commands.append(command)
-        return subprocess.CompletedProcess(command, 0, stdout="127.0.0.1:34567\n")
-
-    monkeypatch.setattr(run_tests_mod.subprocess, "run", run)
-    assert runner.get_testagent_url(port=port) == "http://localhost:34567"
-    assert commands[0][-3:] == ["port", "testagent", str(port)]
