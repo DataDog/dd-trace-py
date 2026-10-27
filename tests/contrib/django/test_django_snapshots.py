@@ -10,6 +10,7 @@ import pytest
 from tests.utils import _build_env
 from tests.utils import package_installed
 from tests.utils import snapshot
+from tests.utils import terminate_process_group
 from tests.webclient import Client
 
 
@@ -62,14 +63,11 @@ def daphne_client(django_asgi, additional_env=None):
     server_process = subprocess.Popen(cmd, **subprocess_kwargs)
     client = Client("http://localhost:%d" % SERVER_PORT)
 
-    # Wait for the server to start up
     try:
-        print("Waiting for server to start")
         client.wait(max_tries=120, delay=0.2, initial_wait=2.0)
-        print("Server started")
     except Exception:
-        server_process.kill()
-        stdout, stderr = server_process.communicate()
+        terminate_process_group(server_process)
+        stdout, stderr = server_process.communicate(timeout=3)
         raise AssertionError(
             "Server failed to start, see stdout and stderr logs"
             "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
@@ -79,9 +77,11 @@ def daphne_client(django_asgi, additional_env=None):
     try:
         yield (client, server_process)
     finally:
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
-        server_process.terminate()
+        try:
+            resp = client.get_ignored("/shutdown-tracer", timeout=10)
+            assert resp.status_code == 200
+        finally:
+            terminate_process_group(server_process)
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
