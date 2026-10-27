@@ -7,6 +7,11 @@ from ddtrace.internal.utils.formats import asbool
 def is_file_level_coverage_enabled() -> bool:
     # Python 3.12+ instruments with sys.monitoring, where file-level coverage (PY_START events) is the default and
     # avoids the cost of LINE events. Older versions default to line-level coverage.
+    # POC: Python 3.10/3.11 also support file-level coverage through bytecode injection
+    # (see instrumentation_py3_10.py); 3.9 has no file-level implementation, so the flag is
+    # forced off there rather than silently collecting nothing.
+    if sys.version_info < (3, 10):
+        return False
     default = "true" if sys.version_info >= (3, 12) else "false"
     return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", default))
 

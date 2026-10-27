@@ -30,6 +30,17 @@ from ddtrace.internal.utils.paths import is_contained
 from ddtrace.internal.utils.paths import relative_path
 
 
+try:
+    from ddtrace.internal.bytecode_injection.core import Probe
+except (AssertionError, ImportError):  # pragma: no cover
+    # Python 3.12+ uses sys.monitoring (PY_START events); the bytecode-injection
+    # framework asserts (3, 10) <= version < (3, 12) and does not exist there. The stub
+    # keeps isinstance() checks safe and always-False on versions without probes.
+
+    class Probe:  # type: ignore[no-redef]
+        """Stub for Python versions without bytecode-injection file-level probes."""
+
+
 log = get_logger(__name__)
 
 _original_exec = exec
@@ -152,6 +163,10 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         self._coverage_enabled: bool = False
         self._file_level_coverage: bool = False
+        # POC (file-level bytecode injection, Python 3.10/3.11): registry of every Probe
+        # injected into instrumented code objects, so CollectInContext can re-arm them
+        # (the sys.monitoring restart_events() equivalent).
+        self._probes: list[Probe] = []
         self.seen: set[tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
@@ -249,7 +264,20 @@ class ModuleCodeCollector(ModuleWatchdog):
             ctx_lines = collector._covered_lines[path]
             ctx_lines.add(line)
 
-    def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
+    def hook(self, arg: t.Union[tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]], "Probe"]):
+        # POC (file-level bytecode injection, Python 3.10/3.11): traps carry a mutable Probe
+        # instead of a (line, path, import_name) tuple. First fire per coverage context
+        # records the file plus its import dependencies; subsequent fires are a cheap
+        # dead-flag check. Probes are re-armed at CollectInContext entry.
+        if isinstance(arg, Probe):
+            if arg.dead:
+                return
+            arg.dead = True
+            self.hook_file(arg.path)
+            for dep in arg.deps:
+                self.hook_import(arg.path, dep)
+            return
+
         line: int
         path: str
         import_name: t.Optional[tuple[str, tuple[str, ...]]]
@@ -474,6 +502,12 @@ class ModuleCodeCollector(ModuleWatchdog):
 
                 if update_disable_optimization():
                     sys.monitoring.restart_events()
+            elif (instance := ModuleCodeCollector._instance) is not None and not self.is_import_coverage:
+                # POC (Python 3.10/3.11): re-arm bytecode-injection file-level probes — the
+                # restart_events() equivalent of the sys.monitoring implementation. Import
+                # coverage contexts are excluded: module bodies execute exactly once, so
+                # arming on every module import would be pure overhead.
+                instance._arm_probes()
 
             return self
 
@@ -668,7 +702,27 @@ class ModuleCodeCollector(ModuleWatchdog):
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
         self.lines[code.co_filename].update(lines)
+        if self._file_level_coverage and sys.version_info[:2] < (3, 12):
+            # POC: remember file-level probes so CollectInContext can re-arm them.
+            self._register_probes(new_code)
         return new_code
+
+    def _register_probes(self, code: CodeType) -> None:
+        """POC: recursively collect file-level Probe constants from an instrumented code object.
+
+        Probes live inside code object constants, so this walk is the only way to enumerate
+        them for the re-arm registry. Runs once per newly instrumented code object.
+        """
+        for const in code.co_consts:
+            if isinstance(const, Probe):
+                self._probes.append(const)
+            elif isinstance(const, CodeType):
+                self._register_probes(const)
+
+    def _arm_probes(self) -> None:
+        """POC: the sys.monitoring restart_events() equivalent for bytecode-injection probes."""
+        for probe in self._probes:
+            probe.dead = False
 
     def _exec(self, _object, _globals=None, _locals=None, **kwargs):
         # The pytest module loader doesn't implement a get_code method so we
