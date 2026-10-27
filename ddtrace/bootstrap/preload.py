@@ -36,6 +36,16 @@ def register_post_preload(func: t.Callable) -> None:
 
 log = get_logger(__name__)
 
+# DEV: We want to start the crashtracker as early as possible, before the
+# products, so that native crashes during their startup are reported.
+if crashtracker_config.enabled:
+    try:
+        from ddtrace.internal.core import crashtracking
+
+        crashtracking.start()
+    except Exception:
+        log.error("failed to enable crashtracking", exc_info=True)
+
 # Run the product manager protocol
 manager.run_protocol()
 
@@ -47,16 +57,6 @@ register_post_preload(prefetch_distributions)
 
 
 # TODO: Migrate the following product logic to the new product plugin interface
-
-# DEV: We want to start the crashtracker as early as possible
-if crashtracker_config.enabled:
-    try:
-        from ddtrace.internal.core import crashtracking
-
-        crashtracking.start()
-    except Exception:
-        log.error("failed to enable crashtracking", exc_info=True)
-
 
 if profiling_config.install:
     # Install the stack profiler hooks now, so that the profiler can be enabled at runtime and still

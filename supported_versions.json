@@ -1580,6 +1580,26 @@
         ]
     },
     {
+        "dependencyName": "elevenlabs",
+        "integrationName": "elevenlabs",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10",
+                        "3.12"
+                    ]
+                },
+                "supportedRange": ">=2.70.0",
+                "tested": [
+                    "2.70.0"
+                ]
+            }
+        ],
+        "pinned": true
+    },
+    {
         "dependencyName": "falcon",
         "integrationName": "falcon",
         "autoInstrumented": true,
@@ -1838,7 +1858,8 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.10"
+                        "3.10",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=1.0.0",
@@ -1853,8 +1874,7 @@
                         "3.11",
                         "3.12",
                         "3.13",
-                        "3.14",
-                        "3.15"
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=1.0.0",
@@ -2194,7 +2214,18 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.10",
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=2.0",
+                "tested": [
+                    "2.0.0",
+                    "2.14.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.11",
                         "3.12",
                         "3.13",
@@ -2205,7 +2236,7 @@
                 "supportedRange": ">=2.0",
                 "tested": [
                     "2.0.0",
-                    "2.13.1"
+                    "2.16.0"
                 ]
             }
         ]
@@ -2428,7 +2459,7 @@
                     "0.2.23",
                     "0.3.21",
                     "0.3.22",
-                    "1.2.11"
+                    "1.2.17"
                 ]
             }
         ]
@@ -2464,7 +2495,7 @@
                 "tested": [
                     "1.0.12",
                     "2.1.2",
-                    "4.2.0"
+                    "4.3.0"
                 ]
             }
         ]
@@ -2499,7 +2530,7 @@
                 "supportedRange": "*",
                 "tested": [
                     "0.1.8",
-                    "1.1.0"
+                    "1.1.1"
                 ]
             }
         ]
@@ -2816,7 +2847,7 @@
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.17.0"
+                    "3.17.2"
                 ]
             }
         ]
@@ -2836,7 +2867,7 @@
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.17.0"
+                    "3.17.2"
                 ]
             }
         ]
@@ -2856,7 +2887,7 @@
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.17.0"
+                    "3.17.2"
                 ]
             }
         ]
@@ -4428,28 +4459,39 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
-                        "3.10",
-                        "3.11",
-                        "3.12",
-                        "3.13"
+                        "3.9"
                     ]
                 },
                 "supportedRange": ">=6.0.0",
                 "tested": [
-                    "6.0.2"
+                    "6.0.2",
+                    "6.1.1"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=6.0.0",
+                "tested": [
+                    "6.1.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.11",
+                        "3.12",
+                        "3.13",
                         "3.14",
                         "3.15"
                     ]
                 },
                 "supportedRange": ">=6.0.0",
                 "tested": [
-                    "6.1.1"
+                    "6.2.0"
                 ]
             }
         ]

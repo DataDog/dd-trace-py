@@ -301,9 +301,14 @@ class SpanEnrichmentHook(Hook):
                 self._subscribed = True
 
     def _get_root_span(self) -> typing.Optional[typing.Any]:
-        """O(1) local-root lookup -- mirrors Node's ``trace.started[0]``."""
-        from ddtrace.trace import tracer
+        """O(1) local-root lookup -- mirrors Node's ``trace.started[0]``.
 
+        The tracer comes from the core registry rather than ddtrace.trace so OpenFeature doesn't depend on the
+        tracing product; with no tracer registered there is no root span to enrich.
+        """
+        tracer = core.root.get_item("tracer")
+        if tracer is None:
+            return None
         return tracer.current_root_span()
 
     def _get_or_create_state(self, span: typing.Any) -> SpanEnrichmentState:

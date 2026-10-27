@@ -377,6 +377,17 @@ stack_init_asyncio(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    // AsyncioOffsets uses 0 to mean unavailable, so a real offset must never be 0.
+    static_assert(offsetof(PyInterpreterState, asyncio_tasks_head) != 0,
+                  "PyInterpreterState.asyncio_tasks_head must not be at offset 0");
+    static_assert(offsetof(_PyThreadStateImpl, asyncio_tasks_head) != 0,
+                  "_PyThreadStateImpl.asyncio_tasks_head must not be at offset 0");
+    Sampler::get().get_echion().set_asyncio_offsets(AsyncioOffsets{
+      .interpreter_tasks_head = offsetof(PyInterpreterState, asyncio_tasks_head),
+      .thread_tasks_head = offsetof(_PyThreadStateImpl, asyncio_tasks_head),
+    });
+#endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
     Py_RETURN_NONE;
