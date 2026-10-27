@@ -440,7 +440,11 @@ class AIGuardClient:
         context = None
         if _MIDDLEWARES:
             last = messages[-1]
-            target = EvaluationTarget.TOOL if self._get_tool_name(last, messages) else EvaluationTarget.PROMPT
+            target = (
+                EvaluationTarget.TOOL
+                if self._has_tool_calls(last) or self._has_tool_call_id(last)
+                else EvaluationTarget.PROMPT
+            )
             request = AIGuardRequest(clamped_source, clamped_integration, _get_direction(last), target, messages)
             context = AIGuardContext(request, span_bus.get_root_span())
             for middleware in _MIDDLEWARES:
