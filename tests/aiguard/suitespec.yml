@@ -104,10 +104,11 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
+      # fastuuid 0.14.0 cannot build on Python 3.15.
       variants:
         - name: ai_guard_litellm_guardrail
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'litellm[proxy]==1.78.5']
         - name: ai_guard_litellm_guardrail
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'litellm[proxy]==1.82.6']

@@ -901,7 +901,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "grpcio",
-        "1.76.0",
+        "1.84.1" if PYTHON_VERSION >= (3, 15) else "1.76.0",
         "",
         "",
         "",
