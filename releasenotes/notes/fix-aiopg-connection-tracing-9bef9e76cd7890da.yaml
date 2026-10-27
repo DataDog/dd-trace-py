@@ -1,0 +1,4 @@
+fixes:
+  - |
+    aiopg: Fixes missing query spans for connections created through the public
+    connection factory or connection pools, including use with async context managers.
