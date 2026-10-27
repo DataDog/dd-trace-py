@@ -10,6 +10,8 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 
 from ddtrace import config
+from ddtrace._trace.http_tags import http_block_metadata
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
@@ -21,7 +23,6 @@ from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
@@ -51,19 +52,17 @@ config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     url: Optional[str] = None
-    metadata: dict[str, str] = {}
     query: str = ""
+    user_agent: Optional[str] = None
     try:
-        metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        if query and config_django.trace_query_string:
-            metadata[http.QUERY_STRING] = query
         user_agent = trace_utils._get_request_header_user_agent(request_headers)
-        if user_agent:
-            metadata[http.USER_AGENT] = user_agent
     except Exception as e:
         log.warning("Could not gather some metadata on blocked request: %s", str(e))
+    metadata = http_block_metadata(
+        request.method, 403, query=query if config_django.trace_query_string else None, user_agent=user_agent
+    )
     core.dispatch("django.block_request_callback", (ctx, metadata, config_django, url, query))
 
 
@@ -97,6 +96,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     trace_utils.dispatch_wsgi_web_request_starting(request.META)
 
     pin = Pin.get_from(instance)
+    otel_resource = utils._initial_otel_resource(request)
 
     with core.context_with_data(
         "django.traced_get_response",
@@ -104,7 +104,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         headers=request_headers,
         headers_case_sensitive=True,
         span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
+        resource=otel_resource or utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config_django),
         span_type=SpanTypes.WEB,
         tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
@@ -112,6 +112,8 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         distributed_headers=request_headers,
         activate_distributed_headers=True,
     ) as ctx:
+        if otel_resource is not None:
+            record_initial_instrumentation_resource(span_from_context(ctx), otel_resource)
         core.dispatch(
             "django.traced_get_response.pre",
             (
@@ -204,8 +206,10 @@ async def traced_get_response_async(
     if span is None:
         return await func(*args, **kwargs)
 
-    # Reset the span resource so we can know if it was modified during the request or not
-    span.resource = REQUEST_DEFAULT_RESOURCE
+    # Preserve the method-only OTel resource while application code can trigger sampling.
+    if not config._otel_trace_semantics_enabled:
+        # Reset the span resource so we can know if it was modified during the request or not
+        span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)
     response = None
     try:
