@@ -41,36 +41,35 @@ def _(faulthandler: ModuleType) -> None:
             # pause_sampling returns:
             #   True  — sampler paused (safe to swap handlers)
             #   False — sampler not running (safe to swap; no racing thread)
-            #   None  — timed out: sampler IS running but didn't pause in time;
-            #           skip the uninstall process to avoid racing with safe_memcpy
-            #           (This means there will be a fault handler cycle, but this is about
-            #           the only thing we can do.)
+            #   None  — timed out: a capture may still be in safe_memcpy. Do not
+            #           enable faulthandler (it would replace our recovery handler)
+            #           and do not reinstall (that would build a handler cycle).
             pause_result: bool | None = stack.pause_sampling()
             safe_to_swap: bool = pause_result is not None
+            if not safe_to_swap:
+                return
             try:
-                if safe_to_swap:
-                    try:
-                        stack.uninstall_segv_handler()
-                    except Exception:  # nosec: B110
-                        pass
+                try:
+                    stack.uninstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
 
-                    # Disable faulthandler before re-enabling so it does a fresh
-                    # sigaction install.  Without this, Python may reinstall the
-                    # handler while it is already the current handler, saving itself as
-                    # its own ``previous`` and creating an infinite handler loop.
-                    try:
-                        _original_disable()
-                    except Exception:  # nosec: B110
-                        pass
+                # Disable faulthandler before re-enabling so it does a fresh
+                # sigaction install.  Without this, Python may reinstall the
+                # handler while it is already the current handler, saving itself as
+                # its own `previous` and creating an infinite handler loop.
+                try:
+                    _original_disable()
+                except Exception:  # nosec: B110
+                    pass
 
                 try:
                     _original_enable(*args, **kwargs)
                 except Exception:
-                    if safe_to_swap:
-                        try:
-                            stack.reinstall_segv_handler()
-                        except Exception:  # nosec: B110
-                            pass
+                    try:
+                        stack.reinstall_segv_handler()
+                    except Exception:  # nosec: B110
+                        pass
 
                     # Re-raise so callers see the same exception as without our wrapper.
                     raise
