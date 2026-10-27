@@ -32,7 +32,7 @@ class InjectionContext:
     original_code: CodeType
     hook: CallbackType
     offsets_callback: t.Callable[["InjectionContext"], list[int]]
-    # POC: when True, every injected trap reports the line-0 sentinel instead of the real line
+    # When True, every injected trap reports the line-0 sentinel instead of the real line
     # number, mirroring the PY_START file-level semantics of the sys.monitoring implementation on
     # 3.12+ (see instrumentation_py3_12.py). Consumers route the sentinel to file-level recording
     # (see ModuleCodeCollector.hook()).
@@ -47,7 +47,7 @@ class InjectionContext:
 
 
 class Probe:
-    """POC (option C): mutable per-site record carried in the code object constants of file-level
+    """Mutable per-site record carried in the code object constants of file-level
     traps, replacing the immutable ``(line, path, import_name)`` tuple of line-level instrumentation.
 
     Being mutable lets the hook suppress subsequent fires of a trap with a cheap attribute check
@@ -305,7 +305,7 @@ def _inject_invocation_nonrecursive(
                     is_first_instrumented_module_line = False
 
                 if injection_context.file_level:
-                    # POC (option C): see Probe.
+                    # File-level traps carry a mutable Probe (see Probe below).
                     new_consts.append(Probe(0, path, [package_dep] if package_dep is not None else []))
                 else:
                     new_consts.append((line, path, package_dep))
@@ -356,7 +356,7 @@ def _inject_invocation_nonrecursive(
                         ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                     )
                     if isinstance(_const, Probe):
-                        # POC (option C): accumulate on the probe instead of overwriting it, so
+                        # Accumulate on the probe instead of overwriting it, so
                         # package self-dependencies are preserved.
                         _const.deps.append((current_import_package, (current_import_name,)))
                     else:
