@@ -50,9 +50,11 @@ def test_mutability():
 
     assert before != after
 
+    before._error_throttled_until = 420.0
     before.update(after)
 
     assert before == after
+    assert before._error_throttled_until == 0.0
 
 
 def test_probe_hash():

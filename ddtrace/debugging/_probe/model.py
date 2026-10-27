@@ -108,6 +108,10 @@ class Probe(abc.ABC):
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
+        # A new version may fix the expression that tripped the error throttle.
+        if isinstance(self, ProbeConditionMixin):
+            self._error_throttled_until = 0.0
+
     def is_sampled(self) -> bool:
         """Whether this probe takes part in coordinated sampling."""
         return False

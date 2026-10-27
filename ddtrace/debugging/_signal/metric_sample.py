@@ -6,12 +6,14 @@ from typing import Any
 from typing import Optional
 from typing import cast
 
+from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
+from ddtrace.debugging._safety import safe_qualname
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
@@ -43,7 +45,22 @@ class MetricSample(LogSignal):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        value = float(probe.value(scope)) if probe.value is not None else 1
+        if probe.value is None:
+            value = 1.0
+        else:
+            try:
+                raw = probe.value(scope)
+            except DDExpressionEvaluationError as e:
+                self._record_evaluation_error(e.dsl, e.error, kind="value")
+                return
+            try:
+                value = float(raw)
+            except Exception:
+                # Name only the type: the value itself may be sensitive and has not been redacted.
+                self._record_evaluation_error(
+                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", kind="value"
+                )
+                return
 
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.
