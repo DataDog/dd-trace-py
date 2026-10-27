@@ -25,8 +25,8 @@ class WebRequestReady(Event):
 class WebRequestCompleting(Event):
     """Attach analysis before the span finishes, including on errors and cancellation.
 
-    Emit at response completion, including deferred iterators. This may run in
-    another task or callback; a nested wrapper must not complete its owner.
+    Completion may run in another task or callback. A nested wrapper must not
+    finalize an enclosing request.
     """
 
     event_name = "web.request.completing"

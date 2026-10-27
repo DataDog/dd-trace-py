@@ -9,6 +9,7 @@ from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 
+from ._constants import IAST
 from ._iast_request_context import _iast_end_request
 from ._iast_request_context_base import _iast_start_request
 from ._request_lifecycle import _SPAN_ROUTES
@@ -50,15 +51,13 @@ class AppSecIastSpanProcessor(SpanProcessor):
         _iast_start_request(span)
 
     def on_span_finish(self, span: SpanData) -> None:
-        """Report reported vulnerabilities.
+        """Report legacy requests and preserve metrics on nested spans.
 
-        Span Tags:
-            - `_dd.iast.json`: Only when one or more vulnerabilities have been detected will we include the custom tag.
-            - `_dd.iast.enabled`: Set to 1 when IAST is enabled in a request. If a request is disabled
-              (e.g. by sampling), then it is not set.
+        An IAST enabled metric of either 0 or 1 marks a finalized request.
         """
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
-        if _SPAN_ROUTES and _SPAN_ROUTES.pop(span, False):
+        # A borrowed span may outlive its owner's analysis and still need its final metric.
+        if _SPAN_ROUTES and _SPAN_ROUTES.pop(span, False) and span._get_numeric_attribute(IAST.ENABLED) is not None:
             return
         _iast_end_request(span)

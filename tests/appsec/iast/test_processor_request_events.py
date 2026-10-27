@@ -14,6 +14,7 @@ import pytest
 from ddtrace import config
 from ddtrace.appsec._iast import _request_lifecycle as lifecycle
 from ddtrace.appsec._iast import processor as module
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.contrib._events.web_request import WebRequestCompleting
 from ddtrace.contrib._events.web_request import WebRequestReady
@@ -61,7 +62,9 @@ def test_request_route_survives_context_exit_and_processor_replacement(
         mock.patch.object(module, "_iast_start_request", return_value=None) as start,
         mock.patch.object(module, "_iast_end_request") as end,
         mock.patch.object(lifecycle, "_iast_start_request") as event_start,
-        mock.patch.object(lifecycle, "_iast_end_request") as event_end,
+        mock.patch.object(
+            lifecycle, "_iast_end_request", side_effect=lambda span: span._set_attribute(IAST.ENABLED, 1.0)
+        ) as event_end,
     ):
         with active_context(identifier, getattr(config, integration)) as ctx:
             span = Span("arbitrary.request.name", span_type="web")
@@ -98,6 +101,19 @@ def test_manual_span_becoming_web_keeps_legacy_finish(processor):
         start.assert_not_called()
         end.assert_called_once_with(span)
         span.finish()
+
+
+@pytest.mark.parametrize("completed_metric", [None, 0.0, 1.0])
+def test_event_request_keeps_legacy_finish_until_metric_attached(processor, completed_metric):
+    span = Span("request", span_type="web")
+    lifecycle._SPAN_ROUTES[span] = True
+    if completed_metric is not None:
+        span._set_attribute(IAST.ENABLED, completed_metric)
+    with mock.patch.object(module, "_iast_end_request") as end:
+        processor.on_span_finish(span)
+        assert end.call_args_list == ([mock.call(span)] if completed_metric is None else [])
+    assert span not in lifecycle._SPAN_ROUTES
+    span.finish()
 
 
 def test_processor_does_not_retain_unfinished_spans(processor):
