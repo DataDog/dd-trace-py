@@ -19,7 +19,6 @@ import sys
 import pytest
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_sequential_contexts_with_no_overlap():
     """
@@ -103,7 +102,6 @@ def test_sequential_contexts_with_no_overlap():
         )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_context_with_repeated_execution_reinstruments_correctly():
     """
@@ -152,7 +150,6 @@ def test_context_with_repeated_execution_reinstruments_correctly():
     assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_nested_contexts_maintain_independence():
     """
@@ -165,6 +162,7 @@ def test_nested_contexts_maintain_independence():
     """
     import os
     from pathlib import Path
+    import sys
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
@@ -198,17 +196,29 @@ def test_nested_contexts_maintain_independence():
         "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
-    expected_outer = {
-        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
-        "tests/coverage/included_path/lib.py": {1, 2, 5},
-    }
+    # Python 3.12+ line-level mode self-disables events after first fire (until the next
+    # context entry), so the post-inner execution is not tracked by the outer context;
+    # file-level mode implements the same first-fire-per-context semantics on every version
+    # through its probes. Line-level bytecode traps on Python 3.10/3.11 cannot self-disable
+    # and always fire, so the overlapping execution is also recorded by the outer context
+    # (pre-existing behaviour below 3.12).
+    if file_level_mode or sys.version_info >= (3, 12):
+        expected_outer = {
+            "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+            "tests/coverage/included_path/lib.py": {1, 2, 5},
+        }
+    else:
+        expected_outer = {
+            "tests/coverage/included_path/callee.py": {2, 3, 5, 6, 10, 11, 13, 14},
+            "tests/coverage/included_path/lib.py": {1, 2, 5},
+            "tests/coverage/included_path/in_context_lib.py": {2},
+        }
 
     # Use utility function to assert based on coverage mode
     assert_coverage_matches(inner_covered, expected_inner, file_level_mode, "Inner context")
     assert_coverage_matches(outer_covered, expected_outer, file_level_mode, "Outer context")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_many_sequential_contexts_no_degradation():
     """
@@ -275,7 +285,6 @@ def test_many_sequential_contexts_no_degradation():
         ), f"Coverage degraded: first had {first_callee}, last had {last_callee}"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_context_after_session_coverage():
     """
@@ -508,7 +517,6 @@ def test_repeated_execution_with_other_monitoring_tool():
     assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_comprehensive_reinstrumentation_with_simple_module():
     """

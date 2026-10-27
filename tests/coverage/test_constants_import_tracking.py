@@ -6,8 +6,6 @@ are properly tracked in import-time coverage, which is important for the Intelli
 Test Runner to understand code dependencies.
 """
 
-import sys
-
 import pytest
 
 
@@ -128,7 +126,6 @@ def test_constants_module_dynamic_import_tracked():
     )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_constants_module_reinstrumentation():
     """

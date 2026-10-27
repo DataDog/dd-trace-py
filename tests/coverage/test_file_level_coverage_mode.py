@@ -10,7 +10,14 @@ from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 @pytest.mark.parametrize(
     "version_info,env_value,expected",
     [
-        ((3, 11, 9), None, False),
+        # File-level coverage is the default on every supported version (3.12+ via
+        # sys.monitoring PY_START, 3.10/3.11 via bytecode-injection probes), with an explicit
+        # opt-out through _DD_COVERAGE_FILE_LEVEL=false. 3.9 has no file-level implementation
+        # and the flag is forced off there.
+        ((3, 9, 18), None, False),
+        ((3, 10, 1), None, True),
+        ((3, 10, 1), "false", False),
+        ((3, 11, 9), None, True),
         ((3, 11, 9), "false", False),
         ((3, 11, 9), "true", True),
         ((3, 12, 0), None, True),
@@ -53,5 +60,11 @@ def test_collector_default_mode_matches_instrumentation():
 
         assert _USE_FILE_LEVEL_COVERAGE is True
         assert ModuleCodeCollector.file_level_coverage_enabled() is True
+    elif sys.version_info >= (3, 10):
+        from ddtrace.internal.coverage.instrumentation_py3_10 import USE_FILE_LEVEL_COVERAGE
+
+        assert USE_FILE_LEVEL_COVERAGE is True
+        assert ModuleCodeCollector.file_level_coverage_enabled() is True
     else:
+        # Python 3.9 has no file-level implementation; the flag is forced off.
         assert ModuleCodeCollector.file_level_coverage_enabled() is False
