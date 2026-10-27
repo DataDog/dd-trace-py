@@ -32,9 +32,14 @@ class InjectionContext:
     original_code: CodeType
     hook: CallbackType
     offsets_callback: t.Callable[["InjectionContext"], list[int]]
+    # POC: when True, every injected trap reports the line-0 sentinel instead of the real line
+    # number, mirroring the PY_START file-level semantics of the sys.monitoring implementation on
+    # 3.12+ (see instrumentation_py3_12.py). Consumers route the sentinel to file-level recording
+    # (see ModuleCodeCollector.hook()).
+    file_level: bool = False
 
     def transfer(self, code: CodeType) -> "InjectionContext":
-        return InjectionContext(code, self.hook, self.offsets_callback)
+        return InjectionContext(code, self.hook, self.offsets_callback, self.file_level)
 
     @property
     def injection_offsets(self) -> list[int]:
@@ -276,7 +281,7 @@ def _inject_invocation_nonrecursive(
                     package_dep = (package, ("",))
                     is_first_instrumented_module_line = False
 
-                new_consts.append((line, path, package_dep))
+                new_consts.append((0 if injection_context.file_level else line, path, package_dep))
 
         if opcode == EXTENDED_ARG:
             extended_arg = arg << 8
