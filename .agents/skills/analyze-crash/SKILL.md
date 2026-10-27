@@ -28,7 +28,7 @@ Run from the repository root with an authenticated environment containing `DD_AP
 `DD_APP_KEY`, without printing them:
 
 ```bash
-uv run --no-project --with datadog-api-client python .claude/skills/analyze-crash/fetch_crash.py <uuid>
+uv run --no-project --with datadog-api-client python .agents/skills/analyze-crash/fetch_crash.py <uuid>
 ```
 
 Use an available credential wrapper if needed. Do not ask for a UUID already supplied or require
