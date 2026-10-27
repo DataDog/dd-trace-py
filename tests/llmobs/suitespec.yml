@@ -278,11 +278,17 @@ suites:
       command: pytest {cmdargs} tests/contrib/mcp
       variants:
         - name: mcp
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'mcp~=1.10.0']
+        - name: mcp_trio
+          python: ['3.12']
+          dependencies: [pytest-asyncio, 'mcp~=1.10.0', trio]
         - name: mcp
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.13', '3.14']
           dependencies: [pytest-asyncio, mcp]
+        - name: mcp_trio
+          python: ['3.12']
+          dependencies: [pytest-asyncio, mcp, trio]
   mistralai:
     paths:
       - '@bootstrap'
