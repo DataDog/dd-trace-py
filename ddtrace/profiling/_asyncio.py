@@ -42,6 +42,8 @@ _REGISTERING_C_ASYNCIO_HOOK: bool = False
 # retries, for an _asyncio that finished executing when no hook could pass it on.
 _PASSED_C_ASYNCIO: bool = False
 _LOGGED_NO_TASK_LISTS: bool = False
+# Seconds between checks for _asyncio finishing while an event loop started during its import is running.
+_C_ASYNCIO_RETRY_INTERVAL: float = 0.1
 
 
 _ASYNCIO_MONITORING_MIN: tuple[int, int] = (3, 15)
@@ -146,6 +148,21 @@ def _completed_c_asyncio() -> typing.Optional[ModuleType]:
     return _C_ASYNCIO
 
 
+def _retry_c_asyncio_later(loop: asyncio.AbstractEventLoop) -> None:
+    """Pass _asyncio to discovery once it has finished executing.
+
+    While it is still executing, check again later on loop: a loop started then may keep running after it finishes.
+    """
+    if _PASSED_C_ASYNCIO:
+        return
+    if _completed_c_asyncio() is not None:
+        _call_init_asyncio(sys.modules["asyncio"])
+        return
+    pending = sys.modules.get("_asyncio")
+    if isinstance(pending, ModuleType) and _is_initializing(pending):
+        loop.call_later(_C_ASYNCIO_RETRY_INTERVAL, _retry_c_asyncio_later, loop)
+
+
 def _call_init_asyncio(asyncio: ModuleType) -> None:
     global _LOGGED_NO_TASK_LISTS
     global _PASSED_C_ASYNCIO
@@ -245,17 +262,18 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
     if init_stack and sys.hexversion >= 0x030E0000:
-
-        @partial(wrap, sys.modules["asyncio"].base_events.BaseEventLoop.run_forever)
+        # Wrap _run_forever_setup rather than run_forever: it returns before the loop body runs, so the wrapper
+        # frame does not stay below every task in the samples.
+        @partial(wrap, sys.modules["asyncio"].base_events.BaseEventLoop._run_forever_setup)
         def _retry_c_asyncio(
             f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
         ) -> None:
-            if not _PASSED_C_ASYNCIO and _completed_c_asyncio() is not None:
+            f(*args, **kwargs)
+            if not _PASSED_C_ASYNCIO:
                 # The _asyncio hook skipped the module because it was still executing when the hook was registered,
                 # and that import did not call the new hook afterwards. asyncio.run, Runner and run_until_complete all
-                # reach run_forever, whichever loop factory they use and whenever the loop was set.
-                _call_init_asyncio(asyncio)
-            return f(*args, **kwargs)
+                # reach run_forever, and so this setup, whichever loop factory they use and whenever the loop was set.
+                _retry_c_asyncio_later(args[0])
 
     if init_stack:
 

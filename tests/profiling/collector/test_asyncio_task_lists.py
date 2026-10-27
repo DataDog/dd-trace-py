@@ -43,6 +43,37 @@ def test_asyncio_task_lists_found_when_neither_module_was_imported() -> None:
 
 
 @pytest.mark.subprocess(err=None)
+def test_running_loop_stack_has_no_profiler_frames() -> None:
+    # Frames above a task's coroutine are copied into every asyncio sample, so the profiler must not leave wrapper
+    # frames on the stack of a running event loop.
+    import asyncio
+    import os
+    import sys
+
+    import ddtrace
+    from ddtrace.profiling import profiler
+
+    ddtrace_dir = os.path.dirname(ddtrace.__file__) + os.sep
+    p = profiler.Profiler()
+    p.start()
+    try:
+
+        async def main() -> list[tuple[str, str]]:
+            frames = []
+            frame = sys._getframe()
+            while frame is not None:
+                frames.append((frame.f_code.co_filename, frame.f_code.co_qualname))
+                frame = frame.f_back
+            return frames
+
+        frames = asyncio.run(main())
+        assert not [f for f in frames if f[0].startswith(ddtrace_dir)], frames
+        assert [q for _, q in frames].count("BaseEventLoop.run_forever") == 1, frames
+    finally:
+        p.stop()
+
+
+@pytest.mark.subprocess(err=None)
 def test_asyncio_task_lists_found_when_asyncio_c_was_imported_first() -> None:
     import _asyncio  # noqa: F401, I001
     import sys
@@ -372,9 +403,68 @@ def test_asyncio_task_lists_recovered_after_registration_inside_asyncio_c_hook()
 
 
 @pytest.mark.subprocess(err=None)
+def test_asyncio_task_lists_recovered_on_loop_running_across_registration_inside_asyncio_c_hook() -> None:
+    # Same as the previous test, but the loop starts running in another thread while _asyncio is still initializing
+    # and keeps running after that, so it never starts again.
+    import sys
+    import threading
+    import time
+
+    from ddtrace.internal.module import ModuleWatchdog
+    from tests.profiling.collector.asyncio_task_lists_utils import capture_asyncio_log
+    from tests.profiling.collector.asyncio_task_lists_utils import no_task_lists_logs
+    from tests.profiling.collector.asyncio_task_lists_utils import purge_asyncio
+
+    assert "ddtrace.profiling" not in sys.modules
+    messages = capture_asyncio_log()
+    purge_asyncio()
+
+    started = []
+
+    def start_profiling(module: object) -> None:
+        import asyncio
+
+        from ddtrace.profiling import profiler
+
+        p = profiler.Profiler()
+        p.start()
+        loop = asyncio.new_event_loop()
+        running = threading.Event()
+
+        def run_loop() -> None:
+            asyncio.set_event_loop(loop)
+            loop.call_soon(running.set)
+            loop.run_forever()
+
+        thread = threading.Thread(target=run_loop)
+        thread.start()
+        started.append((p, loop, thread))
+        assert running.wait(10)
+        assert module.__spec__._initializing  # type: ignore[attr-defined]
+
+    ModuleWatchdog.register_module_hook("_asyncio", start_profiling)
+    import _asyncio  # noqa: F401
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    [(p, loop, thread)] = started
+    try:
+        deadline = time.monotonic() + 10
+        while _stack._asyncio_task_lists()[2] != "runtime-table" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert _stack._asyncio_task_lists()[2] == "runtime-table"
+        assert no_task_lists_logs(messages) == 0, messages
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join()
+        loop.close()
+        p.stop()
+
+
+@pytest.mark.subprocess(err=None)
 def test_asyncio_task_lists_recovered_on_loop_start_after_registration_inside_asyncio_c_hook() -> None:
-    # Same import order as the previous test, with the profiler started after _asyncio has finished initializing but
-    # before asyncio.run.
+    # Same import order as test_asyncio_task_lists_recovered_after_registration_inside_asyncio_c_hook, with the profiler
+    # started after _asyncio has finished initializing but before asyncio.run.
     import sys
 
     from ddtrace.internal.module import ModuleWatchdog
