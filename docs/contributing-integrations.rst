@@ -225,7 +225,8 @@ finalization and teardown, and how the request context is owned across WSGI
 iteration. The synchronous runner cannot simply surround ``wsgi_app`` or
 ``full_dispatch_request``. Exceptions in response-processing hooks and preserved
 streaming request contexts require additional coverage when implementing that
-lifecycle. Existing Flask instrumentation remains unchanged.
+lifecycle. The metadata and response-lifetime wiring below now use these
+boundaries; shared blocking inspection remains inactive.
 
 
 Flask metadata hooks
@@ -314,6 +315,10 @@ cleanup timing. Other WSGI integrations retain their existing iterable wrapper.
 ``tests/contrib/flask/test_wsgi_lifecycle.py`` validates the independent owner
 and production interleaved streams, span finalization, close failures, and
 existing view-security callback contracts.
+
+The :doc:`Flask request consolidation draft <flask-request-consolidation>` shows
+how to replace the remaining legacy request-span ownership with the shared
+runner, including the handlers to delete and security contracts to preserve.
 
 
 
