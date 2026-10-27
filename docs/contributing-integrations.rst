@@ -198,6 +198,124 @@ unmatched routes, skipped routes, earlier framework hooks, later response hooks,
 and streaming after callback return remain outside this boundary.
 
 
+Flask boundary characterization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``tests/contrib/flask/test_request_boundary.py`` records the framework boundaries
+needed before connecting Flask to the shared adapter. It calls the WSGI app
+directly so a test client's eager iteration does not hide response lifetime.
+
+* Route matching is visible at entry to ``preprocess_request``, including a
+  missing route for unmatched requests and unsupported methods. A view-only
+  wrapper misses those requests, automatic OPTIONS, and before-request returns.
+* Returning from ``finalize_request`` exposes a normalized response after
+  after-request processing, before ``start_response`` forwards status and headers.
+  The tests cover ordinary responses, early returns, routing errors, handled
+  exceptions, and unhandled exceptions converted to a 500 response.
+* ``full_dispatch_request`` alone is insufficient: an unhandled exception can
+  leave it before a response is returned; ``wsgi_app`` handles that exception and
+  invokes finalization separately.
+* ``wsgi_app`` returns an iterable after ordinary request teardown. Streaming,
+  iteration errors, and response close callbacks occur later. Response metadata
+  completion must remain separate from request/response span completion.
+
+These are observation boundaries, not a new execution adapter. Before wiring
+``blocking_execute_adapter``, establish how early replacement preserves Flask
+finalization and teardown, and how the request context is owned across WSGI
+iteration. The synchronous runner cannot simply surround ``wsgi_app`` or
+``full_dispatch_request``. Exceptions in response-processing hooks and preserved
+streaming request contexts require additional coverage when implementing that
+lifecycle. Existing Flask instrumentation remains unchanged.
+
+
+Flask metadata hooks
+^^^^^^^^^^^^^^^^^^^^
+
+``ddtrace.contrib.internal.flask.request`` provides metadata-only hooks for the
+production request boundary. Flask patching calls them alongside its existing
+hooks. They do not create contexts, dispatch inspection events, activate
+propagation, or access spans.
+
+* ``prepare_request(environ, integration_config)`` captures method, URL, headers,
+  query string, service, and integration settings before Flask context entry.
+  It reuses WSGI URL reconstruction to preserve escaped paths and mount prefixes,
+  and leaves the route/resource unknown until matching. It does not read input.
+* ``update_route(event, request)`` records the resolved endpoint and route template.
+  It preserves Flask's app-local resource and separate mounted-resource tag.
+  Unmatched requests leave the resource unset for the shared subscriber's
+  method/status fallback. Updating the event alone does not update an active
+  span; existing tracing hooks still enrich the active span.
+* ``complete_response(event, result, error)`` captures status and a detached copy
+  of finalized response headers, including repeated values. It neither iterates
+  nor closes response bodies and can run after Flask context teardown. Without
+  a response it clears response metadata and leaves status unknown; error
+  propagation belongs to the caller. Flask handles HTTP exceptions before this
+  boundary. Replacement responses can overwrite earlier completion metadata.
+
+These hooks do not retain Flask request/response objects or exceptions on the
+event. Header metadata must not be used to reconstruct the wire response. Tests
+in ``tests/contrib/flask/test_request_metadata.py`` exercise the hooks directly;
+production patching stores the event on the existing WSGI context and updates
+its final wire status and headers through ``start_response``.
+
+
+Flask blocking adapter callbacks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ddtrace.contrib.internal.flask.request.execute_response`` is built once from
+``blocking_execute_adapter``. It keeps no per-request state and is not installed
+by ``patch()``. Its four callbacks provide:
+
+* Peer IP, cookies, and matched path parameters from the active Flask request.
+  Path parameters come from ``request.view_args``; dispatch method keyword
+  arguments do not carry them. Unmatched routes supply an empty mapping.
+* Response recognition using Werkzeug's response base class, including custom
+  Flask response subclasses.
+* The response itself as the close target. The shared adapter calls ``close()``
+  without iteration, preserving both body cleanup and Flask's ``call_on_close``
+  callbacks. Extracting only ``response.response`` would lose those callbacks.
+* Replacement construction through ``current_app.response_class`` from the
+  status, headers, and bytes supplied by subscribers or the shared fallback.
+
+The caller must keep Flask's request context active during execution and supply
+an invocation that returns a normalized response and completes its metadata.
+Use the adapter before transport commitment. It does not own request context
+lifetime, install Flask hooks, or finalize/teardown a blocked Flask request.
+``tests/contrib/flask/test_request_adapter.py`` exercises synthetic response
+callbacks through the shared runner; it does not establish production WSGI or
+AppSec parity. Production uses the existing AppSec and IAST hooks, including
+their result contracts and application-return cleanup. The shared blocking
+adapter remains inactive to avoid running security inspection twice.
+
+
+Deferred WSGI response ownership
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ddtrace.contrib.internal.wsgi.lifecycle.WSGIResponseIterable`` is an independent
+lifetime owner installed by Flask patching. It accepts a request scope
+and runs scope entry, application execution, response iteration, and cleanup in
+one copied context. Returning control to the server restores the caller's context,
+including when responses are interleaved. It creates no spans itself.
+
+The owner does not advance the response at application return. Exhaustion,
+iteration failure, or explicit close closes the original response and exits the
+scope exactly once. Application failure exits the scope without a response.
+Close failures propagate when there is no earlier application failure; ordinary
+cleanup errors do not replace the original application exception. Process-control
+exceptions from close still propagate. The caller must provide a scope whose
+exit records the outcome without suppressing application exceptions.
+
+Flask opts into deferred response ownership in the WSGI middleware. Existing
+tracing subscribers create the same request, application, and response spans;
+``wsgi.response.complete`` finishes them when the response lifetime ends.
+Legacy context-ended hooks still run at application return, preserving security
+cleanup timing. Other WSGI integrations retain their existing iterable wrapper.
+
+``tests/contrib/flask/test_wsgi_lifecycle.py`` validates the independent owner
+and production interleaved streams, span finalization, close failures, and
+existing view-security callback contracts.
+
+
 
 Are there norms for integrating with database libraries?
 --------------------------------------------------------

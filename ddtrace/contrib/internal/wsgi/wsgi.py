@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import contextmanager
+import sys
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import Iterator
 from typing import Optional
 
 from ddtrace._trace.http_tags import set_instrumentation_resource
@@ -23,6 +26,7 @@ from urllib.parse import unquote_to_bytes
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib.internal.wsgi.lifecycle import WSGIResponseIterable
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -102,14 +106,14 @@ class _DDWSGIMiddlewareBase:
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def __call__(self, environ: Iterable[Any], start_response: Callable[..., Any]) -> Iterable[Any]:
+    _defer_response_lifecycle = False
+
+    def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> Iterable[Any]:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
 
         headers = get_request_headers(environ)
-        closing_iterable = ()
-        not_blocked = True
-        with core.context_with_data(
+        ctx = core.context_with_data(
             "wsgi.__call__",
             remote_addr=environ.get("REMOTE_ADDR"),
             headers=headers,
@@ -124,79 +128,108 @@ class _DDWSGIMiddlewareBase:
             middleware=self,
             span_key="req_span",
             activate_distributed_headers=True,
-        ) as ctx:
-            ctx.set_item("wsgi.construct_url", construct_url)
+        )
+        if not self._defer_response_lifecycle:
+            with ctx:
+                return self._run_application(ctx, environ, start_response)
 
-            def blocked_view():
-                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                    "wsgi.block.started", (ctx, construct_url)
-                ).status_headers_content
-                if result:
-                    status, headers, content = result.value
-                else:
-                    status, headers, content = 403, [], ""
-                return content, status, headers
+        ctx.set_item("defer_response_lifecycle", True)
 
-            if get_blocked():
+        @contextmanager
+        def request_scope() -> Iterator[None]:
+            with ctx:
+                try:
+                    yield
+                finally:
+                    core.dispatch("wsgi.response.complete", (ctx, sys.exc_info()))
+
+        def invoke() -> Iterable[Any]:
+            try:
+                return self._run_application(ctx, environ, start_response)
+            finally:
+                # Preserve the legacy security cleanup boundary at application return.
+                # Span completion is deferred separately to response exhaustion/close.
+                ctx.dispatch_ended_event(*sys.exc_info())
+
+        return WSGIResponseIterable(request_scope()).start(invoke)
+
+    def _run_application(
+        self, ctx: core.ExecutionContext, environ: dict[str, Any], start_response: Callable[..., Any]
+    ) -> Iterable[Any]:
+        closing_iterable = ()
+        not_blocked = True
+        ctx.set_item("wsgi.construct_url", construct_url)
+
+        def blocked_view():
+            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                "wsgi.block.started", (ctx, construct_url)
+            ).status_headers_content
+            if result:
+                status, headers, content = result.value
+            else:
+                status, headers, content = 403, [], ""
+            return content, status, headers
+
+        if get_blocked():
+            content, status, headers = blocked_view()
+            start_response(str(status), headers)
+            closing_iterable = [content]
+            not_blocked = False
+
+        core.dispatch("wsgi.block_decided", (blocked_view,))
+        stop_iteration_exception = None
+
+        if not_blocked:
+            core.dispatch("wsgi.request.prepare", (ctx, start_response))
+            try:
+                closing_iterable = self.app(environ, ctx.find_item("intercept_start_response"))
+            except BlockingException as e:
+                set_blocked(e.args[0])
                 content, status, headers = blocked_view()
                 start_response(str(status), headers)
                 closing_iterable = [content]
-                not_blocked = False
+                core.dispatch("wsgi.app.exception", (ctx,))
+            except StopIteration as e:
+                """
+                WSGI frameworks emit `StopIteration` when closing connections
+                with Gunicorn as part of their standard workflow.  We don't want to mark
+                these as errors for the UI since they are standard and expected
+                to be caught later.
 
-            core.dispatch("wsgi.block_decided", (blocked_view,))
-            stop_iteration_exception = None
-
-            if not_blocked:
-                core.dispatch("wsgi.request.prepare", (ctx, start_response))
-                try:
-                    closing_iterable = self.app(environ, ctx.find_item("intercept_start_response"))
-                except BlockingException as e:
-                    set_blocked(e.args[0])
+                Here we catch the exception and close out the request/app spans through the non-error
+                handling pathways.
+                """
+                stop_iteration_exception = e
+            except BaseException as exc:
+                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                if blocking_exc := find_exception(exc, BlockingException):
+                    set_blocked(blocking_exc.args[0])
                     content, status, headers = blocked_view()
                     start_response(str(status), headers)
                     closing_iterable = [content]
                     core.dispatch("wsgi.app.exception", (ctx,))
-                except StopIteration as e:
-                    """
-                    WSGI frameworks emit `StopIteration` when closing connections
-                    with Gunicorn as part of their standard workflow.  We don't want to mark
-                    these as errors for the UI since they are standard and expected
-                    to be caught later.
-
-                    Here we catch the exception and close out the request/app spans through the non-error
-                    handling pathways.
-                    """
-                    stop_iteration_exception = e
-                except BaseException as exc:
-                    # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
-                    if blocking_exc := find_exception(exc, BlockingException):
-                        set_blocked(blocking_exc.args[0])
-                        content, status, headers = blocked_view()
-                        start_response(str(status), headers)
-                        closing_iterable = [content]
-                        core.dispatch("wsgi.app.exception", (ctx,))
-                    else:
-                        core.dispatch("wsgi.app.exception", (ctx,))
-                        raise
                 else:
-                    if get_blocked():
-                        _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                            "wsgi.block.started", (ctx, construct_url)
-                        ).status_headers_content.value or (None, None, "")
-                        closing_iterable = [content]
-                    core.dispatch("wsgi.app.success", (ctx, closing_iterable))
+                    core.dispatch("wsgi.app.exception", (ctx,))
+                    raise
+            else:
+                if get_blocked():
+                    _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                        "wsgi.block.started", (ctx, construct_url)
+                    ).status_headers_content.value or (None, None, "")
+                    closing_iterable = [content]
+                core.dispatch("wsgi.app.success", (ctx, closing_iterable))
 
-            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
-            ).traced_iterable
+        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+            "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
+        ).traced_iterable
 
-            if stop_iteration_exception:
-                if result.value:
-                    # Close the request and app spans
-                    result.value._finish_spans()
-                    core.dispatch("wsgi.app.success", (ctx, closing_iterable))
-                raise stop_iteration_exception
-            return result.value if result else []
+        if stop_iteration_exception:
+            if result.value and not self._defer_response_lifecycle:
+                # Close the request and app spans
+                result.value._finish_spans()
+            core.dispatch("wsgi.app.success", (ctx, closing_iterable))
+            raise stop_iteration_exception
+        return result.value if result else []
 
     def _traced_start_response(
         self,
@@ -232,7 +265,7 @@ class _DDWSGIMiddlewareBase:
         """Implement to modify span attributes on the request_span"""
 
 
-def construct_url(environ):
+def construct_url(environ: Mapping[str, Any]) -> str:
     """
     https://www.python.org/dev/peps/pep-3333/#url-reconstruction
     """
