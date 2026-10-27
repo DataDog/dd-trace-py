@@ -163,7 +163,7 @@ in that integration's ``__init__.py`` file. See :ref:`this page<integration_guid
 on writing documentation for Integrations.
 
 Documentation builds in CI and Read the Docs use ``scripts/docs/build.sh``. The script downloads
-Python's intersphinx inventory to ``docs/_build/python3.inv`` before starting Sphinx, retrying up to
+Python's documentation inventory to ``docs/_build/python3.inv`` before starting Sphinx, retrying up to
 five times with a two-second delay. If all attempts fail, the build stops. Use the same script for
 local builds to get this retry behavior.
 
