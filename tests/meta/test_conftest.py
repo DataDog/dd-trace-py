@@ -121,3 +121,36 @@ def test_subprocess_assertions_with_optimization(
     result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "test_assertions.py", timeout=30)
     result.assert_outcomes(passed=1, failed=1)
     result.stdout.fnmatch_lines(["*subprocess assertion must execute*"])
+
+
+@pytest.mark.parametrize("inherited_token", [None, "parent-snapshot"])
+def test_session_token_survives_writer_replacement(pytester, monkeypatch, inherited_token):
+    root = Path(__file__).resolve().parents[2]
+    pytester.makeconftest((root / "tests/conftest.py").read_text())
+    pytester.makepyfile(
+        test_token="""
+        import os
+        import ddtrace
+        from ddtrace.internal.utils.formats import parse_tags_str
+
+        headers = parse_tags_str(os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"])
+        token = headers["X-Datadog-Test-Session-Token"]
+        assert token
+        assert headers["Other"] == "preserved"
+        assert ddtrace.tracer._span_aggregator.writer._test_session_token == token
+        if os.environ["EXPECTED_SNAPSHOT_TOKEN"]:
+            assert token == os.environ["EXPECTED_SNAPSHOT_TOKEN"]
+
+        def test_replaced_writer(tracer):
+            assert tracer._span_aggregator.writer._test_session_token == token
+        """
+    )
+    headers = "Other:preserved"
+    if inherited_token is not None:
+        headers += ",X-Datadog-Test-Session-Token:" + inherited_token
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", headers)
+    monkeypatch.setenv("EXPECTED_SNAPSHOT_TOKEN", inherited_token or "")
+    monkeypatch.setenv("DD_API_KEY", "foobar.baz")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(root), os.getenv("PYTHONPATH", "")]))
+    result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "test_token.py", timeout=30)
+    result.assert_outcomes(passed=1)

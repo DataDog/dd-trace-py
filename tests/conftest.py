@@ -27,6 +27,7 @@ from typing import Optional
 from typing import Union
 from unittest import TestCase
 from unittest import mock
+from uuid import uuid4
 import warnings
 
 import pytest
@@ -56,6 +57,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.writer import AgentWriterInterface
 from tests import utils
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -176,6 +178,20 @@ if os.environ.get("CI") == "true":
 
 
 def pytest_configure(config):
+    # Keep ordinary test traffic out of concurrent snapshots. Child pytest runs
+    # must retain an inherited snapshot token.
+    headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
+    token = headers.get("X-Datadog-Test-Session-Token")
+    if token is None:
+        token = headers["X-Datadog-Test-Session-Token"] = uuid4().hex
+        os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(f"{k}:{v}" for k, v in headers.items())
+    writer = ddtrace.tracer._span_aggregator.writer
+    if (
+        ddtrace.tracer.start_span != ddtrace.tracer._start_span_after_shutdown
+        and isinstance(writer, AgentWriterInterface)
+        and getattr(writer, "_test_session_token", None) != token
+    ):
+        writer.set_test_session_token(token)
     config.addinivalue_line(
         "markers", "snapshot(*args, **kwargs): mark test to run as a snapshot test which sends traces to the test agent"
     )

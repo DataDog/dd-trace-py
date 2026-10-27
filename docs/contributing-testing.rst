@@ -360,8 +360,9 @@ Snapshot tests
 Use ``@pytest.mark.snapshot`` or the ``snapshot_context`` fixture. Each attempt
 gets a unique capture token while keeping its baseline filename. Capture,
 comparison, and cleanup use that token; pass ``snapshot.token`` to external
-producers in the ``X-Datadog-Test-Session-Token`` header. Subprocesses must inherit
+producers in the ``X-Datadog-Test-Session-Token`` header. Child processes must inherit
 ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` from inside the snapshot context.
+Other test traffic gets a background token to keep it out of active snapshots.
 
 Finish spans and join background producers before leaving the context. Comparison
 runs once after successful execution, and mismatches fail the test. Concurrent
