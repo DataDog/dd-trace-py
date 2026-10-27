@@ -372,6 +372,10 @@ variables:
     # also hashed) inside the source tree. pip unpacks an sdist into a random directory, so the
     # job builds from a fixed one instead or every run would miss the cache.
     SDIST_DIR: "/tmp/ddtrace-sdist"
+    # DEV: the image ships pip 21.2.4, which copies a local project to a random directory unless
+    # in-tree builds are enabled. Remove this once the image has pip>=21.3, where in-tree is the
+    # default; pip>=22.1 rejects the value.
+    PIP_USE_FEATURE: "in-tree-build"
   needs:
     - job: "build sdist"
       artifacts: true
@@ -379,33 +383,33 @@ variables:
     - |
       # alpine_build doesn't ship sccache, so download the version the musllinux images build.
       # Best effort: without it, setup.py warns and builds without a compiler cache.
-      SCCACHE_VERSION="0.15.0"
-      case "$(uname -m)" in
-        aarch64) SCCACHE_SHA256="3a6a3712b49da3d263bf2d30d702de4302793016019e800bfb81c0c69401d8f8" ;;
-        x86_64) SCCACHE_SHA256="782d2b5dd7ae0a55ebe368ab258114d0928d019ac2d949ab85d5d02f3926709e" ;;
-      esac
-      SCCACHE_NAME="sccache-v${SCCACHE_VERSION}-$(uname -m)-unknown-linux-musl"
-      SCCACHE_TMP=$(mktemp -d)
-      if curl --fail -sSL --retry 5 --retry-delay 2 --retry-connrefused -o "${SCCACHE_TMP}/sccache.tar.gz" \
-           "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${SCCACHE_NAME}.tar.gz" \
-         && echo "${SCCACHE_SHA256:-}  ${SCCACHE_TMP}/sccache.tar.gz" | sha256sum -c \
-         && tar -xzf "${SCCACHE_TMP}/sccache.tar.gz" -C "${SCCACHE_TMP}" \
-         && install -m 0755 "${SCCACHE_TMP}/${SCCACHE_NAME}/sccache" /usr/local/bin/sccache; then
-        sccache --version
-      else
-        echo "WARNING: could not install sccache ${SCCACHE_VERSION}, building without a compiler cache"
+      if ! command -v sccache > /dev/null; then
+        SCCACHE_VERSION="0.15.0"
+        case "$(uname -m)" in
+          aarch64) SCCACHE_SHA256="3a6a3712b49da3d263bf2d30d702de4302793016019e800bfb81c0c69401d8f8" ;;
+          x86_64) SCCACHE_SHA256="782d2b5dd7ae0a55ebe368ab258114d0928d019ac2d949ab85d5d02f3926709e" ;;
+        esac
+        SCCACHE_NAME="sccache-v${SCCACHE_VERSION}-$(uname -m)-unknown-linux-musl"
+        SCCACHE_TMP=$(mktemp -d)
+        curl --fail -sSL --connect-timeout 10 --max-time 120 --retry 5 --retry-delay 2 --retry-connrefused \
+            -o "${SCCACHE_TMP}/sccache.tar.gz" \
+            "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${SCCACHE_NAME}.tar.gz" \
+          && echo "${SCCACHE_SHA256:-}  ${SCCACHE_TMP}/sccache.tar.gz" | sha256sum -c \
+          && tar -xzf "${SCCACHE_TMP}/sccache.tar.gz" -C "${SCCACHE_TMP}" \
+          && "${SCCACHE_TMP}/${SCCACHE_NAME}/sccache" --version \
+          && install -m 0755 "${SCCACHE_TMP}/${SCCACHE_NAME}/sccache" /usr/local/bin/sccache \
+          || echo "WARNING: could not install sccache ${SCCACHE_VERSION}, building without a compiler cache"
+        rm -rf "${SCCACHE_TMP}"
       fi
-      rm -rf "${SCCACHE_TMP}"
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
-    - mkdir -p ${SDIST_DIR} && tar -xzf ${SDIST_FILE} -C ${SDIST_DIR} --strip-components=1
+    - rm -rf ${SDIST_DIR} && mkdir -p ${SDIST_DIR} && tar -xzf ${SDIST_FILE} -C ${SDIST_DIR} --strip-components=1
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - twine check ${SDIST_FILE}
-    # DEV: the image ships pip 21.2.4, which copies a local project to a random directory unless
-    # in-tree builds are enabled. Drop the flag once the image has pip>=21.3: in-tree is the
-    # default there and newer releases reject the flag.
-    - pip install --use-feature=in-tree-build ${SDIST_DIR}
-    - if command -v sccache > /dev/null; then sccache --show-stats || true; fi
+    - pip install ${SDIST_DIR}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+  after_script:
+    # In after_script so the stats are also printed when the build fails
+    - if command -v sccache > /dev/null; then sccache --show-stats || true; fi
 
 "build windows":
   stage: package
