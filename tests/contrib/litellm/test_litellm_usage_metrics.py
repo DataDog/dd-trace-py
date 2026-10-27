@@ -164,8 +164,7 @@ class Proxy:
             "error_information": {"error_class": error_class} if error_class else None,
         }
         payload.update(payload_extra or {})
-        return {
-            **(kwargs_extra or {}),
+        kwargs = {
             "litellm_call_id": self.call_id,
             "call_type": self.call_type,
             "stream": self.stream,
@@ -176,6 +175,8 @@ class Proxy:
             "litellm_params": {"metadata": dict(IDENTITY, original_model_group=self.route)},
             "standard_logging_object": payload,
         }
+        kwargs.update(kwargs_extra or {})
+        return kwargs
 
     def succeeded(self, end, usage=CHAT_USAGE, cost=5.7e-6, response=None, **kwargs):
         run(self.logger.async_log_success_event(self.kwargs(usage, cost, **kwargs), response, T0, at(end)))
@@ -328,19 +329,28 @@ MESSAGE_START = (
     '"usage": {"input_tokens": 10, "cache_read_input_tokens": 20, "output_tokens": 1}}}\n\n'
 )
 MESSAGE_DELTA = b'event: message_delta\ndata: {"type": "message_delta", "usage": {"output_tokens": 5}}\n\n'
+# Anthropic pads some events with spaces.
+MESSAGE_STOP = 'event: message_stop\ndata: {"type":"message_stop"      }\n\n'
 
 
 def test_anthropic_stream_usage_reads_the_raw_events():
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, MESSAGE_DELTA]) == (
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, MESSAGE_DELTA, MESSAGE_STOP]) == (
         True,
         True,
         "claude-haiku-4-5-20251001",
         None,
+        True,
     )
     # A stream that ended without its final usage event: LiteLLM estimates the output.
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START]) == (True, False, "claude-haiku-4-5-20251001", None)
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START]) == (
+        True,
+        False,
+        "claude-haiku-4-5-20251001",
+        None,
+        False,
+    )
     assert _usage_metrics.anthropic_stream_usage([MESSAGE_START + MESSAGE_DELTA.decode()])[:2] == (True, True)
-    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None)
+    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None, False)
     # Generated text that names an event kind is not an event of that kind.
     text = {"type": "text_delta", "text": '{"type": "message_delta", "usage": {"output_tokens": 9}}'}
     delta = "data: " + json.dumps({"type": "content_block_delta", "index": 0, "delta": text})
@@ -354,7 +364,7 @@ def test_anthropic_messages_stream_reports_each_side(logger, writer, final_usage
     proxy.start()
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
     events = [MESSAGE_START, MESSAGE_DELTA] if final_usage else [MESSAGE_START]
-    input_reported, output_reported, model, tier = _usage_metrics.anthropic_stream_usage(events)
+    input_reported, output_reported, model, tier, _ = _usage_metrics.anthropic_stream_usage(events)
     logger.observe_stream("call-1", input_reported, output_reported, model, service_tier=tier)
     proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, cost=8.35e-5, first_chunk=0.2, model="claude-haiku-4-5")
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
@@ -451,7 +461,7 @@ def test_a_responses_stream_final_event_is_read_without_decoding_its_output(monk
         "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
     }
     event = "event: response.completed\ndata: " + json.dumps({"type": "response.completed", "response": response})
-    assert _usage_metrics.responses_stream_usage(event) == (True, True, True, "gpt-5-mini-2026-08-07")
+    assert _usage_metrics.responses_stream_usage(event) == (True, True, True, "gpt-5-mini-2026-08-07", True)
     assert decoded and max(decoded) < 1000
 
 
@@ -562,6 +572,43 @@ def test_client_disconnect(logger, writer):
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["error_type"] == "client_disconnected"
     assert request["estimated_cost_usd"] == 4.2e-6
+
+
+@pytest.mark.parametrize("events, attempt_error", [([MESSAGE_STOP], None), ([], "client_disconnected")])
+def test_a_client_that_leaves_after_the_provider_finished(installed, writer, events, attempt_error):
+    # The proxy flags a client that closes right after message_stop, before its generator ended, as disconnected.
+    # The provider attempt ended as it should; the request keeps the error.
+    proxy = Proxy(installed, call_type="anthropic_messages", stream=True, route="claude")
+    proxy.start()
+    proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
+    logging_obj = type("LoggingObj", (), {"litellm_call_id": "call-1"})()
+    litellm_patch.traced_anthropic_stream_events(
+        lambda *args: None, None, ([MESSAGE_START, MESSAGE_DELTA, *events], logging_obj), {}
+    )
+    proxy.succeeded(
+        1.0, usage=ANTHROPIC_USAGE, first_chunk=0.2, model="claude-haiku-4-5", error_class="ClientDisconnected"
+    )
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt.get("error_type") == attempt_error
+    assert attempt["output_tokens"] == 5 and "output_token_source" not in attempt
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["error_type"] == "client_disconnected"
+
+
+def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(installed, writer):
+    proxy = Proxy(installed, call_type="aresponses", stream=True, route="gpt")
+    proxy.start()
+    proxy.attempt(0)
+    completed = json.dumps(
+        {"type": "response.completed", "response": {"usage": {"input_tokens": 12, "output_tokens": 7}}}
+    )
+    wrapper = type("ResponsesIterator", (), {"logging_obj": type("LoggingObj", (), {"litellm_call_id": "call-1"})()})
+    litellm_patch.traced_responses_stream_event(lambda chunk: chunk, wrapper(), ("data: " + completed,), {})
+    proxy.succeeded(0.5, first_chunk=0.1, error_class="ClientDisconnected")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert "error_type" not in attempt
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["error_type"] == "client_disconnected"
 
 
 def test_total_failure_seen_by_the_wrapper(logger, writer):
@@ -871,6 +918,76 @@ def test_reasoning_split_out_by_litellm_is_left_out(logger, writer):
     assert attempt["output_tokens"] == 7 and "output_token_source" not in attempt
 
 
+def _gemini_response(usage_metadata, finish_reason="SAFETY"):
+    candidate = {"content": {"role": "model", "parts": []}, "finishReason": finish_reason}
+    return json.dumps({"candidates": [candidate], "usageMetadata": usage_metadata, "modelVersion": "gemini-2.5-flash"})
+
+
+@pytest.mark.parametrize("provider", ["gemini", "vertex_ai"])
+def test_gemini_thoughts_litellm_leaves_out_are_added(logger, writer, provider):
+    # On a response a content filter stopped, LiteLLM's output count is candidatesTokenCount alone, and its cost leaves
+    # the billed thoughts out.
+    metadata = {"promptTokenCount": 12, "candidatesTokenCount": 4, "thoughtsTokenCount": 30, "totalTokenCount": 46}
+    proxy = Proxy(logger, route="gemini")
+    proxy.start()
+    proxy.attempt(0, provider=provider, model="gemini-2.5-flash")
+    proxy.succeeded(
+        0.5,
+        usage={"prompt_tokens": 12, "completion_tokens": 4, "total_tokens": 46},
+        cost=1.3e-5,
+        model="gemini-2.5-flash",
+        kwargs_extra={"original_response": _gemini_response(metadata)},
+    )
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["output_tokens"] == 4
+    assert attempt["reasoning_output_tokens"] == 30
+    assert attempt["output_basis"] == "excludes_reasoning"
+    assert "cost_usd" not in attempt
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["estimated_cost_usd"] == 1.3e-5
+    if ai_usage is not None:
+        lines = writer.metrics.take_dogstatsd()
+        assert any(line.startswith("gen_ai.client.inference.usage.output_tokens:34|c|#") for line in lines), lines
+
+
+@pytest.mark.parametrize(
+    "usage_metadata, usage",
+    [
+        # LiteLLM counted the thoughts itself: the usual response.
+        (
+            {"promptTokenCount": 12, "candidatesTokenCount": 4, "thoughtsTokenCount": 30, "totalTokenCount": 46},
+            {"prompt_tokens": 12, "completion_tokens": 34, "completion_tokens_details": {"reasoning_tokens": 30}},
+        ),
+        # A candidates count that already includes the thoughts.
+        (
+            {"promptTokenCount": 12, "candidatesTokenCount": 34, "thoughtsTokenCount": 30, "totalTokenCount": 46},
+            {"prompt_tokens": 12, "completion_tokens": 34},
+        ),
+        # No thoughts.
+        (
+            {"promptTokenCount": 12, "candidatesTokenCount": 4, "totalTokenCount": 16},
+            {"prompt_tokens": 12, "completion_tokens": 4},
+        ),
+    ],
+)
+def test_gemini_output_litellm_counted_is_kept(logger, writer, usage_metadata, usage):
+    proxy = Proxy(logger, route="gemini")
+    proxy.start()
+    proxy.attempt(0, provider="gemini", model="gemini-2.5-flash")
+    proxy.succeeded(
+        0.5,
+        usage=usage,
+        cost=1.3e-5,
+        model="gemini-2.5-flash",
+        kwargs_extra={"original_response": _gemini_response(usage_metadata, "STOP")},
+    )
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["output_tokens"] == usage["completion_tokens"]
+    assert "reasoning_output_tokens" not in attempt or attempt["reasoning_output_tokens"] == 30
+    assert attempt["output_basis"] == "includes_reasoning"
+    assert attempt["cost_usd"] == 1.3e-5
+
+
 @pytest.mark.parametrize("reported", [True, False])
 def test_stream_reasoning_is_kept_only_when_reported(logger, writer, reported):
     proxy = Proxy(logger, stream=True)
@@ -1144,15 +1261,19 @@ def test_responses_stream_usage_reads_the_raw_events():
             },
         }
     )
-    assert _usage_metrics.responses_stream_usage(created) == (False, False, False, "gpt-4o-mini-2024-07-18")
-    assert _usage_metrics.responses_stream_usage(completed) == (True, True, True, "gpt-4o-mini-2024-07-18")
+    assert _usage_metrics.responses_stream_usage(created) == (False, False, False, "gpt-4o-mini-2024-07-18", False)
+    assert _usage_metrics.responses_stream_usage(completed) == (True, True, True, "gpt-4o-mini-2024-07-18", True)
     unreported = json.dumps({"type": "response.completed", "response": {"usage": None}})
-    assert _usage_metrics.responses_stream_usage(unreported) == (False, False, False, None)
+    assert _usage_metrics.responses_stream_usage(unreported) == (False, False, False, None, True)
+    # A failed response is not a finished one, such as a flex request the provider had no capacity for.
+    failed = json.dumps({"type": "response.failed", "response": {"usage": None}})
+    assert _usage_metrics.responses_stream_usage(failed) == (False, False, False, None, False)
     assert _usage_metrics.responses_stream_usage('data: {"type": "response.output_text.delta"}') == (
         False,
         False,
         False,
         None,
+        False,
     )
 
 

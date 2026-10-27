@@ -54,6 +54,11 @@ except ImportError:
     BedrockModelInfo = None  # type: ignore[misc, assignment, unused-ignore]
 
 try:
+    from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import VertexGeminiConfig
+except ImportError:
+    VertexGeminiConfig = None  # type: ignore[misc, assignment, unused-ignore]
+
+try:
     from litellm.litellm_core_utils.llm_cost_calc.guardrail_cost import guardrail_information_cost
 except ImportError:
     # LiteLLM before 1.104 charges nothing for a failed request.
@@ -164,6 +169,10 @@ _LOCALLY_COUNTED_PROVIDERS = frozenset(
 # LiteLLM's usage detail fields that carry a provider's own counts by modality. LiteLLM fills text_tokens itself on
 # several routes (Bedrock Converse, the text left after a stream's reasoning split), so text is never read from it.
 _MODALITIES = (("image_tokens", "image"), ("audio_tokens", "audio"))
+_GEMINI_PROVIDERS = frozenset({"gcp.gemini", "gcp.vertex_ai"})
+_USAGE_METADATA = ("usageMetadata",)
+# The error class LiteLLM's proxy gives a stream whose client left before the proxy's own generator finished.
+_CLIENT_DISCONNECTED = "ClientDisconnected"
 
 # Requests that never end (a lost callback) are forgotten after this long, and at most this many are kept.
 _REQUEST_TTL_SECONDS = 15 * 60
@@ -428,6 +437,31 @@ def _response_model(kwargs: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _gemini_dropped_thoughts(kwargs: dict[str, Any], output_tokens: Any) -> Optional[int]:
+    """The thinking count a Gemini response reported that LiteLLM left out of its output count, else None.
+
+    LiteLLM adds thoughtsTokenCount to the output count, except on a response a content filter stopped (finish reason
+    SAFETY, RECITATION and the like), whose output count is candidatesTokenCount alone. The thoughts are billed all
+    the same. Whether candidatesTokenCount already includes them is decided as LiteLLM decides it on every other
+    response.
+    """
+    original = kwargs.get("original_response")
+    if VertexGeminiConfig is None or not isinstance(original, str) or not original.startswith("{"):
+        return None
+    usage_metadata = _json_object(_json_paths(original, frozenset({_USAGE_METADATA})).get(_USAGE_METADATA))
+    if usage_metadata is None:
+        return None
+    thoughts = _count(usage_metadata.get("thoughtsTokenCount"))
+    if not thoughts or _count(usage_metadata.get("candidatesTokenCount")) != output_tokens:
+        return None
+    try:
+        if VertexGeminiConfig.is_candidate_token_count_inclusive(usage_metadata):
+            return None
+    except Exception:
+        return None
+    return thoughts
+
+
 def _metadata(kwargs: dict[str, Any]) -> dict[str, Any]:
     """The request metadata: under litellm_params in callback kwargs, at the top of deployment hook data."""
     metadata = (kwargs.get("litellm_params") or {}).get("metadata") or kwargs.get("metadata")
@@ -617,16 +651,16 @@ def _sse_events(chunks: Any, kinds: tuple[str, ...]) -> Any:
             yield event
 
 
-def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str], Optional[str]]:
-    """Which sides of a native Anthropic Messages stream the provider reported, and the model and service tier it
-    named.
+def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str], Optional[str], bool]:
+    """Which sides of a native Anthropic Messages stream the provider reported, the model and service tier it
+    named, and whether the provider ended the stream with message_stop.
 
     message_start carries the input count, a placeholder output count and the tier the call was served at;
     message_delta carries the output count. A stream that ends without one leaves LiteLLM to estimate that side.
     """
-    input_reported = output_reported = False
+    input_reported = output_reported = completed = False
     model = tier = None
-    for event in _sse_events(chunks, ("message_start", "message_delta")):
+    for event in _sse_events(chunks, ("message_start", "message_delta", "message_stop")):
         kind = event.get("type")
         if kind == "message_start":
             message = event.get("message") or {}
@@ -637,26 +671,30 @@ def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str], Opti
             tier = tier or valid_service_tier(_get(usage, "service_tier"))
         elif kind == "message_delta":
             output_reported = output_reported or _count(_get(event.get("usage"), "output_tokens")) is not None
-    return input_reported, output_reported, model, tier
+        elif kind == "message_stop":
+            completed = True
+    return input_reported, output_reported, model, tier, completed
 
 
-def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str]]:
+def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str], bool]:
     """What one Responses API stream event says: whether its usage reports the input, output and reasoning counts,
-    and the model the provider named.
+    the model the provider named, and whether it is the provider's last event of a response it finished.
     """
-    input_reported = output_reported = reasoning_reported = False
+    input_reported = output_reported = reasoning_reported = completed = False
     model = None
     # The final event holds the whole response, generated output included: only these fields are decoded.
     for line in _sse_data([chunk]):
         fields = _json_paths(line, _RESPONSES_EVENT_FIELDS)
         model = model or _json_string(fields.get(_EVENT_MODEL))
-        if _json_string(fields.get(_EVENT_TYPE)) in ("response.completed", "response.incomplete", "response.failed"):
+        kind = _json_string(fields.get(_EVENT_TYPE))
+        if kind in ("response.completed", "response.incomplete", "response.failed"):
+            completed = kind != "response.failed"
             usage = _json_object(fields.get(_EVENT_USAGE))
             input_reported = _count(_get(usage, "input_tokens")) is not None
             output_reported = _count(_get(usage, "output_tokens")) is not None
             reasoning = _get(_get(usage, "output_tokens_details"), "reasoning_tokens")
             reasoning_reported = _count(reasoning) is not None
-    return input_reported, output_reported, reasoning_reported, model
+    return input_reported, output_reported, reasoning_reported, model, completed
 
 
 class _Attempt:
@@ -675,6 +713,7 @@ class _Attempt:
         "reasoning_reported",
         "response_model",
         "service_tier",
+        "completed",
         "operator_ids",
         "provider_ids",
     )
@@ -699,6 +738,8 @@ class _Attempt:
         self.reasoning_reported = False
         self.response_model: Optional[str] = None
         self.service_tier: Optional[str] = None
+        # Whether the stream carried the provider's own last event of a response it finished.
+        self.completed = False
         self.operator_ids = _operator_ids(model_info)
         # The provider account, project and key ids of the attempt: the operator's until it is recorded.
         self.provider_ids: dict[str, str] = dict(self.operator_ids)
@@ -851,9 +892,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         model: Optional[str] = None,
         reasoning_reported: bool = False,
         service_tier: Optional[str] = None,
+        completed: bool = False,
     ) -> None:
         """Called by the integration's stream wrappers with what a chunk or event of the latest attempt's stream
-        carried: which token counts the provider reported, and the model and service tier it named.
+        carried: which token counts the provider reported, the model and service tier it named, and whether it was
+        the provider's last event of a response it finished.
         """
         request = self._request(call_id, create=False)
         if request is None or not request.attempts:
@@ -863,6 +906,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         attempt.input_reported = attempt.input_reported or input_reported
         attempt.output_reported = attempt.output_reported or output_reported
         attempt.reasoning_reported = attempt.reasoning_reported or reasoning_reported
+        attempt.completed = attempt.completed or completed
         if model and attempt.response_model is None:
             attempt.response_model = model
         if attempt.service_tier is None:
@@ -983,6 +1027,13 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             # whose provider reported none: the output total stays reported and the part is left out.
             if attempt.claude or (attempt.stream and not attempt.reasoning_reported):
                 usage.pop("reasoning_output_tokens", None)
+            dropped_thoughts = None
+            if attempt.provider in _GEMINI_PROVIDERS and not attempt.stream and "reasoning_output_tokens" not in usage:
+                dropped_thoughts = _gemini_dropped_thoughts(kwargs, usage.get("output_tokens"))
+            if dropped_thoughts is not None:
+                # The projector adds the thoughts to the output, which then includes reasoning as the spec requires.
+                usage["reasoning_output_tokens"] = dropped_thoughts
+                usage["output_basis"] = "excludes_reasoning"
             observation.update(usage)
             if usage:
                 input_estimated, output_estimated = attempt.estimated_sides()
@@ -991,6 +1042,9 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 if output_estimated:
                     observation["output_token_source"] = "estimated"  # nosec B105: a token count source, not a secret
             cost = payload.get("response_cost")
+            # LiteLLM priced the output without the thoughts it left out, so its cost is short of the billed one.
+            if dropped_thoughts is not None:
+                cost = None
             if isinstance(cost, (int, float)) and not isinstance(cost, bool) and (cost > 0 or _priced_at_zero(kwargs)):
                 observation["cost_usd"] = float(cost)
                 observation["cost_source"] = "estimated"
@@ -1171,7 +1225,13 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             attempt = None if cache_hit else self._open_attempt(request, kwargs)
             self._close_unreported_attempts(request, attempt)
             if attempt is not None:
-                self._record_attempt(request, attempt, kwargs, end_time, error, payload, response_obj)
+                # The proxy flags a client that left before its own generator finished, even right after the
+                # provider's last event: the provider attempt itself ended as it should. The request keeps the error,
+                # as nothing tells whether the client read the whole response.
+                attempt_error = error
+                if attempt.completed and error_information.get("error_class") == _CLIENT_DISCONNECTED:
+                    attempt_error = None
+                self._record_attempt(request, attempt, kwargs, end_time, attempt_error, payload, response_obj)
             self._record_request(call_id, request, kwargs, error, cache_hit, payload.get("response_cost"))
             self._forget_if_done(call_id, request)
         except Exception:

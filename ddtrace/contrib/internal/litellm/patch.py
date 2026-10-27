@@ -277,13 +277,14 @@ def traced_anthropic_stream_events(func, instance, args, kwargs):
         try:
             chunks = get_argument_value(args, kwargs, 0, "all_chunks", optional=True) or ()
             logging_obj = get_argument_value(args, kwargs, 1, "litellm_logging_obj", optional=True)
-            input_reported, output_reported, model, tier = _usage_metrics.anthropic_stream_usage(chunks)
+            input_reported, output_reported, model, tier, completed = _usage_metrics.anthropic_stream_usage(chunks)
             logger.observe_stream(
                 getattr(logging_obj, "litellm_call_id", None),
                 input_reported,
                 output_reported,
                 model,
                 service_tier=tier,
+                completed=completed,
             )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect an Anthropic stream", exc_info=True)
@@ -298,14 +299,17 @@ def traced_responses_stream_event(func, instance, args, kwargs):
     if logger is not None:
         try:
             chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
-            input_reported, output_reported, reasoning_reported, model = _usage_metrics.responses_stream_usage(chunk)
-            if input_reported or output_reported or model:
+            input_reported, output_reported, reasoning_reported, model, completed = (
+                _usage_metrics.responses_stream_usage(chunk)
+            )
+            if input_reported or output_reported or model or completed:
                 logger.observe_stream(
                     getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None),
                     input_reported,
                     output_reported,
                     model,
                     reasoning_reported,
+                    completed=completed,
                 )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a Responses stream event", exc_info=True)
