@@ -18,8 +18,10 @@ import sys
 
 import pytest
 
+from tests.coverage.utils import FILE_LEVEL_PARAMS
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_sequential_contexts_with_no_overlap():
     """
     This is a regression test for the re-instrumentation mechanism. Without proper
@@ -102,7 +104,7 @@ def test_sequential_contexts_with_no_overlap():
         )
 
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_context_with_repeated_execution_reinstruments_correctly():
     """
     Test that repeatedly executed code properly re-instruments between contexts.
@@ -150,7 +152,7 @@ def test_context_with_repeated_execution_reinstruments_correctly():
     assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_nested_contexts_maintain_independence():
     """
     Test that nested coverage contexts maintain independence and proper re-instrumentation.
@@ -219,7 +221,7 @@ def test_nested_contexts_maintain_independence():
     assert_coverage_matches(outer_covered, expected_outer, file_level_mode, "Outer context")
 
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_many_sequential_contexts_no_degradation():
     """
     Test that coverage quality doesn't degrade over many sequential contexts.
@@ -285,7 +287,7 @@ def test_many_sequential_contexts_no_degradation():
         ), f"Coverage degraded: first had {first_callee}, last had {last_callee}"
 
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_context_after_session_coverage():
     """
     Test that context-based coverage works correctly after session-level coverage.
@@ -381,7 +383,7 @@ def test_context_after_session_coverage():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_sequential_contexts_with_other_monitoring_tool():
     """
     Test that coverage from one context does not spill into the next when another
@@ -464,7 +466,7 @@ def test_sequential_contexts_with_other_monitoring_tool():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_repeated_execution_with_other_monitoring_tool():
     """
     Test that repeatedly executed code properly isolates coverage between contexts
@@ -517,7 +519,7 @@ def test_repeated_execution_with_other_monitoring_tool():
     assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_comprehensive_reinstrumentation_with_simple_module():
     """
     Comprehensive test using a simple controlled module to verify re-instrumentation.
@@ -585,7 +587,7 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_events_rearmed_when_other_tool_registers_after_early_execution():
     """
     Regression test: lines executed BEFORE another sys.monitoring tool registers must still

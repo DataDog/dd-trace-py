@@ -15,8 +15,10 @@ The fixture modules are in tests/coverage/included_path/:
 
 import pytest
 
+from tests.coverage.utils import FILE_LEVEL_PARAMS
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_nested_imports_mixed_path_reinstrumentation():
     """
     Test re-instrumentation with nested imports using both top-level and dynamic paths.
@@ -74,7 +76,7 @@ def test_nested_imports_mixed_path_reinstrumentation():
     assert_coverage_matches(context2_covered, expected_context2, file_level_mode, "Context 2")
 
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_nested_imports_interleaved_execution():
     """
     Test re-instrumentation with interleaved execution of different import paths.

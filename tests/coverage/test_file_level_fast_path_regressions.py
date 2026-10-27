@@ -1,4 +1,8 @@
+import sys
+
 import pytest
+
+from tests.coverage.utils import FILE_LEVEL_PARAMS
 
 
 def test_file_level_covered_paths_cache_is_bounded(monkeypatch):
@@ -38,7 +42,7 @@ def test_file_level_paths_include_line_only_context_coverage():
         assert context_collector.get_covered_file_paths() == {"/repo/parent.py", "/repo/child.py"}
 
 
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_same_file_fast_path_preserves_late_dynamic_import_dependency():
     """Guard against skipping same-file PY_START events too aggressively.
 
@@ -88,6 +92,7 @@ def test_same_file_fast_path_preserves_late_dynamic_import_dependency():
     assert dependency_file in with_dynamic_import, "late dynamic import dependency must merge import-time coverage"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="file-level coverage is not implemented on Python 3.9")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
 def test_file_level_path_fast_path_preserves_late_dynamic_import_dependency():
     """File-level get_covered_file_paths() must include dependency edges discovered after an earlier cache hit.
@@ -136,6 +141,7 @@ def test_file_level_path_fast_path_preserves_late_dynamic_import_dependency():
     assert dependency_file in with_dynamic_import, "late dynamic import dependency must invalidate cached file paths"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="file-level coverage is not implemented on Python 3.9")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"]})
 def test_file_level_path_fast_path_preserves_nested_dynamic_import_dependencies():
     """Nested dynamic imports should be represented in file-level path output across contexts."""

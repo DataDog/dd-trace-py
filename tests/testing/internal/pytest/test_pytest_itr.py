@@ -326,10 +326,12 @@ class TestITR:
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
 
-        # File-level coverage is the default on Python 3.12+: every file reports only the line-0 sentinel.
+        # File-level coverage is the default on Python 3.10+ (3.12+ via sys.monitoring,
+        # 3.10/3.11 via bytecode-injection probes): every file reports only the line-0 sentinel.
+        # Python 3.9 collects line-level coverage and reports real line numbers instead.
         file_level_bitmap = bytes(CoverageLines.from_list([0]).to_bytes())
         bitmaps = {f["filename"]: bytes(f["bitmap"]) for f in coverage_events[0]["files"]}
-        if sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 10):
             assert all(bitmap == file_level_bitmap for bitmap in bitmaps.values())
         else:
             assert bitmaps["/test_foo.py"] != file_level_bitmap

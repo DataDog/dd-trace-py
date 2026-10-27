@@ -358,6 +358,7 @@ def test_monitoring_callback_in_empty_context_uses_tls_fallback():
         cleanup()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="file-level coverage is not implemented on Python 3.9")
 @pytest.mark.subprocess()
 def test_coverage_defaults_to_file_level_when_env_unset():
     import os
