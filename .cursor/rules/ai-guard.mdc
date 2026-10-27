@@ -49,6 +49,8 @@ and public descriptions in `docs/configuration.rst` rather than copying defaults
 Keep the public SDK's `__getattr__` exports lazy: settings import AI Guard constants during
 product discovery, and eager client imports would load the client/configuration/telemetry chain
 even when AI Guard is disabled. See the invariant comment in `ddtrace/aiguard/__init__.py`.
+The public middleware API lives in `ddtrace/aiguard/middleware.py` and is deliberately not
+re-exported from `__init__.py`; customers import it from `ddtrace.aiguard.middleware`.
 
 Strands plugin classes are imported from `ddtrace.aiguard.integrations.strands`, not the
 top-level SDK. Legacy imports under `ddtrace.appsec.ai_guard` and
@@ -130,6 +132,20 @@ plain dicts *or* SDK objects.
 `sds_findings` are copied through untouched. Their `location` offsets are
 computed on the **redacted** string, so they only line up when the reported
 messages are the redacted ones — never slice on them.
+
+### Middlewares (filters and callbacks)
+
+`register_middleware()` appends an `AIGuardMiddleware` instance to a global list that
+`AIGuardClient.evaluate()` iterates (SDK and auto-instrumentation alike). There is
+deliberately no unregister: middlewares are registered once at startup. `should_evaluate` runs before
+the span (only an explicit `False` skips: ALLOW result, no span, `skipped:true` on
+`ai_guard.requests`, which otherwise reports `skipped:false`). The span then gets its core
+`ai_guard.target` / `.direction` / `.source` / `.integration` tags before `pre_evaluate`
+runs, and `post_evaluate` runs once from a `finally`, whatever the outcome. The
+`AIGuardContext` follows the cross-tracer RFC (`local_root_span`, `ai_guard_span`,
+`request.{source,integration,direction,target,messages}`) plus `result` / `error`;
+direction is OUTPUT when the last message is from the assistant. Hook exceptions are
+logged at debug and ignored.
 
 ### 5. Double-scan avoidance (`_context.py`)
 

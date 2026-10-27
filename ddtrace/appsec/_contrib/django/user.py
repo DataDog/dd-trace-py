@@ -17,7 +17,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
         if self.credentials and not user:
             self._try_load_user()
 
-    def _try_load_user(self):
+    def _try_load_user(self) -> None:
         self.user_model = None
 
         try:
