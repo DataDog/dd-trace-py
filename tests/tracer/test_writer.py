@@ -1169,6 +1169,33 @@ def test_native_writer_recreate_recomputes_agentless_stats_endpoint():
         assert resolve_stats_url.call_count == 2
 
 
+def test_native_writer_recreate_drops_conflicting_otlp_metrics_endpoint():
+    """Re-resolving an agentless stats endpoint must drop the OTLP metrics endpoint.
+
+    libdatadog rejects an exporter configured with both, and the old writer is already
+    stopped when the replacement is built.
+    """
+    with mock.patch(
+        "ddtrace.internal.writer.writer._resolve_agentless_stats_endpoint",
+        return_value="https://stats-intake",
+    ):
+        # The writer was created while opted out, so it kept the OTLP metrics endpoint.
+        writer = NativeWriter(
+            "http://dne:1234",
+            api_key="key",
+            compute_stats_enabled=True,
+            stats_opt_out=True,
+            otlp_metrics_endpoint="http://otlp-metrics",
+        )
+        assert writer._otlp_metrics_endpoint == "http://otlp-metrics"
+
+        # Opting back in resolves the agentless stats endpoint: the OTLP metrics
+        # endpoint is dropped in its favor, like at construction.
+        writer = writer.recreate(stats_opt_out=False)
+        assert writer._agentless_stats_endpoint == "https://stats-intake"
+        assert writer._otlp_metrics_endpoint is None
+
+
 def test_writer_recreate_keeps_response_callback():
     def response_callback(response):
         pass
