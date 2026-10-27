@@ -14,22 +14,22 @@ from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
         # sys.monitoring PY_START, 3.10/3.11 via bytecode-injection probes), with an explicit
         # opt-out through _DD_COVERAGE_FILE_LEVEL=false. 3.9 has no file-level implementation
         # and the flag is forced off there.
-        ((3, 9, 18), None, False),
-        ((3, 10, 1), None, True),
-        ((3, 10, 1), "false", False),
-        ((3, 11, 9), None, True),
-        ((3, 11, 9), "false", False),
-        ((3, 11, 9), "true", True),
-        ((3, 12, 0), None, True),
-        ((3, 12, 0), "true", True),
-        ((3, 12, 0), "false", False),
-        ((3, 14, 2), None, True),
-        ((3, 16, 0), None, True),
+        ((3, 9), None, False),
+        ((3, 10), None, True),
+        ((3, 10), "false", False),
+        ((3, 11), None, True),
+        ((3, 11), "false", False),
+        ((3, 11), "true", True),
+        ((3, 12), None, True),
+        ((3, 12), "true", True),
+        ((3, 12), "false", False),
+        ((3, 14), None, True),
+        ((3, 16), None, True),
     ],
 )
 def test_is_file_level_coverage_enabled(
     monkeypatch: pytest.MonkeyPatch,
-    version_info: tuple[int, int, int],
+    version_info: tuple[int, int],
     env_value: t.Optional[str],
     expected: bool,
 ) -> None:
