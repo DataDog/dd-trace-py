@@ -1,10 +1,6 @@
 ---
 name: run-tests
-description: >
-  Validate code changes by intelligently selecting and running the appropriate test suites.
-  Use this when editing code to verify changes work correctly, run tests, validate functionality,
-  or check for regressions. Automatically discovers affected test suites, selects the minimal
-  set of venvs needed for validation, and handles test execution with Docker services as needed.
+description: Select and run relevant validation through scripts/run-tests, including environment discovery and rebuilds.
 allowed-tools:
   - Bash
   - Read
@@ -13,438 +9,104 @@ allowed-tools:
   - TodoWrite
 ---
 
-# Test Suite Validation Skill
+# Test validation
 
-This skill helps you efficiently validate code changes by running the appropriate subset of the test suite. It uses `scripts/run-tests` to intelligently discover affected tests and run only what's necessary for validation.
+Use `scripts/run-tests` from the repository root; never invoke pytest directly.
+The [testing guide](../../../docs/contributing-testing.rst) owns environment setup,
+fixtures, snapshots, and suitespec configuration.
 
-## When to Use This Skill
-
-Use this skill when you have:
-- Made changes to source code files and want to validate they work
-- Fixed a bug and want to verify the fix
-- Added a feature and need test coverage
-- Modified test infrastructure or configuration
-- Want to verify changes don't break existing functionality
-
-## Key Principles
-
-1. **Always use the run-tests skill** when testing code changes - it's optimized for intelligent suite discovery
-2. **Never run pytest directly** - use `scripts/run-tests`
-3. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
-4. **Use `--list` first** - see matching environments before executing
-5. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
-
-## How This Skill Works
-
-### Step 1: Identify Changed Files
-
-First, determine which files were modified:
-- If you have pending edits, I'll identify the changed files from the current session
-- I'll look at git status to find staged, unstaged, and untracked changes
-- You can also specify files explicitly if working on specific changes
-
-### Step 2: Discover Available Test Suites
-
-I'll use the `scripts/run-tests` script to discover what test suites match your changes:
+## Discover and select
 
 ```bash
-scripts/run-tests --list <edited-files>
+scripts/run-tests --list <changed-files>
 ```
 
-This outputs JSON showing:
-- Available test suites that match your changed files
-- All venvs (Python versions + package combinations) available for each suite
-- Their hashes, Python versions, and package versions
+Use the returned environment hashes, Python versions, and dependencies. Do not copy hashes
+from old runs or invent environment names. Status messages go to stderr; when parsing JSON,
+keep stderr separate from stdout. `--all-suites --list` discovers suites beyond changed-file matches.
 
-The JSON goes to stdout, but status lines (for example `📁 Checking explicitly provided files: ...`)
-go to stderr. When piping into a JSON parser, do not use `2>&1`, or the status line lands before
-the JSON and parsing fails with `Expecting value: line 1 column 1 (char 0)`. Use `2>/dev/null` instead:
+Start with a focused environment during iteration. Expand based on affected behavior:
 
-```bash
-scripts/run-tests --list <edited-files> 2>/dev/null | jq '.suites[].venvs[] | {hash, python_version}'
-```
+- Integration changes: exercise the changed operation, sync/async or streaming paths as applicable,
+  and dependency-version boundaries affected by the change.
+- Core tracing, propagation, configuration, or patching changes: include representative consuming
+  integrations when their behavior can change, even if no contrib file was edited.
+- Python compatibility: select the affected versions from the supported matrix, not automatically
+  the newest interpreter. Native changes may require multiple interpreter or platform variants.
+- Test infrastructure: exercise the changed runner/service/selection path; a passing unrelated
+  smoke test does not validate every infrastructure change.
 
-### Step 3: Intelligently Select Venvs
+Suite discovery is a starting point, not proof of coverage. Explain any important gaps.
+If no suite matches, verify repository-relative paths and inspect the relevant `suitespec.yml`
+patterns (including nested files under `tests/`). The runner falls back to listing all suites;
+that fallback is not evidence that those suites cover the changed file. Use `--all-suites --list`
+to find an appropriate environment and address missing mappings when adding tests.
 
-Rather than running ALL available venvs (which could take hours), I'll select the **minimal set** needed to validate your changes:
-
-#### For Core/Tracing Changes (Broad Impact)
-When you modify files like:
-- `ddtrace/internal/core/*`, `ddtrace/_trace/*`, `ddtrace/trace/*`
-- `ddtrace/_monkey.py`, `ddtrace/settings/*`
-- `ddtrace/constants.py`
-
-**Strategy:** Run core tracer + internal tests with **1 venv each**
-- Example: `tracer` suite with latest Python + `internal` suite with latest Python
-- This validates broad-reaching changes without excessive overhead
-- Skip integration suites unless the change directly affects integration code
-
-#### For Integration/Contrib Changes (Targeted Impact)
-When you modify files like:
-- `ddtrace/contrib/flask/*`, `ddtrace/contrib/django/*`, etc.
-- `ddtrace/contrib/*/patch.py` or integration-specific code
-
-**Strategy:** Run ONLY the affected integration suite with **1-2 venvs**
-- Example: Flask changes → run `contrib::flask` suite with latest Python
-- If change involves multiple versions (e.g., Django 3.x and 4.x), pick 1 venv per major version
-- Skip unrelated integrations
-
-#### For Test-Only Changes
-When you modify `tests/` files (but not test infrastructure):
-- Run only the specific test files/functions modified
-- Pass test-command arguments after one separator, for example `-- -k test_name`
-
-#### For Test Infrastructure Changes
-When you modify:
-- `tests/conftest.py`, suite or environment definitions, dependency locks, or `scripts/run-tests`
-
-**Strategy:** Run a quick smoke test suite
-- Example: `internal` suite with 1 venv as a sanity check
-- Or run small existing test suites to verify harness changes
-
-### Step 4: Execute Selected Venvs
-
-The runner creates a missing or outdated environment and reuses a matching environment by default:
+## Execute
 
 ```bash
+scripts/run-tests --venv <hash>
+scripts/run-tests --venv <hash> -- -vv -k <test-name>
 scripts/run-tests --venv <hash1> --venv <hash2>
 ```
 
-Pass `-r` to rebuild the environment and refresh the editable ddtrace package:
+One `--` separates runner arguments from test-command arguments. The runner manages required
+services and reuses matching environments. Check Docker/service prerequisites in the testing guide.
+`--venv` resolves hashes across all available suites and bypasses changed-file discovery, so
+unrelated local edits do not restrict a direct-hash rerun. An unknown hash fails; rediscover it
+rather than guessing an environment name.
 
 ```bash
-scripts/run-tests -r --venv <hash1> --venv <hash2>
+scripts/run-tests -r --venv <hash>
 ```
 
-**When to use `-r`:**
-- After merging or rebasing from main (dependencies or native code may have changed)
-- C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
-- `setup.py`, `pyproject.toml`, or `setup.cfg` were modified
+Use `-r` after native source or build-configuration changes, or after updating from main when
+those inputs changed. Dependency locks and environment definitions invalidate caches automatically,
+but not every source/build input does. The runner's `-s` option is a no-op; test-command `-s`
+after `--` still disables output capture.
 
-Selected dependency locks and environment definitions invalidate the cache automatically, but not all source and build inputs are tracked; use `-r` for the cases above.
+## Diagnose and report
 
-This will:
-- Start required Docker services (redis, postgres, etc.)
-- Run tests in the specified venvs sequentially
-- Stop services after completion
-- Show real-time output and status
+Read the actual failure before rerunning. Distinguish setup errors from behavioral failures,
+fix the relevant cause, and rerun the affected test. Ask only for information the repository,
+logs, and supplied context cannot resolve. Report environments and tests run, outcomes, and gaps.
 
-### Step 5: Handle Results
-
-**If tests pass:** ✅ Your changes are validated!
-
-**If tests fail:** 🔴 I'll:
-- Show you the failure details
-- Identify which venv failed
-- Ask clarifying questions to understand the issue
-- Offer to run specific failing tests with more verbosity
-- Help iterate on fixes and re-run
-
-For re-running specific tests, use the default cached environment:
-```bash
-scripts/run-tests --venv <hash> -- -vv -k test_name
-```
-
-## When Tests Fail
-
-When you encounter test failures, follow this systematic approach:
-
-1. **Review the failure details carefully** - Don't just skim the error, understand what's actually failing
-2. **Understand what's failing** - Don't blindly re-run; analyze the root cause
-3. **Make code changes** - Fix the underlying issue
-4. **Re-run with more verbosity if needed** - Use `-vv` or `-vvv` for detailed output
-5. **Iterate until tests pass** - Repeat the process with each fix
-
-## Venv Selection Strategy in Detail
-
-### Understanding Venv Hashes
-
-From `scripts/run-tests --list`, you'll see output like:
-
-```json
-{
-  "suites": [
-    {
-      "name": "tracer",
-      "venvs": [
-        {
-          "hash": "abc123",
-          "python_version": "3.8",
-          "packages": "..."
-        },
-        {
-          "hash": "def456",
-          "python_version": "3.11",
-          "packages": "..."
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Selection Rules
-
-1. **Latest Python version is your default choice**
-   - Unless your change specifically targets an older Python version
-   - Example: if fixing Python 3.8 compatibility, also test 3.8
-
-2. **One venv per suite is usually enough for iteration**
-   - Only run multiple venvs per suite if:
-     - Change impacts multiple Python versions differently
-     - Testing package compatibility variations (e.g., Django 3.x vs 4.x)
-     - Initial validation passed and you want broader coverage
-
-3. **Minimize total venvs**
-   - 1-2 venvs total for small targeted changes
-   - 3-4 venvs maximum for broader changes
-   - Never run 10+ venvs for initial validation (save that for CI)
-
-4. **Consider test runtime**
-   - Each venv can take 5-30 minutes depending on suite
-   - With 2 venvs you're looking at 10-60 minutes for iteration
-   - With 5 venvs you're looking at 25-150 minutes
-   - Scale appropriately for your patience and deadline
-
-### Using `--venv` Directly
-
-When you have a specific venv hash you want to run, you can use it directly without specifying file paths:
+For resource-constrained reproductions, `DD_TEST_CPUS` and `DD_TEST_MEMORY` configure the Compose
+testrunner in `docker-compose.base.yml`. Verify that the run uses that container and inspect its
+limits; setting these variables alone does not constrain an arbitrary local process.
 
 ```bash
-scripts/run-tests --venv 8c8e9575c524
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> -- -vv -k <test-name>
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g docker compose -f docker-compose.yml config --format json \
+  | jq '.services.testrunner | {cpus, mem_limit}'
 ```
 
-The `--venv` flag automatically searches **all available venvs** across all suites, so it works regardless of what files you have locally changed. This is useful when:
-- You know exactly which venv you want to test
-- You have unrelated local changes that would otherwise limit suite matching
-- You want to quickly re-run a specific venv without file path arguments
-
-## Examples
-
-### Example 1: Fixing a Flask Integration Bug
-
-**Changed file:** `ddtrace/contrib/internal/flask/patch.py`
+These values are examples, not a standard CI machine profile. For Podman compatibility, inspect
+the same configuration the runner uses: replace `-f docker-compose.yml` with
+`-f docker-compose.base.yml -f docker-compose.podman.yml`. While the test runs, identify its
+testrunner container for the current checkout and verify applied limits and usage:
 
 ```bash
-scripts/run-tests --list ddtrace/contrib/internal/flask/patch.py
-# Output shows: contrib::flask suite available
-
-# Select output (latest Python):
-# Suite: contrib::flask
-# Venv: hash=8c8e9575c524, Python 3.13, flask
-
-scripts/run-tests --venv 8c8e9575c524
-
-# Rebuild after changing native sources or build configuration
-scripts/run-tests -r --venv 8c8e9575c524
+docker ps --filter label=com.docker.compose.service=testrunner
+docker inspect --format 'NanoCpus={{.HostConfig.NanoCpus}} Memory={{.HostConfig.Memory}}' <container-id>
+docker stats --no-stream <container-id>
 ```
 
-### Example 2: Fixing a Core Tracing Issue
-
-**Changed file:** `ddtrace/_trace/tracer.py`
+For intermittent failures, repeat a focused run and record the seed. Use `--randomly-seed` only
+when the selected environment includes `pytest-randomly`; otherwise omit that option for a
+plain repeated run. This example stops on the first failure and preserves its exit status:
 
 ```bash
-scripts/run-tests --list ddtrace/_trace/tracer.py
-# Output shows: tracer suite, internal suite available
-
-# Select strategy:
-# - tracer: latest Python (e.g., abc123)
-# - internal: latest Python (e.g., def456)
-
-scripts/run-tests --venv abc123 --venv def456
-
-# Explicitly rebuild both environments when needed
-scripts/run-tests -r --venv abc123 --venv def456
+(
+  for test_attempt in 1 2 3 4 5; do
+    test_seed=$RANDOM
+    printf 'Attempt %s, seed %s\n' "$test_attempt" "$test_seed"
+    DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> \
+      -- -vv -k <test-name> --randomly-seed="$test_seed" || exit "$?"
+  done
+)
 ```
 
-### Example 3: Fixing a Test-Specific Bug
-
-**Changed file:** `tests/contrib/flask/test_views.py`
-
-```bash
-scripts/run-tests --list tests/contrib/flask/test_views.py
-# Output shows: contrib::flask suite
-
-scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
-
-# The next run reuses the matching environment automatically
-scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
-```
-
-### Example 4: Iterating on a Failing Test
-
-After the first run shows a test failing, rerun it directly:
-
-```bash
-scripts/run-tests --venv flask_py311 -- -vv -k test_view_called_twice
-# Focused on the specific failing test with verbose output
-```
-
-## Best Practices
-
-### DO ✅
-
-- **Use the default cache**: Matching environments are reused automatically
-- **Use `-r` for native changes**: Refresh ddtrace after changing native sources or build configuration
-- **Start small**: Run 1 venv first, expand only if needed
-- **Be specific**: Use pytest `-k` filter when re-running failures
-- **Check git**: Verify you're testing the right files with `git status`
-- **Read errors**: Take time to understand test failures before re-running
-- **Ask for help**: When unclear what tests to run, ask me to analyze the changes
-
-### DON'T ❌
-
-- **Forget `-r` after native changes**: Cached extensions may be stale
-- **Run all venvs initially**: That's what CI is for
-- **Skip the minimal set guidance**: It's designed to save you time
-- **Ignore service requirements**: Some suites need Docker services up
-- **Run tests without changes saved**: Make sure edits are saved first
-- **Iterate blindly**: Understand what's failing before re-running
-
-## Additional Testing Resources
-
-**For comprehensive testing guidance, refer to the contributing documentation:**
-
-- **[docs/contributing-testing.rst](../../docs/contributing-testing.rst)** - Detailed testing guidelines
-  - What kind of tests to write (unit tests, integration tests, e2e tests)
-  - When to write tests (feature development, bug fixes)
-  - Where to put tests in the repository
-  - Prerequisites (Docker, uv)
-  - Complete `scripts/run-tests` usage examples
-  - Test environment and dependency-lock details
-  - Running specific test files and functions
-  - Test debugging strategies
-
-- **[docs/contributing.rst](../../docs/contributing.rst)** - PR and testing requirements
-  - All changes need tests or documented testing strategy
-  - How tests fit into the PR review process
-  - Testing expectations for different types of changes
-
-- **[docs/contributing-design.rst](../../docs/contributing-design.rst)** - Test architecture context
-  - How products, integrations, and core interact
-  - Where different types of tests should live
-  - Testing patterns for each library component
-
-**When to reference these docs:**
-- First time writing tests for this project → Read `contributing-testing.rst`
-- Understanding test requirements for PRs → Read `contributing.rst`
-- Need context on test architecture → Read `contributing-design.rst`
-
-## Troubleshooting
-
-### Docker services won't start
-```bash
-# Manually check/stop services:
-docker compose ps
-docker compose down
-```
-
-### Can't find matching suites
-- Verify the file path is correct
-- Check `tests/suitespec.yml` to understand suite patterns
-- Your file might not be covered by any suite pattern yet
-
-### Test takes too long
-- You may have selected too many venvs
-- Try running with just 1 venv
-- Use pytest `-k` to run subset of tests
-
-## Technical Details
-
-### Architecture
-
-The `scripts/run-tests` system:
-- Maps source files to test suites using patterns in `tests/suitespec.yml`
-- Runs isolated Python/package combinations selected by suite
-- Each venv is a self-contained environment
-- Docker services are managed per suite lifecycle
-- Pass test-command arguments after one `--` separator.
-
-### Supported Suite Types
-
-Primary suites for validation:
-- `tracer`: Core tracing functionality tests
-- `internal`: Internal component tests
-- `contrib::*`: Integration with specific libraries (flask, django, etc.)
-- `integration_*`: Cross-library integration scenarios
-- Specialized: `telemetry`, `profiling`, `appsec`, `llmobs`, etc.
-
-### Environment Variables
-
-Some suites require environment setup:
-- `DD_TRACE_AGENT_URL`: For snapshot-based tests
-- Service-specific variables for Docker containers
-- These are handled automatically by the script
-
-#### Resource Limiting (for testing under constrained environments)
-
-You can limit CPU and memory resources to simulate resource-constrained CI environments where multiple jobs run in parallel. This helps reproduce flaky tests that fail due to timing issues, race conditions, or resource exhaustion.
-
-**Environment Variables:**
-- `DD_TEST_CPUS`: CPU limit (e.g., `0.25`, `0.5`, `1.0`, `2.0`)
-- `DD_TEST_MEMORY`: Memory limit with unit (e.g., `512m`, `1g`, `2g`)
-
-**Usage:**
-```bash
-# Run tests with resource constraints
-DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash>
-
-# Run specific test file with heavy constraints
-DD_TEST_CPUS=0.25 DD_TEST_MEMORY=1g scripts/run-tests tests/path/to/test.py
-
-# Multiple runs to catch intermittent failures
-for i in {1..10}; do
-  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> -- --randomly-seed=$RANDOM
-done
-```
-
-**Recommended Resource Limits:**
-
-- **Moderate Load (Typical Shared CI):**
-  ```bash
-  DD_TEST_CPUS=2.0 DD_TEST_MEMORY=4g
-  ```
-  Simulates a CI runner with some other jobs running. Good for initial testing.
-
-- **Heavy Load (Busy CI Server):**
-  ```bash
-  DD_TEST_CPUS=1.0 DD_TEST_MEMORY=2g
-  ```
-  Simulates a heavily loaded CI server with many concurrent jobs. **Recommended starting point** for reproducing flaky tests.
-
-- **Extreme Load (Stress Testing):**
-  ```bash
-  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g
-  ```
-  Simulates extreme resource contention. Good for surfacing timing issues and race conditions.
-
-- **Critical Failure Conditions:**
-  ```bash
-  DD_TEST_CPUS=0.25 DD_TEST_MEMORY=512m
-  ```
-  Forces maximum resource pressure. Use this to find the breaking point or reproduce worst-case scenarios.
-
-**When to Use Resource Limits:**
-
-1. **Investigating flaky tests** - Tests that pass locally but fail in CI
-2. **Timing-sensitive tests** - Tests involving async operations, network calls, or multiprocessing
-3. **Resource exhaustion issues** - Tests that fail under memory pressure or CPU throttling
-4. **Race condition detection** - Slower execution can expose timing bugs
-5. **Reproducing CI failures** - When you have a seed that failed in CI
-
-**Verifying Limits Are Applied:**
-```bash
-# Check configuration before running
-DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g docker compose config | grep -A 5 testrunner
-
-# Monitor actual resource usage during test run (in another terminal)
-docker stats
-```
-
-**Example: Testing a Flaky Test**
-```bash
-# Run a known flaky test 20 times with resource constraints
-DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests \
-  tests/appsec/integrations/flask_tests/test_iast_flask_testagent.py::test_iast_unvalidated_redirect \
-  -- --count=20
-```
+Replay a failure with the recorded integer seed and the same environment, test selection, and
+resource limits. Include those details in the report; repeated passes do not establish that a
+timing or ordering bug is fixed.
