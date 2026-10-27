@@ -2,7 +2,6 @@ import gzip
 import json
 import logging
 import socket
-import time
 
 import pytest
 
