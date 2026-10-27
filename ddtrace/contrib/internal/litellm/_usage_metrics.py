@@ -171,6 +171,8 @@ _LOCALLY_COUNTED_PROVIDERS = frozenset(
 _MODALITIES = (("image_tokens", "image"), ("audio_tokens", "audio"))
 _GEMINI_PROVIDERS = frozenset({"gcp.gemini", "gcp.vertex_ai"})
 _USAGE_METADATA = ("usageMetadata",)
+# Google's OpenAI-compatible Gemini endpoint, reached through an openai/ deployment with this base URL.
+_GEMINI_COMPAT_HOST = "generativelanguage.googleapis.com"
 # The error class LiteLLM's proxy gives a stream whose client left before the proxy's own generator finished.
 _CLIENT_DISCONNECTED = "ClientDisconnected"
 
@@ -460,6 +462,23 @@ def _gemini_dropped_thoughts(kwargs: dict[str, Any], output_tokens: Any) -> Opti
     except Exception:
         return None
     return thoughts
+
+
+def _gemini_compat_thoughts(kwargs: dict[str, Any], usage_object: Any) -> Optional[int]:
+    """The thinking count of a call to Google's OpenAI-compatible Gemini endpoint, else None.
+
+    That endpoint leaves thinking out of completion_tokens and names no reasoning count, but its total_tokens includes
+    it: the difference is a count the provider reported. A total LiteLLM computed itself never exceeds the sum.
+    """
+    api_base = (kwargs.get("litellm_params") or {}).get("api_base")
+    if not isinstance(api_base, str) or _GEMINI_COMPAT_HOST not in api_base:
+        return None
+    prompt = _count(_get(usage_object, "prompt_tokens"))
+    completion = _count(_get(usage_object, "completion_tokens"))
+    total = _count(_get(usage_object, "total_tokens"))
+    if prompt is None or completion is None or total is None or total <= prompt + completion:
+        return None
+    return total - prompt - completion
 
 
 def _metadata(kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -1030,6 +1049,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             dropped_thoughts = None
             if attempt.provider in _GEMINI_PROVIDERS and not attempt.stream and "reasoning_output_tokens" not in usage:
                 dropped_thoughts = _gemini_dropped_thoughts(kwargs, usage.get("output_tokens"))
+            elif attempt.provider == "openai" and "reasoning_output_tokens" not in usage and "output_tokens" in usage:
+                dropped_thoughts = _gemini_compat_thoughts(kwargs, usage_object)
             if dropped_thoughts is not None:
                 # The projector adds the thoughts to the output, which then includes reasoning as the spec requires.
                 usage["reasoning_output_tokens"] = dropped_thoughts

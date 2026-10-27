@@ -988,6 +988,41 @@ def test_gemini_output_litellm_counted_is_kept(logger, writer, usage_metadata, u
     assert attempt["cost_usd"] == 1.3e-5
 
 
+@pytest.mark.parametrize(
+    "api_base, total, reasoning",
+    [
+        # Google's OpenAI-compatible endpoint: thinking is in the total only.
+        ("https://generativelanguage.googleapis.com/v1beta/openai/", 46, 30),
+        # A total that adds up names no thinking.
+        ("https://generativelanguage.googleapis.com/v1beta/openai/", 16, None),
+        # Another OpenAI-compatible endpoint is never read this way.
+        ("https://api.openai.com/v1", 46, None),
+    ],
+)
+def test_gemini_compat_endpoint_thoughts_come_from_the_total(logger, writer, api_base, total, reasoning):
+    proxy = Proxy(logger, route="gemini")
+    proxy.start()
+    proxy.attempt(0, provider="openai", model="gemini-2.5-flash")
+    proxy.succeeded(
+        0.5,
+        usage={"prompt_tokens": 12, "completion_tokens": 4, "total_tokens": total},
+        cost=1.3e-5,
+        model="gemini-2.5-flash",
+        kwargs_extra={"litellm_params": {"api_base": api_base, "metadata": {}}},
+    )
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt["output_tokens"] == 4
+    assert attempt.get("reasoning_output_tokens") == reasoning
+    if reasoning is None:
+        assert attempt["output_basis"] == "includes_reasoning" and attempt["cost_usd"] == 1.3e-5
+    else:
+        assert attempt["output_basis"] == "excludes_reasoning" and "cost_usd" not in attempt
+        assert "output_token_source" not in attempt
+        if ai_usage is not None:
+            lines = writer.metrics.take_dogstatsd()
+            assert any(line.startswith("gen_ai.client.inference.usage.output_tokens:34|c|#") for line in lines), lines
+
+
 @pytest.mark.parametrize("reported", [True, False])
 def test_stream_reasoning_is_kept_only_when_reported(logger, writer, reported):
     proxy = Proxy(logger, stream=True)
