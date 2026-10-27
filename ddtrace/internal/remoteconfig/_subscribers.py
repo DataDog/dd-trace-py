@@ -23,7 +23,7 @@ class RemoteConfigSubscriber(PeriodicService):
     def __init__(
         self,
         reader: Any,
-        dispatch: Callable[[Sequence[Any]], None],
+        dispatch: Callable[[Sequence[Any], Sequence[str]], None],
         name: str,
         enabled_products: Callable[[], list[str]],
     ) -> None:
@@ -43,8 +43,10 @@ class RemoteConfigSubscriber(PeriodicService):
         try:
             # Read first so a freshly-forked child observes the inherited snapshot
             # immediately, then block until the next publish/notify (or timeout).
-            records = self._reader.read(self._enabled_products())
-            self._dispatch(records)
+            # The records are reconciled against the products they were read for.
+            enabled = self._enabled_products()
+            records = self._reader.read(enabled)
+            self._dispatch(records, enabled)
             self._reader.wait_for_change(self._timeout_ms)
         except Exception:
             log.error(

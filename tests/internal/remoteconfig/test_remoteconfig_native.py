@@ -527,6 +527,71 @@ def test_fork_removes_configs_deleted_before_first_read():
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_fork_removes_configs_deleted_while_product_disabled():
+    # The child's first read withholds the configs of a disabled product, so it
+    # cannot tell which of them were removed. That must be settled once the
+    # product is enabled, or a config removed meanwhile would stay applied.
+    with _MockAgent([RESPONSES[4], RESPONSES[5]]) as agent:
+        client, _ = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+        go_read, go_write = os.pipe()
+        read_fd, write_fd = os.pipe()
+        pid = os.fork()
+        if pid == 0:  # child
+            os.close(go_write)
+            os.close(read_fd)
+            try:
+                os.read(go_read, 1)
+                sink = _Sink()
+                client._product_callbacks[RemoteConfigProduct.AsmFeatures] = sink
+                client.disable_product(RemoteConfigProduct.AsmFeatures)
+                reader = client.make_reader()
+                client.dispatch_native_changes(reader.read(client.enabled_product_names()))
+                client.enable_product(RemoteConfigProduct.AsmFeatures)
+                client.dispatch_native_changes(reader.read(client.enabled_product_names()))
+                msg = ",".join("%s:%d" % (p.path, p.content is None) for p in sink.last)
+                os.write(write_fd, msg.encode())
+            finally:
+                os.close(write_fd)
+                os._exit(0)
+
+        os.close(go_read)
+        os.close(write_fd)
+        assert client.request() is True  # base + third: second removed after the fork
+        os.write(go_write, b"x")
+        os.close(go_write)
+        out = os.read(read_fd, 4096).decode()
+        os.close(read_fd)
+        os.waitpid(pid, 0)
+
+    removals, additions = [], []
+    for entry in out.split(","):
+        path, removed = entry.rsplit(":", 1)
+        (removals if removed == "1" else additions).append(path)
+    assert removals == [SECOND_PATH]
+    assert sorted(additions) == sorted([BASE_PATH, THIRD_PATH])
+
+
+def test_reader_changes_reconciled_against_products_they_were_read_for():
+    # A product enabled after a read but before its changes are dispatched has
+    # its configs missing from them. They must not be taken for removals.
+    with _MockAgent([RESPONSES[4]]) as agent:
+        client, sink = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+    reader = client.make_reader()
+    client.dispatch_native_changes(reader.read([]), [])
+    assert all(p.content is not None for batch in sink.batches for p in batch)
+
+    names = client.enabled_product_names()
+    client.dispatch_native_changes(reader.read(names), names)
+    assert sorted((p.path, p.content is None) for p in sink.last) == [(BASE_PATH, False), (SECOND_PATH, False)]
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
 def test_fork_of_fork_broadcast():
     # A grandchild (a fork of an already-forked consumer) must still receive the
     # full active snapshot. The intermediate child consumed the snapshot into its

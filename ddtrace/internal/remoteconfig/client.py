@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from collections.abc import Sequence
 import dataclasses
 import json
@@ -119,6 +120,8 @@ class RemoteConfigClient:
         # Applied configs that the first delivery from a new source of changes
         # must confirm. A new native client or reader delivers a full snapshot
         # without removals, so whatever it does not carry was removed meanwhile.
+        # Configs of products not enabled at that point wait for the first
+        # delivery after their product is enabled.
         self._unconfirmed: set[str] = set()
 
     def ensure_native(self) -> Any:
@@ -256,20 +259,28 @@ class RemoteConfigClient:
             grouped.setdefault(change.product, []).append(Payload(metadata, change.path, content))
         return grouped
 
-    def _reconcile(self, grouped: dict[Any, list[Payload]]) -> dict[Any, list[Payload]]:
-        """Track the applied configs, adding removals for those a full snapshot did not confirm."""
+    def _reconcile(self, grouped: dict[Any, list[Payload]], enabled: Collection[str]) -> dict[Any, list[Payload]]:
+        """Track the applied configs, adding removals for those a full snapshot did not confirm.
+
+        enabled holds the names of the products the changes were fetched for. It
+        must not be read again here, as a product enabled in between would have
+        its configs missing from the changes and wrongly removed.
+        """
         delivered = {payload.path for payloads in grouped.values() for payload in payloads}
 
         removals: dict[Any, list[Payload]] = {}
+        pending: set[str] = set()
         for path in self._unconfirmed - delivered:
             product, metadata = self._applied[path]
-            # Readers withhold the configs of products that are not enabled yet,
-            # so their absence from the snapshot does not mean they were removed.
-            if product not in self._enabled_products:
+            # The configs of products that are not enabled are withheld, so their
+            # absence does not mean they were removed. They stay unconfirmed until
+            # the product is enabled, as its configs are then delivered in full.
+            if str(product) not in enabled:
+                pending.add(path)
                 continue
             del self._applied[path]
             removals.setdefault(product, []).append(Payload(dataclasses.replace(metadata, length=None), path, None))
-        self._unconfirmed = set()
+        self._unconfirmed = pending
 
         for product, payloads in grouped.items():
             for payload in payloads:
@@ -361,25 +372,26 @@ class RemoteConfigClient:
         self.run_periodic()
         self._dispatch_payloads(grouped)
 
-    def dispatch_native_changes(self, records: Sequence[Any]) -> None:
+    def dispatch_native_changes(self, records: Sequence[Any], enabled_products: Optional[Sequence[str]] = None) -> None:
         """Build payloads from native change records and dispatch them.
 
         Used by the child-process subscriber: a bare poll tick (``records`` is
         empty) still fires every callback's ``periodic()`` via an empty dispatch.
+        enabled_products are the product names the records were read for, and
+        default to the currently enabled ones.
         """
-        self._dispatch_to_products(self._reconcile(self._build_payloads(records) if records else {}))
+        enabled = set(self.enabled_product_names() if enabled_products is None else enabled_products)
+        self._dispatch_to_products(self._reconcile(self._build_payloads(records) if records else {}, enabled))
 
     def request(self) -> bool:
         try:
             native = self.ensure_native()
-            changes = native.poll(
-                list(self._enabled_products),
-                list(ddtrace.config._get_extra_services()),
-            )
+            products = list(self._enabled_products)
+            changes = native.poll(products, list(ddtrace.config._get_extra_services()))
             # Deliver payloads only; product periodic() housekeeping is driven
             # once per cycle by the poller (RemoteConfigPoller.periodic), so it
             # keeps running even when a fetch fails.
-            self._dispatch_payloads(self._reconcile(self._build_payloads(changes)))
+            self._dispatch_payloads(self._reconcile(self._build_payloads(changes), {str(p) for p in products}))
             return True
         except Exception:
             log.debug("remote configuration client request failed", exc_info=True)
