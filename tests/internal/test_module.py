@@ -206,6 +206,119 @@ def test_module_deleted():
     ModuleWatchdog.uninstall()
 
 
+@pytest.mark.subprocess
+def test_module_hook_registered_during_import_hooks_called_after_them():
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    calls = []
+
+    def late_hook(module):
+        calls.append(("late", module))
+
+    def hook(module):
+        ModuleWatchdog.register_module_hook(name, late_hook)
+        calls.append(("registered", module))
+
+    ModuleWatchdog.register_module_hook(name, hook)
+
+    __import__(name)
+
+    # The late hook is called by the import once the hook that registered it has returned, and only once.
+    module = sys.modules[name]
+    assert calls == [("registered", module), ("late", module)], calls
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess
+def test_module_hook_registered_from_another_thread_during_import_hooks_called_by_import():
+    import sys
+    import threading
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    calls = []
+
+    def late_hook(module):
+        calls.append(("late", threading.get_ident()))
+
+    def register():
+        ModuleWatchdog.register_module_hook(name, late_hook)
+        calls.append(("registered", threading.get_ident()))
+
+    def hook(module):
+        thread = threading.Thread(target=register)
+        thread.start()
+        thread.join()
+
+    ModuleWatchdog.register_module_hook(name, hook)
+
+    __import__(name)
+
+    # The importing thread calls the late hook, after the hook it registered during has returned.
+    assert name in sys.modules
+    assert len(calls) == 2, calls
+    assert calls[0][0] == "registered", calls
+    assert calls[1] == ("late", threading.get_ident()), calls
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess
+def test_module_hook_registered_during_import_hooks_not_called_if_unregistered():
+    from unittest import mock
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    late_hook = mock.Mock()
+
+    def hook(module):
+        ModuleWatchdog.register_module_hook(name, late_hook)
+        ModuleWatchdog.unregister_module_hook(name, late_hook)
+
+    ModuleWatchdog.register_module_hook(name, hook)
+
+    __import__(name)
+
+    late_hook.assert_not_called()
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess(err=lambda err: "RuntimeError: hook failed" in err)
+def test_module_hook_registered_after_import_hook_raised_called_at_once():
+    import sys
+    from unittest import mock
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    late_hook = mock.Mock()
+
+    def hook(module):
+        ModuleWatchdog.register_module_hook(name, late_hook)
+        raise RuntimeError("hook failed")
+
+    ModuleWatchdog.register_module_hook(name, hook)
+
+    __import__(name)
+
+    # The failing hook stops the import from calling the hooks after it, as it stops hooks registered earlier.
+    late_hook.assert_not_called()
+
+    # Once the import is over, a new hook for the module is called at once rather than deferred to it.
+    after_hook = mock.Mock()
+    ModuleWatchdog.register_module_hook(name, after_hook)
+    after_hook.assert_called_once_with(sys.modules[name])
+
+    ModuleWatchdog.uninstall()
+
+
 def test_module_unregister_origin_hook(module_watchdog):
     hook = mock.Mock()
     path = origin(sys.modules[__name__])
