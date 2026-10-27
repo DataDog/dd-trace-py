@@ -288,6 +288,9 @@ suites:
       - '@tracing'
       - '@appsec'
       - '@appsec_iast'
+      - '@flask'
+      - '@wsgi'
+      - ddtrace/contrib/_events/web_request.py
       - tests/appsec/integrations/flask_tests/test_iast_flask.py
       - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       - tests/appsec/app.py
@@ -323,6 +326,9 @@ suites:
       - '@tracing'
       - '@appsec'
       - '@appsec_iast'
+      - '@flask'
+      - '@wsgi'
+      - ddtrace/contrib/_events/web_request.py
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
       - tests/appsec/integrations/conftest.py

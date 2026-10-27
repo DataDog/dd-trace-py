@@ -13,7 +13,10 @@ from ddtrace.internal.native._native import SpanData
 
 
 # Remove this policy and bookkeeping with the legacy processor.
-_EVENT_MANAGED_REQUESTS: dict[str, frozenset[str]] = {"asgi.request": frozenset({"fastapi"})}
+_EVENT_MANAGED_REQUESTS: dict[str, frozenset[str]] = {
+    "asgi.request": frozenset({"fastapi"}),
+    "wsgi.__call__": frozenset({"flask"}),
+}
 # Weak keys do not retain unfinished spans; keep the route stable until finish.
 _SPAN_ROUTES: WeakKeyDictionary[SpanData, bool] = WeakKeyDictionary()
 

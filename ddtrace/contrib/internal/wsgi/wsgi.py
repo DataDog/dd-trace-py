@@ -130,6 +130,7 @@ class _DDWSGIMiddlewareBase:
             ) as ctx,
             ExitStack() as cleanup,
         ):
+            # Response iteration can outlive this request scope.
             if core.has_listeners(WebRequestCompleting.event_name):
                 cleanup.callback(core.dispatch_event, WebRequestCompleting(ctx, span_from_context(ctx)))
             if core.has_listeners(WebRequestReady.event_name):
