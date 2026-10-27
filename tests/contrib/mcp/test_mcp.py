@@ -1,7 +1,13 @@
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from mcp.shared.session import RequestResponder
+from mcp.types import CallToolResult
+from mcp.types import TextContent
 import pytest
+
+from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
 
 
 @pytest.mark.snapshot(ignores=["meta.runtime-id"])
@@ -34,3 +40,19 @@ def test_mcp_tool_error_without_llmobs(mcp_setup, mcp_call_tool, test_spans, mon
     assert server_span.error == 1
     assert server_span.get_tag("error.type") == "ToolError"
     assert server_span.get_tag("error.message") == "Error executing tool failing_tool: Tool execution failed"
+
+
+@pytest.mark.parametrize("keyword_response", [False, True])
+def test_mcp_direct_tool_error(mcp_setup, tracer, keyword_response):
+    response = CallToolResult(content=[TextContent(type="text", text="Tool execution failed")], isError=True)
+    respond = AsyncMock()
+    args, kwargs = ((), {"response": response}) if keyword_response else ((response,), {})
+
+    assert not mcp_setup._datadog_integration.llmobs_enabled
+    with tracer.trace("mcp.server") as span:
+        asyncio.run(traced_request_responder_respond(respond, SimpleNamespace(_dd_span=span), args, kwargs))
+
+    respond.assert_awaited_once_with(*args, **kwargs)
+    assert span.error == 1
+    assert span.get_tag("error.type") == "ToolError"
+    assert span.get_tag("error.message") == "Tool execution failed"
