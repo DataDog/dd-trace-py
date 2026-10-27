@@ -192,8 +192,11 @@ def test_mlflow_multithreaded_steps_specifying_same_run(
         with mlflow.start_run(run_name="worker-%d" % worker_id, run_id=run_id):
             for step in range(2):
                 step_order = worker_id * 2 + step
-                _wait_for_ordered_step(ordering_events, step_order)
+                assert ordering_events[step_order].wait(timeout=5), "timed out waiting for worker scheduling"
                 mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=step_order)
+                ordering_events[step_order + 1].set()
+            # Keep the shared run open until every worker finishes logging.
+            assert ordering_events[-1].wait(timeout=5), "timed out waiting for worker metrics"
 
     with mlflow.start_run() as run:
         with ThreadPoolExecutor(max_workers=2) as pool:
