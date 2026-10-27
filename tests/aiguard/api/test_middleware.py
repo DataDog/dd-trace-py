@@ -72,20 +72,6 @@ class Recorder(AIGuardMiddleware):
         self.contexts.append(context)
 
 
-def test_registration_unregister_is_idempotent(ai_guard_client, execute_request):
-    recorder = Recorder()
-    registration = register_middleware(recorder)
-    other = register_middleware(recorder)
-
-    registration.unregister()
-    registration.unregister()
-
-    assert middleware._MIDDLEWARES == [recorder]
-    other.unregister()
-    ai_guard_client.evaluate(MESSAGES)
-    assert recorder.calls == []
-
-
 def test_should_evaluate_false_skips(ai_guard_client, test_spans, execute_request, telemetry_mock):
     recorder = Recorder(decision=False)
     register_middleware(recorder)
@@ -157,11 +143,14 @@ def test_request_direction_and_target_for_tool_call(ai_guard_client, execute_req
     assert request.target is EvaluationTarget.TOOL
 
 
-def test_unresolved_tool_result_is_a_tool_target_for_context_and_span(ai_guard_client, test_spans, execute_request):
+@pytest.mark.parametrize("tool_call_id", ["call_unknown", ""], ids=["unmatched-id", "empty-id"])
+def test_unresolved_tool_result_is_a_tool_target_for_context_and_span(
+    ai_guard_client, test_spans, execute_request, tool_call_id
+):
     recorder = Recorder()
     register_middleware(recorder)
 
-    ai_guard_client.evaluate([Message(role="tool", tool_call_id="call_unknown", content="sunny")])
+    ai_guard_client.evaluate([Message(role="tool", tool_call_id=tool_call_id, content="sunny")])
 
     assert recorder.contexts[0].request.target is EvaluationTarget.TOOL
     span = find_ai_guard_span(test_spans)

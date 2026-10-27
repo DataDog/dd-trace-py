@@ -136,8 +136,8 @@ messages are the redacted ones — never slice on them.
 ### Middlewares (filters and callbacks)
 
 `register_middleware()` appends an `AIGuardMiddleware` instance to a global list that
-`AIGuardClient.evaluate()` iterates (SDK and auto-instrumentation alike) and returns a
-`MiddlewareRegistration` whose `unregister()` is idempotent. `should_evaluate` runs before
+`AIGuardClient.evaluate()` iterates (SDK and auto-instrumentation alike). There is
+deliberately no unregister: middlewares are registered once at startup. `should_evaluate` runs before
 the span (only an explicit `False` skips: ALLOW result, no span, `skipped:true` on
 `ai_guard.requests`, which otherwise reports `skipped:false`). The span then gets its core
 `ai_guard.target` / `.direction` / `.source` / `.integration` tags before `pre_evaluate`

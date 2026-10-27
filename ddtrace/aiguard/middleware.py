@@ -3,8 +3,9 @@
 from enum import Enum
 from typing import Any
 from typing import Optional
+from typing import Protocol
+from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.aiguard._types import Evaluation
 from ddtrace.aiguard._types import Message
 
@@ -15,9 +16,20 @@ __all__ = [
     "AIGuardRequest",
     "EvaluationDirection",
     "EvaluationTarget",
-    "MiddlewareRegistration",
     "register_middleware",
 ]
+
+
+class _Span(Protocol):
+    """Structural stand-in for the tracer Span, so AI Guard does not depend on the tracing product."""
+
+    def set_tag(self, key: str, value: Optional[str] = None) -> None: ...
+
+    def get_tag(self, key: str) -> Optional[str]: ...
+
+    def set_metric(self, key: str, value: Union[int, float]) -> None: ...
+
+    def get_metric(self, key: str) -> Optional[Union[int, float]]: ...
 
 
 class EvaluationDirection(str, Enum):
@@ -71,9 +83,9 @@ class AIGuardContext:
     :ivar state: Free-form values a middleware keeps between the hooks of one evaluation.
     """
 
-    def __init__(self, request: AIGuardRequest, local_root_span: Optional[Span] = None):
+    def __init__(self, request: AIGuardRequest, local_root_span: Optional[_Span] = None):
         self.local_root_span = local_root_span
-        self.ai_guard_span: Optional[Span] = None
+        self.ai_guard_span: Optional[_Span] = None
         self.request = request
         self.result: Optional[Evaluation] = None
         self.error: Optional[BaseException] = None
@@ -83,8 +95,8 @@ class AIGuardContext:
 class AIGuardMiddleware:
     """Base class for hooks run around every AI Guard evaluation, SDK and auto-instrumentation alike.
 
-    Register an instance with register_middleware. Middlewares run in registration order, and an
-    exception raised by a hook is logged at debug level and ignored.
+    Register an instance with register_middleware once, at application startup. Middlewares run in
+    registration order, and an exception raised by a hook is logged at debug level and ignored.
 
     Example::
 
@@ -94,7 +106,7 @@ class AIGuardMiddleware:
             def should_evaluate(self, context):
                 return context.request.direction is EvaluationDirection.INPUT
 
-        registration = register_middleware(InputOnly())
+        register_middleware(InputOnly())
     """
 
     def should_evaluate(self, context: AIGuardContext) -> Optional[bool]:
@@ -114,26 +126,10 @@ class AIGuardMiddleware:
 _MIDDLEWARES: list[AIGuardMiddleware] = []
 
 
-class MiddlewareRegistration:
-    """Handle returned by register_middleware."""
-
-    def __init__(self, middleware: AIGuardMiddleware):
-        self._middleware: Optional[AIGuardMiddleware] = middleware
-
-    def unregister(self) -> None:
-        """Stop running the middleware. Calling it again has no effect."""
-        # Forget the middleware so a second call cannot remove another registration of it.
-        target, self._middleware = self._middleware, None
-        for index, middleware in enumerate(_MIDDLEWARES):
-            if middleware is target:
-                del _MIDDLEWARES[index]
-                return
-
-
-def register_middleware(middleware: AIGuardMiddleware) -> MiddlewareRegistration:
+def register_middleware(middleware: AIGuardMiddleware) -> None:
     """Run middleware around every subsequent AI Guard evaluation in this process.
 
-    :returns: A MiddlewareRegistration whose unregister method removes the middleware.
+    Middlewares cannot be removed once registered: register them at application startup, and
+    stop registering one in your code to remove it.
     """
     _MIDDLEWARES.append(middleware)
-    return MiddlewareRegistration(middleware)

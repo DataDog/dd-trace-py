@@ -427,9 +427,10 @@ class AIGuardClient:
         (_, clamped_source), (_, clamped_integration) = call_path_tags
 
         last = messages[-1]
+        # role "tool" counts on its own: converters emit legacy function results with an empty tool_call_id.
         target = (
             EvaluationTarget.TOOL
-            if self._has_tool_calls(last) or self._has_tool_call_id(last)
+            if self._has_tool_calls(last) or self._has_tool_call_id(last) or last.get("role") == "tool"
             else EvaluationTarget.PROMPT
         )
         context = None
