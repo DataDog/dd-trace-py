@@ -210,6 +210,8 @@ def _local_agent_telemetry_env():
         env.pop(name, None)
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    # Unrelated Python debug logs can block when a test leaves stderr unread.
+    env["DD_TRACE_DEBUG"] = "false"
     return env
 
 
@@ -339,6 +341,7 @@ with tracer.trace("test"):
 os._exit(0)
 """
     env = _local_agent_telemetry_env()
+    env["DD_TRACE_ENABLED"] = "true"
     env["_DD_NATIVE_LOGGING_BACKEND"] = "stderr"
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = "error"
     trace_request_received = threading.Event()
