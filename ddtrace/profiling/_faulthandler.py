@@ -18,12 +18,12 @@ faulthandler is imported (before or after ddtrace).
 
 from __future__ import annotations
 
-import threading
 from types import ModuleType
 import typing
 from typing import Callable
 
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.datadog.profiling.stack._handler_swap_lock import handler_swap_lock
 from ddtrace.internal.module import ModuleWatchdog
 
 
@@ -34,43 +34,43 @@ def _(faulthandler: ModuleType) -> None:
 
     _original_enable: Callable[..., None] = faulthandler.enable
     _original_disable: Callable[[], bool] = faulthandler.disable
-    _enable_lock: threading.Lock = threading.Lock()
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
-        with _enable_lock:
+        # Same lock as crashtracking.start so a nested pause/resume cannot clear
+        # the other component's pause mid-swap.
+        with handler_swap_lock:
             # pause_sampling returns:
             #   True  — sampler paused (safe to swap handlers)
             #   False — sampler not running (safe to swap; no racing thread)
-            #   None  — timed out: sampler IS running but didn't pause in time;
-            #           skip the uninstall process to avoid racing with safe_memcpy
-            #           (This means there will be a fault handler cycle, but this is about
-            #           the only thing we can do.)
+            #   None  — timed out: a capture may still be in safe_memcpy. Do not
+            #           enable faulthandler (it would replace our recovery handler)
+            #           and do not reinstall (that would build a handler cycle).
             pause_result: bool | None = stack.pause_sampling()
             safe_to_swap: bool = pause_result is not None
+            if not safe_to_swap:
+                return
             try:
-                if safe_to_swap:
-                    try:
-                        stack.uninstall_segv_handler()
-                    except Exception:  # nosec: B110
-                        pass
+                try:
+                    stack.uninstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
 
-                    # Disable faulthandler before re-enabling so it does a fresh
-                    # sigaction install.  Without this, Python may reinstall the
-                    # handler while it is already the current handler, saving itself as
-                    # its own ``previous`` and creating an infinite handler loop.
-                    try:
-                        _original_disable()
-                    except Exception:  # nosec: B110
-                        pass
+                # Disable faulthandler before re-enabling so it does a fresh
+                # sigaction install.  Without this, Python may reinstall the
+                # handler while it is already the current handler, saving itself as
+                # its own `previous` and creating an infinite handler loop.
+                try:
+                    _original_disable()
+                except Exception:  # nosec: B110
+                    pass
 
                 try:
                     _original_enable(*args, **kwargs)
                 except Exception:
-                    if safe_to_swap:
-                        try:
-                            stack.reinstall_segv_handler()
-                        except Exception:  # nosec: B110
-                            pass
+                    try:
+                        stack.reinstall_segv_handler()
+                    except Exception:  # nosec: B110
+                        pass
 
                     # Re-raise so callers see the same exception as without our wrapper.
                     raise
@@ -84,7 +84,7 @@ def _(faulthandler: ModuleType) -> None:
                     stack.resume_sampling()
 
     def _patched_disable() -> bool:
-        with _enable_lock:
+        with handler_swap_lock:
             pause_result: bool | None = stack.pause_sampling()
             safe_to_swap: bool = pause_result is not None
             try:
