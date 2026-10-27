@@ -400,7 +400,7 @@ class DataStreamsProcessor(PeriodicService):
         return SchemaBuilder.get_schema(schema_name, iterator)
 
 
-@lru_cache(maxsize=1024)
+@lru_cache(maxsize=256)
 def _compute_pathway_hash(
     service: str, env: str, base_hash_bytes: bytes, tags: tuple[str, ...], parent_hash: int
 ) -> int:
