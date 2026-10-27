@@ -9,7 +9,6 @@ ARG UV_VERSION=0.13.5
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
-    && apt-get install -y --only-upgrade ca-certificates \
     && update-ca-certificates -f \
     && rm -rf /var/lib/apt/lists/*
 
