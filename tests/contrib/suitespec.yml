@@ -677,7 +677,6 @@ suites:
     # TODO(py-315): the azure functions worker stack does not support Python 3.15;
     # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
     # host worker support it.
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@contrib'
