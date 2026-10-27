@@ -478,7 +478,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "lxml",
-        "6.0.2",
+        "7.0.0b1" if PYTHON_VERSION >= (3, 15) else "6.0.2",
         "<root><element>foobar</element></root>",
         "Element text: foobar",
         "",
@@ -762,7 +762,7 @@ _PACKAGES = [
     ## Skip due to typing-extensions added to the denylist
     PackageForTesting(
         "typing-extensions",
-        "4.11.0",
+        "4.16.0" if PYTHON_VERSION >= (3, 15) else "4.11.0",
         "",
         "",
         "",
