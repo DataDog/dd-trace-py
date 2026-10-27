@@ -71,6 +71,7 @@ def cleanup_loaded_modules() -> None:
             "re",  # referenced by the typing module
             "sre_constants",  # imported by re at runtime
             "logging",
+            "warnings",  # logging keeps a reference to warnings for captureWarnings()
             "attr",
             "wrapt",
             "bytecode",  # needed by before-fork hooks

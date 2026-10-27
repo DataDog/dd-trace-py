@@ -145,14 +145,40 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
     def test_resource_with_otel_semantics(self):
         conn = self.get_http_connection(SOCKET)
-        with mock.patch.object(config, "_otel_trace_semantics_enabled", True), contextlib.closing(conn):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)), contextlib.closing(conn):
             conn.request("GET", "/status/200")
             resp = conn.getresponse()
             resp.read()
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].resource, "GET")
+        span = spans[0]
+        self.assertEqual(span.resource, "GET")
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("url.full") == URL_200
+        assert span.get_tag("http.method") is None
+        assert span.get_tag("http.url") is None
+
+    def _putrequest_tags(self, conn, target):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            conn.putrequest("GET", target)
+        span = conn._datadog_span
+        tags = {**span.get_tags(), **span.get_metrics()}
+        span.finish()
+        return tags
+
+    def test_otel_semantics_ipv6_host(self):
+        tags = self._putrequest_tags(self.get_http_connection("[::1]"), "/x")
+        assert tags["url.full"] == "http://[::1]/x"
+        assert tags["server.address"] == "::1"
+        assert tags["server.port"] == 80
+
+    def test_otel_semantics_absolute_form_target(self):
+        conn = self.get_http_connection("proxy.local", 3128)
+        tags = self._putrequest_tags(conn, "http://origin.example/x")
+        assert tags["url.full"] == "http://origin.example/x"
+        assert tags["server.address"] == "origin.example"
+        assert tags["server.port"] == 80
 
     def test_httplib_request_get_request_multiqs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):

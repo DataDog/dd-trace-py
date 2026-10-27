@@ -74,7 +74,14 @@ class _ConcreteWriter(BaseWriter):
 class TestBaseWriterStartup:
     @pytest.mark.parametrize("scheme", ["http", "https"])
     def test_first_upload_uses_connection_initialized_before_http_client_patching(self, scheme: str) -> None:
-        connector = BackendConnector(f"{scheme}://api.example.com")
+        initialized_connections: list[http.client.HTTPConnection] = []
+
+        class _RecordingConnector(BackendConnector):
+            def __init__(self, url: str) -> None:
+                super().__init__(url)
+                initialized_connections.append(self.conn)
+
+        connector = _RecordingConnector(f"{scheme}://api.example.com")
         results: list[BackendResult] = []
 
         class _SendingWriter(_ConcreteWriter):
@@ -86,13 +93,15 @@ class TestBaseWriterStartup:
         writer._connectors = [connector]
         with patch("socket.create_connection", side_effect=AssertionError("startup must not open a socket")):
             writer.start()
+        assert len(initialized_connections) == 2
+        writer_connection = initialized_connections[-1]
         response = Mock(status=200, headers={"Content-Length": "2"})
         response.read.return_value = b"ok"
         try:
             # Simulate a cassette replacing both connection classes during the first background upload.
             with (
-                patch.object(http.client.HTTPConnection, "request") as request,
-                patch.object(http.client.HTTPConnection, "getresponse", return_value=response),
+                patch.object(writer_connection, "request") as request,
+                patch.object(writer_connection, "getresponse", return_value=response),
                 patch(
                     "http.client.HTTPConnection", side_effect=AssertionError("patched HTTP constructor")
                 ) as http_constructor,
@@ -105,7 +114,10 @@ class TestBaseWriterStartup:
                 assert len(results) == 1
                 assert results[0].error_type is None
                 assert results[0].response_body == b"ok"
-                request.assert_called_once_with("POST", "/upload", body=b"payload", headers={})
+                upload_calls = [
+                    request_call for request_call in request.call_args_list if request_call.args[1] == "/upload"
+                ]
+                assert upload_calls == [call("POST", "/upload", body=b"payload", headers={})]
                 http_constructor.assert_not_called()
                 https_constructor.assert_not_called()
         finally:
@@ -462,6 +474,23 @@ class TestMetadataTruncation:
         assert truncated["*"]["short"] == "value"
         assert truncated["*"]["long"] == "m" * MAX_META_TAG_VALUE_LENGTH
         assert metadata["*"]["long"] == long_value
+
+    def test_events_meta_keeps_tail_of_error_stack_and_message(self) -> None:
+        long_stack = "s" * MAX_META_TAG_VALUE_LENGTH + "STACK_TAIL"
+        long_message = "m" * MAX_META_TAG_VALUE_LENGTH + "MESSAGE_TAIL"
+        long_other = "OTHER_HEAD" + "o" * MAX_META_TAG_VALUE_LENGTH
+        event = Event(
+            type="test",
+            content={"meta": {"error.stack": long_stack, "error.message": long_message, "other": long_other}},
+        )
+
+        truncated = _truncate_events_meta([event])
+
+        assert truncated[0]["content"]["meta"] == {
+            "error.stack": long_stack[-MAX_META_TAG_VALUE_LENGTH:],
+            "error.message": long_message[-MAX_META_TAG_VALUE_LENGTH:],
+            "other": long_other[:MAX_META_TAG_VALUE_LENGTH],
+        }
 
     def test_events_meta_returns_original_when_no_values_truncated(self) -> None:
         event = Event(type="test", content={"meta": {"short": "value"}})

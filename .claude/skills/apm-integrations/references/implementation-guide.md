@@ -1,165 +1,66 @@
-# Implementation Guide
+# New integration checklist
 
-Step-by-step for creating a new dd-trace-py integration.
-Each step points to a real file -- read it, don't guess the pattern.
+Paths are repository-relative. Read the closest current reference implementation rather than
+copying a synthetic patch module. For a small edit to an existing integration, apply only the
+steps affected by the change.
 
-## 1. Create the patch module
+## Patch and configuration
 
-Create `ddtrace/contrib/internal/{name}/__init__.py` with RST docstrings
-and exports. See `ddtrace/contrib/internal/anthropic/__init__.py` for format.
+- Implement `patch()`, `unpatch()`, `get_version()`, and `_supported_versions()` in
+  `ddtrace/contrib/internal/<name>/patch.py`; inspect the current return types in the reference.
+  `_supported_versions()` returns a dependency-to-version mapping, not a string.
+- Put the Sphinx integration docstring in `__init__.py`; do not treat that private package as a
+  public re-export of patch functions. Users enable integrations through `ddtrace.patch()`.
+- Register config at module scope with `config._add()`. Add the integration to `INTEGRATION_CONFIGS`
+  in `ddtrace/internal/settings/_config.py`, or its settings will be ignored. Place new entries
+  alphabetically rather than appending them to the end.
+- Add `PATCH_MODULES` in `ddtrace/_monkey.py`. Add `_MODULES_FOR_CONTRIB` when dependency import names
+  differ from the contrib name, such as `mysqldb` importing `MySQLdb`. Place new `PATCH_MODULES`
+  entries alphabetically; avoid reordering unrelated entries.
+- Add dependency metadata to `scripts/integration_registry/registry.yaml` and
+  `ddtrace/contrib/internal/<name>/<name>.manifest.yaml`. Follow the manifest section of
+  [contributing-integrations](../../../../docs/contributing-integrations.rst), including matching package names.
 
-Create `ddtrace/contrib/internal/{name}/patch.py` with `get_version()`, `_supported_versions`,
-`patch()`, and `unpatch()`. Choose the right pattern:
-- **Events API (NEW — preferred for new standard integrations)**: Use `context_with_event()` + `TracingEvent` subclasses + `TracingSubscriber`. Read concrete examples first:
-  - `ddtrace/contrib/internal/httpx/patch.py` — sync and async HTTP with `context_with_event()`
-  - `ddtrace/contrib/internal/aiohttp/patch.py` — async HTTP client with `context_with_event()`
-  - `ddtrace/_trace/events.py` — `TracingEvent` base class (subclass this per-event)
-  - `ddtrace/_trace/subscribers/_base.py` — `TracingSubscriber` base class (handles span creation)
-  - `ddtrace/internal/core/__init__.py` — `context_with_event()` API
-  - `ddtrace/internal/core/events.py` — `Event` base + `event_field()` descriptor
-- **`context_with_data()` (existing pattern)**: Use `context_with_data()` + `trace_handlers.py`. Read `ddtrace/contrib/internal/flask/patch.py` or another existing `context_with_data` integration. Use this when extending or mirroring an existing `context_with_data` integration.
-- **Pin + `tracer.trace()` (DEPRECATED)**: Do NOT use in new integrations.
-- **LLM/AI integrations**: Use this guide for contrib package layout, registration, config, and APM tests. Use the `llmobs-integrations` skill for LLM-specific patch patterns, span lifecycle, `BaseLLMIntegration`, stream handling, extraction, and LLMObs tests.
+## LLMObs additions
 
-### Type Annotations
+Use the [LLMObs implementation guide](../../llmobs-integrations/references/implementation-guide.md)
+for event/span ownership and extraction. Register new exported integration classes in
+`_INTEGRATION_MODULES` in `ddtrace/llmobs/_integrations/__init__.py`; `__all__` is derived from
+that lazy mapping. Do not replace lazy registration with eager imports of every integration.
+Connect standard request integrations through `LlmEvents` subscribers under
+`ddtrace/llmobs/_contrib/<name>/`, registered through the `ddtrace.integration_hooks` entry point.
+Follow `ddtrace/llmobs/_contrib/anthropic/` and the LLMObs guide so contrib does not import LLMObs.
 
-All functions in the patch module must have full type annotations. Follow the typing patterns from the reference integration you read in the step above.
+## Tests and documentation
 
-```python
-from typing import Any, Callable, Optional
+- Add component, suite, and matrix entries to the appropriate suitespec: `tests/contrib/suitespec.yml`
+  for standard integrations, `tests/llmobs/suitespec.yml` for LLM/AI integrations.
+- Match a current suite's schema and dependency variants. Follow supported-version policy in the
+  contributor guide; generate locks with `scripts/test-requirements lock <environment-name>`.
+  A matrix variant's `name` is the exact environment name accepted by that command, not the suite
+  label or a `run-tests --venv` hash. Use the integration name as the base, adding a qualifier when
+  needed; multiple dependency/Python variants can share a name. The matrix `command` selects the
+  test directory. See the `httpx` suite and [test schema](../../../../tests/README.md).
+  Commit updated definitions and locks together; see [lock maintenance](../../../../docs/contributing-testing.rst)
+  for missing/obsolete locks and pruning.
+- Test patch/unpatch behavior and the affected instrumentation, including errors and applicable
+  sync/async or streaming paths. Prefer existing snapshot fixtures for APM span assertions.
+  The usual layout is `tests/contrib/<name>/test_<name>_patch.py` for patch cycles and
+  `test_<name>.py` for APM behavior. Use `tests/contrib/anthropic/test_anthropic_patch.py` for
+  patch/unpatch and double-patch assertions, and `tests/contrib/httpx/test_httpx.py` for snapshots.
+  Keep an existing suite's more specific split when extending it. Use `@pytest.mark.snapshot`
+  where the suite has snapshot support, rather than replacing its fixtures.
+- Use the [LLMObs testing guide](../../llmobs-integrations/references/testing-guide.md) for LLMObs assertions
+  and transport fixtures. Only add vcrpy where the suite uses it.
+- Reference the integration's `__init__.py` docstring through an `automodule` entry in
+  `docs/integrations.rst` where applicable, in alphabetical order. Update `docs/index.rst` when
+  adding an integration there. Use `releasenote` for the customer-facing change.
+- Use `run-tests` and `lint` for execution, formatting, and type validation.
 
-def get_version() -> str:
-    ...
+## OpenTelemetry HTTP semantics
 
-def _supported_versions() -> str:
-    ...
-
-def patch() -> None:
-    ...
-
-def unpatch() -> None:
-    ...
-
-# Wrapper functions use the wrapt signature:
-def traced_request(
-    wrapped: Callable[..., Any],
-    instance: Any,
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-) -> Any:
-    ...
-```
-
-## 2. Register the integration
-
-Add to `ddtrace/_monkey.py` `PATCH_MODULES` dict in alphabetical order.
-If the module name we patched is different than the contrib name, e.g. we patched `snowflake.core`, but the main package is `snowflake`, add it to `MODULES_FOR_CONTRIB` as well.
-Add to `scripts/integration_registry/registry.yaml` with dependency
-names and tested version range.
-Add to `INTEGRATION_CONFIGS` frozenset in `ddtrace/internal/settings/_config.py`
-in alphabetical order — this allows users to configure the integration before
-it's patched. **Without this entry, integration config settings are silently ignored.**
-
-## 3. Create LLMObs integration (LLM only)
-
-Create `ddtrace/llmobs/_integrations/{name}.py` subclassing `BaseLLMIntegration`.
-Read `ddtrace/llmobs/_integrations/anthropic.py` for the canonical pattern.
-Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__`).
-
-See the **llmobs-integrations** skill for the full LLM-specific implementation guide.
-
-## 4. Add test environment
-
-Add a matrix entry to the nearest `suitespec.yml` file. Follow a similar integration's dependency and Python-version combinations.
-
-Key rules:
-- A variant's `name` is the exact environment name passed to `scripts/test-requirements lock`; use the integration name as
-  its base and add a qualifier when needed
-- `command` points to the test directory
-- Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
-- Cover the oldest supported and latest compatible dependency versions
-- Regenerate the committed locks with `scripts/test-requirements lock <environment-name>`
-
-### suitespec.yml
-
-Add **component** and **suite** entries to the correct suitespec file:
-- LLM/AI integrations: `tests/llmobs/suitespec.yml`
-- Standard integrations: `tests/contrib/suitespec.yml`
-
-Look at a similar integration's entry in the same suitespec file and follow the same pattern for both the `components:` and `suites:` sections.
-
-## 5. Write tests
-
-Create `tests/contrib/{name}/` with:
-
-| File | Purpose | Pattern to follow |
-|------|---------|-------------------|
-| `test_{name}_patch.py` | Patch/unpatch cycle | `tests/contrib/anthropic/test_anthropic_patch.py` |
-| `test_{name}.py` | APM span assertions | Prefer `@pytest.mark.snapshot` |
-| `test_{name}_llmobs.py` | LLMObs (LLM only) | `tests/contrib/anthropic/test_anthropic_llmobs.py` |
-
-LLMObs tests should use `assert_llmobs_span_data()` from `tests/llmobs/_utils.py` with `_get_llmobs_data_metastruct(span)` from `ddtrace.llmobs._utils`.
-See the **llmobs-integrations** skill's Testing Guide for VCR cassette setup and assertion patterns.
-
-## 6. Add documentation (non-LLM only)
-
-Add automodule entry to `docs/integrations.rst` in alphabetical order.
-
-## 7. Generate release note
-
-Use the **releasenote** skill.
-
-## Verification
-
-Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest` directly.
-
-## Recent PRs as Examples
-
-- vLLM (#14732) -- LLM integration
-- Azure EventHubs (#14636) -- message queue
-- httpx revamp (#15522) -- HTTP client
-
-## Complete Checklist
-
-Every new integration must complete ALL applicable items:
-
-### Registration
-- [ ] `ddtrace/_monkey.py` -- `PATCH_MODULES` entry in alphabetical order
-- [ ] `scripts/integration_registry/registry.yaml` -- dependency names and tested version range
-- [ ] `ddtrace/internal/settings/_config.py` -- `INTEGRATION_CONFIGS` frozenset entry
-- [ ] `ddtrace/llmobs/_integrations/__init__.py` -- import + `__all__` entry (LLM only)
-
-### Patch Code
-- [ ] `ddtrace/contrib/internal/{name}/patch.py` -- `patch()`, `unpatch()`, `get_version()`
-- [ ] Standard patch code uses `<Type>Event` + `core.context_with_event()`; specialized direct child spans follow the closest current reference
-- [ ] Prefer class-based events API (`TracingEvent` + `TracingSubscriber`) for new standard integrations
-- [ ] LLM integrations follow the `llmobs-integrations` skill for request span lifecycle and LLMObs extraction
-
-### Integration Layer
-- [ ] `ddtrace/llmobs/_integrations/{name}.py` -- `BaseLLMIntegration` subclass (LLM only)
-- [ ] `_set_base_span_tags()` implemented
-- [ ] `_llmobs_set_tags()` implemented with all required LLMObs fields (LLM only)
-
-### Test Environment
-- [ ] Suitespec entry -- component, suite, and dependency variants in the correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
-- [ ] Compile and prune test requirements if needed -- follow `docs/contributing-testing.rst` and existing repo workflow
-
-### Tests
-- [ ] `tests/contrib/{name}/test_{name}_patch.py` -- patch/unpatch cycle tests
-- [ ] `tests/contrib/{name}/test_{name}.py` -- APM span snapshot tests
-- [ ] `tests/contrib/{name}/test_{name}_llmobs.py` -- LLMObs assertion tests (LLM only)
-- [ ] Tests use `@pytest.mark.snapshot` for APM assertions where possible
-- [ ] LLMObs tests use `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
-
-### Type Annotations
-- [ ] All function signatures have type annotations (parameters + return type)
-- [ ] No bare `dict`, `list`, `tuple` — use `dict[str, Any]`, `list[str]`, etc.
-- [ ] `Optional[X]` used for nullable parameters and return values
-- [ ] Wrapper functions use typed wrapt signature (`Callable[..., Any]`, `tuple[Any, ...]`, etc.)
-- [ ] No unjustified `# type: ignore` comments
-- [ ] **lint** skill typing check (`scripts/lint typing`) passes with no errors
-
-### Documentation
-- [ ] `docs/integrations.rst` -- automodule entry in alphabetical order (non-LLM only)
-- [ ] `docs/index.rst` -- add integration to the docs index
-- [ ] Release note -- use the **releasenote** skill
+Shared HTTP span attributes live in ddtrace/_trace/otel/http/tags.py; resource
+naming and ownership live in ddtrace/_trace/otel/http/resource.py.
+set_http_meta writes the OTel attributes through _set_http_meta_otel when the
+semantics flag is enabled, and the Datadog ones through _set_http_meta
+otherwise. Preserve user resource replacements with the resource helpers.

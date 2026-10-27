@@ -48,6 +48,141 @@ from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_names_the_request_span_from_the_route():
+    from django.test import Client
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        assert Client().get("/fn-view/").status_code == 200
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "GET"
+        assert root.get_tag("http.route") == "^fn-view/$"
+        assert root.get_metric("http.response.status_code") == 200
+        assert root.get_tag("http.response.status_code") is None
+        assert root.resource == "GET ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_substitutes_an_unaccepted_method_in_the_span_name():
+    from django.test import Client
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        Client().generic("PROPFIND", "/fn-view/")
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "_OTHER"
+        assert root.get_tag("http.request.method_original") == "PROPFIND"
+        assert root.resource == "HTTP ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_normalizes_resource_when_response_creation_aborts():
+    from django.test import Client
+    from django.test import override_settings
+    import pytest
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        with override_settings(DEBUG_PROPAGATE_EXCEPTIONS=True):
+            with pytest.raises(Exception, match="Error 500"):
+                Client().generic("PROPFIND", "/error-500/")
+
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "_OTHER"
+        assert root.get_tag("http.route") == "^error-500/$"
+        assert root.resource == "HTTP ^error-500/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_names_the_span_from_a_custom_converter_route():
+    from tests.contrib.django.utils import setup_django
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    setup_django()
+
+    from django.http import HttpResponse
+    from django.test import Client
+    from django.urls import clear_url_caches
+    from django.urls import path
+    from django.urls import register_converter
+
+    from ddtrace.trace import tracer
+    from tests.contrib.django.django_app import urls
+
+    converted = []
+    captured = {}
+
+    class RecordingConverter:
+        regex = "[^/]+"
+
+        def to_python(self, value):
+            converted.append(value)
+            return value
+
+        def to_url(self, value):
+            return value
+
+    def converted_view(request, value):
+        captured["resource"] = tracer.current_root_span().resource
+        return HttpResponse(value)
+
+    register_converter(RecordingConverter, "recording")
+    urls.urlpatterns.insert(0, path("converted/<recording:value>/", converted_view))
+    clear_url_caches()
+
+    with setup_django_test_spans():
+        assert Client().get("/converted/value/").status_code == 200
+
+    # Path params are resolved at request start as well as by Django, as with OTel semantics off.
+    assert converted == ["value", "value"], converted
+    assert captured["resource"] == "GET converted/<recording:value>/", captured
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_otel_semantics_keeps_async_request_resource_stable_during_application():
+    import asyncio
+    from unittest import mock
+
+    from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.django import response as django_response
+    from ddtrace.ext import SpanTypes
+    from ddtrace.trace import tracer
+
+    captured = {}
+
+    class Handler:
+        pass
+
+    class Request:
+        pass
+
+    handler = Handler()
+    Pin().onto(handler)
+
+    with tracer.start_span("django.request", resource="GET", span_type=SpanTypes.WEB) as span:
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "GET")
+        request = Request()
+        request.scope = {"datadog": {"request_spans": [span]}}
+
+        async def application(request):
+            captured["resource"] = span.resource
+            return object()
+
+        with (
+            mock.patch.object(django_response, "_before_request_tags"),
+            mock.patch.object(django_response, "_after_request_tags"),
+            mock.patch.object(django_response, "get_resolver", return_value=None),
+        ):
+            asyncio.run(django_response.traced_get_response_async(application, handler, (request,), {}))
+
+    assert captured["resource"] == "GET"
+
+
 @pytest.fixture(autouse=True)
 def cleanup_connections():
     yield
@@ -1609,15 +1744,26 @@ def test_cache_delete_many():
     setup.__exit__(None, None, None)
 
 
-@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_CACHES": "true"}, parametrize={"TEST_DJANGO_USE_TZ": ["false", "true"]}
+)
 def test_cached_view():
+    import os
+
     from django.test import Client
+    from django.test import override_settings
 
     from tests.contrib.django.utils import setup_django_test_spans
     from tests.contrib.django.utils import with_default_django_db
 
+    use_tz = os.environ["TEST_DJANGO_USE_TZ"] == "true"
+
     # make the first request so that the view is cached
-    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
+    with (
+        setup_django_test_spans() as test_spans,
+        override_settings(USE_TZ=use_tz, TIME_ZONE="America/Chicago"),
+        with_default_django_db(test_spans),
+    ):
         client = Client()
         response = client.get("/cached-users/")
         assert response.status_code == 200
@@ -1666,12 +1812,15 @@ def test_cached_view():
             "_dd.svc_src": "django",
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-            "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+            "django.cache.key": (
+                "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us"
+                + (".America/Chicago" if use_tz else "")
+            ),
             "_dd.base_service": "ddtrace_subprocess_dir",
         }
 
         assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
-        assert span_header.get_tags() == expected_meta_header
+        assert span_header.get_tags() == expected_meta_header, span_header.get_tags()
 
 
 """
