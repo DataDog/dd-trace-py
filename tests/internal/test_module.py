@@ -319,6 +319,79 @@ def test_module_hook_registered_after_import_hook_raised_called_at_once():
     ModuleWatchdog.uninstall()
 
 
+@pytest.mark.subprocess(timeout=30)
+def test_module_hook_registered_during_import_hooks_does_not_call_hook_equality_under_lock():
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    calls = []
+
+    class LateHook:
+        def __call__(self, module):
+            calls.append(module)
+
+        def __eq__(self, other):
+            # Registering takes the lock that guards the hooks being deferred.
+            ModuleWatchdog.register_module_hook("sys", lambda module: None)
+            return self is other
+
+        __hash__ = object.__hash__
+
+    late_hook = LateHook()
+
+    def hook(module):
+        ModuleWatchdog.register_module_hook(name, late_hook)
+
+    ModuleWatchdog.register_module_hook(name, hook)
+
+    __import__(name)
+
+    assert calls == [sys.modules[name]], calls
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_module_hook_registered_in_fork_child_during_import_hooks_of_another_thread_called_at_once():
+    import os
+    import sys
+    import threading
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    entered = threading.Event()
+    release = threading.Event()
+
+    def hook(module):
+        entered.set()
+        release.wait(20)
+
+    ModuleWatchdog.register_module_hook(name, hook)
+
+    thread = threading.Thread(target=__import__, args=(name,))
+    thread.start()
+    try:
+        assert entered.wait(10)
+
+        pid = os.fork()
+        if pid == 0:
+            # The thread calling the hooks is gone in the child, so nothing would call a deferred hook.
+            calls = []
+            ModuleWatchdog.register_module_hook(name, calls.append)
+            os._exit(0 if calls == [sys.modules[name]] else 1)
+    finally:
+        release.set()
+        thread.join(10)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+    ModuleWatchdog.uninstall()
+
+
 def test_module_unregister_origin_hook(module_watchdog):
     hook = mock.Mock()
     path = origin(sys.modules[__name__])

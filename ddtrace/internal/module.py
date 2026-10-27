@@ -33,17 +33,24 @@ ImportExceptionHookCond = t.Union[str, t.Callable[[str], bool]]
 log = get_logger(__name__)
 
 
+# Hooks registered for a module while a watchdog's after_import is calling the hooks for that module, by watchdog id
+# and module name. after_import calls them next, rather than register_module_hook calling them on a module that is
+# still being imported, possibly before the code that imports it has finished.
+_deferred_hooks: dict[tuple[int, str], list[ModuleHookType]] = {}
 # Makes registering a module hook atomic with after_import collecting the hooks to call for that module, so that a hook
-# registered from another thread is either collected or deferred, never lost or called twice.
+# registered from another thread is either collected or deferred, never lost or called twice. No code outside this
+# module runs while it is held.
 # A plain lock, reset after fork by hand, as after_import takes it on every import and a forksafe.Lock proxy is slower.
 _module_hooks_lock = threading_Lock()
 
 
 @forksafe.register
-def _reset_module_hooks_lock() -> None:
+def _reset_module_hooks() -> None:
     global _module_hooks_lock
 
     _module_hooks_lock = threading_Lock()
+    # The threads calling these hooks are gone in the child, so registrations there call their hooks at once again.
+    _deferred_hooks.clear()
 
 
 _run_code = None
@@ -564,10 +571,6 @@ class ModuleWatchdog(BaseModuleWatchdog):
         super().__init__()
 
         self._hook_map: defaultdict[str, list[ModuleHookType]] = defaultdict(list)
-        # Hooks registered for a module while after_import is calling the hooks for that module, by module name.
-        # after_import calls them next, rather than register_module_hook calling them on a module that is still
-        # being imported, possibly before the code that imports it has finished.
-        self._deferred_hooks: dict[str, list[ModuleHookType]] = {}
         # DEV: It would make more sense to make this a mapping of Path to ModuleType
         # but the WeakValueDictionary causes an ignored exception on shutdown
         # because the pathlib module is being garbage collected.
@@ -617,6 +620,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
             self._origin_map[path] = module
 
         name = module.__name__
+        key = (id(self), name)
 
         # Collect all hooks by module origin and name
         hooks = []
@@ -628,9 +632,9 @@ class ModuleWatchdog(BaseModuleWatchdog):
             # With no hooks to call, only another thread can register one for this module while this call runs, and
             # that registration then calls its hook itself, as it would just after this call. A nested import of the
             # same module leaves deferring to the outer call.
-            defers = bool(hooks) and name not in self._deferred_hooks
+            defers = bool(hooks) and key not in _deferred_hooks
             if defers:
-                self._deferred_hooks[name] = []
+                _deferred_hooks[key] = []
 
         if not hooks:
             return
@@ -643,18 +647,20 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 if not defers:
                     break
                 with _module_hooks_lock:
-                    # Skip deferred hooks that were unregistered since.
+                    # Missing if a hook forked and this is the child.
+                    deferred = _deferred_hooks.pop(key, None) or ()
+                    # Skip deferred hooks that were unregistered since. Compared by identity, as equality could run
+                    # code that registers a hook while the lock is held.
                     registered = self._hook_map.get(name, ())
-                    hooks = [hook for hook in self._deferred_hooks[name] if hook in registered]
+                    hooks = [hook for hook in deferred if any(hook is r for r in registered)]
                     if not hooks:
-                        del self._deferred_hooks[name]
                         defers = False
                         break
-                    self._deferred_hooks[name] = []
+                    _deferred_hooks[key] = []
         finally:
             if defers:
                 with _module_hooks_lock:
-                    del self._deferred_hooks[name]
+                    _deferred_hooks.pop(key, None)
 
     @classmethod
     def get_by_origin(cls, _origin: Path) -> t.Optional[ModuleType]:
@@ -767,7 +773,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         instance = t.cast(ModuleWatchdog, cls._instance)
         with _module_hooks_lock:
             instance._hook_map[module].append(hook)
-            deferred = instance._deferred_hooks.get(module)
+            deferred = _deferred_hooks.get((id(instance), module))
             if deferred is not None:
                 deferred.append(hook)
         if deferred is not None:
