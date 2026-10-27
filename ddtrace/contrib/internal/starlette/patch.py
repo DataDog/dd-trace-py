@@ -146,7 +146,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
     """Resolve a Starlette route template before ASGI finishes the request span."""
     # FastAPI can resolve the route without populating resource_paths.
     # Preserve that result instead of matching a different route during fallback.
-    if _get_fastapi_effective_path(scope) is not None:
+    if _get_fastapi_effective_path(scope):
         return
 
     app = scope.get("app")
