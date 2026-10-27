@@ -449,10 +449,15 @@ TEST_F(AsyncioDiscovery, RejectsStateOfTheWrongSize)
                              static_cast<Py_ssize_t>(sizeof(AsyncioStateMirror) + sizeof(void*)) }) {
         FakeAsyncioModule fake(size);
         ASSERT_NE(fake.module, nullptr) << size;
-        // Same slot as the real module's, holding the real table, so only the size check can reject it.
-        std::memcpy(static_cast<char*>(PyModule_GetState(fake.module)) + offsetof(AsyncioStateMirror, debug_offsets),
-                    &table,
-                    sizeof(table));
+        // Where the state has the real module's slot, it holds the real table, so only the size check can reject it.
+        // The smaller state ends before the slot, which discovery must not read.
+        constexpr size_t slot_end = offsetof(AsyncioStateMirror, debug_offsets) + sizeof(void*);
+        if (static_cast<size_t>(size) >= slot_end) {
+            std::memcpy(static_cast<char*>(PyModule_GetState(fake.module)) +
+                          offsetof(AsyncioStateMirror, debug_offsets),
+                        &table,
+                        sizeof(table));
+        }
         EXPECT_FALSE(discover_asyncio_offsets(fake.module)) << size;
     }
 }
