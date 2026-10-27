@@ -17,10 +17,13 @@
 #include <cstdint>
 #include <cstring>
 
+#include <internal/pycore_moduleobject.h>
+
 std::optional<AsyncioOffsets>
 discover_asyncio_offsets(PyObject* asyncio_module)
 {
-    // PyModule_GetDef and PyModule_GetState only read fields of the module object: no Python code, no locks.
+    // PyModule_GetDef only reads a field of the module object, set before the module is visible: no Python code, no
+    // locks.
     if (asyncio_module == nullptr || !PyModule_Check(asyncio_module)) {
         return std::nullopt;
     }
@@ -30,18 +33,21 @@ discover_asyncio_offsets(PyObject* asyncio_module)
         PyErr_Clear();
         return std::nullopt;
     }
-    void* state = PyModule_GetState(asyncio_module);
-    if (state == nullptr || reinterpret_cast<uintptr_t>(state) % alignof(AsyncioStateMirror) != 0) {
-        PyErr_Clear();
+    // The module's exec sets md_state with a plain store, which another thread can be doing right now on free-threaded
+    // builds, so the slot is copied through the kernel rather than loaded.
+    uintptr_t state = 0;
+    if (!read_own_memory(
+          reinterpret_cast<uintptr_t>(asyncio_module) + offsetof(PyModuleObject, md_state), &state, sizeof(state))) {
+        return std::nullopt;
+    }
+    if (state == 0 || state % alignof(AsyncioStateMirror) != 0) {
         return std::nullopt;
     }
 
     // In bounds because m_size matched. Copied through the kernel rather than loaded: if a same-size layout change put
     // task_name_counter here, a plain load would race with its atomic updates on free-threaded builds.
     uintptr_t table_address = 0;
-    if (!read_own_memory(reinterpret_cast<uintptr_t>(state) + offsetof(AsyncioStateMirror, debug_offsets),
-                         &table_address,
-                         sizeof(table_address))) {
+    if (!read_own_memory(state + offsetof(AsyncioStateMirror, debug_offsets), &table_address, sizeof(table_address))) {
         return std::nullopt;
     }
 

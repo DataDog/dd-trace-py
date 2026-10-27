@@ -38,6 +38,9 @@ _NATIVE_ASYNCIO_INIT: bool = False
 # The thread registering the _asyncio hook, while it does. Registration calls the hook at once if _asyncio is in
 # sys.modules, possibly while another thread is still executing it.
 _C_ASYNCIO_HOOK_REGISTRATION_THREAD: typing.Optional[int] = None
+# True once native code has found the task lists or been given a finished _asyncio. Until then, setting an event loop
+# tries again, for an _asyncio probed while it was still executing that no later import hook call passes on.
+_PASSED_C_ASYNCIO: bool = False
 _LOGGED_NO_TASK_LISTS: bool = False
 
 
@@ -142,6 +145,7 @@ def _completed_c_asyncio() -> typing.Optional[ModuleType]:
 
 def _call_init_asyncio(asyncio: ModuleType) -> None:
     global _LOGGED_NO_TASK_LISTS
+    global _PASSED_C_ASYNCIO
 
     from asyncio import tasks as asyncio_tasks
 
@@ -164,12 +168,16 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
             # find before then, including the uninitialized state another thread can briefly expose on free-threaded
             # builds.
             pending = module
-    if stack.init_asyncio(scheduled_tasks, eager_tasks, asyncio_c or pending) or _LOGGED_NO_TASK_LISTS:
+    found = stack.init_asyncio(scheduled_tasks, eager_tasks, asyncio_c or pending)
+    if found or asyncio_c is not None:
+        _PASSED_C_ASYNCIO = True
+    if found or _LOGGED_NO_TASK_LISTS:
         return
 
     if pending is not None:
         # The module may not have finished executing yet, for example because it imported asyncio from its own init.
-        # Its import hooks, which include ours, run once it has.
+        # Our _asyncio hook tries again once it has, if importlib still has that hook to call. Otherwise, setting an
+        # event loop does.
         return
 
     _LOGGED_NO_TASK_LISTS = True
@@ -243,6 +251,8 @@ def _(asyncio: ModuleType) -> None:
             loop: typing.Optional[aio.AbstractEventLoop] = get_argument_value(args, kwargs, 1, "loop")
             if init_stack:
                 stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                if not _PASSED_C_ASYNCIO and _completed_c_asyncio() is not None:
+                    _call_init_asyncio(asyncio)
             return f(*args, **kwargs)
 
     if init_stack:

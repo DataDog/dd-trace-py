@@ -379,12 +379,18 @@ def test_asyncio_task_lists_found_when_profiling_is_imported_inside_asyncio_c_ho
     messages = capture_asyncio_log()
     purge_asyncio()
 
-    def import_profiling(_module: object) -> None:
+    imported = []
+
+    def import_profiling(module: object) -> None:
         from ddtrace.profiling import profiler  # noqa: F401
+
+        # Asserted outside the hook, as the import swallows exceptions from hooks.
+        imported.append(module.__spec__._initializing)  # type: ignore[attr-defined]
 
     ModuleWatchdog.register_module_hook("_asyncio", import_profiling)
     import _asyncio  # noqa: F401
 
+    assert imported == [True], imported
     from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
 
@@ -459,10 +465,13 @@ def test_asyncio_task_lists_found_when_profiling_is_imported_in_another_thread_i
     purge_asyncio()
 
     errors = []
+    imported = []
 
     def import_profiling():
         try:
             from ddtrace.profiling import profiler  # noqa: F401
+
+            imported.append(sys.modules["_asyncio"].__spec__._initializing)
         except BaseException as e:
             errors.append(repr(e))
 
@@ -477,6 +486,8 @@ def test_asyncio_task_lists_found_when_profiling_is_imported_in_another_thread_i
     import _asyncio  # noqa: F401
 
     assert not errors, errors
+    # Asserted outside the hook, as the import swallows exceptions from hooks.
+    assert imported == [True], imported
 
     from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
@@ -486,5 +497,124 @@ def test_asyncio_task_lists_found_when_profiling_is_imported_in_another_thread_i
     try:
         assert _stack._asyncio_task_lists()[2] == "runtime-table"
         assert no_task_lists_logs(messages) == 0, messages
+    finally:
+        p.stop()
+
+
+@pytest.mark.subprocess(err=None)
+def test_asyncio_task_lists_found_when_profiler_starts_while_another_thread_executes_asyncio_c() -> None:
+    # Another thread started importing _asyncio before ddtrace was imported, so no ddtrace hook runs once that import
+    # finishes. The profiler starts while _asyncio is still executing, before it has set its AsyncioDebug pointer, so
+    # discovery fails then and succeeds once an event loop is set.
+    import sys
+    import threading
+    import weakref
+
+    from tests.profiling.collector.asyncio_task_lists_utils import capture_asyncio_log
+    from tests.profiling.collector.asyncio_task_lists_utils import no_task_lists_logs
+
+    assert "asyncio" not in sys.modules and "_asyncio" not in sys.modules and "ddtrace" not in sys.modules
+    messages = capture_asyncio_log()
+
+    entered = threading.Event()
+    release = threading.Event()
+    errors = []
+    real_weak_set = weakref.WeakSet
+
+    class PausingWeakSet(real_weak_set):  # type: ignore[valid-type,misc]
+        # _asyncio's init creates a WeakSet after importing asyncio, shortly before it sets its AsyncioDebug pointer.
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            asyncio = sys.modules.get("asyncio")
+            if (
+                threading.current_thread() is importer
+                and asyncio is not None
+                and not asyncio.__spec__._initializing
+                and not entered.is_set()
+            ):
+                entered.set()
+                if not release.wait(10):
+                    errors.append("_asyncio was not released")
+
+    def import_asyncio_c():
+        try:
+            import _asyncio  # noqa: F401
+        except BaseException as e:
+            errors.append(repr(e))
+
+    importer = threading.Thread(target=import_asyncio_c)
+    weakref.WeakSet = PausingWeakSet  # type: ignore[misc]
+    importer.start()
+    try:
+        assert entered.wait(10), "_asyncio did not create its WeakSet"
+
+        from ddtrace.internal.datadog.profiling.stack import _stack
+        from ddtrace.profiling import profiler
+
+        p = profiler.Profiler()
+        p.start()
+        source_while_executing = _stack._asyncio_task_lists()[2]
+    finally:
+        release.set()
+        importer.join(10)
+        weakref.WeakSet = real_weak_set  # type: ignore[misc]
+    try:
+        assert not importer.is_alive()
+        assert not errors, errors
+        assert source_while_executing == "none"
+
+        import asyncio
+
+        asyncio.run(asyncio.sleep(0))
+        assert _stack._asyncio_task_lists()[2] == "runtime-table"
+        assert no_task_lists_logs(messages) == 0, messages
+    finally:
+        p.stop()
+
+
+@pytest.mark.subprocess(err=None)
+def test_asyncio_task_lists_failure_when_profiler_starts_inside_asyncio_c_hook_is_logged_once_a_loop_is_set() -> None:
+    # As in the start-inside-the-hook test, but discovery is made to fail. Both calls see _asyncio initializing, so
+    # neither logs, and no later import hook call follows. Setting an event loop tries again, and logs once.
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+    from tests.profiling.collector.asyncio_task_lists_utils import capture_asyncio_log
+    from tests.profiling.collector.asyncio_task_lists_utils import no_task_lists_logs
+    from tests.profiling.collector.asyncio_task_lists_utils import purge_asyncio
+    from tests.profiling.collector.asyncio_task_lists_utils import record_init_asyncio
+
+    assert "ddtrace.profiling" not in sys.modules
+    messages = capture_asyncio_log()
+    calls = record_init_asyncio(result=False)
+    purge_asyncio()
+
+    started = []
+
+    def start_profiling(module: object) -> None:
+        from ddtrace.profiling import profiler
+
+        p = profiler.Profiler()
+        p.start()
+        # Asserted outside the hook, as the import swallows exceptions from hooks.
+        started.append(p)
+
+    ModuleWatchdog.register_module_hook("_asyncio", start_profiling)
+    import _asyncio
+
+    [p] = started
+    try:
+        assert [module for module, _ in calls] == [_asyncio, _asyncio], calls
+        assert no_task_lists_logs(messages) == 0, messages
+
+        import asyncio
+
+        asyncio.run(asyncio.sleep(0))
+        assert [module for module, _ in calls] == [_asyncio] * 3, calls
+        assert no_task_lists_logs(messages) == 1, messages
+
+        # Native code has had the finished module, so later loops do not try again.
+        asyncio.run(asyncio.sleep(0))
+        assert len(calls) == 3, calls
     finally:
         p.stop()

@@ -12,9 +12,10 @@
 // once they are validated against Echion's TaskObj mirror and the calling thread's live list head. Returns no offsets
 // for anything else, with no Python error set.
 //
-// Requires an attached thread state and a _asyncio module whose initialization has finished (its debug_offsets slot is
-// written last). The reference is borrowed. Runs no Python code, takes no Python locks and never detaches, so it is
-// safe to call while the interpreter may start finalizing.
+// Requires an attached thread state. The module may still be executing, in this thread or another: its state is only
+// copied through the kernel, and its debug_offsets slot, written last, is validated before use. The reference is
+// borrowed. Runs no Python code, takes no Python locks and never detaches, so it is safe to call while the interpreter
+// may start finalizing.
 std::optional<AsyncioOffsets>
 discover_asyncio_offsets(PyObject* asyncio_module);
 #endif
