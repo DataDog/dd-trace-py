@@ -38,6 +38,9 @@ _NATIVE_ASYNCIO_INIT: bool = False
 # True only while the _asyncio hook is being registered. Registration calls the hook at once if _asyncio is in
 # sys.modules, possibly while another thread is still executing it.
 _REGISTERING_C_ASYNCIO_HOOK: bool = False
+# True once _call_init_asyncio has passed a finished _asyncio module to native code. Until then, setting an event loop
+# retries, for an _asyncio that finished executing when no hook could pass it on.
+_PASSED_C_ASYNCIO: bool = False
 _LOGGED_NO_TASK_LISTS: bool = False
 
 
@@ -145,6 +148,7 @@ def _completed_c_asyncio() -> typing.Optional[ModuleType]:
 
 def _call_init_asyncio(asyncio: ModuleType) -> None:
     global _LOGGED_NO_TASK_LISTS
+    global _PASSED_C_ASYNCIO
 
     from asyncio import tasks as asyncio_tasks
 
@@ -156,6 +160,8 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
         eager_tasks = None
 
     asyncio_c = _completed_c_asyncio()
+    if asyncio_c is not None:
+        _PASSED_C_ASYNCIO = True
     if stack.init_asyncio(scheduled_tasks, eager_tasks, asyncio_c) or _LOGGED_NO_TASK_LISTS:
         return
 
@@ -236,6 +242,10 @@ def _(asyncio: ModuleType) -> None:
             loop: typing.Optional[aio.AbstractEventLoop] = get_argument_value(args, kwargs, 1, "loop")
             if init_stack:
                 stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                if not _PASSED_C_ASYNCIO and _completed_c_asyncio() is not None:
+                    # The _asyncio hook skipped the module because it was still executing when the hook was
+                    # registered, and that import did not call the new hook afterwards.
+                    _call_init_asyncio(asyncio)
             return f(*args, **kwargs)
 
     if init_stack:
