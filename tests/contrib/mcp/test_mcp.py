@@ -1,5 +1,6 @@
 import asyncio
 
+from mcp.shared.session import RequestResponder
 import pytest
 
 
@@ -15,7 +16,16 @@ def test_mcp_tool_error(mcp_setup, mcp_call_tool):
     asyncio.run(mcp_call_tool("failing_tool", {"param": "test"}))
 
 
-def test_mcp_tool_error_without_llmobs(mcp_setup, mcp_call_tool, test_spans):
+@pytest.mark.parametrize("keyword_response", [False, True])
+def test_mcp_tool_error_without_llmobs(mcp_setup, mcp_call_tool, test_spans, monkeypatch, keyword_response):
+    if keyword_response:
+        respond = RequestResponder.respond
+
+        async def respond_with_keyword(self, response, *args, **kwargs):
+            return await respond(self, *args, response=response, **kwargs)
+
+        monkeypatch.setattr(RequestResponder, "respond", respond_with_keyword)
+
     assert not mcp_setup._datadog_integration.llmobs_enabled
     result = asyncio.run(mcp_call_tool("failing_tool", {"param": "test"}))
     assert result.isError

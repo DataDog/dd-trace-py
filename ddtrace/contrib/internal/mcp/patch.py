@@ -264,7 +264,7 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
     from mcp.types import CallToolResult
     from mcp.types import ListToolsResult
 
-    response_arg = args[0] if len(args) > 0 else None
+    response_arg = args[0] if args else kwargs.get("response")
     response = getattr(response_arg, "root", None)
     integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
