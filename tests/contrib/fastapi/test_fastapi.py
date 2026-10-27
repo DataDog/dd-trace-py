@@ -572,6 +572,35 @@ def test_included_router_resource_with_catch_all(fastapi_tracer, test_spans, cat
     )
 
 
+@pytest.mark.skipif(
+    parse_version(fastapi.__version__) < parse_version("0.137.0"),
+    reason="Older FastAPI versions do not preserve mounts when including routers",
+)
+def test_included_router_mounted_app_resource_names(fastapi_tracer, test_spans):
+    """An empty effective route must still allow fallback naming for mounted apps."""
+    subapp = fastapi.FastAPI()
+
+    @subapp.get("/items/{item_id}")
+    async def get_item(item_id: int):
+        return {"id": item_id}
+
+    router = fastapi.APIRouter()
+    router.mount("/sub", subapp)
+    app = fastapi.FastAPI()
+    app.include_router(router)
+
+    with TestClient(app) as client:
+        response = client.get("/sub/items/1")
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 1}
+    request_spans = list(test_spans.filter_spans(name="fastapi.request"))
+    assert len(request_spans) == 2
+    for span in request_spans:
+        assert span.resource == "GET /items/{item_id}"
+        assert span.get_tag("http.route") == "/items/{item_id}"
+
+
 def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
     """Regression test for FastAPI >= 0.137 lazy _IncludedRouter breaking resource names."""
     from fastapi import APIRouter
