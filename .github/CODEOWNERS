@@ -41,7 +41,9 @@ ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 # Guild
 # Repository tooling defaults. Domain-specific rules below take precedence.
 AGENTS.md                           @DataDog/python-guild
+.agents/                            @DataDog/python-guild
 .claude/                            @DataDog/python-guild
+.llm-validation/                    @DataDog/python-guild
 .cursor/                            @DataDog/python-guild
 .sg/                                @DataDog/python-guild
 hooks/                              @DataDog/python-guild
@@ -241,6 +243,9 @@ ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog
 tests/crashtracker/                          @DataDog/profiling-python
 src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
+# APM Integrations
+.agents/skills/apm-integrations/     @DataDog/python-guild @DataDog/apm-idm-python
+
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
@@ -262,6 +267,7 @@ ddtrace/contrib/internal/mlflow                               @DataDog/ml-observ
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/internal/ray                                  @DataDog/ml-observability
 ddtrace/contrib/internal/mcp                                  @DataDog/ml-observability
+ddtrace/contrib/internal/typesafe                             @DataDog/ml-observability
 ddtrace/contrib/internal/vllm                                 @DataDog/ml-observability
 ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
@@ -289,9 +295,11 @@ tests/contrib/mlflow                                          @DataDog/ml-observ
 tests/contrib/pydantic_ai                                     @DataDog/ml-observability
 tests/contrib/ray                                             @DataDog/ml-observability
 tests/contrib/mcp                                             @DataDog/ml-observability
+tests/contrib/typesafe                                        @DataDog/ml-observability
 tests/contrib/vllm                                            @DataDog/ml-observability
 tests/contrib/claude_agent_sdk                                @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
+.agents/skills/llmobs-integrations/                           @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.langchain.*                     @DataDog/ml-observability

@@ -233,7 +233,7 @@ class Snapshot(LogSignal):
                 }
 
         return {
-            "stack": self._stack,
+            "stack": self._stack or [],
             "captures": captures,
             "duration": self.duration,
         }
