@@ -162,6 +162,11 @@ this document, in the ``docs`` directory. The documentation for each Integration
 in that integration's ``__init__.py`` file. See :ref:`this page<integration_guidelines>` for more information
 on writing documentation for Integrations.
 
+Documentation builds in CI and Read the Docs use ``scripts/docs/build.sh``. The script downloads
+Python's intersphinx inventory to ``docs/_build/python3.inv`` before starting Sphinx, retrying up to
+five times with a two-second delay. If all attempts fail, the build stops. Use the same script for
+local builds to get this retry behavior.
+
 Logging
 -------
 
