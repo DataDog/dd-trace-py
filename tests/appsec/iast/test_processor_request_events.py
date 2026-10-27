@@ -46,7 +46,10 @@ def processor(monkeypatch):
         ("asgi.request", "fastapi", True, True),
         ("asgi.request", "fastapi", False, False),
         ("wsgi.__call__", "flask", True, False),
-        ("asgi.request", "django", True, False),
+        ("asgi.request", "django", True, True),
+        ("asgi.request", "django", False, False),
+        ("django.traced_get_response", "django", True, True),
+        ("django.traced_get_response", "django", False, False),
         ("fastapi.serialize_response", "fastapi", True, False),
     ],
 )

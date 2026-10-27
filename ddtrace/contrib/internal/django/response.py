@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import functools
 from types import FunctionType
 from types import ModuleType
@@ -12,6 +13,8 @@ from django.http import HttpResponse
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.web_request import WebRequestCompleting
+from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -98,20 +101,30 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
 
     pin = Pin.get_from(instance)
 
-    with core.context_with_data(
-        "django.traced_get_response",
-        remote_addr=request.META.get("REMOTE_ADDR"),
-        headers=request_headers,
-        headers_case_sensitive=True,
-        span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config_django),
-        span_type=SpanTypes.WEB,
-        tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
-        integration_config=config_django,
-        distributed_headers=request_headers,
-        activate_distributed_headers=True,
-    ) as ctx:
+    with (
+        core.context_with_data(
+            "django.traced_get_response",
+            remote_addr=request.META.get("REMOTE_ADDR"),
+            headers=request_headers,
+            headers_case_sensitive=True,
+            span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
+            resource=utils.REQUEST_DEFAULT_RESOURCE,
+            service=trace_utils.int_service(pin, config_django),
+            span_type=SpanTypes.WEB,
+            tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
+            integration_config=config_django,
+            distributed_headers=request_headers,
+            activate_distributed_headers=True,
+        ) as ctx,
+        ExitStack() as cleanup,
+    ):
+        span = span_from_context(ctx)
+        # WSGI ends this span when get_response returns, before streaming bodies.
+        if core.has_listeners(WebRequestCompleting.event_name):
+            cleanup.callback(core.dispatch_event, WebRequestCompleting(ctx, span))
+        if core.has_listeners(WebRequestReady.event_name):
+            core.dispatch_event(WebRequestReady(ctx, span))
+
         core.dispatch(
             "django.traced_get_response.pre",
             (
@@ -136,7 +149,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 )
                 response.content = content
                 response["Content-Length"] = len(content.encode())
-            utils._after_request_tags(pin, span_from_context(ctx), request, response)
+            utils._after_request_tags(pin, span, request, response)
             return response
 
         try:
