@@ -77,8 +77,11 @@ SpanLinks::assign_locked(const SpanLinkKey& key, std::optional<Span> span)
 
     const uint64_t span_id = span->span_id;
     const bool index = span->kind == SpanLinkKind::Span;
-    const bool already_indexed = index && it != key_to_entry.end() && it->second.span &&
-                                 it->second.span->kind == SpanLinkKind::Span && it->second.span->span_id == span_id;
+    bool already_indexed = false;
+    if (index && it != key_to_entry.end()) {
+        const std::optional<Span>& existing = it->second.span;
+        already_indexed = existing.has_value() && existing->kind == SpanLinkKind::Span && existing->span_id == span_id;
+    }
 
     // Index before touching the entry, so a failed allocation leaves the key as it was. Index only the span itself, not
     // its local root: a local root can finish before an active child, and that must not move the child's link.
@@ -253,7 +256,11 @@ SpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
 
     const SpanLinkKey key{ SpanLinkDomain::Thread, thread_id };
     auto it = key_to_entry.find(key);
-    if (it != key_to_entry.end() && it->second.span && it->second.span->span_id == expected_span_id) {
+    if (it == key_to_entry.end()) {
+        return;
+    }
+    const std::optional<Span>& existing = it->second.span;
+    if (existing.has_value() && existing->span_id == expected_span_id) {
         remove_locked(key);
     }
 }

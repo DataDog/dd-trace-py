@@ -4,7 +4,8 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
-#include <chrono>
+#include <future>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <string>
@@ -158,6 +159,7 @@ TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
 
 namespace {
 
+using Datadog::run_locked;
 using Datadog::Span;
 using Datadog::SpanLinkDomain;
 using Datadog::SpanLinkEntry;
@@ -503,7 +505,7 @@ TEST(SpanLinksKeyed, RetargetToTheSameSpanIdOnlyUpdatesLabels)
     links.close();
 }
 
-TEST(SpanLinksKeyed, ContentionHookRunsOnlyWhenContended)
+TEST(SpanLinksKeyed, UncontendedCallsSkipContentionHook)
 {
     auto& links = SpanLinks::get_instance();
     const uint64_t token = fresh_lifecycle(links);
@@ -518,34 +520,42 @@ TEST(SpanLinksKeyed, ContentionHookRunsOnlyWhenContended)
     EXPECT_EQ(links.get_entry(task_key(1), counting), (SpanLinkEntry{ span_link(10), birth_of(links, task_key(1)) }));
     EXPECT_EQ(calls, 0);
 
-    // Make another thread hold the mutex for long stretches by retargeting many keys back and forth.
-    constexpr uint64_t keys = 20000;
-    for (uint64_t id = 1; id <= keys; ++id) {
-        links.link(token, std::nullopt, id, 0, span_link(1000));
-    }
-    std::atomic<bool> stop{ false };
-    std::thread holder([&] {
-        while (!stop.load()) {
-            links.retarget(token, 1000, span_link(2000));
-            links.retarget(token, 2000, span_link(1000));
-        }
-    });
+    links.close();
+}
 
-    // On contention the hook runs, and the work it wraps still happens under the mutex.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    uint64_t id = keys;
-    while (calls == 0 && std::chrono::steady_clock::now() < deadline) {
-        ++id;
-        EXPECT_TRUE(links.link(token, std::nullopt, id, 0, span_link(3000), counting));
-    }
-    stop.store(true);
+TEST(RunLocked, ContendedCallGoesThroughHook)
+{
+    // Another thread holds the mutex until the hook runs, so the call is always contended.
+    std::mutex mtx;
+    std::promise<void> locked;
+    std::promise<void> release;
+    std::thread holder([&] {
+        const std::lock_guard<std::mutex> guard(mtx);
+        locked.set_value();
+        release.get_future().wait();
+    });
+    locked.get_future().wait();
+
+    int calls = 0;
+    bool ran = false;
+    run_locked(
+      mtx,
+      [&] { ran = true; },
+      [&](auto&& fn) {
+          ++calls;
+          // The work has not run before the hook, and runs inside the function the hook gets.
+          EXPECT_FALSE(ran);
+          release.set_value();
+          fn();
+          EXPECT_TRUE(ran);
+      });
     holder.join();
 
-    EXPECT_GT(calls, 0);
-    EXPECT_EQ(span_at(links, task_key(id)), span_link(3000));
-    EXPECT_TRUE(links.holds_span(3000));
-
-    links.close();
+    EXPECT_EQ(calls, 1);
+    EXPECT_TRUE(ran);
+    // The hook's function released the mutex before returning.
+    ASSERT_TRUE(mtx.try_lock());
+    mtx.unlock();
 }
 
 TEST(SpanLinksKeyed, WritersAfterCloseNeverLand)

@@ -89,6 +89,24 @@ struct SpanLinkEntry
     bool operator==(const SpanLinkEntry& other) const { return span == other.span && birth == other.birth; }
 };
 
+// Runs fn under mtx. The uncontended path never calls on_contention. On contention, on_contention gets a function that
+// blocks on mtx, runs fn and releases mtx before returning, so a caller that releases the GIL around it re-acquires
+// the GIL only after the mutex is free again. fn never calls into Python.
+template<typename Fn, typename OnContention>
+void
+run_locked(std::mutex& mtx, Fn&& fn, OnContention&& on_contention)
+{
+    std::unique_lock<std::mutex> lock(mtx, std::try_to_lock);
+    if (lock.owns_lock()) {
+        fn();
+        return;
+    }
+    on_contention([&] {
+        std::lock_guard<std::mutex> guard(mtx);
+        fn();
+    });
+}
+
 // Native span attribution, keyed by execution unit.
 //
 // There are two sets of operations:
@@ -98,7 +116,7 @@ struct SpanLinkEntry
 // - The keyed operations (link, retarget, holds_span, clear, get_entry, open, close) follow the per-execution-unit
 //   design. Writes are accepted only with the current lifecycle token, and only while that token is odd. That lets a
 //   writer that started before a stop, or that runs while stopped, become a no-op without extra bookkeeping. They take
-//   a contention hook (see with_lock) so that callers holding the GIL release it only when the mutex is contended.
+//   a contention hook (see run_locked) so that callers holding the GIL release it only when the mutex is contended.
 class SpanLinks
 {
   public:
@@ -241,21 +259,10 @@ class SpanLinks
         bool finished = false;
     };
 
-    // Runs fn under mtx. The uncontended path never calls on_contention. On contention, on_contention gets a function
-    // that blocks on mtx, runs fn and releases mtx before returning, so a caller that releases the GIL around it
-    // re-acquires the GIL only after the mutex is free again. fn never calls into Python.
     template<typename Fn, typename OnContention>
     void with_lock(Fn&& fn, OnContention&& on_contention)
     {
-        std::unique_lock<std::mutex> lock(mtx, std::try_to_lock);
-        if (lock.owns_lock()) {
-            fn();
-            return;
-        }
-        on_contention([&] {
-            std::lock_guard<std::mutex> guard(mtx);
-            fn();
-        });
+        run_locked(mtx, fn, on_contention);
     }
 
     bool token_is_current_locked(uint64_t token) const
