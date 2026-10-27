@@ -17,6 +17,23 @@ uv_lint() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# cython-lint applies pycodestyle to any file named explicitly, which conflicts with
+# ruff's .py/.pyi style, so only pass it Cython sources and directories.
+cython_lint_paths() {
+  local paths=("${@:-.}")
+  local cython_paths=()
+  local path
+  for path in "${paths[@]}"; do
+    case "$path" in
+      *.pyx|*.pxd) cython_paths+=("$path") ;;
+      *) [[ -d "$path" ]] && cython_paths+=("$path") ;;
+    esac
+  done
+  if [[ ${#cython_paths[@]} -gt 0 ]]; then
+    uv_lint cython-lint "${cython_paths[@]}"
+  fi
+}
+
 cmd="${1:-}"
 shift || true
 
@@ -25,7 +42,7 @@ case "$cmd" in
   fmt)
     uv_lint ruff format --no-cache "${@:-.}"
     uv_lint ruff check --fix --no-cache "${@:-.}"
-    uv_lint cython-lint "${@:-.}"
+    cython_lint_paths "$@"
     "$SCRIPT_DIR/lint" cformat
     "$SCRIPT_DIR/lint" cmakeformat
     ;;
@@ -38,14 +55,14 @@ case "$cmd" in
   pre-commit-python)
     uv_lint ruff format --no-cache "${@:-.}"
     uv_lint ruff check --fix --show-fixes --no-cache "${@:-.}"
-    uv_lint cython-lint "${@:-.}"
+    cython_lint_paths "$@"
     ;;
 
   # --- style checks ---
   style)
     "$SCRIPT_DIR/lint" format_check "$@"
     uv_lint ruff check --no-cache "${@:-.}"
-    uv_lint cython-lint "${@:-.}"
+    cython_lint_paths "$@"
     "$SCRIPT_DIR/lint" cformat
     "$SCRIPT_DIR/lint" cmakeformat
     ;;

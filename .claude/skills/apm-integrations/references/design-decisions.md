@@ -22,13 +22,13 @@ new code should use `context_with_event` or `context_with_data` instead.
 ## The contrib/internal/ Split
 
 Integration code lives in `ddtrace/contrib/internal/{name}/` (not `ddtrace/contrib/{name}/`).
-The public API is `patch()`, `unpatch()`, and `get_version()` from `__init__.py`.
-Each `__init__.py` contains RST docstrings for documentation generation --
+Patch exports live in `patch.py`; users normally enable instrumentation via `ddtrace.patch()`.
+Each integration `__init__.py` contains RST docstrings for documentation generation --
 read `ddtrace/contrib/internal/anthropic/__init__.py` for an example.
 
 ## Three Standard Patterns
 
-**`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations):
+**`context_with_event()` + `TracingEvent`** (preferred for new integrations):
 Typed event-driven pattern using `core.context_with_event()` with `TracingEvent`
 subclasses and `TracingSubscriber`. Infrastructure exists in `ddtrace/_trace/events.py`
 and `ddtrace/_trace/subscribers/`. Read concrete contrib examples such as
@@ -38,10 +38,10 @@ its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
 
-**`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers use
+**`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
-listeners consume (~80+ event listeners that create spans). Used by botocore,
-flask, httpx, django. This pattern decouples patch code from span creation.
+listeners consume to create spans. Used by botocore,
+flask and django. This pattern decouples patch code from span creation.
 
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call
@@ -61,8 +61,8 @@ workflow; LLMObs lifecycle and extraction details belong in that skill.
 | `ddtrace/_monkey.py` | PATCH_MODULES registry |
 | `ddtrace/_trace/pin.py` | Pin system (DEPRECATED for new code) |
 | `ddtrace/_trace/trace_handlers.py` | Span creation for context_with_data integrations |
-| `ddtrace/_trace/events.py` | TracingEvent base class (NEW events API) |
-| `ddtrace/_trace/subscribers/_base.py` | TracingSubscriber base (NEW events API) |
+| `ddtrace/_trace/events.py` | TracingEvent base class |
+| `ddtrace/_trace/subscribers/_base.py` | TracingSubscriber base |
 | `ddtrace/internal/core/__init__.py` | Core API (context_with_data, context_with_event) |
 | `ddtrace/internal/core/events.py` | Event + event_field() primitives |
 | `tests/*/suitespec.yml` | Test environment matrix |
