@@ -2730,10 +2730,9 @@ MUL: "*"
     def test_responses_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
         """Test that cache write token metrics are captured for the responses API.
 
-        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
-        ``usage.input_tokens_details`` for the responses API, split by cache TTL in
-        ``cache_write_tokens_details``. The openai SDK does not type prompt_cache_options yet, so it is
-        sent through extra_body.
+        Newer OpenAI models (GPT-5.6+) report cache_write_tokens on usage.input_tokens_details for the
+        responses API, split by cache TTL in cache_write_tokens_details. The openai SDK does not type
+        prompt_cache_options yet, so it is sent through extra_body.
         """
         client = openai.OpenAI()
         model = "gpt-5.6-sol"
