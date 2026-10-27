@@ -107,6 +107,7 @@ class ExposureWriter(PeriodicService):
         enabled: Optional[bool] = None,
         route_selector: Optional[FeatureFlagEVPRouteSelector] = None,
         connection_factory: Optional[Callable[..., Any]] = None,
+        retry_wait: Optional[Callable[[float], Any]] = None,
     ) -> None:
         # Read configuration from settings
         if enabled is None:
@@ -123,6 +124,7 @@ class ExposureWriter(PeriodicService):
         self._enabled: bool = enabled
         self._route_selector = route_selector or get_feature_flag_evp_route_selector()
         self._connection_factory = connection_factory
+        self._retry_wait = retry_wait
 
         # Configure intake endpoint
         self._intake: str = agent_config.trace_agent_url
@@ -218,6 +220,7 @@ class ExposureWriter(PeriodicService):
             attempts=self.RETRY_ATTEMPTS,
             initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             until=lambda result: not (isinstance(result, Exception) and _is_definitive_pre_send_failure(result)),
+            sleep_func=self._retry_wait,
         )(self._send_payload)
         response: Union[Response, Exception] = send(payload, num_events, route)
         # The retry helper returns terminal exceptions accepted by until.
