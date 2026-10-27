@@ -244,7 +244,7 @@ tests/crashtracker/                          @DataDog/profiling-python
 src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # APM Integrations
-.agents/skills/apm-integrations/     @DataDog/python-guild @DataDog/apm-integrations
+.agents/skills/apm-integrations/     @DataDog/python-guild @DataDog/apm-idm-python
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
