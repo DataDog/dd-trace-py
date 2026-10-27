@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import dataclasses
 import sys
-from typing import TYPE_CHECKING
 from typing import Optional
 
 import mcp
 
-
-if TYPE_CHECKING:
-    from mcp.types import ClientRequest
-    from mcp.types import Request
-
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.internal.mcp.utils import DatadogServerMiddleware
+from ddtrace.contrib.internal.mcp.utils import extract_distributed_headers_from_mcp_request
+from ddtrace.contrib.internal.mcp.utils import set_distributed_headers_into_mcp_request
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.contrib.trace_utils import unwrap
@@ -23,16 +19,13 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import DD_TRACE_CONTEXT_META_KEY
-from ddtrace.llmobs._integrations.mcp import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import TELEMETRY_KEY
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._integrations.mcp import get_tool_error_message
 from ddtrace.llmobs._integrations.mcp import is_tool_error
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
 
 
@@ -60,67 +53,7 @@ def _supported_versions() -> dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(request: ClientRequest) -> ClientRequest:
-    """Inject distributed tracing headers into MCP request metadata."""
-    span = tracer.current_span()
-    if span is None:
-        return request
-
-    headers = {}
-    HTTPPropagator.inject(span.context, headers)
-    if not headers:
-        return request
-    if _get_attr(request, "root", None) is None:
-        return _set_distributed_headers_into_mcp_v2_request(request, headers)
-
-    try:
-        request_params = _get_attr(request.root, "params", None)
-        if not request_params:
-            return request
-
-        # Use the `_meta` field to store tracing headers. It is accessed via a public
-        # `meta` attribute on the request params. This field is reserved for server/clients
-        # to attach additional metadata to a request. For more information, see:
-        # https://modelcontextprotocol.io/specification/2025-06-18/basic#meta
-        existing_meta = _get_attr(request_params, "meta", None)
-        meta_dict = existing_meta.model_dump() if existing_meta else {}
-
-        meta_dict[DD_TRACE_CONTEXT_META_KEY] = headers
-        params_dict = request_params.model_dump(by_alias=True)
-        params_dict["_meta"] = meta_dict
-
-        new_params = type(request_params)(**params_dict)
-        request_dict = request.root.model_dump()
-        request_dict["params"] = new_params
-
-        new_request_root = type(request.root)(**request_dict)
-        return type(request)(new_request_root)
-    except Exception:
-        log.error("Error injecting distributed tracing headers into MCP request metadata", exc_info=True)
-        return request
-
-
-def _set_distributed_headers_into_mcp_v2_request(request, headers: dict[str, str]):
-    """mcp>=2 sends concrete request models (no RootModel wrapper) whose params._meta is a plain dict."""
-    try:
-        request_params = _get_attr(request, "params", None)
-        if not request_params:
-            return request
-        meta = dict(_get_attr(request_params, "meta", None) or {})
-        meta[DD_TRACE_CONTEXT_META_KEY] = headers
-        return request.model_copy(update={"params": request_params.model_copy(update={"meta": meta})})
-    except Exception:
-        log.error("Error injecting distributed tracing headers into MCP request metadata", exc_info=True)
-        return request
-
-
-def _extract_distributed_headers_from_mcp_request(request_root: Request) -> Optional[dict[str, str]]:
-    """Extract distributed tracing headers from MCP request params.meta field."""
-    request_params = _get_attr(request_root, "params", None)
-    meta = _get_attr(request_params, "meta", None) if request_params else None
-    meta_dict = meta.model_dump() if meta and hasattr(meta, "model_dump") else {}
-    headers = meta_dict.get(DD_TRACE_CONTEXT_META_KEY, {})
-    return headers if headers else None
+MCP_VERSION = parse_version(get_version())
 
 
 def traced_send_request(func, instance, args: tuple, kwargs: dict):
@@ -128,7 +61,7 @@ def traced_send_request(func, instance, args: tuple, kwargs: dict):
     if not args or not config.mcp.distributed_tracing:
         return func(*args, **kwargs)
     request = args[0]
-    modified_request = _set_distributed_headers_into_mcp_request(request)
+    modified_request = set_distributed_headers_into_mcp_request(request)
     return func(*((modified_request,) + args[1:]), **kwargs)
 
 
@@ -241,7 +174,7 @@ def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
     if (
         isinstance(request_root, CallToolRequest)
         and config.mcp.distributed_tracing
-        and (headers := _extract_distributed_headers_from_mcp_request(request_root))
+        and (headers := extract_distributed_headers_from_mcp_request(request_root))
     ):
         activate_distributed_headers(tracer, config.mcp, headers)
 
@@ -301,85 +234,11 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
             )
 
 
-class _DatadogServerMiddleware:
-    """mcp>=2 server middleware. Every transport and protocol version runs each inbound
-    message through Server.middleware, so this replaces the RequestResponder patches used for mcp<2.
-    """
-
-    async def __call__(self, ctx, call_next):
-        integration: Optional[MCPIntegration] = getattr(mcp, "_datadog_integration", None)
-        # Server.middleware is provisional upstream, so ctx fields are read defensively
-        method = getattr(ctx, "method", None)
-        if integration is None or getattr(ctx, "request_id", None) is None:
-            return await call_next(ctx)
-
-        if method == "tools/list":
-            result = await call_next(ctx)
-            if config.mcp.capture_intent:
-                integration.inject_tools_list_response(result)
-            return result
-
-        # While this middleware sees all requests, we only trace these types right now
-        if method not in ("initialize", "tools/call"):
-            return await call_next(ctx)
-
-        try:
-            span, ctx = _start_server_span(integration, method, ctx)
-        except Exception:
-            log.debug("Error starting MCP server span", exc_info=True)
-            return await call_next(ctx)
-
-        result = None
-        try:
-            result = await call_next(ctx)
-            return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            integration.llmobs_set_tags(
-                span, args=[], kwargs={"ctx": ctx}, response=result, operation=SERVER_MIDDLEWARE_OPERATION_NAME
-            )
-            span.finish()
-
-
-def _start_server_span(integration: MCPIntegration, method: str, ctx):
-    if (
-        method == "tools/call"
-        and config.mcp.distributed_tracing
-        and (headers := (getattr(ctx, "meta", None) or {}).get(DD_TRACE_CONTEXT_META_KEY))
-    ):
-        activate_distributed_headers(tracer, config.mcp, headers)
-
-    operation_name = SERVER_TOOL_CALL_OPERATION_NAME if method == "tools/call" else SERVER_REQUEST_OPERATION_NAME
-    span = integration.trace(operation_name, submit_to_llmobs=True, span_name=f"mcp.{method}")
-
-    if method == "tools/call":
-        try:
-            ctx = _strip_telemetry_argument(integration, span, ctx)
-        except Exception:
-            span.finish()
-            raise
-    return span, ctx
-
-
-def _strip_telemetry_argument(integration: MCPIntegration, span: Span, ctx):
-    """Records and removes the intent argument. Middleware must not mutate the wire params, so
-    the stripped copy is passed down the chain through a replaced context.
-    """
-    params = ctx.params or {}
-    arguments = params.get("arguments")
-    if not isinstance(arguments, dict) or TELEMETRY_KEY not in arguments:
-        return ctx
-    params = {**params, "arguments": dict(arguments)}
-    integration.process_telemetry_argument(span, {"params": params})
-    return dataclasses.replace(ctx, params=params)
-
-
 def traced_client_session_adopt(func, instance, args: tuple, kwargs: dict):
-    """mcp>=2 stateless sessions skip initialize and install the server's identity through adopt()
-    (discover(), Client's auto negotiation, a pinned protocol version). A pinned version without a
-    prior DiscoverResult carries no server identity, so those sessions get no mcp_server_name.
+    """Tags the client session span with the server's name on stateless mcp>=2 sessions, which skip
+    initialize. Their server info arrives in a discover request's DiscoverResult, which every stateless
+    setup path passes to adopt(). A Client pinned with mode="2026-07-28" skips discover and adopts a
+    placeholder with no server info (unless given prior_discover), so it gets no mcp_server_name.
     """
     result = func(*args, **kwargs)
     integration: MCPIntegration = mcp._datadog_integration
@@ -395,9 +254,9 @@ def traced_server_runner_init(func, instance, args: tuple, kwargs: dict):
     result = func(*args, **kwargs)
     try:
         middleware = instance.server.middleware
-        if not any(isinstance(m, _DatadogServerMiddleware) for m in middleware):
+        if not any(isinstance(m, DatadogServerMiddleware) for m in middleware):
             # Outermost, so the span also covers params validation and the SDK's OpenTelemetry middleware
-            middleware.insert(0, _DatadogServerMiddleware())
+            middleware.insert(0, DatadogServerMiddleware())
     except Exception:
         log.debug("Error installing Datadog MCP server middleware", exc_info=True)
     return result
@@ -426,17 +285,16 @@ def patch():
     wrap(ClientSession, "list_tools", traced_client_session_list_tools)
     wrap(ClientSession, "initialize", traced_client_session_initialize)
 
-    try:
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
-    except ImportError:
-        # mcp>=2 removed mcp.shared.session
+    if MCP_VERSION >= (2, 0, 0):
         from mcp.server.runner import ServerRunner
 
         wrap(ClientSession, "send_request", traced_send_request)
         wrap(ClientSession, "adopt", traced_client_session_adopt)
         wrap(ServerRunner, "__init__", traced_server_runner_init)
         return
+
+    from mcp.shared.session import BaseSession
+    from mcp.shared.session import RequestResponder
 
     wrap(BaseSession, "send_request", traced_send_request)
     wrap(RequestResponder, "respond", traced_request_responder_respond)
@@ -463,8 +321,7 @@ def unpatch():
     unwrap(ClientSession, "list_tools")
     unwrap(ClientSession, "initialize")
 
-    # Only wrapped on mcp>=2, see patch().
-    if iswrapped(ClientSession, "adopt"):
+    if MCP_VERSION >= (2, 0, 0):
         from mcp.server.runner import ServerRunner
 
         unwrap(ClientSession, "send_request")

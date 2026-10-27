@@ -1,22 +1,21 @@
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
-from importlib.metadata import version
 import json
 import threading
 import time
 
 import pytest
 
+from ddtrace.contrib.internal.mcp.patch import MCP_VERSION
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
 from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
 
 
-MCP_V2 = parse_version(version("mcp")) >= (2, 0, 0)
+MCP_V2 = MCP_VERSION >= (2, 0, 0)
 
 # mcp 2 replaced FastMCP and the session classes the v1 tests are written against
 collect_ignore = ["test_mcp.py", "test_mcp_llmobs.py"] if MCP_V2 else ["test_mcp_v2.py"]

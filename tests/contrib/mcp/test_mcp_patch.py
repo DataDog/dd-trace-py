@@ -1,3 +1,4 @@
+from ddtrace.contrib.internal.mcp.patch import MCP_VERSION
 from ddtrace.contrib.internal.mcp.patch import get_version
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
@@ -14,13 +15,14 @@ def _patched_functions():
         ClientSession.list_tools,
         ClientSession.initialize,
     ]
-    try:
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
-    except ImportError:
+    if MCP_VERSION >= (2, 0, 0):
         from mcp.server.runner import ServerRunner
 
         return functions + [ClientSession.send_request, ClientSession.adopt, ServerRunner.__init__]
+
+    from mcp.shared.session import BaseSession
+    from mcp.shared.session import RequestResponder
+
     return functions + [
         BaseSession.send_request,
         RequestResponder.__enter__,

@@ -2,4 +2,4 @@
 features:
   - |
     mcp: Adds support for ``mcp`` 2.x, including clients and servers using the stateless 2026-07-28 MCP protocol.
-    Previously, no MCP spans were created when ``mcp`` 2.x was installed.
+    Previously, no APM or Agent Observability spans were created for MCP clients or servers when ``mcp`` 2.x was installed.
