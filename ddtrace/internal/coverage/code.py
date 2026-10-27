@@ -5,7 +5,6 @@ from copy import deepcopy
 from inspect import getmodule
 import os
 from pathlib import Path
-import sys
 import threading as _threading
 from types import CodeType
 from types import ModuleType
@@ -13,7 +12,8 @@ import typing as t
 
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
-from ddtrace.internal.coverage.instrumentation import instrument_all_lines
+from ddtrace.internal.coverage.engine import CoverageEngine
+from ddtrace.internal.coverage.engine import create_engine
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
@@ -30,27 +30,10 @@ from ddtrace.internal.utils.paths import is_contained
 from ddtrace.internal.utils.paths import relative_path
 
 
-try:
-    from ddtrace.internal.bytecode_injection.core import Probe
-except (AssertionError, ImportError):  # pragma: no cover
-    # Python 3.12+ uses sys.monitoring (PY_START events); the bytecode-injection
-    # framework asserts (3, 10) <= version < (3, 12) and does not exist there. The stub
-    # keeps isinstance() checks safe and always-False on versions without probes.
-
-    class Probe:  # type: ignore[no-redef]
-        """Stub for Python versions without bytecode-injection file-level probes."""
-
-
 log = get_logger(__name__)
 
 _original_exec = exec
 
-# Bytecode for an empty module — used to detect empty __init__.py files.
-# Compiled at import time so it matches the running Python version.
-_EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
-
-_PY_GE_312 = is_at_least_py(3, 12)
-_PY_GE_313 = is_at_least_py(3, 13)
 _PY_GE_314 = is_at_least_py(3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
 _SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
@@ -163,10 +146,10 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         self._coverage_enabled: bool = False
         self._file_level_coverage: bool = False
-        # POC (file-level bytecode injection, Python 3.10/3.11): registry of every Probe
-        # injected into instrumented code objects, so CollectInContext can re-arm them
-        # (the sys.monitoring restart_events() equivalent).
-        self._probes: list[Probe] = []
+        # Version-specific instrumentation (sys.monitoring vs bytecode traps, probes,
+        # event re-arming, empty-module handling) is encapsulated behind the engine API —
+        # see ddtrace.internal.coverage.engine.
+        self._engine: CoverageEngine = create_engine(self)
         self.seen: set[tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
@@ -264,20 +247,17 @@ class ModuleCodeCollector(ModuleWatchdog):
             ctx_lines = collector._covered_lines[path]
             ctx_lines.add(line)
 
-    def hook(self, arg: t.Union[tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]], "Probe"]):
-        # POC (file-level bytecode injection, Python 3.10/3.11): traps carry a mutable Probe
-        # instead of a (line, path, import_name) tuple. First fire per coverage context
-        # records the file plus its import dependencies; subsequent fires are a cheap
-        # dead-flag check. Probes are re-armed at CollectInContext entry.
-        if isinstance(arg, Probe):
-            if arg.dead:
-                return
-            arg.dead = True
-            self.hook_file(arg.path)
-            for dep in arg.deps:
-                self.hook_import(arg.path, dep)
-            return
+    def arm(self, import_context: bool = False) -> None:
+        """Re-arm instrumentation events for a new coverage context.
 
+        The engine decides what this means per Python version: sys.monitoring
+        ``restart_events()`` on 3.12+, bytecode-probe flag resets on 3.10/3.11, a no-op on
+        3.9. ``import_context`` marks per-module-import contexts, which engines with
+        self-disabling events may skip re-arming for.
+        """
+        self._engine.arm(import_context=import_context)
+
+    def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
         line: int
         path: str
         import_name: t.Optional[tuple[str, tuple[str, ...]]]
@@ -490,24 +470,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             # active and update the DISABLE optimisation flag accordingly.  Then re-enable
             # monitoring only when the optimisation is active (restart_events is global and
             # would corrupt other tools' state if called unnecessarily).
-            # NOTE: This global restart_events() call is safe specifically because it is
-            # gated on update_disable_optimization() having *just* confirmed no other tool is
-            # registered -- there is no other tool's disabled-event state for it to corrupt at
-            # this instant. Once another tool is detected, this branch stops firing for the rest
-            # of the run. This is deliberately different from the tool-scoped set_local_events()
-            # toggle in instrumentation_py3_12._rearm_all_events(), which handles the one case
-            # where a *known* other tool is present and must be left untouched.
-            if _PY_GE_312:
-                from ddtrace.internal.coverage.instrumentation_py3_12 import update_disable_optimization
-
-                if update_disable_optimization():
-                    sys.monitoring.restart_events()
-            elif (instance := ModuleCodeCollector._instance) is not None and not self.is_import_coverage:
-                # POC (Python 3.10/3.11): re-arm bytecode-injection file-level probes — the
-                # restart_events() equivalent of the sys.monitoring implementation. Import
-                # coverage contexts are excluded: module bodies execute exactly once, so
-                # arming on every module import would be pure overhead.
-                instance._arm_probes()
+            if (instance := ModuleCodeCollector._instance) is not None:
+                # Re-arm the instrumentation (sys.monitoring restart_events() on 3.12+,
+                # bytecode probes below); engines decide what re-arming means per version.
+                instance.arm(import_context=self.is_import_coverage)
 
             return self
 
@@ -647,13 +613,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
 
-        # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules.
-        # Call hook directly after the import-time context is set up so coverage is
-        # recorded in the correct context.
-        if _PY_GE_313 and code.co_code == _EMPTY_MODULE_BYTES:
-            package = _module.__package__ if _module is not None else ""
-            import_info = (package, ("",)) if package else None
-            self.hook((0, code.co_filename, import_info))
+        # Empty-module recording is instrumentation-specific (e.g. Python 3.13+
+        # sys.monitoring does not fire LINE events for empty modules): the engine records it
+        # after the import-time context is set up so coverage lands in the correct context.
+        self._engine.on_empty_module(code, (_module.__package__ or "") if _module is not None else "")
 
         return retval
 
@@ -697,32 +660,12 @@ class ModuleCodeCollector(ModuleWatchdog):
             return code
         self.seen.add((code, code.co_filename))
 
-        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, package)
+        new_code, lines = self._engine.instrument(code, code.co_filename, package)
         self.seen.add((new_code, code.co_filename))
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
         self.lines[code.co_filename].update(lines)
-        if self._file_level_coverage and sys.version_info[:2] < (3, 12):
-            # POC: remember file-level probes so CollectInContext can re-arm them.
-            self._register_probes(new_code)
         return new_code
-
-    def _register_probes(self, code: CodeType) -> None:
-        """POC: recursively collect file-level Probe constants from an instrumented code object.
-
-        Probes live inside code object constants, so this walk is the only way to enumerate
-        them for the re-arm registry. Runs once per newly instrumented code object.
-        """
-        for const in code.co_consts:
-            if isinstance(const, Probe):
-                self._probes.append(const)
-            elif isinstance(const, CodeType):
-                self._register_probes(const)
-
-    def _arm_probes(self) -> None:
-        """POC: the sys.monitoring restart_events() equivalent for bytecode-injection probes."""
-        for probe in self._probes:
-            probe.dead = False
 
     def _exec(self, _object, _globals=None, _locals=None, **kwargs):
         # The pytest module loader doesn't implement a get_code method so we

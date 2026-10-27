@@ -22,7 +22,7 @@ assert (3, 10) <= sys.version_info < (3, 12)  # nosec
 #   2. the line starts containing import statements (import-dependency tracking)
 # Every trap emits the line-0 sentinel (InjectionContext.file_level), which
 # ModuleCodeCollector.hook() routes to hook_file()/hook_import().
-_USE_FILE_LEVEL_COVERAGE = is_file_level_coverage_enabled()
+USE_FILE_LEVEL_COVERAGE = is_file_level_coverage_enabled()
 
 _IMPORT_OPCODES = (dis.opmap["IMPORT_NAME"], dis.opmap["IMPORT_FROM"])
 
@@ -73,7 +73,7 @@ def _file_level_offsets(context: "InjectionContext") -> list[int]:
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
-    if _USE_FILE_LEVEL_COVERAGE:
+    if USE_FILE_LEVEL_COVERAGE:
         injection_context = InjectionContext(code, hook, _file_level_offsets, file_level=True)
     else:
         injection_context = InjectionContext(code, hook, _line_level_offsets)
@@ -81,7 +81,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     new_code, lines = inject_invocation(injection_context, path, package)
 
     coverage_lines = CoverageLines()
-    if not _USE_FILE_LEVEL_COVERAGE:
+    if not USE_FILE_LEVEL_COVERAGE:
         # In file-level mode line-level bookkeeping (which lines can be covered) is not used,
         # matching the sys.monitoring implementation which returns an empty CoverageLines when
         # track_lines is False.
