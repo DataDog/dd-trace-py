@@ -240,14 +240,13 @@ class AiopgTestCase(AsyncioTestCase):
     @mark_asyncio
     async def test_connection_context_abandoned(self):
         connections = []
-        original_connect = aiopg.connection.psycopg2.connect
+        original_init = aiopg.connection.Connection.__init__
 
-        def connect(*args, **kwargs):
-            conn = original_connect(*args, **kwargs)
+        def initialize(conn, *args, **kwargs):
+            original_init(conn, *args, **kwargs)
             connections.append(conn)
-            return conn
 
-        with mock.patch("aiopg.connection.psycopg2.connect", side_effect=connect):
+        with mock.patch.object(aiopg.connection.Connection, "__init__", initialize):
             try:
                 context = aiopg.connect(**POSTGRES_CONFIG)
                 context.close()
@@ -260,6 +259,10 @@ class AiopgTestCase(AsyncioTestCase):
             finally:
                 for conn in connections:
                     conn.close()
+                    # Closing before the first await leaves the initialization waiter unconsumed.
+                    if conn._waiter is not None and conn._waiter.done() and not conn._waiter.cancelled():
+                        conn._waiter.exception()
+                await asyncio.sleep(0)
 
     @pytest.mark.skipif(
         parse_version(aiopg.__version__) < (1, 0),
