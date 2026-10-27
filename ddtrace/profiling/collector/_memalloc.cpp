@@ -455,6 +455,17 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
+PyDoc_STRVAR(memalloc_is_started__doc__,
+             "is_started($module, /)\n"
+             "--\n"
+             "\n"
+             "Return True if memory allocation tracing is started.\n");
+static PyObject*
+memalloc_is_started(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    return PyBool_FromLong(memalloc_enabled);
+}
+
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
 /* Called by CPython when the module object is deallocated
@@ -522,6 +533,7 @@ static PyMethodDef module_methods_all[] = {
     { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
     { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
     { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+    { "is_started", (PyCFunction)memalloc_is_started, METH_NOARGS, memalloc_is_started__doc__ },
     { "_test_invoke_module_free",
       (PyCFunction)memalloc_test_invoke_module_free,
       METH_NOARGS,

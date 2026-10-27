@@ -3,11 +3,16 @@ import typing as t
 class PeriodicThread:
     """A native periodic thread.
 
-    The ``target`` callable is invoked repeatedly at ``interval`` seconds. If
-    ``target`` returns the ``PERIODIC_STOP`` sentinel the loop exits cleanly
-    after that iteration (``on_shutdown`` is still called). Returning any other
+    The target callable is invoked repeatedly at interval seconds. If
+    target returns the PERIODIC_STOP sentinel the loop exits cleanly
+    after that iteration (on_shutdown is still called). Returning any other
     value continues the loop; raising an exception prints the traceback and also
     stops the loop.
+
+    awake() requests a run of the target as soon as possible and returns
+    without waiting for it. Requests coalesce. A request made before start()
+    or during a fork pause is served once the worker (re)starts; after
+    stop() it is a no-op.
     """
 
     name: str
@@ -26,6 +31,7 @@ class PeriodicThread:
     def stop(self) -> None: ...
     def join(self, timeout: t.Optional[float] = None) -> None: ...
     def awake(self) -> None: ...
+    def is_started(self) -> bool: ...
     def _after_fork(self, *, force: bool = False) -> None: ...
     def _before_fork(self) -> None: ...
 

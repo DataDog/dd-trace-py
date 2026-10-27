@@ -2,30 +2,25 @@
 components:
   appsec:
     - ddtrace/appsec/*
-    - '!ddtrace/appsec/ai_guard/*'
-    - '!ddtrace/appsec/iast/*'
-    - '!ddtrace/appsec/_iast/*'
-    - '!ddtrace/appsec/sca/*'
+    - ddtrace/internal/appsec/*
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/_iast/*
     - ddtrace/appsec/_iast_context.py
+    - ddtrace/internal/iast/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
   sca:
     - ddtrace/appsec/sca/*
+    - ddtrace/internal/sca/*
 suites:
   appsec:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@remoteconfig'
       - tests/appsec/*
     pattern: appsec$
     retry: 2
@@ -39,11 +34,9 @@ suites:
         - name: appsec
           dependencies: [requests, docker]
   appsec_iast_default:
-    venvs_per_job: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
@@ -73,8 +66,6 @@ suites:
       CI_DEBUG_TRACE: 'true'
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
@@ -97,8 +88,6 @@ suites:
     venvs_per_job: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
@@ -152,8 +141,6 @@ suites:
   iast_tdd_propagation:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
@@ -175,11 +162,7 @@ suites:
   appsec_integrations_pygoat:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
@@ -207,11 +190,7 @@ suites:
       TEST_MYSQL_HOST: mysql
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/iast/*
       - tests/appsec/integrations/fixtures/*
       - tests/appsec/integrations/packages_tests/*
@@ -231,11 +210,8 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gevent, pytest-xdist, pytest-asyncio, requests, SQLAlchemy, 'psycopg2-binary~=2.9.9', psycopg, pymysql, 'mysqlclient==2.1.1', mysql-connector-python, 'MarkupSafe~=2.1.1', 'Werkzeug~=3.0.6', babel, numpy, protobuf]
   appsec_integrations_stripe:
-    venvs_per_job: 15
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
       - tests/cassettes/stripe/*
@@ -253,14 +229,9 @@ suites:
         - name: appsec_integrations_stripe
           dependencies: ['stripe~=13.0']
   appsec_integrations_langchain:
-    venvs_per_job: 11
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/iast/*
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
@@ -286,10 +257,7 @@ suites:
     pattern: appsec_integrations_flask$
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - tests/appsec/integrations/flask_tests/test_iast_flask.py
       - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       - tests/appsec/app.py
@@ -321,11 +289,7 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
       - tests/appsec/integrations/conftest.py
       - tests/appsec/integrations/utils_testagent.py
@@ -348,20 +312,16 @@ suites:
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
         - name: appsec_integrations_flask_testagent
-          python: ['3.12']
+          python: ['3.12', '3.14']
           dependencies: ['requests==2.31.0', gunicorn, gevent, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'psutil==7.1.3', 'flask~=2.2']
         - name: appsec_integrations_flask_testagent
-          python: ['3.13']
+          python: ['3.13', '3.14']
           dependencies: ['requests==2.31.0', gunicorn, gevent, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'psutil==7.1.3', 'flask~=3.1', 'Werkzeug~=3.1']
   appsec_integrations_django:
-    venvs_per_job: 2
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
       - tests/appsec/integrations/conftest.py
       - tests/appsec/integrations/utils_testagent.py
@@ -404,14 +364,10 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', django, legacy-cgi]
   appsec_integrations_fastapi:
-    venvs_per_job: 3
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
       - tests/appsec/integrations/conftest.py
       - tests/appsec/integrations/utils_testagent.py
@@ -443,16 +399,12 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', fastapi, 'pydantic~=2.12', 'mcp==1.21.2']
   appsec_threats_django_no_iast:
-    venvs_per_job: 3
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
-      - '@django'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -502,17 +454,12 @@ suites:
           python: ['3.12', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_iast:
-    venvs_per_job: 3
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
-      - '@django'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -567,13 +514,9 @@ suites:
   appsec_threats_django_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
-      - '@django'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -585,24 +528,21 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.10', '3.13']
+      python: ['3.10', '3.13', '3.14']
       variants:
         - name: appsec_threats_django_rc
           dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
         - name: appsec_threats_django_rc
           dependencies: [requests, httpx, httpx2, 'django~=5.1']
   appsec_threats_fastapi_no_iast:
-    venvs_per_job: 4
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@fastapi'
       - '@starlette'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -639,18 +579,14 @@ suites:
           python: ['3.10', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_iast:
-    venvs_per_job: 4
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
       - '@fastapi'
       - '@starlette'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -691,14 +627,11 @@ suites:
   appsec_threats_fastapi_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@fastapi'
       - '@starlette'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -711,23 +644,20 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.10', '3.13']
+      python: ['3.10', '3.13', '3.14']
       variants:
         - name: appsec_threats_fastapi_rc
           dependencies: [hypothesis, requests, 'httpx<0.28.0', 'httpx2~=2.0.0', 'fastapi~=0.114.2']
         - name: appsec_threats_fastapi_rc
           dependencies: [hypothesis, requests, 'httpx<0.28.0', httpx2, 'fastapi~=0.114.2']
   appsec_threats_flask_no_iast:
-    venvs_per_job: 4
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -753,29 +683,25 @@ suites:
           python: ['3.9']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_no_iast
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
         - name: appsec_threats_flask_no_iast
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_no_iast
-          python: ['3.11', '3.13']
+          python: ['3.11', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
         - name: appsec_threats_flask_no_iast
-          python: ['3.11', '3.13']
+          python: ['3.11', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_iast:
-    venvs_per_job: 3
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -804,27 +730,24 @@ suites:
           python: ['3.9']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_iast
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
         - name: appsec_threats_flask_iast
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_iast
-          python: ['3.11', '3.13']
+          python: ['3.11', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
         - name: appsec_threats_flask_iast
-          python: ['3.11', '3.13']
+          python: ['3.11', '3.13', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -837,7 +760,7 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.11', '3.13']
+      python: ['3.11', '3.13', '3.14']
       variants:
         - name: appsec_threats_flask_rc
           dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
@@ -847,8 +770,6 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@aiohttp'
       - '@remoteconfig'
@@ -893,7 +814,6 @@ suites:
         - name: appsec_threats_aiohttp_rc
           dependencies: [requests, httpx, httpx2, aiohttp]
   appsec_threats_tornado_no_iast:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -902,7 +822,6 @@ suites:
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -934,17 +853,12 @@ suites:
           python: ['3.10', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_iast:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
       - '@tornado'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -981,13 +895,10 @@ suites:
   appsec_threats_tornado_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@tornado'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -1009,7 +920,6 @@ suites:
   sca:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@tracing'
       - '@sca'
       - tests/appsec/sca/*

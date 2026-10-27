@@ -941,6 +941,20 @@ class TestUploadGitMetadata:
     ]
 
     @pytest.fixture(scope="function", autouse=True)
+    def _use_fork_start_method(self):
+        # These tests rely on the git metadata upload worker inheriting the
+        # in-memory mock patches applied by the mock_git_client fixture, so the
+        # worker must be spawned with the "fork" start method. "fork" is only
+        # the default on Linux up to Python 3.13; from 3.14 on the default is
+        # "forkserver" on Linux (and "spawn" has long been the default on
+        # macOS), neither of which passes the parent's memory to the worker.
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.Process",
+            multiprocessing.get_context("fork").Process,
+        ):
+            yield
+
+    @pytest.fixture(scope="function", autouse=True)
     def mock_git_client(self):
         """NotImplementedError mocks should never be reached unless tests are set up improperly"""
         with (

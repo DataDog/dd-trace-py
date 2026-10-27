@@ -44,10 +44,17 @@ def langchain():
 def langchain_openai(langchain):
     try:
         import langchain_openai
-
-        yield langchain_openai
     except ImportError:
         yield
+        return
+    yield langchain_openai
+    # langchain-openai shares one cached httpx.AsyncClient per base_url, whose pooled connections stay
+    # bound to this test's event loop; reusing them after pytest-asyncio closes it fails flakily.
+    try:
+        from langchain_openai.chat_models._client_utils import _cached_async_httpx_client
+    except ImportError:
+        return
+    _cached_async_httpx_client.cache_clear()
 
 
 @pytest.fixture
