@@ -54,11 +54,6 @@ except ImportError:
     BedrockModelInfo = None  # type: ignore[misc, assignment, unused-ignore]
 
 try:
-    from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import VertexGeminiConfig
-except ImportError:
-    VertexGeminiConfig = None  # type: ignore[misc, assignment, unused-ignore]
-
-try:
     from litellm.litellm_core_utils.llm_cost_calc.guardrail_cost import guardrail_information_cost
 except ImportError:
     # LiteLLM before 1.104 charges nothing for a failed request.
@@ -171,6 +166,8 @@ _LOCALLY_COUNTED_PROVIDERS = frozenset(
 _MODALITIES = (("image_tokens", "image"), ("audio_tokens", "audio"))
 _GEMINI_PROVIDERS = frozenset({"gcp.gemini", "gcp.vertex_ai"})
 _USAGE_METADATA = ("usageMetadata",)
+# The usageMetadata counts that add up to its total when candidatesTokenCount already includes the thoughts.
+_GEMINI_NON_THINKING_COUNTS = ("promptTokenCount", "candidatesTokenCount", "toolUsePromptTokenCount")
 # Google's OpenAI-compatible Gemini endpoint, reached through an openai/ deployment with this base URL.
 _GEMINI_COMPAT_HOST = "generativelanguage.googleapis.com"
 # The error class LiteLLM's proxy gives a stream whose client left before the proxy's own generator finished.
@@ -443,12 +440,12 @@ def _gemini_dropped_thoughts(kwargs: dict[str, Any], output_tokens: Any) -> Opti
     """The thinking count a Gemini response reported that LiteLLM left out of its output count, else None.
 
     LiteLLM adds thoughtsTokenCount to the output count, except on a response a content filter stopped (finish reason
-    SAFETY, RECITATION and the like), whose output count is candidatesTokenCount alone. The thoughts are billed all
-    the same. Whether candidatesTokenCount already includes them is decided as LiteLLM decides it on every other
-    response.
+    SAFETY, RECITATION and the like), whose output count is candidatesTokenCount alone; LiteLLM before 1.67 never
+    adds it. The thoughts are billed all the same. candidatesTokenCount already includes them when the prompt,
+    candidates and tool use prompt counts add up to the total, as LiteLLM decides it on every other response.
     """
     original = kwargs.get("original_response")
-    if VertexGeminiConfig is None or not isinstance(original, str) or not original.startswith("{"):
+    if not isinstance(original, str) or not original.startswith("{"):
         return None
     usage_metadata = _json_object(_json_paths(original, frozenset({_USAGE_METADATA})).get(_USAGE_METADATA))
     if usage_metadata is None:
@@ -456,10 +453,8 @@ def _gemini_dropped_thoughts(kwargs: dict[str, Any], output_tokens: Any) -> Opti
     thoughts = _count(usage_metadata.get("thoughtsTokenCount"))
     if not thoughts or _count(usage_metadata.get("candidatesTokenCount")) != output_tokens:
         return None
-    try:
-        if VertexGeminiConfig.is_candidate_token_count_inclusive(usage_metadata):
-            return None
-    except Exception:
+    counted = sum(_count(usage_metadata.get(key)) or 0 for key in _GEMINI_NON_THINKING_COUNTS)
+    if counted == _count(usage_metadata.get("totalTokenCount")):
         return None
     return thoughts
 
