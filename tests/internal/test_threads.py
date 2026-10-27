@@ -251,7 +251,7 @@ def test_thread_identity_follows_the_application_threading_module():
     import ddtrace.auto  # noqa:F401
     from ddtrace.internal import threads
 
-    assert threads.current_thread() is threads.main_thread()
+    assert threads.is_main_thread()
     assert "threading" not in sys.modules
 
     import threading
@@ -263,4 +263,75 @@ def test_thread_identity_follows_the_application_threading_module():
 
     assert names == ["app-worker"]
     assert threads.current_thread() is threading.current_thread()
-    assert threads.main_thread() is threading.main_thread()
+    assert threads.is_main_thread()
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_main_thread_is_the_one_that_loaded_ddtrace():
+    """The application's copy of threading, if first imported off the main
+    thread, takes that thread as the main one on Python < 3.13. That must not
+    stop ddtrace from recognising the actual main thread, e.g. to install signal
+    handlers.
+    """
+    import _thread
+    import sys
+
+    import ddtrace.auto  # noqa:F401
+    from ddtrace.internal import threads
+
+    assert "threading" not in sys.modules
+
+    imported = _thread.allocate_lock()
+    imported.acquire()
+    is_main = []
+
+    def import_threading():
+        import threading  # noqa:F401
+
+        is_main.append(threads.is_main_thread())
+        imported.release()
+
+    _thread.start_new_thread(import_threading, ())
+    imported.acquire()
+
+    assert is_main == [False]
+    assert threads.is_main_thread()
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_local_and_event_follow_gevent_patching():
+    """Thread-local storage and events come from the application's copy of
+    threading as patched by gevent, so they are greenlet-local and cooperative.
+    The originals still refer to OS threads.
+    """
+    import gevent.monkey
+
+    import ddtrace.auto  # noqa:F401
+
+    gevent.monkey.patch_all()
+
+    import gevent
+    import gevent.event
+    import gevent.local
+
+    from ddtrace.internal import threads
+
+    assert isinstance(threads.local(), gevent.local.local)
+    assert not isinstance(threads.original_local(), gevent.local.local)
+
+    storage = threads.local()
+
+    def set_and_get(value):
+        storage.value = value
+        gevent.sleep(0)
+        return storage.value
+
+    greenlets = [gevent.spawn(set_and_get, i) for i in range(2)]
+    gevent.joinall(greenlets)
+    assert [g.value for g in greenlets] == [0, 1]
+
+    # A wait on the event yields to other greenlets instead of blocking the hub.
+    event = threads.Event()
+    setter = gevent.spawn(event.set)
+    assert event.wait(timeout=5)
+    setter.join()

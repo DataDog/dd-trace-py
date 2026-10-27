@@ -46,6 +46,11 @@ def enabled():
 def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
+    # NOTE: The poller can start before the product dependencies that start
+    # after remote-configuration advertise their RC products. It sends nothing
+    # while no product is enabled, and each enablement wakes it up to send a
+    # request once no other product has been enabled for a short while, so the
+    # products enabled on boot are batched instead of waiting for the next poll.
     try:
         remoteconfig_poller.enable()
         _register_rc_products()

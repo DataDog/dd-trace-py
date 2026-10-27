@@ -8,8 +8,7 @@ import signal
 import typing
 
 from ddtrace.internal.native import config as _native_config
-from ddtrace.internal.threads import current_thread
-from ddtrace.internal.threads import main_thread
+from ddtrace.internal.threads import is_main_thread
 from ddtrace.internal.utils import signals
 
 
@@ -79,7 +78,7 @@ def register_on_exit_signal(f: typing.Callable) -> typing.Optional[tuple[typing.
             if _native_config.get_raise():
                 raise
 
-    if current_thread() is not main_thread():
+    if not is_main_thread():
         return None
 
     # Each signal is installed on its own, and failures are not reported as "nothing

@@ -1,7 +1,6 @@
 from _queue import SimpleQueue
+from _thread import get_ident as _get_ident
 import threading as _threading
-from threading import Event
-from threading import local
 from time import monotonic_ns
 from types import ModuleType
 import typing as t
@@ -27,36 +26,59 @@ __all__ = [
     "Event",
     "SimpleQueue",
     "current_thread",
+    "is_main_thread",
     "local",
-    "main_thread",
+    "original_Event",
+    "original_local",
 ]
 
 
+# The objects from the copy of threading ddtrace was loaded with. Unlike the
+# application's copy, they are never monkey-patched, so they always refer to OS
+# threads.
+original_Event = _threading.Event
+original_local = _threading.local
+
 # Module cloning makes the application import a copy of threading distinct from
 # the one ddtrace was loaded with, and only the former knows about the threads
-# the application starts. Follow it once it is imported. Until then use ours,
-# rather than importing threading from wherever we are, which could be one of
-# our own threads.
-_current_thread: t.Callable[[], _threading.Thread] = _threading.current_thread
-_main_thread: t.Callable[[], _threading.Thread] = _threading.main_thread
+# the application starts, and is the one that gets monkey-patched. Follow it
+# once it is imported. Until then use ours, rather than importing threading from
+# wherever we are, which could be one of our own threads. Attributes are looked
+# up on each call because patching happens after the module has been imported.
+_app_threading = _threading
+
+# The main thread is the one that loaded ddtrace. On Python < 3.13, the
+# application's copy of threading takes the thread that imports it as the main
+# one, which might not be.
+_main_thread_ident = _threading.main_thread().ident
 
 
 @ModuleWatchdog.after_module_imported("threading")
 def _(threading: ModuleType) -> None:
-    global _current_thread, _main_thread
+    global _app_threading
 
-    _current_thread = threading.current_thread
-    _main_thread = threading.main_thread
+    # Same module, as far as typing is concerned.
+    _app_threading = t.cast(t.Any, threading)
 
 
 def current_thread() -> _threading.Thread:
     """The current thread, as known to the application."""
-    return _current_thread()
+    return _app_threading.current_thread()
 
 
-def main_thread() -> _threading.Thread:
-    """The main thread, as known to the application."""
-    return _main_thread()
+def is_main_thread() -> bool:
+    """Whether the current OS thread is the main one, e.g. to install signal handlers."""
+    return _get_ident() == _main_thread_ident
+
+
+def Event() -> _threading.Event:
+    """An event from the application's threading, e.g. to wait in application code."""
+    return _app_threading.Event()
+
+
+def local() -> _threading.local:
+    """Thread-local storage from the application's threading, e.g. for per-request state."""
+    return _app_threading.local()
 
 
 # Forking state management. This is a barrier to either prevent new threads
