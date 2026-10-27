@@ -38,7 +38,7 @@ def stop_profiler() -> None:
     if current is None:
         return
 
-    # If this raises, delattr will not be called. This is on purpose, as it would be a
+    # If this raises, delattr will not be called. This is on purpose, as it would be a
     # very weird state to have to worry about in case another profiler is started later.
     current.stop(flush=True)
     delattr(sys.modules[_BOOTSTRAP_MODULE], "profiler")

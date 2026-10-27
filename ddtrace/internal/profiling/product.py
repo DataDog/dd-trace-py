@@ -1,7 +1,6 @@
 """Product plugin that installs and starts the profiler."""
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.profiling import lifecycle
 from ddtrace.internal.settings.profiling import config as profiling_config
 
 
@@ -11,14 +10,9 @@ requires: list[str] = []
 
 
 def post_preload() -> None:
-    pass
-
-
-def enabled() -> bool:
-    return bool(profiling_config.install) or bool(profiling_config.enabled)
-
-
-def start() -> None:
+    # The product manager defers start to the workers in a uWSGI master, but not post_preload. The hooks must be
+    # installed before the master loads the application, and Profiler.start must run in the master to register its
+    # own uWSGI postfork and atexit callbacks.
     if profiling_config.install:
         # Install the stack profiler hooks now, so that the profiler can be enabled at runtime and still
         # see the threads, event loops and greenlets created before that. If the profiler is also enabled
@@ -40,10 +34,18 @@ def start() -> None:
             log.error("failed to enable profiling", exc_info=True)
 
 
+def enabled() -> bool:
+    return bool(profiling_config.install) or bool(profiling_config.enabled)
+
+
+def start() -> None:
+    pass
+
+
 def activated() -> bool:
-    # start can return without a running profiler: in armed mode, or when the platform or the native extensions
-    # are not supported.
-    return lifecycle.current_profiler() is not None
+    # The product manager calls this after start, before post_preload starts the profiler. The configuration is
+    # already disabled when the platform or the native extensions are not supported, and in armed mode.
+    return bool(profiling_config.enabled)
 
 
 def restart(join: bool = False) -> None:

@@ -87,17 +87,14 @@ def test_start_profiler_waits_for_lifecycle_lock(created_profilers: list[dict[st
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
 
 
-def test_product_activated_only_with_running_profiler(created_profilers: list[dict[str, bool]]) -> None:
+def test_product_activated_when_profiling_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     from ddtrace.internal.profiling import product
 
+    monkeypatch.setattr(product.profiling_config, "enabled", False)
     assert not product.activated()
 
-    lifecycle.set_profiler(profiler_module.Profiler())
+    monkeypatch.setattr(product.profiling_config, "enabled", True)
     assert product.activated()
-
-    with lifecycle.lock:
-        lifecycle.stop_profiler()
-    assert not product.activated()
 
 
 @pytest.mark.subprocess(env={"DD_PROFILING_ENABLED": "false"})
