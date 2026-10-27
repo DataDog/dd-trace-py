@@ -15,17 +15,17 @@ if TYPE_CHECKING:
     from mcp.types import ClientRequest
     from mcp.types import Request
 
+
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
+from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
-from ddtrace.llmobs._integrations.mcp import DD_TRACE_CONTEXT_META_KEY
-from ddtrace.llmobs._integrations.mcp import SERVER_MIDDLEWARE_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import TELEMETRY_KEY
-from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
 
@@ -102,7 +102,8 @@ class DatadogServerMiddleware:
     """
 
     async def __call__(self, ctx: Any, call_next: Callable[[Any], Awaitable[Any]]) -> Any:
-        integration: Optional[MCPIntegration] = getattr(mcp, "_datadog_integration", None)
+        # Typed loosely: contrib must not import the LLM Observability integration class
+        integration: Any = getattr(mcp, "_datadog_integration", None)
         # Server.middleware is provisional upstream, so ctx fields are read defensively
         method = getattr(ctx, "method", None)
         if integration is None or getattr(ctx, "request_id", None) is None:
@@ -138,7 +139,7 @@ class DatadogServerMiddleware:
             span.finish()
 
 
-def start_server_span(integration: MCPIntegration, method: str, ctx: Any) -> tuple[Span, Any]:
+def start_server_span(integration: Any, method: str, ctx: Any) -> tuple[Span, Any]:
     if (
         method == "tools/call"
         and config.mcp.distributed_tracing
@@ -158,7 +159,7 @@ def start_server_span(integration: MCPIntegration, method: str, ctx: Any) -> tup
     return span, ctx
 
 
-def strip_telemetry_argument(integration: MCPIntegration, span: Span, ctx: Any) -> Any:
+def strip_telemetry_argument(integration: Any, span: Span, ctx: Any) -> Any:
     """Records and removes the intent argument. Middleware must not mutate the wire params, so
     the stripped copy is passed down the chain through a replaced context.
     """

@@ -8,6 +8,9 @@ import mcp
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp.utils import DatadogServerMiddleware
 from ddtrace.contrib.internal.mcp.utils import extract_distributed_headers_from_mcp_request
 from ddtrace.contrib.internal.mcp.utils import set_distributed_headers_into_mcp_request
@@ -20,9 +23,6 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._integrations.mcp import get_tool_error_message
 from ddtrace.llmobs._integrations.mcp import is_tool_error
