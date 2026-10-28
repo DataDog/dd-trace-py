@@ -16,6 +16,7 @@ from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import _asyncio
+from ddtrace.profiling import _copied_context_workers
 from ddtrace.profiling import _span_links
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
@@ -107,6 +108,8 @@ class StackCollector(collector.Collector):
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
                 core.reset_listeners("trace.span_finish", self._on_span_finish)
                 raise
+            # Before links_open(), so a worker that reads the new token also reads this start's tracer.
+            _copied_context_workers.install(self.tracer)
             stack.links_open()
             _span_links.mirror_lifecycle(self.tracer)
             # Publish the span that was activated on this thread before the profiler started. Other threads are
