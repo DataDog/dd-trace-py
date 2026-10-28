@@ -1,8 +1,12 @@
 import os
 
+import pytest
+
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import asm_report_stacktrace_leak_from_django_debug_page
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import check_and_report_stacktrace_leak
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import get_report_stacktrace_later
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
@@ -16,6 +20,20 @@ def _load_html_django_stacktrace():
 
 def _load_text_stacktrace():
     return open(os.path.join(os.path.dirname(__file__), "../fixtures/plain_stacktrace.txt")).read()
+
+
+@pytest.mark.parametrize("module", ["myapp.views", None])
+def test_django_debug_page_stacktrace_leak(iast_context_defaults, module):
+    assert not get_iast_stacktrace_reported()
+
+    asm_report_stacktrace_leak_from_django_debug_page("ValueError", module)
+
+    span_report = get_iast_reporter()
+    vulnerabilities = list(span_report.vulnerabilities)
+    assert len(vulnerabilities) == 1
+    assert vulnerabilities[0].type == VULN_STACKTRACE_LEAK
+    assert vulnerabilities[0].evidence.value == "Module: %s\nException: ValueError" % module
+    assert get_iast_stacktrace_reported()
 
 
 def test_check_stacktrace_leak_html(iast_context_defaults):

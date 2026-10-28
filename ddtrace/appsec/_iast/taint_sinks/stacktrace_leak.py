@@ -20,7 +20,7 @@ class StacktraceLeak(VulnerabilityBase):
     skip_location = True
 
 
-def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
+def asm_report_stacktrace_leak_from_django_debug_page(exc_name: str, module: object) -> None:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, StacktraceLeak.vulnerability_type)
     _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
     evidence = "Module: %s\nException: %s" % (module, exc_name)
