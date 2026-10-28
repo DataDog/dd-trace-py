@@ -10,6 +10,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -1472,6 +1473,25 @@ class AnyExc:
 class AnyFloat:
     def __eq__(self, other):
         return isinstance(other, float)
+
+
+def terminate_process_group(proc: subprocess.Popen[bytes], timeout: float = 3.0) -> None:
+    """Stop a server started with start_new_session=True and its children, then reap the server."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
+    finally:
+        # The parent may exit before a child that ignores SIGTERM.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate(timeout=timeout)
 
 
 # ddtest sets PYTEST_ADDOPTS="--ddtrace" globally for pytest workers. It leaks
