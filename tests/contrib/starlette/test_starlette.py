@@ -801,12 +801,14 @@ class _Forward:
 class _RoutingMiddleware:
     """Routes the request with its own Router, then passes the original scope on, like connexion."""
 
-    def __init__(self, app, mount_path):
+    def __init__(self, app, mount_paths):
         from starlette.routing import Mount
         from starlette.routing import Router
 
-        forward = _Forward(app)
-        self.router = Router(routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=forward)])])
+        routes = [Route("/items/{item_id:int}", endpoint=_Forward(app))]
+        for path in reversed(mount_paths):
+            routes = [Mount(path, routes=routes)]
+        self.router = Router(routes=routes)
 
     async def __call__(self, scope, receive, send):
         scope["original_scope"] = dict(scope)
@@ -822,7 +824,7 @@ def _items_app(mount_path, routing_middleware):
 
     return Starlette(
         routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=item)])],
-        middleware=[Middleware(_RoutingMiddleware, mount_path=mount_path)] if routing_middleware else [],
+        middleware=[Middleware(_RoutingMiddleware, mount_paths=[mount_path])] if routing_middleware else [],
     )
 
 
@@ -858,6 +860,34 @@ def test_resource_with_router_per_middleware_in_sub_app(tracer, test_spans, oute
         test_spans.reset()
 
     assert resources[0][0] == "GET " + "".join(outer_paths) + "/items/{item_id:int}"
+    assert resources[1] == resources[0]
+
+
+@pytest.mark.parametrize("depth", [2, 3])
+def test_resource_with_router_per_middleware_over_empty_mounted_sub_apps(tracer, test_spans, depth):
+    """Routing again through several Mount("") levels, each a sub-application of its own,
+    gives the same resources as routing once.
+    """
+    from starlette.middleware import Middleware
+    from starlette.routing import Mount
+
+    async def item(request):
+        return PlainTextResponse("ok")
+
+    resources = []
+    for routing_middleware in (False, True):
+        app = Starlette(routes=[Route("/items/{item_id:int}", endpoint=item)])
+        for level in range(depth):
+            middleware = []
+            if routing_middleware and level == depth - 1:
+                middleware = [Middleware(_RoutingMiddleware, mount_paths=[""] * depth)]
+            app = Starlette(routes=[Mount("", app)], middleware=middleware)
+        with TestClient(app) as client:
+            assert client.get("/items/1").status_code == 200
+        resources.append([s.resource for s in test_spans.filter_spans(name="starlette.request")])
+        test_spans.reset()
+
+    assert resources[0] == ["GET /items/{item_id:int}"] * (depth + 1)
     assert resources[1] == resources[0]
 
 
