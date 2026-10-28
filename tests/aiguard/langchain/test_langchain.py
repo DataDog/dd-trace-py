@@ -27,12 +27,15 @@ from tests.aiguard.utils import override_ai_guard_config
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
 
-# langchain 1.0 removed the legacy ``AgentExecutor`` / ``create_openai_functions_agent``
-# API in favor of ``create_agent`` (langgraph-based). Tests are split accordingly.
-requires_legacy_agents = pytest.mark.skipif(
-    LANGCHAIN_VERSION >= (1, 0, 0),
-    reason="legacy AgentExecutor / create_openai_functions_agent API removed in langchain 1.0",
-)
+# LangChain v1 moved the legacy agent API into langchain-classic.
+if LANGCHAIN_VERSION >= (1, 0, 0):
+    from langchain_classic.agents import AgentExecutor
+    from langchain_classic.agents import create_openai_functions_agent
+else:
+    from langchain.agents import AgentExecutor
+    from langchain.agents import create_openai_functions_agent
+
+
 requires_create_agent = pytest.mark.skipif(
     LANGCHAIN_VERSION < (1, 0, 0),
     reason="create_agent API introduced in langchain 1.0",
@@ -353,14 +356,15 @@ def test_text_and_tool_call_response_evaluated_as_one_turn(
     assert response_span.get_tag(AI_GUARD.TOOL_NAME_TAG) == "add"
 
 
-@requires_legacy_agents
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_agent_action_evaluated_once(mock_execute_request, langchain_openai, openai_url):
+def test_agent_action_evaluated_once(mock_execute_request, mock_openai_request, langchain_openai, openai_url):
     """The legacy function_call path: Agent.plan does not repeat the response evaluation of the same call."""
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    mock_openai_request.side_effect = [
+        _mock_openai_tool_response("add", {"a": 1, "b": 1}),
+        ChatResult(generations=[ChatGeneration(message=AIMessage(content="2"))]),
+    ]
 
     agent_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
     llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
@@ -374,13 +378,9 @@ def test_agent_action_evaluated_once(mock_execute_request, langchain_openai, ope
     assert final_answer == {"role": "assistant", "content": result["output"]}
 
 
-@requires_legacy_agents
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
@@ -410,14 +410,10 @@ def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
 
 
-@requires_legacy_agents
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_async_block(mock_execute_request, langchain_openai, openai_url, decision):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
@@ -447,14 +443,10 @@ async def test_agent_action_async_block(mock_execute_request, langchain_openai, 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
 
 
-@requires_legacy_agents
 @pytest.mark.asyncio
 @patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_intermediate_steps(mock_execute_request, mock_openai_request, langchain_openai, openai_url):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     def ai_guard_mock(*args, **kwargs):
         messages = args[1]["data"]["attributes"]["messages"]
         last_message = messages[-1]
