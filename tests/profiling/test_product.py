@@ -803,6 +803,58 @@ def test_profiler_started_off_main_thread_flushes_on_sigterm() -> None:
         # (unreachable: the exit handler re-raises SIGTERM with SIG_DFL, killing the process)
 
 
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_PROFILING_ENABLED": "true",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+        "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
+    },
+    out="OK\n",
+    err=None,
+)
+def test_profiler_starts_with_remote_config_disabled() -> None:
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.profiling import bootstrap
+
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
+
+    print("OK")
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_ENABLED": "true",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+        "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
+    },
+    out="OK\n",
+    err=None,
+)
+def test_profiler_starts_when_remote_config_fails_to_start() -> None:
+    from ddtrace.internal.remoteconfig.products import client
+
+    def fail_start() -> None:
+        raise RuntimeError("remote configuration failed to start")
+
+    client.start = fail_start
+
+    import ddtrace.auto  # noqa: F401
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.profiling import bootstrap
+
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
+    # The profiling product depends on remote-configuration, so it does not subscribe to Remote Config.
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
+
+    print("OK")
+
+
 @pytest.mark.subprocess(env={"DD_PROFILING_ENABLED": "false"})
 def test_loading_product_does_not_import_profiler() -> None:
     # The product manager loads every product, so this runs in every process, with profiling enabled or not.

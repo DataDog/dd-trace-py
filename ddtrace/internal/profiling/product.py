@@ -9,11 +9,10 @@ from ddtrace.internal.settings.profiling import config as profiling_config
 
 log = get_logger(__name__)
 
-# Although we use Remote Configuration for Profiling, we do not require it as a dependency.
-# The Profiler can start without it (if it's enabled through local configuration), so we
-# should not prevent the Profiling Product from starting if it is not available. The start
-# order does not matter either: the poller batches product enablements into one request.
-requires: list[str] = []
+# Profiling does not depend on Remote Configuration: the profiler starts in post_preload, which the product manager
+# calls even when remote-configuration is disabled or failed to start. requires only makes the RC subscription in start
+# wait for the remote-configuration product, which defers the first poll until every product has registered.
+requires: list[str] = ["remote-configuration"]
 
 
 def _remote_config_enabled() -> bool:
