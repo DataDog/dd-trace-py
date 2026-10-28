@@ -5,6 +5,7 @@ decision logic directly, without spawning a real uwsgi process. End-to-end
 coverage against a real uwsgi binary lives in tests/profiling/test_uwsgi.py.
 """
 
+import os
 import sys
 import types
 
@@ -14,15 +15,19 @@ from ddtrace.internal import uwsgi
 
 
 class FakeUwsgi(types.ModuleType):
-    def __init__(self, opt=None, numproc=1, worker_id=0, version_info=(2, 0, 30)):
+    def __init__(self, opt=None, numproc=1, worker_id=0, version_info=(2, 0, 30), masterpid=0):
         super().__init__("uwsgi")
         self.opt = opt or {}
         self.numproc = numproc
         self.version_info = version_info
         self._worker_id = worker_id
+        self._masterpid = masterpid
 
     def worker_id(self):
         return self._worker_id
+
+    def masterpid(self):
+        return self._masterpid
 
 
 @pytest.fixture
@@ -147,3 +152,40 @@ def test_old_uwsgi_fork_hooks_without_skip_atexit_is_unaffected(fake_uwsgi):
         version_info=(2, 0, 29),
     )
     assert uwsgi.check_uwsgi() is None
+
+
+def test_forked_without_fork_hooks_no_uwsgi_module(monkeypatch):
+    monkeypatch.setitem(sys.modules, "uwsgi", None)
+    assert uwsgi.forked_without_fork_hooks() is False
+
+
+def test_forked_without_fork_hooks_worker_of_non_lazy_master(fake_uwsgi):
+    """A worker that the master forked without lazy-apps or fork hooks keeps the master's thread states."""
+    fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=2, worker_id=1, masterpid=os.getppid())
+    assert uwsgi.forked_without_fork_hooks() is True
+
+
+@pytest.mark.parametrize("option", ["lazy-apps", "lazy", "py-call-uwsgi-fork-hooks", "py-call-osafterfork"])
+def test_forked_without_fork_hooks_option_runs_fork_hooks(fake_uwsgi, option):
+    fake_uwsgi(
+        opt={"enable-threads": True, "master": True, option: True}, numproc=2, worker_id=1, masterpid=os.getppid()
+    )
+    assert uwsgi.forked_without_fork_hooks() is False
+
+
+def test_forked_without_fork_hooks_no_master(fake_uwsgi):
+    """Without a master, the process is not forked: uwsgi.masterpid() returns 0."""
+    fake_uwsgi(opt={"enable-threads": True}, numproc=1, worker_id=1, masterpid=0)
+    assert uwsgi.forked_without_fork_hooks() is False
+
+
+def test_forked_without_fork_hooks_master_process(fake_uwsgi):
+    """The master itself is not a child of the master."""
+    fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=2, worker_id=0, masterpid=os.getpid())
+    assert uwsgi.forked_without_fork_hooks() is False
+
+
+def test_forked_without_fork_hooks_masterpid_unavailable(fake_uwsgi, monkeypatch):
+    fake = fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=2, worker_id=1)
+    monkeypatch.delattr(type(fake), "masterpid")
+    assert uwsgi.forked_without_fork_hooks() is False

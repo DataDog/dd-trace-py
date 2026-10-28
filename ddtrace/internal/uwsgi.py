@@ -1,3 +1,4 @@
+import os
 from typing import Callable
 from typing import Optional
 
@@ -37,6 +38,35 @@ def should_register_atexit() -> bool:
     except (ImportError, AttributeError):
         # Not running under uwsgi or uwsgi.opt not available
         return True
+
+
+def forked_without_fork_hooks() -> bool:
+    """Check if the uwsgi master forked this process without running the Python fork hooks.
+
+    Without lazy-apps, py-call-uwsgi-fork-hooks or py-call-osafterfork, uwsgi forks its workers with
+    a raw fork() call, so PyOS_AfterFork_Child does not run in them. The interpreter of the worker
+    then still lists the thread states of the other threads of the master. These threads do not
+    exist in the worker, and the threads that the worker starts reuse their stacks. CPython APIs
+    that walk the frames of every thread state, such as sys.monitoring.set_events and
+    sys.monitoring.restart_events, read this memory and can crash.
+    """
+    try:
+        import uwsgi
+    except ImportError:
+        return False
+
+    try:
+        masterpid = uwsgi.masterpid()
+        opt = uwsgi.opt
+    except AttributeError:
+        return False
+
+    return (
+        masterpid != 0
+        and os.getppid() == masterpid
+        and not (opt.get("lazy-apps") or opt.get("lazy"))
+        and not (opt.get("py-call-uwsgi-fork-hooks") or opt.get("py-call-osafterfork"))
+    )
 
 
 def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:
