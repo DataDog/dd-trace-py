@@ -10,7 +10,6 @@ import llama_index.core as llama_core
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
-from ddtrace.contrib.internal.llama_index._constants import COMPONENT
 from ddtrace.contrib.internal.llama_index._constants import TAG_MODEL
 from ddtrace.contrib.internal.llama_index._constants import TAG_PROVIDER
 from ddtrace.contrib.internal.llama_index._streaming import handle_streamed_response
@@ -90,7 +89,7 @@ def _create_event(
     if provider is not None:
         tags[TAG_PROVIDER] = provider
     return LlmRequestEvent(
-        component=COMPONENT,
+        component=config.llama_index.integration_name,
         integration_config=config.llama_index,
         service=int_service(None, config.llama_index),
         resource=resource,
@@ -322,7 +321,7 @@ def patch():
 
     # Let products (LLMObs) attach their own LlmEvents subscribers without this
     # module importing them.
-    integration_hooks.on_patch(COMPONENT)
+    integration_hooks.on_patch(config.llama_index.integration_name)
 
 
 def unpatch():
@@ -330,7 +329,7 @@ def unpatch():
         return
     llama_core._datadog_patch = False
 
-    integration_hooks.on_unpatch(COMPONENT)
+    integration_hooks.on_unpatch(config.llama_index.integration_name)
 
     for (cls, method_name), original in _originals.items():
         try:
