@@ -833,6 +833,29 @@ def test_resource_with_same_mount_in_each_router(tracer, test_spans):
     assert request_span.get_tag("http.route") == "/api/items/{item_id:int}"
 
 
+def test_resource_with_nested_empty_mounts(tracer, test_spans):
+    """Sub-applications nested in Mount("") have the same path and root_path, but each is a
+    routing level of its own, so every request span still gets the route template.
+    """
+    from starlette.routing import Mount
+
+    async def user(request):
+        return PlainTextResponse("ok")
+
+    inner = Starlette(routes=[Route("/users/{user_id}", endpoint=user)])
+    middle = Starlette(routes=[Mount("", inner)])
+    app = Starlette(routes=[Mount("", middle)])
+
+    with TestClient(app) as client:
+        r = client.get("/users/123")
+
+    assert r.status_code == 200
+    request_spans = list(test_spans.filter_spans(name="starlette.request"))
+    assert len(request_spans) == 3
+    for span in request_spans:
+        assert span.resource == "GET /users/{user_id}"
+
+
 def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
     """Starlette route resolution is safe before span finish and request teardown.
 
