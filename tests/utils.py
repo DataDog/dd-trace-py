@@ -718,6 +718,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> DummyWriter:
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 

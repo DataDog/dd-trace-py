@@ -27,7 +27,6 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
@@ -358,10 +357,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
-    monkeypatch,
 ):
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
@@ -419,10 +415,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
-    monkeypatch,
 ):
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
@@ -459,9 +452,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
-def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept(tracer, monkeypatch):  # noqa: F811
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
+def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept(tracer):  # noqa: F811
     tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
     try:
         with tracer.trace("local_root_span0"):
@@ -503,10 +494,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
-    monkeypatch,
 ):
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
@@ -560,10 +548,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
 
 def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
     tracer,  # noqa: F811
-    monkeypatch,
 ):
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
     try:
         with tracer.trace("local_root_span0"):
@@ -619,10 +604,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
-    monkeypatch,
 ):
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
@@ -692,10 +674,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
     sca_enabled,
     appsec_enabled,
     iast_enabled,  # noqa: F811
-    monkeypatch,
 ):
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 

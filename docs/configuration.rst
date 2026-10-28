@@ -152,6 +152,20 @@ Traces
      version_added:
        v0.41.0:
 
+   DD_TRACE_ELEVENLABS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Enables automatic instrumentation of ElevenLabs Python Agents WebSocket
+         conversations. Set to False to disable this integration.
+
+   DD_ELEVENLABS_SERVICE:
+     type: String
+     default: None
+     description: |
+         Overrides the service name for ElevenLabs conversation spans. The
+         DD_ELEVENLABS_SERVICE_NAME alias is also supported.
+
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
      default: True
@@ -435,6 +449,21 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Enables automatic instrumentation of the asynchronous AWS SDK for Bedrock Runtime.
+       Nova 2 Sonic conversation spans also require LLM Observability to be enabled.
+
+   DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE:
+     type: String
+     default: None
+     description: |
+       Overrides the service name for AWS SDK Bedrock Runtime spans.
+       ``DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME`` is an alias.
+       When unset, spans use the application's configured service.
+
    DD_LLMOBS_PAYLOAD_SIZE_BYTES:
      type: Int
      default: 5242880
@@ -503,7 +532,7 @@ Traces
          **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
 
      version_added:
-        v4.15.0:
+        v4.16.0:
 
 Trace Context propagation
 -------------------------

@@ -12,7 +12,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.settings._config import Config
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.writer import NativeWriter
@@ -66,12 +65,14 @@ def test_aggregator_reset_with_args():
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is True
+    assert aggr.tags_processor.apm_opt_out is False
     # Reset the aggregator with new args and new user processors and expect the new values to be set
     aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
     assert aggr.user_processors == []
     assert dd_proc in aggr.dd_processors
     assert aggr.sampling_processor.apm_opt_out is True
     assert aggr.sampling_processor._compute_stats_enabled is True
+    assert aggr.tags_processor.apm_opt_out is True
     assert aggr.writer._api_version == "v0.4"
     assert span.trace_id in aggr._traces
 
@@ -198,13 +199,11 @@ def test_set_http_meta(
             assert span.get_tag(tag) == value
 
 
-def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer, monkeypatch):
+def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
     """
     In ASM standalone mode, agent-based samplers should not interfere
     with the rate limiter.
     """
-    # Standalone configuration changes the global stats setting; monkeypatch it to avoid impacting other tests.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", True):
         tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
 
@@ -231,25 +230,24 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer, monkeypatch
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer, monkeypatch):
-    # Standalone configuration changes the global stats setting; restore it during teardown.
-    monkeypatch.setattr(config, "_trace_compute_stats", config._trace_compute_stats)
+def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    try:
-        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
-            tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
-            if sca_enabled == "true":
-                assert appsec_telemetry_config.SCA_ENABLED is True
-            assert tracer.enabled is False
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
+        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
+        if sca_enabled == "true":
+            assert appsec_telemetry_config.SCA_ENABLED is True
+        assert tracer.enabled is False
 
-            assert isinstance(tracer._sampler.limiter, RateLimiter)
-            assert tracer._sampler.limiter.rate_limit == 1
-            assert tracer._sampler.limiter.time_window == 60e9
+        assert isinstance(tracer._sampler.limiter, RateLimiter)
+        assert tracer._sampler.limiter.rate_limit == 1
+        assert tracer._sampler.limiter.time_window == 60e9
 
-            assert config._trace_compute_stats is False
-    finally:
-        # reset tracer values
-        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
-            tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+        # Stats computation stays enabled and is only shadowed by the opt-out.
+        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is True
+        assert tracer._span_aggregator.sampling_processor.apm_opt_out is True
+
+    # reset tracer values
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
+        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
