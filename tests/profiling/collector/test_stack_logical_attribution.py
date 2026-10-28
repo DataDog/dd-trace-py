@@ -277,10 +277,6 @@ def test_greenlet_samples_use_the_thread_span_until_the_greenlet_switch_is_on() 
     unit_span = (UNIT_SPAN_ID, 2000, UNIT_TRACE_TYPE, _stack.SPAN_LINK_KIND_SPAN)
 
     switch = os.environ["LOGICAL_ATTRIBUTION_SWITCH"]
-    if switch == "asyncio_task":
-        stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_ASYNCIO_TASK, True)
-    elif switch == "greenlet":
-        stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_GREENLET, True)
 
     pprof_prefix = "/tmp/test_stack_logical_attribution_gevent"
     ddup.config(env="test", service="test_stack_logical_attribution", version="0", output_filename=pprof_prefix)
@@ -306,6 +302,9 @@ def test_greenlet_samples_use_the_thread_span_until_the_greenlet_switch_is_on() 
         unlinked_greenlet_work()
 
     with stack_collector.StackCollector():
+        # The gevent support turns the Greenlet switch on once it tracks greenlets. Set both switches for this case.
+        stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_ASYNCIO_TASK, switch == "asyncio_task")
+        stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_GREENLET, switch == "greenlet")
         # Nothing in the profiler opens the keyed span links yet, so the test opens them for its own writes.
         stack.links_open()
         # The thread's span is what every greenlet sample got before greenlets had keys.

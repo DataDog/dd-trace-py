@@ -10,12 +10,14 @@ from ddtrace.internal.native._native import SpanData
 
 # A Python copy of the lifecycle token (stack.lifecycle()) that the stack collector last opened or closed span links
 # with, and the tracer whose spans it publishes while they are open. The token is odd while span links are open and
-# even while they are closed. The asyncio task creation hook is not a tracer listener, so it reads lifecycle_tracer to
-# find the tracer. lifecycle_tracer is None while span links are closed, so the hook skips its work while profiling is
-# stopped. lifecycle_mirror is for writers that must not call into native code on every event. Read both as
-# attributes of this module, so that updates are seen. The copies can lag behind the native token during a start or a
-# stop. That is safe: every write still passes the token the writer read with stack.lifecycle(), and native code
-# drops the write if that token is no longer current.
+# even while they are closed. Two writers are not tracer listeners and read these copies:
+# - The asyncio task creation hook reads lifecycle_tracer to find the tracer. lifecycle_tracer is None while span
+#   links are closed, so the hook skips its work while profiling is stopped.
+# - The greenlet tracer reads lifecycle_mirror and lifecycle_tracer on every greenlet switch, instead of calling into
+#   native code each time.
+# Read both as attributes of this module, so that updates are seen. The copies can lag behind the native token during
+# a start or a stop. That is safe: every write still passes the token the writer read with stack.lifecycle(), and
+# native code drops the write if that token is no longer current.
 lifecycle_mirror: int = 0
 lifecycle_tracer: Optional[ProfilerTracer] = None
 

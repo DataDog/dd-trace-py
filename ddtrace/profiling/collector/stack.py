@@ -132,7 +132,8 @@ class StackCollector(collector.Collector):
             # restored as the active one. Publish what active() would return instead.
             item = context_meta.resolve(span) if context_meta.inheritance_mode(provider) else span
             task_id = _asyncio.current_task_link_id()
-            _span_links.publish(provider, token, True, task_id, 0, item)
+            greenlet_id = _task.current_tracked_greenlet_id()
+            _span_links.publish(provider, token, True, task_id, greenlet_id, item)
         except Exception:  # nosec B110
             pass
 

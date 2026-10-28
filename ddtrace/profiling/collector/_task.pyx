@@ -30,6 +30,16 @@ cpdef initialize_gevent_support():
     when_imported("gevent")(_initialize_gevent_module)
 
 
+cpdef current_tracked_greenlet_id():
+    """Return the id of the current greenlet if the stack profiler tracks it, otherwise 0.
+
+    This is always 0 until gevent is imported, so the activation listener pays for no gevent lookup before that.
+    """
+    if _gevent_helper is None:
+        return 0
+    return _gevent_helper.current_tracked_greenlet_id()
+
+
 cpdef uintptr_t task_object_address(object task):
     """Return the memory address of a Python object as a numeric task ID."""
     return <uintptr_t><PyObject*>task
