@@ -111,7 +111,7 @@ class TestProviderStatus:
         try:
             with override_global_config({"experimental_flagging_provider_enabled": True}):
                 provider = DataDogProvider()
-                api.set_provider(provider)
+                _set_provider(provider)
 
                 # Clear events from initialization
                 ready_events.clear()
