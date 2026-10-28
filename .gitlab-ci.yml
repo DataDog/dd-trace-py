@@ -158,6 +158,8 @@ run-tests-trigger:
 
 serverless lambda tests:
   stage: tests
+  # TODO: remove once the downstream pytest breakage is fixed
+  allow_failure: true
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
