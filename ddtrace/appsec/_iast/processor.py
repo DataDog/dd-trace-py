@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 
@@ -38,7 +39,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         load_iast()
 
     def on_span_start(self, span: SpanData) -> None:
-        if span.span_type != SpanTypes.WEB:
+        if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
 
         _iast_start_request(span)
@@ -51,6 +52,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
             - `_dd.iast.enabled`: Set to 1 when IAST is enabled in a request. If a request is disabled
               (e.g. by sampling), then it is not set.
         """
-        if span.span_type != SpanTypes.WEB:
+        if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
         _iast_end_request(span)
