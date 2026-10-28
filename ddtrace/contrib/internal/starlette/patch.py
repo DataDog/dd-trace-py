@@ -254,6 +254,25 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
     return False
 
 
+def _add_resource_path(scope: dict, instance: Any) -> None:
+    resource_paths = scope["datadog"].setdefault("resource_paths", [])
+    # (path, root_path) of each Mount in resource_paths, None for routes
+    mounts = scope["datadog"].setdefault("_dd_resource_path_mounts", [])
+    mount = None
+    if isinstance(instance, starlette.routing.Mount):
+        # Mount.matches() sets root_path to everything matched so far. A Mount handled with
+        # the same path and root_path as an earlier one is not nested in it but routes the
+        # request again, e.g. connexion runs one Router with the same Mount per middleware.
+        # It replaces the earlier Mount instead of adding its path a second time.
+        mount = (instance.path, scope.get("root_path"))
+        if mount in mounts:
+            index = mounts.index(mount)
+            del resource_paths[index:]
+            del mounts[index:]
+    resource_paths.append(instance.path)
+    mounts.append(mount)
+
+
 def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
     effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
     if effective_route_context is None:
@@ -296,10 +315,7 @@ def traced_handler(wrapped, instance, args, kwargs):
     # the composed path is read directly from effective_route_context and resource_paths
     # is never consumed.
     if full_path is None:
-        if "resource_paths" not in scope["datadog"]:
-            scope["datadog"]["resource_paths"] = [instance.path]
-        else:
-            scope["datadog"]["resource_paths"].append(instance.path)
+        _add_resource_path(scope, instance)
 
     resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
