@@ -817,6 +817,10 @@ lib_injection_tests:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - export PYENV_VERSION=${PYTHON_VERSION}
+    # Native test binaries link libpython without an RPATH into the pyenv lib
+    # dir. The image's ld.so.conf can point at older patch dirs than pyenv
+    # actually installed, so put the selected interpreter's lib on the path.
+    - export LD_LIBRARY_PATH="$(pyenv prefix)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   script:
     - python --version
     # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
