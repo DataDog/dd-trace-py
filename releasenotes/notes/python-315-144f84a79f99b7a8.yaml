@@ -5,7 +5,7 @@ upgrade:
     and integrations still **do not** work with Python 3.15:
 
     * CI Visibility
-    * django / django_hosts / djangorestframework / django:celery
+    * django_hosts / djangorestframework / django:celery
     * kafka - confluent-kafka does not yet support Python 3.15
     * pysqlite3-binary - does not yet support Python 3.15 (stdlib ``sqlite3`` tracing is unaffected)
     * grpc_aio
@@ -15,8 +15,6 @@ upgrade:
     * langgraph
     * litellm
     * crewai
-    * ai_guard_langchain
-    * ai_guard_anthropic
     * ai_guard_litellm_guardrail
     * vertexai
     * llmobs - ragas path does not yet support Python 3.15
@@ -25,12 +23,8 @@ upgrade:
     * pydantic_ai
     * vllm
     * ray / ray_serve - ray does not yet support Python 3.15
-    * pymongo
-    * aws_durable_execution_sdk_python
-    * appsec_iast_packages
-    * appsec_integrations_packages
     * gevent
-    * graphql / graphene
+    * graphene
     * mlflow
     * pytorch
     * redis
@@ -38,9 +32,8 @@ upgrade:
     * mysqlpython
     * flask_cache
     * profile-uwsgi / tracer-uwsgi
+    * lib_injection - OCI/SSI packaging for 3.15 is not in this change
     * vertica - hasn't been supported by ddtracepy since Python 3.9
-    * bottle - hasn't been supported by ddtracepy since Python 3.10
     * aredis - untested since Python 3.9
-    * yaaredis - untested since Python 3.10
     * rediscluster - untested since Python 3.11
     * asynctest - untested since Python 3.9
