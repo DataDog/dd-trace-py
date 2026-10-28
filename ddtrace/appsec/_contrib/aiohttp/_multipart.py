@@ -37,7 +37,7 @@ _MAX_TOTAL_DECOMPRESSED = 4 * 1024 * 1024
 _DEFAULT_MAX_PARTS = 1000
 _YIELD_EVERY = 25
 _MAX_SLOW_CHARSET_DECODED = 16 * 1024
-_MAX_JSON_PARSED = 1024 * 1024
+_MAX_DECOMPRESSED_PARSED = 1024 * 1024
 _MAX_COMPRESSED_MEMBERS = 256
 
 
@@ -45,7 +45,7 @@ class _Walk:
     __slots__ = (
         "decompress_budget",
         "slow_charset_budget",
-        "json_budget",
+        "parse_budget",
         "members_left",
         "exhausted",
         "parts_left",
@@ -55,7 +55,7 @@ class _Walk:
     def __init__(self, max_fields: int, max_size: int) -> None:
         self.decompress_budget = _MAX_TOTAL_DECOMPRESSED
         self.slow_charset_budget = _MAX_SLOW_CHARSET_DECODED
-        self.json_budget = _MAX_JSON_PARSED
+        self.parse_budget = _MAX_DECOMPRESSED_PARSED
         self.members_left = _MAX_COMPRESSED_MEMBERS
         self.exhausted = False
         self.parts_left = max_fields
@@ -183,19 +183,19 @@ def _decode(part: BodyPartReader, raw: bytearray, walk: _Walk) -> list[Any]:
             else:
                 walk.slow_charset_budget -= len(data)
     decompressed = data is not transfer_decoded
-    if decompressed and media_type is MediaType.JSON:
-        if walk.json_budget < len(data):
+    if decompressed and media_type in (MediaType.JSON, MediaType.FORM_URLENCODED):
+        if walk.parse_budget < len(data):
             media_type = MediaType.PLAIN
         else:
-            walk.json_budget -= len(data)
+            walk.parse_budget -= len(data)
     is_text = content_type is None or content_type.startswith("text/")
     charset = (declared_charset or "utf-8") if is_text else "utf-8"
     values = [_value(data, charset, media_type, punycode)]
     if not is_text and declared_charset and not is_utf8_charset(declared_charset):
         values.append(_value(data, declared_charset, media_type, punycode))
-    if punycode:
+    if punycode or not is_utf8_charset(charset):
         values.append(decode_text(data, "utf-8"))
-    if transfer_decoded is not raw or (not decompressed and not is_utf8_charset(charset)):
+    if transfer_decoded is not raw:
         values.append(decode_text(raw, "utf-8"))
     return [value for index, value in enumerate(values) if value not in values[:index]]
 

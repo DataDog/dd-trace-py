@@ -382,6 +382,17 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
                 },
                 "POST",
             ),
+            (
+                {
+                    "n": (
+                        "\r\nContent-Type: multipart/mixed; boundary=in",
+                        b"--in\r\nContent-Type: text/plain; charset=utf-16-be\r\nContent-Encoding: gzip\r\n\r\n"
+                        + gzip.compress(_ATTACK.encode())
+                        + b"\r\n--in--",
+                    )
+                },
+                "POST",
+            ),
         ],
         ids=[
             "base64",
@@ -416,6 +427,7 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             "nested_gzip_with_trailing_bytes",
             "non_ascii_charset_spelling",
             "nested_two_deflate_members",
+            "nested_gzip_utf8_text_declared_utf16",
         ],
     )
     def test_multipart_parts_decoded_as_aiohttp(self, interface, entry_span, get_entry_span_tag, fields, method):
@@ -556,10 +568,14 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             response = interface.client.post("/asm/", data=body, content_type="application/json; charset=punycode")
             self.assert_blocked(response, entry_span, get_entry_span_tag, "tst-037-003")
 
-    def test_multipart_json_parsing_budget(self, interface):
-        nested_json = gzip.compress(b"[" + b"[]," * 5460 + b"[]]")
+    @pytest.mark.parametrize(
+        ("content_type", "payload"),
+        [("application/json", b"[" + b"[]," * 5460 + b"[]]"), ("application/x-www-form-urlencoded", b"a=&" * 5460)],
+    )
+    def test_multipart_parsing_budget(self, interface, content_type, payload):
+        part = gzip.compress(payload)
         inner = b"".join(
-            b"--in\r\nContent-Type: application/json\r\nContent-Encoding: gzip\r\n\r\n" + nested_json + b"\r\n"
+            f"--in\r\nContent-Type: {content_type}\r\nContent-Encoding: gzip\r\n\r\n".encode() + part + b"\r\n"
             for _ in range(200)
         )
         body, content_type = _multipart_body(
@@ -571,7 +587,7 @@ class Test_Aiohttp(_Test_Aiohttp_Base, utils.Contrib_TestClass_For_Threats):
             assert self.status(response) == 200, self.body(response)
             assert utils._addresses_store, "no waf addresses stored"
             parts = utils._addresses_store[0]["http.request.body"]["n"][""]
-            assert sum(isinstance(value, list) for value in parts) < len(parts)
+            assert 0 < sum(isinstance(value, str) for value in parts) < len(parts)
 
     def test_multipart_slow_charset_across_parts_is_bounded(self, interface):
         part = ("\r\nContent-Type: text/plain; charset=punycode", b"a" * 4000)

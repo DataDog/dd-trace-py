@@ -6,7 +6,11 @@ from ddtrace.internal.http import HTTPResponse
 from ddtrace.internal.http import NativeHTTPConnection
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import inspectable_charset
+from ddtrace.internal.utils.http import is_punycode_charset
+from ddtrace.internal.utils.http import is_slow_charset
+from ddtrace.internal.utils.http import is_utf8_charset
 from ddtrace.internal.utils.http import parse_form_multipart
+from ddtrace.internal.utils.http import parse_json_bytes
 
 
 @pytest.mark.parametrize("scheme", ["http", "https"])
@@ -87,3 +91,42 @@ def test_inspectable_charset_does_not_cache_unknown_names() -> None:
         inspectable_charset("utf" + "\u00e9" * (i + 1) + "8")
         inspectable_charset("utf." * (i + 1) + "8")
     assert len(encodings._cache) == before
+
+
+@pytest.mark.parametrize(
+    ("charset", "expected"), [("utf-8", True), ("UTF8", True), ("utf_8", True), ("latin-1", False)]
+)
+def test_is_utf8_charset(charset, expected) -> None:
+    assert is_utf8_charset(charset) is expected
+
+
+@pytest.mark.parametrize(("charset", "expected"), [("punycode", True), ("idna", True), ("utf-8", False)])
+def test_is_slow_charset(charset, expected) -> None:
+    assert is_slow_charset(charset) is expected
+
+
+@pytest.mark.parametrize(
+    ("charset", "expected"), [("punycode", True), (" PunyCode ", True), ("utf-8", False), (None, False)]
+)
+def test_is_punycode_charset(charset, expected) -> None:
+    assert is_punycode_charset(charset) is expected
+
+
+@pytest.mark.parametrize(
+    ("data", "charset", "punycode", "expected"),
+    [
+        (b'{"a": 1}', "utf-8", False, {"a": 1}),
+        ('{"a": "\u00e9"}'.encode("utf-16"), "utf-16", False, {"a": "\u00e9"}),
+        (b'{"a": 1}', "utf-16-be", False, {"a": 1}),
+        ('{"a": "\u00e9"}'.encode("punycode"), "punycode", True, {"a": "\u00e9"}),
+        (b'{"a": 1}-!!', "punycode", True, {"a": 1}),
+    ],
+)
+def test_parse_json_bytes(data, charset, punycode, expected) -> None:
+    assert parse_json_bytes(data, charset, punycode) == expected
+
+
+@pytest.mark.parametrize(("data", "charset", "punycode"), [(b"{bad", "utf-8", False), (b'{"a": 1}-!!', "utf-8", False)])
+def test_parse_json_bytes_invalid(data, charset, punycode) -> None:
+    with pytest.raises(ValueError):
+        parse_json_bytes(data, charset, punycode)
